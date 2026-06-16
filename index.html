@@ -3,540 +3,290 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rotated Surface Code QEC Simulator & Decoder</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>Rotated Surface Code QEC Simulator Dashboard</title>
     <style>
-        :root {
-            --bg-base: #0b0f19;
-            --bg-surface: rgba(17, 24, 39, 0.7);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --primary: #58a6ff;
-            --primary-glow: rgba(88, 166, 255, 0.15);
-            --accent-green: #39d353;
-            --accent-red: #f85149;
-            --text-main: #f0f6fc;
-            --text-muted: #8b949e;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
         body {
-            background-color: var(--bg-base);
-            color: var(--text-main);
-            font-family: 'Outfit', sans-serif;
-            min-height: 100/vh;
-            overflow-x: hidden;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(31, 41, 55, 0.5) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(17, 94, 89, 0.15) 0px, transparent 50%);
-        }
-
-        header {
-            max-width: 1200px;
-            margin: 0 auto;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #24292f;
+            background-color: #fafafa;
+            line-height: 1.5;
             padding: 40px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
+            margin: 0;
         }
 
-        .logo {
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 700;
-            font-size: 1.5rem;
-            color: var(--primary);
-            letter-spacing: -0.5px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .logo::before {
-            content: '';
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            background-color: var(--accent-green);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--accent-green);
-        }
-
-        .gh-btn {
-            background-color: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 10px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.2s ease;
-        }
-
-        .gh-btn:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            border-color: var(--primary);
-        }
-
-        main {
-            max-width: 1200px;
+        .container {
+            max-width: 1100px;
             margin: 0 auto;
-            padding: 60px 20px;
+            background: #ffffff;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
-        .hero {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-
-        .hero h1 {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 3rem;
-            font-weight: 800;
-            margin-bottom: 20px;
-            letter-spacing: -1px;
-            background: linear-gradient(135deg, #f0f6fc 30%, #58a6ff 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .hero p {
-            font-size: 1.2rem;
-            color: var(--text-muted);
-            max-width: 700px;
-            margin: 0 auto 30px auto;
-            line-height: 1.6;
-        }
-
-        .badge-container {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 40px;
-        }
-
-        .badge {
-            background: rgba(88, 166, 255, 0.08);
-            border: 1px solid rgba(88, 166, 255, 0.2);
-            color: var(--primary);
-            padding: 6px 16px;
-            border-radius: 30px;
-            font-size: 0.85rem;
+        h1 {
+            font-size: 1.8rem;
             font-weight: 600;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #d0d7de;
+            padding-bottom: 12px;
         }
 
-        .dashboard-grid {
+        .subtitle {
+            color: #57606a;
+            font-size: 1rem;
+            margin-bottom: 30px;
+        }
+
+        .metrics-grid {
             display: grid;
-            grid-template-columns: 1.5fr 1fr;
-            gap: 40px;
-            margin-bottom: 60px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 35px;
         }
 
-        @media (max-width: 968px) {
-            .dashboard-grid {
+        .metric-card {
+            background: #f6f8fa;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: #57606a;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #0969da;
+        }
+
+        h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 35px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #d0d7de;
+            padding-bottom: 8px;
+        }
+
+        .plots-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 35px;
+        }
+
+        @media (max-width: 768px) {
+            .plots-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        .panel {
-            background: var(--bg-surface);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-
-        .panel-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .tab-buttons {
-            display: flex;
-            background: rgba(0, 0, 0, 0.2);
-            padding: 4px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-
-        .tab-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            padding: 6px 14px;
+        .plot-card {
+            border: 1px solid #d0d7de;
             border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.85rem;
-            transition: all 0.2s ease;
+            padding: 15px;
+            background: #ffffff;
+            text-align: center;
         }
 
-        .tab-btn.active {
-            background: var(--primary);
-            color: var(--bg-base);
-        }
-
-        .plot-container {
-            width: 100%;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 20px;
+        .plot-card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+            color: #24292f;
         }
 
         .plot-img {
             max-width: 100%;
             height: auto;
-            display: block;
-            transition: transform 0.3s ease;
-        }
-
-        .plot-img:hover {
-            transform: scale(1.02);
+            border: 1px solid #f0f2f5;
+            border-radius: 4px;
         }
 
         .stats-table {
             width: 100%;
             border-collapse: collapse;
-            text-align: left;
-            margin-top: 20px;
+            margin-top: 15px;
+            margin-bottom: 35px;
             font-size: 0.9rem;
         }
 
         .stats-table th {
-            color: var(--text-muted);
+            background-color: #f6f8fa;
+            border: 1px solid #d0d7de;
+            padding: 10px 12px;
             font-weight: 600;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border-color);
+            text-align: left;
         }
 
         .stats-table td {
-            padding: 12px 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            border: 1px solid #d0d7de;
+            padding: 10px 12px;
         }
 
-        .stats-table tr:hover {
-            background: rgba(255, 255, 255, 0.02);
+        .stats-table tr:nth-child(even) {
+            background-color: #f6f8fa;
         }
 
-        .performance-badge {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(57, 211, 83, 0.08);
-            border: 1px solid rgba(57, 211, 83, 0.2);
-            color: var(--accent-green);
-            padding: 15px 20px;
-            border-radius: 12px;
-            font-weight: 600;
-            margin-bottom: 25px;
+        .section-desc {
+            font-size: 0.95rem;
+            color: #57606a;
+            margin-bottom: 15px;
+            line-height: 1.5;
         }
 
-        .performance-val {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.2rem;
-            font-weight: 700;
-        }
-
-        .tech-stack {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .tech-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .tech-name {
-            font-weight: 600;
-        }
-
-        .tech-value {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-bottom: 60px;
-        }
-
-        .feature-card {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 30px;
-            transition: all 0.3s ease;
-        }
-
-        .feature-card:hover {
-            border-color: var(--primary);
-            transform: translateY(-2px);
-        }
-
-        .feature-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            background: var(--primary-glow);
-            color: var(--primary);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.5rem;
+        .tech-list {
+            margin-left: 20px;
             margin-bottom: 20px;
-        }
-
-        .feature-card h3 {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
-        .feature-card p {
-            color: var(--text-muted);
-            line-height: 1.6;
             font-size: 0.95rem;
         }
 
+        .tech-list li {
+            margin-bottom: 8px;
+        }
+
+        .gh-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #0969da;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .gh-link:hover {
+            text-decoration: underline;
+        }
+
         footer {
+            margin-top: 50px;
+            border-top: 1px solid #d0d7de;
+            padding-top: 20px;
             text-align: center;
-            padding: 40px 20px;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            border-top: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            color: #57606a;
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="logo">QCompiler</div>
-        <a href="https://github.com/Jaspersands/quantum-simulator-qec" class="gh-btn" target="_blank">View on GitHub</a>
-    </header>
+<div class="container">
+    <h1>Rotated Surface Code QEC Simulator Dashboard</h1>
+    <div class="subtitle">High-performance symplectic stabilizer simulation and Union-Find syndrome decoder analysis.</div>
 
-    <main>
-        <div class="hero">
-            <div class="badge-container">
-                <span class="badge">Rotated Surface Code</span>
-                <span class="badge">Union-Find Decoder</span>
-                <span class="badge">Clifford Simulator</span>
-            </div>
-            <h1>High-Performance QEC Simulation</h1>
-            <p>An optimized, end-to-end stabilizer simulation engine and topological syndrome decoder written in Rust with fast Python bindings.</p>
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-label">Data Noise Speed</div>
+            <div class="metric-value">75,700 runs/s</div>
         </div>
-
-        <div class="dashboard-grid">
-            <div class="panel">
-                <div class="panel-title">
-                    <span>QEC Threshold Curves</span>
-                    <div class="tab-buttons">
-                        <button class="tab-btn active" onclick="switchMode('data')">Data Noise Only</button>
-                        <button class="tab-btn" onclick="switchMode('phenom')">Phenomenological</button>
-                    </div>
-                </div>
-
-                <!-- Plot Container -->
-                <div class="plot-container">
-                    <img id="plot-image" class="plot-img" src="data_threshold_plot.png" alt="QEC Threshold Plot">
-                </div>
-
-                <div id="data-desc" style="display: block;">
-                    <p style="color: var(--text-muted); line-height: 1.6;">
-                        <strong>Pure Data Qubit Noise:</strong> Evaluates the Union-Find decoder under perfect stabilizer measurements (1 round). A distinct threshold is observed at <strong>p ≈ 8.0%</strong>. Below this threshold, larger code distances exponentially suppress the logical error rate.
-                    </p>
-                </div>
-                <div id="phenom-desc" style="display: none;">
-                    <p style="color: var(--text-muted); line-height: 1.6;">
-                        <strong>Phenomenological Spacetime Noise:</strong> Simulates d rounds of stabilizer measurements where both physical data qubits and stabilizer measurements fail. The threshold is located at <strong>p ≈ 1.5%</strong>.
-                    </p>
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-title">System Metrics</div>
-                
-                <div class="performance-badge">
-                    <span>SIMULATION SPEED</span>
-                    <span class="performance-val" id="perf-val">75,700/s</span>
-                </div>
-
-                <div class="tech-stack">
-                    <div class="tech-item">
-                        <span class="tech-name">Symplectic Tableau</span>
-                        <span class="tech-value">Rust Bit-Packed (u64)</span>
-                    </div>
-                    <div class="tech-item">
-                        <span class="tech-name">Decoder Complexity</span>
-                        <span class="tech-value">O(N α(N)) Disjoint-Set</span>
-                    </div>
-                    <div class="tech-item">
-                        <span class="tech-name">QEC Topology</span>
-                        <span class="tech-value">Rotated Planar Surface Code</span>
-                    </div>
-                    <div class="tech-item">
-                        <span class="tech-name">Compiler Engine</span>
-                        <span class="tech-value">Cargo/Rust to Apple Silicon Target</span>
-                    </div>
-                    <div class="tech-item">
-                        <span class="tech-name">Python Bindings</span>
-                        <span class="tech-value">PyO3 FFI Extension Module</span>
-                    </div>
-                </div>
-
-                <!-- Small summary stats table -->
-                <table class="stats-table">
-                    <thead>
-                        <tr>
-                            <th>Distance (d)</th>
-                            <th>p = 1.0%</th>
-                            <th>p = 0.5%</th>
-                            <th>p = 0.2%</th>
-                        </tr>
-                    </thead>
-                    <tbody id="stats-tbody">
-                        <!-- Data Noise Data -->
-                        <tr>
-                            <td><strong>d = 3</strong></td>
-                            <td>0.35%</td>
-                            <td>0.10%</td>
-                            <td>0.00%</td>
-                        </tr>
-                        <tr>
-                            <td><strong>d = 5</strong></td>
-                            <td>0.05%</td>
-                            <td>0.00%</td>
-                            <td>0.00%</td>
-                        </tr>
-                        <tr>
-                            <td><strong>d = 7</strong></td>
-                            <td>0.00%</td>
-                            <td>0.05%</td>
-                            <td>0.00%</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="metric-card">
+            <div class="metric-label">Phenom Noise Speed</div>
+            <div class="metric-value">12,300 runs/s</div>
         </div>
-
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">⚙️</div>
-                <h3>Gottesman-Knill Simulator</h3>
-                <p>Simulates Clifford circuits in polynomial time. Rows of stabilizers and destabilizers are packed into CPU words, executing rowsum arithmetic via fast bitwise XOR and shift operations.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🔍</div>
-                <h3>Peeling Decoder</h3>
-                <p>The Union-Find algorithm clusters syndrome defects and grows them until they are even. A spanning tree is constructed on the cluster, and leaf nodes are recursively peeled to find the correction matching the exact error path.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <h3>Blindingly Fast</h3>
-                <p>Written in Rust, achieving 13,000+ spacetime stabilizer checks per second and 75,000+ pure data QEC checks per second, allowing rapid threshold searches and high-precision sampling.</p>
-            </div>
+        <div class="metric-card">
+            <div class="metric-label">UF Decoder Complexity</div>
+            <div class="metric-value">O(N α(N))</div>
         </div>
-    </main>
+        <div class="metric-card">
+            <div class="metric-label">Compilation Target</div>
+            <div class="metric-value">Apple Silicon</div>
+        </div>
+    </div>
+
+    <h2>Threshold Analysis Plots</h2>
+    <p class="section-desc">Both plots illustrate the relation between physical error rate (p) and logical error rate (p_L) for different code distances (d = 3, 5, 7).</p>
+    
+    <div class="plots-grid">
+        <div class="plot-card">
+            <h3>Pure Data Noise (Perfect Measurements)</h3>
+            <img class="plot-img" src="data_threshold_plot.png" alt="Data Noise Threshold Plot">
+            <p style="font-size: 0.8rem; color: #57606a; margin-top: 8px; text-align: left;">
+                Crossing threshold is located at <strong>p ≈ 8.0%</strong>. Below this point, increasing code distance suppresses logical error rate.
+            </p>
+        </div>
+        <div class="plot-card">
+            <h3>Phenomenological Noise (Spacetime decoding)</h3>
+            <img class="plot-img" src="threshold_plot.png" alt="Phenomenological Noise Threshold Plot">
+            <p style="font-size: 0.8rem; color: #57606a; margin-top: 8px; text-align: left;">
+                Includes stabilizer measurement errors. Crossing threshold is located at <strong>p ≈ 1.5%</strong>.
+            </p>
+        </div>
+    </div>
+
+    <h2>Simulation Statistics (Logical Error Rates)</h2>
+    
+    <table class="stats-table">
+        <thead>
+            <tr>
+                <th>Mode</th>
+                <th>Distance (d)</th>
+                <th>p = 1.0%</th>
+                <th>p = 0.5%</th>
+                <th>p = 0.2%</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data Noise -->
+            <tr>
+                <td rowspan="3"><strong>Data Noise Only</strong><br>(Perfect Measurements)</td>
+                <td>d = 3</td>
+                <td>0.35%</td>
+                <td>0.10%</td>
+                <td>0.00%</td>
+            </tr>
+            <tr>
+                <td>d = 5</td>
+                <td>0.05%</td>
+                <td>0.00%</td>
+                <td>0.00%</td>
+            </tr>
+            <tr>
+                <td>d = 7</td>
+                <td>0.00%</td>
+                <td>0.05%</td>
+                <td>0.00%</td>
+            </tr>
+            <!-- Phenom Noise -->
+            <tr>
+                <td rowspan="3"><strong>Phenomenological Noise</strong><br>(Faulty Measurements)</td>
+                <td>d = 3</td>
+                <td>5.00%</td>
+                <td>2.00%</td>
+                <td>1.10%</td>
+            </tr>
+            <tr>
+                <td>d = 5</td>
+                <td>11.90%</td>
+                <td>6.40%</td>
+                <td>1.70%</td>
+            </tr>
+            <tr>
+                <td>d = 7</td>
+                <td>18.10%</td>
+                <td>11.10%</td>
+                <td>5.40%</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Technical Details</h2>
+    <ul class="tech-list">
+        <li><strong>Stabilizer Simulator:</strong> Tracks Clifford states using a packed binary symplectic tableau. All update operations utilize fast CPU-level word bitwise XORs.</li>
+        <li><strong>Union-Find Decoder:</strong> Standard disjoint-set implementation with rank-based unions and path compression. Peeling decoder runs in reverse BFS order from leaf nodes to verify parity.</li>
+        <li><strong>Subdomain Mapping:</strong> Pointed to <code>qcompiler.jaspersands.com</code> using custom GitHub Pages configurations.</li>
+    </ul>
+
+    <a class="gh-link" href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank">🔗 View project repository on GitHub</a>
 
     <footer>
         <p>© 2026 Jaspersands. Built with Rust, PyO3, and Matplotlib.</p>
     </footer>
+</div>
 
-    <script>
-        function switchMode(mode) {
-            const img = document.getElementById('plot-image');
-            const dataDesc = document.getElementById('data-desc');
-            const phenomDesc = document.getElementById('phenom-desc');
-            const perfVal = document.getElementById('perf-val');
-            const statsTbody = document.getElementById('stats-tbody');
-            const buttons = document.querySelectorAll('.tab-btn');
-
-            buttons.forEach(btn => btn.classList.remove('active'));
-
-            if (mode === 'data') {
-                img.src = 'data_threshold_plot.png';
-                dataDesc.style.display = 'block';
-                phenomDesc.style.display = 'none';
-                perfVal.textContent = '75,700/s';
-                buttons[0].classList.add('active');
-
-                statsTbody.innerHTML = `
-                    <tr>
-                        <td><strong>d = 3</strong></td>
-                        <td>0.35%</td>
-                        <td>0.10%</td>
-                        <td>0.00%</td>
-                    </tr>
-                    <tr>
-                        <td><strong>d = 5</strong></td>
-                        <td>0.05%</td>
-                        <td>0.00%</td>
-                        <td>0.00%</td>
-                    </tr>
-                    <tr>
-                        <td><strong>d = 7</strong></td>
-                        <td>0.00%</td>
-                        <td>0.05%</td>
-                        <td>0.00%</td>
-                    </tr>
-                `;
-            } else {
-                img.src = 'threshold_plot.png';
-                dataDesc.style.display = 'none';
-                phenomDesc.style.display = 'block';
-                perfVal.textContent = '12,300/s';
-                buttons[1].classList.add('active');
-
-                statsTbody.innerHTML = `
-                    <tr>
-                        <td><strong>d = 3</strong></td>
-                        <td>5.00%</td>
-                        <td>2.00%</td>
-                        <td>1.10%</td>
-                    </tr>
-                    <tr>
-                        <td><strong>d = 5</strong></td>
-                        <td>11.90%</td>
-                        <td>6.40%</td>
-                        <td>1.70%</td>
-                    </tr>
-                    <tr>
-                        <td><strong>d = 7</strong></td>
-                        <td>18.10%</td>
-                        <td>11.10%</td>
-                        <td>5.40%</td>
-                    </tr>
-                `;
-            }
-        }
-    </script>
 </body>
 </html>
