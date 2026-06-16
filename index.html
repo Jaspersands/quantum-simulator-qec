@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rotated Surface Code QEC Simulator Dashboard</title>
+    <title>Quantum Error Correction Simulator Dashboard</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -171,13 +171,17 @@
             font-size: 0.8rem;
             color: #57606a;
         }
+
+        select, input[type="number"], input[type="radio"] {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Rotated Surface Code QEC Simulator Dashboard</h1>
-    <div class="subtitle">High-performance symplectic stabilizer simulation and Union-Find syndrome decoder analysis.</div>
+    <h1>Quantum Error Correction Simulator Dashboard</h1>
+    <div class="subtitle">High-performance symplectic stabilizer simulation, syndrome visualizer, and Wasm-powered decoders.</div>
 
     <div class="metrics-grid">
         <div class="metric-card">
@@ -193,8 +197,137 @@
             <div class="metric-value">O(N α(N))</div>
         </div>
         <div class="metric-card">
-            <div class="metric-label">Compilation Target</div>
-            <div class="metric-value">Apple Silicon</div>
+            <div class="metric-label">Interactive Platform</div>
+            <div class="metric-value">WebAssembly</div>
+        </div>
+    </div>
+
+    <h2>Interactive Syndrome Visualizer & Decoder Playground</h2>
+    <p class="section-desc">
+        Click on data qubits to inject errors (blue for X, red for Z, purple for Y). Select the code configuration and decoder, then click <strong>Run Decoder</strong> to watch the decoder calculate and overlay the correction path in real-time.
+    </p>
+
+    <!-- Visualizer Layout -->
+    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 30px; margin-bottom: 35px; border: 1px solid #d0d7de; border-radius: 6px; padding: 25px;">
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Code Geometry:</label>
+                <select id="codeTypeSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                    <option value="0">Rotated Surface Code</option>
+                    <option value="1">XZZX Surface Code</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Code Distance (d):</label>
+                <select id="distanceSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                    <option value="3">d = 3 (9 Qubits)</option>
+                    <option value="5">d = 5 (25 Qubits)</option>
+                    <option value="7">d = 7 (49 Qubits)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Decoder:</label>
+                <select id="decoderSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                    <option value="0">Union-Find Peeling</option>
+                    <option value="1">Greedy (Nearest-Neighbor)</option>
+                </select>
+            </div>
+            <div style="border-top: 1px solid #d0d7de; padding-top: 15px;">
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 8px;">Error Injection Mode:</label>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="errorType" value="0" checked>
+                        <span>Inject X Error (Phase check)</span>
+                    </label>
+                    <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="errorType" value="1">
+                        <span>Inject Z Error (Bit flip check)</span>
+                    </label>
+                </div>
+            </div>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                <button id="decodeBtn" style="padding: 10px; background-color: #0969da; color: white; border: 1px solid #0969da; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">Run Decoder</button>
+                <button id="clearBtn" style="padding: 10px; background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 0.95rem;">Clear All Errors</button>
+            </div>
+            <div id="decodingStatus" style="margin-top: 10px; font-size: 0.9rem; font-weight: 600; padding: 10px; border-radius: 4px; border: 1px solid #d0d7de; display: none;"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #fafafa; border-radius: 6px; border: 1px solid #d0d7de; padding: 20px; position: relative;">
+            <canvas id="playgroundCanvas" width="500" height="500" style="background-color: white; border: 1px solid #d0d7de; border-radius: 4px; max-width: 100%;"></canvas>
+            <div style="margin-top: 15px; font-size: 0.8rem; color: #57606a; text-align: center; line-height: 1.6;">
+                <strong>Legend:</strong> 
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ffffff; border: 1px solid #94a3b8; margin-left: 10px; vertical-align: middle;"></span> Data (No Error)
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #3b82f6; margin-left: 10px; vertical-align: middle;"></span> X Error
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; margin-left: 10px; vertical-align: middle;"></span> Z Error
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #a855f7; margin-left: 10px; vertical-align: middle;"></span> Y Error<br>
+                <span style="display: inline-block; width: 10px; height: 10px; border: 1px dashed #cbd5e1; background-color: #f8fafc; margin-left: 10px; vertical-align: middle;"></span> Stabilizer (idle)
+                <span style="display: inline-block; width: 10px; height: 10px; background-color: #fef08a; border: 1px solid #eab308; margin-left: 10px; vertical-align: middle;"></span> Active Defect (triggered check)
+                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #22c55e; margin-left: 10px; vertical-align: middle;"></span> Applied Correction
+            </div>
+        </div>
+    </div>
+
+    <h2>Live WebAssembly Benchmarking Dashboard</h2>
+    <p class="section-desc">
+        Run real-time Monte Carlo simulations directly inside your browser. Benchmark the logical error suppression rates of the Union-Find and Greedy decoders across various code sizes and noise profiles.
+    </p>
+
+    <!-- Benchmark widget -->
+    <div style="border: 1px solid #d0d7de; border-radius: 6px; padding: 25px; margin-bottom: 35px; background: #ffffff;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px;">
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Code Type:</label>
+                <select id="benchCodeType" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                    <option value="0">Rotated Surface</option>
+                    <option value="1">XZZX Surface</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Decoder:</label>
+                <select id="benchDecoder" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                    <option value="0">Union-Find</option>
+                    <option value="1">Greedy</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Model:</label>
+                <select id="benchNoiseModel" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                    <option value="0">Data Noise Only</option>
+                    <option value="1">Phenomenological</option>
+                    <option value="2">Circuit-Level (CNOTs)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Error Rate (p):</label>
+                <input type="number" id="benchP" value="0.05" min="0" max="1" step="0.01" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Distance (d):</label>
+                <select id="benchD" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                    <option value="3">d = 3</option>
+                    <option value="5">d = 5</option>
+                    <option value="7">d = 7</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Runs:</label>
+                <input type="number" id="benchRuns" value="200" min="1" max="10000" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button id="runBenchBtn" style="padding: 10px 20px; background-color: #0969da; color: white; border: 1px solid #0969da; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">Run Benchmark</button>
+            <div id="benchProgress" style="font-size: 0.9rem; color: #57606a;">Ready.</div>
+        </div>
+        <div id="benchResultCard" style="display: none; margin-top: 20px; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 15px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div>
+                    <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #57606a;">Logical Error Rate (p_L)</div>
+                    <div id="benchResultVal" style="font-size: 1.5rem; font-weight: 600; color: #0969da; margin-top: 5px;">0.00%</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #57606a;">Simulation Speed</div>
+                    <div id="benchResultSpeed" style="font-size: 1.25rem; font-weight: 600; color: #24292f; margin-top: 5px;">-</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -276,17 +409,367 @@
 
     <h2>Technical Details</h2>
     <ul class="tech-list">
-        <li><strong>Stabilizer Simulator:</strong> Tracks Clifford states using a packed binary symplectic tableau. All update operations utilize fast CPU-level word bitwise XORs.</li>
-        <li><strong>Union-Find Decoder:</strong> Standard disjoint-set implementation with rank-based unions and path compression. Peeling decoder runs in reverse BFS order from leaf nodes to verify parity.</li>
-        <li><strong>Subdomain Mapping:</strong> Pointed to <code>qcompiler.jaspersands.com</code> using custom GitHub Pages configurations.</li>
+        <li><strong>Clifford Simulator:</strong> Tracks stabilizer states using a packed binary symplectic tableau. All update operations utilize fast CPU-level word bitwise XORs.</li>
+        <li><strong>Union-Find Decoder:</strong> Disjoint-set implementation with rank-based unions and path compression. Peeling decoder runs in reverse BFS order from leaf nodes to verify parity.</li>
+        <li><strong>Greedy Decoder:</strong> Compares active defects pairwise or to boundaries using BFS shortest-path trees to find minimum weight pairings.</li>
+        <li><strong>XZZX Surface Code:</strong> Variants feature high thresholds under biased noise. Under XZZX, all stabilizers measure alternating X and Z operators.</li>
     </ul>
 
     <a class="gh-link" href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank">🔗 View project repository on GitHub</a>
 
     <footer>
-        <p>© 2026 Jaspersands. Built with Rust, PyO3, and Matplotlib.</p>
+        <p>© 2026 Jaspersands. Built with Rust, WebAssembly, and Vanilla JavaScript.</p>
     </footer>
 </div>
+
+<script>
+    // WebAssembly loading and interactive dashboard logic
+    let wasmInstance = null;
+    let sessionPtr = null;
+
+    // UI state
+    let currentD = 3;
+    let currentCodeType = 0;
+    let currentDecoder = 0;
+
+    let dataQubits = [];
+    let stabilizers = [];
+    let corrections = null; // {x: Array, z: Array}
+
+    const canvas = document.getElementById('playgroundCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // DOM Elements
+    const codeTypeSelect = document.getElementById('codeTypeSelect');
+    const distanceSelect = document.getElementById('distanceSelect');
+    const decoderSelect = document.getElementById('decoderSelect');
+    const decodeBtn = document.getElementById('decodeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const decodingStatus = document.getElementById('decodingStatus');
+
+    // Benchmark DOM Elements
+    const benchCodeType = document.getElementById('benchCodeType');
+    const benchDecoder = document.getElementById('benchDecoder');
+    const benchNoiseModel = document.getElementById('benchNoiseModel');
+    const benchP = document.getElementById('benchP');
+    const benchD = document.getElementById('benchD');
+    const benchRuns = document.getElementById('benchRuns');
+    const runBenchBtn = document.getElementById('runBenchBtn');
+    const benchProgress = document.getElementById('benchProgress');
+    const benchResultCard = document.getElementById('benchResultCard');
+    const benchResultVal = document.getElementById('benchResultVal');
+    const benchResultSpeed = document.getElementById('benchResultSpeed');
+
+    async function loadWasm() {
+        try {
+            const response = await fetch('stabilizer_qec.wasm');
+            const buffer = await response.arrayBuffer();
+            const obj = await WebAssembly.instantiate(buffer, {});
+            wasmInstance = obj.instance;
+            console.log("Wasm loaded successfully!");
+            initSession();
+        } catch (err) {
+            console.error("Error loading Wasm:", err);
+            benchProgress.textContent = "Error loading WASM library.";
+        }
+    }
+
+    function initSession() {
+        if (!wasmInstance) return;
+
+        // Free old session
+        if (sessionPtr) {
+            wasmInstance.exports.wasm_free_session(sessionPtr);
+        }
+
+        currentD = parseInt(distanceSelect.value);
+        currentCodeType = parseInt(codeTypeSelect.value);
+        currentDecoder = parseInt(decoderSelect.value);
+
+        sessionPtr = wasmInstance.exports.wasm_create_session(currentD, currentCodeType);
+        
+        loadQubits();
+        corrections = null;
+        decodingStatus.style.display = 'none';
+        updatePlayground();
+    }
+
+    function loadQubits() {
+        dataQubits = [];
+        stabilizers = [];
+
+        const numData = wasmInstance.exports.wasm_get_data_qubit_count(sessionPtr);
+        const numStabs = wasmInstance.exports.wasm_get_stabilizer_count(sessionPtr);
+
+        const canvasPadding = 45;
+        const gridRange = currentD * 2;
+
+        const getPx = (coord) => canvasPadding + (coord / gridRange) * (canvas.width - 2 * canvasPadding);
+        const getPy = (coord) => canvasPadding + (coord / gridRange) * (canvas.height - 2 * canvasPadding);
+
+        // Load data qubits
+        for (let i = 0; i < numData; i++) {
+            const x = wasmInstance.exports.wasm_get_data_qubit_x(sessionPtr, i);
+            const y = wasmInstance.exports.wasm_get_data_qubit_y(sessionPtr, i);
+            dataQubits.push({
+                idx: i,
+                x: x,
+                y: y,
+                px: getPx(x),
+                py: getPy(y)
+            });
+        }
+
+        // Load stabilizers
+        for (let i = 0; i < numStabs; i++) {
+            const x = wasmInstance.exports.wasm_get_stabilizer_x(sessionPtr, i);
+            const y = wasmInstance.exports.wasm_get_stabilizer_y(sessionPtr, i);
+            const type = wasmInstance.exports.wasm_get_stabilizer_type(sessionPtr, i);
+            stabilizers.push({
+                idx: i,
+                x: x,
+                y: y,
+                type: type, // 0 for Z, 1 for X, 2 for XZZX
+                px: getPx(x),
+                py: getPy(y)
+            });
+        }
+    }
+
+    function updatePlayground() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const numData = dataQubits.length;
+        const numStabs = stabilizers.length;
+
+        const memory = wasmInstance.exports.memory;
+        
+        // 1. Read physical errors directly from pointers
+        const errXPtr = wasmInstance.exports.wasm_get_physical_x_ptr(sessionPtr);
+        const errZPtr = wasmInstance.exports.wasm_get_physical_z_ptr(sessionPtr);
+        
+        const errX = new Uint8Array(memory.buffer, errXPtr, numData);
+        const errZ = new Uint8Array(memory.buffer, errZPtr, numData);
+
+        // 2. Read syndromes directly from pointer
+        const synPtr = wasmInstance.exports.wasm_get_syndrome(sessionPtr);
+        const syndrome = new Uint8Array(memory.buffer, synPtr, numStabs);
+
+        // --- DRAW CONNECTIONS ---
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.setLineDash([4, 4]);
+
+        for (let s of stabilizers) {
+            for (let q of dataQubits) {
+                // Stabilizers connect to data qubits at diagonal distance = 1
+                if (Math.abs(s.x - q.x) === 1 && Math.abs(s.y - q.y) === 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(s.px, s.py);
+                    ctx.lineTo(q.px, q.py);
+                    ctx.stroke();
+                }
+            }
+        }
+        ctx.setLineDash([]);
+
+        // --- DRAW STABILIZERS (squares) ---
+        for (let i = 0; i < numStabs; i++) {
+            const s = stabilizers[i];
+            const size = 18;
+            ctx.beginPath();
+            ctx.rect(s.px - size/2, s.py - size/2, size, size);
+            
+            const isTriggered = syndrome[i] === 1;
+            if (isTriggered) {
+                ctx.fillStyle = '#fef08a';
+                ctx.strokeStyle = '#eab308';
+                ctx.lineWidth = 2;
+            } else {
+                ctx.fillStyle = '#f8fafc';
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 1;
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            // Label stabilizer type
+            ctx.fillStyle = '#64748b';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let label = "";
+            if (s.type === 0) label = "Z";
+            else if (s.type === 1) label = "X";
+            else if (s.type === 2) label = "XZ";
+            ctx.fillText(label, s.px, s.py);
+        }
+
+        // --- DRAW DATA QUBITS (circles) ---
+        for (let i = 0; i < numData; i++) {
+            const q = dataQubits[i];
+            const radius = 10;
+            ctx.beginPath();
+            ctx.arc(q.px, q.py, radius, 0, 2 * Math.PI);
+
+            const hasX = errX[i] === 1;
+            const hasZ = errZ[i] === 1;
+
+            if (hasX && hasZ) {
+                ctx.fillStyle = '#c084fc'; // Purple (Y error)
+                ctx.strokeStyle = '#7c3aed';
+            } else if (hasX) {
+                ctx.fillStyle = '#60a5fa'; // Blue (X error)
+                ctx.strokeStyle = '#2563eb';
+            } else if (hasZ) {
+                ctx.fillStyle = '#f87171'; // Red (Z error)
+                ctx.strokeStyle = '#dc2626';
+            } else {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#94a3b8';
+            }
+            ctx.lineWidth = 1.5;
+            ctx.fill();
+            ctx.stroke();
+
+            // Tiny index label
+            ctx.fillStyle = '#475569';
+            ctx.font = '8px monospace';
+            ctx.fillText(i.toString(), q.px, q.py);
+
+            // Draw green correction overlay if present
+            if (corrections) {
+                const corrXVal = corrections.x[i] === 1;
+                const corrZVal = corrections.z[i] === 1;
+                if (corrXVal || corrZVal) {
+                    ctx.beginPath();
+                    ctx.arc(q.px, q.py, radius + 4, 0, 2 * Math.PI);
+                    ctx.strokeStyle = '#22c55e';
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    // CLICK HANDLER
+    canvas.addEventListener('click', (e) => {
+        if (!sessionPtr) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        // Find closest data qubit within radius
+        let closestIdx = -1;
+        let minDist = 20;
+        for (let i = 0; i < dataQubits.length; i++) {
+            const q = dataQubits[i];
+            const dist = Math.hypot(q.px - mx, q.py - my);
+            if (dist < minDist) {
+                minDist = dist;
+                closestIdx = i;
+            }
+        }
+
+        if (closestIdx !== -1) {
+            const errorType = parseInt(document.querySelector('input[name="errorType"]:checked').value);
+            wasmInstance.exports.wasm_toggle_error(sessionPtr, closestIdx, errorType);
+            corrections = null;
+            decodingStatus.style.display = 'none';
+            updatePlayground();
+        }
+    });
+
+    // RUN DECODER
+    decodeBtn.addEventListener('click', () => {
+        if (!sessionPtr) return;
+
+        const numData = dataQubits.length;
+        const memory = wasmInstance.exports.memory;
+
+        currentDecoder = parseInt(decoderSelect.value);
+
+        const failed = wasmInstance.exports.wasm_decode(sessionPtr, currentDecoder);
+
+        const corrXPtr = wasmInstance.exports.wasm_get_correction_x_ptr(sessionPtr);
+        const corrZPtr = wasmInstance.exports.wasm_get_correction_z_ptr(sessionPtr);
+
+        const corrXArr = new Uint8Array(memory.buffer, corrXPtr, numData);
+        const corrZArr = new Uint8Array(memory.buffer, corrZPtr, numData);
+
+        // Clone correction arrays to JS memory
+        corrections = {
+            x: Array.from(corrXArr),
+            z: Array.from(corrZArr)
+        };
+
+        // Render correction overlay
+        updatePlayground();
+
+        // Update status panel
+        decodingStatus.style.display = 'block';
+        if (failed === 1) {
+            decodingStatus.style.backgroundColor = '#fef2f2';
+            decodingStatus.style.borderColor = '#fca5a5';
+            decodingStatus.style.color = '#b91c1c';
+            decodingStatus.textContent = '❌ Decoder Failed: Residual errors exceeded distance limit, resulting in a logical error!';
+        } else {
+            decodingStatus.style.backgroundColor = '#f0fdf4';
+            decodingStatus.style.borderColor = '#86efac';
+            decodingStatus.style.color = '#15803d';
+            decodingStatus.textContent = '✅ Decoder Succeeded: All syndrome defects resolved and returned to code space!';
+        }
+    });
+
+    // RESET ERRORS
+    clearBtn.addEventListener('click', () => {
+        if (!sessionPtr) return;
+        wasmInstance.exports.wasm_clear_errors(sessionPtr);
+        corrections = null;
+        decodingStatus.style.display = 'none';
+        updatePlayground();
+    });
+
+    // EVENT LISTENERS FOR INPUTS
+    codeTypeSelect.addEventListener('change', initSession);
+    distanceSelect.addEventListener('change', initSession);
+    decoderSelect.addEventListener('change', initSession);
+
+    // BENCHMARKING
+    runBenchBtn.addEventListener('click', () => {
+        if (!wasmInstance) return;
+
+        const d = parseInt(benchD.value);
+        const codeType = parseInt(benchCodeType.value);
+        const decoderType = parseInt(benchDecoder.value);
+        const noiseMode = parseInt(benchNoiseModel.value);
+        const p = parseFloat(benchP.value);
+        const runs = parseInt(benchRuns.value);
+
+        benchProgress.textContent = "Running Monte Carlo simulation...";
+        runBenchBtn.disabled = true;
+
+        // Give UI time to update
+        setTimeout(() => {
+            const t0 = performance.now();
+            const rate = wasmInstance.exports.wasm_run_benchmark(d, codeType, decoderType, p, runs, noiseMode);
+            const t1 = performance.now();
+            
+            const elapsed = (t1 - t0) / 1000;
+            const runsPerSec = Math.round(runs / elapsed);
+
+            benchProgress.textContent = `Completed in ${elapsed.toFixed(2)}s.`;
+            benchResultVal.textContent = (rate * 100).toFixed(2) + "%";
+            benchResultSpeed.textContent = runsPerSec.toLocaleString() + " runs/s";
+            benchResultCard.style.display = "block";
+            runBenchBtn.disabled = false;
+        }, 50);
+    });
+
+    // Start everything!
+    loadWasm();
+</script>
 
 </body>
 </html>

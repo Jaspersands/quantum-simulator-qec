@@ -1,5 +1,6 @@
 use crate::tableau::Tableau;
 
+#[derive(Clone)]
 pub struct StabilizerSimulator {
     tableau: Tableau,
 }

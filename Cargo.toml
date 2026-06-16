@@ -8,11 +8,16 @@ name = "stabilizer_qec"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rand = "0.8"
+rand = { version = "0.8", optional = true }
 
 [dependencies.pyo3]
 version = "0.22"
 features = ["extension-module"]
+optional = true
+
+[features]
+default = ["python"]
+python = ["dep:pyo3", "dep:rand"]
 
 [profile.release]
 opt-level = 3

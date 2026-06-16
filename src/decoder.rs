@@ -236,3 +236,103 @@ pub fn decode_union_find(
 
     correction
 }
+
+pub fn decode_greedy(
+    graph: &SyndromeGraph,
+    defects: &[bool],
+) -> Vec<usize> {
+    let total_nodes = graph.num_nodes + 1; // including boundary
+    let mut unmatched = Vec::new();
+    for u in 0..graph.num_nodes {
+        if defects[u] {
+            unmatched.push(u);
+        }
+    }
+
+    if unmatched.is_empty() {
+        return Vec::new();
+    }
+
+    // Compute shortest path distance and parents from each active defect using BFS
+    let mut dists = vec![vec![usize::MAX; total_nodes]; total_nodes];
+    let mut parent_edges = vec![vec![None; total_nodes]; total_nodes];
+    let mut parent_nodes = vec![vec![None; total_nodes]; total_nodes];
+
+    let mut adj = vec![Vec::new(); total_nodes];
+    for (edge_idx, edge) in graph.edges.iter().enumerate() {
+        adj[edge.u].push((edge.v, edge_idx));
+        adj[edge.v].push((edge.u, edge_idx));
+    }
+
+    for &start in &unmatched {
+        let mut queue = VecDeque::new();
+        dists[start][start] = 0;
+        queue.push_back(start);
+
+        while let Some(u) = queue.pop_front() {
+            for &(v, edge_idx) in &adj[u] {
+                if dists[start][v] == usize::MAX {
+                    dists[start][v] = dists[start][u] + 1;
+                    parent_edges[start][v] = Some(edge_idx);
+                    parent_nodes[start][v] = Some(u);
+                    queue.push_back(v);
+                }
+            }
+        }
+    }
+
+    // Construct candidates: pairs of unmatched defects and defect-to-boundary
+    let mut candidates = Vec::new();
+    for i in 0..unmatched.len() {
+        let u = unmatched[i];
+        let d_boundary = dists[u][graph.num_nodes];
+        if d_boundary != usize::MAX {
+            candidates.push((d_boundary, u, graph.num_nodes));
+        }
+        for j in (i + 1)..unmatched.len() {
+            let v = unmatched[j];
+            let d_uv = dists[u][v];
+            if d_uv != usize::MAX {
+                candidates.push((d_uv, u, v));
+            }
+        }
+    }
+
+    // Sort candidates by distance (ascending)
+    candidates.sort_by_key(|c| c.0);
+
+    let mut is_matched = vec![false; total_nodes];
+    let mut correction_edges = Vec::new();
+
+    for &(_d, u, v) in &candidates {
+        if v == graph.num_nodes {
+            if !is_matched[u] {
+                is_matched[u] = true;
+                // Add path from u to boundary
+                let mut curr = v;
+                while let Some(p) = parent_nodes[u][curr] {
+                    if let Some(edge_idx) = parent_edges[u][curr] {
+                        correction_edges.push(edge_idx);
+                    }
+                    curr = p;
+                }
+            }
+        } else {
+            if !is_matched[u] && !is_matched[v] {
+                is_matched[u] = true;
+                is_matched[v] = true;
+                // Add path from u to v
+                let mut curr = v;
+                while let Some(p) = parent_nodes[u][curr] {
+                    if let Some(edge_idx) = parent_edges[u][curr] {
+                        correction_edges.push(edge_idx);
+                    }
+                    curr = p;
+                }
+            }
+        }
+    }
+
+    correction_edges
+}
+
