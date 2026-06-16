@@ -1,4 +1,4 @@
-use crate::decoder::{Edge, SyndromeGraph, decode_union_find, decode_greedy};
+use crate::decoder::{Edge, SyndromeGraph};
 
 pub struct Xorshift {
     state: u64,
@@ -28,36 +28,48 @@ impl Xorshift {
     }
 }
 
-fn inject_single_qubit_noise(sim: &mut crate::simulator::StabilizerSimulator, qubit: usize, p: f64, rng: &mut Xorshift) {
+fn sample_biased_error(p: f64, eta: f64, rng: &mut Xorshift) -> (bool, bool) {
     if rng.next_f64() < p {
-        let choice = rng.next_u64() % 3;
-        match choice {
-            0 => sim.apply_x(qubit),
-            1 => sim.apply_y(qubit),
-            2 => sim.apply_z(qubit),
-            _ => unreachable!(),
+        let rand_val = rng.next_f64();
+        let p_z_ratio = eta / (eta + 1.0);
+        let p_x_ratio = 1.0 / (2.0 * (eta + 1.0));
+        if rand_val < p_z_ratio {
+            (false, true) // Z error
+        } else if rand_val < p_z_ratio + p_x_ratio {
+            (true, false) // X error
+        } else {
+            (true, true)  // Y error
+        }
+    } else {
+        (false, false)
+    }
+}
+
+fn inject_single_qubit_noise(sim: &mut crate::simulator::StabilizerSimulator, qubit: usize, p: f64, bias: f64, rng: &mut Xorshift) {
+    if rng.next_f64() < p {
+        let rand_val = rng.next_f64();
+        let p_z_ratio = bias / (bias + 1.0);
+        let p_x_ratio = 1.0 / (2.0 * (bias + 1.0));
+        if rand_val < p_z_ratio {
+            sim.apply_z(qubit);
+        } else if rand_val < p_z_ratio + p_x_ratio {
+            sim.apply_x(qubit);
+        } else {
+            sim.apply_y(qubit);
         }
     }
 }
 
-fn inject_two_qubit_noise(sim: &mut crate::simulator::StabilizerSimulator, q1: usize, q2: usize, p: f64, rng: &mut Xorshift) {
-    if rng.next_f64() < p {
-        let choice = rng.next_u64() % 15;
-        let val = choice + 1;
-        let e1 = val / 4;
-        let e2 = val % 4;
-        match e1 {
-            1 => sim.apply_x(q1),
-            2 => sim.apply_y(q1),
-            3 => sim.apply_z(q1),
-            _ => {}
-        }
-        match e2 {
-            1 => sim.apply_x(q2),
-            2 => sim.apply_y(q2),
-            3 => sim.apply_z(q2),
-            _ => {}
-        }
+fn inject_two_qubit_noise(sim: &mut crate::simulator::StabilizerSimulator, q1: usize, q2: usize, p: f64, bias: f64, rng: &mut Xorshift) {
+    inject_single_qubit_noise(sim, q1, p / 2.0, bias, rng);
+    inject_single_qubit_noise(sim, q2, p / 2.0, bias, rng);
+}
+
+fn decode_by_type(graph: &SyndromeGraph, defects: &[bool], decoder_type: usize) -> Vec<usize> {
+    match decoder_type {
+        1 => crate::decoder::decode_greedy(graph, defects),
+        2 => crate::decoder::decode_mwpm(graph, defects),
+        _ => crate::decoder::decode_union_find(graph, defects),
     }
 }
 
@@ -189,7 +201,7 @@ impl RotatedSurfaceCode {
 
     /// Simulates the QEC cycle under phenomenological noise.
     /// Returns true if a logical error occurs, false if the code successfully corrected all errors.
-    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64) -> bool {
+    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize) -> bool {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -199,30 +211,19 @@ impl RotatedSurfaceCode {
         let num_stabs_x = self.x_stabilizers.len();
         let num_data = self.data_qubits.len();
 
-        // Accumulator for physical errors on data qubits (X and Z)
         let mut physical_x = vec![false; num_data];
         let mut physical_z = vec![false; num_data];
 
-        // Store syndromes for all rounds
-        // Z-type stabilizers detect X errors
         let mut measured_z = vec![vec![false; num_stabs_z]; num_rounds];
-        // X-type stabilizers detect Z errors
         let mut measured_x = vec![vec![false; num_stabs_x]; num_rounds];
 
-        // Run the simulation round by round
         for t in 0..num_rounds {
-            // 1. Inject physical data qubit errors (X and Z)
             for q in 0..num_data {
-                if rng.next_f64() < p {
-                    physical_x[q] ^= true;
-                }
-                if rng.next_f64() < p {
-                    physical_z[q] ^= true;
-                }
+                let (err_x, err_z) = sample_biased_error(p, bias, &mut rng);
+                if err_x { physical_x[q] ^= true; }
+                if err_z { physical_z[q] ^= true; }
             }
 
-            // 2. Measure stabilizers
-            // Z-stabilizers
             for s_idx in 0..num_stabs_z {
                 let neighbors = self.get_neighbors(&self.z_stabilizers[s_idx]);
                 let mut parity = false;
@@ -231,14 +232,12 @@ impl RotatedSurfaceCode {
                         parity ^= true;
                     }
                 }
-                // Measurement error
                 if rng.next_f64() < p {
                     parity ^= true;
                 }
                 measured_z[t][s_idx] = parity;
             }
 
-            // X-stabilizers
             for s_idx in 0..num_stabs_x {
                 let neighbors = self.get_neighbors(&self.x_stabilizers[s_idx]);
                 let mut parity = false;
@@ -247,7 +246,6 @@ impl RotatedSurfaceCode {
                         parity ^= true;
                     }
                 }
-                // Measurement error
                 if rng.next_f64() < p {
                     parity ^= true;
                 }
@@ -255,7 +253,6 @@ impl RotatedSurfaceCode {
             }
         }
 
-        // --- DECODING Z-stabilizers (X errors) ---
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut defects_z = vec![false; graph_z.num_nodes];
         for t in 0..num_rounds {
@@ -265,9 +262,8 @@ impl RotatedSurfaceCode {
                 defects_z[s_idx + t * num_stabs_z] = diff;
             }
         }
-        let correction_z_edges = decode_union_find(&graph_z, &defects_z);
+        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type);
 
-        // Apply Z corrections
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
@@ -275,7 +271,6 @@ impl RotatedSurfaceCode {
             }
         }
 
-        // --- DECODING X-stabilizers (Z errors) ---
         let graph_x = self.build_syndrome_graph(num_rounds, false);
         let mut defects_x = vec![false; graph_x.num_nodes];
         for t in 0..num_rounds {
@@ -285,9 +280,8 @@ impl RotatedSurfaceCode {
                 defects_x[s_idx + t * num_stabs_x] = diff;
             }
         }
-        let correction_x_edges = decode_union_find(&graph_x, &defects_x);
+        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type);
 
-        // Apply X corrections
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
@@ -295,8 +289,6 @@ impl RotatedSurfaceCode {
             }
         }
 
-        // --- LOGICAL ERROR VERIFICATION ---
-        // Residual errors on data qubits
         let mut residual_x = vec![false; num_data];
         let mut residual_z = vec![false; num_data];
         for q in 0..num_data {
@@ -328,7 +320,7 @@ impl RotatedSurfaceCode {
     }
 
     /// Simulates pure data noise with perfect stabilizer measurements.
-    pub fn simulate_data_noise(&self, p: f64) -> bool {
+    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize) -> bool {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -339,12 +331,9 @@ impl RotatedSurfaceCode {
         let mut physical_z = vec![false; num_data];
         
         for q in 0..num_data {
-            if rng.next_f64() < p {
-                physical_x[q] = true;
-            }
-            if rng.next_f64() < p {
-                physical_z[q] = true;
-            }
+            let (err_x, err_z) = sample_biased_error(p, bias, &mut rng);
+            if err_x { physical_x[q] = true; }
+            if err_z { physical_z[q] = true; }
         }
         
         let num_stabs_z = self.z_stabilizers.len();
@@ -374,7 +363,7 @@ impl RotatedSurfaceCode {
         }
 
         let graph_z = self.build_syndrome_graph(1, true);
-        let correction_z_edges = decode_union_find(&graph_z, &measured_z);
+        let correction_z_edges = decode_by_type(&graph_z, &measured_z, decoder_type);
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
@@ -383,7 +372,7 @@ impl RotatedSurfaceCode {
         }
 
         let graph_x = self.build_syndrome_graph(1, false);
-        let correction_x_edges = decode_union_find(&graph_x, &measured_x);
+        let correction_x_edges = decode_by_type(&graph_x, &measured_x, decoder_type);
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
@@ -417,7 +406,7 @@ impl RotatedSurfaceCode {
         logical_x || logical_z
     }
 
-    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, init_state: &str, use_greedy: bool) -> bool {
+    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize) -> bool {
         let num_data = self.data_qubits.len();
         let num_stabs_x = self.x_stabilizers.len();
         let num_stabs_z = self.z_stabilizers.len();
@@ -429,39 +418,39 @@ impl RotatedSurfaceCode {
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
         let mut rng = Xorshift::new(54321);
-
+ 
         let get_x_stab_qubit = |j: usize| num_data + j;
         let get_z_stab_qubit = |k: usize| num_data + num_stabs_x + k;
-
+ 
         if init_state == "plus" {
             for i in 0..num_data {
                 sim.apply_h(i);
-                inject_single_qubit_noise(&mut sim, i, p, &mut rng);
+                inject_single_qubit_noise(&mut sim, i, p, bias, &mut rng);
             }
         } else {
             for i in 0..num_data {
-                inject_single_qubit_noise(&mut sim, i, p, &mut rng);
+                inject_single_qubit_noise(&mut sim, i, p, bias, &mut rng);
             }
         }
-
+ 
         // Helper to run one round of syndrome extraction
         let get_neighbors = |stab_coords: &(usize, usize)| -> Vec<usize> {
             self.get_neighbors(stab_coords)
         };
-
+ 
         let run_round = |sim_obj: &mut crate::simulator::StabilizerSimulator, round_p: f64, rng_obj: &mut Xorshift| -> (Vec<bool>, Vec<bool>) {
             let mut round_x = vec![false; num_stabs_x];
             let mut round_z = vec![false; num_stabs_z];
-
+ 
             for j in 0..num_stabs_x {
                 let q = get_x_stab_qubit(j);
                 let m = sim_obj.measure_z(q);
                 if m == 1 {
                     sim_obj.apply_x(q);
                 }
-                inject_single_qubit_noise(sim_obj, q, round_p, rng_obj);
+                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
                 sim_obj.apply_h(q);
-                inject_single_qubit_noise(sim_obj, q, round_p, rng_obj);
+                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
             }
             for k in 0..num_stabs_z {
                 let q = get_z_stab_qubit(k);
@@ -469,9 +458,9 @@ impl RotatedSurfaceCode {
                 if m == 1 {
                     sim_obj.apply_x(q);
                 }
-                inject_single_qubit_noise(sim_obj, q, round_p, rng_obj);
+                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
             }
-
+ 
             for step in 0..4 {
                 for j in 0..num_stabs_x {
                     let stab = &self.x_stabilizers[j];
@@ -480,7 +469,7 @@ impl RotatedSurfaceCode {
                         let data_idx = neighbors[step];
                         let anc_idx = get_x_stab_qubit(j);
                         sim_obj.apply_cnot(anc_idx, data_idx);
-                        inject_two_qubit_noise(sim_obj, anc_idx, data_idx, round_p, rng_obj);
+                        inject_two_qubit_noise(sim_obj, anc_idx, data_idx, round_p, bias, rng_obj);
                     }
                 }
                 for k in 0..num_stabs_z {
@@ -490,17 +479,17 @@ impl RotatedSurfaceCode {
                         let data_idx = neighbors[step];
                         let anc_idx = get_z_stab_qubit(k);
                         sim_obj.apply_cnot(data_idx, anc_idx);
-                        inject_two_qubit_noise(sim_obj, data_idx, anc_idx, round_p, rng_obj);
+                        inject_two_qubit_noise(sim_obj, data_idx, anc_idx, round_p, bias, rng_obj);
                     }
                 }
             }
-
+ 
             for j in 0..num_stabs_x {
                 let q = get_x_stab_qubit(j);
                 sim_obj.apply_h(q);
-                inject_single_qubit_noise(sim_obj, q, round_p, rng_obj);
+                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
             }
-
+ 
             for j in 0..num_stabs_x {
                 let q = get_x_stab_qubit(j);
                 let mut m = sim_obj.measure_z(q) == 1;
@@ -517,30 +506,23 @@ impl RotatedSurfaceCode {
                 }
                 round_z[k] = m;
             }
-
+ 
             (round_x, round_z)
         };
-
+ 
         // 1. Run a noiseless projection round to get the baseline syndrome
-        // Since we want this to be noiseless, we clone the simulator first,
-        // project it noiselessly, and then discard the clone!
-        // Wait, no! If we project it on a clone, the projection collapsed the state
-        // on the clone, but the main simulator is still unprojected!
-        // To get the baseline syndrome, we project the MAIN simulator noiselessly (round p = 0.0).
-        // This is perfectly fine, because a noiseless projection collapses the state into the code space without introducing errors!
-        // So the main simulator is now in a clean projected code state.
         let (baseline_x, baseline_z) = run_round(&mut sim, 0.0, &mut rng);
-
+ 
         // 2. Run the noisy rounds
         let mut measured_x = vec![vec![false; num_stabs_x]; num_rounds];
         let mut measured_z = vec![vec![false; num_stabs_z]; num_rounds];
-
+ 
         for t in 0..num_rounds {
             let (rx, rz) = run_round(&mut sim, p, &mut rng);
             measured_x[t] = rx;
             measured_z[t] = rz;
         }
-
+ 
         // --- DECODING Z-stabilizers (X errors) ---
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut defects_z = vec![false; graph_z.num_nodes];
@@ -551,19 +533,15 @@ impl RotatedSurfaceCode {
                 defects_z[s_idx + t * num_stabs_z] = diff;
             }
         }
-        let correction_z_edges = if use_greedy {
-            decode_greedy(&graph_z, &defects_z)
-        } else {
-            decode_union_find(&graph_z, &defects_z)
-        };
-
+        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type);
+ 
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
                 correction_x_data[q_idx] ^= true;
             }
         }
-
+ 
         // --- DECODING X-stabilizers (Z errors) ---
         let graph_x = self.build_syndrome_graph(num_rounds, false);
         let mut defects_x = vec![false; graph_x.num_nodes];
@@ -574,12 +552,8 @@ impl RotatedSurfaceCode {
                 defects_x[s_idx + t * num_stabs_x] = diff;
             }
         }
-        let correction_x_edges = if use_greedy {
-            decode_greedy(&graph_x, &defects_x)
-        } else {
-            decode_union_find(&graph_x, &defects_x)
-        };
-
+        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type);
+ 
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
@@ -618,6 +592,8 @@ pub struct XZZXSurfaceCode {
     pub d: usize,
     pub data_qubits: Vec<(usize, usize)>,
     pub stabilizers: Vec<(usize, usize)>,
+    pub z_stabilizers: Vec<(usize, usize)>,
+    pub x_stabilizers: Vec<(usize, usize)>,
 }
 
 impl XZZXSurfaceCode {
@@ -630,10 +606,13 @@ impl XZZXSurfaceCode {
         }
 
         let mut stabilizers = Vec::new();
+        let mut z_stabilizers = Vec::new();
+        let mut x_stabilizers = Vec::new();
         // Construct Z-like coordinates of standard rotated surface code
         for y in (0..=(2 * d)).step_by(2) {
             for x in (2..(2 * d)).step_by(2) {
                 if ((x + y) / 2) % 2 == 0 {
+                    z_stabilizers.push((x, y));
                     stabilizers.push((x, y));
                 }
             }
@@ -642,6 +621,7 @@ impl XZZXSurfaceCode {
         for y in (2..(2 * d)).step_by(2) {
             for x in (0..=(2 * d)).step_by(2) {
                 if ((x + y) / 2) % 2 == 1 {
+                    x_stabilizers.push((x, y));
                     stabilizers.push((x, y));
                 }
             }
@@ -651,6 +631,8 @@ impl XZZXSurfaceCode {
             d,
             data_qubits,
             stabilizers,
+            z_stabilizers,
+            x_stabilizers,
         }
     }
 
@@ -739,7 +721,7 @@ impl XZZXSurfaceCode {
         }
     }
 
-    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64) -> bool {
+    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize) -> bool {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -755,12 +737,9 @@ impl XZZXSurfaceCode {
 
         for t in 0..num_rounds {
             for q in 0..num_data {
-                if rng.next_f64() < p {
-                    physical_x[q] ^= true;
-                }
-                if rng.next_f64() < p {
-                    physical_z[q] ^= true;
-                }
+                let (err_x, err_z) = sample_biased_error(p, bias, &mut rng);
+                if err_x { physical_x[q] ^= true; }
+                if err_z { physical_z[q] ^= true; }
             }
 
             for s_idx in 0..num_stabs {
@@ -796,7 +775,7 @@ impl XZZXSurfaceCode {
                 defects_z[s_idx + t * num_stabs] = diff;
             }
         }
-        let correction_z_edges = decode_union_find(&graph_z, &defects_z);
+        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type);
 
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
@@ -807,7 +786,7 @@ impl XZZXSurfaceCode {
 
         let graph_x = self.build_syndrome_graph(num_rounds, false);
         let defects_x = defects_z.clone();
-        let correction_x_edges = decode_union_find(&graph_x, &defects_x);
+        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type);
 
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
@@ -844,7 +823,7 @@ impl XZZXSurfaceCode {
         logical_err_1 || logical_err_2
     }
 
-    pub fn simulate_data_noise(&self, p: f64) -> bool {
+    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize) -> bool {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -854,12 +833,9 @@ impl XZZXSurfaceCode {
         let mut physical_x = vec![false; num_data];
         let mut physical_z = vec![false; num_data];
         for q in 0..num_data {
-            if rng.next_f64() < p {
-                physical_x[q] = true;
-            }
-            if rng.next_f64() < p {
-                physical_z[q] = true;
-            }
+            let (err_x, err_z) = sample_biased_error(p, bias, &mut rng);
+            if err_x { physical_x[q] = true; }
+            if err_z { physical_z[q] = true; }
         }
 
         let num_stabs = self.stabilizers.len();
@@ -883,7 +859,7 @@ impl XZZXSurfaceCode {
         }
 
         let graph_z = self.build_syndrome_graph(1, true);
-        let correction_z_edges = decode_union_find(&graph_z, &measured);
+        let correction_z_edges = decode_by_type(&graph_z, &measured, decoder_type);
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
@@ -892,7 +868,7 @@ impl XZZXSurfaceCode {
         }
 
         let graph_x = self.build_syndrome_graph(1, false);
-        let correction_x_edges = decode_union_find(&graph_x, &measured);
+        let correction_x_edges = decode_by_type(&graph_x, &measured, decoder_type);
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
@@ -928,10 +904,11 @@ impl XZZXSurfaceCode {
         logical_err_1 || logical_err_2
     }
 
-    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, init_state: &str, use_greedy: bool) -> bool {
+    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize) -> bool {
         let num_data = self.data_qubits.len();
-        let num_stabs = self.stabilizers.len();
-        let total_qubits = num_data + num_stabs;
+        let num_stabs_z = self.z_stabilizers.len();
+        let num_stabs_x = self.x_stabilizers.len();
+        let total_qubits = num_data + num_stabs_z + num_stabs_x;
         
         let mut sim = crate::simulator::StabilizerSimulator::new(total_qubits);
         #[cfg(feature = "python")]
@@ -944,100 +921,133 @@ impl XZZXSurfaceCode {
         if init_state == "plus" {
             for x_idx in 0..self.d {
                 let q_idx = x_idx + self.d * 0;
-                if x_idx % 2 == 0 {
-                    sim.apply_h(q_idx);
-                }
+                sim.apply_h(q_idx);
             }
             for i in 0..num_data {
-                inject_single_qubit_noise(&mut sim, i, p, &mut rng);
+                inject_single_qubit_noise(&mut sim, i, p, bias, &mut rng);
+            }
+        } else if init_state == "y" {
+            sim.apply_h(0);
+            sim.apply_s(0);
+            for x_idx in 1..self.d {
+                sim.apply_h(x_idx);
+            }
+            for i in 0..num_data {
+                inject_single_qubit_noise(&mut sim, i, p, bias, &mut rng);
             }
         } else {
-            for y_idx in 0..self.d {
-                let q_idx = 0 + self.d * y_idx;
-                if y_idx % 2 == 1 {
-                    sim.apply_h(q_idx);
-                }
-            }
             for i in 0..num_data {
-                inject_single_qubit_noise(&mut sim, i, p, &mut rng);
+                inject_single_qubit_noise(&mut sim, i, p, bias, &mut rng);
             }
         }
 
         // Helper to run one round of syndrome extraction
-        let run_round = |sim_obj: &mut crate::simulator::StabilizerSimulator, round_p: f64, rng_obj: &mut Xorshift| -> Vec<bool> {
-            let mut round_out = vec![false; num_stabs];
+        let run_round = |sim_obj: &mut crate::simulator::StabilizerSimulator, round_p: f64, rng_obj: &mut Xorshift| -> (Vec<bool>, Vec<bool>) {
+            let mut round_z = vec![false; num_stabs_z];
+            let mut round_x = vec![false; num_stabs_x];
 
-            for j in 0..num_stabs {
+            // 1. Z stabilizers (detect X errors, measure Z-stabilizers, connect via CNOT control=data, target=ancilla)
+            for j in 0..num_stabs_z {
                 let q = get_stab_qubit(j);
                 let m = sim_obj.measure_z(q);
                 if m == 1 {
                     sim_obj.apply_x(q);
                 }
-                inject_single_qubit_noise(sim_obj, q, round_p, rng_obj);
+                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
             }
 
+            // apply CNOT gates for Z stabilizers
             for step in 0..4 {
-                for j in 0..num_stabs {
-                    let (sx, sy) = self.stabilizers[j];
+                for j in 0..num_stabs_z {
+                    let (sx, sy) = self.z_stabilizers[j];
                     let dx_dy = match step {
-                        0 => (sx as i32 - 1, sy as i32 - 1, true),
-                        1 => (sx as i32 + 1, sy as i32 - 1, false),
-                        2 => (sx as i32 - 1, sy as i32 + 1, false),
-                        3 => (sx as i32 + 1, sy as i32 + 1, true),
+                        0 => (sx as i32 - 1, sy as i32 - 1),
+                        1 => (sx as i32 + 1, sy as i32 - 1),
+                        2 => (sx as i32 - 1, sy as i32 + 1),
+                        3 => (sx as i32 + 1, sy as i32 + 1),
                         _ => unreachable!(),
                     };
-
                     if let Some(data_idx) = self.get_neighbor_idx(dx_dy.0, dx_dy.1) {
                         let anc_idx = get_stab_qubit(j);
-                        if dx_dy.2 {
-                            sim_obj.apply_h(data_idx);
-                            inject_single_qubit_noise(sim_obj, data_idx, round_p, rng_obj);
-                        }
                         sim_obj.apply_cnot(data_idx, anc_idx);
-                        inject_two_qubit_noise(sim_obj, data_idx, anc_idx, round_p, rng_obj);
-                        if dx_dy.2 {
-                            sim_obj.apply_h(data_idx);
-                            inject_single_qubit_noise(sim_obj, data_idx, round_p, rng_obj);
-                        }
+                        inject_two_qubit_noise(sim_obj, data_idx, anc_idx, round_p, bias, rng_obj);
                     }
                 }
             }
 
-            for j in 0..num_stabs {
+            for j in 0..num_stabs_z {
                 let q = get_stab_qubit(j);
                 let mut m = sim_obj.measure_z(q) == 1;
                 if round_p > 0.0 && rng_obj.next_f64() < round_p {
                     m ^= true;
                 }
-                round_out[j] = m;
+                round_z[j] = m;
             }
 
-            round_out
+            // 2. X stabilizers (detect Z errors, measure X-stabilizers, connect via CNOT control=ancilla, target=data)
+            for j in 0..num_stabs_x {
+                let q = get_stab_qubit(num_stabs_z + j);
+                let m = sim_obj.measure_z(q);
+                if m == 1 {
+                    sim_obj.apply_x(q);
+                }
+                sim_obj.apply_h(q);
+                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
+            }
+
+            for step in 0..4 {
+                for j in 0..num_stabs_x {
+                    let (sx, sy) = self.x_stabilizers[j];
+                    let dx_dy = match step {
+                        0 => (sx as i32 - 1, sy as i32 - 1),
+                        1 => (sx as i32 + 1, sy as i32 - 1),
+                        2 => (sx as i32 - 1, sy as i32 + 1),
+                        3 => (sx as i32 + 1, sy as i32 + 1),
+                        _ => unreachable!(),
+                    };
+                    if let Some(data_idx) = self.get_neighbor_idx(dx_dy.0, dx_dy.1) {
+                        let anc_idx = get_stab_qubit(num_stabs_z + j);
+                        sim_obj.apply_cnot(anc_idx, data_idx);
+                        inject_two_qubit_noise(sim_obj, anc_idx, data_idx, round_p, bias, rng_obj);
+                    }
+                }
+            }
+
+            for j in 0..num_stabs_x {
+                let q = get_stab_qubit(num_stabs_z + j);
+                sim_obj.apply_h(q);
+                let mut m = sim_obj.measure_z(q) == 1;
+                if round_p > 0.0 && rng_obj.next_f64() < round_p {
+                    m ^= true;
+                }
+                round_x[j] = m;
+            }
+
+            (round_z, round_x)
         };
 
         // 1. Run noiseless projection round to get baseline syndrome
-        let baseline = run_round(&mut sim, 0.0, &mut rng);
+        let (baseline_z, baseline_x) = run_round(&mut sim, 0.0, &mut rng);
 
         // 2. Run noisy rounds
-        let mut measured = vec![vec![false; num_stabs]; num_rounds];
+        let mut measured_z = vec![vec![false; num_stabs_z]; num_rounds];
+        let mut measured_x = vec![vec![false; num_stabs_x]; num_rounds];
         for t in 0..num_rounds {
-            measured[t] = run_round(&mut sim, p, &mut rng);
+            let (rz, rx) = run_round(&mut sim, p, &mut rng);
+            measured_z[t] = rz;
+            measured_x[t] = rx;
         }
 
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut defects_z = vec![false; graph_z.num_nodes];
         for t in 0..num_rounds {
-            for s_idx in 0..num_stabs {
-                let prev_outcome = if t == 0 { baseline[s_idx] } else { measured[t - 1][s_idx] };
-                let diff = measured[t][s_idx] ^ prev_outcome;
-                defects_z[s_idx + t * num_stabs] = diff;
+            for s_idx in 0..num_stabs_z {
+                let prev_outcome = if t == 0 { baseline_z[s_idx] } else { measured_z[t - 1][s_idx] };
+                let diff = measured_z[t][s_idx] ^ prev_outcome;
+                defects_z[s_idx + t * num_stabs_z] = diff;
             }
         }
-        let correction_z_edges = if use_greedy {
-            decode_greedy(&graph_z, &defects_z)
-        } else {
-            decode_union_find(&graph_z, &defects_z)
-        };
+        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type);
 
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
@@ -1047,12 +1057,15 @@ impl XZZXSurfaceCode {
         }
 
         let graph_x = self.build_syndrome_graph(num_rounds, false);
-        let defects_x = defects_z.clone();
-        let correction_x_edges = if use_greedy {
-            decode_greedy(&graph_x, &defects_x)
-        } else {
-            decode_union_find(&graph_x, &defects_x)
-        };
+        let mut defects_x = vec![false; graph_x.num_nodes];
+        for t in 0..num_rounds {
+            for s_idx in 0..num_stabs_x {
+                let prev_outcome = if t == 0 { baseline_x[s_idx] } else { measured_x[t - 1][s_idx] };
+                let diff = measured_x[t][s_idx] ^ prev_outcome;
+                defects_x[s_idx + t * num_stabs_x] = diff;
+            }
+        }
+        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type);
 
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
@@ -1071,29 +1084,38 @@ impl XZZXSurfaceCode {
         }
 
         if init_state == "plus" {
-            let mut logical_err = 0;
+            let mut logical_err = false;
             for x_idx in 0..self.d {
                 let q_idx = x_idx + self.d * 0;
-                let outcome = if x_idx % 2 == 0 {
-                    sim.measure_x(q_idx)
-                } else {
-                    sim.measure_z(q_idx)
-                };
-                logical_err ^= outcome;
+                let outcome = sim.measure_x(q_idx);
+                if outcome == 1 {
+                    logical_err ^= true;
+                }
             }
-            logical_err == 1
+            logical_err
+        } else if init_state == "y" {
+            let mut logical_err = sim.measure_y(0) == 1;
+            for x_idx in 1..self.d {
+                if sim.measure_x(x_idx) == 1 {
+                    logical_err ^= true;
+                }
+            }
+            for y_idx in 1..self.d {
+                if sim.measure_z(self.d * y_idx) == 1 {
+                    logical_err ^= true;
+                }
+            }
+            logical_err
         } else {
-            let mut logical_err = 0;
+            let mut logical_err = false;
             for y_idx in 0..self.d {
                 let q_idx = 0 + self.d * y_idx;
-                let outcome = if y_idx % 2 == 0 {
-                    sim.measure_z(q_idx)
-                } else {
-                    sim.measure_x(q_idx)
-                };
-                logical_err ^= outcome;
+                let outcome = sim.measure_z(q_idx);
+                if outcome == 1 {
+                    logical_err ^= true;
+                }
             }
-            logical_err == 1
+            logical_err
         }
     }
 }

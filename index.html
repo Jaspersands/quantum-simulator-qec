@@ -226,11 +226,28 @@
                 </select>
             </div>
             <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Number of Rounds (T):</label>
+                <select id="roundsSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                    <option value="1">T = 1 (Data noise only)</option>
+                    <option value="3">T = 3 (Spacetime)</option>
+                    <option value="5">T = 5 (Spacetime)</option>
+                </select>
+            </div>
+            <div>
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Decoder:</label>
                 <select id="decoderSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
                     <option value="0">Union-Find Peeling</option>
                     <option value="1">Greedy (Nearest-Neighbor)</option>
+                    <option value="2">Exact MWPM (Defects &le; 16)</option>
                 </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="range" id="biasSlider" min="0.5" max="50" step="0.5" value="0.5" style="flex: 1;">
+                    <span id="biasValue" style="font-size: 0.9rem; font-weight: 600; min-width: 30px;">0.5</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #57606a; margin-top: 3px;">0.5: Unbiased, &gt;0.5: Z-biased noise.</div>
             </div>
             <div style="border-top: 1px solid #d0d7de; padding-top: 15px;">
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 8px;">Error Injection Mode:</label>
@@ -259,7 +276,7 @@
                 <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #3b82f6; margin-left: 10px; vertical-align: middle;"></span> X Error
                 <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; margin-left: 10px; vertical-align: middle;"></span> Z Error
                 <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #a855f7; margin-left: 10px; vertical-align: middle;"></span> Y Error<br>
-                <span style="display: inline-block; width: 10px; height: 10px; border: 1px dashed #cbd5e1; background-color: #f8fafc; margin-left: 10px; vertical-align: middle;"></span> Stabilizer (idle)
+                <span style="display: inline-block; width: 10px; height: 10px; border: 1px dashed #cbd5e1; background-color: #f8fafc; margin-left: 10px; vertical-align: middle;"></span> Stabilizer / measurement check
                 <span style="display: inline-block; width: 10px; height: 10px; background-color: #fef08a; border: 1px solid #eab308; margin-left: 10px; vertical-align: middle;"></span> Active Defect (triggered check)
                 <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #22c55e; margin-left: 10px; vertical-align: middle;"></span> Applied Correction
             </div>
@@ -268,12 +285,12 @@
 
     <h2>Live WebAssembly Benchmarking Dashboard</h2>
     <p class="section-desc">
-        Run real-time Monte Carlo simulations directly inside your browser. Benchmark the logical error suppression rates of the Union-Find and Greedy decoders across various code sizes and noise profiles.
+        Run real-time Monte Carlo simulations directly inside your browser. Benchmark the logical error suppression rates of the Union-Find, Greedy, and Exact MWPM decoders across various code sizes and noise profiles.
     </p>
 
     <!-- Benchmark widget -->
     <div style="border: 1px solid #d0d7de; border-radius: 6px; padding: 25px; margin-bottom: 35px; background: #ffffff;">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 20px;">
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Code Type:</label>
                 <select id="benchCodeType" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
@@ -286,6 +303,7 @@
                 <select id="benchDecoder" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
                     <option value="0">Union-Find</option>
                     <option value="1">Greedy</option>
+                    <option value="2">Exact MWPM</option>
                 </select>
             </div>
             <div>
@@ -299,6 +317,18 @@
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Error Rate (p):</label>
                 <input type="number" id="benchP" value="0.05" min="0" max="1" step="0.01" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
+                <input type="number" id="benchBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Rounds (T):</label>
+                <select id="benchRounds" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                    <option value="1">T = 1</option>
+                    <option value="3">T = 3</option>
+                    <option value="5">T = 5</option>
+                </select>
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Distance (d):</label>
@@ -328,6 +358,47 @@
                     <div id="benchResultSpeed" style="font-size: 1.25rem; font-weight: 600; color: #24292f; margin-top: 5px;">-</div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <h2>Logical State Fidelity Bloch Sphere</h2>
+    <p class="section-desc">
+        Estimate the fidelity of the logical state under noise. This runs a mini Monte Carlo batch to measure expectations &langle; X<sub>L</sub> &rangle;, &langle; Y<sub>L</sub> &rangle;, &langle; Z<sub>L</sub> &rangle; by preparing cardinal states. The vector is drawn on the Bloch sphere below.
+    </p>
+    <div style="display: grid; grid-template-columns: 1fr 280px; gap: 30px; margin-bottom: 35px; border: 1px solid #d0d7de; border-radius: 6px; padding: 25px; align-items: center; background: #ffffff;">
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Physical Error Rate (p):</label>
+                    <input type="number" id="sphereP" value="0.05" min="0" max="0.5" step="0.01" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
+                    <input type="number" id="sphereBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Rounds (T):</label>
+                    <select id="sphereRounds" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                        <option value="1">T = 1</option>
+                        <option value="3" selected>T = 3</option>
+                        <option value="5">T = 5</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Runs:</label>
+                    <input type="number" id="sphereRuns" value="200" min="1" max="2000" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                </div>
+            </div>
+            <button id="estimateFidelityBtn" style="padding: 10px 20px; background-color: #0969da; color: white; border: 1px solid #0969da; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem; width: 100%;">Estimate & Plot Bloch Vector</button>
+            <div style="margin-top: 15px; font-size: 0.85rem; line-height: 1.6; background-color: #f6f8fa; padding: 12px; border: 1px solid #d0d7de; border-radius: 6px;">
+                <strong>Measured Expectations:</strong><br>
+                &langle; X<sub>L</sub> &rangle;: <span id="expectX" style="font-weight: 600; color: #2563eb;">-</span><br>
+                &langle; Y<sub>L</sub> &rangle;: <span id="expectY" style="font-weight: 600; color: #a855f7;">-</span><br>
+                &langle; Z<sub>L</sub> &rangle;: <span id="expectZ" style="font-weight: 600; color: #ef4444;">-</span>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: center; background-color: #fafafa; border-radius: 6px; border: 1px solid #d0d7de; padding: 15px;">
+            <canvas id="blochCanvas" width="240" height="240" style="background-color: white; border: 1px solid #d0d7de; border-radius: 4px;"></canvas>
         </div>
     </div>
 
@@ -431,6 +502,7 @@
     let currentD = 3;
     let currentCodeType = 0;
     let currentDecoder = 0;
+    let currentRounds = 1;
 
     let dataQubits = [];
     let stabilizers = [];
@@ -442,7 +514,10 @@
     // DOM Elements
     const codeTypeSelect = document.getElementById('codeTypeSelect');
     const distanceSelect = document.getElementById('distanceSelect');
+    const roundsSelect = document.getElementById('roundsSelect');
     const decoderSelect = document.getElementById('decoderSelect');
+    const biasSlider = document.getElementById('biasSlider');
+    const biasValue = document.getElementById('biasValue');
     const decodeBtn = document.getElementById('decodeBtn');
     const clearBtn = document.getElementById('clearBtn');
     const decodingStatus = document.getElementById('decodingStatus');
@@ -452,6 +527,8 @@
     const benchDecoder = document.getElementById('benchDecoder');
     const benchNoiseModel = document.getElementById('benchNoiseModel');
     const benchP = document.getElementById('benchP');
+    const benchBias = document.getElementById('benchBias');
+    const benchRounds = document.getElementById('benchRounds');
     const benchD = document.getElementById('benchD');
     const benchRuns = document.getElementById('benchRuns');
     const runBenchBtn = document.getElementById('runBenchBtn');
@@ -459,6 +536,16 @@
     const benchResultCard = document.getElementById('benchResultCard');
     const benchResultVal = document.getElementById('benchResultVal');
     const benchResultSpeed = document.getElementById('benchResultSpeed');
+
+    // Bloch Sphere DOM Elements
+    const sphereP = document.getElementById('sphereP');
+    const sphereBias = document.getElementById('sphereBias');
+    const sphereRounds = document.getElementById('sphereRounds');
+    const sphereRuns = document.getElementById('sphereRuns');
+    const estimateFidelityBtn = document.getElementById('estimateFidelityBtn');
+    const expectX = document.getElementById('expectX');
+    const expectY = document.getElementById('expectY');
+    const expectZ = document.getElementById('expectZ');
 
     async function loadWasm() {
         try {
@@ -468,6 +555,7 @@
             wasmInstance = obj.instance;
             console.log("Wasm loaded successfully!");
             initSession();
+            drawBlochSphere(0, 0, 0); // initial empty Bloch sphere
         } catch (err) {
             console.error("Error loading Wasm:", err);
             benchProgress.textContent = "Error loading WASM library.";
@@ -485,8 +573,10 @@
         currentD = parseInt(distanceSelect.value);
         currentCodeType = parseInt(codeTypeSelect.value);
         currentDecoder = parseInt(decoderSelect.value);
+        currentRounds = parseInt(roundsSelect.value);
 
         sessionPtr = wasmInstance.exports.wasm_create_session(currentD, currentCodeType);
+        wasmInstance.exports.wasm_set_num_rounds(sessionPtr, currentRounds);
         
         loadQubits();
         corrections = null;
@@ -501,12 +591,6 @@
         const numData = wasmInstance.exports.wasm_get_data_qubit_count(sessionPtr);
         const numStabs = wasmInstance.exports.wasm_get_stabilizer_count(sessionPtr);
 
-        const canvasPadding = 45;
-        const gridRange = currentD * 2;
-
-        const getPx = (coord) => canvasPadding + (coord / gridRange) * (canvas.width - 2 * canvasPadding);
-        const getPy = (coord) => canvasPadding + (coord / gridRange) * (canvas.height - 2 * canvasPadding);
-
         // Load data qubits
         for (let i = 0; i < numData; i++) {
             const x = wasmInstance.exports.wasm_get_data_qubit_x(sessionPtr, i);
@@ -514,9 +598,7 @@
             dataQubits.push({
                 idx: i,
                 x: x,
-                y: y,
-                px: getPx(x),
-                py: getPy(y)
+                y: y
             });
         }
 
@@ -529,124 +611,204 @@
                 idx: i,
                 x: x,
                 y: y,
-                type: type, // 0 for Z, 1 for X, 2 for XZZX
-                px: getPx(x),
-                py: getPy(y)
+                type: type // 0 for Z, 1 for X, 2 for XZZX
             });
         }
+    }
+
+    // 3D coordinate projection to screen
+    function getScreenCoords(gx, gy, t, T) {
+        if (T === 1) {
+            const canvasPadding = 45;
+            const gridRange = currentD * 2;
+            return {
+                x: canvasPadding + (gx / gridRange) * (canvas.width - 2 * canvasPadding),
+                y: canvasPadding + (gy / gridRange) * (canvas.height - 2 * canvasPadding)
+            };
+        }
+        
+        // For multiple rounds, draw stacked perspective-skewed layers
+        const layerW = 200;
+        const layerH = 90;
+        const planeCenterX = canvas.width / 2;
+        
+        const bottomY = canvas.height - 70;
+        const topY = 70;
+        const layerCenterY = bottomY - (t / (T - 1)) * (bottomY - topY);
+        
+        const nx = (gx / currentD) - 1.0;
+        const ny = (gy / currentD) - 1.0;
+        
+        // Squashed isometric look
+        const screenX = planeCenterX + nx * (layerW / 2) + ny * (layerW * 0.15);
+        const screenY = layerCenterY + ny * (layerH / 2) - nx * (layerH * 0.15);
+        
+        return { x: screenX, y: screenY };
     }
 
     function updatePlayground() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        const T = parseInt(roundsSelect.value);
         const numData = dataQubits.length;
         const numStabs = stabilizers.length;
 
+        if (!wasmInstance || !sessionPtr) return;
+
         const memory = wasmInstance.exports.memory;
         
-        // 1. Read physical errors directly from pointers
+        // Read physical errors
         const errXPtr = wasmInstance.exports.wasm_get_physical_x_ptr(sessionPtr);
         const errZPtr = wasmInstance.exports.wasm_get_physical_z_ptr(sessionPtr);
-        
-        const errX = new Uint8Array(memory.buffer, errXPtr, numData);
-        const errZ = new Uint8Array(memory.buffer, errZPtr, numData);
+        const errX = new Uint8Array(memory.buffer, errXPtr, numData * T);
+        const errZ = new Uint8Array(memory.buffer, errZPtr, numData * T);
 
-        // 2. Read syndromes directly from pointer
+        // Read syndromes
         const synPtr = wasmInstance.exports.wasm_get_syndrome(sessionPtr);
-        const syndrome = new Uint8Array(memory.buffer, synPtr, numStabs);
+        const syndrome = new Uint8Array(memory.buffer, synPtr, numStabs * T);
 
-        // --- DRAW CONNECTIONS ---
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.setLineDash([4, 4]);
+        // --- DRAW TIME CONNECTIONS (between layers) ---
+        if (T > 1) {
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.setLineDash([2, 4]);
 
-        for (let s of stabilizers) {
-            for (let q of dataQubits) {
-                // Stabilizers connect to data qubits at diagonal distance = 1
-                if (Math.abs(s.x - q.x) === 1 && Math.abs(s.y - q.y) === 1) {
+            // Draw dotted vertical lines connecting identical stabilizer nodes across layers
+            for (let t = 0; t < T - 1; t++) {
+                for (let i = 0; i < numStabs; i++) {
+                    const s = stabilizers[i];
+                    const p1 = getScreenCoords(s.x, s.y, t, T);
+                    const p2 = getScreenCoords(s.x, s.y, t + 1, T);
                     ctx.beginPath();
-                    ctx.moveTo(s.px, s.py);
-                    ctx.lineTo(q.px, q.py);
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
                     ctx.stroke();
                 }
             }
+            ctx.setLineDash([]);
         }
-        ctx.setLineDash([]);
 
-        // --- DRAW STABILIZERS (squares) ---
-        for (let i = 0; i < numStabs; i++) {
-            const s = stabilizers[i];
-            const size = 18;
+        // --- DRAW EACH LAYER ---
+        for (let t = 0; t < T; t++) {
+            // Draw layer boundaries
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)';
+            ctx.fillStyle = 'rgba(248, 250, 252, 0.15)';
             ctx.beginPath();
-            ctx.rect(s.px - size/2, s.py - size/2, size, size);
-            
-            const isTriggered = syndrome[i] === 1;
-            if (isTriggered) {
-                ctx.fillStyle = '#fef08a';
-                ctx.strokeStyle = '#eab308';
-                ctx.lineWidth = 2;
-            } else {
-                ctx.fillStyle = '#f8fafc';
-                ctx.strokeStyle = '#cbd5e1';
-                ctx.lineWidth = 1;
-            }
+            const pTL = getScreenCoords(0, 0, t, T);
+            const pTR = getScreenCoords(currentD * 2, 0, t, T);
+            const pBR = getScreenCoords(currentD * 2, currentD * 2, t, T);
+            const pBL = getScreenCoords(0, currentD * 2, t, T);
+            ctx.moveTo(pTL.x, pTL.y);
+            ctx.lineTo(pTR.x, pTR.y);
+            ctx.lineTo(pBR.x, pBR.y);
+            ctx.lineTo(pBL.x, pBL.y);
+            ctx.closePath();
             ctx.fill();
             ctx.stroke();
 
-            // Label stabilizer type
-            ctx.fillStyle = '#64748b';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            let label = "";
-            if (s.type === 0) label = "Z";
-            else if (s.type === 1) label = "X";
-            else if (s.type === 2) label = "XZ";
-            ctx.fillText(label, s.px, s.py);
-        }
+            // Label layer index t
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Round t = ${t}`, pTL.x - 45, pTL.y - 5);
 
-        // --- DRAW DATA QUBITS (circles) ---
-        for (let i = 0; i < numData; i++) {
-            const q = dataQubits[i];
-            const radius = 10;
-            ctx.beginPath();
-            ctx.arc(q.px, q.py, radius, 0, 2 * Math.PI);
-
-            const hasX = errX[i] === 1;
-            const hasZ = errZ[i] === 1;
-
-            if (hasX && hasZ) {
-                ctx.fillStyle = '#c084fc'; // Purple (Y error)
-                ctx.strokeStyle = '#7c3aed';
-            } else if (hasX) {
-                ctx.fillStyle = '#60a5fa'; // Blue (X error)
-                ctx.strokeStyle = '#2563eb';
-            } else if (hasZ) {
-                ctx.fillStyle = '#f87171'; // Red (Z error)
-                ctx.strokeStyle = '#dc2626';
-            } else {
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = '#94a3b8';
+            // Draw spatial connections within layer t
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#f1f5f9';
+            for (let s of stabilizers) {
+                const sCoords = getScreenCoords(s.x, s.y, t, T);
+                for (let q of dataQubits) {
+                    if (Math.abs(s.x - q.x) === 1 && Math.abs(s.y - q.y) === 1) {
+                        const qCoords = getScreenCoords(q.x, q.y, t, T);
+                        ctx.beginPath();
+                        ctx.moveTo(sCoords.x, sCoords.y);
+                        ctx.lineTo(qCoords.x, qCoords.y);
+                        ctx.stroke();
+                    }
+                }
             }
-            ctx.lineWidth = 1.5;
-            ctx.fill();
-            ctx.stroke();
 
-            // Tiny index label
-            ctx.fillStyle = '#475569';
-            ctx.font = '8px monospace';
-            ctx.fillText(i.toString(), q.px, q.py);
+            // Draw stabilizers of layer t
+            for (let i = 0; i < numStabs; i++) {
+                const s = stabilizers[i];
+                const sCoords = getScreenCoords(s.x, s.y, t, T);
+                const size = 15;
+                
+                ctx.beginPath();
+                ctx.rect(sCoords.x - size/2, sCoords.y - size/2, size, size);
+                
+                const isTriggered = syndrome[i + t * numStabs] === 1;
+                if (isTriggered) {
+                    ctx.fillStyle = '#fef08a';
+                    ctx.strokeStyle = '#eab308';
+                    ctx.lineWidth = 2;
+                } else {
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.strokeStyle = '#cbd5e1';
+                    ctx.lineWidth = 1;
+                }
+                ctx.fill();
+                ctx.stroke();
 
-            // Draw green correction overlay if present
-            if (corrections) {
-                const corrXVal = corrections.x[i] === 1;
-                const corrZVal = corrections.z[i] === 1;
-                if (corrXVal || corrZVal) {
-                    ctx.beginPath();
-                    ctx.arc(q.px, q.py, radius + 4, 0, 2 * Math.PI);
-                    ctx.strokeStyle = '#22c55e';
-                    ctx.lineWidth = 2.5;
-                    ctx.stroke();
+                ctx.fillStyle = '#64748b';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let label = "";
+                if (s.type === 0) label = "Z";
+                else if (s.type === 1) label = "X";
+                else if (s.type === 2) label = "XZ";
+                ctx.fillText(label, sCoords.x, sCoords.y);
+            }
+
+            // Draw data qubits of layer t
+            for (let i = 0; i < numData; i++) {
+                const q = dataQubits[i];
+                const qCoords = getScreenCoords(q.x, q.y, t, T);
+                const radius = 9;
+                
+                ctx.beginPath();
+                ctx.arc(qCoords.x, qCoords.y, radius, 0, 2 * Math.PI);
+
+                const hasX = errX[i + t * numData] === 1;
+                const hasZ = errZ[i + t * numData] === 1;
+
+                if (hasX && hasZ) {
+                    ctx.fillStyle = '#c084fc'; // Purple (Y error)
+                    ctx.strokeStyle = '#7c3aed';
+                } else if (hasX) {
+                    ctx.fillStyle = '#60a5fa'; // Blue (X error)
+                    ctx.strokeStyle = '#2563eb';
+                } else if (hasZ) {
+                    ctx.fillStyle = '#f87171'; // Red (Z error)
+                    ctx.strokeStyle = '#dc2626';
+                } else {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = '#94a3b8';
+                }
+                ctx.lineWidth = 1.5;
+                ctx.fill();
+                ctx.stroke();
+
+                // Tiny index label
+                ctx.fillStyle = '#475569';
+                ctx.font = '7px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(i.toString(), qCoords.x, qCoords.y);
+
+                // Draw green correction overlay if present
+                if (corrections) {
+                    const corrXVal = corrections.x[i + t * numData] === 1;
+                    const corrZVal = corrections.z[i + t * numData] === 1;
+                    if (corrXVal || corrZVal) {
+                        ctx.beginPath();
+                        ctx.arc(qCoords.x, qCoords.y, radius + 3, 0, 2 * Math.PI);
+                        ctx.strokeStyle = '#22c55e';
+                        ctx.lineWidth = 2.0;
+                        ctx.stroke();
+                    }
                 }
             }
         }
@@ -660,21 +822,47 @@
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
 
-        // Find closest data qubit within radius
-        let closestIdx = -1;
-        let minDist = 20;
-        for (let i = 0; i < dataQubits.length; i++) {
-            const q = dataQubits[i];
-            const dist = Math.hypot(q.px - mx, q.py - my);
-            if (dist < minDist) {
-                minDist = dist;
-                closestIdx = i;
+        const T = parseInt(roundsSelect.value);
+        const numData = dataQubits.length;
+        const numStabs = stabilizers.length;
+
+        // Find closest data qubit or stabilizer across all layers
+        let closestQ = null;
+        let closestS = null;
+        let minDist = 18;
+
+        for (let t = 0; t < T; t++) {
+            for (let i = 0; i < numData; i++) {
+                const q = dataQubits[i];
+                const coords = getScreenCoords(q.x, q.y, t, T);
+                const dist = Math.hypot(coords.x - mx, coords.y - my);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestQ = { idx: i, t: t };
+                    closestS = null;
+                }
+            }
+            for (let i = 0; i < numStabs; i++) {
+                const s = stabilizers[i];
+                const coords = getScreenCoords(s.x, s.y, t, T);
+                const dist = Math.hypot(coords.x - mx, coords.y - my);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestS = { idx: i, t: t };
+                    closestQ = null;
+                }
             }
         }
 
-        if (closestIdx !== -1) {
+        if (closestQ) {
             const errorType = parseInt(document.querySelector('input[name="errorType"]:checked').value);
-            wasmInstance.exports.wasm_toggle_error(sessionPtr, closestIdx, errorType);
+            wasmInstance.exports.wasm_toggle_error(sessionPtr, closestQ.idx, errorType, closestQ.t);
+            corrections = null;
+            decodingStatus.style.display = 'none';
+            updatePlayground();
+        } else if (closestS) {
+            // Toggle measurement error
+            wasmInstance.exports.wasm_toggle_measurement_error(sessionPtr, closestS.idx, closestS.t);
             corrections = null;
             decodingStatus.style.display = 'none';
             updatePlayground();
@@ -685,6 +873,7 @@
     decodeBtn.addEventListener('click', () => {
         if (!sessionPtr) return;
 
+        const T = parseInt(roundsSelect.value);
         const numData = dataQubits.length;
         const memory = wasmInstance.exports.memory;
 
@@ -695,8 +884,8 @@
         const corrXPtr = wasmInstance.exports.wasm_get_correction_x_ptr(sessionPtr);
         const corrZPtr = wasmInstance.exports.wasm_get_correction_z_ptr(sessionPtr);
 
-        const corrXArr = new Uint8Array(memory.buffer, corrXPtr, numData);
-        const corrZArr = new Uint8Array(memory.buffer, corrZPtr, numData);
+        const corrXArr = new Uint8Array(memory.buffer, corrXPtr, numData * T);
+        const corrZArr = new Uint8Array(memory.buffer, corrZPtr, numData * T);
 
         // Clone correction arrays to JS memory
         corrections = {
@@ -734,7 +923,11 @@
     // EVENT LISTENERS FOR INPUTS
     codeTypeSelect.addEventListener('change', initSession);
     distanceSelect.addEventListener('change', initSession);
+    roundsSelect.addEventListener('change', initSession);
     decoderSelect.addEventListener('change', initSession);
+    biasSlider.addEventListener('input', () => {
+        biasValue.textContent = biasSlider.value;
+    });
 
     // BENCHMARKING
     runBenchBtn.addEventListener('click', () => {
@@ -745,15 +938,16 @@
         const decoderType = parseInt(benchDecoder.value);
         const noiseMode = parseInt(benchNoiseModel.value);
         const p = parseFloat(benchP.value);
+        const bias = parseFloat(benchBias.value);
+        const rounds = parseInt(benchRounds.value);
         const runs = parseInt(benchRuns.value);
 
         benchProgress.textContent = "Running Monte Carlo simulation...";
         runBenchBtn.disabled = true;
 
-        // Give UI time to update
         setTimeout(() => {
             const t0 = performance.now();
-            const rate = wasmInstance.exports.wasm_run_benchmark(d, codeType, decoderType, p, runs, noiseMode);
+            const rate = wasmInstance.exports.wasm_run_benchmark(d, codeType, decoderType, p, bias, rounds, runs, noiseMode);
             const t1 = performance.now();
             
             const elapsed = (t1 - t0) / 1000;
@@ -767,9 +961,142 @@
         }, 50);
     });
 
+    // BLOCH SPHERE ESTIMATION & DRAWING
+    function drawBlochSphere(rx, ry, rz) {
+        const bCanvas = document.getElementById('blochCanvas');
+        const bCtx = bCanvas.getContext('2d');
+        bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
+        
+        const cx = bCanvas.width / 2;
+        const cy = bCanvas.height / 2;
+        const r = 85; // Radius of sphere
+        
+        // Draw sphere outline
+        bCtx.beginPath();
+        bCtx.arc(cx, cy, r, 0, 2 * Math.PI);
+        bCtx.strokeStyle = '#94a3b8';
+        bCtx.lineWidth = 1.5;
+        bCtx.stroke();
+        bCtx.fillStyle = '#f8fafc';
+        bCtx.fill();
+        
+        // Draw equator ellipse (Z-plane equator)
+        bCtx.beginPath();
+        bCtx.ellipse(cx, cy, r, r * 0.35, 0, 0, 2 * Math.PI);
+        bCtx.strokeStyle = '#cbd5e1';
+        bCtx.setLineDash([3, 3]);
+        bCtx.stroke();
+        bCtx.setLineDash([]);
+        
+        // Draw vertical equator (X-plane equator)
+        bCtx.beginPath();
+        bCtx.ellipse(cx, cy, r * 0.35, r, 0, 0, 2 * Math.PI);
+        bCtx.strokeStyle = '#cbd5e1';
+        bCtx.setLineDash([3, 3]);
+        bCtx.stroke();
+        bCtx.setLineDash([]);
+        
+        // Draw Z-axis (vertical)
+        bCtx.beginPath();
+        bCtx.moveTo(cx, cy - r - 10);
+        bCtx.lineTo(cx, cy + r + 10);
+        bCtx.strokeStyle = '#ef4444'; // Red for Z
+        bCtx.lineWidth = 1;
+        bCtx.stroke();
+        
+        // Draw X-axis (diagonal)
+        bCtx.beginPath();
+        bCtx.moveTo(cx - r * 0.7, cy + r * 0.4);
+        bCtx.lineTo(cx + r * 0.7, cy - r * 0.4);
+        bCtx.strokeStyle = '#2563eb'; // Blue for X
+        bCtx.stroke();
+        
+        // Draw Y-axis (horizontal)
+        bCtx.beginPath();
+        bCtx.moveTo(cx - r - 10, cy);
+        bCtx.lineTo(cx + r + 10, cy);
+        bCtx.strokeStyle = '#a855f7'; // Purple for Y
+        bCtx.stroke();
+        
+        // Add axis labels
+        bCtx.font = '10px sans-serif';
+        bCtx.fillStyle = '#ef4444';
+        bCtx.fillText('+Z_L', cx + 5, cy - r - 2);
+        bCtx.fillText('-Z_L', cx + 5, cy + r + 10);
+        
+        bCtx.fillStyle = '#2563eb';
+        bCtx.fillText('+X_L', cx - r * 0.7 - 25, cy + r * 0.4 + 5);
+        bCtx.fillText('-X_L', cx + r * 0.7 + 5, cy - r * 0.4 - 2);
+        
+        bCtx.fillStyle = '#a855f7';
+        bCtx.fillText('+Y_L', cx + r + 2, cy - 5);
+        bCtx.fillText('-Y_L', cx - r - 28, cy - 5);
+        
+        // Draw origin
+        bCtx.beginPath();
+        bCtx.arc(cx, cy, 3, 0, 2 * Math.PI);
+        bCtx.fillStyle = '#1e293b';
+        bCtx.fill();
+        
+        // Map 3D coordinate (rx, ry, rz) to 2D screen coordinate
+        const px = cx + ry * r - rx * r * 0.45;
+        const py = cy - rz * r + rx * r * 0.25;
+        
+        // Draw Bloch vector
+        bCtx.beginPath();
+        bCtx.moveTo(cx, cy);
+        bCtx.lineTo(px, py);
+        bCtx.strokeStyle = '#0f172a';
+        bCtx.lineWidth = 3;
+        bCtx.stroke();
+        
+        // Draw vector tip
+        bCtx.beginPath();
+        bCtx.arc(px, py, 5, 0, 2 * Math.PI);
+        bCtx.fillStyle = '#0f172a';
+        bCtx.fill();
+        bCtx.strokeStyle = '#ffffff';
+        bCtx.lineWidth = 1;
+        bCtx.stroke();
+    }
+
+    estimateFidelityBtn.addEventListener('click', () => {
+        if (!wasmInstance) return;
+
+        const d = parseInt(benchD.value); // Use distance from benchmark
+        const codeType = parseInt(benchCodeType.value);
+        const decoderType = parseInt(benchDecoder.value);
+        const p = parseFloat(sphereP.value);
+        const bias = parseFloat(sphereBias.value);
+        const rounds = parseInt(sphereRounds.value);
+        const runs = parseInt(sphereRuns.value);
+
+        estimateFidelityBtn.disabled = true;
+        estimateFidelityBtn.textContent = "Estimating Bloch expectations...";
+
+        setTimeout(() => {
+            const resultPtr = wasmInstance.exports.wasm_estimate_logical_fidelity(
+                d, codeType, decoderType, p, bias, 2, rounds, runs
+            );
+            
+            const memory = wasmInstance.exports.memory;
+            const expectations = new Float64Array(memory.buffer, resultPtr, 3);
+            
+            const rx = expectations[0];
+            const ry = expectations[1];
+            const rz = expectations[2];
+
+            expectX.textContent = rx.toFixed(4);
+            expectY.textContent = ry.toFixed(4);
+            expectZ.textContent = rz.toFixed(4);
+
+            drawBlochSphere(rx, ry, rz);
+
+            estimateFidelityBtn.disabled = false;
+            estimateFidelityBtn.textContent = "Estimate & Plot Bloch Vector";
+        }, 50);
+    });
+
     // Start everything!
     loadWasm();
 </script>
-
-</body>
-</html>

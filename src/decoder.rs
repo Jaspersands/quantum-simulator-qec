@@ -336,3 +336,151 @@ pub fn decode_greedy(
     correction_edges
 }
 
+pub fn decode_mwpm(
+    graph: &SyndromeGraph,
+    defects: &[bool],
+) -> Vec<usize> {
+    let total_nodes = graph.num_nodes + 1; // including boundary
+    let mut unmatched = Vec::new();
+    for u in 0..graph.num_nodes {
+        if defects[u] {
+            unmatched.push(u);
+        }
+    }
+
+    if unmatched.is_empty() {
+        return Vec::new();
+    }
+
+    // Compute shortest path distance and parents from each active defect using BFS
+    let mut dists = vec![vec![usize::MAX; total_nodes]; total_nodes];
+    let mut parent_edges = vec![vec![None; total_nodes]; total_nodes];
+    let mut parent_nodes = vec![vec![None; total_nodes]; total_nodes];
+
+    let mut adj = vec![Vec::new(); total_nodes];
+    for (edge_idx, edge) in graph.edges.iter().enumerate() {
+        adj[edge.u].push((edge.v, edge_idx));
+        adj[edge.v].push((edge.u, edge_idx));
+    }
+
+    for &start in &unmatched {
+        let mut queue = VecDeque::new();
+        dists[start][start] = 0;
+        queue.push_back(start);
+
+        while let Some(u) = queue.pop_front() {
+            for &(v, edge_idx) in &adj[u] {
+                if dists[start][v] == usize::MAX {
+                    dists[start][v] = dists[start][u] + 1;
+                    parent_edges[start][v] = Some(edge_idx);
+                    parent_nodes[start][v] = Some(u);
+                    queue.push_back(v);
+                }
+            }
+        }
+    }
+
+    let m = unmatched.len();
+    
+    // If there are too many defects, search space is too large. Fallback to greedy.
+    if m > 16 {
+        return decode_greedy(graph, defects);
+    }
+
+    // Backtracking state
+    let mut is_matched = vec![false; m];
+    let mut best_weight = usize::MAX;
+    let mut best_matching = Vec::new();
+    let mut current_matching = Vec::new();
+    let mut step_count = 0;
+    
+    fn match_step(
+        idx: usize,
+        m: usize,
+        unmatched: &[usize],
+        is_matched: &mut [bool],
+        current_weight: usize,
+        best_weight: &mut usize,
+        current_matching: &mut Vec<(usize, usize)>,
+        best_matching: &mut Vec<(usize, usize)>,
+        dists: &Vec<Vec<usize>>,
+        boundary_node: usize,
+        step_count: &mut usize,
+    ) {
+        *step_count += 1;
+        if *step_count > 50000 {
+            return;
+        }
+
+        // Find the first unmatched defect
+        let mut first = None;
+        for i in idx..m {
+            if !is_matched[i] {
+                first = Some(i);
+                break;
+            }
+        }
+
+        let u_idx = match first {
+            None => {
+                // All matched! Check if this is better.
+                if current_weight < *best_weight {
+                    *best_weight = current_weight;
+                    *best_matching = current_matching.clone();
+                }
+                return;
+            }
+            Some(i) => i,
+        };
+
+        let u = unmatched[u_idx];
+
+        // Option A: Match to boundary
+        let d_boundary = dists[u][boundary_node];
+        if d_boundary != usize::MAX && current_weight + d_boundary < *best_weight {
+            is_matched[u_idx] = true;
+            current_matching.push((u, boundary_node));
+            match_step(u_idx + 1, m, unmatched, is_matched, current_weight + d_boundary, best_weight, current_matching, best_matching, dists, boundary_node, step_count);
+            current_matching.pop();
+            is_matched[u_idx] = false;
+        }
+
+        // Option B: Match to another unmatched defect v
+        for v_idx in (u_idx + 1)..m {
+            if !is_matched[v_idx] {
+                let v = unmatched[v_idx];
+                let d_uv = dists[u][v];
+                if d_uv != usize::MAX && current_weight + d_uv < *best_weight {
+                    is_matched[u_idx] = true;
+                    is_matched[v_idx] = true;
+                    current_matching.push((u, v));
+                    match_step(u_idx + 1, m, unmatched, is_matched, current_weight + d_uv, best_weight, current_matching, best_matching, dists, boundary_node, step_count);
+                    current_matching.pop();
+                    is_matched[v_idx] = false;
+                    is_matched[u_idx] = false;
+                }
+            }
+        }
+    }
+
+    match_step(0, m, &unmatched, &mut is_matched, 0, &mut best_weight, &mut current_matching, &mut best_matching, &dists, graph.num_nodes, &mut step_count);
+
+    // If search timed out or couldn't find a perfect matching, fallback to greedy
+    if best_matching.is_empty() && best_weight == usize::MAX {
+        return decode_greedy(graph, defects);
+    }
+
+    let mut correction_edges = Vec::new();
+    for &(u, v) in &best_matching {
+        let mut curr = v;
+        while let Some(p) = parent_nodes[u][curr] {
+            if let Some(edge_idx) = parent_edges[u][curr] {
+                correction_edges.push(edge_idx);
+            }
+            curr = p;
+        }
+    }
+
+    correction_edges
+}
+

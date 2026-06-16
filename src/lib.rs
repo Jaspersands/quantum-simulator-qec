@@ -22,12 +22,14 @@ impl PyRotatedSurfaceCode {
         }
     }
 
-    fn simulate(&self, num_rounds: usize, p: f64) -> bool {
-        self.code.simulate_phenomenological_noise(num_rounds, p)
+    #[pyo3(signature = (num_rounds, p, bias=None, decoder_type=None))]
+    fn simulate(&self, num_rounds: usize, p: f64, bias: Option<f64>, decoder_type: Option<usize>) -> bool {
+        self.code.simulate_phenomenological_noise(num_rounds, p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0))
     }
 
-    fn simulate_data_noise(&self, p: f64) -> bool {
-        self.code.simulate_data_noise(p)
+    #[pyo3(signature = (p, bias=None, decoder_type=None))]
+    fn simulate_data_noise(&self, p: f64, bias: Option<f64>, decoder_type: Option<usize>) -> bool {
+        self.code.simulate_data_noise(p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0))
     }
 
     #[getter]
@@ -46,8 +48,10 @@ fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
 pub struct WasmSession {
     code_type: usize, // 0 for Rotated, 1 for XZZX
     d: usize,
+    num_rounds: usize,
     physical_x: Vec<bool>,
     physical_z: Vec<bool>,
+    measurement_errors: Vec<bool>,
     physical_x_u8: Vec<u8>,
     physical_z_u8: Vec<u8>,
     correction_x: Vec<u8>,
@@ -68,8 +72,10 @@ pub extern "C" fn wasm_create_session(d: usize, code_type: usize) -> *mut WasmSe
     let session = Box::new(WasmSession {
         code_type,
         d,
+        num_rounds: 1,
         physical_x: vec![false; num_data],
         physical_z: vec![false; num_data],
+        measurement_errors: vec![false; num_stabs],
         physical_x_u8: vec![0; num_data],
         physical_z_u8: vec![0; num_data],
         correction_x: vec![0; num_data],
@@ -77,6 +83,28 @@ pub extern "C" fn wasm_create_session(d: usize, code_type: usize) -> *mut WasmSe
         syndrome: vec![0; num_stabs],
     });
     Box::into_raw(session)
+}
+
+#[no_mangle]
+pub extern "C" fn wasm_set_num_rounds(ptr: *mut WasmSession, num_rounds: usize) {
+    let session = unsafe { &mut *ptr };
+    session.num_rounds = num_rounds;
+    let num_data = session.d * session.d * num_rounds;
+    let num_stabs = if session.code_type == 0 {
+        let code = surface_code::RotatedSurfaceCode::new(session.d);
+        (code.x_stabilizers.len() + code.z_stabilizers.len()) * num_rounds
+    } else {
+        let code = surface_code::XZZXSurfaceCode::new(session.d);
+        code.stabilizers.len() * num_rounds
+    };
+    session.physical_x.resize(num_data, false);
+    session.physical_z.resize(num_data, false);
+    session.measurement_errors.resize(num_stabs, false);
+    session.physical_x_u8.resize(num_data, 0);
+    session.physical_z_u8.resize(num_data, 0);
+    session.correction_x.resize(num_data, 0);
+    session.correction_z.resize(num_data, 0);
+    session.syndrome.resize(num_stabs, 0);
 }
 
 #[no_mangle]
@@ -119,24 +147,41 @@ pub extern "C" fn wasm_free_session(ptr: *mut WasmSession) {
 }
 
 #[no_mangle]
-pub extern "C" fn wasm_toggle_error(ptr: *mut WasmSession, q_idx: usize, error_type: usize) {
+pub extern "C" fn wasm_toggle_error(ptr: *mut WasmSession, q_idx: usize, error_type: usize, t: usize) {
     let session = unsafe { &mut *ptr };
-    if q_idx < session.physical_x.len() {
+    let num_data = session.d * session.d;
+    let idx = q_idx + t * num_data;
+    if idx < session.physical_x.len() {
         if error_type == 0 {
-            session.physical_x[q_idx] ^= true;
+            session.physical_x[idx] ^= true;
         } else {
-            session.physical_z[q_idx] ^= true;
+            session.physical_z[idx] ^= true;
         }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn wasm_toggle_measurement_error(ptr: *mut WasmSession, s_idx: usize, t: usize) {
+    let session = unsafe { &mut *ptr };
+    let num_stabs = if session.code_type == 0 {
+        let code = surface_code::RotatedSurfaceCode::new(session.d);
+        code.x_stabilizers.len() + code.z_stabilizers.len()
+    } else {
+        let code = surface_code::XZZXSurfaceCode::new(session.d);
+        code.stabilizers.len()
+    };
+    let idx = s_idx + t * num_stabs;
+    if idx < session.measurement_errors.len() {
+        session.measurement_errors[idx] ^= true;
     }
 }
 
 #[no_mangle]
 pub extern "C" fn wasm_clear_errors(ptr: *mut WasmSession) {
     let session = unsafe { &mut *ptr };
-    for i in 0..session.physical_x.len() {
-        session.physical_x[i] = false;
-        session.physical_z[i] = false;
-    }
+    for val in &mut session.physical_x { *val = false; }
+    for val in &mut session.physical_z { *val = false; }
+    for val in &mut session.measurement_errors { *val = false; }
 }
 
 #[no_mangle]
@@ -232,51 +277,77 @@ pub extern "C" fn wasm_get_stabilizer_type(ptr: *mut WasmSession, idx: usize) ->
 pub extern "C" fn wasm_get_syndrome(ptr: *mut WasmSession) -> *const u8 {
     let session = unsafe { &mut *ptr };
     let d = session.d;
+    let num_rounds = session.num_rounds;
+    let num_data = d * d;
+    
     if session.code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
         let num_x = code.x_stabilizers.len();
         let num_z = code.z_stabilizers.len();
+        let num_stabs = num_x + num_z;
         
-        for s_idx in 0..num_z {
-            let neighbors = code.get_neighbors(&code.z_stabilizers[s_idx]);
-            let mut parity = 0;
-            for &q in &neighbors {
-                if session.physical_x[q] {
+        for t in 0..num_rounds {
+            for s_idx in 0..num_z {
+                let neighbors = code.get_neighbors(&code.z_stabilizers[s_idx]);
+                let mut parity = 0;
+                // Accumulate physical X errors up to round t
+                for t_prime in 0..=t {
+                    for &q in &neighbors {
+                        if session.physical_x[q + t_prime * num_data] {
+                            parity ^= 1;
+                        }
+                    }
+                }
+                if session.measurement_errors[num_x + s_idx + t * num_stabs] {
                     parity ^= 1;
                 }
+                session.syndrome[num_x + s_idx + t * num_stabs] = parity;
             }
-            session.syndrome[num_x + s_idx] = parity;
-        }
 
-        for s_idx in 0..num_x {
-            let neighbors = code.get_neighbors(&code.x_stabilizers[s_idx]);
-            let mut parity = 0;
-            for &q in &neighbors {
-                if session.physical_z[q] {
+            for s_idx in 0..num_x {
+                let neighbors = code.get_neighbors(&code.x_stabilizers[s_idx]);
+                let mut parity = 0;
+                // Accumulate physical Z errors up to round t
+                for t_prime in 0..=t {
+                    for &q in &neighbors {
+                        if session.physical_z[q + t_prime * num_data] {
+                            parity ^= 1;
+                        }
+                    }
+                }
+                if session.measurement_errors[s_idx + t * num_stabs] {
                     parity ^= 1;
                 }
+                session.syndrome[s_idx + t * num_stabs] = parity;
             }
-            session.syndrome[s_idx] = parity;
         }
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
         let num_stabs = code.stabilizers.len();
-        for s_idx in 0..num_stabs {
-            let (sx, sy) = code.stabilizers[s_idx];
-            let mut parity = 0;
-            if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 - 1) {
-                if session.physical_z[q] { parity ^= 1; }
+        
+        for t in 0..num_rounds {
+            for s_idx in 0..num_stabs {
+                let (sx, sy) = code.stabilizers[s_idx];
+                let mut parity = 0;
+                for t_prime in 0..=t {
+                    if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 - 1) {
+                        if session.physical_z[q + t_prime * num_data] { parity ^= 1; }
+                    }
+                    if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 - 1) {
+                        if session.physical_x[q + t_prime * num_data] { parity ^= 1; }
+                    }
+                    if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 + 1) {
+                        if session.physical_x[q + t_prime * num_data] { parity ^= 1; }
+                    }
+                    if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 + 1) {
+                        if session.physical_z[q + t_prime * num_data] { parity ^= 1; }
+                    }
+                }
+                if session.measurement_errors[s_idx + t * num_stabs] {
+                    parity ^= 1;
+                }
+                session.syndrome[s_idx + t * num_stabs] = parity;
             }
-            if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 - 1) {
-                if session.physical_x[q] { parity ^= 1; }
-            }
-            if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 + 1) {
-                if session.physical_x[q] { parity ^= 1; }
-            }
-            if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 + 1) {
-                if session.physical_z[q] { parity ^= 1; }
-            }
-            session.syndrome[s_idx] = parity;
         }
     }
     session.syndrome.as_ptr()
@@ -289,6 +360,7 @@ pub extern "C" fn wasm_decode(
 ) -> u8 {
     let session = unsafe { &mut *ptr };
     let d = session.d;
+    let num_rounds = session.num_rounds;
     let num_data = d * d;
 
     for val in &mut session.correction_x {
@@ -298,72 +370,79 @@ pub extern "C" fn wasm_decode(
         *val = 0;
     }
 
+    // Call wasm_get_syndrome to populate session.syndrome first
+    wasm_get_syndrome(ptr);
+
     if session.code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
         let num_x = code.x_stabilizers.len();
         let num_z = code.z_stabilizers.len();
+        let num_stabs = num_x + num_z;
 
-        let mut measured_z = vec![false; num_z];
-        for s_idx in 0..num_z {
-            let neighbors = code.get_neighbors(&code.z_stabilizers[s_idx]);
-            let mut parity = false;
-            for &q in &neighbors {
-                if session.physical_x[q] {
-                    parity ^= true;
-                }
+        // --- Z stabilizers (X errors) ---
+        let graph_z = code.build_syndrome_graph(num_rounds, true);
+        let mut defects_z = vec![false; graph_z.num_nodes];
+        for t in 0..num_rounds {
+            for s_idx in 0..num_z {
+                let outcome = session.syndrome[num_x + s_idx + t * num_stabs] == 1;
+                let prev_outcome = if t == 0 { false } else { session.syndrome[num_x + s_idx + (t - 1) * num_stabs] == 1 };
+                defects_z[s_idx + t * num_z] = outcome ^ prev_outcome;
             }
-            measured_z[s_idx] = parity;
         }
-
-        let graph_z = code.build_syndrome_graph(1, true);
-        let correction_z_edges = if decoder_type == 1 {
-            decoder::decode_greedy(&graph_z, &measured_z)
-        } else {
-            decoder::decode_union_find(&graph_z, &measured_z)
+        let correction_z_edges = match decoder_type {
+            1 => decoder::decode_greedy(&graph_z, &defects_z),
+            2 => decoder::decode_mwpm(&graph_z, &defects_z),
+            _ => decoder::decode_union_find(&graph_z, &defects_z),
         };
-
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                session.correction_x[q_idx] ^= 1;
-            }
-        }
-
-        let mut measured_x = vec![false; num_x];
-        for s_idx in 0..num_x {
-            let neighbors = code.get_neighbors(&code.x_stabilizers[s_idx]);
-            let mut parity = false;
-            for &q in &neighbors {
-                if session.physical_z[q] {
-                    parity ^= true;
+                let u = graph_z.edges[edge_idx].u;
+                let t_layer = u / num_z;
+                if t_layer < num_rounds {
+                    session.correction_x[q_idx + t_layer * num_data] ^= 1;
                 }
             }
-            measured_x[s_idx] = parity;
         }
 
-        let graph_x = code.build_syndrome_graph(1, false);
-        let correction_x_edges = if decoder_type == 1 {
-            decoder::decode_greedy(&graph_x, &measured_x)
-        } else {
-            decoder::decode_union_find(&graph_x, &measured_x)
+        // --- X stabilizers (Z errors) ---
+        let graph_x = code.build_syndrome_graph(num_rounds, false);
+        let mut defects_x = vec![false; graph_x.num_nodes];
+        for t in 0..num_rounds {
+            for s_idx in 0..num_x {
+                let outcome = session.syndrome[s_idx + t * num_stabs] == 1;
+                let prev_outcome = if t == 0 { false } else { session.syndrome[s_idx + (t - 1) * num_stabs] == 1 };
+                defects_x[s_idx + t * num_x] = outcome ^ prev_outcome;
+            }
+        }
+        let correction_x_edges = match decoder_type {
+            1 => decoder::decode_greedy(&graph_x, &defects_x),
+            2 => decoder::decode_mwpm(&graph_x, &defects_x),
+            _ => decoder::decode_union_find(&graph_x, &defects_x),
         };
-
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                session.correction_z[q_idx] ^= 1;
+                let u = graph_x.edges[edge_idx].u;
+                let t_layer = u / num_x;
+                if t_layer < num_rounds {
+                    session.correction_z[q_idx + t_layer * num_data] ^= 1;
+                }
             }
         }
 
-        let mut residual_x = vec![false; num_data];
-        let mut residual_z = vec![false; num_data];
-        for q in 0..num_data {
-            residual_x[q] = session.physical_x[q] ^ (session.correction_x[q] != 0);
-            residual_z[q] = session.physical_z[q] ^ (session.correction_z[q] != 0);
+        // We check logical errors at the final round by accumulating physical and correction operators
+        let mut accumulated_x = vec![false; num_data];
+        let mut accumulated_z = vec![false; num_data];
+        for t in 0..num_rounds {
+            for q in 0..num_data {
+                accumulated_x[q] ^= session.physical_x[q + t * num_data] ^ (session.correction_x[q + t * num_data] != 0);
+                accumulated_z[q] ^= session.physical_z[q + t * num_data] ^ (session.correction_z[q + t * num_data] != 0);
+            }
         }
 
         let mut logical_x = false;
         for y_idx in 0..d {
             let q_idx = 0 + d * y_idx;
-            if residual_x[q_idx] {
+            if accumulated_x[q_idx] {
                 logical_x ^= true;
             }
         }
@@ -371,7 +450,7 @@ pub extern "C" fn wasm_decode(
         let mut logical_z = false;
         for x_idx in 0..d {
             let q_idx = x_idx + d * 0;
-            if residual_z[q_idx] {
+            if accumulated_z[q_idx] {
                 logical_z ^= true;
             }
         }
@@ -381,63 +460,60 @@ pub extern "C" fn wasm_decode(
         let code = surface_code::XZZXSurfaceCode::new(d);
         let num_stabs = code.stabilizers.len();
 
-        let mut measured = vec![false; num_stabs];
-        for s_idx in 0..num_stabs {
-            let (sx, sy) = code.stabilizers[s_idx];
-            let mut parity = false;
-            if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 - 1) {
-                if session.physical_z[q] { parity ^= true; }
+        let graph_z = code.build_syndrome_graph(num_rounds, true);
+        let mut defects_z = vec![false; graph_z.num_nodes];
+        for t in 0..num_rounds {
+            for s_idx in 0..num_stabs {
+                let outcome = session.syndrome[s_idx + t * num_stabs] == 1;
+                let prev_outcome = if t == 0 { false } else { session.syndrome[s_idx + (t - 1) * num_stabs] == 1 };
+                defects_z[s_idx + t * num_stabs] = outcome ^ prev_outcome;
             }
-            if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 - 1) {
-                if session.physical_x[q] { parity ^= true; }
-            }
-            if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 + 1) {
-                if session.physical_x[q] { parity ^= true; }
-            }
-            if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 + 1) {
-                if session.physical_z[q] { parity ^= true; }
-            }
-            measured[s_idx] = parity;
         }
-
-        let graph_z = code.build_syndrome_graph(1, true);
-        let correction_z_edges = if decoder_type == 1 {
-            decoder::decode_greedy(&graph_z, &measured)
-        } else {
-            decoder::decode_union_find(&graph_z, &measured)
+        let correction_z_edges = match decoder_type {
+            1 => decoder::decode_greedy(&graph_z, &defects_z),
+            2 => decoder::decode_mwpm(&graph_z, &defects_z),
+            _ => decoder::decode_union_find(&graph_z, &defects_z),
         };
-
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                session.correction_x[q_idx] ^= 1;
+                let u = graph_z.edges[edge_idx].u;
+                let t_layer = u / num_stabs;
+                if t_layer < num_rounds {
+                    session.correction_x[q_idx + t_layer * num_data] ^= 1;
+                }
             }
         }
 
-        let graph_x = code.build_syndrome_graph(1, false);
-        let defects_x = measured.clone();
-        let correction_x_edges = if decoder_type == 1 {
-            decoder::decode_greedy(&graph_x, &defects_x)
-        } else {
-            decoder::decode_union_find(&graph_x, &defects_x)
+        let graph_x = code.build_syndrome_graph(num_rounds, false);
+        let defects_x = defects_z.clone();
+        let correction_x_edges = match decoder_type {
+            1 => decoder::decode_greedy(&graph_x, &defects_x),
+            2 => decoder::decode_mwpm(&graph_x, &defects_x),
+            _ => decoder::decode_union_find(&graph_x, &defects_x),
         };
-
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                session.correction_z[q_idx] ^= 1;
+                let u = graph_x.edges[edge_idx].u;
+                let t_layer = u / num_stabs;
+                if t_layer < num_rounds {
+                    session.correction_z[q_idx + t_layer * num_data] ^= 1;
+                }
             }
         }
 
-        let mut residual_x = vec![false; num_data];
-        let mut residual_z = vec![false; num_data];
-        for q in 0..num_data {
-            residual_x[q] = session.physical_x[q] ^ (session.correction_x[q] != 0);
-            residual_z[q] = session.physical_z[q] ^ (session.correction_z[q] != 0);
+        let mut accumulated_x = vec![false; num_data];
+        let mut accumulated_z = vec![false; num_data];
+        for t in 0..num_rounds {
+            for q in 0..num_data {
+                accumulated_x[q] ^= session.physical_x[q + t * num_data] ^ (session.correction_x[q + t * num_data] != 0);
+                accumulated_z[q] ^= session.physical_z[q + t * num_data] ^ (session.correction_z[q + t * num_data] != 0);
+            }
         }
 
         let mut logical_err_1 = false;
         for x_idx in 0..d {
             let q = x_idx + d * 0;
-            let err = if x_idx % 2 == 0 { residual_z[q] } else { residual_x[q] };
+            let err = if x_idx % 2 == 0 { accumulated_z[q] } else { accumulated_x[q] };
             if err {
                 logical_err_1 ^= true;
             }
@@ -446,7 +522,7 @@ pub extern "C" fn wasm_decode(
         let mut logical_err_2 = false;
         for y_idx in 0..d {
             let q = 0 + d * y_idx;
-            let err = if y_idx % 2 == 0 { residual_x[q] } else { residual_z[q] };
+            let err = if y_idx % 2 == 0 { accumulated_x[q] } else { accumulated_z[q] };
             if err {
                 logical_err_2 ^= true;
             }
@@ -456,25 +532,123 @@ pub extern "C" fn wasm_decode(
     }
 }
 
+static mut FIDELITY_RESULTS: [f64; 3] = [0.0; 3];
+
+#[no_mangle]
+pub extern "C" fn wasm_estimate_logical_fidelity(
+    d: usize,
+    code_type: usize,
+    decoder_type: usize,
+    p: f64,
+    bias: f64,
+    noise_mode: usize,
+    num_rounds: usize,
+    runs: usize,
+) -> *const f64 {
+    let mut failures_x = 0;
+    let mut failures_y = 0;
+    let mut failures_z = 0;
+
+    if code_type == 0 {
+        let code = surface_code::RotatedSurfaceCode::new(d);
+        for _ in 0..runs {
+            let failed_x = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "plus", decoder_type),
+                _ => false,
+            };
+            if failed_x {
+                failures_x += 1;
+            }
+
+            let failed_y = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "y", decoder_type),
+                _ => false,
+            };
+            if failed_y {
+                failures_y += 1;
+            }
+
+            let failed_z = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type),
+                _ => false,
+            };
+            if failed_z {
+                failures_z += 1;
+            }
+        }
+    } else {
+        let code = surface_code::XZZXSurfaceCode::new(d);
+        for _ in 0..runs {
+            let failed_x = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "plus", decoder_type),
+                _ => false,
+            };
+            if failed_x {
+                failures_x += 1;
+            }
+
+            let failed_y = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "y", decoder_type),
+                _ => false,
+            };
+            if failed_y {
+                failures_y += 1;
+            }
+
+            let failed_z = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type),
+                _ => false,
+            };
+            if failed_z {
+                failures_z += 1;
+            }
+        }
+    }
+
+    let p_x = (failures_x as f64) / (runs as f64);
+    let p_y = (failures_y as f64) / (runs as f64);
+    let p_z = (failures_z as f64) / (runs as f64);
+
+    unsafe {
+        FIDELITY_RESULTS[0] = 1.0 - 2.0 * p_x;
+        FIDELITY_RESULTS[1] = 1.0 - 2.0 * p_y;
+        FIDELITY_RESULTS[2] = 1.0 - 2.0 * p_z;
+        std::ptr::addr_of!(FIDELITY_RESULTS) as *const f64
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn wasm_run_benchmark(
     d: usize,
     code_type: usize,
     decoder_type: usize,
     p: f64,
+    bias: f64,
+    num_rounds: usize,
     num_runs: usize,
     noise_mode: usize,
 ) -> f64 {
     let mut failures = 0;
-    let use_greedy = decoder_type == 1;
 
     if code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
         for _ in 0..num_runs {
             let failed = match noise_mode {
-                0 => code.simulate_data_noise(p),
-                1 => code.simulate_phenomenological_noise(d, p),
-                2 => code.simulate_circuit_noise(d, p, "zero", use_greedy),
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type),
                 _ => false,
             };
             if failed {
@@ -485,9 +659,9 @@ pub extern "C" fn wasm_run_benchmark(
         let code = surface_code::XZZXSurfaceCode::new(d);
         for _ in 0..num_runs {
             let failed = match noise_mode {
-                0 => code.simulate_data_noise(p),
-                1 => code.simulate_phenomenological_noise(d, p),
-                2 => code.simulate_circuit_noise(d, p, "zero", use_greedy),
+                0 => code.simulate_data_noise(p, bias, decoder_type),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type),
                 _ => false,
             };
             if failed {
@@ -710,7 +884,7 @@ mod tests {
     fn test_surface_code_zero_noise() {
         let code = crate::surface_code::RotatedSurfaceCode::new(3);
         for _ in 0..10 {
-            let logical_err = code.simulate_phenomenological_noise(3, 0.0);
+            let logical_err = code.simulate_phenomenological_noise(3, 0.0, 1.0, 0);
             assert!(!logical_err);
         }
     }
@@ -721,7 +895,7 @@ mod tests {
         let mut error_count = 0;
         let num_runs = 500;
         for _ in 0..num_runs {
-            if code.simulate_phenomenological_noise(3, 0.005) {
+            if code.simulate_phenomenological_noise(3, 0.005, 1.0, 0) {
                 error_count += 1;
             }
         }
@@ -793,13 +967,28 @@ mod tests {
     }
 
     #[test]
+    fn test_mwpm_decoder() {
+        let code = crate::surface_code::RotatedSurfaceCode::new(3);
+        let graph_z = code.build_syndrome_graph(1, true);
+
+        // Inject a single X error on data qubit 0
+        let mut defects = vec![false; graph_z.num_nodes];
+        defects[1] = true;
+
+        let correction = crate::decoder::decode_mwpm(&graph_z, &defects);
+        assert_eq!(correction.len(), 1);
+        let corrected_qubit = graph_z.edge_to_qubit[correction[0]].unwrap();
+        assert_eq!(corrected_qubit, 0);
+    }
+
+    #[test]
     fn test_circuit_level_noise_zero_noise() {
         let code_rotated = crate::surface_code::RotatedSurfaceCode::new(3);
-        let failed_rot = code_rotated.simulate_circuit_noise(2, 0.0, "zero", false);
+        let failed_rot = code_rotated.simulate_circuit_noise(2, 0.0, 1.0, "zero", 0);
         assert!(!failed_rot);
 
         let code_xzzx = crate::surface_code::XZZXSurfaceCode::new(3);
-        let failed_xzzx = code_xzzx.simulate_circuit_noise(2, 0.0, "zero", false);
+        let failed_xzzx = code_xzzx.simulate_circuit_noise(2, 0.0, 1.0, "zero", 0);
         assert!(!failed_xzzx);
     }
 }
