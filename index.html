@@ -5,81 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quantum Error Correction Simulator Dashboard</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap');
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: #24292f;
-            background-color: #fafafa;
-            line-height: 1.5;
-            padding: 40px 20px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #1c1d1f;
+            background-color: #f6f5f0; /* Warm cream paper tone */
+            line-height: 1.6;
+            padding: 50px 20px;
             margin: 0;
+            letter-spacing: -0.01em;
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
             background: #ffffff;
-            border: 1px solid #d0d7de;
-            border-radius: 6px;
-            padding: 40px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1.5px solid #1c1d1f; /* Hard crisp border */
+            padding: 50px;
+            box-shadow: 6px 6px 0px rgba(28, 29, 31, 0.08); /* Flat retro-editorial shadow */
         }
 
         h1 {
-            font-size: 1.8rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #d0d7de;
-            padding-bottom: 12px;
+            font-family: 'Lora', Georgia, serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 6px;
+            color: #1c1d1f;
+            text-align: center;
         }
 
         .subtitle {
-            color: #57606a;
-            font-size: 1rem;
-            margin-bottom: 30px;
+            font-family: 'Lora', Georgia, serif;
+            font-style: italic;
+            color: #4a4c50;
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+            text-align: center;
+            border-bottom: 3px double #1c1d1f;
+            padding-bottom: 20px;
+        }
+
+        h2 {
+            font-family: 'Lora', Georgia, serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 45px;
+            margin-bottom: 20px;
+            border-bottom: 1.5px solid #1c1d1f;
+            padding-bottom: 6px;
+            color: #1c1d1f;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-desc {
+            font-size: 0.95rem;
+            color: #4a4c50;
+            margin-bottom: 25px;
+            line-height: 1.6;
+            max-width: 900px;
         }
 
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
-            margin-bottom: 35px;
+            margin-bottom: 40px;
         }
 
         .metric-card {
-            background: #f6f8fa;
-            border: 1px solid #d0d7de;
-            border-radius: 6px;
-            padding: 16px;
+            background: #faf9f6;
+            border: 1.5px solid #1c1d1f;
+            padding: 20px;
+            box-shadow: 3px 3px 0px rgba(28, 29, 31, 0.05);
+            position: relative;
         }
 
         .metric-label {
-            font-size: 0.8rem;
-            color: #57606a;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: #5d6166;
             text-transform: uppercase;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+            letter-spacing: 0.05em;
         }
 
         .metric-value {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #0969da;
-        }
-
-        h2 {
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-top: 35px;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #d0d7de;
-            padding-bottom: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #1c1d1f;
         }
 
         .plots-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 35px;
+            gap: 24px;
+            margin-bottom: 40px;
         }
 
         @media (max-width: 768px) {
@@ -89,62 +115,188 @@
         }
 
         .plot-card {
-            border: 1px solid #d0d7de;
-            border-radius: 6px;
-            padding: 15px;
+            border: 1.5px solid #1c1d1f;
+            padding: 20px;
             background: #ffffff;
             text-align: center;
+            box-shadow: 4px 4px 0px rgba(28, 29, 31, 0.05);
         }
 
         .plot-card h3 {
-            font-size: 0.95rem;
-            margin-bottom: 10px;
-            color: #24292f;
+            font-family: 'Lora', Georgia, serif;
+            font-size: 1.05rem;
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #1c1d1f;
+            font-weight: 600;
         }
 
         .plot-img {
             max-width: 100%;
             height: auto;
-            border: 1px solid #f0f2f5;
-            border-radius: 4px;
+            border: 1.5px solid #1c1d1f;
+            filter: grayscale(10%) contrast(105%); /* Academic paper ink look */
         }
 
         .stats-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
-            margin-bottom: 35px;
-            font-size: 0.9rem;
+            margin-top: 20px;
+            margin-bottom: 40px;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .stats-table th {
-            background-color: #f6f8fa;
-            border: 1px solid #d0d7de;
-            padding: 10px 12px;
-            font-weight: 600;
+            background-color: #faf9f6;
+            border: 1.5px solid #1c1d1f;
+            padding: 12px 14px;
+            font-weight: 700;
             text-align: left;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
         }
 
         .stats-table td {
-            border: 1px solid #d0d7de;
-            padding: 10px 12px;
+            border: 1.5px solid #1c1d1f;
+            padding: 12px 14px;
         }
 
         .stats-table tr:nth-child(even) {
-            background-color: #f6f8fa;
+            background-color: #fdfdfb;
         }
 
-        .section-desc {
-            font-size: 0.95rem;
-            color: #57606a;
-            margin-bottom: 15px;
-            line-height: 1.5;
+        /* Latex-style Outline Button */
+        button {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            padding: 12px 24px;
+            background-color: #ffffff;
+            color: #1c1d1f;
+            border: 1.5px solid #1c1d1f;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            box-shadow: 3px 3px 0px #1c1d1f;
+            border-radius: 0px; /* Sharp corners */
+        }
+
+        button:hover {
+            background-color: #1c1d1f;
+            color: #ffffff;
+            box-shadow: 0px 0px 0px #1c1d1f;
+            transform: translate(2px, 2px);
+        }
+
+        button:disabled {
+            background-color: #f3f3f0;
+            color: #888888;
+            border-color: #cccccc;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Latex style inputs */
+        select, input[type="number"], input[type="text"], input[type="range"] {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            padding: 8px 10px;
+            border: 1.5px solid #1c1d1f;
+            background-color: #ffffff;
+            color: #1c1d1f;
+            border-radius: 0px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        select:focus, input[type="number"]:focus {
+            background-color: #faf9f6;
+        }
+
+        /* Custom range slider style */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: #e2e1d9;
+            outline: none;
+            border: none;
+            padding: 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #1c1d1f;
+            border: 1.5px solid #ffffff;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: #1c1d1f;
+            border: 1.5px solid #ffffff;
+            cursor: pointer;
+        }
+
+        /* Custom radio buttons and checkbox style */
+        input[type="radio"], input[type="checkbox"] {
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #1c1d1f;
+            border-radius: 0px;
+            display: inline-grid;
+            place-content: center;
+            background-color: #ffffff;
+            outline: none;
+            margin: 0;
+        }
+
+        input[type="radio"] {
+            border-radius: 50%;
+        }
+
+        input[type="radio"]::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            background-color: #1c1d1f;
+        }
+
+        input[type="radio"]:checked::before {
+            transform: scale(1);
+        }
+
+        input[type="checkbox"]::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            background-color: #1c1d1f;
+        }
+
+        input[type="checkbox"]:checked::before {
+            transform: scale(1);
         }
 
         .tech-list {
+            font-family: 'Inter', sans-serif;
             margin-left: 20px;
             margin-bottom: 20px;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
+            color: #3a3c40;
         }
 
         .tech-list li {
@@ -152,24 +304,38 @@
         }
 
         .gh-link {
-            display: inline-block;
-            margin-top: 10px;
-            color: #0969da;
-            text-decoration: none;
-            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #1c1d1f;
+            text-decoration: underline;
+            font-weight: 600;
         }
 
         .gh-link:hover {
-            text-decoration: underline;
+            color: #5d6166;
         }
 
         footer {
-            margin-top: 50px;
-            border-top: 1px solid #d0d7de;
-            padding-top: 20px;
+            margin-top: 60px;
+            border-top: 1px dashed #1c1d1f;
+            padding-top: 30px;
             text-align: center;
-            font-size: 0.8rem;
-            color: #57606a;
+            font-family: 'Lora', Georgia, serif;
+            font-style: italic;
+            font-size: 0.9rem;
+            color: #4a4c50;
+        }
+
+        button.btn-green {
+            border-color: #2d5a27;
+            color: #2d5a27;
+            box-shadow: 3px 3px 0px #2d5a27;
+        }
+        button.btn-green:hover {
+            background-color: #2d5a27;
+            color: #ffffff;
         }
 
         select, input[type="number"], input[type="radio"] {
@@ -208,18 +374,31 @@
     </p>
 
     <!-- Visualizer Layout -->
-    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 30px; margin-bottom: 35px; border: 1px solid #d0d7de; border-radius: 6px; padding: 25px;">
+    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 30px; margin-bottom: 35px; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; background: #ffffff; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Visualizer Mode:</label>
+                <div style="display: flex; gap: 10px; margin-bottom: 5px;">
+                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; cursor: pointer; flex: 1;">
+                        <input type="radio" id="modeMemory" name="visMode" value="memory" checked>
+                        <span>Single Patch</span>
+                    </label>
+                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; cursor: pointer; flex: 1;">
+                        <input type="radio" id="surgeryToggle" name="visMode" value="surgery">
+                        <span>CNOT Surgery</span>
+                    </label>
+                </div>
+            </div>
+            <div>
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Code Geometry:</label>
-                <select id="codeTypeSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                <select id="codeTypeSelect" style="width: 100%;">
                     <option value="0">Rotated Surface Code</option>
                     <option value="1">XZZX Surface Code</option>
                 </select>
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Code Distance (d):</label>
-                <select id="distanceSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                <select id="distanceSelect" style="width: 100%;">
                     <option value="3">d = 3 (9 Qubits)</option>
                     <option value="5">d = 5 (25 Qubits)</option>
                     <option value="7">d = 7 (49 Qubits)</option>
@@ -227,7 +406,7 @@
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Number of Rounds (T):</label>
-                <select id="roundsSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                <select id="roundsSelect" style="width: 100%;">
                     <option value="1">T = 1 (Data noise only)</option>
                     <option value="3">T = 3 (Spacetime)</option>
                     <option value="5">T = 5 (Spacetime)</option>
@@ -235,7 +414,7 @@
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Decoder:</label>
-                <select id="decoderSelect" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                <select id="decoderSelect" style="width: 100%;">
                     <option value="0">Union-Find Peeling</option>
                     <option value="1">Greedy (Nearest-Neighbor)</option>
                     <option value="2">Exact MWPM (Defects &le; 16)</option>
@@ -247,9 +426,29 @@
                     <input type="range" id="biasSlider" min="0.5" max="50" step="0.5" value="0.5" style="flex: 1;">
                     <span id="biasValue" style="font-size: 0.9rem; font-weight: 600; min-width: 30px;">0.5</span>
                 </div>
-                <div style="font-size: 0.75rem; color: #57606a; margin-top: 3px;">0.5: Unbiased, &gt;0.5: Z-biased noise.</div>
+                <div style="font-size: 0.75rem; color: #4a4c50; margin-top: 3px;">0.5: Unbiased, &gt;0.5: Z-biased noise.</div>
             </div>
-            <div style="border-top: 1px solid #d0d7de; padding-top: 15px;">
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Erasure Fraction (f_erase):</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="range" id="erasureSlider" min="0.0" max="1.0" step="0.05" value="0.0" style="flex: 1;">
+                    <span id="erasureValue" style="font-size: 0.9rem; font-weight: 600; min-width: 30px;">0.00</span>
+                </div>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Correlated Noise:</label>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="burstsCheckbox">
+                        <span>Spatial bursts (R=1.5, p=0.02)</span>
+                    </label>
+                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="driftCheckbox">
+                        <span>Slow temporal drift (1/f style)</span>
+                    </label>
+                </div>
+            </div>
+            <div style="border-top: 1.5px dashed #1c1d1f; padding-top: 15px;">
                 <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 8px;">Error Injection Mode:</label>
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                     <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -260,17 +459,21 @@
                         <input type="radio" name="errorType" value="1">
                         <span>Inject Z Error (Bit flip check)</span>
                     </label>
+                    <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="errorType" value="2">
+                        <span>Toggle Qubit Erasure (Dashed Halo)</span>
+                    </label>
                 </div>
             </div>
             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
-                <button id="decodeBtn" style="padding: 10px; background-color: #0969da; color: white; border: 1px solid #0969da; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.95rem;">Run Decoder</button>
-                <button id="clearBtn" style="padding: 10px; background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 0.95rem;">Clear All Errors</button>
+                <button id="decodeBtn" style="width: 100%;">Run Decoder</button>
+                <button id="clearBtn" style="width: 100%;">Clear All Errors</button>
             </div>
-            <div id="decodingStatus" style="margin-top: 10px; font-size: 0.9rem; font-weight: 600; padding: 10px; border-radius: 4px; border: 1px solid #d0d7de; display: none;"></div>
+            <div id="decodingStatus" style="margin-top: 15px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; padding: 15px; border: 1.5px solid #1c1d1f; border-radius: 0px; display: none;"></div>
         </div>
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #fafafa; border-radius: 6px; border: 1px solid #d0d7de; padding: 20px; position: relative;">
-            <canvas id="playgroundCanvas" width="500" height="500" style="background-color: white; border: 1px solid #d0d7de; border-radius: 4px; max-width: 100%;"></canvas>
-            <div style="margin-top: 15px; font-size: 0.8rem; color: #57606a; text-align: center; line-height: 1.6;">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #faf9f6; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 20px; position: relative;">
+            <canvas id="playgroundCanvas" width="500" height="500" style="background-color: #ffffff; border: 1.5px solid #1c1d1f; border-radius: 0px; max-width: 100%;"></canvas>
+            <div style="margin-top: 15px; font-size: 0.8rem; color: #4a4c50; text-align: center; line-height: 1.6;">
                 <strong>Legend:</strong> 
                 <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ffffff; border: 1px solid #94a3b8; margin-left: 10px; vertical-align: middle;"></span> Data (No Error)
                 <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #3b82f6; margin-left: 10px; vertical-align: middle;"></span> X Error
@@ -289,18 +492,18 @@
     </p>
 
     <!-- Benchmark widget -->
-    <div style="border: 1px solid #d0d7de; border-radius: 6px; padding: 25px; margin-bottom: 35px; background: #ffffff;">
+    <div style="border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; margin-bottom: 35px; background: #ffffff; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 20px;">
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Code Type:</label>
-                <select id="benchCodeType" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                <select id="benchCodeType" style="width: 100%;">
                     <option value="0">Rotated Surface</option>
                     <option value="1">XZZX Surface</option>
                 </select>
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Decoder:</label>
-                <select id="benchDecoder" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                <select id="benchDecoder" style="width: 100%;">
                     <option value="0">Union-Find</option>
                     <option value="1">Greedy</option>
                     <option value="2">Exact MWPM</option>
@@ -308,7 +511,7 @@
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Model:</label>
-                <select id="benchNoiseModel" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                <select id="benchNoiseModel" style="width: 100%;">
                     <option value="0">Data Noise Only</option>
                     <option value="1">Phenomenological</option>
                     <option value="2">Circuit-Level (CNOTs)</option>
@@ -316,15 +519,15 @@
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Error Rate (p):</label>
-                <input type="number" id="benchP" value="0.05" min="0" max="1" step="0.01" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                <input type="number" id="benchP" value="0.05" min="0" max="1" step="0.01" style="width: 100%;">
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
-                <input type="number" id="benchBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                <input type="number" id="benchBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%;">
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Rounds (T):</label>
-                <select id="benchRounds" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                <select id="benchRounds" style="width: 100%;">
                     <option value="1">T = 1</option>
                     <option value="3">T = 3</option>
                     <option value="5">T = 5</option>
@@ -332,7 +535,7 @@
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Distance (d):</label>
-                <select id="benchD" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                <select id="benchD" style="width: 100%;">
                     <option value="3">d = 3</option>
                     <option value="5">d = 5</option>
                     <option value="7">d = 7</option>
@@ -340,18 +543,31 @@
             </div>
             <div>
                 <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Runs:</label>
-                <input type="number" id="benchRuns" value="200" min="1" max="10000" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                <input type="number" id="benchRuns" value="200" min="1" max="10000" style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Erasure Rate (f_erase):</label>
+                <input type="number" id="benchErasure" value="0.0" min="0" max="1" step="0.1" style="width: 100%;">
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Correlated Noise:</label>
+                <select id="benchCorrelated" style="width: 100%;">
+                    <option value="0">None</option>
+                    <option value="1">Spatial Bursts</option>
+                    <option value="2">Temporal Drift</option>
+                    <option value="3">Bursts & Drift</option>
+                </select>
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
-            <button id="runBenchBtn" style="padding: 10px 20px; background-color: #0969da; color: white; border: 1px solid #0969da; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">Run Benchmark</button>
-            <div id="benchProgress" style="font-size: 0.9rem; color: #57606a;">Ready.</div>
+            <button id="runBenchBtn">Run Benchmark</button>
+            <div id="benchProgress" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #4a4c50;">Ready.</div>
         </div>
-        <div id="benchResultCard" style="display: none; margin-top: 20px; background-color: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 15px;">
+        <div id="benchResultCard" style="display: none; margin-top: 20px; background-color: #faf9f6; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 20px; font-family: 'JetBrains Mono', monospace;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                 <div>
-                    <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #57606a;">Logical Error Rate (p_L)</div>
-                    <div id="benchResultVal" style="font-size: 1.5rem; font-weight: 600; color: #0969da; margin-top: 5px;">0.00%</div>
+                    <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #5d6166;">Logical Error Rate (p_L)</div>
+                    <div id="benchResultVal" style="font-size: 1.5rem; font-weight: 700; color: #1c1d1f; margin-top: 5px;">0.00%</div>
                 </div>
                 <div>
                     <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #57606a;">Simulation Speed</div>
@@ -365,20 +581,20 @@
     <p class="section-desc">
         Estimate the fidelity of the logical state under noise. This runs a mini Monte Carlo batch to measure expectations &langle; X<sub>L</sub> &rangle;, &langle; Y<sub>L</sub> &rangle;, &langle; Z<sub>L</sub> &rangle; by preparing cardinal states. The vector is drawn on the Bloch sphere below.
     </p>
-    <div style="display: grid; grid-template-columns: 1fr 280px; gap: 30px; margin-bottom: 35px; border: 1px solid #d0d7de; border-radius: 6px; padding: 25px; align-items: center; background: #ffffff;">
+    <div style="display: grid; grid-template-columns: 1fr 280px; gap: 30px; margin-bottom: 35px; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; align-items: center; background: #ffffff; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
                     <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Physical Error Rate (p):</label>
-                    <input type="number" id="sphereP" value="0.05" min="0" max="0.5" step="0.01" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                    <input type="number" id="sphereP" value="0.05" min="0" max="0.5" step="0.01" style="width: 100%;">
                 </div>
                 <div>
                     <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
-                    <input type="number" id="sphereBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                    <input type="number" id="sphereBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%;">
                 </div>
                 <div>
                     <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Rounds (T):</label>
-                    <select id="sphereRounds" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem;">
+                    <select id="sphereRounds" style="width: 100%;">
                         <option value="1">T = 1</option>
                         <option value="3" selected>T = 3</option>
                         <option value="5">T = 5</option>
@@ -386,19 +602,19 @@
                 </div>
                 <div>
                     <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Runs:</label>
-                    <input type="number" id="sphereRuns" value="200" min="1" max="2000" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.85rem; box-sizing: border-box;">
+                    <input type="number" id="sphereRuns" value="200" min="1" max="2000" style="width: 100%;">
                 </div>
             </div>
-            <button id="estimateFidelityBtn" style="padding: 10px 20px; background-color: #0969da; color: white; border: 1px solid #0969da; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem; width: 100%;">Estimate & Plot Bloch Vector</button>
-            <div style="margin-top: 15px; font-size: 0.85rem; line-height: 1.6; background-color: #f6f8fa; padding: 12px; border: 1px solid #d0d7de; border-radius: 6px;">
+            <button id="estimateFidelityBtn" style="width: 100%;">Estimate & Plot Bloch Vector</button>
+            <div style="margin-top: 15px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.6; background-color: #faf9f6; padding: 12px; border: 1.5px solid #1c1d1f; border-radius: 0px;">
                 <strong>Measured Expectations:</strong><br>
-                &langle; X<sub>L</sub> &rangle;: <span id="expectX" style="font-weight: 600; color: #2563eb;">-</span><br>
-                &langle; Y<sub>L</sub> &rangle;: <span id="expectY" style="font-weight: 600; color: #a855f7;">-</span><br>
-                &langle; Z<sub>L</sub> &rangle;: <span id="expectZ" style="font-weight: 600; color: #ef4444;">-</span>
+                &langle; X<sub>L</sub> &rangle;: <span id="expectX" style="font-weight: 700; color: #1c1d1f;">-</span><br>
+                &langle; Y<sub>L</sub> &rangle;: <span id="expectY" style="font-weight: 700; color: #1c1d1f;">-</span><br>
+                &langle; Z<sub>L</sub> &rangle;: <span id="expectZ" style="font-weight: 700; color: #1c1d1f;">-</span>
             </div>
         </div>
-        <div style="display: flex; justify-content: center; background-color: #fafafa; border-radius: 6px; border: 1px solid #d0d7de; padding: 15px;">
-            <canvas id="blochCanvas" width="240" height="240" style="background-color: white; border: 1px solid #d0d7de; border-radius: 4px;"></canvas>
+        <div style="display: flex; justify-content: center; background-color: #faf9f6; border-radius: 0px; border: 1.5px solid #1c1d1f; padding: 15px;">
+            <canvas id="blochCanvas" width="240" height="240" style="background-color: #ffffff; border: 1.5px solid #1c1d1f; border-radius: 0px;"></canvas>
         </div>
     </div>
 
@@ -409,16 +625,72 @@
         <div class="plot-card">
             <h3>Pure Data Noise (Perfect Measurements)</h3>
             <img class="plot-img" src="data_threshold_plot.png" alt="Data Noise Threshold Plot">
-            <p style="font-size: 0.8rem; color: #57606a; margin-top: 8px; text-align: left;">
+            <p style="font-size: 0.8rem; color: #4a4c50; margin-top: 8px; text-align: left;">
                 Crossing threshold is located at <strong>p ≈ 8.0%</strong>. Below this point, increasing code distance suppresses logical error rate.
             </p>
         </div>
         <div class="plot-card">
             <h3>Phenomenological Noise (Spacetime decoding)</h3>
             <img class="plot-img" src="threshold_plot.png" alt="Phenomenological Noise Threshold Plot">
-            <p style="font-size: 0.8rem; color: #57606a; margin-top: 8px; text-align: left;">
+            <p style="font-size: 0.8rem; color: #4a4c50; margin-top: 8px; text-align: left;">
                 Includes stabilizer measurement errors. Crossing threshold is located at <strong>p ≈ 1.5%</strong>.
             </p>
+        </div>
+    </div>
+
+    <h2>Live Finite-Size Scaling & Threshold Fitting</h2>
+    <p class="section-desc">
+        Sweep the physical error rate \(p\) dynamically across code distances \(d \in \{3, 5, 7\}\) using Monte Carlo trials. A pure JavaScript grid-search solver performs a quadratic finite-size scaling fit to locate the threshold \(p_{th}\) and critical exponent \(\nu\).
+    </p>
+    <div style="border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; margin-bottom: 35px; background: #ffffff; display: grid; grid-template-columns: 1fr 300px; gap: 30px; align-items: start; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
+        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 15px; background: #faf9f6;">
+            <canvas id="thresholdCanvas" width="500" height="350" style="background-color: #ffffff; border: 1.5px solid #1c1d1f; border-radius: 0px; max-width: 100%;"></canvas>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Decoder:</label>
+                <select id="fitDecoder" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                    <option value="0">Union-Find</option>
+                    <option value="1">Greedy</option>
+                    <option value="2">Exact MWPM</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Noise Model:</label>
+                <select id="fitNoiseModel" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
+                    <option value="0">Data Noise Only</option>
+                    <option value="1">Phenomenological</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Erasure Fraction (f_erase):</label>
+                <input type="range" id="fitErasureSlider" min="0.0" max="1.0" step="0.1" value="0.0" style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #57606a; margin-top: 3px;">
+                    <span>0.0</span>
+                    <span id="fitErasureValue" style="font-weight: 600;">0.00</span>
+                    <span>1.0</span>
+                </div>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Runs per Point:</label>
+                <input type="number" id="fitRuns" value="500" min="100" max="5000" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem; box-sizing: border-box;">
+            </div>
+            <button id="runFitBtn" style="padding: 10px; background-color: #22c55e; color: white; border: 1px solid #22c55e; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.95rem; margin-top: 10px;">Run Fitting Sweep</button>
+            <div id="fitProgress" style="font-size: 0.85rem; color: #57606a; text-align: center; margin-top: 5px;">Ready.</div>
+            
+            <div id="fitResultsCard" style="display: none; border-top: 1px solid #d0d7de; padding-top: 15px; margin-top: 10px;">
+                <h4 style="margin: 0 0 10px 0; font-size: 0.95rem; color: #24292f;">Fitted Parameters</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
+                    <div>
+                        <span style="color: #57606a;">Threshold (p_th):</span>
+                        <div id="fitPth" style="font-size: 1.25rem; font-weight: 600; color: #0969da; margin-top: 2px;">-</div>
+                    </div>
+                    <div>
+                        <span style="color: #57606a;">Exponent (&nu;):</span>
+                        <div id="fitNu" style="font-size: 1.25rem; font-weight: 600; color: #24292f; margin-top: 2px;">-</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -618,32 +890,43 @@
 
     // 3D coordinate projection to screen
     function getScreenCoords(gx, gy, t, T) {
+        let sx, sy;
         if (T === 1) {
             const canvasPadding = 45;
             const gridRange = currentD * 2;
-            return {
-                x: canvasPadding + (gx / gridRange) * (canvas.width - 2 * canvasPadding),
-                y: canvasPadding + (gy / gridRange) * (canvas.height - 2 * canvasPadding)
-            };
+            sx = canvasPadding + (gx / gridRange) * (canvas.width - 2 * canvasPadding);
+            sy = canvasPadding + (gy / gridRange) * (canvas.height - 2 * canvasPadding);
+        } else {
+            // For multiple rounds, draw stacked perspective-skewed layers
+            const layerW = 200;
+            const layerH = 90;
+            const planeCenterX = canvas.width / 2;
+            
+            const bottomY = canvas.height - 70;
+            const topY = 70;
+            const layerCenterY = bottomY - (t / (T - 1)) * (bottomY - topY);
+            
+            const nx = (gx / currentD) - 1.0;
+            const ny = (gy / currentD) - 1.0;
+            
+            // Squashed isometric look
+            sx = planeCenterX + nx * (layerW / 2) + ny * (layerW * 0.15);
+            sy = layerCenterY + ny * (layerH / 2) - nx * (layerH * 0.15);
         }
-        
-        // For multiple rounds, draw stacked perspective-skewed layers
-        const layerW = 200;
-        const layerH = 90;
-        const planeCenterX = canvas.width / 2;
-        
-        const bottomY = canvas.height - 70;
-        const topY = 70;
-        const layerCenterY = bottomY - (t / (T - 1)) * (bottomY - topY);
-        
-        const nx = (gx / currentD) - 1.0;
-        const ny = (gy / currentD) - 1.0;
-        
-        // Squashed isometric look
-        const screenX = planeCenterX + nx * (layerW / 2) + ny * (layerW * 0.15);
-        const screenY = layerCenterY + ny * (layerH / 2) - nx * (layerH * 0.15);
-        
-        return { x: screenX, y: screenY };
+
+        // Apply Lattice Surgery gap offset if enabled
+        const surgeryToggle = document.getElementById('surgeryToggle');
+        if (surgeryToggle && surgeryToggle.checked) {
+            const mid = currentD; // middle gx coordinate is d
+            const gap = 30; // pixels to shift left/right
+            if (gx < mid) {
+                sx -= gap;
+            } else if (gx > mid) {
+                sx += gap;
+            }
+        }
+
+        return { x: sx, y: sy };
     }
 
     function updatePlayground() {
@@ -662,10 +945,16 @@
         const errZPtr = wasmInstance.exports.wasm_get_physical_z_ptr(sessionPtr);
         const errX = new Uint8Array(memory.buffer, errXPtr, numData * T);
         const errZ = new Uint8Array(memory.buffer, errZPtr, numData * T);
+        
+        const erasedPtr = wasmInstance.exports.wasm_get_physical_erased_ptr(sessionPtr);
+        const erased = new Uint8Array(memory.buffer, erasedPtr, numData * T);
 
         // Read syndromes
         const synPtr = wasmInstance.exports.wasm_get_syndrome(sessionPtr);
         const syndrome = new Uint8Array(memory.buffer, synPtr, numStabs * T);
+        
+        const surgeryToggle = document.getElementById('surgeryToggle');
+        const isSurgery = surgeryToggle && surgeryToggle.checked;
 
         // --- DRAW TIME CONNECTIONS (between layers) ---
         if (T > 1) {
@@ -706,6 +995,20 @@
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
+
+            // Draw CNOT Surgery junction highlights
+            if (isSurgery) {
+                ctx.fillStyle = 'rgba(234, 179, 8, 0.08)';
+                ctx.beginPath();
+                const pJTop = getScreenCoords(currentD, 0, t, T);
+                const pJBot = getScreenCoords(currentD, currentD * 2, t, T);
+                ctx.moveTo(pJTop.x - 12, pJTop.y);
+                ctx.lineTo(pJTop.x + 12, pJTop.y);
+                ctx.lineTo(pJBot.x + 12, pJBot.y);
+                ctx.lineTo(pJBot.x - 12, pJBot.y);
+                ctx.closePath();
+                ctx.fill();
+            }
 
             // Label layer index t
             ctx.fillStyle = '#94a3b8';
@@ -768,6 +1071,19 @@
                 const qCoords = getScreenCoords(q.x, q.y, t, T);
                 const radius = 9;
                 
+                // Draw dashed grey erasure halo if qubit is erased
+                const isErased = erased[i + t * numData] === 1;
+                if (isErased) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(qCoords.x, qCoords.y, radius + 4, 0, 2 * Math.PI);
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([2, 2]);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
                 ctx.beginPath();
                 ctx.arc(qCoords.x, qCoords.y, radius, 0, 2 * Math.PI);
 
@@ -856,7 +1172,11 @@
 
         if (closestQ) {
             const errorType = parseInt(document.querySelector('input[name="errorType"]:checked').value);
-            wasmInstance.exports.wasm_toggle_error(sessionPtr, closestQ.idx, errorType, closestQ.t);
+            if (errorType === 2) {
+                wasmInstance.exports.wasm_toggle_erasure(sessionPtr, closestQ.idx, closestQ.t);
+            } else {
+                wasmInstance.exports.wasm_toggle_error(sessionPtr, closestQ.idx, errorType, closestQ.t);
+            }
             corrections = null;
             decodingStatus.style.display = 'none';
             updatePlayground();
@@ -942,12 +1262,15 @@
         const rounds = parseInt(benchRounds.value);
         const runs = parseInt(benchRuns.value);
 
+        const erasureRate = parseFloat(document.getElementById('benchErasure').value);
+        const correlatedNoise = parseInt(document.getElementById('benchCorrelated').value);
+
         benchProgress.textContent = "Running Monte Carlo simulation...";
         runBenchBtn.disabled = true;
 
         setTimeout(() => {
             const t0 = performance.now();
-            const rate = wasmInstance.exports.wasm_run_benchmark(d, codeType, decoderType, p, bias, rounds, runs, noiseMode);
+            const rate = wasmInstance.exports.wasm_run_benchmark(d, codeType, decoderType, p, bias, rounds, runs, noiseMode, erasureRate, correlatedNoise);
             const t1 = performance.now();
             
             const elapsed = (t1 - t0) / 1000;
@@ -1071,12 +1394,15 @@
         const rounds = parseInt(sphereRounds.value);
         const runs = parseInt(sphereRuns.value);
 
+        const erasureRate = parseFloat(document.getElementById('benchErasure').value);
+        const correlatedNoise = parseInt(document.getElementById('benchCorrelated').value);
+
         estimateFidelityBtn.disabled = true;
         estimateFidelityBtn.textContent = "Estimating Bloch expectations...";
 
         setTimeout(() => {
             const resultPtr = wasmInstance.exports.wasm_estimate_logical_fidelity(
-                d, codeType, decoderType, p, bias, 2, rounds, runs
+                d, codeType, decoderType, p, bias, 2, rounds, runs, erasureRate, correlatedNoise
             );
             
             const memory = wasmInstance.exports.memory;
@@ -1095,6 +1421,314 @@
             estimateFidelityBtn.disabled = false;
             estimateFidelityBtn.textContent = "Estimate & Plot Bloch Vector";
         }, 50);
+    });
+
+    // Slider value updates
+    const erasureSlider = document.getElementById('erasureSlider');
+    const erasureValue = document.getElementById('erasureValue');
+    erasureSlider.addEventListener('input', () => {
+        erasureValue.textContent = parseFloat(erasureSlider.value).toFixed(2);
+    });
+
+    const fitErasureSlider = document.getElementById('fitErasureSlider');
+    const fitErasureValue = document.getElementById('fitErasureValue');
+    fitErasureSlider.addEventListener('input', () => {
+        fitErasureValue.textContent = parseFloat(fitErasureSlider.value).toFixed(2);
+    });
+
+    // Visualizer mode radio changes
+    document.querySelectorAll('input[name="visMode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            updatePlayground();
+        });
+    });
+
+    // Quadratic polynomial regression solver & grid search
+    function solveQuadraticFit(points, p_th, nu) {
+        let N = points.length;
+        let sum_x = 0, sum_x2 = 0, sum_x3 = 0, sum_x4 = 0;
+        let sum_y = 0, sum_xy = 0, sum_x2y = 0;
+        
+        for (let p of points) {
+            let x = (p.p - p_th) * Math.pow(p.d, 1.0 / nu);
+            let y = p.pL;
+            let x2 = x * x;
+            sum_x += x;
+            sum_x2 += x2;
+            sum_x3 += x2 * x;
+            sum_x4 += x2 * x2;
+            sum_y += y;
+            sum_xy += x * y;
+            sum_x2y += x2 * y;
+        }
+        
+        // Solve system M * c = v using Cramer's rule
+        let dM = N * (sum_x2 * sum_x4 - sum_x3 * sum_x3) 
+               - sum_x * (sum_x * sum_x4 - sum_x2 * sum_x3) 
+               + sum_x2 * (sum_x * sum_x3 - sum_x2 * sum_x2);
+               
+        if (Math.abs(dM) < 1e-12) {
+            return { A: 0, B: 0, C: 0, chi2: Infinity };
+        }
+        
+        let dA = sum_y * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
+               - sum_x * (sum_xy * sum_x4 - sum_x2y * sum_x3)
+               + sum_x2 * (sum_xy * sum_x3 - sum_x2y * sum_x2);
+               
+        let dB = N * (sum_xy * sum_x4 - sum_x2y * sum_x3)
+               - sum_y * (sum_x * sum_x4 - sum_x2 * sum_x3)
+               + sum_x2 * (sum_x * sum_x2y - sum_x2 * sum_xy);
+               
+        let dC = N * (sum_x2 * sum_x2y - sum_x3 * sum_xy)
+               - sum_x * (sum_x * sum_x2y - sum_x2 * sum_xy)
+               + sum_y * (sum_x * sum_x3 - sum_x2 * sum_x2);
+               
+        let A = dA / dM;
+        let B = dB / dM;
+        let C = dC / dM;
+        
+        let chi2 = 0;
+        for (let p of points) {
+            let x = (p.p - p_th) * Math.pow(p.d, 1.0 / nu);
+            let y_fit = A + B * x + C * x * x;
+            chi2 += Math.pow(p.pL - y_fit, 2);
+        }
+        
+        return { A, B, C, chi2 };
+    }
+
+    function fitThresholdScaling(points) {
+        let best_p_th = 0;
+        let best_nu = 0;
+        let best_fit = null;
+        let min_chi2 = Infinity;
+        
+        // Grid search sweep
+        for (let p_th = 0.005; p_th <= 0.16; p_th += 0.001) {
+            for (let nu = 0.7; nu <= 2.0; nu += 0.02) {
+                let fit = solveQuadraticFit(points, p_th, nu);
+                if (fit.chi2 < min_chi2) {
+                    min_chi2 = fit.chi2;
+                    best_p_th = p_th;
+                    best_nu = nu;
+                    best_fit = fit;
+                }
+            }
+        }
+        
+        return {
+            p_th: best_p_th,
+            nu: best_nu,
+            A: best_fit.A,
+            B: best_fit.B,
+            C: best_fit.C,
+            chi2: min_chi2
+        };
+    }
+
+    function drawThresholdChart(points, fitResults) {
+        const thresholdCanvas = document.getElementById('thresholdCanvas');
+        const tCtx = thresholdCanvas.getContext('2d');
+        const width = thresholdCanvas.width;
+        const height = thresholdCanvas.height;
+        tCtx.clearRect(0, 0, width, height);
+
+        // Chart margins
+        const padL = 55;
+        const padR = 25;
+        const padT = 25;
+        const padB = 45;
+
+        // Draw axes
+        tCtx.lineWidth = 1;
+        tCtx.strokeStyle = '#d0d7de';
+        tCtx.beginPath();
+        tCtx.moveTo(padL, padT);
+        tCtx.lineTo(padL, height - padB);
+        tCtx.lineTo(width - padR, height - padB);
+        tCtx.stroke();
+
+        // X scale: p from 0 to 0.16
+        const xMin = 0.0;
+        const xMax = 0.16;
+        function getX(p) {
+            return padL + ((p - xMin) / (xMax - xMin)) * (width - padL - padR);
+        }
+
+        // Y scale: p_L from 0 to 0.5 (or max observed pL if higher)
+        let maxPL = 0.35;
+        for (let pt of points) {
+            if (pt.pL > maxPL) maxPL = pt.pL;
+        }
+        maxPL = Math.ceil(maxPL * 10) / 10;
+        if (maxPL > 1.0) maxPL = 1.0;
+        const yMin = 0.0;
+        const yMax = maxPL;
+        function getY(pL) {
+            return height - padB - ((pL - yMin) / (yMax - yMin)) * (height - padT - padB);
+        }
+
+        // Draw grid lines and labels
+        tCtx.fillStyle = '#57606a';
+        tCtx.font = '10px sans-serif';
+        tCtx.textAlign = 'right';
+        tCtx.textBaseline = 'middle';
+        for (let yVal = 0.0; yVal <= yMax; yVal += yMax / 5) {
+            const y = getY(yVal);
+            tCtx.fillText(`${(yVal * 100).toFixed(0)}%`, padL - 8, y);
+            tCtx.beginPath();
+            tCtx.moveTo(padL, y);
+            tCtx.lineTo(width - padR, y);
+            tCtx.strokeStyle = '#f6f8fa';
+            tCtx.stroke();
+        }
+
+        tCtx.textAlign = 'center';
+        tCtx.textBaseline = 'top';
+        for (let xVal = 0.0; xVal <= xMax; xVal += 0.04) {
+            const x = getX(xVal);
+            tCtx.fillText(`${(xVal * 100).toFixed(0)}%`, x, height - padB + 8);
+        }
+
+        // Axis titles
+        tCtx.save();
+        tCtx.translate(15, (height - padT - padB) / 2 + padT);
+        tCtx.rotate(-Math.PI / 2);
+        tCtx.textAlign = 'center';
+        tCtx.fillText("Logical Error Rate (p_L)", 0, 0);
+        tCtx.restore();
+
+        tCtx.fillText("Physical Error Rate (p)", (width - padL - padR) / 2 + padL, height - padB + 24);
+
+        const colors = {
+            3: '#2563eb', // Blue
+            5: '#dc2626', // Red
+            7: '#16a34a'  // Green
+        };
+
+        // Draw fitted curves
+        if (fitResults) {
+            const { p_th, nu, A, B, C } = fitResults;
+            
+            // Draw vertical dotted line for threshold
+            if (p_th >= xMin && p_th <= xMax) {
+                const xTh = getX(p_th);
+                tCtx.setLineDash([3, 3]);
+                tCtx.strokeStyle = '#94a3b8';
+                tCtx.lineWidth = 1;
+                tCtx.beginPath();
+                tCtx.moveTo(xTh, padT);
+                tCtx.lineTo(xTh, height - padB);
+                tCtx.stroke();
+                tCtx.setLineDash([]);
+                tCtx.fillText(`p_th = ${(p_th * 100).toFixed(2)}%`, xTh, padT - 5);
+            }
+
+            // Draw curves for each d
+            for (let d of [3, 5, 7]) {
+                tCtx.strokeStyle = colors[d];
+                tCtx.lineWidth = 2;
+                tCtx.beginPath();
+                let first = true;
+                for (let pVal = 0.005; pVal <= 0.16; pVal += 0.002) {
+                    let x_scaling = (pVal - p_th) * Math.pow(d, 1.0 / nu);
+                    let pL_fit = A + B * x_scaling + C * x_scaling * x_scaling;
+                    if (pL_fit < 0) pL_fit = 0;
+                    if (pL_fit > 1.0) pL_fit = 1.0;
+
+                    const sx = getX(pVal);
+                    const sy = getY(pL_fit);
+                    if (first) {
+                        tCtx.moveTo(sx, sy);
+                        first = false;
+                    } else {
+                        tCtx.lineTo(sx, sy);
+                    }
+                }
+                tCtx.stroke();
+            }
+        }
+
+        // Draw measured data points
+        for (let pt of points) {
+            tCtx.fillStyle = colors[pt.d];
+            tCtx.strokeStyle = '#ffffff';
+            tCtx.lineWidth = 1.5;
+            tCtx.beginPath();
+            tCtx.arc(getX(pt.p), getY(pt.pL), 5, 0, 2 * Math.PI);
+            tCtx.fill();
+            tCtx.stroke();
+        }
+
+        // Draw Legend
+        tCtx.textAlign = 'left';
+        tCtx.textBaseline = 'middle';
+        let legX = padL + 15;
+        let legY = padT + 15;
+        for (let d of [3, 5, 7]) {
+            tCtx.fillStyle = colors[d];
+            tCtx.beginPath();
+            tCtx.arc(legX, legY, 4, 0, 2 * Math.PI);
+            tCtx.fill();
+            tCtx.fillStyle = '#24292f';
+            tCtx.fillText(`d = ${d}`, legX + 10, legY);
+            legY += 16;
+        }
+    }
+
+    const runFitBtn = document.getElementById('runFitBtn');
+    const fitProgress = document.getElementById('fitProgress');
+    const fitResultsCard = document.getElementById('fitResultsCard');
+    const fitPth = document.getElementById('fitPth');
+    const fitNu = document.getElementById('fitNu');
+
+    runFitBtn.addEventListener('click', async () => {
+        if (!wasmInstance) return;
+        runFitBtn.disabled = true;
+        fitResultsCard.style.display = 'none';
+        fitProgress.textContent = "Starting sweep...";
+
+        const decoder = parseInt(document.getElementById('fitDecoder').value);
+        const noiseModel = parseInt(document.getElementById('fitNoiseModel').value);
+        const erasureRate = parseFloat(document.getElementById('fitErasureSlider').value);
+        const runs = parseInt(document.getElementById('fitRuns').value);
+        const bias = parseFloat(biasSlider.value);
+        const codeType = currentCodeType;
+        const rounds = noiseModel === 0 ? 1 : 3;
+
+        const distances = [3, 5, 7];
+        const physicalPs = [0.01, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15];
+
+        let points = [];
+        let totalSteps = distances.length * physicalPs.length;
+        let step = 0;
+
+        for (let d of distances) {
+            for (let p of physicalPs) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                fitProgress.textContent = `Simulating d=${d}, p=${p.toFixed(2)} (${step + 1}/${totalSteps})...`;
+                
+                const pL = wasmInstance.exports.wasm_run_benchmark(
+                    d, codeType, decoder, p, bias, rounds, runs, noiseModel, erasureRate, 0
+                );
+                
+                points.push({ d, p, pL });
+                step++;
+            }
+        }
+
+        fitProgress.textContent = "Fitting scaling curves...";
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const fitResults = fitThresholdScaling(points);
+
+        fitPth.textContent = `${(fitResults.p_th * 100).toFixed(2)}%`;
+        fitNu.textContent = fitResults.nu.toFixed(2);
+        fitResultsCard.style.display = 'block';
+        fitProgress.textContent = "Fitting complete!";
+        runFitBtn.disabled = false;
+
+        drawThresholdChart(points, fitResults);
     });
 
     // Start everything!

@@ -1,4 +1,23 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque, BinaryHeap};
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+struct HeapState {
+    cost: usize,
+    position: usize,
+}
+
+impl Ord for HeapState {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.cost.cmp(&self.cost)
+            .then(self.position.cmp(&other.position))
+    }
+}
+
+impl PartialOrd for HeapState {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Edge {
@@ -86,6 +105,7 @@ impl UnionFind {
 pub fn decode_union_find(
     graph: &SyndromeGraph,
     defects: &[bool], // Length should match graph.num_nodes
+    erased_edges: &[bool],
 ) -> Vec<usize> {
     let mut total_nodes = graph.num_nodes + 1;
     for edge in &graph.edges {
@@ -99,6 +119,16 @@ pub fn decode_union_find(
     
     // Set of edges that are fully grown and belong to our forest
     let mut forest_edges: Vec<usize> = Vec::new();
+
+    // 1. Pre-merge all erased edges (weight-0) before running growth phase
+    for (edge_idx, edge) in graph.edges.iter().enumerate() {
+        if edge_idx < erased_edges.len() && erased_edges[edge_idx] {
+            edge_growth[edge_idx] = 2;
+            if uf.union(edge.u, edge.v) {
+                forest_edges.push(edge_idx);
+            }
+        }
+    }
 
     // Map each node to its incident edge indices (adjacency list)
     let mut adj = vec![Vec::new(); total_nodes];
@@ -145,7 +175,7 @@ pub fn decode_union_find(
         }
 
         if edges_to_grow.is_empty() {
-            break; // No edges can be grown, cluster is stuck (should not happen in valid graph)
+            break; // No edges can be grown, cluster is stuck
         }
 
         // Grow the edges
@@ -171,7 +201,6 @@ pub fn decode_union_find(
 
     // --- PEELING DECODER ---
     // Extract a spanning forest on the fully grown edges within each cluster.
-    // For each cluster, we only run peeling on the nodes.
     let mut correction = Vec::new();
     let mut visited_nodes = vec![false; total_nodes];
     let mut active_defects = vec![false; total_nodes];
@@ -219,8 +248,7 @@ pub fn decode_union_find(
                 continue; // The root has no parent edge to peel
             }
 
-            // If node u has odd parity (is a defect), we MUST flip it by adding its parent edge
-            // to the correction
+            // If node u has odd parity (is a defect), we MUST flip it by adding its parent edge to correction
             if active_defects[u] {
                 if let Some(edge_idx) = parent_edge[u] {
                     correction.push(edge_idx);
@@ -240,6 +268,7 @@ pub fn decode_union_find(
 pub fn decode_greedy(
     graph: &SyndromeGraph,
     defects: &[bool],
+    erased_edges: &[bool],
 ) -> Vec<usize> {
     let total_nodes = graph.num_nodes + 1; // including boundary
     let mut unmatched = Vec::new();
@@ -253,7 +282,7 @@ pub fn decode_greedy(
         return Vec::new();
     }
 
-    // Compute shortest path distance and parents from each active defect using BFS
+    // Compute shortest path distance and parents using Dijkstra's algorithm
     let mut dists = vec![vec![usize::MAX; total_nodes]; total_nodes];
     let mut parent_edges = vec![vec![None; total_nodes]; total_nodes];
     let mut parent_nodes = vec![vec![None; total_nodes]; total_nodes];
@@ -265,17 +294,23 @@ pub fn decode_greedy(
     }
 
     for &start in &unmatched {
-        let mut queue = VecDeque::new();
+        let mut heap = BinaryHeap::new();
         dists[start][start] = 0;
-        queue.push_back(start);
+        heap.push(HeapState { cost: 0, position: start });
 
-        while let Some(u) = queue.pop_front() {
-            for &(v, edge_idx) in &adj[u] {
-                if dists[start][v] == usize::MAX {
-                    dists[start][v] = dists[start][u] + 1;
+        while let Some(HeapState { cost, position }) = heap.pop() {
+            if cost > dists[start][position] {
+                continue;
+            }
+
+            for &(v, edge_idx) in &adj[position] {
+                let weight = if edge_idx < erased_edges.len() && erased_edges[edge_idx] { 0 } else { 1 };
+                let next_cost = cost + weight;
+                if next_cost < dists[start][v] {
+                    dists[start][v] = next_cost;
                     parent_edges[start][v] = Some(edge_idx);
-                    parent_nodes[start][v] = Some(u);
-                    queue.push_back(v);
+                    parent_nodes[start][v] = Some(position);
+                    heap.push(HeapState { cost: next_cost, position: v });
                 }
             }
         }
@@ -308,7 +343,6 @@ pub fn decode_greedy(
         if v == graph.num_nodes {
             if !is_matched[u] {
                 is_matched[u] = true;
-                // Add path from u to boundary
                 let mut curr = v;
                 while let Some(p) = parent_nodes[u][curr] {
                     if let Some(edge_idx) = parent_edges[u][curr] {
@@ -321,7 +355,6 @@ pub fn decode_greedy(
             if !is_matched[u] && !is_matched[v] {
                 is_matched[u] = true;
                 is_matched[v] = true;
-                // Add path from u to v
                 let mut curr = v;
                 while let Some(p) = parent_nodes[u][curr] {
                     if let Some(edge_idx) = parent_edges[u][curr] {
@@ -339,6 +372,7 @@ pub fn decode_greedy(
 pub fn decode_mwpm(
     graph: &SyndromeGraph,
     defects: &[bool],
+    erased_edges: &[bool],
 ) -> Vec<usize> {
     let total_nodes = graph.num_nodes + 1; // including boundary
     let mut unmatched = Vec::new();
@@ -352,7 +386,7 @@ pub fn decode_mwpm(
         return Vec::new();
     }
 
-    // Compute shortest path distance and parents from each active defect using BFS
+    // Compute shortest path distance and parents using Dijkstra's algorithm
     let mut dists = vec![vec![usize::MAX; total_nodes]; total_nodes];
     let mut parent_edges = vec![vec![None; total_nodes]; total_nodes];
     let mut parent_nodes = vec![vec![None; total_nodes]; total_nodes];
@@ -364,17 +398,23 @@ pub fn decode_mwpm(
     }
 
     for &start in &unmatched {
-        let mut queue = VecDeque::new();
+        let mut heap = BinaryHeap::new();
         dists[start][start] = 0;
-        queue.push_back(start);
+        heap.push(HeapState { cost: 0, position: start });
 
-        while let Some(u) = queue.pop_front() {
-            for &(v, edge_idx) in &adj[u] {
-                if dists[start][v] == usize::MAX {
-                    dists[start][v] = dists[start][u] + 1;
+        while let Some(HeapState { cost, position }) = heap.pop() {
+            if cost > dists[start][position] {
+                continue;
+            }
+
+            for &(v, edge_idx) in &adj[position] {
+                let weight = if edge_idx < erased_edges.len() && erased_edges[edge_idx] { 0 } else { 1 };
+                let next_cost = cost + weight;
+                if next_cost < dists[start][v] {
+                    dists[start][v] = next_cost;
                     parent_edges[start][v] = Some(edge_idx);
-                    parent_nodes[start][v] = Some(u);
-                    queue.push_back(v);
+                    parent_nodes[start][v] = Some(position);
+                    heap.push(HeapState { cost: next_cost, position: v });
                 }
             }
         }
@@ -384,7 +424,7 @@ pub fn decode_mwpm(
     
     // If there are too many defects, search space is too large. Fallback to greedy.
     if m > 16 {
-        return decode_greedy(graph, defects);
+        return decode_greedy(graph, defects, erased_edges);
     }
 
     // Backtracking state
@@ -467,7 +507,7 @@ pub fn decode_mwpm(
 
     // If search timed out or couldn't find a perfect matching, fallback to greedy
     if best_matching.is_empty() && best_weight == usize::MAX {
-        return decode_greedy(graph, defects);
+        return decode_greedy(graph, defects, erased_edges);
     }
 
     let mut correction_edges = Vec::new();
