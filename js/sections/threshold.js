@@ -28,8 +28,13 @@ const TABLE_MODELS = [
   { noiseMode: NOISE.PHENOM, rounds: null, label: 'Phenomenological', sub: 'faulty measurements, T = d' },
 ];
 
-/** Kept modest so the load-time fill does not monopolise the single worker. */
-const TABLE_RUNS = 800;
+/**
+ * Enough shots that the d=3 and d=7 intervals actually separate away from
+ * threshold. Below about 1,500 they overlap in nearly every column and the
+ * verdict row degenerates to "too close" everywhere, which tells the reader
+ * nothing.
+ */
+const TABLE_RUNS = 2000;
 
 /**
  * The two noise models have thresholds an order of magnitude apart, so a single

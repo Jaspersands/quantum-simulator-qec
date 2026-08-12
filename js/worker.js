@@ -24,25 +24,39 @@ function engine() {
 }
 
 const OPS = {
-  /** Warm the engine and report a measured throughput baseline. */
+  /**
+   * Warm the engine and report a measured throughput baseline.
+   *
+   * Takes the best of several short samples rather than timing one long run.
+   * The first shots pay for JIT warm-up, and a browser that throttles the
+   * worker — a background tab, a laptop in low-power mode — produces long
+   * stalls that would drag a single sample down by two orders of magnitude.
+   * The fastest sample is the one least contaminated by both, and this number
+   * is printed on the page as a fact about the reader's machine.
+   */
   async vitals(instance) {
-    // Discard two passes: the first shots pay for JIT warm-up in both noise
-    // modes, and timing them would understate the engine by an order of
-    // magnitude.
-    estimateLogicalErrorRate(instance, { noiseMode: NOISE.DATA, d: 5, runs: 3000 });
-    estimateLogicalErrorRate(instance, { noiseMode: NOISE.PHENOM, d: 5, rounds: 5, runs: 800 });
+    const best = (config, samples = 4) => {
+      let fastest = 0;
+      let total = 0;
+      for (let i = 0; i < samples; i++) {
+        const result = estimateLogicalErrorRate(instance, config);
+        total += result.runs;
+        if (result.runsPerSecond > fastest) fastest = result.runsPerSecond;
+      }
+      return { fastest, total };
+    };
 
-    const data = estimateLogicalErrorRate(instance, {
-      noiseMode: NOISE.DATA, d: 5, rounds: 1, p: 0.05, runs: 4000,
-    });
-    const phenom = estimateLogicalErrorRate(instance, {
-      noiseMode: NOISE.PHENOM, d: 5, rounds: 5, p: 0.02, runs: 2000,
-    });
+    // Discarded warm-up pass for each noise mode.
+    estimateLogicalErrorRate(instance, { noiseMode: NOISE.DATA, d: 5, runs: 2000 });
+    estimateLogicalErrorRate(instance, { noiseMode: NOISE.PHENOM, d: 5, rounds: 5, runs: 400 });
+
+    const data = best({ noiseMode: NOISE.DATA, d: 5, rounds: 1, p: 0.05, runs: 2000 });
+    const phenom = best({ noiseMode: NOISE.PHENOM, d: 5, rounds: 5, p: 0.02, runs: 600 });
 
     return {
-      dataRunsPerSecond: data.runsPerSecond,
-      phenomRunsPerSecond: phenom.runsPerSecond,
-      sampleRuns: data.runs + phenom.runs,
+      dataRunsPerSecond: data.fastest,
+      phenomRunsPerSecond: phenom.fastest,
+      sampleRuns: data.total + phenom.total,
     };
   },
 

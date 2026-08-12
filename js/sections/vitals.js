@@ -26,7 +26,8 @@ export function initVitals(root, compute) {
       el('span', { style: 'font-size: 0.72em; color: var(--ink-3)', text: ' runs/s' }),
     ]);
     if (note) {
-      note.textContent = `Timed on this device just now over ${count(result.sampleRuns)} decoded shots at d = 5.`;
+      note.textContent = `Timed on this device just now — best of several samples over `
+        + `${count(result.sampleRuns)} decoded shots at d = 5. A throttled or busy machine will read lower.`;
     }
   }).catch((error) => {
     dataRate.innerHTML = '<span class="muted">unavailable</span>';
