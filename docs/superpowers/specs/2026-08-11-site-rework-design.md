@@ -35,6 +35,61 @@ with no navigation and no argument connecting them. Specific failures:
 Its 25 `extern "C"` exports are fixed. All work is HTML/CSS/JS against the
 existing engine. No new simulation capability is in scope.
 
+## Two engine defects found during the rework
+
+Both were discovered while replacing fabricated numbers with live ones. Neither
+is fixable without rebuilding the module.
+
+### 1. The batch Monte Carlo entry points are not random
+
+`src/surface_code.rs` seeds its generator from a compile-time constant on the
+non-Python cfg branch:
+
+```rust
+#[cfg(feature = "python")]
+let mut rng = Xorshift::new(rand::random());
+#[cfg(not(feature = "python"))]
+let mut rng = Xorshift::new(12345);            // six occurrences
+```
+
+The seed is taken fresh *inside each shot*, so every shot in a
+`wasm_run_benchmark` batch is bit-identical and the reported rate collapses to a
+step function. Measured directly: d=5 data noise returns exactly 0.000 for
+p ≤ 0.10, a flat ~0.21 plateau from p=0.13 to 0.19, then exactly 1.000 at
+p ≥ 0.21. Nothing in the old page's benchmark panel, threshold fitter, or Bloch
+sphere was a measurement. The offline Python build takes the other branch, which
+is why `threshold_plot.png` looked plausible.
+
+**Workaround adopted.** `js/montecarlo.js` samples noise in JavaScript and
+drives the engine one shot at a time through the session API
+(`wasm_clear_errors` → `wasm_toggle_error` → `wasm_decode`). The lattice,
+syndrome extraction, all three decoders, and the logical-failure verdict remain
+the engine's. The sampling distributions are transcriptions of
+`sample_biased_error`, `sample_biased_error_with_erasure`, `get_drift_p`, and
+`inject_correlated_noise`.
+
+Verified against the session API first: a single X error decodes cleanly, a
+patch-spanning chain returns `failed = 1` with an empty syndrome, and a
+non-spanning chain returns `failed = 0`. Resulting thresholds land where the
+literature puts them — ~10.5% for data noise, ~2.6% phenomenological.
+
+Costs: `wasm_estimate_logical_fidelity` (Bloch tomography) and circuit-level
+noise cannot be reached this way. Both are removed from the page, with the
+reason stated in sections 9 and 10.
+
+### 2. The XZZX code does not gain protection from distance
+
+At p=2%, unbiased, 4,000 shots: the rotated code improves 0.65% → 0.18% going
+from d=3 to d=5, while XZZX degrades 5.3% → 12.8%. The pattern holds at every
+bias from η=0.5 to η=1000, and the bias response is flat. An error rate rising
+with distance this far below threshold means the patch is not correcting. The
+lattice geometry it reports is correct — sections 3 and 5 draw it fine — so the
+fault is in the error model or the decoder graph, not the layout.
+
+Section 8 was rewritten to state the published result, then report that this
+engine does not reproduce it and show the measurement. Deleting the section
+would have been the dishonest option.
+
 ## Decisions
 
 | Question | Decision |
@@ -77,16 +132,19 @@ threshold.
 ```
 index.html            structure only, zero inline style
 css/styles.css        design tokens first, then base, then components
-js/engine.js          typed wrapper over all 25 exports; the only module that
+js/engine.js          typed wrapper over the exports; the only module that
                       touches raw pointers or wasm memory
-js/worker.js          worker-side: own wasm instance, Monte Carlo + sweeps
+js/montecarlo.js      JS noise sampling driving the engine's decoders per shot
+js/worker.js          worker-side: own wasm instance, sweeps and tables
 js/compute.js         promise-based RPC client for the worker; Wilson intervals;
                       threshold scaling fit
-js/lattice.js         one canvas renderer — 2D and spacetime — used by §3,4,5,7
+js/lattice.js         one canvas renderer — 2D and spacetime — used by §3,4,5,6
 js/plot.js            one plotting primitive — axes, series, error bars
+js/patterns.js        error patterns (straight chains, scatter) for the figures
+js/dom.js             small DOM helpers
 js/nav.js             sticky nav + scroll-spy
-js/sections/*.js      parity, anatomy, syndrome, degeneracy, spacetime,
-                      threshold, bias, bench, vitals
+js/sections/*.js      vitals, parity, anatomy, syndrome, decode, spacetime,
+                      threshold, bias, bench
 js/main.js            wiring
 ```
 

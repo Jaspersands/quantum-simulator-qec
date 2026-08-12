@@ -1,1736 +1,904 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum Error Correction Simulator Dashboard</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap');
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            color: #1c1d1f;
-            background-color: #f6f5f0; /* Warm cream paper tone */
-            line-height: 1.6;
-            padding: 50px 20px;
-            margin: 0;
-            letter-spacing: -0.01em;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: #ffffff;
-            border: 1.5px solid #1c1d1f; /* Hard crisp border */
-            padding: 50px;
-            box-shadow: 6px 6px 0px rgba(28, 29, 31, 0.08); /* Flat retro-editorial shadow */
-        }
-
-        h1 {
-            font-family: 'Lora', Georgia, serif;
-            font-size: 2.2rem;
-            font-weight: 700;
-            margin-top: 0;
-            margin-bottom: 6px;
-            color: #1c1d1f;
-            text-align: center;
-        }
-
-        .subtitle {
-            font-family: 'Lora', Georgia, serif;
-            font-style: italic;
-            color: #4a4c50;
-            font-size: 1.1rem;
-            margin-bottom: 40px;
-            text-align: center;
-            border-bottom: 3px double #1c1d1f;
-            padding-bottom: 20px;
-        }
-
-        h2 {
-            font-family: 'Lora', Georgia, serif;
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-top: 45px;
-            margin-bottom: 20px;
-            border-bottom: 1.5px solid #1c1d1f;
-            padding-bottom: 6px;
-            color: #1c1d1f;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .section-desc {
-            font-size: 0.95rem;
-            color: #4a4c50;
-            margin-bottom: 25px;
-            line-height: 1.6;
-            max-width: 900px;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-
-        .metric-card {
-            background: #faf9f6;
-            border: 1.5px solid #1c1d1f;
-            padding: 20px;
-            box-shadow: 3px 3px 0px rgba(28, 29, 31, 0.05);
-            position: relative;
-        }
-
-        .metric-label {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            color: #5d6166;
-            text-transform: uppercase;
-            font-weight: 600;
-            margin-bottom: 6px;
-            letter-spacing: 0.05em;
-        }
-
-        .metric-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1.35rem;
-            font-weight: 700;
-            color: #1c1d1f;
-        }
-
-        .plots-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        @media (max-width: 768px) {
-            .plots-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .plot-card {
-            border: 1.5px solid #1c1d1f;
-            padding: 20px;
-            background: #ffffff;
-            text-align: center;
-            box-shadow: 4px 4px 0px rgba(28, 29, 31, 0.05);
-        }
-
-        .plot-card h3 {
-            font-family: 'Lora', Georgia, serif;
-            font-size: 1.05rem;
-            margin-top: 0;
-            margin-bottom: 15px;
-            color: #1c1d1f;
-            font-weight: 600;
-        }
-
-        .plot-img {
-            max-width: 100%;
-            height: auto;
-            border: 1.5px solid #1c1d1f;
-            filter: grayscale(10%) contrast(105%); /* Academic paper ink look */
-        }
-
-        .stats-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            margin-bottom: 40px;
-            font-size: 0.85rem;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .stats-table th {
-            background-color: #faf9f6;
-            border: 1.5px solid #1c1d1f;
-            padding: 12px 14px;
-            font-weight: 700;
-            text-align: left;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-        }
-
-        .stats-table td {
-            border: 1.5px solid #1c1d1f;
-            padding: 12px 14px;
-        }
-
-        .stats-table tr:nth-child(even) {
-            background-color: #fdfdfb;
-        }
-
-        /* Latex-style Outline Button */
-        button {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.02em;
-            padding: 12px 24px;
-            background-color: #ffffff;
-            color: #1c1d1f;
-            border: 1.5px solid #1c1d1f;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            box-shadow: 3px 3px 0px #1c1d1f;
-            border-radius: 0px; /* Sharp corners */
-        }
-
-        button:hover {
-            background-color: #1c1d1f;
-            color: #ffffff;
-            box-shadow: 0px 0px 0px #1c1d1f;
-            transform: translate(2px, 2px);
-        }
-
-        button:disabled {
-            background-color: #f3f3f0;
-            color: #888888;
-            border-color: #cccccc;
-            box-shadow: none;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Latex style inputs */
-        select, input[type="number"], input[type="text"], input[type="range"] {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            padding: 8px 10px;
-            border: 1.5px solid #1c1d1f;
-            background-color: #ffffff;
-            color: #1c1d1f;
-            border-radius: 0px;
-            box-sizing: border-box;
-            outline: none;
-        }
-
-        select:focus, input[type="number"]:focus {
-            background-color: #faf9f6;
-        }
-
-        /* Custom range slider style */
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 6px;
-            background: #e2e1d9;
-            outline: none;
-            border: none;
-            padding: 0;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            background: #1c1d1f;
-            border: 1.5px solid #ffffff;
-            cursor: pointer;
-        }
-
-        input[type="range"]::-moz-range-thumb {
-            width: 14px;
-            height: 14px;
-            background: #1c1d1f;
-            border: 1.5px solid #ffffff;
-            cursor: pointer;
-        }
-
-        /* Custom radio buttons and checkbox style */
-        input[type="radio"], input[type="checkbox"] {
-            appearance: none;
-            width: 14px;
-            height: 14px;
-            border: 1.5px solid #1c1d1f;
-            border-radius: 0px;
-            display: inline-grid;
-            place-content: center;
-            background-color: #ffffff;
-            outline: none;
-            margin: 0;
-        }
-
-        input[type="radio"] {
-            border-radius: 50%;
-        }
-
-        input[type="radio"]::before {
-            content: "";
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            transform: scale(0);
-            transition: 120ms transform ease-in-out;
-            background-color: #1c1d1f;
-        }
-
-        input[type="radio"]:checked::before {
-            transform: scale(1);
-        }
-
-        input[type="checkbox"]::before {
-            content: "";
-            width: 7px;
-            height: 7px;
-            transform: scale(0);
-            transition: 120ms transform ease-in-out;
-            background-color: #1c1d1f;
-        }
-
-        input[type="checkbox"]:checked::before {
-            transform: scale(1);
-        }
-
-        .tech-list {
-            font-family: 'Inter', sans-serif;
-            margin-left: 20px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            color: #3a3c40;
-        }
-
-        .tech-list li {
-            margin-bottom: 8px;
-        }
-
-        .gh-link {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #1c1d1f;
-            text-decoration: underline;
-            font-weight: 600;
-        }
-
-        .gh-link:hover {
-            color: #5d6166;
-        }
-
-        footer {
-            margin-top: 60px;
-            border-top: 1px dashed #1c1d1f;
-            padding-top: 30px;
-            text-align: center;
-            font-family: 'Lora', Georgia, serif;
-            font-style: italic;
-            font-size: 0.9rem;
-            color: #4a4c50;
-        }
-
-        button.btn-green {
-            border-color: #2d5a27;
-            color: #2d5a27;
-            box-shadow: 3px 3px 0px #2d5a27;
-        }
-        button.btn-green:hover {
-            background-color: #2d5a27;
-            color: #ffffff;
-        }
-
-        select, input[type="number"], input[type="radio"] {
-            cursor: pointer;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keeping a Qubit Alive — an interactive surface-code simulator</title>
+<meta name="description" content="An interactive explanation of quantum error correction, running a real Rust stabilizer simulator compiled to WebAssembly in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
-<div class="container">
-    <h1>Quantum Error Correction Simulator Dashboard</h1>
-    <div class="subtitle">High-performance symplectic stabilizer simulation, syndrome visualizer, and Wasm-powered decoders.</div>
+<div class="shell">
 
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <div class="metric-label">Data Noise Speed</div>
-            <div class="metric-value">75,700 runs/s</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Phenom Noise Speed</div>
-            <div class="metric-value">12,300 runs/s</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">UF Decoder Complexity</div>
-            <div class="metric-value">O(N α(N))</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Interactive Platform</div>
-            <div class="metric-value">WebAssembly</div>
-        </div>
+<!-- ====================================================================== -->
+<!-- Contents rail                                                          -->
+<!-- ====================================================================== -->
+<nav class="rail" aria-label="Contents">
+  <div>
+    <p class="rail__mark">Surface codes</p>
+    <p class="rail__title">Keeping a qubit alive</p>
+  </div>
+
+  <ol class="toc">
+    <li><a class="toc__link" href="#problem"><span class="toc__num">01</span><span>The problem</span></a></li>
+    <li><a class="toc__link" href="#parity"><span class="toc__num">02</span><span>Parity, not state</span></a></li>
+    <li><a class="toc__link" href="#anatomy"><span class="toc__num">03</span><span>Anatomy of a patch</span></a></li>
+    <li><a class="toc__link" href="#syndrome"><span class="toc__num">04</span><span>Errors and syndromes</span></a></li>
+    <li><a class="toc__link" href="#decoding"><span class="toc__num">05</span><span>Decoding is a guess</span></a></li>
+    <li><a class="toc__link" href="#spacetime"><span class="toc__num">06</span><span>When readouts lie</span></a></li>
+    <li><a class="toc__link" href="#threshold"><span class="toc__num">07</span><span>The threshold</span></a></li>
+    <li><a class="toc__link" href="#bias"><span class="toc__num">08</span><span>Biased noise</span></a></li>
+    <li><a class="toc__link" href="#bench"><span class="toc__num">09</span><span>The bench</span></a></li>
+    <li><a class="toc__link" href="#internals"><span class="toc__num">10</span><span>Under the hood</span></a></li>
+  </ol>
+
+  <div class="rail__foot">
+    <a href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank" rel="noopener">Source on GitHub</a>
+  </div>
+</nav>
+
+<!-- ====================================================================== -->
+<main class="main">
+
+<header class="hero" id="overview">
+  <p class="hero__eyebrow">Rust · WebAssembly · running locally</p>
+  <h1 class="hero__title">Keeping a qubit alive</h1>
+  <p class="hero__lede">
+    A qubit cannot be copied and cannot be looked at. Both of the things that make classical
+    error correction easy are forbidden. <strong>Quantum error correction is the workaround</strong> —
+    and everything below is a real stabilizer simulator running in your browser, not a recording of one.
+  </p>
+
+  <div class="boot-error" data-boot-error hidden></div>
+
+  <div class="vitals pad-top">
+    <div class="vital">
+      <div class="vital__label">Data noise</div>
+      <div class="vital__value" data-vital-data><span class="pending"></span></div>
     </div>
+    <div class="vital">
+      <div class="vital__label">Phenomenological</div>
+      <div class="vital__value" data-vital-phenom><span class="pending"></span></div>
+    </div>
+    <div class="vital">
+      <div class="vital__label">Decoder complexity</div>
+      <div class="vital__value">O(N α(N))</div>
+      <div class="vital__note">Union-Find, near-linear</div>
+    </div>
+    <div class="vital">
+      <div class="vital__label">Engine</div>
+      <div class="vital__value">131 KB</div>
+      <div class="vital__note">no dependencies, no build step</div>
+    </div>
+  </div>
+  <p class="rig__caption" data-vitals-note>Measuring throughput on this device…</p>
+</header>
 
-    <h2>Interactive Syndrome Visualizer & Decoder Playground</h2>
-    <p class="section-desc">
-        Click on data qubits to inject errors (blue for X, red for Z, purple for Y). Select the code configuration and decoder, then click <strong>Run Decoder</strong> to watch the decoder calculate and overlay the correction path in real-time.
+
+<!-- 01 ================================================================== -->
+<section class="section" id="problem">
+  <div class="section__head">
+    <span class="section__num">01</span>
+    <h2 class="section__title">The problem</h2>
+  </div>
+
+  <div class="prose">
+    <p class="lead">
+      Protecting classical information is easy because you are allowed to cheat. Store three copies
+      of a bit, read all three, take the majority. Both moves — copying and reading — are free.
     </p>
-
-    <!-- Visualizer Layout -->
-    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 30px; margin-bottom: 35px; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; background: #ffffff; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Visualizer Mode:</label>
-                <div style="display: flex; gap: 10px; margin-bottom: 5px;">
-                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; cursor: pointer; flex: 1;">
-                        <input type="radio" id="modeMemory" name="visMode" value="memory" checked>
-                        <span>Single Patch</span>
-                    </label>
-                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; cursor: pointer; flex: 1;">
-                        <input type="radio" id="surgeryToggle" name="visMode" value="surgery">
-                        <span>CNOT Surgery</span>
-                    </label>
-                </div>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Code Geometry:</label>
-                <select id="codeTypeSelect" style="width: 100%;">
-                    <option value="0">Rotated Surface Code</option>
-                    <option value="1">XZZX Surface Code</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Code Distance (d):</label>
-                <select id="distanceSelect" style="width: 100%;">
-                    <option value="3">d = 3 (9 Qubits)</option>
-                    <option value="5">d = 5 (25 Qubits)</option>
-                    <option value="7">d = 7 (49 Qubits)</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Number of Rounds (T):</label>
-                <select id="roundsSelect" style="width: 100%;">
-                    <option value="1">T = 1 (Data noise only)</option>
-                    <option value="3">T = 3 (Spacetime)</option>
-                    <option value="5">T = 5 (Spacetime)</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Decoder:</label>
-                <select id="decoderSelect" style="width: 100%;">
-                    <option value="0">Union-Find Peeling</option>
-                    <option value="1">Greedy (Nearest-Neighbor)</option>
-                    <option value="2">Exact MWPM (Defects &le; 16)</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <input type="range" id="biasSlider" min="0.5" max="50" step="0.5" value="0.5" style="flex: 1;">
-                    <span id="biasValue" style="font-size: 0.9rem; font-weight: 600; min-width: 30px;">0.5</span>
-                </div>
-                <div style="font-size: 0.75rem; color: #4a4c50; margin-top: 3px;">0.5: Unbiased, &gt;0.5: Z-biased noise.</div>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Erasure Fraction (f_erase):</label>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <input type="range" id="erasureSlider" min="0.0" max="1.0" step="0.05" value="0.0" style="flex: 1;">
-                    <span id="erasureValue" style="font-size: 0.9rem; font-weight: 600; min-width: 30px;">0.00</span>
-                </div>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Correlated Noise:</label>
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="burstsCheckbox">
-                        <span>Spatial bursts (R=1.5, p=0.02)</span>
-                    </label>
-                    <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="driftCheckbox">
-                        <span>Slow temporal drift (1/f style)</span>
-                    </label>
-                </div>
-            </div>
-            <div style="border-top: 1.5px dashed #1c1d1f; padding-top: 15px;">
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 8px;">Error Injection Mode:</label>
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="errorType" value="0" checked>
-                        <span>Inject X Error (Phase check)</span>
-                    </label>
-                    <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="errorType" value="1">
-                        <span>Inject Z Error (Bit flip check)</span>
-                    </label>
-                    <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="radio" name="errorType" value="2">
-                        <span>Toggle Qubit Erasure (Dashed Halo)</span>
-                    </label>
-                </div>
-            </div>
-            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
-                <button id="decodeBtn" style="width: 100%;">Run Decoder</button>
-                <button id="clearBtn" style="width: 100%;">Clear All Errors</button>
-            </div>
-            <div id="decodingStatus" style="margin-top: 15px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; padding: 15px; border: 1.5px solid #1c1d1f; border-radius: 0px; display: none;"></div>
-        </div>
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #faf9f6; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 20px; position: relative;">
-            <canvas id="playgroundCanvas" width="500" height="500" style="background-color: #ffffff; border: 1.5px solid #1c1d1f; border-radius: 0px; max-width: 100%;"></canvas>
-            <div style="margin-top: 15px; font-size: 0.8rem; color: #4a4c50; text-align: center; line-height: 1.6;">
-                <strong>Legend:</strong> 
-                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ffffff; border: 1px solid #94a3b8; margin-left: 10px; vertical-align: middle;"></span> Data (No Error)
-                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #3b82f6; margin-left: 10px; vertical-align: middle;"></span> X Error
-                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; margin-left: 10px; vertical-align: middle;"></span> Z Error
-                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #a855f7; margin-left: 10px; vertical-align: middle;"></span> Y Error<br>
-                <span style="display: inline-block; width: 10px; height: 10px; border: 1px dashed #cbd5e1; background-color: #f8fafc; margin-left: 10px; vertical-align: middle;"></span> Stabilizer / measurement check
-                <span style="display: inline-block; width: 10px; height: 10px; background-color: #fef08a; border: 1px solid #eab308; margin-left: 10px; vertical-align: middle;"></span> Active Defect (triggered check)
-                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #22c55e; margin-left: 10px; vertical-align: middle;"></span> Applied Correction
-            </div>
-        </div>
-    </div>
-
-    <h2>Live WebAssembly Benchmarking Dashboard</h2>
-    <p class="section-desc">
-        Run real-time Monte Carlo simulations directly inside your browser. Benchmark the logical error suppression rates of the Union-Find, Greedy, and Exact MWPM decoders across various code sizes and noise profiles.
+    <p>
+      Neither is available for a qubit. The no-cloning theorem forbids duplicating an unknown quantum
+      state, so there is nothing to take a majority over. And measuring a qubit collapses it: the
+      superposition you were trying to protect is destroyed by the act of checking on it. A qubit in
+      the state you care about is a qubit you are not allowed to inspect.
     </p>
-
-    <!-- Benchmark widget -->
-    <div style="border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; margin-bottom: 35px; background: #ffffff; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 20px;">
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Code Type:</label>
-                <select id="benchCodeType" style="width: 100%;">
-                    <option value="0">Rotated Surface</option>
-                    <option value="1">XZZX Surface</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Decoder:</label>
-                <select id="benchDecoder" style="width: 100%;">
-                    <option value="0">Union-Find</option>
-                    <option value="1">Greedy</option>
-                    <option value="2">Exact MWPM</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Model:</label>
-                <select id="benchNoiseModel" style="width: 100%;">
-                    <option value="0">Data Noise Only</option>
-                    <option value="1">Phenomenological</option>
-                    <option value="2">Circuit-Level (CNOTs)</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Error Rate (p):</label>
-                <input type="number" id="benchP" value="0.05" min="0" max="1" step="0.01" style="width: 100%;">
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
-                <input type="number" id="benchBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%;">
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Rounds (T):</label>
-                <select id="benchRounds" style="width: 100%;">
-                    <option value="1">T = 1</option>
-                    <option value="3">T = 3</option>
-                    <option value="5">T = 5</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Distance (d):</label>
-                <select id="benchD" style="width: 100%;">
-                    <option value="3">d = 3</option>
-                    <option value="5">d = 5</option>
-                    <option value="7">d = 7</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Runs:</label>
-                <input type="number" id="benchRuns" value="200" min="1" max="10000" style="width: 100%;">
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Erasure Rate (f_erase):</label>
-                <input type="number" id="benchErasure" value="0.0" min="0" max="1" step="0.1" style="width: 100%;">
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Correlated Noise:</label>
-                <select id="benchCorrelated" style="width: 100%;">
-                    <option value="0">None</option>
-                    <option value="1">Spatial Bursts</option>
-                    <option value="2">Temporal Drift</option>
-                    <option value="3">Bursts & Drift</option>
-                </select>
-            </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <button id="runBenchBtn">Run Benchmark</button>
-            <div id="benchProgress" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #4a4c50;">Ready.</div>
-        </div>
-        <div id="benchResultCard" style="display: none; margin-top: 20px; background-color: #faf9f6; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 20px; font-family: 'JetBrains Mono', monospace;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                <div>
-                    <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #5d6166;">Logical Error Rate (p_L)</div>
-                    <div id="benchResultVal" style="font-size: 1.5rem; font-weight: 700; color: #1c1d1f; margin-top: 5px;">0.00%</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: #57606a;">Simulation Speed</div>
-                    <div id="benchResultSpeed" style="font-size: 1.25rem; font-weight: 600; color: #24292f; margin-top: 5px;">-</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <h2>Logical State Fidelity Bloch Sphere</h2>
-    <p class="section-desc">
-        Estimate the fidelity of the logical state under noise. This runs a mini Monte Carlo batch to measure expectations &langle; X<sub>L</sub> &rangle;, &langle; Y<sub>L</sub> &rangle;, &langle; Z<sub>L</sub> &rangle; by preparing cardinal states. The vector is drawn on the Bloch sphere below.
+    <p>
+      Worse, the errors are continuous. A classical bit fails one way — it flips. A qubit can rotate
+      by any angle on the Bloch sphere, in any direction. There are infinitely many ways to be
+      slightly wrong.
     </p>
-    <div style="display: grid; grid-template-columns: 1fr 280px; gap: 30px; margin-bottom: 35px; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; align-items: center; background: #ffffff; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div>
-                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Physical Error Rate (p):</label>
-                    <input type="number" id="sphereP" value="0.05" min="0" max="0.5" step="0.01" style="width: 100%;">
-                </div>
-                <div>
-                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Noise Bias (&eta;):</label>
-                    <input type="number" id="sphereBias" value="0.5" min="0.5" max="100" step="0.5" style="width: 100%;">
-                </div>
-                <div>
-                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Rounds (T):</label>
-                    <select id="sphereRounds" style="width: 100%;">
-                        <option value="1">T = 1</option>
-                        <option value="3" selected>T = 3</option>
-                        <option value="5">T = 5</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 5px;">Runs:</label>
-                    <input type="number" id="sphereRuns" value="200" min="1" max="2000" style="width: 100%;">
-                </div>
-            </div>
-            <button id="estimateFidelityBtn" style="width: 100%;">Estimate & Plot Bloch Vector</button>
-            <div style="margin-top: 15px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.6; background-color: #faf9f6; padding: 12px; border: 1.5px solid #1c1d1f; border-radius: 0px;">
-                <strong>Measured Expectations:</strong><br>
-                &langle; X<sub>L</sub> &rangle;: <span id="expectX" style="font-weight: 700; color: #1c1d1f;">-</span><br>
-                &langle; Y<sub>L</sub> &rangle;: <span id="expectY" style="font-weight: 700; color: #1c1d1f;">-</span><br>
-                &langle; Z<sub>L</sub> &rangle;: <span id="expectZ" style="font-weight: 700; color: #1c1d1f;">-</span>
-            </div>
-        </div>
-        <div style="display: flex; justify-content: center; background-color: #faf9f6; border-radius: 0px; border: 1.5px solid #1c1d1f; padding: 15px;">
-            <canvas id="blochCanvas" width="240" height="240" style="background-color: #ffffff; border: 1.5px solid #1c1d1f; border-radius: 0px;"></canvas>
-        </div>
-    </div>
-
-    <h2>Threshold Analysis Plots</h2>
-    <p class="section-desc">Both plots illustrate the relation between physical error rate (p) and logical error rate (p_L) for different code distances (d = 3, 5, 7).</p>
-    
-    <div class="plots-grid">
-        <div class="plot-card">
-            <h3>Pure Data Noise (Perfect Measurements)</h3>
-            <img class="plot-img" src="data_threshold_plot.png" alt="Data Noise Threshold Plot">
-            <p style="font-size: 0.8rem; color: #4a4c50; margin-top: 8px; text-align: left;">
-                Crossing threshold is located at <strong>p ≈ 8.0%</strong>. Below this point, increasing code distance suppresses logical error rate.
-            </p>
-        </div>
-        <div class="plot-card">
-            <h3>Phenomenological Noise (Spacetime decoding)</h3>
-            <img class="plot-img" src="threshold_plot.png" alt="Phenomenological Noise Threshold Plot">
-            <p style="font-size: 0.8rem; color: #4a4c50; margin-top: 8px; text-align: left;">
-                Includes stabilizer measurement errors. Crossing threshold is located at <strong>p ≈ 1.5%</strong>.
-            </p>
-        </div>
-    </div>
-
-    <h2>Live Finite-Size Scaling & Threshold Fitting</h2>
-    <p class="section-desc">
-        Sweep the physical error rate \(p\) dynamically across code distances \(d \in \{3, 5, 7\}\) using Monte Carlo trials. A pure JavaScript grid-search solver performs a quadratic finite-size scaling fit to locate the threshold \(p_{th}\) and critical exponent \(\nu\).
+    <p>
+      Quantum error correction gets around all three at once, and the trick is the same trick each
+      time: <strong>never look at the data</strong>. Look only at relationships between qubits.
     </p>
-    <div style="border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 25px; margin-bottom: 35px; background: #ffffff; display: grid; grid-template-columns: 1fr 300px; gap: 30px; align-items: start; box-shadow: 4px 4px 0px rgba(28,29,31,0.05);">
-        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1.5px solid #1c1d1f; border-radius: 0px; padding: 15px; background: #faf9f6;">
-            <canvas id="thresholdCanvas" width="500" height="350" style="background-color: #ffffff; border: 1.5px solid #1c1d1f; border-radius: 0px; max-width: 100%;"></canvas>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 15px;">
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Decoder:</label>
-                <select id="fitDecoder" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
-                    <option value="0">Union-Find</option>
-                    <option value="1">Greedy</option>
-                    <option value="2">Exact MWPM</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Noise Model:</label>
-                <select id="fitNoiseModel" style="width: 100%; padding: 8px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem;">
-                    <option value="0">Data Noise Only</option>
-                    <option value="1">Phenomenological</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Erasure Fraction (f_erase):</label>
-                <input type="range" id="fitErasureSlider" min="0.0" max="1.0" step="0.1" value="0.0" style="width: 100%;">
-                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #57606a; margin-top: 3px;">
-                    <span>0.0</span>
-                    <span id="fitErasureValue" style="font-weight: 600;">0.00</span>
-                    <span>1.0</span>
-                </div>
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 5px;">Runs per Point:</label>
-                <input type="number" id="fitRuns" value="500" min="100" max="5000" style="width: 100%; padding: 7px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 0.9rem; box-sizing: border-box;">
-            </div>
-            <button id="runFitBtn" style="padding: 10px; background-color: #22c55e; color: white; border: 1px solid #22c55e; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.95rem; margin-top: 10px;">Run Fitting Sweep</button>
-            <div id="fitProgress" style="font-size: 0.85rem; color: #57606a; text-align: center; margin-top: 5px;">Ready.</div>
-            
-            <div id="fitResultsCard" style="display: none; border-top: 1px solid #d0d7de; padding-top: 15px; margin-top: 10px;">
-                <h4 style="margin: 0 0 10px 0; font-size: 0.95rem; color: #24292f;">Fitted Parameters</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
-                    <div>
-                        <span style="color: #57606a;">Threshold (p_th):</span>
-                        <div id="fitPth" style="font-size: 1.25rem; font-weight: 600; color: #0969da; margin-top: 2px;">-</div>
-                    </div>
-                    <div>
-                        <span style="color: #57606a;">Exponent (&nu;):</span>
-                        <div id="fitNu" style="font-size: 1.25rem; font-weight: 600; color: #24292f; margin-top: 2px;">-</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+  </div>
+</section>
 
-    <h2>Simulation Statistics (Logical Error Rates)</h2>
-    
-    <table class="stats-table">
-        <thead>
-            <tr>
-                <th>Mode</th>
-                <th>Distance (d)</th>
-                <th>p = 1.0%</th>
-                <th>p = 0.5%</th>
-                <th>p = 0.2%</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Data Noise -->
-            <tr>
-                <td rowspan="3"><strong>Data Noise Only</strong><br>(Perfect Measurements)</td>
-                <td>d = 3</td>
-                <td>0.35%</td>
-                <td>0.10%</td>
-                <td>0.00%</td>
-            </tr>
-            <tr>
-                <td>d = 5</td>
-                <td>0.05%</td>
-                <td>0.00%</td>
-                <td>0.00%</td>
-            </tr>
-            <tr>
-                <td>d = 7</td>
-                <td>0.00%</td>
-                <td>0.05%</td>
-                <td>0.00%</td>
-            </tr>
-            <!-- Phenom Noise -->
-            <tr>
-                <td rowspan="3"><strong>Phenomenological Noise</strong><br>(Faulty Measurements)</td>
-                <td>d = 3</td>
-                <td>5.00%</td>
-                <td>2.00%</td>
-                <td>1.10%</td>
-            </tr>
-            <tr>
-                <td>d = 5</td>
-                <td>11.90%</td>
-                <td>6.40%</td>
-                <td>1.70%</td>
-            </tr>
-            <tr>
-                <td>d = 7</td>
-                <td>18.10%</td>
-                <td>11.10%</td>
-                <td>5.40%</td>
-            </tr>
-        </tbody>
+
+<!-- 02 ================================================================== -->
+<section class="section" id="parity">
+  <div class="section__head">
+    <span class="section__num">02</span>
+    <h2 class="section__title">Parity, not state</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Here is the move that makes everything else possible. Instead of measuring a qubit, measure
+      whether a <em>group</em> of qubits agrees with itself — their parity. The answer is a single
+      bit: even or odd. It says nothing whatsoever about what any individual qubit holds, so it
+      collapses nothing you cared about.
+    </p>
+    <p>
+      Four qubits, one measurement. Click them.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 1 · one stabilizer</span>
+      <span class="panel__label">Z ⊗ Z ⊗ Z ⊗ Z</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig rig--left">
+        <div class="rig__controls">
+          <div class="readout" data-parity-readout></div>
+          <div class="btn-row">
+            <button class="btn" data-parity-twin>Show an identical-looking error</button>
+            <button class="btn btn--ghost" data-parity-clear>Clear</button>
+          </div>
+        </div>
+        <div class="rig__stage">
+          <div data-parity-figure></div>
+        </div>
+      </div>
+      <p class="rig__caption" data-parity-verdict></p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      That is the bargain. The measurement is safe precisely <em>because</em> it is blind — and being
+      blind, it leaves you with an ambiguity you will have to resolve some other way. Hold onto that.
+      It comes back in section 05 as the central difficulty of the whole field.
+    </p>
+  </div>
+
+  <div class="aside">
+    <span class="aside__label">On continuous errors</span>
+    This also quietly solves the third problem. Measuring a stabilizer projects a continuously
+    rotated qubit onto either "no error" or "a discrete Pauli error". The infinity of possible
+    wrongness collapses into a handful of cases the moment you check. Correcting X, Y, and Z is
+    enough to correct everything.
+  </div>
+</section>
+
+
+<!-- 03 ================================================================== -->
+<section class="section" id="anatomy">
+  <div class="section__head">
+    <span class="section__num">03</span>
+    <h2 class="section__title">Anatomy of a patch</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      One parity check protects nothing on its own. Tile the plane with them and something useful
+      appears. The rotated surface code puts <span class="sym">d²</span> data qubits on a grid and
+      draws a checkerboard of parity checks across it: <span class="sym sym--z">Z</span>-plaquettes
+      that catch bit flips, <span class="sym sym--x">X</span>-plaquettes that catch phase flips.
+    </p>
+    <p>
+      There are <span class="sym">d² − 1</span> checks constraining <span class="sym">d²</span>
+      qubits. The single degree of freedom left over is the logical qubit — spread across the whole
+      patch, stored in no particular place, and therefore not destroyable by damaging any particular
+      place.
+    </p>
+    <p>
+      Hover anything below to see what watches what.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 2 · the lattice</span>
+      <span class="panel__label">read-only</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig">
+        <div class="rig__stage">
+          <canvas data-anatomy-canvas></canvas>
+          <div class="legend" data-anatomy-legend></div>
+        </div>
+        <div class="rig__controls">
+          <div class="field">
+            <label class="field__label" for="anatomy-distance">Code distance</label>
+            <select id="anatomy-distance" data-anatomy-distance>
+              <option value="3">d = 3</option>
+              <option value="5" selected>d = 5</option>
+              <option value="7">d = 7</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="anatomy-code">Geometry</label>
+            <select id="anatomy-code" data-anatomy-code>
+              <option value="0">Rotated surface</option>
+              <option value="1">XZZX surface</option>
+            </select>
+          </div>
+          <div class="readout" data-anatomy-counts></div>
+          <hr class="divider">
+          <div data-anatomy-readout></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      The distance <span class="sym">d</span> is the length of the shortest path across the patch,
+      and it sets how many individual failures it takes to destroy the logical qubit: you need at
+      least <span class="sym">d</span> of them, arranged in a line. That is the entire value
+      proposition. Everything after this is about making that line unlikely.
+    </p>
+  </div>
+</section>
+
+
+<!-- 04 ================================================================== -->
+<section class="section" id="syndrome">
+  <div class="section__head">
+    <span class="section__num">04</span>
+    <h2 class="section__title">Errors and syndromes</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Now break it. Click a data qubit to inject an error and watch which checks fire. The pattern
+      of fired checks is called the <strong>syndrome</strong>, and it is the only information you
+      ever get — the errors themselves are, by construction, invisible.
+    </p>
+    <p>
+      Then press <strong>Grow a chain</strong> and watch what happens. A run of adjacent errors
+      lights up only its two <em>endpoints</em>. Every check in the middle sees two errors, reads
+      even parity, and stays quiet.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 3 · inject and observe</span>
+      <span class="panel__label">click to edit</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig">
+        <div class="rig__stage">
+          <canvas data-syndrome-canvas></canvas>
+          <div class="legend" data-syndrome-legend></div>
+        </div>
+        <div class="rig__controls">
+          <div class="field">
+            <label class="field__label" for="syndrome-distance">Code distance</label>
+            <select id="syndrome-distance" data-syndrome-distance>
+              <option value="3">d = 3</option>
+              <option value="5" selected>d = 5</option>
+              <option value="7">d = 7</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="field__label">Inject</span>
+            <div class="choices">
+              <label class="choice"><input type="radio" name="syndrome-error-type" value="0" checked><span class="choice__swatch choice__swatch--x"></span>X — bit flip</label>
+              <label class="choice"><input type="radio" name="syndrome-error-type" value="1"><span class="choice__swatch choice__swatch--z"></span>Z — phase flip</label>
+              <label class="choice"><input type="radio" name="syndrome-error-type" value="2"><span class="choice__swatch choice__swatch--erased"></span>Erasure</label>
+            </div>
+          </div>
+          <div class="readout" data-syndrome-readout></div>
+          <div class="btn-row">
+            <button class="btn btn--primary" data-syndrome-chain>Grow a chain</button>
+            <button class="btn" data-syndrome-scatter>Scatter random noise</button>
+            <button class="btn btn--ghost" data-syndrome-clear>Clear</button>
+          </div>
+        </div>
+      </div>
+      <p class="rig__caption" data-syndrome-note></p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      This is the fact the rest of the page is built on. <strong>The syndrome sees the boundary of an
+      error chain, never the chain itself.</strong> Two defects tell you that something connects
+      them. They do not tell you what.
+    </p>
+  </div>
+</section>
+
+
+<!-- 05 ================================================================== -->
+<section class="section" id="decoding">
+  <div class="section__head">
+    <span class="section__num">05</span>
+    <h2 class="section__title">Decoding is a guess</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      A decoder takes the syndrome and proposes a correction: some chain of errors with the same
+      endpoints. Any such chain will silence every check. The decoder has no way to know whether it
+      picked the one that actually happened, so it picks the most probable — usually, the shortest.
+    </p>
+    <p>
+      Remarkably, <strong>it does not need to be right</strong>. Apply the correction on top of the
+      true error and look at what is left over, the <em>residual</em>. If the residual closes into
+      loops, it acts trivially on the logical qubit and you have won despite guessing wrong. Only if
+      the residual runs all the way across the patch have you lost — and then every check reads
+      quiet while the answer is silently wrong.
+    </p>
+    <p>
+      Inject errors, decode, and switch the view to <strong>Residual</strong>.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 4 · decode and inspect the residual</span>
+      <span class="panel__label">click to edit</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig">
+        <div class="rig__stage">
+          <canvas data-decode-canvas></canvas>
+          <div class="legend" data-decode-legend></div>
+        </div>
+        <div class="rig__controls">
+          <div class="field">
+            <span class="field__label">View</span>
+            <div class="segmented">
+              <label class="segmented__opt"><input type="radio" name="decode-view" value="error" checked><span>Error + fix</span></label>
+              <label class="segmented__opt"><input type="radio" name="decode-view" value="residual"><span>Residual</span></label>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label" for="decode-decoder">Decoder</label>
+            <select id="decode-decoder" data-decode-decoder>
+              <option value="0">Union-Find peeling</option>
+              <option value="1">Greedy nearest-neighbour</option>
+              <option value="2">Exact MWPM</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label class="field__label" for="decode-distance">Distance</label>
+              <select id="decode-distance" data-decode-distance>
+                <option value="3">d = 3</option>
+                <option value="5" selected>d = 5</option>
+                <option value="7">d = 7</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field__label" for="decode-code">Geometry</label>
+              <select id="decode-code" data-decode-code>
+                <option value="0">Rotated</option>
+                <option value="1">XZZX</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field__label">Inject</span>
+            <div class="choices choices--row">
+              <label class="choice"><input type="radio" name="decode-error-type" value="0" checked>X</label>
+              <label class="choice"><input type="radio" name="decode-error-type" value="1">Z</label>
+            </div>
+          </div>
+          <div class="readout" data-decode-readout></div>
+          <div class="btn-row">
+            <button class="btn btn--primary" data-decode-run>Run decoder</button>
+            <button class="btn" data-decode-chain>Long chain</button>
+            <button class="btn" data-decode-scatter>Random noise</button>
+            <button class="btn btn--ghost" data-decode-clear>Clear</button>
+          </div>
+        </div>
+      </div>
+      <p class="verdict verdict--idle" data-decode-verdict>Inject errors, then run a decoder.</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      Press <strong>Long chain</strong> a few times at <span class="sym">d = 3</span>. Once the chain
+      is longer than half the patch, the shortest way to close it is the wrong way round, the decoder
+      takes it, and the residual becomes a logical operator. This is what a logical error <em>is</em>:
+      not a failure to find a consistent correction, but a confident and consistent wrong answer.
+    </p>
+    <p>
+      The three decoders trade accuracy against speed. Union-Find grows clusters until each contains
+      an even number of defects and peels them, in near-linear time. Exact minimum-weight perfect
+      matching finds the genuinely optimal pairing and costs a great deal more. Greedy just pairs
+      nearest neighbours and is the fastest and worst.
+    </p>
+  </div>
+</section>
+
+
+<!-- 06 ================================================================== -->
+<section class="section" id="spacetime">
+  <div class="section__head">
+    <span class="section__num">06</span>
+    <h2 class="section__title">When the readouts lie</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Everything so far assumed the syndrome was trustworthy. It is not. The parity checks are
+      themselves small quantum circuits on real hardware, and they misreport. A single lying readout
+      is indistinguishable from a real error — and "correcting" an error that never happened
+      introduces one.
+    </p>
+    <p>
+      The fix is to measure repeatedly and decode the whole history at once. Stack
+      <span class="sym">T</span> rounds into a three-dimensional syndrome and the two failure modes
+      separate: a data error persists from the round it appears in onward, while a lying readout
+      produces a defect pair separated in <em>time</em> — it fires once, then corrects itself.
+    </p>
+    <p>
+      Click a plaquette below to make its readout lie in that round.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 5 · the spacetime syndrome</span>
+      <span class="panel__label">time runs upward</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig">
+        <div class="rig__stage">
+          <canvas data-spacetime-canvas></canvas>
+          <div class="legend" data-spacetime-legend></div>
+        </div>
+        <div class="rig__controls">
+          <div class="field">
+            <label class="field__label" for="spacetime-rounds">Rounds</label>
+            <select id="spacetime-rounds" data-spacetime-rounds>
+              <option value="3" selected>T = 3</option>
+              <option value="5">T = 5</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="spacetime-decoder">Decoder</label>
+            <select id="spacetime-decoder" data-spacetime-decoder>
+              <option value="0">Union-Find peeling</option>
+              <option value="1">Greedy nearest-neighbour</option>
+              <option value="2">Exact MWPM</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="field__label">Qubit clicks inject</span>
+            <div class="choices choices--row">
+              <label class="choice"><input type="radio" name="spacetime-error-type" value="0" checked>X</label>
+              <label class="choice"><input type="radio" name="spacetime-error-type" value="1">Z</label>
+            </div>
+            <span class="field__hint">Plaquette clicks always toggle a lying readout.</span>
+          </div>
+          <div class="readout" data-spacetime-readout></div>
+          <div class="btn-row">
+            <button class="btn btn--primary" data-spacetime-run>Run decoder</button>
+            <button class="btn btn--ghost" data-spacetime-clear>Clear</button>
+          </div>
+        </div>
+      </div>
+      <p class="rig__caption" data-spacetime-note></p>
+      <p class="verdict verdict--idle" data-spacetime-verdict></p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>
+      This costs you: <span class="sym">d</span> rounds of measurement per logical operation, and a
+      decoding problem that grows in three dimensions instead of two. It is also non-negotiable. Every
+      figure before this one was describing an idealisation.
+    </p>
+  </div>
+</section>
+
+
+<!-- 07 ================================================================== -->
+<section class="section" id="threshold">
+  <div class="section__head">
+    <span class="section__num">07</span>
+    <h2 class="section__title">The threshold</h2>
+  </div>
+
+  <div class="prose">
+    <p class="lead">
+      Everything above is machinery. This is the question it exists to answer: <strong>if I add more
+      physical qubits, does the logical qubit get better?</strong>
+    </p>
+    <p>
+      The answer is not always yes, and that is the entire subtlety. A bigger patch corrects longer
+      error chains — but it also has more qubits to go wrong, and more checks to misreport. Below
+      some critical physical error rate the first effect wins and logical error falls off
+      exponentially in <span class="sym">d</span>. Above it, the second wins and adding qubits makes
+      things actively worse. That crossing point is the <strong>threshold</strong>.
+    </p>
+    <p>
+      The table below is measured in your browser right now. Read the bottom row of each block: it
+      compares <span class="sym">d = 3</span> against <span class="sym">d = 7</span> and reports
+      which side of the threshold that column is on — or says so plainly when the two are within
+      each other's error bars, which is exactly what the threshold itself looks like.
+    </p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <caption class="visually-hidden">Logical error rate by noise model, code distance, and physical error rate</caption>
+      <thead>
+        <tr>
+          <th scope="col">Noise model</th>
+          <th scope="col">Distance</th>
+          <th scope="col">p = 0.5%</th>
+          <th scope="col">p = 1%</th>
+          <th scope="col">p = 2%</th>
+          <th scope="col">p = 5%</th>
+          <th scope="col">p = 10%</th>
+          <th scope="col">p = 15%</th>
+        </tr>
+      </thead>
+      <tbody data-results-body></tbody>
     </table>
+  </div>
+  <p class="status tight" data-results-status>Queued…</p>
+  <p class="rig__caption" data-results-caption></p>
 
-    <h2>Technical Details</h2>
-    <ul class="tech-list">
-        <li><strong>Clifford Simulator:</strong> Tracks stabilizer states using a packed binary symplectic tableau. All update operations utilize fast CPU-level word bitwise XORs.</li>
-        <li><strong>Union-Find Decoder:</strong> Disjoint-set implementation with rank-based unions and path compression. Peeling decoder runs in reverse BFS order from leaf nodes to verify parity.</li>
-        <li><strong>Greedy Decoder:</strong> Compares active defects pairwise or to boundaries using BFS shortest-path trees to find minimum weight pairings.</li>
-        <li><strong>XZZX Surface Code:</strong> Variants feature high thresholds under biased noise. Under XZZX, all stabilizers measure alternating X and Z operators.</li>
-    </ul>
+  <div class="prose">
+    <p>
+      Notice that the two noise models cross over in different places. Perfect measurements buy you a
+      much higher threshold than faulty ones — which is why the honest number to quote for hardware
+      is always the phenomenological or circuit-level one.
+    </p>
+    <p>
+      To locate the crossing precisely, sweep <span class="sym">p</span> across all three distances
+      and fit. Near threshold the curves for every distance collapse onto a single universal curve
+      when plotted against <span class="sym">(p − p_th) · d<sup>1/ν</sup></span>; the pair of values
+      that makes the collapse tightest is the threshold and its critical exponent.
+    </p>
+  </div>
 
-    <a class="gh-link" href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank">🔗 View project repository on GitHub</a>
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 6 · finite-size scaling</span>
+      <span class="panel__label">error bars are Wilson 95%</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig rig--wide">
+        <div class="rig__stage">
+          <canvas data-threshold-canvas></canvas>
+          <div class="legend" data-threshold-legend></div>
+        </div>
+        <div class="rig__controls">
+          <div class="field">
+            <label class="field__label" for="threshold-noise">Noise model</label>
+            <select id="threshold-noise" data-threshold-noise>
+              <option value="0">Data noise only</option>
+              <option value="1" selected>Phenomenological (T = d)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="threshold-decoder">Decoder</label>
+            <select id="threshold-decoder" data-threshold-decoder>
+              <option value="0">Union-Find peeling</option>
+              <option value="1">Greedy nearest-neighbour</option>
+              <option value="2">Exact MWPM</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="threshold-code">Geometry</label>
+            <select id="threshold-code" data-threshold-code>
+              <option value="0">Rotated surface</option>
+              <option value="1">XZZX surface</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="threshold-runs">Shots per point</label>
+            <input type="number" id="threshold-runs" data-threshold-runs value="1200" min="100" max="20000" step="100">
+            <span class="field__hint">27 points — 3 distances × 9 rates. More shots, tighter bars, slower sweep.</span>
+          </div>
+          <button class="btn btn--primary btn--block" data-threshold-run>Run sweep</button>
+          <div class="meter"><div class="meter__fill" data-threshold-meter></div></div>
+          <p class="status" data-threshold-status>Ready.</p>
+          <hr class="divider">
+          <div class="readout" data-threshold-results></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <footer>
-        <p>© 2026 Jaspersands. Built with Rust, WebAssembly, and Vanilla JavaScript.</p>
-    </footer>
+  <div class="aside">
+    <span class="aside__label">Reading the fit</span>
+    The reduced χ² tells you whether the collapse is believable. Near 1 means the scaling ansatz
+    describes the data within its error bars. Much larger means the fit is being forced — usually
+    because the sweep reaches too far from threshold, where the universal form stops applying.
+  </div>
+</section>
+
+
+<!-- 08 ================================================================== -->
+<section class="section" id="bias">
+  <div class="section__head">
+    <span class="section__num">08</span>
+    <h2 class="section__title">Biased noise</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Real devices do not produce X, Y, and Z errors in equal measure. In most superconducting and
+      spin qubits, dephasing dominates — Z errors can be one or two orders of magnitude more common
+      than bit flips. A code designed for symmetric noise is leaving that structure on the table.
+    </p>
+    <p>
+      The XZZX variant alternates X and Z operators around every plaquette instead of using separate
+      X-type and Z-type checks. The published result is that under strong bias its decoding problem
+      decouples into near-independent one-dimensional chains, lifting the threshold substantially.
+    </p>
+    <p>
+      <strong>This simulator does not reproduce that result.</strong> Run the comparison and you will
+      see the XZZX curve sit well above the rotated one and barely respond to bias at all. That is
+      not a subtle statistical effect: at <span class="sym">p = 2%</span>, far below any plausible
+      threshold, this engine's XZZX patch gets <em>worse</em> when you increase the distance from
+      <span class="sym">d = 3</span> to <span class="sym">d = 5</span>, while the rotated code
+      improves by roughly a factor of four as it should. A code whose logical error rate climbs with
+      distance deep below threshold is not correcting properly, so the honest reading is that the
+      XZZX implementation in this engine is broken rather than that the physics is wrong.
+    </p>
+    <p>
+      It is left in place, and reported as measured, because the alternative is to quietly delete an
+      inconvenient result. Section 10 has the details.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Figure 7 · rotated vs XZZX under bias</span>
+      <span class="panel__label">η = p_Z / (p_X + p_Y)</span>
+    </div>
+    <div class="panel__body">
+      <div class="rig rig--wide">
+        <div class="rig__stage">
+          <canvas data-bias-canvas></canvas>
+          <div class="legend" data-bias-legend></div>
+        </div>
+        <div class="rig__controls">
+          <div class="field">
+            <label class="field__label" for="bias-p">Physical error rate</label>
+            <input type="number" id="bias-p" data-bias-p value="0.06" min="0.001" max="0.5" step="0.005">
+          </div>
+          <div class="field">
+            <label class="field__label" for="bias-distance">Distance</label>
+            <select id="bias-distance" data-bias-distance>
+              <option value="3">d = 3</option>
+              <option value="5" selected>d = 5</option>
+              <option value="7">d = 7</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="bias-runs">Shots per point</label>
+            <input type="number" id="bias-runs" data-bias-runs value="2000" min="200" max="20000" step="100">
+          </div>
+          <button class="btn btn--primary btn--block" data-bias-run>Compare across bias</button>
+          <div class="meter"><div class="meter__fill" data-bias-meter></div></div>
+          <p class="status" data-bias-status>Ready.</p>
+          <hr class="divider">
+          <div class="readout" data-bias-summary></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- 09 ================================================================== -->
+<section class="section" id="bench">
+  <div class="section__head">
+    <span class="section__num">09</span>
+    <h2 class="section__title">The bench</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      The argument is finished. This is the instrument it was describing, with every parameter
+      exposed — including the ones the narrative had no use for: located losses, spatial burst
+      noise, and slow temporal drift.
+    </p>
+  </div>
+
+  <div class="panel">
+    <div class="panel__head">
+      <span class="panel__label">Monte Carlo console</span>
+      <span class="panel__label">runs off the main thread</span>
+    </div>
+    <div class="panel__body">
+      <div class="grid-2 loose">
+        <div class="field">
+          <label class="field__label" for="bench-code">Geometry</label>
+          <select id="bench-code" data-bench-code>
+            <option value="0">Rotated surface</option>
+            <option value="1">XZZX surface</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-decoder">Decoder</label>
+          <select id="bench-decoder" data-bench-decoder>
+            <option value="0">Union-Find</option>
+            <option value="1">Greedy</option>
+            <option value="2">Exact MWPM</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-noise">Noise model</label>
+          <select id="bench-noise" data-bench-noise>
+            <option value="0">Data noise only</option>
+            <option value="1" selected>Phenomenological</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-d">Distance</label>
+          <select id="bench-d" data-bench-d>
+            <option value="3">d = 3</option>
+            <option value="5" selected>d = 5</option>
+            <option value="7">d = 7</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-rounds">Rounds</label>
+          <select id="bench-rounds" data-bench-rounds>
+            <option value="1">T = 1</option>
+            <option value="3" selected>T = 3</option>
+            <option value="5">T = 5</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-p">Error rate p</label>
+          <input type="number" id="bench-p" data-bench-p value="0.02" min="0" max="1" step="0.005">
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-bias">Noise bias η</label>
+          <input type="number" id="bench-bias" data-bench-bias value="0.5" min="0.5" max="100" step="0.5">
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-erasure">Erasure fraction</label>
+          <input type="number" id="bench-erasure" data-bench-erasure value="0" min="0" max="1" step="0.05">
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-correlated">Correlated noise</label>
+          <select id="bench-correlated" data-bench-correlated>
+            <option value="0">None</option>
+            <option value="1">Spatial bursts</option>
+            <option value="2">Temporal drift</option>
+            <option value="3">Bursts and drift</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label" for="bench-runs">Shots</label>
+          <input type="number" id="bench-runs" data-bench-runs value="5000" min="1" max="200000" step="500">
+        </div>
+      </div>
+
+      <div class="rig rig--wide">
+        <div class="stack">
+          <button class="btn btn--primary" data-bench-run>Run Monte Carlo</button>
+          <p class="status" data-bench-status>Ready.</p>
+        </div>
+        <div class="readout" data-bench-output></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="aside">
+    <span class="aside__label">Two things are missing here</span>
+    Circuit-level noise and logical-state tomography were both in the previous version of this page
+    and are not in this one. Both depend on engine entry points whose random number generator is
+    seeded from a compile-time constant in the WebAssembly build, which made every shot in a batch
+    identical — the numbers they produced were not measurements. The rest of the page works around
+    that by sampling noise in JavaScript and driving the engine's decoders one shot at a time, but
+    neither of those two can be reached that way. Restoring them needs a rebuilt module. See
+    section 10.
+  </div>
+</section>
+
+
+<!-- 10 ================================================================== -->
+<section class="section" id="internals">
+  <div class="section__head">
+    <span class="section__num">10</span>
+    <h2 class="section__title">Under the hood</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Nothing on this page is precomputed. Every number was produced by a Rust stabilizer simulator
+      compiled to WebAssembly and executed on your machine while you read.
+    </p>
+  </div>
+
+  <ul class="spec-list">
+    <li>
+      <span class="k">Stabilizer engine</span>
+      <span>A packed binary symplectic tableau. By the Gottesman–Knill theorem, Clifford circuits on
+      <span class="sym">n</span> qubits are classically simulable in polynomial time; propagating
+      Paulis through the tableau costs <span class="sym">O(n²)</span> and reduces to word-level
+      bitwise XOR.</span>
+    </li>
+    <li>
+      <span class="k">Union-Find decoder</span>
+      <span>Disjoint-set forest with union by rank and path compression. Clusters grow until each
+      holds an even number of defects, then a spanning forest is peeled from the leaves inward to
+      recover the correction. Near-linear: <span class="sym">O(N α(N))</span>.</span>
+    </li>
+    <li>
+      <span class="k">Exact MWPM</span>
+      <span>Optimal minimum-weight perfect matching over the defect graph, with pairwise distances
+      from BFS shortest-path trees. Capped at 16 defects — beyond that the exact search is too slow
+      to run interactively.</span>
+    </li>
+    <li>
+      <span class="k">Greedy decoder</span>
+      <span>Pairs each defect with its nearest unmatched partner or the closest boundary. Fastest and
+      least accurate; useful mainly as a floor to measure the others against.</span>
+    </li>
+    <li>
+      <span class="k">XZZX surface code</span>
+      <span>Every stabilizer measures alternating X and Z operators around its plaquette. Under
+      strongly biased noise the decoding problem should decouple into near-independent chains,
+      lifting the threshold substantially. <strong>This engine's implementation does not do
+      that.</strong> Measured at <span class="mono">p = 2%</span>, unbiased, 4,000 shots: the
+      rotated code improves from 0.65% at <span class="mono">d = 3</span> to 0.18% at
+      <span class="mono">d = 5</span>, while XZZX degrades from 5.3% to 12.8%. An error rate that
+      rises with distance this far below threshold means the patch is not correcting, and the bias
+      response is correspondingly flat. The lattice geometry it reports is fine — the figures in
+      sections 3 and 5 draw it correctly — so the fault is in the error model or the decoder graph,
+      not the layout.</span>
+    </li>
+    <li>
+      <span class="k">Noise models</span>
+      <span>Pure data noise with perfect readout, and phenomenological noise adding independent
+      measurement errors per round over T = d rounds, the last of which is taken as perfect. Bias,
+      located erasure, spatial bursts, and slow temporal drift are layered on top.</span>
+    </li>
+    <li>
+      <span class="k">Where the sampling happens</span>
+      <span>Noise is drawn in JavaScript; everything that constitutes the physics — lattice,
+      syndrome extraction, all three decoders, and the logical-failure verdict — is the Rust
+      engine's, reached one shot at a time. This is a workaround, not a design choice: the engine's
+      own batch entry points seed their generator with the literal
+      <span class="mono">Xorshift::new(12345)</span> on the non-Python cfg branch, so every shot in a
+      batch comes out identical and the reported rate collapses to a step function. The offline
+      Python build takes the other branch and is unaffected. Fixing it is a six-line change in
+      <span class="mono">src/surface_code.rs</span> plus a rebuild.</span>
+    </li>
+    <li>
+      <span class="k">Threading</span>
+      <span>Two engine instances. The main thread keeps one for the interactive figures so clicks
+      answer immediately; a worker holds a second for Monte Carlo, so a long sweep never blocks the
+      page.</span>
+    </li>
+    <li>
+      <span class="k">Statistics</span>
+      <span>Intervals are Wilson score intervals at 95%, which stay sensible when the observed rate
+      is at or near zero. The collapse fit is a χ²-weighted quadratic least squares over the scaling
+      variable, grid-searched over <span class="sym">(p_th, ν)</span>.</span>
+    </li>
+    <li>
+      <span class="k">Also available</span>
+      <span>The same crate builds PyO3 bindings for offline threshold benchmarking. See
+      <span class="mono">run_benchmarks.py</span> in the repository.</span>
+    </li>
+  </ul>
+
+  <footer class="foot">
+    <span>Built with Rust, WebAssembly, and no dependencies.</span>
+    <a href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank" rel="noopener">Jaspersands/quantum-simulator-qec</a>
+  </footer>
+</section>
+
+</main>
 </div>
 
-<script>
-    // WebAssembly loading and interactive dashboard logic
-    let wasmInstance = null;
-    let sessionPtr = null;
-
-    // UI state
-    let currentD = 3;
-    let currentCodeType = 0;
-    let currentDecoder = 0;
-    let currentRounds = 1;
-
-    let dataQubits = [];
-    let stabilizers = [];
-    let corrections = null; // {x: Array, z: Array}
-
-    const canvas = document.getElementById('playgroundCanvas');
-    const ctx = canvas.getContext('2d');
-
-    // DOM Elements
-    const codeTypeSelect = document.getElementById('codeTypeSelect');
-    const distanceSelect = document.getElementById('distanceSelect');
-    const roundsSelect = document.getElementById('roundsSelect');
-    const decoderSelect = document.getElementById('decoderSelect');
-    const biasSlider = document.getElementById('biasSlider');
-    const biasValue = document.getElementById('biasValue');
-    const decodeBtn = document.getElementById('decodeBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const decodingStatus = document.getElementById('decodingStatus');
-
-    // Benchmark DOM Elements
-    const benchCodeType = document.getElementById('benchCodeType');
-    const benchDecoder = document.getElementById('benchDecoder');
-    const benchNoiseModel = document.getElementById('benchNoiseModel');
-    const benchP = document.getElementById('benchP');
-    const benchBias = document.getElementById('benchBias');
-    const benchRounds = document.getElementById('benchRounds');
-    const benchD = document.getElementById('benchD');
-    const benchRuns = document.getElementById('benchRuns');
-    const runBenchBtn = document.getElementById('runBenchBtn');
-    const benchProgress = document.getElementById('benchProgress');
-    const benchResultCard = document.getElementById('benchResultCard');
-    const benchResultVal = document.getElementById('benchResultVal');
-    const benchResultSpeed = document.getElementById('benchResultSpeed');
-
-    // Bloch Sphere DOM Elements
-    const sphereP = document.getElementById('sphereP');
-    const sphereBias = document.getElementById('sphereBias');
-    const sphereRounds = document.getElementById('sphereRounds');
-    const sphereRuns = document.getElementById('sphereRuns');
-    const estimateFidelityBtn = document.getElementById('estimateFidelityBtn');
-    const expectX = document.getElementById('expectX');
-    const expectY = document.getElementById('expectY');
-    const expectZ = document.getElementById('expectZ');
-
-    async function loadWasm() {
-        try {
-            const response = await fetch('stabilizer_qec.wasm');
-            const buffer = await response.arrayBuffer();
-            const obj = await WebAssembly.instantiate(buffer, {});
-            wasmInstance = obj.instance;
-            console.log("Wasm loaded successfully!");
-            initSession();
-            drawBlochSphere(0, 0, 0); // initial empty Bloch sphere
-        } catch (err) {
-            console.error("Error loading Wasm:", err);
-            benchProgress.textContent = "Error loading WASM library.";
-        }
-    }
-
-    function initSession() {
-        if (!wasmInstance) return;
-
-        // Free old session
-        if (sessionPtr) {
-            wasmInstance.exports.wasm_free_session(sessionPtr);
-        }
-
-        currentD = parseInt(distanceSelect.value);
-        currentCodeType = parseInt(codeTypeSelect.value);
-        currentDecoder = parseInt(decoderSelect.value);
-        currentRounds = parseInt(roundsSelect.value);
-
-        sessionPtr = wasmInstance.exports.wasm_create_session(currentD, currentCodeType);
-        wasmInstance.exports.wasm_set_num_rounds(sessionPtr, currentRounds);
-        
-        loadQubits();
-        corrections = null;
-        decodingStatus.style.display = 'none';
-        updatePlayground();
-    }
-
-    function loadQubits() {
-        dataQubits = [];
-        stabilizers = [];
-
-        const numData = wasmInstance.exports.wasm_get_data_qubit_count(sessionPtr);
-        const numStabs = wasmInstance.exports.wasm_get_stabilizer_count(sessionPtr);
-
-        // Load data qubits
-        for (let i = 0; i < numData; i++) {
-            const x = wasmInstance.exports.wasm_get_data_qubit_x(sessionPtr, i);
-            const y = wasmInstance.exports.wasm_get_data_qubit_y(sessionPtr, i);
-            dataQubits.push({
-                idx: i,
-                x: x,
-                y: y
-            });
-        }
-
-        // Load stabilizers
-        for (let i = 0; i < numStabs; i++) {
-            const x = wasmInstance.exports.wasm_get_stabilizer_x(sessionPtr, i);
-            const y = wasmInstance.exports.wasm_get_stabilizer_y(sessionPtr, i);
-            const type = wasmInstance.exports.wasm_get_stabilizer_type(sessionPtr, i);
-            stabilizers.push({
-                idx: i,
-                x: x,
-                y: y,
-                type: type // 0 for Z, 1 for X, 2 for XZZX
-            });
-        }
-    }
-
-    // 3D coordinate projection to screen
-    function getScreenCoords(gx, gy, t, T) {
-        let sx, sy;
-        if (T === 1) {
-            const canvasPadding = 45;
-            const gridRange = currentD * 2;
-            sx = canvasPadding + (gx / gridRange) * (canvas.width - 2 * canvasPadding);
-            sy = canvasPadding + (gy / gridRange) * (canvas.height - 2 * canvasPadding);
-        } else {
-            // For multiple rounds, draw stacked perspective-skewed layers
-            const layerW = 200;
-            const layerH = 90;
-            const planeCenterX = canvas.width / 2;
-            
-            const bottomY = canvas.height - 70;
-            const topY = 70;
-            const layerCenterY = bottomY - (t / (T - 1)) * (bottomY - topY);
-            
-            const nx = (gx / currentD) - 1.0;
-            const ny = (gy / currentD) - 1.0;
-            
-            // Squashed isometric look
-            sx = planeCenterX + nx * (layerW / 2) + ny * (layerW * 0.15);
-            sy = layerCenterY + ny * (layerH / 2) - nx * (layerH * 0.15);
-        }
-
-        // Apply Lattice Surgery gap offset if enabled
-        const surgeryToggle = document.getElementById('surgeryToggle');
-        if (surgeryToggle && surgeryToggle.checked) {
-            const mid = currentD; // middle gx coordinate is d
-            const gap = 30; // pixels to shift left/right
-            if (gx < mid) {
-                sx -= gap;
-            } else if (gx > mid) {
-                sx += gap;
-            }
-        }
-
-        return { x: sx, y: sy };
-    }
-
-    function updatePlayground() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        const T = parseInt(roundsSelect.value);
-        const numData = dataQubits.length;
-        const numStabs = stabilizers.length;
-
-        if (!wasmInstance || !sessionPtr) return;
-
-        const memory = wasmInstance.exports.memory;
-        
-        // Read physical errors
-        const errXPtr = wasmInstance.exports.wasm_get_physical_x_ptr(sessionPtr);
-        const errZPtr = wasmInstance.exports.wasm_get_physical_z_ptr(sessionPtr);
-        const errX = new Uint8Array(memory.buffer, errXPtr, numData * T);
-        const errZ = new Uint8Array(memory.buffer, errZPtr, numData * T);
-        
-        const erasedPtr = wasmInstance.exports.wasm_get_physical_erased_ptr(sessionPtr);
-        const erased = new Uint8Array(memory.buffer, erasedPtr, numData * T);
-
-        // Read syndromes
-        const synPtr = wasmInstance.exports.wasm_get_syndrome(sessionPtr);
-        const syndrome = new Uint8Array(memory.buffer, synPtr, numStabs * T);
-        
-        const surgeryToggle = document.getElementById('surgeryToggle');
-        const isSurgery = surgeryToggle && surgeryToggle.checked;
-
-        // --- DRAW TIME CONNECTIONS (between layers) ---
-        if (T > 1) {
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.setLineDash([2, 4]);
-
-            // Draw dotted vertical lines connecting identical stabilizer nodes across layers
-            for (let t = 0; t < T - 1; t++) {
-                for (let i = 0; i < numStabs; i++) {
-                    const s = stabilizers[i];
-                    const p1 = getScreenCoords(s.x, s.y, t, T);
-                    const p2 = getScreenCoords(s.x, s.y, t + 1, T);
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.stroke();
-                }
-            }
-            ctx.setLineDash([]);
-        }
-
-        // --- DRAW EACH LAYER ---
-        for (let t = 0; t < T; t++) {
-            // Draw layer boundaries
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)';
-            ctx.fillStyle = 'rgba(248, 250, 252, 0.15)';
-            ctx.beginPath();
-            const pTL = getScreenCoords(0, 0, t, T);
-            const pTR = getScreenCoords(currentD * 2, 0, t, T);
-            const pBR = getScreenCoords(currentD * 2, currentD * 2, t, T);
-            const pBL = getScreenCoords(0, currentD * 2, t, T);
-            ctx.moveTo(pTL.x, pTL.y);
-            ctx.lineTo(pTR.x, pTR.y);
-            ctx.lineTo(pBR.x, pBR.y);
-            ctx.lineTo(pBL.x, pBL.y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            // Draw CNOT Surgery junction highlights
-            if (isSurgery) {
-                ctx.fillStyle = 'rgba(234, 179, 8, 0.08)';
-                ctx.beginPath();
-                const pJTop = getScreenCoords(currentD, 0, t, T);
-                const pJBot = getScreenCoords(currentD, currentD * 2, t, T);
-                ctx.moveTo(pJTop.x - 12, pJTop.y);
-                ctx.lineTo(pJTop.x + 12, pJTop.y);
-                ctx.lineTo(pJBot.x + 12, pJBot.y);
-                ctx.lineTo(pJBot.x - 12, pJBot.y);
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            // Label layer index t
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(`Round t = ${t}`, pTL.x - 45, pTL.y - 5);
-
-            // Draw spatial connections within layer t
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = '#f1f5f9';
-            for (let s of stabilizers) {
-                const sCoords = getScreenCoords(s.x, s.y, t, T);
-                for (let q of dataQubits) {
-                    if (Math.abs(s.x - q.x) === 1 && Math.abs(s.y - q.y) === 1) {
-                        const qCoords = getScreenCoords(q.x, q.y, t, T);
-                        ctx.beginPath();
-                        ctx.moveTo(sCoords.x, sCoords.y);
-                        ctx.lineTo(qCoords.x, qCoords.y);
-                        ctx.stroke();
-                    }
-                }
-            }
-
-            // Draw stabilizers of layer t
-            for (let i = 0; i < numStabs; i++) {
-                const s = stabilizers[i];
-                const sCoords = getScreenCoords(s.x, s.y, t, T);
-                const size = 15;
-                
-                ctx.beginPath();
-                ctx.rect(sCoords.x - size/2, sCoords.y - size/2, size, size);
-                
-                const isTriggered = syndrome[i + t * numStabs] === 1;
-                if (isTriggered) {
-                    ctx.fillStyle = '#fef08a';
-                    ctx.strokeStyle = '#eab308';
-                    ctx.lineWidth = 2;
-                } else {
-                    ctx.fillStyle = '#f8fafc';
-                    ctx.strokeStyle = '#cbd5e1';
-                    ctx.lineWidth = 1;
-                }
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.fillStyle = '#64748b';
-                ctx.font = '8px monospace';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                let label = "";
-                if (s.type === 0) label = "Z";
-                else if (s.type === 1) label = "X";
-                else if (s.type === 2) label = "XZ";
-                ctx.fillText(label, sCoords.x, sCoords.y);
-            }
-
-            // Draw data qubits of layer t
-            for (let i = 0; i < numData; i++) {
-                const q = dataQubits[i];
-                const qCoords = getScreenCoords(q.x, q.y, t, T);
-                const radius = 9;
-                
-                // Draw dashed grey erasure halo if qubit is erased
-                const isErased = erased[i + t * numData] === 1;
-                if (isErased) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.arc(qCoords.x, qCoords.y, radius + 4, 0, 2 * Math.PI);
-                    ctx.strokeStyle = '#64748b';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([2, 2]);
-                    ctx.stroke();
-                    ctx.restore();
-                }
-
-                ctx.beginPath();
-                ctx.arc(qCoords.x, qCoords.y, radius, 0, 2 * Math.PI);
-
-                const hasX = errX[i + t * numData] === 1;
-                const hasZ = errZ[i + t * numData] === 1;
-
-                if (hasX && hasZ) {
-                    ctx.fillStyle = '#c084fc'; // Purple (Y error)
-                    ctx.strokeStyle = '#7c3aed';
-                } else if (hasX) {
-                    ctx.fillStyle = '#60a5fa'; // Blue (X error)
-                    ctx.strokeStyle = '#2563eb';
-                } else if (hasZ) {
-                    ctx.fillStyle = '#f87171'; // Red (Z error)
-                    ctx.strokeStyle = '#dc2626';
-                } else {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.strokeStyle = '#94a3b8';
-                }
-                ctx.lineWidth = 1.5;
-                ctx.fill();
-                ctx.stroke();
-
-                // Tiny index label
-                ctx.fillStyle = '#475569';
-                ctx.font = '7px monospace';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(i.toString(), qCoords.x, qCoords.y);
-
-                // Draw green correction overlay if present
-                if (corrections) {
-                    const corrXVal = corrections.x[i + t * numData] === 1;
-                    const corrZVal = corrections.z[i + t * numData] === 1;
-                    if (corrXVal || corrZVal) {
-                        ctx.beginPath();
-                        ctx.arc(qCoords.x, qCoords.y, radius + 3, 0, 2 * Math.PI);
-                        ctx.strokeStyle = '#22c55e';
-                        ctx.lineWidth = 2.0;
-                        ctx.stroke();
-                    }
-                }
-            }
-        }
-    }
-
-    // CLICK HANDLER
-    canvas.addEventListener('click', (e) => {
-        if (!sessionPtr) return;
-
-        const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
-
-        const T = parseInt(roundsSelect.value);
-        const numData = dataQubits.length;
-        const numStabs = stabilizers.length;
-
-        // Find closest data qubit or stabilizer across all layers
-        let closestQ = null;
-        let closestS = null;
-        let minDist = 18;
-
-        for (let t = 0; t < T; t++) {
-            for (let i = 0; i < numData; i++) {
-                const q = dataQubits[i];
-                const coords = getScreenCoords(q.x, q.y, t, T);
-                const dist = Math.hypot(coords.x - mx, coords.y - my);
-                if (dist < minDist) {
-                    minDist = dist;
-                    closestQ = { idx: i, t: t };
-                    closestS = null;
-                }
-            }
-            for (let i = 0; i < numStabs; i++) {
-                const s = stabilizers[i];
-                const coords = getScreenCoords(s.x, s.y, t, T);
-                const dist = Math.hypot(coords.x - mx, coords.y - my);
-                if (dist < minDist) {
-                    minDist = dist;
-                    closestS = { idx: i, t: t };
-                    closestQ = null;
-                }
-            }
-        }
-
-        if (closestQ) {
-            const errorType = parseInt(document.querySelector('input[name="errorType"]:checked').value);
-            if (errorType === 2) {
-                wasmInstance.exports.wasm_toggle_erasure(sessionPtr, closestQ.idx, closestQ.t);
-            } else {
-                wasmInstance.exports.wasm_toggle_error(sessionPtr, closestQ.idx, errorType, closestQ.t);
-            }
-            corrections = null;
-            decodingStatus.style.display = 'none';
-            updatePlayground();
-        } else if (closestS) {
-            // Toggle measurement error
-            wasmInstance.exports.wasm_toggle_measurement_error(sessionPtr, closestS.idx, closestS.t);
-            corrections = null;
-            decodingStatus.style.display = 'none';
-            updatePlayground();
-        }
-    });
-
-    // RUN DECODER
-    decodeBtn.addEventListener('click', () => {
-        if (!sessionPtr) return;
-
-        const T = parseInt(roundsSelect.value);
-        const numData = dataQubits.length;
-        const memory = wasmInstance.exports.memory;
-
-        currentDecoder = parseInt(decoderSelect.value);
-
-        const failed = wasmInstance.exports.wasm_decode(sessionPtr, currentDecoder);
-
-        const corrXPtr = wasmInstance.exports.wasm_get_correction_x_ptr(sessionPtr);
-        const corrZPtr = wasmInstance.exports.wasm_get_correction_z_ptr(sessionPtr);
-
-        const corrXArr = new Uint8Array(memory.buffer, corrXPtr, numData * T);
-        const corrZArr = new Uint8Array(memory.buffer, corrZPtr, numData * T);
-
-        // Clone correction arrays to JS memory
-        corrections = {
-            x: Array.from(corrXArr),
-            z: Array.from(corrZArr)
-        };
-
-        // Render correction overlay
-        updatePlayground();
-
-        // Update status panel
-        decodingStatus.style.display = 'block';
-        if (failed === 1) {
-            decodingStatus.style.backgroundColor = '#fef2f2';
-            decodingStatus.style.borderColor = '#fca5a5';
-            decodingStatus.style.color = '#b91c1c';
-            decodingStatus.textContent = '❌ Decoder Failed: Residual errors exceeded distance limit, resulting in a logical error!';
-        } else {
-            decodingStatus.style.backgroundColor = '#f0fdf4';
-            decodingStatus.style.borderColor = '#86efac';
-            decodingStatus.style.color = '#15803d';
-            decodingStatus.textContent = '✅ Decoder Succeeded: All syndrome defects resolved and returned to code space!';
-        }
-    });
-
-    // RESET ERRORS
-    clearBtn.addEventListener('click', () => {
-        if (!sessionPtr) return;
-        wasmInstance.exports.wasm_clear_errors(sessionPtr);
-        corrections = null;
-        decodingStatus.style.display = 'none';
-        updatePlayground();
-    });
-
-    // EVENT LISTENERS FOR INPUTS
-    codeTypeSelect.addEventListener('change', initSession);
-    distanceSelect.addEventListener('change', initSession);
-    roundsSelect.addEventListener('change', initSession);
-    decoderSelect.addEventListener('change', initSession);
-    biasSlider.addEventListener('input', () => {
-        biasValue.textContent = biasSlider.value;
-    });
-
-    // BENCHMARKING
-    runBenchBtn.addEventListener('click', () => {
-        if (!wasmInstance) return;
-
-        const d = parseInt(benchD.value);
-        const codeType = parseInt(benchCodeType.value);
-        const decoderType = parseInt(benchDecoder.value);
-        const noiseMode = parseInt(benchNoiseModel.value);
-        const p = parseFloat(benchP.value);
-        const bias = parseFloat(benchBias.value);
-        const rounds = parseInt(benchRounds.value);
-        const runs = parseInt(benchRuns.value);
-
-        const erasureRate = parseFloat(document.getElementById('benchErasure').value);
-        const correlatedNoise = parseInt(document.getElementById('benchCorrelated').value);
-
-        benchProgress.textContent = "Running Monte Carlo simulation...";
-        runBenchBtn.disabled = true;
-
-        setTimeout(() => {
-            const t0 = performance.now();
-            const rate = wasmInstance.exports.wasm_run_benchmark(d, codeType, decoderType, p, bias, rounds, runs, noiseMode, erasureRate, correlatedNoise);
-            const t1 = performance.now();
-            
-            const elapsed = (t1 - t0) / 1000;
-            const runsPerSec = Math.round(runs / elapsed);
-
-            benchProgress.textContent = `Completed in ${elapsed.toFixed(2)}s.`;
-            benchResultVal.textContent = (rate * 100).toFixed(2) + "%";
-            benchResultSpeed.textContent = runsPerSec.toLocaleString() + " runs/s";
-            benchResultCard.style.display = "block";
-            runBenchBtn.disabled = false;
-        }, 50);
-    });
-
-    // BLOCH SPHERE ESTIMATION & DRAWING
-    function drawBlochSphere(rx, ry, rz) {
-        const bCanvas = document.getElementById('blochCanvas');
-        const bCtx = bCanvas.getContext('2d');
-        bCtx.clearRect(0, 0, bCanvas.width, bCanvas.height);
-        
-        const cx = bCanvas.width / 2;
-        const cy = bCanvas.height / 2;
-        const r = 85; // Radius of sphere
-        
-        // Draw sphere outline
-        bCtx.beginPath();
-        bCtx.arc(cx, cy, r, 0, 2 * Math.PI);
-        bCtx.strokeStyle = '#94a3b8';
-        bCtx.lineWidth = 1.5;
-        bCtx.stroke();
-        bCtx.fillStyle = '#f8fafc';
-        bCtx.fill();
-        
-        // Draw equator ellipse (Z-plane equator)
-        bCtx.beginPath();
-        bCtx.ellipse(cx, cy, r, r * 0.35, 0, 0, 2 * Math.PI);
-        bCtx.strokeStyle = '#cbd5e1';
-        bCtx.setLineDash([3, 3]);
-        bCtx.stroke();
-        bCtx.setLineDash([]);
-        
-        // Draw vertical equator (X-plane equator)
-        bCtx.beginPath();
-        bCtx.ellipse(cx, cy, r * 0.35, r, 0, 0, 2 * Math.PI);
-        bCtx.strokeStyle = '#cbd5e1';
-        bCtx.setLineDash([3, 3]);
-        bCtx.stroke();
-        bCtx.setLineDash([]);
-        
-        // Draw Z-axis (vertical)
-        bCtx.beginPath();
-        bCtx.moveTo(cx, cy - r - 10);
-        bCtx.lineTo(cx, cy + r + 10);
-        bCtx.strokeStyle = '#ef4444'; // Red for Z
-        bCtx.lineWidth = 1;
-        bCtx.stroke();
-        
-        // Draw X-axis (diagonal)
-        bCtx.beginPath();
-        bCtx.moveTo(cx - r * 0.7, cy + r * 0.4);
-        bCtx.lineTo(cx + r * 0.7, cy - r * 0.4);
-        bCtx.strokeStyle = '#2563eb'; // Blue for X
-        bCtx.stroke();
-        
-        // Draw Y-axis (horizontal)
-        bCtx.beginPath();
-        bCtx.moveTo(cx - r - 10, cy);
-        bCtx.lineTo(cx + r + 10, cy);
-        bCtx.strokeStyle = '#a855f7'; // Purple for Y
-        bCtx.stroke();
-        
-        // Add axis labels
-        bCtx.font = '10px sans-serif';
-        bCtx.fillStyle = '#ef4444';
-        bCtx.fillText('+Z_L', cx + 5, cy - r - 2);
-        bCtx.fillText('-Z_L', cx + 5, cy + r + 10);
-        
-        bCtx.fillStyle = '#2563eb';
-        bCtx.fillText('+X_L', cx - r * 0.7 - 25, cy + r * 0.4 + 5);
-        bCtx.fillText('-X_L', cx + r * 0.7 + 5, cy - r * 0.4 - 2);
-        
-        bCtx.fillStyle = '#a855f7';
-        bCtx.fillText('+Y_L', cx + r + 2, cy - 5);
-        bCtx.fillText('-Y_L', cx - r - 28, cy - 5);
-        
-        // Draw origin
-        bCtx.beginPath();
-        bCtx.arc(cx, cy, 3, 0, 2 * Math.PI);
-        bCtx.fillStyle = '#1e293b';
-        bCtx.fill();
-        
-        // Map 3D coordinate (rx, ry, rz) to 2D screen coordinate
-        const px = cx + ry * r - rx * r * 0.45;
-        const py = cy - rz * r + rx * r * 0.25;
-        
-        // Draw Bloch vector
-        bCtx.beginPath();
-        bCtx.moveTo(cx, cy);
-        bCtx.lineTo(px, py);
-        bCtx.strokeStyle = '#0f172a';
-        bCtx.lineWidth = 3;
-        bCtx.stroke();
-        
-        // Draw vector tip
-        bCtx.beginPath();
-        bCtx.arc(px, py, 5, 0, 2 * Math.PI);
-        bCtx.fillStyle = '#0f172a';
-        bCtx.fill();
-        bCtx.strokeStyle = '#ffffff';
-        bCtx.lineWidth = 1;
-        bCtx.stroke();
-    }
-
-    estimateFidelityBtn.addEventListener('click', () => {
-        if (!wasmInstance) return;
-
-        const d = parseInt(benchD.value); // Use distance from benchmark
-        const codeType = parseInt(benchCodeType.value);
-        const decoderType = parseInt(benchDecoder.value);
-        const p = parseFloat(sphereP.value);
-        const bias = parseFloat(sphereBias.value);
-        const rounds = parseInt(sphereRounds.value);
-        const runs = parseInt(sphereRuns.value);
-
-        const erasureRate = parseFloat(document.getElementById('benchErasure').value);
-        const correlatedNoise = parseInt(document.getElementById('benchCorrelated').value);
-
-        estimateFidelityBtn.disabled = true;
-        estimateFidelityBtn.textContent = "Estimating Bloch expectations...";
-
-        setTimeout(() => {
-            const resultPtr = wasmInstance.exports.wasm_estimate_logical_fidelity(
-                d, codeType, decoderType, p, bias, 2, rounds, runs, erasureRate, correlatedNoise
-            );
-            
-            const memory = wasmInstance.exports.memory;
-            const expectations = new Float64Array(memory.buffer, resultPtr, 3);
-            
-            const rx = expectations[0];
-            const ry = expectations[1];
-            const rz = expectations[2];
-
-            expectX.textContent = rx.toFixed(4);
-            expectY.textContent = ry.toFixed(4);
-            expectZ.textContent = rz.toFixed(4);
-
-            drawBlochSphere(rx, ry, rz);
-
-            estimateFidelityBtn.disabled = false;
-            estimateFidelityBtn.textContent = "Estimate & Plot Bloch Vector";
-        }, 50);
-    });
-
-    // Slider value updates
-    const erasureSlider = document.getElementById('erasureSlider');
-    const erasureValue = document.getElementById('erasureValue');
-    erasureSlider.addEventListener('input', () => {
-        erasureValue.textContent = parseFloat(erasureSlider.value).toFixed(2);
-    });
-
-    const fitErasureSlider = document.getElementById('fitErasureSlider');
-    const fitErasureValue = document.getElementById('fitErasureValue');
-    fitErasureSlider.addEventListener('input', () => {
-        fitErasureValue.textContent = parseFloat(fitErasureSlider.value).toFixed(2);
-    });
-
-    // Visualizer mode radio changes
-    document.querySelectorAll('input[name="visMode"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-            updatePlayground();
-        });
-    });
-
-    // Quadratic polynomial regression solver & grid search
-    function solveQuadraticFit(points, p_th, nu) {
-        let N = points.length;
-        let sum_x = 0, sum_x2 = 0, sum_x3 = 0, sum_x4 = 0;
-        let sum_y = 0, sum_xy = 0, sum_x2y = 0;
-        
-        for (let p of points) {
-            let x = (p.p - p_th) * Math.pow(p.d, 1.0 / nu);
-            let y = p.pL;
-            let x2 = x * x;
-            sum_x += x;
-            sum_x2 += x2;
-            sum_x3 += x2 * x;
-            sum_x4 += x2 * x2;
-            sum_y += y;
-            sum_xy += x * y;
-            sum_x2y += x2 * y;
-        }
-        
-        // Solve system M * c = v using Cramer's rule
-        let dM = N * (sum_x2 * sum_x4 - sum_x3 * sum_x3) 
-               - sum_x * (sum_x * sum_x4 - sum_x2 * sum_x3) 
-               + sum_x2 * (sum_x * sum_x3 - sum_x2 * sum_x2);
-               
-        if (Math.abs(dM) < 1e-12) {
-            return { A: 0, B: 0, C: 0, chi2: Infinity };
-        }
-        
-        let dA = sum_y * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
-               - sum_x * (sum_xy * sum_x4 - sum_x2y * sum_x3)
-               + sum_x2 * (sum_xy * sum_x3 - sum_x2y * sum_x2);
-               
-        let dB = N * (sum_xy * sum_x4 - sum_x2y * sum_x3)
-               - sum_y * (sum_x * sum_x4 - sum_x2 * sum_x3)
-               + sum_x2 * (sum_x * sum_x2y - sum_x2 * sum_xy);
-               
-        let dC = N * (sum_x2 * sum_x2y - sum_x3 * sum_xy)
-               - sum_x * (sum_x * sum_x2y - sum_x2 * sum_xy)
-               + sum_y * (sum_x * sum_x3 - sum_x2 * sum_x2);
-               
-        let A = dA / dM;
-        let B = dB / dM;
-        let C = dC / dM;
-        
-        let chi2 = 0;
-        for (let p of points) {
-            let x = (p.p - p_th) * Math.pow(p.d, 1.0 / nu);
-            let y_fit = A + B * x + C * x * x;
-            chi2 += Math.pow(p.pL - y_fit, 2);
-        }
-        
-        return { A, B, C, chi2 };
-    }
-
-    function fitThresholdScaling(points) {
-        let best_p_th = 0;
-        let best_nu = 0;
-        let best_fit = null;
-        let min_chi2 = Infinity;
-        
-        // Grid search sweep
-        for (let p_th = 0.005; p_th <= 0.16; p_th += 0.001) {
-            for (let nu = 0.7; nu <= 2.0; nu += 0.02) {
-                let fit = solveQuadraticFit(points, p_th, nu);
-                if (fit.chi2 < min_chi2) {
-                    min_chi2 = fit.chi2;
-                    best_p_th = p_th;
-                    best_nu = nu;
-                    best_fit = fit;
-                }
-            }
-        }
-        
-        return {
-            p_th: best_p_th,
-            nu: best_nu,
-            A: best_fit.A,
-            B: best_fit.B,
-            C: best_fit.C,
-            chi2: min_chi2
-        };
-    }
-
-    function drawThresholdChart(points, fitResults) {
-        const thresholdCanvas = document.getElementById('thresholdCanvas');
-        const tCtx = thresholdCanvas.getContext('2d');
-        const width = thresholdCanvas.width;
-        const height = thresholdCanvas.height;
-        tCtx.clearRect(0, 0, width, height);
-
-        // Chart margins
-        const padL = 55;
-        const padR = 25;
-        const padT = 25;
-        const padB = 45;
-
-        // Draw axes
-        tCtx.lineWidth = 1;
-        tCtx.strokeStyle = '#d0d7de';
-        tCtx.beginPath();
-        tCtx.moveTo(padL, padT);
-        tCtx.lineTo(padL, height - padB);
-        tCtx.lineTo(width - padR, height - padB);
-        tCtx.stroke();
-
-        // X scale: p from 0 to 0.16
-        const xMin = 0.0;
-        const xMax = 0.16;
-        function getX(p) {
-            return padL + ((p - xMin) / (xMax - xMin)) * (width - padL - padR);
-        }
-
-        // Y scale: p_L from 0 to 0.5 (or max observed pL if higher)
-        let maxPL = 0.35;
-        for (let pt of points) {
-            if (pt.pL > maxPL) maxPL = pt.pL;
-        }
-        maxPL = Math.ceil(maxPL * 10) / 10;
-        if (maxPL > 1.0) maxPL = 1.0;
-        const yMin = 0.0;
-        const yMax = maxPL;
-        function getY(pL) {
-            return height - padB - ((pL - yMin) / (yMax - yMin)) * (height - padT - padB);
-        }
-
-        // Draw grid lines and labels
-        tCtx.fillStyle = '#57606a';
-        tCtx.font = '10px sans-serif';
-        tCtx.textAlign = 'right';
-        tCtx.textBaseline = 'middle';
-        for (let yVal = 0.0; yVal <= yMax; yVal += yMax / 5) {
-            const y = getY(yVal);
-            tCtx.fillText(`${(yVal * 100).toFixed(0)}%`, padL - 8, y);
-            tCtx.beginPath();
-            tCtx.moveTo(padL, y);
-            tCtx.lineTo(width - padR, y);
-            tCtx.strokeStyle = '#f6f8fa';
-            tCtx.stroke();
-        }
-
-        tCtx.textAlign = 'center';
-        tCtx.textBaseline = 'top';
-        for (let xVal = 0.0; xVal <= xMax; xVal += 0.04) {
-            const x = getX(xVal);
-            tCtx.fillText(`${(xVal * 100).toFixed(0)}%`, x, height - padB + 8);
-        }
-
-        // Axis titles
-        tCtx.save();
-        tCtx.translate(15, (height - padT - padB) / 2 + padT);
-        tCtx.rotate(-Math.PI / 2);
-        tCtx.textAlign = 'center';
-        tCtx.fillText("Logical Error Rate (p_L)", 0, 0);
-        tCtx.restore();
-
-        tCtx.fillText("Physical Error Rate (p)", (width - padL - padR) / 2 + padL, height - padB + 24);
-
-        const colors = {
-            3: '#2563eb', // Blue
-            5: '#dc2626', // Red
-            7: '#16a34a'  // Green
-        };
-
-        // Draw fitted curves
-        if (fitResults) {
-            const { p_th, nu, A, B, C } = fitResults;
-            
-            // Draw vertical dotted line for threshold
-            if (p_th >= xMin && p_th <= xMax) {
-                const xTh = getX(p_th);
-                tCtx.setLineDash([3, 3]);
-                tCtx.strokeStyle = '#94a3b8';
-                tCtx.lineWidth = 1;
-                tCtx.beginPath();
-                tCtx.moveTo(xTh, padT);
-                tCtx.lineTo(xTh, height - padB);
-                tCtx.stroke();
-                tCtx.setLineDash([]);
-                tCtx.fillText(`p_th = ${(p_th * 100).toFixed(2)}%`, xTh, padT - 5);
-            }
-
-            // Draw curves for each d
-            for (let d of [3, 5, 7]) {
-                tCtx.strokeStyle = colors[d];
-                tCtx.lineWidth = 2;
-                tCtx.beginPath();
-                let first = true;
-                for (let pVal = 0.005; pVal <= 0.16; pVal += 0.002) {
-                    let x_scaling = (pVal - p_th) * Math.pow(d, 1.0 / nu);
-                    let pL_fit = A + B * x_scaling + C * x_scaling * x_scaling;
-                    if (pL_fit < 0) pL_fit = 0;
-                    if (pL_fit > 1.0) pL_fit = 1.0;
-
-                    const sx = getX(pVal);
-                    const sy = getY(pL_fit);
-                    if (first) {
-                        tCtx.moveTo(sx, sy);
-                        first = false;
-                    } else {
-                        tCtx.lineTo(sx, sy);
-                    }
-                }
-                tCtx.stroke();
-            }
-        }
-
-        // Draw measured data points
-        for (let pt of points) {
-            tCtx.fillStyle = colors[pt.d];
-            tCtx.strokeStyle = '#ffffff';
-            tCtx.lineWidth = 1.5;
-            tCtx.beginPath();
-            tCtx.arc(getX(pt.p), getY(pt.pL), 5, 0, 2 * Math.PI);
-            tCtx.fill();
-            tCtx.stroke();
-        }
-
-        // Draw Legend
-        tCtx.textAlign = 'left';
-        tCtx.textBaseline = 'middle';
-        let legX = padL + 15;
-        let legY = padT + 15;
-        for (let d of [3, 5, 7]) {
-            tCtx.fillStyle = colors[d];
-            tCtx.beginPath();
-            tCtx.arc(legX, legY, 4, 0, 2 * Math.PI);
-            tCtx.fill();
-            tCtx.fillStyle = '#24292f';
-            tCtx.fillText(`d = ${d}`, legX + 10, legY);
-            legY += 16;
-        }
-    }
-
-    const runFitBtn = document.getElementById('runFitBtn');
-    const fitProgress = document.getElementById('fitProgress');
-    const fitResultsCard = document.getElementById('fitResultsCard');
-    const fitPth = document.getElementById('fitPth');
-    const fitNu = document.getElementById('fitNu');
-
-    runFitBtn.addEventListener('click', async () => {
-        if (!wasmInstance) return;
-        runFitBtn.disabled = true;
-        fitResultsCard.style.display = 'none';
-        fitProgress.textContent = "Starting sweep...";
-
-        const decoder = parseInt(document.getElementById('fitDecoder').value);
-        const noiseModel = parseInt(document.getElementById('fitNoiseModel').value);
-        const erasureRate = parseFloat(document.getElementById('fitErasureSlider').value);
-        const runs = parseInt(document.getElementById('fitRuns').value);
-        const bias = parseFloat(biasSlider.value);
-        const codeType = currentCodeType;
-        const rounds = noiseModel === 0 ? 1 : 3;
-
-        const distances = [3, 5, 7];
-        const physicalPs = [0.01, 0.03, 0.05, 0.07, 0.09, 0.11, 0.13, 0.15];
-
-        let points = [];
-        let totalSteps = distances.length * physicalPs.length;
-        let step = 0;
-
-        for (let d of distances) {
-            for (let p of physicalPs) {
-                await new Promise(resolve => setTimeout(resolve, 0));
-                fitProgress.textContent = `Simulating d=${d}, p=${p.toFixed(2)} (${step + 1}/${totalSteps})...`;
-                
-                const pL = wasmInstance.exports.wasm_run_benchmark(
-                    d, codeType, decoder, p, bias, rounds, runs, noiseModel, erasureRate, 0
-                );
-                
-                points.push({ d, p, pL });
-                step++;
-            }
-        }
-
-        fitProgress.textContent = "Fitting scaling curves...";
-        await new Promise(resolve => setTimeout(resolve, 10));
-
-        const fitResults = fitThresholdScaling(points);
-
-        fitPth.textContent = `${(fitResults.p_th * 100).toFixed(2)}%`;
-        fitNu.textContent = fitResults.nu.toFixed(2);
-        fitResultsCard.style.display = 'block';
-        fitProgress.textContent = "Fitting complete!";
-        runFitBtn.disabled = false;
-
-        drawThresholdChart(points, fitResults);
-    });
-
-    // Start everything!
-    loadWasm();
-</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
