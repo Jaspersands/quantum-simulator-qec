@@ -152,7 +152,7 @@ export function initDecode(root, instance) {
     session.clearErrors();
     decoded = false;
     scatter(session, { p: 0.1 });
-    setVerdict('idle', 'Random noise at p = 10%. Run the decoder.');
+    setVerdict('idle', 'Depolarizing noise at p = 10%. Run the decoder.');
     update();
   });
 

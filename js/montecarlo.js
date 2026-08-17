@@ -31,13 +31,18 @@
 import { NOISE, ERROR, CORRELATED } from './engine.js';
 
 /** Sampled Pauli, as a bitmask: 1 = X, 2 = Z, 3 = Y. */
-const NONE = 0, X = 1, Z = 2, Y = 3;
+export const NONE = 0, X = 1, Z = 2, Y = 3;
 
 /**
  * Mirror of `sample_biased_error`.
  * eta is the Z-bias: at eta = 0.5 the channel is depolarizing.
+ *
+ * Exported so the interactive figures scatter noise the same way the Monte
+ * Carlo does. A figure captioned "noise at p = 8%" has to mean the same thing
+ * as the p = 8% column of the results table, or the two halves of the page
+ * quietly disagree.
  */
-function samplePauli(p, eta) {
+export function samplePauli(p, eta) {
   if (Math.random() >= p) return NONE;
   const u = Math.random();
   const pz = eta / (eta + 1);

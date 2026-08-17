@@ -6,6 +6,7 @@
  */
 
 import { ERROR } from './engine.js';
+import { samplePauli, NONE, X, Z } from './montecarlo.js';
 
 /** Data qubits sit on a square grid two units apart on the doubled lattice. */
 function qubitAt(session, x, y) {
@@ -63,20 +64,23 @@ export function growChain(session, { length = 3, type = ERROR.X, t = 0, axis = n
 }
 
 /**
- * Sprinkle independent errors at rate p, the way the Monte Carlo does.
+ * Sprinkle noise at rate p, using the same channel as the Monte Carlo.
+ *
+ * Each qubit takes an error with probability p, and that error is X, Y or Z
+ * per the bias — it is not an independent X draw plus an independent Z draw,
+ * which would deliver an effective rate near 2p and silently make the figure
+ * noisier than its own caption claims.
+ *
  * @returns {number} how many qubits were touched
  */
-export function scatter(session, { p = 0.08, t = 0, includeZ = true } = {}) {
+export function scatter(session, { p = 0.08, t = 0, bias = 0.5 } = {}) {
   let touched = 0;
   for (const q of session.dataQubits) {
-    if (Math.random() < p) {
-      session.toggleError(q.idx, ERROR.X, t);
-      touched++;
-    }
-    if (includeZ && Math.random() < p) {
-      session.toggleError(q.idx, ERROR.Z, t);
-      touched++;
-    }
+    const pauli = samplePauli(p, bias);
+    if (pauli === NONE) continue;
+    if (pauli & X) session.toggleError(q.idx, ERROR.X, t);
+    if (pauli & Z) session.toggleError(q.idx, ERROR.Z, t);
+    touched++;
   }
   return touched;
 }

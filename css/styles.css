@@ -14,12 +14,14 @@
   --paper:        #f4f2ec;
   --surface:      #fffefb;
   --surface-sunk: #faf8f2;
-  --surface-ink:  #1c1d1f;
 
   /* Ink */
   --ink:    #1c1d1f;
   --ink-2:  #4a4c50;
-  --ink-3:  #7c7e83;
+  /* ink-3 carries a lot of small secondary text — labels, hints, intervals,
+     inactive nav. It has to clear 4.5:1 against the *lightest* surface it ever
+     sits on, which is --surface-sunk. #7c7e83 measured 3.83 there and failed. */
+  --ink-3:  #6b6d71;
   --ink-on-dark: #f4f2ec;
 
   /* Rules */
@@ -34,12 +36,18 @@
   --z-soft: #f8e2df;
   --y:      #7b4bb5;
   --y-soft: #ebe1f7;
+  /* The -soft pairs are fills; the -ink pairs are the readable text on them.
+     A single value cannot do both: --defect reads 2.55:1 as text on
+     --defect-soft, which is fine for a plaquette wash and unusable for a word. */
   --defect: #c98a06;
   --defect-soft: #fbeec6;
+  --defect-ink: #8a5f04;
   --ok:      #2c7a4b;
   --ok-soft: #dff0e5;
+  --ok-ink:  #276b42;
   --fail:      #b23a2e;
   --fail-soft: #f8e2df;
+  --fail-ink:  #9c3227;
   --erased:  #7c7e83;
 
   /* Distance series — used by plots and legends */
@@ -64,10 +72,9 @@
   --s5: 24px;  --s6: 32px;  --s7: 48px;  --s8: 64px;
   --s9: 96px;
 
-  /* Flat editorial shadow, three depths */
+  /* Flat editorial shadow, two depths */
   --lift-1: 2px 2px 0 rgba(28, 29, 31, 0.07);
   --lift-2: 4px 4px 0 rgba(28, 29, 31, 0.07);
-  --lift-3: 6px 6px 0 rgba(28, 29, 31, 0.09);
 
   /* Measure */
   --measure: 68ch;
@@ -86,7 +93,13 @@
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  /* Cancel looping animations outright. Clamping their duration instead turns
+     an infinite loop into a rapid flicker, which is worse for the people this
+     query exists to protect. */
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 body {
@@ -292,9 +305,6 @@ a { color: var(--x); text-decoration-thickness: 1px; text-underline-offset: 2px;
 .sym { font-family: var(--font-mono); font-weight: 600; font-size: 0.94em; }
 .sym--x { color: var(--x); }
 .sym--z { color: var(--z); }
-.sym--y { color: var(--y); }
-.sym--defect { color: var(--defect); }
-.sym--ok { color: var(--ok); }
 
 /* An editorial aside, set apart from the argument */
 .aside {
@@ -435,44 +445,6 @@ select {
 
 input[type="number"] { cursor: text; }
 
-/* Range */
-input[type="range"] {
-  appearance: none;
-  width: 100%;
-  height: 22px;
-  background: transparent;
-  cursor: pointer;
-  margin: 0;
-}
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 3px; background: var(--ink); border-radius: 0;
-}
-input[type="range"]::-webkit-slider-thumb {
-  appearance: none;
-  width: 15px; height: 15px;
-  margin-top: -6px;
-  background: var(--surface);
-  border: var(--rule-w) solid var(--ink);
-  border-radius: 0;
-}
-input[type="range"]::-moz-range-track { height: 3px; background: var(--ink); }
-input[type="range"]::-moz-range-thumb {
-  width: 13px; height: 13px;
-  background: var(--surface);
-  border: var(--rule-w) solid var(--ink);
-  border-radius: 0;
-}
-
-.slider-row { display: flex; align-items: center; gap: var(--s3); }
-.slider-row input[type="range"] { flex: 1; }
-.slider-row output {
-  font-family: var(--font-mono);
-  font-size: var(--t-small);
-  font-weight: 700;
-  min-width: 3.4em;
-  text-align: right;
-}
-
 /* Radio / checkbox groups */
 .choices { display: flex; flex-direction: column; gap: var(--s2); }
 .choices--row { flex-direction: row; flex-wrap: wrap; gap: var(--s4); }
@@ -527,7 +499,6 @@ input[type="range"]::-moz-range-thumb {
 .btn--block { width: 100%; }
 
 .btn-row { display: flex; flex-direction: column; gap: var(--s2); }
-.btn-row--inline { flex-direction: row; flex-wrap: wrap; }
 
 /* Segmented control — for small mutually exclusive choices */
 .segmented { display: flex; border: var(--rule-w) solid var(--rule); box-shadow: var(--lift-1); }
@@ -598,7 +569,7 @@ input[type="range"]::-moz-range-thumb {
 .readout__row { display: flex; justify-content: space-between; gap: var(--s3); }
 .readout__key { color: var(--ink-3); }
 .readout__val { font-weight: 700; }
-.readout__val--defect { color: var(--defect); }
+.readout__val--defect { color: var(--defect-ink); }
 .readout__val--ink { color: var(--ink); }
 
 /* Explanatory line under a readout or figure. */
@@ -625,8 +596,8 @@ input[type="range"]::-moz-range-thumb {
   border: var(--rule-w) solid var(--rule);
   line-height: 1.45;
 }
-.verdict--ok   { background: var(--ok-soft);   border-color: var(--ok);   color: var(--ok); }
-.verdict--fail { background: var(--fail-soft); border-color: var(--fail); color: var(--fail); }
+.verdict--ok   { background: var(--ok-soft);   border-color: var(--ok);   color: var(--ok-ink); }
+.verdict--fail { background: var(--fail-soft); border-color: var(--fail); color: var(--fail-ink); }
 .verdict--idle { background: var(--surface-sunk); border-color: var(--rule-soft); color: var(--ink-3); font-weight: 400; }
 
 /* Status line under a running job */
@@ -659,7 +630,12 @@ thead th {
   white-space: nowrap;
 }
 
-tbody td { padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+tbody td,
+tbody th { padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+/* Row and row-group headers carry the same weight as data cells; they are
+   structure for assistive technology, not a visual emphasis. */
+tbody th { font-weight: inherit; text-align: left; }
+tbody th.num { text-align: right; }
 tbody tr:last-child td { border-bottom: 0; }
 td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; }
 
@@ -676,8 +652,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
   border: 1px solid currentColor;
   white-space: nowrap;
 }
-.tag--below { color: var(--ok); }
-.tag--above { color: var(--fail); }
+.tag--below { color: var(--ok-ink); }
+.tag--above { color: var(--fail-ink); }
 .tag--flat  { color: var(--ink-3); }
 
 /* Legend shared by lattice figures and plots */
@@ -700,9 +676,15 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--correction { background: transparent; border-color: var(--ok); border-width: 2px; }
 .legend__key--erased { background: transparent; border-color: var(--erased); border-style: dashed; }
 
+/* Plot series. legend__key--line draws the swatch as a rule, so these set the
+   border colour it inherits. Names match the --d* tokens the canvas reads. */
+.legend__key--d3 { border-color: var(--d3); }
+.legend__key--d5 { border-color: var(--d5); }
+.legend__key--d7 { border-color: var(--d7); }
+
 /* Key/value list for the internals section */
-.spec-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-.spec-list li {
+.spec-list { margin: 0; display: grid; gap: 0; }
+.spec-list > div {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
   gap: var(--s4);
@@ -710,8 +692,10 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
   border-bottom: 1px solid var(--rule-soft);
   font-size: var(--t-small);
 }
-.spec-list li:last-child { border-bottom: 0; }
-.spec-list dt, .spec-list .k {
+.spec-list > div:last-child { border-bottom: 0; }
+.spec-list dd { margin: 0; }
+.spec-list dt {
+  margin: 0;
   font-family: var(--font-mono);
   font-size: var(--t-micro);
   text-transform: uppercase;
@@ -721,7 +705,7 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
   padding-top: 2px;
 }
 @media (max-width: 640px) {
-  .spec-list li { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
+  .spec-list > div { grid-template-columns: minmax(0, 1fr); gap: var(--s1); }
 }
 
 /* --------------------------------------------------------------------------
@@ -746,7 +730,6 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    -------------------------------------------------------------------------- */
 
 .stack   { display: flex; flex-direction: column; gap: var(--s4); }
-.stack-2 { display: flex; flex-direction: column; gap: var(--s2); }
 .grid-2  { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s4); }
 .divider { border: 0; border-top: 1px dashed var(--rule-soft); margin: var(--s2) 0; }
 .mono    { font-family: var(--font-mono); }
@@ -754,7 +737,6 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .tight   { margin-top: var(--s2); }
 .loose   { margin-bottom: var(--s5); }
 .muted   { color: var(--ink-3); }
-.nowrap  { white-space: nowrap; }
 
 .visually-hidden {
   position: absolute; width: 1px; height: 1px;

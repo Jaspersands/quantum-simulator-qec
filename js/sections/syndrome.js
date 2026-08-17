@@ -20,7 +20,7 @@ export function initSyndrome(root, instance) {
   if (!canvas) return;
 
   const view = new LatticeView(canvas, { interactive: true, showStabilizerLabels: false });
-  legend.innerHTML = legendHTML(['x', 'z', 'y', 'defect', 'clean']);
+  legend.innerHTML = legendHTML(['x', 'z', 'y', 'erased', 'defect', 'clean']);
 
   let session = null;
 
@@ -37,12 +37,19 @@ export function initSyndrome(root, instance) {
       if (state.errorX[i] || state.errorZ[i]) errors.add(i);
     }
     const defects = countSet(state.syndrome);
+    const erased = countSet(state.erased);
 
     fill(readout, [
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'qubits hit' }),
         el('span', { class: 'readout__val', text: String(errors.size) }),
       ]),
+      // Only shown once there is one, so the row does not sit at zero for the
+      // readers who never touch the erasure control.
+      erased ? el('div', { class: 'readout__row' }, [
+        el('span', { class: 'readout__key', text: 'erased' }),
+        el('span', { class: 'readout__val', text: String(erased) }),
+      ]) : null,
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'defects' }),
         el('span', {
@@ -65,10 +72,17 @@ export function initSyndrome(root, instance) {
 
   view.onPick = (target) => {
     const type = injectionType();
-    if (target.kind === 'qubit') {
-      if (type === 2) session.toggleErasure(target.idx, target.t);
-      else session.toggleError(target.idx, type, target.t);
+    if (target.kind !== 'qubit') { update(); return; }
+    if (type === 2) {
+      session.toggleErasure(target.idx, target.t);
+      // An erasure on its own moves no check, so without a word here the click
+      // looks like it did nothing.
+      update('Marked as erased. A located loss changes no syndrome by itself — '
+        + 'what it gives the decoder is the position, which is worth far more '
+        + 'than the same error arriving unannounced.');
+      return;
     }
+    session.toggleError(target.idx, type, target.t);
     update();
   };
 
@@ -115,7 +129,7 @@ export function initSyndrome(root, instance) {
     session.clearErrors();
     const touched = scatter(session, { p: 0.08 });
     update(touched
-      ? 'Independent noise at p = 8%. This is what the decoder actually receives.'
+      ? 'Depolarizing noise at p = 8% — the same channel the Monte Carlo uses. This is what the decoder actually receives.'
       : 'Nothing landed that time — noise is random. Try again.');
   });
 

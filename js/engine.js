@@ -22,6 +22,12 @@ export const DECODER_NAME = {
   2: 'Exact MWPM',
 };
 
+/**
+ * CIRCUIT is listed because the engine accepts it, not because the page uses
+ * it: circuit-level noise runs entirely inside the Rust batch entry points,
+ * which are unusable here (see the note at the foot of this file), and it
+ * cannot be driven through the per-shot session API.
+ */
 export const NOISE = { DATA: 0, PHENOM: 1, CIRCUIT: 2 };
 
 export const NOISE_NAME = {

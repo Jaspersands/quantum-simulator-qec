@@ -73,12 +73,12 @@ export function initResultsTable(root, compute) {
       DISTANCES.forEach((d, i) => {
         const tds = [];
         if (i === 0) {
-          tds.push(el('td', { rowspan: String(DISTANCES.length) }, [
+          tds.push(el('th', { scope: 'rowgroup', rowspan: String(DISTANCES.length) }, [
             el('strong', { text: model.label }),
             el('span', { class: 'ci', text: model.sub }),
           ]));
         }
-        tds.push(el('td', { class: 'num mono', text: `d = ${d}` }));
+        tds.push(el('th', { scope: 'row', class: 'num mono', text: `d = ${d}` }));
 
         for (const p of TABLE_PS) {
           const entry = results.get(key({ noiseMode: model.noiseMode, d, p }));
@@ -101,7 +101,7 @@ export function initResultsTable(root, compute) {
 
       // Verdict row: measured, not fitted — does more distance help at this p?
       const verdictCells = [
-        el('td', { colspan: '2' }, [
+        el('th', { scope: 'row', colspan: '2' }, [
           el('span', { class: 'readout__key mono', text: 'more qubits →' }),
         ]),
       ];
@@ -125,7 +125,7 @@ export function initResultsTable(root, compute) {
           verdictCells.push(el('td', { class: 'num' }, [
             el('span', {
               class: separated ? `tag tag--${helps ? 'below' : 'above'}` : 'tag tag--flat',
-              title: separated ? '' : 'the 95% intervals for d = 3 and d = 7 overlap',
+              title: separated ? null : 'the 95% intervals for d = 3 and d = 7 overlap',
               text: separated ? (helps ? 'helps' : 'hurts') : 'too close',
             }),
           ]));

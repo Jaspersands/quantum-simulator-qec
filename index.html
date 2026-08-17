@@ -287,6 +287,8 @@
               <label class="choice"><input type="radio" name="syndrome-error-type" value="1"><span class="choice__swatch choice__swatch--z"></span>Z — phase flip</label>
               <label class="choice"><input type="radio" name="syndrome-error-type" value="2"><span class="choice__swatch choice__swatch--erased"></span>Erasure</label>
             </div>
+            <span class="field__hint">An erasure is a qubit known to have been lost. It fires no
+            check on its own — what it hands the decoder is the location.</span>
           </div>
           <div class="readout" aria-live="polite" data-syndrome-readout></div>
           <div class="btn-row">
@@ -444,7 +446,7 @@
   <div class="panel">
     <div class="panel__head">
       <span class="panel__label">Figure 5 · the spacetime syndrome</span>
-      <span class="panel__label">time runs upward</span>
+      <span class="panel__label">d = 3 · time runs upward</span>
     </div>
     <div class="panel__body">
       <div class="rig">
@@ -816,34 +818,34 @@
     </p>
   </div>
 
-  <ul class="spec-list">
-    <li>
-      <span class="k">Stabilizer engine</span>
-      <span>A packed binary symplectic tableau. By the Gottesman–Knill theorem, Clifford circuits on
+  <dl class="spec-list">
+    <div>
+      <dt>Stabilizer engine</dt>
+      <dd>A packed binary symplectic tableau. By the Gottesman–Knill theorem, Clifford circuits on
       <span class="sym">n</span> qubits are classically simulable in polynomial time; propagating
       Paulis through the tableau costs <span class="sym">O(n²)</span> and reduces to word-level
-      bitwise XOR.</span>
-    </li>
-    <li>
-      <span class="k">Union-Find decoder</span>
-      <span>Disjoint-set forest with union by rank and path compression. Clusters grow until each
+      bitwise XOR.</dd>
+    </div>
+    <div>
+      <dt>Union-Find decoder</dt>
+      <dd>Disjoint-set forest with union by rank and path compression. Clusters grow until each
       holds an even number of defects, then a spanning forest is peeled from the leaves inward to
-      recover the correction. Near-linear: <span class="sym">O(N α(N))</span>.</span>
-    </li>
-    <li>
-      <span class="k">Exact MWPM</span>
-      <span>Optimal minimum-weight perfect matching over the defect graph, with pairwise distances
+      recover the correction. Near-linear: <span class="sym">O(N α(N))</span>.</dd>
+    </div>
+    <div>
+      <dt>Exact MWPM</dt>
+      <dd>Optimal minimum-weight perfect matching over the defect graph, with pairwise distances
       from BFS shortest-path trees. Capped at 16 defects — beyond that the exact search is too slow
-      to run interactively.</span>
-    </li>
-    <li>
-      <span class="k">Greedy decoder</span>
-      <span>Pairs each defect with its nearest unmatched partner or the closest boundary. Fastest and
-      least accurate; useful mainly as a floor to measure the others against.</span>
-    </li>
-    <li>
-      <span class="k">XZZX surface code</span>
-      <span>Every stabilizer measures alternating X and Z operators around its plaquette. Under
+      to run interactively.</dd>
+    </div>
+    <div>
+      <dt>Greedy decoder</dt>
+      <dd>Pairs each defect with its nearest unmatched partner or the closest boundary. Fastest and
+      least accurate; useful mainly as a floor to measure the others against.</dd>
+    </div>
+    <div>
+      <dt>XZZX surface code</dt>
+      <dd>Every stabilizer measures alternating X and Z operators around its plaquette. Under
       strongly biased noise the decoding problem should decouple into near-independent chains,
       lifting the threshold substantially. <strong>This engine's implementation does not do
       that</strong>, and the cause is a single line. In the XZZX branch of
@@ -859,43 +861,43 @@
       0.65% at <span class="mono">d = 3</span> to 0.18% at <span class="mono">d = 5</span> while
       XZZX degrades from 5.3% to 12.8%. The lattice geometry is fine — sections 3 and 5 draw it
       correctly — and the rotated branch, which derives its two defect sets independently, is
-      unaffected.</span>
-    </li>
-    <li>
-      <span class="k">Noise models</span>
-      <span>Pure data noise with perfect readout, and phenomenological noise adding independent
+      unaffected.</dd>
+    </div>
+    <div>
+      <dt>Noise models</dt>
+      <dd>Pure data noise with perfect readout, and phenomenological noise adding independent
       measurement errors per round over T = d rounds, the last of which is taken as perfect. Bias,
-      located erasure, spatial bursts, and slow temporal drift are layered on top.</span>
-    </li>
-    <li>
-      <span class="k">Where the sampling happens</span>
-      <span>Noise is drawn in JavaScript; everything that constitutes the physics — lattice,
+      located erasure, spatial bursts, and slow temporal drift are layered on top.</dd>
+    </div>
+    <div>
+      <dt>Where the sampling happens</dt>
+      <dd>Noise is drawn in JavaScript; everything that constitutes the physics — lattice,
       syndrome extraction, all three decoders, and the logical-failure verdict — is the Rust
       engine's, reached one shot at a time. This is a workaround, not a design choice: the engine's
       own batch entry points seed their generator with the literal
       <span class="mono">Xorshift::new(12345)</span> on the non-Python cfg branch, so every shot in a
       batch comes out identical and the reported rate collapses to a step function. The offline
       Python build takes the other branch and is unaffected. Fixing it is a six-line change in
-      <span class="mono">src/surface_code.rs</span> plus a rebuild.</span>
-    </li>
-    <li>
-      <span class="k">Threading</span>
-      <span>Two engine instances. The main thread keeps one for the interactive figures so clicks
+      <span class="mono">src/surface_code.rs</span> plus a rebuild.</dd>
+    </div>
+    <div>
+      <dt>Threading</dt>
+      <dd>Two engine instances. The main thread keeps one for the interactive figures so clicks
       answer immediately; a worker holds a second for Monte Carlo, so a long sweep never blocks the
-      page.</span>
-    </li>
-    <li>
-      <span class="k">Statistics</span>
-      <span>Intervals are Wilson score intervals at 95%, which stay sensible when the observed rate
+      page.</dd>
+    </div>
+    <div>
+      <dt>Statistics</dt>
+      <dd>Intervals are Wilson score intervals at 95%, which stay sensible when the observed rate
       is at or near zero. The collapse fit is a χ²-weighted quadratic least squares over the scaling
-      variable, grid-searched over <span class="sym">(p_th, ν)</span>.</span>
-    </li>
-    <li>
-      <span class="k">Also available</span>
-      <span>The same crate builds PyO3 bindings for offline threshold benchmarking. See
-      <span class="mono">run_benchmarks.py</span> in the repository.</span>
-    </li>
-  </ul>
+      variable, grid-searched over <span class="sym">(p_th, ν)</span>.</dd>
+    </div>
+    <div>
+      <dt>Also available</dt>
+      <dd>The same crate builds PyO3 bindings for offline threshold benchmarking. See
+      <span class="mono">run_benchmarks.py</span> in the repository.</dd>
+      </div>
+    </dl>
 
   <footer class="foot">
     <span>Built with Rust, WebAssembly, and no dependencies.</span>

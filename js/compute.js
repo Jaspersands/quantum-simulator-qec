@@ -12,8 +12,10 @@ export class Compute {
     this.worker = new Worker(WORKER_URL, { type: 'module' });
     this.pending = new Map();
     this.nextId = 1;
+    /** Set once the worker is unusable; see #failAll. */
+    this.dead = null;
     this.worker.onmessage = (event) => this.#receive(event.data);
-    this.worker.onerror = (event) => this.#failAll(event.message || 'worker crashed');
+    this.worker.onerror = (event) => this.#failAll(event.message || 'the worker crashed');
   }
 
   #receive({ id, type, result, message, ...progress }) {
@@ -30,7 +32,13 @@ export class Compute {
     }
   }
 
+  /**
+   * The worker is gone. Reject everything outstanding, and remember why, so
+   * later calls fail immediately instead of waiting on a reply that can never
+   * arrive — a silent hang is the one failure mode with no visible symptom.
+   */
   #failAll(message) {
+    this.dead = message;
     for (const [, job] of this.pending) job.reject(new Error(message));
     this.pending.clear();
   }
@@ -41,6 +49,7 @@ export class Compute {
    * @param {(progress: object) => void} [onProgress]
    */
   call(op, payload, onProgress) {
+    if (this.dead) return Promise.reject(new Error(this.dead));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject, onProgress });

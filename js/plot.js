@@ -252,9 +252,18 @@ export class Plot {
   destroy() { this.resizeObserver.disconnect(); }
 }
 
-/** Legend markup matching the plot series colours. */
+/**
+ * Legend markup matching the plot series colours.
+ *
+ * Series colours are written as CSS custom property references so the canvas
+ * and the legend name the same token. Here that reference becomes a modifier
+ * class rather than an inline style, keeping every colour in the stylesheet.
+ */
 export function plotLegend(series) {
-  return series
-    .map((s) => `<span class="legend__item"><span class="legend__key legend__key--line" style="border-color:${s.color}"></span>${s.label}</span>`)
-    .join('');
+  return series.map((s) => {
+    const token = /^var\(--([\w-]+)\)$/.exec(String(s.color).trim())?.[1];
+    const mod = token ? ` legend__key--${token}` : '';
+    return `<span class="legend__item">`
+      + `<span class="legend__key legend__key--line${mod}"></span>${s.label}</span>`;
+  }).join('');
 }

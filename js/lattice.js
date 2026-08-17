@@ -11,7 +11,7 @@
  * at (x±1, y±1) — its plaquette.
  */
 
-import { STAB, ERROR } from './engine.js';
+import { STAB } from './engine.js';
 
 /** Read the palette out of CSS so the stylesheet stays the single source. */
 function palette() {
@@ -581,14 +581,22 @@ export class LatticeView {
         if (this.hover) this.onPick?.(this.hover, event);
         return;
       }
-      // Swap between picking qubits and picking plaquettes.
+      // Swap between picking qubits and picking plaquettes, landing on
+      // whichever one is nearest rather than jumping back to index 0.
       if (event.key.toLowerCase() === 'x' && this.hover) {
         event.preventDefault();
-        this.hover = {
-          kind: this.hover.kind === 'qubit' ? 'stabilizer' : 'qubit',
-          idx: 0,
-          t: this.hover.t,
-        };
+        const wanted = this.hover.kind === 'qubit' ? 'stabilizer' : 'qubit';
+        const from = positionOf(this.hover);
+        let best = null;
+        let bestDist = Infinity;
+        for (const candidate of everyTarget()) {
+          if (candidate.kind !== wanted) continue;
+          const to = positionOf(candidate);
+          const dist = Math.hypot(to.x - from.x, to.y - from.y);
+          if (dist < bestDist) { bestDist = dist; best = candidate; }
+        }
+        if (!best) return;
+        this.hover = best;
         this.draw();
         this.onHover?.(this.hover);
       }
