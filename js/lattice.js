@@ -253,7 +253,7 @@ export class LatticeView {
       // Plaquettes
       for (let i = 0; i < nStab; i++) {
         const stab = session.stabilizers[i];
-        const triggered = state.syndrome[i + t * nStab] === 1;
+        const triggered = state.defects[i + t * nStab] === 1;
         const centre = this.#tracePlaquette(stab, t);
         if (!centre) continue;
 
@@ -382,7 +382,7 @@ export class LatticeView {
     for (let i = 0; i < state.errorX.length; i++) {
       if (state.errorX[i] || state.errorZ[i]) errors++;
     }
-    for (let i = 0; i < state.syndrome.length; i++) if (state.syndrome[i]) defects++;
+    for (let i = 0; i < state.defects.length; i++) if (state.defects[i]) defects++;
 
     const parts = [
       `${session.codeType === 1 ? 'XZZX' : 'Rotated'} surface code patch,`,
@@ -414,7 +414,10 @@ export class LatticeView {
         const stab = session.stabilizers[i];
         const a = this.project(stab.x, stab.y, t);
         const b = this.project(stab.x, stab.y, t + 1);
-        const lit = state.syndrome[i + t * nStab] === 1 && state.syndrome[i + (t + 1) * nStab] === 1;
+        // A lying readout produces detection events in two consecutive rounds
+        // on the same check. Drawing that link is what makes it legible as an
+        // error in time rather than in space.
+        const lit = state.defects[i + t * nStab] === 1 && state.defects[i + (t + 1) * nStab] === 1;
         ctx.save();
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
@@ -600,6 +603,16 @@ export class LatticeView {
         this.draw();
         this.onHover?.(this.hover);
       }
+    });
+
+    // Give focus a visible cursor straight away. Without one, the first arrow
+    // press is spent creating it and the X key does nothing at all, which reads
+    // as the figure ignoring the keyboard.
+    canvas.addEventListener('focus', () => {
+      if (this.hover || !this.session?.ptr) return;
+      this.hover = { kind: 'qubit', idx: 0, t: 0 };
+      this.draw();
+      this.onHover?.(this.hover);
     });
 
     canvas.addEventListener('blur', () => {

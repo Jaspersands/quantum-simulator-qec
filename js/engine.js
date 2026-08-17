@@ -160,18 +160,46 @@ export class Session {
   }
 
   /**
+   * Detection events: where a check *changed* since the previous round.
+   *
+   * This is what the decoder matches, and it is not the same thing as the raw
+   * syndrome. `wasm_decode` computes `outcome ^ previous_outcome` before it
+   * builds its graph, and the distinction is the entire subject of section 6:
+   * a data error makes a check read differently from that round onward, so it
+   * produces one detection event; a lying readout makes a check disagree with
+   * itself for exactly one round, so it produces two, stacked in time.
+   *
+   * With a single round the previous outcome is zero by definition and this
+   * reduces to the raw syndrome, which is why the earlier figures can use the
+   * same quantity without qualification.
+   */
+  #detectionEvents(syndrome) {
+    const out = new Uint8Array(syndrome.length);
+    for (let t = 0; t < this.rounds; t++) {
+      for (let i = 0; i < this.numStab; i++) {
+        const here = syndrome[i + t * this.numStab];
+        const before = t === 0 ? 0 : syndrome[i + (t - 1) * this.numStab];
+        out[i + t * this.numStab] = here ^ before;
+      }
+    }
+    return out;
+  }
+
+  /**
    * Current state of the patch.
    * @returns {{errorX: Uint8Array, errorZ: Uint8Array, erased: Uint8Array,
-   *            syndrome: Uint8Array}} each indexed `i + t * n`
+   *            syndrome: Uint8Array, defects: Uint8Array}} each indexed `i + t * n`
    */
   read() {
     const dataLen = this.numData * this.rounds;
     const stabLen = this.numStab * this.rounds;
+    const syndrome = this.#copyBytes(this.wasm.wasm_get_syndrome(this.ptr), stabLen);
     return {
       errorX: this.#copyBytes(this.wasm.wasm_get_physical_x_ptr(this.ptr), dataLen),
       errorZ: this.#copyBytes(this.wasm.wasm_get_physical_z_ptr(this.ptr), dataLen),
       erased: this.#copyBytes(this.wasm.wasm_get_physical_erased_ptr(this.ptr), dataLen),
-      syndrome: this.#copyBytes(this.wasm.wasm_get_syndrome(this.ptr), stabLen),
+      syndrome,
+      defects: this.#detectionEvents(syndrome),
     };
   }
 

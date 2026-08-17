@@ -433,10 +433,17 @@
       introduces one.
     </p>
     <p>
-      The fix is to measure repeatedly and decode the whole history at once. Stack
-      <span class="sym">T</span> rounds into a three-dimensional syndrome and the two failure modes
-      separate: a data error persists from the round it appears in onward, while a lying readout
-      produces a defect pair separated in <em>time</em> — it fires once, then corrects itself.
+      The fix is to measure repeatedly and decode the whole history at once. What the decoder
+      actually matches is not the raw readings but the places they <em>change</em> between one
+      round and the next — the detection events. Under that lens the two failure modes separate.
+      A data error flips a check once and leaves it flipped, giving two events side by side in one
+      layer. A lying readout disagrees with itself for a single round, giving two events on the
+      same check in consecutive layers: a pair separated in <em>time</em> rather than in space.
+    </p>
+    <p>
+      The plaquettes below light on detection events, so this is the decoder's own view. With a
+      single round the two notions coincide, which is why the earlier figures did not have to draw
+      the distinction.
     </p>
     <p>
       Click a plaquette below to make its readout lie in that round.
@@ -446,7 +453,7 @@
   <div class="panel">
     <div class="panel__head">
       <span class="panel__label">Figure 5 · the spacetime syndrome</span>
-      <span class="panel__label">d = 3 · time runs upward</span>
+      <span class="panel__label">d = 3 · detection events · time runs upward</span>
     </div>
     <div class="panel__body">
       <div class="rig">
@@ -868,6 +875,14 @@
       <dd>Pure data noise with perfect readout, and phenomenological noise adding independent
       measurement errors per round over T = d rounds, the last of which is taken as perfect. Bias,
       located erasure, spatial bursts, and slow temporal drift are layered on top.</dd>
+    </div>
+    <div>
+      <dt>Detection events</dt>
+      <dd>Decoders do not match raw syndrome readings; they match the places a check
+      <em>changed</em> since the previous round, <span class="mono">outcome ^ previous</span>. Every
+      figure on this page lights plaquettes on that quantity, which is what makes a lying readout
+      legible as a pair in time. With a single round the previous outcome is zero by definition and
+      the two coincide, so sections 3 to 5 are unaffected.</dd>
     </div>
     <div>
       <dt>Where the sampling happens</dt>

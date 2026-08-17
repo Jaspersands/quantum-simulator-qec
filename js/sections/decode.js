@@ -54,7 +54,7 @@ export function initDecode(root, instance) {
     view.setMode(mode);
 
     const state = session.read();
-    const defects = countSet(state.syndrome);
+    const defects = countSet(state.defects);
     const errors = countSet(state.errorX) + countSet(state.errorZ);
     const residual = session.residual();
     const residualWeight = decoded ? countSet(residual.x) + countSet(residual.z) : null;

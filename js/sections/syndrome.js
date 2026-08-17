@@ -36,7 +36,7 @@ export function initSyndrome(root, instance) {
     for (let i = 0; i < session.numData; i++) {
       if (state.errorX[i] || state.errorZ[i]) errors.add(i);
     }
-    const defects = countSet(state.syndrome);
+    const defects = countSet(state.defects);
     const erased = countSet(state.erased);
 
     fill(readout, [
@@ -112,11 +112,11 @@ export function initSyndrome(root, instance) {
     const type = injectionType() === ERROR.Z ? ERROR.Z : ERROR.X;
     const length = Math.max(2, session.d - 2);
     let chain = growChain(session, { length, type, axis: 0 });
-    if (countSet(session.read().syndrome) !== 2) {
+    if (countSet(session.read().defects) !== 2) {
       session.clearErrors();
       chain = growChain(session, { length, type, axis: 1 });
     }
-    const defects = countSet(session.read().syndrome);
+    const defects = countSet(session.read().defects);
     const tail = defects === 2
       ? 'one at each end. Every check in the middle covers two of the errors, reads even parity, and stays quiet.'
       : defects === 1
