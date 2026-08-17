@@ -9,7 +9,7 @@
 import { instantiate } from './engine.js';
 import { Compute } from './compute.js';
 import { initNav } from './nav.js';
-import { $, bindRange } from './dom.js';
+import { $ } from './dom.js';
 
 import { initParity } from './sections/parity.js';
 import { initAnatomy } from './sections/anatomy.js';
@@ -21,13 +21,21 @@ import { initResultsTable, initThresholdSweep } from './sections/threshold.js';
 import { initBias } from './sections/bias.js';
 import { initBench } from './sections/bench.js';
 
+/**
+ * Show a boot failure. Each caller supplies its own diagnosis — the two failure
+ * modes have different causes and different consequences, and telling a reader
+ * to re-serve the page when the real problem is a missing browser feature only
+ * wastes their time.
+ */
 function fail(message) {
   const host = $('[data-boot-error]');
   if (!host) return;
   host.hidden = false;
-  host.textContent = `${message} — the interactive figures need the page to be served over HTTP. `
-    + 'Try `python3 -m http.server` from the project root rather than opening the file directly.';
+  host.textContent = message;
 }
+
+const SERVE_HINT = 'ES modules and the .wasm fetch both need HTTP — run '
+  + '`python3 -m http.server` from the project root rather than opening the file directly.';
 
 async function boot() {
   initNav();
@@ -36,19 +44,14 @@ async function boot() {
   const parityRoot = $('#parity');
   if (parityRoot) initParity(parityRoot);
 
-  // Range inputs paired with an <output>.
-  document.querySelectorAll('[data-range]').forEach((input) => {
-    const output = input.parentElement.querySelector('output');
-    if (!output) return;
-    const digits = Number(input.dataset.digits ?? 2);
-    bindRange(input, output, (v) => v.toFixed(digits));
-  });
-
   let compute = null;
   try {
     compute = new Compute();
   } catch (error) {
-    fail(`Could not start the simulation worker (${error.message})`);
+    fail(`Could not start the simulation worker (${error.message}). `
+      + 'The Monte Carlo sections — the results table, the threshold sweep, the bias comparison, '
+      + 'and the bench — need module workers, which this browser appears not to support. '
+      + 'The interactive lattice figures below still work.');
   }
 
   if (compute) {
@@ -63,7 +66,7 @@ async function boot() {
   try {
     instance = await instantiate();
   } catch (error) {
-    fail(`Could not load the simulation engine (${error.message})`);
+    fail(`Could not load the simulation engine (${error.message}). ${SERVE_HINT}`);
     return;
   }
 

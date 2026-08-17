@@ -96,7 +96,7 @@ export function initBias(root, compute) {
         el('span', { class: 'readout__val', text: v }),
       ])),
       el('p', {
-        style: 'margin: var(--s3) 0 0; font-size: var(--t-micro); line-height: 1.5; color: var(--ink-2)',
+        class: 'note',
         text: xzzx.pL < rotated.pL
           ? 'XZZX came out ahead at the strongest bias, as the published result predicts.'
           : 'XZZX did not pull ahead at any bias. That matches the defect described above — this '
@@ -110,7 +110,7 @@ export function initBias(root, compute) {
     if (running) return;
     running = true;
     runBtn.disabled = true;
-    fill(summary, el('p', { class: 'muted', style: 'margin:0; font-size: var(--t-small)', text: 'Sweeping…' }));
+    fill(summary, el('p', { class: 'muted fit-note', text: 'Sweeping…' }));
     // The worker runs one job at a time and may still be filling the section 7
     // table, so say that rather than leaving a stale line on screen.
     status.textContent = 'Queued…';

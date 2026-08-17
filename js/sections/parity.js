@@ -68,8 +68,8 @@ export function initParity(root) {
       width: '100%',
       role: 'group',
       'aria-label': 'One stabilizer plaquette with four data qubits',
+      class: 'parity-figure',
     });
-    canvas.style.maxWidth = '210px';
 
     const lit = parity() === 1;
 
@@ -103,7 +103,7 @@ export function initParity(root) {
         tabindex: '0',
         'aria-label': `Qubit ${site.label}, ${flipped[i] ? 'flipped' : 'not flipped'}`,
         'aria-pressed': String(flipped[i]),
-        style: 'cursor: pointer',
+        class: 'parity-site',
       });
 
       group.append(svg('circle', {
@@ -118,7 +118,7 @@ export function initParity(root) {
         'text-anchor': 'middle', 'dominant-baseline': 'central',
         fill: flipped[i] ? '#fff' : 'var(--ink-3)',
         'font-family': 'var(--font-mono)', 'font-size': '10', 'font-weight': '600',
-        style: 'pointer-events: none; user-select: none',
+        class: 'parity-site__label',
       });
       text.textContent = site.label;
       group.append(text);
@@ -154,8 +154,7 @@ export function initParity(root) {
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'measurement' }),
         el('span', {
-          class: 'readout__val',
-          style: `color: ${lit ? 'var(--defect)' : 'var(--ink)'}`,
+          class: `readout__val readout__val--${lit ? 'defect' : 'ink'}`,
           text: lit ? '−1  (defect)' : '+1  (quiet)',
         }),
       ]),

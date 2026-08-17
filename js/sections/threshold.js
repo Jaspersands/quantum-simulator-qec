@@ -64,6 +64,7 @@ export function initResultsTable(root, compute) {
 
   /** key -> {pL, runs} */
   const results = new Map();
+  let failed = false;
   const key = (c) => `${c.noiseMode}:${c.d}:${c.p}`;
 
   function paint() {
@@ -82,7 +83,11 @@ export function initResultsTable(root, compute) {
         for (const p of TABLE_PS) {
           const entry = results.get(key({ noiseMode: model.noiseMode, d, p }));
           if (!entry) {
-            tds.push(el('td', { class: 'num' }, [el('span', { class: 'pending', text: '' })]));
+            tds.push(el('td', { class: 'num' }, [
+              failed
+                ? el('span', { class: 'muted', text: '—' })
+                : el('span', { class: 'pending', text: '' }),
+            ]));
           } else {
             const ci = wilson(entry.pL, entry.runs);
             tds.push(el('td', { class: 'num' }, [
@@ -104,7 +109,11 @@ export function initResultsTable(root, compute) {
         const small = results.get(key({ noiseMode: model.noiseMode, d: 3, p }));
         const large = results.get(key({ noiseMode: model.noiseMode, d: 7, p }));
         if (!small || !large) {
-          verdictCells.push(el('td', { class: 'num' }, [el('span', { class: 'pending', text: '' })]));
+          verdictCells.push(el('td', { class: 'num' }, [
+            failed
+              ? el('span', { class: 'muted', text: '—' })
+              : el('span', { class: 'pending', text: '' }),
+          ]));
         } else {
           // Only claim a direction when the two intervals actually separate.
           // Right at threshold they overlap, and asserting either way would be
@@ -122,7 +131,7 @@ export function initResultsTable(root, compute) {
           ]));
         }
       }
-      rows.push(el('tr', { style: 'background: var(--surface-sunk)' }, verdictCells));
+      rows.push(el('tr', { class: 'row--summary' }, verdictCells));
     }
     fill(body, rows);
   }
@@ -147,6 +156,10 @@ export function initResultsTable(root, compute) {
     paint();
   }).catch((error) => {
     status.textContent = `Could not complete: ${error.message}`;
+    // Repaint so cells that never landed stop showing the animated pending
+    // indicator — otherwise a failed run looks identical to one still running.
+    failed = true;
+    paint();
   });
 }
 
@@ -213,14 +226,16 @@ export function initThresholdSweep(root, compute) {
 
   function showFit(fit, totalRuns) {
     if (!fit?.ok) {
-      fill(results, el('p', { class: 'muted', style: 'margin:0; font-size: var(--t-small)',
-        text: 'The collapse fit did not converge on this data. More runs usually fixes it.' }));
+      fill(results, el('p', {
+        class: 'muted fit-note',
+        text: `No threshold reported — ${fit?.reason ?? 'the fit did not converge'}.`,
+      }));
       return;
     }
     fill(results, [
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'threshold p_th' }),
-        el('span', { class: 'readout__val', style: 'color: var(--ink)', text: percent(fit.pTh) }),
+        el('span', { class: 'readout__val readout__val--ink', text: percent(fit.pTh) }),
       ]),
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'exponent ν' }),
@@ -231,9 +246,17 @@ export function initThresholdSweep(root, compute) {
         el('span', { class: 'readout__val', text: fit.reducedChi2.toFixed(2) }),
       ]),
       el('div', { class: 'readout__row' }, [
+        el('span', { class: 'readout__key', text: 'points fitted' }),
+        el('span', { class: 'readout__val', text: `${fit.pointsUsed} of ${fit.pointsTotal}` }),
+      ]),
+      el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'total runs' }),
         el('span', { class: 'readout__val', text: count(totalRuns) }),
       ]),
+      el('p', {
+        class: 'note',
+        text: 'The fit uses only points near the threshold, where the scaling form applies.',
+      }),
     ]);
   }
 
@@ -243,7 +266,7 @@ export function initThresholdSweep(root, compute) {
     runBtn.disabled = true;
     points = [];
     drawPlot(null);
-    fill(results, el('p', { class: 'muted', style: 'margin:0; font-size: var(--t-small)', text: 'Sweeping…' }));
+    fill(results, el('p', { class: 'muted fit-note', text: 'Sweeping…' }));
     // The worker runs one job at a time, so this may sit behind the load-time
     // table. Say so rather than leaving a stale line on screen.
     status.textContent = 'Queued…';
@@ -286,7 +309,7 @@ export function initThresholdSweep(root, compute) {
   noiseSelect.addEventListener('change', () => {
     // The two models sweep different ranges, so old points would be misplaced.
     points = [];
-    fill(results, el('p', { class: 'muted', style: 'margin:0; font-size: var(--t-small)', text: 'Range changed — run the sweep.' }));
+    fill(results, el('p', { class: 'muted fit-note', text: 'Range changed — run the sweep.' }));
     status.textContent = 'Ready.';
     drawPlot(null);
   });

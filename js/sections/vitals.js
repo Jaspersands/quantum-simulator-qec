@@ -19,11 +19,11 @@ export function initVitals(root, compute) {
   compute.call('vitals').then((result) => {
     fill(dataRate, [
       document.createTextNode(count(result.dataRunsPerSecond)),
-      el('span', { style: 'font-size: 0.72em; color: var(--ink-3)', text: ' runs/s' }),
+      el('span', { class: 'vital__unit', text: ' runs/s' }),
     ]);
     fill(phenomRate, [
       document.createTextNode(count(result.phenomRunsPerSecond)),
-      el('span', { style: 'font-size: 0.72em; color: var(--ink-3)', text: ' runs/s' }),
+      el('span', { class: 'vital__unit', text: ' runs/s' }),
     ]);
     if (note) {
       note.textContent = `Timed on this device just now — best of several samples over `

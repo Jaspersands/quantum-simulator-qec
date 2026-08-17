@@ -327,8 +327,21 @@ export class LatticeView {
         ctx.fill();
         ctx.stroke();
 
-        if (this.options.showQubitIndices && rounds === 1 && qubitRadius >= 8) {
-          ctx.fillStyle = (hasX || hasZ) ? '#ffffff' : this.colors.ink3;
+        // Stamp the Pauli letter inside an errored qubit. Blue, red and violet
+        // discs are indistinguishable to a red-green colourblind reader, and
+        // telling a bit flip from a phase flip is the entire subject of the
+        // sections these figures illustrate — so the type gets a second,
+        // non-colour channel.
+        if (hasX || hasZ) {
+          if (qubitRadius >= 6) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `700 ${Math.round(qubitRadius * 1.15)}px "JetBrains Mono", monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(hasX && hasZ ? 'Y' : hasX ? 'X' : 'Z', at.x, at.y);
+          }
+        } else if (this.options.showQubitIndices && rounds === 1 && qubitRadius >= 8) {
+          ctx.fillStyle = this.colors.ink3;
           ctx.font = '500 8px "JetBrains Mono", monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
@@ -351,6 +364,46 @@ export class LatticeView {
 
     // Vertical guides between rounds, drawn last so defect worldlines read on top.
     if (rounds > 1) this.#drawWorldlines(state, nStab);
+
+    this.#describe(state);
+  }
+
+  /**
+   * Keep an accessible summary of the figure in sync with what was drawn.
+   *
+   * Canvas pixels are opaque to assistive technology, so without this the
+   * central content of four sections announces nothing at all. The counts here
+   * are the same ones the visible readout beside the figure shows.
+   */
+  #describe(state) {
+    const session = this.session;
+    let errors = 0;
+    let defects = 0;
+    for (let i = 0; i < state.errorX.length; i++) {
+      if (state.errorX[i] || state.errorZ[i]) errors++;
+    }
+    for (let i = 0; i < state.syndrome.length; i++) if (state.syndrome[i]) defects++;
+
+    const parts = [
+      `${session.codeType === 1 ? 'XZZX' : 'Rotated'} surface code patch,`,
+      `distance ${session.d},`,
+      `${session.numData} data qubits and ${session.numStab} checks`,
+      session.rounds > 1 ? `over ${session.rounds} rounds.` : '.',
+      errors ? ` ${errors} qubit-rounds carry an error.` : ' No errors injected.',
+      defects ? ` ${defects} checks are firing.` : ' No checks are firing.',
+    ];
+
+    if (this.options.interactive) {
+      parts.push(' Interactive: arrow keys move between elements,'
+        + ' X switches between qubits and plaquettes, Enter activates.');
+      if (this.hover) {
+        parts.push(` Cursor on ${this.hover.kind} ${this.hover.idx}`
+          + `${session.rounds > 1 ? ` in round ${this.hover.t}` : ''}.`);
+      }
+    }
+
+    this.canvas.setAttribute('role', this.options.interactive ? 'application' : 'img');
+    this.canvas.setAttribute('aria-label', parts.join(' ').replace(/\s+/g, ' ').replace(' .', '.'));
   }
 
   #drawWorldlines(state, nStab) {
@@ -426,14 +479,18 @@ export class LatticeView {
   #bindEvents() {
     if (!this.options.interactive) return;
 
-    this.canvas.style.cursor = 'crosshair';
+    this.canvas.classList.add('lattice--interactive');
+
+    const sameTarget = (a, b) => (
+      a === b || (!!a && !!b && a.kind === b.kind && a.idx === b.idx && a.t === b.t)
+    );
 
     this.canvas.addEventListener('mousemove', (event) => {
       const { x, y } = this.#toCanvasSpace(event);
       const target = this.hitTest(x, y);
-      const changed = JSON.stringify(target) !== JSON.stringify(this.hover);
+      const changed = !sameTarget(target, this.hover);
       this.hover = target;
-      this.canvas.style.cursor = target ? 'pointer' : 'crosshair';
+      this.canvas.classList.toggle('lattice--over-target', Boolean(target));
       if (changed) {
         this.draw();
         this.onHover?.(target);
@@ -453,6 +510,97 @@ export class LatticeView {
       const target = this.hitTest(x, y);
       if (target) this.onPick?.(target, event);
     });
+
+    this.#bindKeyboard();
+  }
+
+  /**
+   * Keyboard equivalent of hovering and clicking.
+   *
+   * The figure is the argument in these sections, so it cannot be pointer-only.
+   * The hover cursor already exists for the mouse; this moves the same cursor
+   * with the arrow keys — nearest element in the direction travelled, measured
+   * in canvas space so it follows what is actually drawn rather than index
+   * order — and activates it with Enter or Space. Tab cycles between the data
+   * qubits and the plaquettes.
+   */
+  #bindKeyboard() {
+    const canvas = this.canvas;
+    canvas.tabIndex = 0;
+
+    const positionOf = (target) => {
+      const list = target.kind === 'qubit' ? this.session.dataQubits : this.session.stabilizers;
+      const item = list[target.idx];
+      return this.project(item.x, item.y, target.t);
+    };
+
+    const everyTarget = () => {
+      const out = [];
+      for (let t = 0; t < this.session.rounds; t++) {
+        for (const q of this.session.dataQubits) out.push({ kind: 'qubit', idx: q.idx, t });
+        for (const s of this.session.stabilizers) out.push({ kind: 'stabilizer', idx: s.idx, t });
+      }
+      return out;
+    };
+
+    const step = (dx, dy) => {
+      if (!this.session?.ptr) return;
+      if (!this.hover) {
+        this.hover = { kind: 'qubit', idx: 0, t: 0 };
+      } else {
+        const from = positionOf(this.hover);
+        let best = null;
+        let bestScore = Infinity;
+        for (const candidate of everyTarget()) {
+          if (candidate.kind !== this.hover.kind) continue;
+          const to = positionOf(candidate);
+          const along = (to.x - from.x) * dx + (to.y - from.y) * dy;
+          if (along <= 1) continue; // not in the requested direction
+          const across = Math.abs((to.x - from.x) * dy - (to.y - from.y) * dx);
+          const score = along + across * 3; // prefer straight ahead over diagonal
+          if (score < bestScore) { bestScore = score; best = candidate; }
+        }
+        if (!best) return;
+        this.hover = best;
+      }
+      this.draw();
+      this.onHover?.(this.hover);
+    };
+
+    canvas.addEventListener('keydown', (event) => {
+      const moves = {
+        ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+      };
+      if (moves[event.key]) {
+        event.preventDefault();
+        step(...moves[event.key]);
+        return;
+      }
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (this.hover) this.onPick?.(this.hover, event);
+        return;
+      }
+      // Swap between picking qubits and picking plaquettes.
+      if (event.key.toLowerCase() === 'x' && this.hover) {
+        event.preventDefault();
+        this.hover = {
+          kind: this.hover.kind === 'qubit' ? 'stabilizer' : 'qubit',
+          idx: 0,
+          t: this.hover.t,
+        };
+        this.draw();
+        this.onHover?.(this.hover);
+      }
+    });
+
+    canvas.addEventListener('blur', () => {
+      if (this.hover) {
+        this.hover = null;
+        this.draw();
+        this.onHover?.(null);
+      }
+    });
   }
 
   destroy() {
@@ -460,27 +608,32 @@ export class LatticeView {
   }
 }
 
-/** Shared legend markup, so every figure labels its colours identically. */
+/**
+ * Shared legend markup, so every figure labels its marks identically.
+ *
+ * Error keys are round to match the qubit discs; plaquette and defect keys are
+ * square to match the tiles. Every colour comes from a class in the stylesheet
+ * rather than an inline style, so the legend and the canvas cannot drift apart.
+ */
 export function legendHTML(items) {
-  const swatch = {
-    x: `<span class="legend__key legend__key--round" style="background: var(--x); border-color: var(--x)"></span>`,
-    z: `<span class="legend__key legend__key--round" style="background: var(--z); border-color: var(--z)"></span>`,
-    y: `<span class="legend__key legend__key--round" style="background: var(--y); border-color: var(--y)"></span>`,
-    clean: `<span class="legend__key legend__key--round" style="background: var(--surface)"></span>`,
-    defect: `<span class="legend__key" style="background: var(--defect-soft); border-color: var(--defect)"></span>`,
-    xplaq: `<span class="legend__key" style="background: var(--x-soft)"></span>`,
-    zplaq: `<span class="legend__key" style="background: var(--z-soft)"></span>`,
-    correction: `<span class="legend__key legend__key--round" style="background: transparent; border-color: var(--ok); border-width: 2px"></span>`,
-    erased: `<span class="legend__key legend__key--round" style="background: transparent; border-style: dashed; border-color: var(--erased)"></span>`,
+  const MARKS = {
+    x: { mod: 'x', round: true, label: 'X error' },
+    z: { mod: 'z', round: true, label: 'Z error' },
+    y: { mod: 'y', round: true, label: 'Y error' },
+    clean: { mod: 'clean', round: true, label: 'no error' },
+    defect: { mod: 'defect', round: false, label: 'defect' },
+    xplaq: { mod: 'xplaq', round: false, label: 'X plaquette' },
+    zplaq: { mod: 'zplaq', round: false, label: 'Z plaquette' },
+    correction: { mod: 'correction', round: true, label: 'correction' },
+    erased: { mod: 'erased', round: true, label: 'erased' },
   };
-  const label = {
-    x: 'X error', z: 'Z error', y: 'Y error', clean: 'no error',
-    defect: 'defect', xplaq: 'X plaquette', zplaq: 'Z plaquette',
-    correction: 'correction', erased: 'erased',
-  };
-  return items
-    .map((k) => `<span class="legend__item">${swatch[k]}${label[k]}</span>`)
-    .join('');
-}
 
-export { ERROR };
+  return items.map((key) => {
+    const mark = MARKS[key];
+    if (!mark) return '';
+    const shape = mark.round ? ' legend__key--round' : '';
+    return `<span class="legend__item">`
+      + `<span class="legend__key legend__key--${mark.mod}${shape}"></span>`
+      + `${mark.label}</span>`;
+  }).join('');
+}

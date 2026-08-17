@@ -7,7 +7,7 @@
  * what makes a single defect locatable at all.
  */
 
-import { Session, CODE } from '../engine.js';
+import { Session } from '../engine.js';
 import { LatticeView, legendHTML } from '../lattice.js';
 import { $, fill, el } from '../dom.js';
 
@@ -38,8 +38,7 @@ export function initAnatomy(root, instance) {
 
   function describeIdle() {
     fill(readout, el('p', {
-      class: 'muted',
-      style: 'margin:0; font-size: var(--t-small)',
+      class: 'muted fit-note',
       text: 'Hover a plaquette or a qubit.',
     }));
   }
@@ -59,10 +58,7 @@ export function initAnatomy(root, instance) {
           el('span', { class: 'readout__key', text: 'measures' }),
           el('span', { class: 'readout__val', text: `${support.length} qubits` }),
         ]),
-        el('p', {
-          style: 'margin: var(--s2) 0 0; font-size: var(--t-micro); line-height:1.5; color: var(--ink-2)',
-          text: STAB_DESCRIPTION[stab.type],
-        }),
+        el('p', { class: 'note', text: STAB_DESCRIPTION[stab.type] }),
       ]);
     } else {
       const watchers = session.touchedBy.get(target.idx) ?? [];
@@ -76,7 +72,7 @@ export function initAnatomy(root, instance) {
           el('span', { class: 'readout__val', text: `${watchers.length} plaquettes` }),
         ]),
         el('p', {
-          style: 'margin: var(--s2) 0 0; font-size: var(--t-micro); line-height:1.5; color: var(--ink-2)',
+          class: 'note',
           text: watchers.length > 1
             ? 'An error here disturbs every one of them, which is how its position gets pinned down.'
             : 'Only one check covers this qubit — boundary qubits are the least constrained on the patch.',
@@ -122,5 +118,3 @@ export function initAnatomy(root, instance) {
 
   return { rebuild, get session() { return session; } };
 }
-
-export { CODE };

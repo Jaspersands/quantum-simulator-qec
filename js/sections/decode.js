@@ -12,7 +12,7 @@
  * report, so the label always matches what the simulator scored.
  */
 
-import { Session, ERROR, CODE, DECODER, DECODER_NAME } from '../engine.js';
+import { Session, ERROR, DECODER_NAME } from '../engine.js';
 import { LatticeView, legendHTML } from '../lattice.js';
 import { growChain, scatter, countSet } from '../patterns.js';
 import { $, $$, fill, el } from '../dom.js';
@@ -48,9 +48,10 @@ export function initDecode(root, instance) {
   }
 
   function update() {
-    view.setMode(currentMode());
-    setLegend(currentMode());
-    view.draw();
+    // setMode redraws; calling draw() again here would paint every plaquette twice.
+    const mode = currentMode();
+    setLegend(mode);
+    view.setMode(mode);
 
     const state = session.read();
     const defects = countSet(state.syndrome);
@@ -167,5 +168,3 @@ export function initDecode(root, instance) {
   rebuild();
   return { rebuild };
 }
-
-export { DECODER, CODE };

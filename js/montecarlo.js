@@ -71,15 +71,28 @@ class Patch {
     this.wasm.wasm_set_num_rounds(this.ptr, rounds);
     this.numData = this.wasm.wasm_get_data_qubit_count(this.ptr);
     this.numStab = this.wasm.wasm_get_stabilizer_count(this.ptr);
+    this.coords = null;
+  }
 
-    // Grid positions, needed only for spatial burst noise.
-    this.coords = [];
-    for (let i = 0; i < this.numData; i++) {
-      this.coords.push([
-        (this.wasm.wasm_get_data_qubit_x(this.ptr, i) - 1) / 2,
-        (this.wasm.wasm_get_data_qubit_y(this.ptr, i) - 1) / 2,
-      ]);
+  /**
+   * Grid positions, needed only by spatial burst noise.
+   *
+   * Read lazily: each coordinate getter rebuilds the whole code object on the
+   * Rust side, so eagerly reading them costs 2·d² lattice constructions per
+   * configuration — paid 27 times in a sweep and 36 in the results table, for
+   * data that the default noise settings never touch.
+   */
+  #qubitCoords() {
+    if (!this.coords) {
+      this.coords = [];
+      for (let i = 0; i < this.numData; i++) {
+        this.coords.push([
+          (this.wasm.wasm_get_data_qubit_x(this.ptr, i) - 1) / 2,
+          (this.wasm.wasm_get_data_qubit_y(this.ptr, i) - 1) / 2,
+        ]);
+      }
     }
+    return this.coords;
   }
 
   /** Apply a sampled Pauli to qubit q in round t. */
@@ -91,10 +104,11 @@ class Patch {
   /** Mirror of `inject_correlated_noise` — a rare disc of correlated faults. */
   burst(t) {
     if (Math.random() >= 0.02) return;
+    const coords = this.#qubitCoords();
     const cx = Math.random() * this.d;
     const cy = Math.random() * this.d;
     for (let q = 0; q < this.numData; q++) {
-      const [ux, uy] = this.coords[q];
+      const [ux, uy] = coords[q];
       if (Math.hypot(ux - cx, uy - cy) <= 1.5) {
         this.apply([X, Z, Y][Math.floor(Math.random() * 3)], q, t);
       }
@@ -170,7 +184,19 @@ export const DEFAULTS = {
  */
 export function estimateLogicalErrorRate(instance, config) {
   const c = { ...DEFAULTS, ...config };
-  const rounds = c.noiseMode === NOISE.DATA ? 1 : Math.max(1, c.rounds);
+
+  // Data noise is a single round by definition. Otherwise the round count must
+  // be a real positive integer: `Math.max(1, null)` would quietly return 1 and
+  // hand back a single-round result labelled phenomenological, and
+  // `Math.max(1, undefined)` would return NaN and corrupt the session instead.
+  let rounds = 1;
+  if (c.noiseMode !== NOISE.DATA) {
+    if (!Number.isInteger(c.rounds) || c.rounds < 1) {
+      throw new Error(`rounds must be a positive integer for noise mode ${c.noiseMode}, got ${c.rounds}`);
+    }
+    rounds = c.rounds;
+  }
+
   const patch = new Patch(instance, c.d, c.codeType, rounds);
 
   // Built once — allocating this per shot dominates the loop at small d.

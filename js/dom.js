@@ -26,16 +26,6 @@ export function el(tag, props = {}, children = []) {
   return node;
 }
 
-/** Read a control's value as a number. */
-export const num = (node) => Number(node.value);
-
-/** Bind a range input to its `<output>` sibling. */
-export function bindRange(input, output, format = (v) => v.toFixed(2)) {
-  const sync = () => { output.textContent = format(Number(input.value)); };
-  input.addEventListener('input', sync);
-  sync();
-}
-
 /** Replace a node's children. */
 export function fill(node, children) {
   node.replaceChildren(...[].concat(children).filter(Boolean));

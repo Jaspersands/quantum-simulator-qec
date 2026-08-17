@@ -77,14 +77,26 @@ Costs: `wasm_estimate_logical_fidelity` (Bloch tomography) and circuit-level
 noise cannot be reached this way. Both are removed from the page, with the
 reason stated in sections 9 and 10.
 
-### 2. The XZZX code does not gain protection from distance
+### 2. The XZZX decoder reuses the wrong defect set
 
-At p=2%, unbiased, 4,000 shots: the rotated code improves 0.65% → 0.18% going
-from d=3 to d=5, while XZZX degrades 5.3% → 12.8%. The pattern holds at every
-bias from η=0.5 to η=1000, and the bias response is flat. An error rate rising
-with distance this far below threshold means the patch is not correcting. The
-lattice geometry it reports is correct — sections 3 and 5 draw it fine — so the
-fault is in the error model or the decoder graph, not the layout.
+In the XZZX branch of `wasm_decode`, the second decoding pass does not derive
+its own defects:
+
+```rust
+let graph_x = code.build_syndrome_graph(num_rounds, false);
+let defects_x = defects_z.clone();   // the Z pass's defects, on the X graph
+```
+
+`graph_x` has a different `edge_to_qubit` mapping, so the `correction_z` it
+produces is unrelated to any Z error that occurred. Verified directly: a single
+X error on a d=3 XZZX patch returns the correct one-qubit X correction plus two
+spurious Z corrections, each a fresh error on the patch. Their count scales with
+the graph, so the code degrades as it grows — at p=2% unbiased over 4,000 shots
+the rotated code improves 0.65% → 0.18% from d=3 to d=5 while XZZX degrades
+5.3% → 12.8%, with a flat bias response from η=0.5 to η=1000.
+
+The rotated branch derives both defect sets independently and is unaffected, as
+is the lattice geometry.
 
 Section 8 was rewritten to state the published result, then report that this
 engine does not reproduce it and show the measurement. Deleting the section

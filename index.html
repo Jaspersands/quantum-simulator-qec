@@ -137,7 +137,7 @@
     <div class="panel__body">
       <div class="rig rig--left">
         <div class="rig__controls">
-          <div class="readout" data-parity-readout></div>
+          <div class="readout" aria-live="polite" data-parity-readout></div>
           <div class="btn-row">
             <button class="btn" data-parity-twin>Show an identical-looking error</button>
             <button class="btn btn--ghost" data-parity-clear>Clear</button>
@@ -147,7 +147,7 @@
           <div data-parity-figure></div>
         </div>
       </div>
-      <p class="rig__caption" data-parity-verdict></p>
+      <p class="rig__caption" aria-live="polite" data-parity-verdict></p>
     </div>
   </div>
 
@@ -221,9 +221,9 @@
               <option value="1">XZZX surface</option>
             </select>
           </div>
-          <div class="readout" data-anatomy-counts></div>
+          <div class="readout" aria-live="polite" data-anatomy-counts></div>
           <hr class="divider">
-          <div data-anatomy-readout></div>
+          <div aria-live="polite" data-anatomy-readout></div>
         </div>
       </div>
     </div>
@@ -288,7 +288,7 @@
               <label class="choice"><input type="radio" name="syndrome-error-type" value="2"><span class="choice__swatch choice__swatch--erased"></span>Erasure</label>
             </div>
           </div>
-          <div class="readout" data-syndrome-readout></div>
+          <div class="readout" aria-live="polite" data-syndrome-readout></div>
           <div class="btn-row">
             <button class="btn btn--primary" data-syndrome-chain>Grow a chain</button>
             <button class="btn" data-syndrome-scatter>Scatter random noise</button>
@@ -296,7 +296,7 @@
           </div>
         </div>
       </div>
-      <p class="rig__caption" data-syndrome-note></p>
+      <p class="rig__caption" aria-live="polite" data-syndrome-note></p>
     </div>
   </div>
 
@@ -386,7 +386,7 @@
               <label class="choice"><input type="radio" name="decode-error-type" value="1">Z</label>
             </div>
           </div>
-          <div class="readout" data-decode-readout></div>
+          <div class="readout" aria-live="polite" data-decode-readout></div>
           <div class="btn-row">
             <button class="btn btn--primary" data-decode-run>Run decoder</button>
             <button class="btn" data-decode-chain>Long chain</button>
@@ -395,7 +395,7 @@
           </div>
         </div>
       </div>
-      <p class="verdict verdict--idle" data-decode-verdict>Inject errors, then run a decoder.</p>
+      <p class="verdict verdict--idle" aria-live="polite" data-decode-verdict>Inject errors, then run a decoder.</p>
     </div>
   </div>
 
@@ -476,15 +476,15 @@
             </div>
             <span class="field__hint">Plaquette clicks always toggle a lying readout.</span>
           </div>
-          <div class="readout" data-spacetime-readout></div>
+          <div class="readout" aria-live="polite" data-spacetime-readout></div>
           <div class="btn-row">
             <button class="btn btn--primary" data-spacetime-run>Run decoder</button>
             <button class="btn btn--ghost" data-spacetime-clear>Clear</button>
           </div>
         </div>
       </div>
-      <p class="rig__caption" data-spacetime-note></p>
-      <p class="verdict verdict--idle" data-spacetime-verdict></p>
+      <p class="rig__caption" aria-live="polite" data-spacetime-note></p>
+      <p class="verdict verdict--idle" aria-live="polite" data-spacetime-verdict></p>
     </div>
   </div>
 
@@ -543,7 +543,7 @@
       <tbody data-results-body></tbody>
     </table>
   </div>
-  <p class="status tight" data-results-status>Queued…</p>
+  <p class="status tight" role="status" data-results-status>Queued…</p>
   <p class="rig__caption" data-results-caption></p>
 
   <div class="prose">
@@ -601,9 +601,9 @@
           </div>
           <button class="btn btn--primary btn--block" data-threshold-run>Run sweep</button>
           <div class="meter"><div class="meter__fill" data-threshold-meter></div></div>
-          <p class="status" data-threshold-status>Ready.</p>
+          <p class="status" role="status" data-threshold-status>Ready.</p>
           <hr class="divider">
-          <div class="readout" data-threshold-results></div>
+          <div class="readout" aria-live="polite" data-threshold-results></div>
         </div>
       </div>
     </div>
@@ -637,18 +637,18 @@
       decouples into near-independent one-dimensional chains, lifting the threshold substantially.
     </p>
     <p>
-      <strong>This simulator does not reproduce that result.</strong> Run the comparison and you will
-      see the XZZX curve sit well above the rotated one and barely respond to bias at all. That is
-      not a subtle statistical effect: at <span class="sym">p = 2%</span>, far below any plausible
-      threshold, this engine's XZZX patch gets <em>worse</em> when you increase the distance from
-      <span class="sym">d = 3</span> to <span class="sym">d = 5</span>, while the rotated code
-      improves by roughly a factor of four as it should. A code whose logical error rate climbs with
-      distance deep below threshold is not correcting properly, so the honest reading is that the
-      XZZX implementation in this engine is broken rather than that the physics is wrong.
+      <strong>This simulator does not reproduce that result</strong>, and the reason is a bug rather
+      than a surprise about the physics. Its XZZX decoder runs a second pass over a reused copy of
+      the first pass's defects, so a pure <span class="sym sym--x">X</span> error comes back with
+      spurious <span class="sym sym--z">Z</span> corrections attached — each one a new error on the
+      patch, and more of them the larger the patch gets. At <span class="sym">p = 2%</span>, far
+      below any plausible threshold, XZZX therefore gets <em>worse</em> going from
+      <span class="sym">d = 3</span> to <span class="sym">d = 5</span> while the rotated code
+      improves fourfold. Run the comparison and you will see the curve sit high and flat.
     </p>
     <p>
       It is left in place, and reported as measured, because the alternative is to quietly delete an
-      inconvenient result. Section 10 has the details.
+      inconvenient result. Section 10 names the line.
     </p>
   </div>
 
@@ -682,9 +682,9 @@
           </div>
           <button class="btn btn--primary btn--block" data-bias-run>Compare across bias</button>
           <div class="meter"><div class="meter__fill" data-bias-meter></div></div>
-          <p class="status" data-bias-status>Ready.</p>
+          <p class="status" role="status" data-bias-status>Ready.</p>
           <hr class="divider">
-          <div class="readout" data-bias-summary></div>
+          <div class="readout" aria-live="polite" data-bias-summary></div>
         </div>
       </div>
     </div>
@@ -782,9 +782,9 @@
       <div class="rig rig--wide">
         <div class="stack">
           <button class="btn btn--primary" data-bench-run>Run Monte Carlo</button>
-          <p class="status" data-bench-status>Ready.</p>
+          <p class="status" role="status" data-bench-status>Ready.</p>
         </div>
-        <div class="readout" data-bench-output></div>
+        <div class="readout" aria-live="polite" data-bench-output></div>
       </div>
     </div>
   </div>
@@ -846,13 +846,20 @@
       <span>Every stabilizer measures alternating X and Z operators around its plaquette. Under
       strongly biased noise the decoding problem should decouple into near-independent chains,
       lifting the threshold substantially. <strong>This engine's implementation does not do
-      that.</strong> Measured at <span class="mono">p = 2%</span>, unbiased, 4,000 shots: the
-      rotated code improves from 0.65% at <span class="mono">d = 3</span> to 0.18% at
-      <span class="mono">d = 5</span>, while XZZX degrades from 5.3% to 12.8%. An error rate that
-      rises with distance this far below threshold means the patch is not correcting, and the bias
-      response is correspondingly flat. The lattice geometry it reports is fine — the figures in
-      sections 3 and 5 draw it correctly — so the fault is in the error model or the decoder graph,
-      not the layout.</span>
+      that</strong>, and the cause is a single line. In the XZZX branch of
+      <span class="mono">wasm_decode</span>, the second decoding pass reuses the first pass's defect
+      set verbatim — <span class="mono">let defects_x = defects_z.clone();</span> — and feeds it to a
+      different graph with a different edge-to-qubit mapping. The Z correction it produces is
+      therefore unrelated to any Z error that occurred. You can watch it happen: inject a single
+      <span class="sym sym--x">X</span> error on an XZZX patch and the decoder returns the correct
+      one-qubit X correction <em>plus</em> two spurious <span class="sym sym--z">Z</span>
+      corrections, each of which is a fresh error on the patch. The count of those scales with the
+      graph, so the code gets worse as it gets bigger: measured at
+      <span class="mono">p = 2%</span> unbiased over 4,000 shots, the rotated code improves from
+      0.65% at <span class="mono">d = 3</span> to 0.18% at <span class="mono">d = 5</span> while
+      XZZX degrades from 5.3% to 12.8%. The lattice geometry is fine — sections 3 and 5 draw it
+      correctly — and the rotated branch, which derives its two defect sets independently, is
+      unaffected.</span>
     </li>
     <li>
       <span class="k">Noise models</span>

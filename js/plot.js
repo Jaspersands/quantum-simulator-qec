@@ -97,12 +97,16 @@ export class Plot {
     const series = (data.series ?? []).map((s) => ({ ...s, color: resolveColor(s.color) }));
     const allPoints = series.flatMap((s) => [...(s.points ?? []), ...(s.line ?? [])]);
 
+    // Canvas is opaque to assistive technology; keep a text summary in sync.
+    this.canvas.setAttribute('role', 'img');
+
     if (!allPoints.length) {
       ctx.fillStyle = this.colors.ink3;
       ctx.font = '400 12px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(data.empty ?? 'No data yet', width / 2, height / 2);
+      this.canvas.setAttribute('aria-label', data.empty ?? 'Chart with no data yet.');
       return;
     }
 
@@ -230,6 +234,19 @@ export class Plot {
     }
 
     ctx.restore();
+
+    const described = series
+      .filter((s) => s.points?.length)
+      .map((s) => {
+        const ys = s.points.map((p) => p.y);
+        return `${s.label} from ${this.options.formatY(Math.min(...ys))}`
+          + ` to ${this.options.formatY(Math.max(...ys))}`;
+      });
+    const markers = (data.markers ?? []).map((m) => m.label).join(', ');
+    this.canvas.setAttribute('aria-label',
+      `${this.options.yLabel || 'Value'} against ${this.options.xLabel || 'x'}. `
+      + (described.length ? `${described.join('; ')}.` : '')
+      + (markers ? ` ${markers}.` : ''));
   }
 
   destroy() { this.resizeObserver.disconnect(); }

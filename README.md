@@ -51,13 +51,29 @@ cannot be reached through that API and are absent from the site until the module
 **Fix**: replace the constant with a seed threaded in from the caller, or expose a
 `wasm_seed(u64)` entry point, and rebuild.
 
-### XZZX does not gain protection from distance
+### The XZZX decoder reuses the wrong defect set
 
-Measured at $p = 2\%$ unbiased over 4,000 shots, the rotated code improves from 0.65% at $d=3$ to
-0.18% at $d=5$, while XZZX degrades from 5.3% to 12.8%. The pattern holds across biases from
-$\eta = 0.5$ to $\eta = 1000$, and the bias response is flat. A logical error rate that rises with
-distance this far below threshold means the patch is not correcting. The lattice geometry it
-reports is correct, so the fault is in the error model or the decoder graph rather than the layout.
+In the XZZX branch of `wasm_decode` (`src/lib.rs`), the second decoding pass does not derive its
+own defects:
+
+```rust
+let graph_x = code.build_syndrome_graph(num_rounds, false);
+let defects_x = defects_z.clone();     // <-- the Z pass's defects, on the X graph
+```
+
+`graph_x` has a different `edge_to_qubit` mapping, so the `correction_z` it produces bears no
+relation to any Z error that occurred. Injecting a single X error on a d=3 XZZX patch returns the
+correct one-qubit X correction plus **two spurious Z corrections**, each a fresh error on the patch.
+The number of them scales with the graph, so the code degrades as it grows: measured at $p = 2\%$
+unbiased over 4,000 shots, the rotated code improves from 0.65% at $d=3$ to 0.18% at $d=5$ while
+XZZX degrades from 5.3% to 12.8%. The bias response is correspondingly flat across
+$\eta = 0.5$ to $\eta = 1000$.
+
+The rotated branch derives `defects_x` and `defects_z` independently and is unaffected, as is the
+lattice geometry — the figures in sections 3 and 5 draw XZZX correctly.
+
+**Fix**: build `defects_x` from the X-stabilizer outcomes the way the rotated branch does, and
+rebuild.
 
 ## Repository Structure
 

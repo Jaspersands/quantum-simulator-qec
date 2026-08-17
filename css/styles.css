@@ -374,6 +374,16 @@ a { color: var(--x); text-decoration-thickness: 1px; text-underline-offset: 2px;
 /* Canvases fill their stage; the renderers read this width and set height. */
 .rig__stage canvas { width: 100%; }
 
+.lattice--interactive { cursor: crosshair; }
+.lattice--interactive.lattice--over-target { cursor: pointer; }
+
+/* Section 2's plaquette is inline SVG so it can be keyboard-reachable. */
+.parity-figure { max-width: 210px; }
+.parity-site { cursor: pointer; }
+.parity-site:focus-visible { outline: none; }
+.parity-site:focus-visible circle { stroke: var(--ink); stroke-width: 3; }
+.parity-site__label { pointer-events: none; user-select: none; }
+
 .rig__caption {
   font-size: var(--t-small);
   color: var(--ink-2);
@@ -560,6 +570,7 @@ input[type="range"]::-moz-range-thumb {
   margin-bottom: var(--s1);
 }
 .vital__value { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.vital__unit { font-size: 0.72em; color: var(--ink-3); }
 .vital__note { font-size: var(--t-micro); color: var(--ink-3); margin-top: var(--s1); }
 
 /* A value still being computed */
@@ -587,6 +598,23 @@ input[type="range"]::-moz-range-thumb {
 .readout__row { display: flex; justify-content: space-between; gap: var(--s3); }
 .readout__key { color: var(--ink-3); }
 .readout__val { font-weight: 700; }
+.readout__val--defect { color: var(--defect); }
+.readout__val--ink { color: var(--ink); }
+
+/* Explanatory line under a readout or figure. */
+.note {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.fit-note { margin: 0; font-size: var(--t-small); }
+
+/* Summary row at the foot of a table block. */
+.row--summary { background: var(--surface-sunk); }
+
+/* A control that does not apply to the current selection. */
+.field--inert { opacity: 0.45; }
 
 /* Verdict banner — decoder success / failure */
 .verdict {
@@ -658,6 +686,19 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key { width: 11px; height: 11px; border: 1px solid var(--ink); flex: none; }
 .legend__key--round { border-radius: 50%; }
 .legend__key--line { width: 15px; height: 0; border: 0; border-top: 2px solid; }
+
+/* Legend keys mirror how the canvas renderer draws each mark. The glyph
+   suffixes match the letters stamped on the qubits themselves, so the legend
+   stays readable when hue alone does not separate the marks. */
+.legend__key--x { background: var(--x); border-color: var(--x); }
+.legend__key--z { background: var(--z); border-color: var(--z); }
+.legend__key--y { background: var(--y); border-color: var(--y); }
+.legend__key--clean { background: var(--surface); border-color: var(--ink-3); }
+.legend__key--defect { background: var(--defect-soft); border-color: var(--defect); }
+.legend__key--xplaq { background: var(--x-soft); border-color: var(--rule-soft); }
+.legend__key--zplaq { background: var(--z-soft); border-color: var(--rule-soft); }
+.legend__key--correction { background: transparent; border-color: var(--ok); border-width: 2px; }
+.legend__key--erased { background: transparent; border-color: var(--erased); border-style: dashed; }
 
 /* Key/value list for the internals section */
 .spec-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }

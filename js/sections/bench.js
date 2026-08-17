@@ -39,7 +39,7 @@ export function initBench(root, compute) {
   const syncRounds = () => {
     const dataOnly = Number(noiseSelect.value) === 0;
     roundsField.disabled = dataOnly;
-    roundsField.closest('.field').style.opacity = dataOnly ? '0.45' : '';
+    roundsField.closest('.field').classList.toggle('field--inert', dataOnly);
   };
   noiseSelect.addEventListener('change', syncRounds);
   syncRounds();

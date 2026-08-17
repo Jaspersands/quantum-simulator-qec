@@ -143,46 +143,108 @@ function collapseAt(points, pTh, nu) {
  *
  * @param {Array<{d:number,p:number,pL:number,runs:number}>} points
  * @returns {{pTh:number, nu:number, coeffs:number[], chi2:number,
- *            reducedChi2:number, ok:boolean}}
+ *            reducedChi2:number, ok:boolean, reason?:string}}
  */
 export function fitThreshold(points) {
+  const reject = (reason) => ({
+    pTh: NaN, nu: NaN, coeffs: [0, 0, 0],
+    chi2: Infinity, reducedChi2: Infinity, ok: false, reason,
+  });
+
   const usable = points.filter((pt) => Number.isFinite(pt.pL) && pt.runs > 0);
-  if (usable.length < 6) {
-    return { pTh: NaN, nu: NaN, coeffs: [0, 0, 0], chi2: Infinity, reducedChi2: Infinity, ok: false };
+  if (usable.length < 6) return reject('not enough points to fit');
+
+  if (new Set(usable.map((pt) => pt.d)).size < 2) {
+    return reject('a collapse needs at least two code distances');
   }
 
-  let best = null;
-  // Coarse pass, then refine around the winner.
-  const search = (pLo, pHi, pStep, nLo, nHi, nStep) => {
-    for (let pTh = pLo; pTh <= pHi; pTh += pStep) {
-      for (let nu = nLo; nu <= nHi; nu += nStep) {
-        const fit = collapseAt(usable, pTh, nu);
-        if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu };
+  // A collapse fit is only meaningful when the data actually varies. If every
+  // point sits at the same logical error rate — all zero below threshold, all
+  // one above it, or genuinely flat — then the quadratic fits perfectly for
+  // EVERY candidate (p_th, nu), chi-squared is zero everywhere, and the grid
+  // search below would return whichever cell it happened to visit first. That
+  // is a number pinned to the edge of the search box, reported with a perfect
+  // goodness of fit. Refuse instead.
+  const rates = usable.map((pt) => pt.pL);
+  const spread = Math.max(...rates) - Math.min(...rates);
+  const resolution = Math.min(...usable.map((pt) => 1 / pt.runs));
+  if (spread <= resolution) {
+    return reject('every point returned the same logical error rate — the sweep '
+      + 'carries no signal to fit. Widen the range of p, or raise the shot count.');
+  }
+
+  const P_LO = 0.004, P_HI = 0.20, P_STEP = 0.002;
+
+  /** Coarse grid then a refinement around the winner, over a given point set. */
+  const fitOver = (data) => {
+    let best = null;
+    const search = (pLo, pHi, pStep, nLo, nHi, nStep) => {
+      for (let pTh = pLo; pTh <= pHi; pTh += pStep) {
+        for (let nu = nLo; nu <= nHi; nu += nStep) {
+          const fit = collapseAt(data, pTh, nu);
+          if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu };
+        }
       }
+    };
+    // The nu range is deliberately generous. Clipping it would report a value
+    // sitting on the boundary of the search rather than a fitted one.
+    search(P_LO, P_HI, P_STEP, 0.5, 5.0, 0.1);
+    if (best) {
+      search(
+        Math.max(0.001, best.pTh - 0.004), best.pTh + 0.004, 0.0004,
+        Math.max(0.3, best.nu - 0.2), best.nu + 0.2, 0.02,
+      );
     }
+    return best;
   };
 
-  // The nu range is deliberately generous. Clipping it would report a value
-  // sitting on the boundary of the search rather than a fitted one.
-  search(0.004, 0.20, 0.002, 0.5, 5.0, 0.1);
-  if (best) {
-    search(
-      Math.max(0.001, best.pTh - 0.004), best.pTh + 0.004, 0.0004,
-      Math.max(0.3, best.nu - 0.2), best.nu + 0.2, 0.02,
-    );
+  // The collapse ansatz only describes the critical region. Points far from
+  // threshold do not obey it, and including them lets the fit buy a lower
+  // chi-squared by inflating nu and dragging p_th along with it — a sweep from
+  // 2% to 14% around a true threshold near 10.5% returned nu ~ 3.9, against a
+  // physical value near 1.5. So: fit once to locate the region, then refit
+  // using only the points inside it.
+  let best = fitOver(usable);
+  if (!best) return reject('the fit did not converge');
+
+  // Keep a fixed fraction of the points, chosen as those closest to threshold
+  // in relative distance. A fixed *width* window does not travel: at a data
+  // noise threshold near 11% it trims sensibly, but at a phenomenological
+  // threshold near 2.6% the same rule cuts down to the six-point minimum and
+  // the exponent collapses. Ranking instead keeps the sample size stable
+  // wherever the threshold turns out to be.
+  const keep = Math.max(9, Math.ceil(usable.length * 0.6));
+  let fitted = usable;
+  for (let pass = 0; pass < 3 && keep < fitted.length; pass++) {
+    const near = [...usable]
+      .sort((a, b) => Math.abs(a.p - best.pTh) / best.pTh - Math.abs(b.p - best.pTh) / best.pTh)
+      .slice(0, keep);
+    if (new Set(near.map((pt) => pt.d)).size < 2) break;
+    const refined = fitOver(near);
+    if (!refined) break;
+    const settled = Math.abs(refined.pTh - best.pTh) < 1e-4;
+    best = refined;
+    fitted = near;
+    if (settled) break;
   }
 
-  if (!best) {
-    return { pTh: NaN, nu: NaN, coeffs: [0, 0, 0], chi2: Infinity, reducedChi2: Infinity, ok: false };
+  // A winner sitting on the edge of the search box was not located by the data;
+  // the search simply ran out of room. Reporting it as a threshold would be
+  // guessing.
+  if (best.pTh <= P_LO + P_STEP || best.pTh >= P_HI - P_STEP) {
+    return reject('the best fit ran into the edge of the search range, so the '
+      + 'threshold is not pinned down by this data');
   }
 
-  const dof = Math.max(1, usable.length - 5); // 3 coefficients + p_th + nu
+  const dof = Math.max(1, fitted.length - 5); // 3 coefficients + p_th + nu
   return {
     pTh: best.pTh,
     nu: best.nu,
     coeffs: best.coeffs,
     chi2: best.chi2,
     reducedChi2: best.chi2 / dof,
+    pointsUsed: fitted.length,
+    pointsTotal: usable.length,
     ok: true,
   };
 }

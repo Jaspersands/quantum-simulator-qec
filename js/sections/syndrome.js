@@ -46,8 +46,7 @@ export function initSyndrome(root, instance) {
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'defects' }),
         el('span', {
-          class: 'readout__val',
-          style: defects ? 'color: var(--defect)' : '',
+          class: defects ? 'readout__val readout__val--defect' : 'readout__val',
           text: String(defects),
         }),
       ]),
