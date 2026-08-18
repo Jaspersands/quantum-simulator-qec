@@ -63,16 +63,21 @@ the rate flat, which turned out to be the separate logical-check bug. Brute-forc
 actual stabilizer group confirmed the XZZX *construction* was always sound — minimum logical weight
 3 at d=3, above 4 at d=5 — so both faults were in decoding and scoring, not in the code.
 
-### Remaining: circuit-level noise has no threshold
+### Remaining: the decoder has no model of the circuit
 
-Below threshold a distance-d code should fail at order p^((d+1)/2), but a single fault causes a
-logical error roughly 3% of the time — measured at p = 2×10⁻⁵, where about one shot in twenty
-carries exactly one fault. The decoder still matches on the phenomenological spacetime graph, which
-has no edges for the correlated two-qubit errors a CNOT failing mid-extraction produces, so it pairs
-those defects wrongly. The fix is a detector error model: enumerate the circuit's fault locations,
-record which detectors each one fires and what data error it leaves, and decode on that graph. It
-also needs the decoder's `edge_to_qubit` widened, since a hook error corrects two qubits rather than
-one. That is a build rather than a bug fix.
+Bugs 3 and 4 made circuit-level a real measurement — noiseless is clean at every distance, the curve
+is monotonic. The decoder still matches on the phenomenological spacetime graph, which carries no
+edges for the correlated two-qubit errors a CNOT failing mid-extraction produces.
+
+Sized: at p = 10⁻⁴ circuit-level gives 0.14% / 0.28% / 0.43% for d = 3/5/7 — rising with distance —
+while phenomenological noise at the comparable per-qubit-per-round rate of 8×10⁻⁴ gives
+0.005% / 0% / 0%. About 3% of single faults produce a logical error.
+
+Closing it means a detector error model: enumerate fault locations, record each one's detectors and
+data residual, decompose faults firing more than two detectors into graph-like pieces, widen the
+decoder's per-edge correction from one qubit to a set, and cache per (d, T). Step three is the one
+with no shortcut and is what tools like Stim exist for. Left undone deliberately: an unvalidated
+version would undo the point of the other seven fixes.
 
 ## Decisions
 

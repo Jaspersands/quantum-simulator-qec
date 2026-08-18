@@ -113,14 +113,30 @@ code under bias as the literature says it should — at d=7, p=3%, η=64: **0.07
 
 ## Still open
 
-### Circuit-level noise: no threshold
+### Circuit-level noise: the decoder has no model of the circuit
 
-With bugs 3 and 4 fixed, circuit-level noise is a real measurement — noiseless is clean, and the
-curve is monotonic. But the decoder still matches on the phenomenological spacetime graph, which
-carries no edges for the correlated two-qubit errors a CNOT failing mid-extraction produces.
-Without those hook-error edges the decoder mis-corrects in a way that grows with the patch, so
-larger distances cost more than they buy and no threshold appears — measured down to p = 2×10⁻⁵.
-Building the circuit-level detector graph is new work rather than a bug fix.
+Bugs 3 and 4 made circuit-level noise a real measurement — noiseless is clean at every distance and
+the curve is monotonic in p. But the decoder still matches on the phenomenological spacetime graph,
+which carries no edges for the correlated two-qubit errors a CNOT failing mid-extraction produces,
+so it pairs those defects wrongly and distance costs more than it buys.
+
+The gap is easy to size. At p = 10⁻⁴, circuit-level gives 0.14%, 0.28%, 0.43% for d = 3, 5, 7 —
+*rising* with distance. Phenomenological noise at the comparable per-qubit-per-round rate of
+8×10⁻⁴ gives 0.005%, 0%, 0% — falling to nothing, as it must. Roughly 3% of single faults produce a
+logical error, which is a distance-1 failure mode.
+
+Closing it means building a detector error model:
+
+1. Enumerate the circuit's elementary fault locations (each gate, each measurement, each Pauli).
+2. For each, run an otherwise noiseless circuit with just that fault and record which detectors fire
+   and what data-qubit residual it leaves.
+3. Decompose faults that fire more than two detectors into graph-like pieces — this is the part with
+   no shortcut, and what dedicated tools like Stim exist to do.
+4. Widen the decoder's per-edge correction from one qubit to a set, since a hook error corrects two.
+5. Cache the model per (d, T); it is fixed for a given code and round count.
+
+That is a build rather than a bug fix, and shipping an unvalidated version of it would undo the
+point of everything above.
 
 ## Repository Structure
 

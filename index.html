@@ -824,12 +824,12 @@
     Circuit-level is the only mode here that is not yet a fair test of the code. Two real bugs in it
     are fixed — every shot used to replay identical measurement outcomes, and the X and Z ancillas
     walked their plaquettes in the same order, so the two extraction circuits did not commute and a
-    <em>noiseless</em> circuit reported 100% logical error at
-    <span class="sym">d = 5</span>. Both are gone: a noiseless circuit now never fails, at any
-    distance, and the curve rises with p as it should. But the decoder still matches on the
-    phenomenological spacetime graph, which has no edges for the correlated two-qubit errors a
-    failing CNOT produces mid-extraction. Without those, larger patches are penalised rather than
-    helped, and no threshold appears. Section 10 has the detail.
+    <em>noiseless</em> circuit reported 100% logical error at <span class="sym">d = 5</span>. Both
+    are gone: a noiseless circuit now never fails, at any distance, and the curve rises with p as it
+    should. What is left is that the decoder has no model of the circuit — it matches on the
+    phenomenological graph, which knows nothing about the correlated two-qubit errors a failing CNOT
+    produces. So larger patches are penalised rather than helped, and no threshold appears. Section
+    10 sizes the gap and says what closing it takes.
   </div>
 </section>
 
@@ -910,19 +910,25 @@
       <dt>Circuit-level noise</dt>
       <dd><strong>Two bugs fixed, one gap left.</strong> Every circuit-level shot used to replay the
       same measurement outcomes, because the stabilizer tableau seeded its generator from a literal
-      in its constructor — so the entire run was deterministic and a noiseless circuit reported
-      either 0% or 100% logical error depending only on the distance. Separately, X and Z ancillas
-      walked their plaquettes in the same order, and boundary plaquettes compressed their two gates
-      into the first two time slots; the two extraction circuits therefore did not commute where
-      plaquettes overlap, and each measurement disturbed the other. Ancillas now interleave in
-      opposite orders — the classic N and Z schedules — and are scheduled by direction rather than
-      by index into a variable-length list. A noiseless circuit now fails <em>never</em>, at
-      <span class="mono">d = 3, 5, 7</span>, and the curve rises monotonically with p. What is still
-      missing: the decoder matches on the phenomenological spacetime graph, which carries no edges
-      for the correlated two-qubit errors a CNOT failing mid-extraction produces. Without those
-      hook-error edges the decoder mis-corrects in a way that grows with the patch, so distance
-      still costs more than it buys and no threshold appears — measured down to
-      <span class="mono">p = 2×10⁻⁵</span>.</dd>
+      in its constructor — the entire run was deterministic, and a noiseless circuit reported either
+      0% or 100% logical error depending only on the distance. Separately, X and Z ancillas walked
+      their plaquettes in the same order and boundary plaquettes compressed their two gates into the
+      first two time slots, so the two extraction circuits did not commute where plaquettes overlap
+      and each measurement disturbed the other. Ancillas now interleave in opposite orders — the
+      classic N and Z schedules — scheduled by direction rather than by index into a variable-length
+      list. A noiseless circuit now fails <em>never</em>, at <span class="mono">d = 3, 5, 7</span>,
+      and the curve rises monotonically with p. What is still missing is the decoder's model of the
+      circuit. It matches on the phenomenological spacetime graph, which has no edges for the
+      correlated two-qubit errors a CNOT failing mid-extraction produces, so it pairs those defects
+      wrongly. The cost is stark: at <span class="mono">p = 10⁻⁴</span> circuit-level gives 0.14%,
+      0.28%, 0.43% for <span class="mono">d = 3, 5, 7</span> — rising with distance — while
+      phenomenological noise at the comparable per-qubit rate of
+      <span class="mono">8×10⁻⁴</span> gives 0.005%, 0%, 0%. Closing it needs a detector error model:
+      enumerate the circuit's fault locations, record which detectors each fires and what data error
+      it leaves, decompose the faults that fire more than two detectors into graph-like pieces, and
+      decode on that. It also needs the decoder's per-edge correction widened from one qubit to
+      several. That is a build rather than a bug fix, and it is the one thing on this page still
+      waiting.</dd>
     </div>
     <div>
       <dt>Detection events</dt>
