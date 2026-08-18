@@ -253,6 +253,25 @@ impl RotatedSurfaceCode {
         }
     }
 
+    /// The data qubit at a given diagonal offset from a stabilizer, if any.
+    ///
+    /// Syndrome extraction has to schedule its CNOTs by *direction*, not by
+    /// index into a variable-length neighbour list: a boundary plaquette has
+    /// two neighbours, and compressing them into the first two time slots puts
+    /// them in the wrong slots relative to the bulk.
+    pub fn neighbor_at(&self, stab: &(usize, usize), dx: i32, dy: i32) -> Option<usize> {
+        let (sx, sy) = *stab;
+        let qx = sx as i32 + dx;
+        let qy = sy as i32 + dy;
+        if qx >= 1 && qx < (2 * self.d) as i32 && qy >= 1 && qy < (2 * self.d) as i32 {
+            let x_idx = (qx - 1) as usize / 2;
+            let y_idx = (qy - 1) as usize / 2;
+            Some(x_idx + self.d * y_idx)
+        } else {
+            None
+        }
+    }
+
     pub fn get_neighbors(&self, stab: &(usize, usize)) -> Vec<usize> {
         let mut neighbors = Vec::new();
         let (sx, sy) = *stab;
@@ -334,7 +353,14 @@ impl RotatedSurfaceCode {
 
     /// Simulates the QEC cycle under phenomenological noise.
     /// Returns true if a logical error occurs, false if the code successfully corrected all errors.
-    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
+    /// Returns the logical Pauli class left behind: bit 0 set if a logical X
+    /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
+    ///
+    /// A bare "did it fail" bool is not enough to characterise the logical
+    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
+    /// Pauli channel, and reconstructing it needs the probability of each of
+    /// I, X, Y and Z separately.
+    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -479,11 +505,18 @@ impl RotatedSurfaceCode {
             }
         }
 
-        logical_x || logical_z
+        (logical_x as u8) | ((logical_z as u8) << 1)
     }
 
     /// Simulates pure data noise with perfect stabilizer measurements.
-    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
+    /// Returns the logical Pauli class left behind: bit 0 set if a logical X
+    /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
+    ///
+    /// A bare "did it fail" bool is not enough to characterise the logical
+    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
+    /// Pauli channel, and reconstructing it needs the probability of each of
+    /// I, X, Y and Z separately.
+    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -580,21 +613,32 @@ impl RotatedSurfaceCode {
             }
         }
 
-        logical_x || logical_z
+        (logical_x as u8) | ((logical_z as u8) << 1)
     }
 
-    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
+    /// Returns the logical Pauli class left behind: bit 0 set if a logical X
+    /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
+    ///
+    /// A bare "did it fail" bool is not enough to characterise the logical
+    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
+    /// Pauli channel, and reconstructing it needs the probability of each of
+    /// I, X, Y and Z separately.
+    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         let num_data = self.data_qubits.len();
         let num_stabs_x = self.x_stabilizers.len();
         let num_stabs_z = self.z_stabilizers.len();
         let num_stabs = num_stabs_x + num_stabs_z;
         let total_qubits = num_data + num_stabs;
         
-        let mut sim = crate::simulator::StabilizerSimulator::new(total_qubits);
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
         let mut rng = next_shot_rng();
+
+        // Seed the tableau's measurement randomness from this shot's generator.
+        // Left at its default every shot replays identical measurement outcomes
+        // and the whole circuit-level run is deterministic.
+        let mut sim = crate::simulator::StabilizerSimulator::with_seed(total_qubits, rng.next_u64());
 
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut erased_edges_z = vec![false; graph_z.edges.len()];
@@ -644,10 +688,6 @@ impl RotatedSurfaceCode {
         }
   
         // Helper to run one round of syndrome extraction
-        let get_neighbors = |stab_coords: &(usize, usize)| -> Vec<usize> {
-            self.get_neighbors(stab_coords)
-        };
-  
         let run_round = |sim_obj: &mut crate::simulator::StabilizerSimulator, round_p: f64, rng_obj: &mut Xorshift| -> (Vec<bool>, Vec<bool>) {
             let mut round_x = vec![false; num_stabs_x];
             let mut round_z = vec![false; num_stabs_z];
@@ -671,22 +711,26 @@ impl RotatedSurfaceCode {
                 inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
             }
   
+            // X and Z ancillas must walk their plaquettes in opposite orders —
+            // the classic "N" and "Z" schedules. Using one order for both, as
+            // this did, leaves the two extraction circuits non-commuting where
+            // plaquettes overlap, so each measurement disturbs the other and
+            // the round reports defects even with no noise at all.
+            const X_ORDER: [(i32, i32); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
+            const Z_ORDER: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+
             for step in 0..4 {
                 for j in 0..num_stabs_x {
-                    let stab = &self.x_stabilizers[j];
-                    let neighbors = get_neighbors(stab);
-                    if step < neighbors.len() {
-                        let data_idx = neighbors[step];
+                    let (dx, dy) = X_ORDER[step];
+                    if let Some(data_idx) = self.neighbor_at(&self.x_stabilizers[j], dx, dy) {
                         let anc_idx = get_x_stab_qubit(j);
                         sim_obj.apply_cnot(anc_idx, data_idx);
                         inject_two_qubit_noise(sim_obj, anc_idx, data_idx, round_p, bias, rng_obj);
                     }
                 }
                 for k in 0..num_stabs_z {
-                    let stab = &self.z_stabilizers[k];
-                    let neighbors = get_neighbors(stab);
-                    if step < neighbors.len() {
-                        let data_idx = neighbors[step];
+                    let (dx, dy) = Z_ORDER[step];
+                    if let Some(data_idx) = self.neighbor_at(&self.z_stabilizers[k], dx, dy) {
                         let anc_idx = get_z_stab_qubit(k);
                         sim_obj.apply_cnot(data_idx, anc_idx);
                         inject_two_qubit_noise(sim_obj, data_idx, anc_idx, round_p, bias, rng_obj);
@@ -803,14 +847,14 @@ impl RotatedSurfaceCode {
                 let q_idx = x_idx + self.d * 0;
                 logical_x ^= sim.measure_x(q_idx);
             }
-            logical_x == 1
+            (logical_x == 1) as u8
         } else {
             let mut logical_z = 0;
             for y_idx in 0..self.d {
                 let q_idx = 0 + self.d * y_idx;
                 logical_z ^= sim.measure_z(q_idx);
             }
-            logical_z == 1
+            (logical_z == 1) as u8
         }
     }
 }
@@ -1027,7 +1071,14 @@ impl XZZXSurfaceCode {
         (SyndromeGraph { num_nodes, edges, edge_to_qubit }, edge_is_x)
     }
 
-    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
+    /// Returns the logical Pauli class left behind: bit 0 set if a logical X
+    /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
+    ///
+    /// A bare "did it fail" bool is not enough to characterise the logical
+    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
+    /// Pauli channel, and reconstructing it needs the probability of each of
+    /// I, X, Y and Z separately.
+    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -1148,10 +1199,17 @@ impl XZZXSurfaceCode {
             }
         }
 
-        logical_err_1 || logical_err_2
+        (logical_err_1 as u8) | ((logical_err_2 as u8) << 1)
     }
 
-    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
+    /// Returns the logical Pauli class left behind: bit 0 set if a logical X
+    /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
+    ///
+    /// A bare "did it fail" bool is not enough to characterise the logical
+    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
+    /// Pauli channel, and reconstructing it needs the probability of each of
+    /// I, X, Y and Z separately.
+    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -1250,20 +1308,31 @@ impl XZZXSurfaceCode {
             }
         }
 
-        logical_err_1 || logical_err_2
+        (logical_err_1 as u8) | ((logical_err_2 as u8) << 1)
     }
 
-    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
+    /// Returns the logical Pauli class left behind: bit 0 set if a logical X
+    /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
+    ///
+    /// A bare "did it fail" bool is not enough to characterise the logical
+    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
+    /// Pauli channel, and reconstructing it needs the probability of each of
+    /// I, X, Y and Z separately.
+    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         let num_data = self.data_qubits.len();
         let num_stabs_z = self.z_stabilizers.len();
         let num_stabs_x = self.x_stabilizers.len();
         let total_qubits = num_data + num_stabs_z + num_stabs_x;
         
-        let mut sim = crate::simulator::StabilizerSimulator::new(total_qubits);
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
         let mut rng = next_shot_rng();
+
+        // Seed the tableau's measurement randomness from this shot's generator.
+        // Left at its default every shot replays identical measurement outcomes
+        // and the whole circuit-level run is deterministic.
+        let mut sim = crate::simulator::StabilizerSimulator::with_seed(total_qubits, rng.next_u64());
 
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut erased_edges_z = vec![false; graph_z.edges.len()];
@@ -1503,7 +1572,7 @@ impl XZZXSurfaceCode {
                     logical_err ^= true;
                 }
             }
-            logical_err
+            logical_err as u8
         } else if init_state == "y" {
             let mut logical_err = sim.measure_y(0) == 1;
             for x_idx in 1..self.d {
@@ -1516,7 +1585,7 @@ impl XZZXSurfaceCode {
                     logical_err ^= true;
                 }
             }
-            logical_err
+            logical_err as u8
         } else {
             let mut logical_err = false;
             for y_idx in 0..self.d {
@@ -1526,7 +1595,7 @@ impl XZZXSurfaceCode {
                     logical_err ^= true;
                 }
             }
-            logical_err
+            logical_err as u8
         }
     }
 }

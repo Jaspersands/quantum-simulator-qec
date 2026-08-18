@@ -7,6 +7,7 @@
  */
 
 import { DECODER_NAME, NOISE_NAME } from '../engine.js';
+import { ChannelView } from '../channel-view.js';
 import { wilson, percent, count } from '../compute.js';
 import { $, fill, el } from '../dom.js';
 
@@ -31,6 +32,10 @@ export function initBench(root, compute) {
   const runBtn = $('[data-bench-run]', root);
   const status = $('[data-bench-status]', root);
   const output = $('[data-bench-output]', root);
+  const chanBtn = $('[data-channel-run]', root);
+  const chanStatus = $('[data-channel-status]', root);
+  const chanOutput = $('[data-channel-output]', root);
+  const chanCanvas = $('[data-channel-canvas]', root);
   const roundsField = $('[data-bench-rounds]', root);
   const noiseSelect = $('[data-bench-noise]', root);
   if (!runBtn) return;
@@ -43,6 +48,31 @@ export function initBench(root, compute) {
   };
   noiseSelect.addEventListener('change', syncRounds);
   syncRounds();
+
+  const channel = chanCanvas ? new ChannelView(chanCanvas) : null;
+  channel?.draw();
+
+  chanBtn?.addEventListener('click', async () => {
+    const config = readConfig(root);
+    chanBtn.disabled = true;
+    chanStatus.textContent = `Estimating over ${count(config.runs)} shots…`;
+    try {
+      const result = await compute.call('channel', config);
+      channel?.set([result.x, result.y, result.z]);
+      fill(chanOutput, [
+        ...[['λ_X', result.x], ['λ_Y', result.y], ['λ_Z', result.z]].map(([k, v]) =>
+          el('div', { class: 'readout__row' }, [
+            el('span', { class: 'readout__key', text: k }),
+            el('span', { class: 'readout__val', text: v.toFixed(4) }),
+          ])),
+      ]);
+      chanStatus.textContent = `${count(config.runs)} shots · ${result.seconds.toFixed(2)} s`;
+    } catch (error) {
+      chanStatus.textContent = `Failed: ${error.message}`;
+    } finally {
+      chanBtn.disabled = false;
+    }
+  });
 
   runBtn.addEventListener('click', async () => {
     const config = readConfig(root);

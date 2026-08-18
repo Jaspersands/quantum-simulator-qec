@@ -12,6 +12,14 @@ impl StabilizerSimulator {
         }
     }
 
+    /// Build a simulator whose measurement randomness comes from `seed`.
+    /// Circuit-level simulation must use this — see `Tableau::with_seed`.
+    pub fn with_seed(n: usize, seed: u64) -> Self {
+        StabilizerSimulator {
+            tableau: Tableau::with_seed(n, seed),
+        }
+    }
+
     pub fn n(&self) -> usize {
         self.tableau.n
     }

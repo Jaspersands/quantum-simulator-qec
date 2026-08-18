@@ -22,12 +22,6 @@ export const DECODER_NAME = {
   2: 'Exact MWPM',
 };
 
-/**
- * CIRCUIT is listed because the engine accepts it, not because the page offers
- * it. `simulate_circuit_noise` returns a logical error rate that *falls* as p
- * rises (measured at d=7: 89% at p=0.001 down to 51% at p=0.01) and is far
- * worse at larger distances. Until that is fixed it is not a measurement.
- */
 export const NOISE = { DATA: 0, PHENOM: 1, CIRCUIT: 2 };
 
 export const NOISE_NAME = {
@@ -348,4 +342,26 @@ export function runBenchmark(instance, config) {
     seconds,
     runsPerSecond: seconds > 0 ? Math.round(c.runs / seconds) : 0,
   };
+}
+
+/**
+ * Diagonal of the logical channel's Pauli transfer matrix.
+ *
+ * Under Pauli noise and a Pauli decoder the logical channel is itself a Pauli
+ * channel, which shrinks each Bloch axis independently. These three factors are
+ * those shrink amounts; a noiseless channel gives (1, 1, 1) because it shrinks
+ * nothing.
+ *
+ * @returns {{x:number, y:number, z:number, seconds:number}}
+ */
+export function estimateChannel(instance, config) {
+  const c = { ...DEFAULT_RUN, ...config };
+  const rounds = c.noiseMode === NOISE.DATA ? 1 : c.rounds;
+  const t0 = performance.now();
+  const ptr = instance.exports.wasm_estimate_logical_fidelity(
+    c.d, c.codeType, c.decoder, c.p, c.bias,
+    c.noiseMode, rounds, c.runs, c.erasure, c.correlated,
+  );
+  const view = new Float64Array(instance.exports.memory.buffer, ptr, 3);
+  return { x: view[0], y: view[1], z: view[2], seconds: (performance.now() - t0) / 1000 };
 }

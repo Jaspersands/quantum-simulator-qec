@@ -24,12 +24,12 @@ impl PyRotatedSurfaceCode {
 
     #[pyo3(signature = (num_rounds, p, bias=None, decoder_type=None))]
     fn simulate(&self, num_rounds: usize, p: f64, bias: Option<f64>, decoder_type: Option<usize>) -> bool {
-        self.code.simulate_phenomenological_noise(num_rounds, p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0)
+        self.code.simulate_phenomenological_noise(num_rounds, p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0) != 0
     }
 
     #[pyo3(signature = (p, bias=None, decoder_type=None))]
     fn simulate_data_noise(&self, p: f64, bias: Option<f64>, decoder_type: Option<usize>) -> bool {
-        self.code.simulate_data_noise(p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0)
+        self.code.simulate_data_noise(p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0) != 0
     }
 
     #[getter]
@@ -601,6 +601,33 @@ pub extern "C" fn wasm_decode(
 
 static mut FIDELITY_RESULTS: [f64; 3] = [0.0; 3];
 
+/// Diagonal of the logical Pauli-transfer matrix.
+///
+/// Under Pauli noise and a Pauli decoder the effective logical channel is
+/// itself a Pauli channel,
+///
+///     rho -> p_I rho + p_X X rho X + p_Y Y rho Y + p_Z Z rho Z
+///
+/// which acts on a Bloch vector by shrinking each axis independently:
+///
+///     rx' = rx (p_I + p_X - p_Y - p_Z)
+///     ry' = ry (p_I - p_X + p_Y - p_Z)
+///     rz' = rz (p_I - p_X - p_Y + p_Z)
+///
+/// Those three factors are what this returns, in that order. They are a real
+/// characterisation of the channel: each lies in [-1, 1], and a noiseless
+/// channel gives (1, 1, 1) because it shrinks nothing.
+///
+/// The previous version ran three *identical* simulations — for data and
+/// phenomenological noise the three calls differed in nothing but the variable
+/// they were assigned to — and reported `1 - 2 * failure_rate` for each as
+/// though they were Bloch components. At zero noise that produced the vector
+/// (1, 1, 1) interpreted as a *state*, which has length sqrt(3) and lies
+/// outside the Bloch sphere.
+///
+/// Circuit-level noise still reports only whether the one prepared logical
+/// operator flipped, so its X and Z classes cannot be separated; for that mode
+/// all three factors collapse to the same number.
 #[no_mangle]
 pub extern "C" fn wasm_estimate_logical_fidelity(
     d: usize,
@@ -614,86 +641,42 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
     erasure_rate: f64,
     correlated_noise: usize,
 ) -> *const f64 {
-    let mut failures_x = 0;
-    let mut failures_y = 0;
-    let mut failures_z = 0;
+    // Counts of the logical Pauli class left behind: index 0 = I, 1 = X,
+    // 2 = Z, 3 = Y, matching the bitmask the simulators return.
+    let mut classes = [0usize; 4];
+
+    macro_rules! run_shots {
+        ($code:expr) => {
+            for _ in 0..runs {
+                let outcome = match noise_mode {
+                    0 => $code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                    1 => $code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
+                    2 => $code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
+                    _ => 0,
+                };
+                classes[(outcome & 3) as usize] += 1;
+            }
+        };
+    }
 
     if code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
-        for _ in 0..runs {
-            let failed_x = match noise_mode {
-                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "plus", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
-            };
-            if failed_x {
-                failures_x += 1;
-            }
-
-            let failed_y = match noise_mode {
-                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "y", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
-            };
-            if failed_y {
-                failures_y += 1;
-            }
-
-            let failed_z = match noise_mode {
-                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
-            };
-            if failed_z {
-                failures_z += 1;
-            }
-        }
+        run_shots!(code);
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
-        for _ in 0..runs {
-            let failed_x = match noise_mode {
-                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "plus", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
-            };
-            if failed_x {
-                failures_x += 1;
-            }
-
-            let failed_y = match noise_mode {
-                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "y", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
-            };
-            if failed_y {
-                failures_y += 1;
-            }
-
-            let failed_z = match noise_mode {
-                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
-            };
-            if failed_z {
-                failures_z += 1;
-            }
-        }
+        run_shots!(code);
     }
 
-    let p_x = (failures_x as f64) / (runs as f64);
-    let p_y = (failures_y as f64) / (runs as f64);
-    let p_z = (failures_z as f64) / (runs as f64);
+    let total = runs.max(1) as f64;
+    let p_i = classes[0] as f64 / total;
+    let p_x = classes[1] as f64 / total;
+    let p_z = classes[2] as f64 / total;
+    let p_y = classes[3] as f64 / total;
 
     unsafe {
-        FIDELITY_RESULTS[0] = 1.0 - 2.0 * p_x;
-        FIDELITY_RESULTS[1] = 1.0 - 2.0 * p_y;
-        FIDELITY_RESULTS[2] = 1.0 - 2.0 * p_z;
+        FIDELITY_RESULTS[0] = p_i + p_x - p_y - p_z;
+        FIDELITY_RESULTS[1] = p_i - p_x + p_y - p_z;
+        FIDELITY_RESULTS[2] = p_i - p_x - p_y + p_z;
         std::ptr::addr_of!(FIDELITY_RESULTS) as *const f64
     }
 }
@@ -720,9 +703,9 @@ pub extern "C" fn wasm_run_benchmark(
                 0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
                 1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
                 2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
+                _ => 0,
             };
-            if failed {
+            if failed != 0 {
                 failures += 1;
             }
         }
@@ -733,9 +716,9 @@ pub extern "C" fn wasm_run_benchmark(
                 0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
                 1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
                 2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
-                _ => false,
+                _ => 0,
             };
-            if failed {
+            if failed != 0 {
                 failures += 1;
             }
         }

@@ -11,7 +11,7 @@
  * {id, type:'done', result} or {id, type:'error', message}.
  */
 
-import { instantiate, runBenchmark, DEFAULT_RUN, NOISE } from './engine.js';
+import { instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE } from './engine.js';
 
 let enginePromise = null;
 
@@ -62,6 +62,10 @@ const OPS = {
 
   async benchmark(instance, config) {
     return runBenchmark(instance, { ...config, rounds: roundsFor(config) });
+  },
+
+  async channel(instance, config) {
+    return estimateChannel(instance, { ...config, rounds: roundsFor(config) });
   },
 
   /**

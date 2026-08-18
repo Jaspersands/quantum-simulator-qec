@@ -22,95 +22,89 @@ running locally. Every number on the page is computed in the reader's browser on
 
 ## Engine defects found and fixed
 
-Four bugs surfaced while making the site report live data. Two are fixed outright, one is much
-improved but not finished, and two more are diagnosed but untouched. Everything below is reflected
-in `src/` and in the committed `stabilizer_qec.wasm`.
+Six bugs surfaced while making the site report live data. Five are fixed; one XZZX issue and one
+circuit-level gap remain, both characterised below. Everything here is reflected in `src/` and in
+the committed `stabilizer_qec.wasm`.
 
-### 1. The WASM build's Monte Carlo was not random
+### 1. FIXED — the WASM Monte Carlo was not random
 
-Six `simulate_*` functions seeded their generator from a constant on the non-Python cfg branch:
+Six `simulate_*` functions seeded from a constant on the non-Python cfg branch
+(`Xorshift::new(12345)`, and `54321` in two). Each of those functions *is* one shot and
+`wasm_run_benchmark` loops over them, so every shot in a batch was bit-identical and the reported
+rate collapsed to a step function — exactly 0 below a cutoff, a plateau, exactly 1 above.
 
-```rust
-#[cfg(not(feature = "python"))]
-let mut rng = Xorshift::new(12345);   // and 54321 in two of them
-```
+Fixed with SplitMix64 over a counter, plus a `wasm_seed(lo, hi)` export seeded from
+`crypto.getRandomValues`. Seeding each shot from the previous shot's xorshift state is *not*
+enough — that hands shot N+1 shot N's stream offset by one draw, and batch variance comes out
+several times binomial. Verified: twelve repeats at d=5, p=5%, N=4000 give observed σ 0.00224
+against binomial 0.00222 (ratio 1.01).
 
-Each of those functions *is* one shot, and `wasm_run_benchmark` calls them in a loop — so every
-shot in a batch was bit-identical and the returned rate collapsed to a step function: exactly 0
-below a cutoff, a plateau, exactly 1 above. Nothing the browser reported was a measurement. The
-Python build takes the `rand::random()` branch and was unaffected.
+### 2. FIXED — phenomenological noise lied in the final round
 
-Fixed by keeping one stream alive across shots and drawing seeds from it with **SplitMix64 over a
-counter**. Advancing with the same xorshift recurrence the shots use is *not* sufficient — that
-gives shot N+1 shot N's stream offset by one draw, and batch variance comes out several times
-binomial. Verified: twelve repeats at d=5, p=5%, N=4000 give observed σ 0.00224 against a binomial
-0.00222 (ratio 1.01).
+Defects are time differences, so a last-round lie has no partner and leaves an unpaired defect the
+decoder must match somewhere. More checks means more last-round lies, so logical error *rose* with
+distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
+noiseless.
 
-A new export, `wasm_seed(lo, hi)`, lets the caller seed from `crypto.getRandomValues` so results
-vary across page loads.
+Thresholds after 1 and 2: ~11% data noise, ~2.7% phenomenological, both with reduced χ² near 1,
+agreeing point-by-point with an independent JavaScript Monte Carlo written against the per-shot
+session API.
 
-### 2. Phenomenological noise applied a faulty readout in the final round
+### 3. FIXED — the stabilizer tableau replayed identical measurements
 
-Defects are time differences, so a lie in the last round has no following round to cancel against
-and leaves an unpaired defect the decoder must match somewhere — injecting a correction for an
-error that never happened. A larger patch has more checks to misreport on, so logical error *rose*
-with distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
-noiseless, which is both the standard convention and what a real experiment does by ending with a
-transversal data readout.
+`Tableau::new` hardcoded `rng_state: 0xdeadbeef12345678`, so every `StabilizerSimulator` ever
+constructed drew the same sequence of random measurement outcomes. Circuit-level runs were entirely
+deterministic — a *noiseless* circuit reported exactly 0% or exactly 100% logical error depending
+only on the distance. `Tableau::with_seed` now threads a seed from the shot's own generator. This
+one also affected the Python build.
 
-After both fixes the engine reproduces the literature: threshold near 10% for pure data noise and
-near 2.6% phenomenological, and it agrees with an independent JavaScript Monte Carlo written
-against the per-shot session API to within sampling noise at every point tested.
+### 4. FIXED — the two extraction circuits did not commute
 
-## Partly fixed
+X and Z ancillas walked their plaquettes in the same order, and boundary plaquettes compressed
+their two CNOTs into the first two time slots. The X and Z stabilizer measurements therefore
+interfered where plaquettes overlap, and each disturbed the other. Ancillas now interleave in
+opposite orders — the classic N and Z schedules — scheduled by *direction* rather than by index
+into a variable-length neighbour list. A noiseless circuit now fails **never**, at d = 3, 5 and 7,
+and the curve rises monotonically with p.
 
-### The XZZX decoder matched the same defects twice
+### 5. FIXED — logical tomography returned something outside the Bloch sphere
 
-The XZZX branch used to derive its defects once and then decode them twice, on two graphs with
-different edge-to-qubit mappings — the second pass reused the first's defects verbatim:
+`wasm_estimate_logical_fidelity` ran three *identical* simulations — for data and phenomenological
+noise the three calls differed in nothing but the variable each was assigned to — and reported
+`1 - 2*failure_rate` for each as though they were Bloch components. At zero noise that gave
+`(1, 1, 1)`, a "state" of length √3.
 
-```rust
-let graph_x = code.build_syndrome_graph(num_rounds, false);
-let defects_x = defects_z.clone();     // the Z pass's defects, on the X graph
-```
+Under Pauli noise and a Pauli decoder the logical channel is itself a Pauli channel, which shrinks
+each Bloch axis independently. The simulators now return which logical Pauli class survived rather
+than a bare pass/fail, so the four channel probabilities can be counted and the diagonal of the
+Pauli transfer matrix computed properly. Verified: `(1, 1, 1)` at zero noise now correctly means
+*the channel shrinks nothing*, every factor stays in [−1, 1], and the site draws the sphere's image
+as an ellipsoid.
 
-XZZX has one syndrome and two edge families over the same nodes: an X error flips the stabilizers
-on one diagonal, a Z error those on the other. Decoding the whole defect set independently on each
-family explains every defect twice — once with X operators, once with Z — and applies both
-corrections. A single X error on a d=3 patch returned the correct one-qubit X correction plus two
-invented Z ones, and their count grew with the lattice, so the code degraded as it grew: at p=2%
-unbiased it went 5.4% at d=3 to 21.0% at d=7.
+## Still open
 
-`build_combined_graph` now emits both edge families into one graph with a per-edge type tag, plus a
-single set of timelike edges. The defect set is matched once and each chosen edge's correction is
-routed to X or Z by its tag. After the change, **a single error of either type is corrected exactly,
-with no spurious operators, at d = 3, 5 and 7**, and the runaway is gone — XZZX sits near 2.6% at
-p=2% for every distance instead of climbing to 21%.
+### XZZX: matched once now, but flat in distance
 
-The rotated code derives its two defect sets independently and is untouched; measured before and
-after, its rates are identical within sampling noise.
+The double-matching bug is fixed — see `build_combined_graph`. Both edge families go into one graph
+with a per-edge type tag, the defect set is matched once, and each chosen edge routes to X or Z by
+its tag. A single error of either type is now corrected exactly, with no spurious operators, at
+d = 3, 5 and 7, and the old runaway (5.4% at d=3 climbing to 21.0% at d=7) is gone.
 
-**Still wrong**: the curve is flat in distance where it should fall. At the boundary a lone defect
-is explainable by either family at equal weight, and when the matcher picks wrong it leaves a
+What remains: the curve is flat in distance rather than falling. At the boundary a lone defect is
+explainable by either error family at equal weight, and when the matcher picks wrong it leaves a
 weight-one residual that the logical-operator check counts as a failure — at any distance.
-Reproduce with a single Z error on qubit 0: one defect fires, the decoder answers with one *X*
-correction, and the residual Y trips both logical checks. Fixing it properly means settling the
-lattice's boundary conventions and the logical-operator representatives, which is a code-design
-question rather than a bug with an obvious patch.
+Reproduce with a single Z error on qubit 0: one defect fires and the decoder answers with one *X*
+correction. Settling it means fixing this lattice's boundary conventions and logical-operator
+representatives.
 
-## Known engine defects (still open)
+### Circuit-level noise: no threshold
 
-### Circuit-level noise
-
-`simulate_circuit_noise` returns a logical error rate that *falls* as the physical rate rises —
-measured at d=7: 89% at p=0.1%, 82% at 0.2%, 62% at 0.5%, 51% at 1% — and is far worse at larger
-distances. Not exposed on the site until diagnosed.
-
-### Logical-state tomography
-
-`wasm_estimate_logical_fidelity` returns `(1, 1, 1)` for a noiseless run. That vector has length
-√3, outside the Bloch sphere, so it is not a Bloch vector — it is three independent survival
-probabilities presented as one. Not exposed on the site until reworked.
+With bugs 3 and 4 fixed, circuit-level noise is a real measurement — noiseless is clean, and the
+curve is monotonic. But the decoder still matches on the phenomenological spacetime graph, which
+carries no edges for the correlated two-qubit errors a CNOT failing mid-extraction produces.
+Without those hook-error edges the decoder mis-corrects in a way that grows with the patch, so
+larger distances cost more than they buy and no threshold appears — measured down to p = 2×10⁻⁵.
+Building the circuit-level detector graph is new work rather than a bug fix.
 
 ## Repository Structure
 
@@ -124,6 +118,7 @@ index.html            the explainer — structure only
 css/styles.css        design tokens, then base, then components
 js/engine.js          typed wrapper over the WASM exports
 js/channel.js         the noise channel, shared by the figures and the engine
+js/channel-view.js    the logical channel drawn as the Bloch sphere's image
 js/worker.js          Monte Carlo worker (own engine instance)
 js/compute.js         worker RPC, Wilson intervals, threshold collapse fit
 js/lattice.js         canvas renderer for a code patch, 2D and spacetime

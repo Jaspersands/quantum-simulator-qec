@@ -22,6 +22,18 @@ fn g(x1: bool, z1: bool, x2: bool, z2: bool) -> i32 {
 
 impl Tableau {
     pub fn new(n: usize) -> Self {
+        // Kept for callers that do not care about measurement randomness.
+        Tableau::with_seed(n, 0xdead_beef_1234_5678)
+    }
+
+    /// Seeded constructor.
+    ///
+    /// The measurement outcome for a non-deterministic measurement comes from
+    /// `rng_state`. Fixing it at a constant, as `new` did for every simulator
+    /// ever built, makes every circuit-level shot replay the same outcomes —
+    /// the whole run becomes deterministic, and a noiseless circuit reports
+    /// either 0% or 100% logical error depending only on the code distance.
+    pub fn with_seed(n: usize, seed: u64) -> Self {
         let words_per_row = (n + 63) / 64;
         let num_rows = 2 * n + 1; // 2n rows + 1 scratch row
         let mut x = vec![0; num_rows * words_per_row];
@@ -47,7 +59,7 @@ impl Tableau {
             x,
             z,
             r,
-            rng_state: 0xdeadbeef12345678,
+            rng_state: if seed == 0 { 0xdead_beef_1234_5678 } else { seed },
         }
     }
 
