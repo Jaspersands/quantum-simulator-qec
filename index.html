@@ -646,18 +646,20 @@
       decouples into near-independent one-dimensional chains, lifting the threshold substantially.
     </p>
     <p>
-      <strong>This simulator does not reproduce that result</strong>, and the reason is a bug rather
-      than a surprise about the physics. Its XZZX decoder runs a second pass over a reused copy of
-      the first pass's defects, so a pure <span class="sym sym--x">X</span> error comes back with
-      spurious <span class="sym sym--z">Z</span> corrections attached — each one a new error on the
-      patch, and more of them the larger the patch gets. At <span class="sym">p = 2%</span>, far
-      below any plausible threshold, XZZX therefore gets <em>worse</em> going from
-      <span class="sym">d = 3</span> to <span class="sym">d = 5</span> while the rotated code
-      improves fourfold. Run the comparison and you will see the curve sit high and flat.
+      <strong>This simulator still does not reproduce that result</strong>, though it is much
+      closer than it was. Its XZZX decoder used to run a second matching pass over a reused copy of
+      the first pass's defects, so a pure <span class="sym sym--x">X</span> error came back with
+      invented <span class="sym sym--z">Z</span> corrections attached — more of them the larger the
+      patch, which made the code get catastrophically <em>worse</em> with distance. That is fixed:
+      the two error families are now matched together in one pass, a single error of either type is
+      tolerated at every distance, and the runaway is gone.
     </p>
     <p>
-      It is left in place, and reported as measured, because the alternative is to quietly delete an
-      inconvenient result. Section 10 names the line.
+      What remains is a flat curve where there should be a falling one. At the boundary, a lone
+      defect can be explained equally well by an X error or a Z error, and when the matcher picks
+      the wrong family it leaves a weight-one residual that the code's logical-operator check counts
+      as a failure — at any distance. So XZZX sits at a floor of a few percent instead of improving
+      as the patch grows, and the bias advantage cannot show through. Section 10 has the detail.
     </p>
   </div>
 
@@ -857,21 +859,20 @@
       <dt>XZZX surface code</dt>
       <dd>Every stabilizer measures alternating X and Z operators around its plaquette. Under
       strongly biased noise the decoding problem should decouple into near-independent chains,
-      lifting the threshold substantially. <strong>This engine's implementation does not do
-      that</strong>, and the cause is a single line. In the XZZX branch of
-      <span class="mono">wasm_decode</span>, the second decoding pass reuses the first pass's defect
-      set verbatim — <span class="mono">let defects_x = defects_z.clone();</span> — and feeds it to a
-      different graph with a different edge-to-qubit mapping. The Z correction it produces is
-      therefore unrelated to any Z error that occurred. You can watch it happen: inject a single
-      <span class="sym sym--x">X</span> error on an XZZX patch and the decoder returns the correct
-      one-qubit X correction <em>plus</em> two spurious <span class="sym sym--z">Z</span>
-      corrections, each of which is a fresh error on the patch. The count of those scales with the
-      graph, so the code gets worse as it gets bigger: measured at
-      <span class="mono">p = 2%</span> unbiased over 4,000 shots, the rotated code improves from
-      0.65% at <span class="mono">d = 3</span> to 0.18% at <span class="mono">d = 5</span> while
-      XZZX degrades from 5.3% to 12.8%. The lattice geometry is fine — sections 3 and 5 draw it
-      correctly — and the rotated branch, which derives its two defect sets independently, is
-      unaffected.</dd>
+      lifting the threshold substantially. <strong>Partly fixed, still not right.</strong> The
+      decoder used to derive defects once and then match them twice, on two graphs with different
+      edge-to-qubit mappings — the second pass reused the first's defects verbatim. Every defect was
+      therefore explained twice, once with X operators and once with Z, and both corrections
+      applied: a single X error returned the correct one-qubit X correction plus two invented Z
+      ones, and their number grew with the lattice, so the patch got worse as it got bigger. It now
+      builds one graph carrying both edge families with a per-edge type tag and matches once. A
+      single error of either type is corrected exactly, with no spurious operators, at every
+      distance tested. What is still wrong: at the boundary a lone defect is explainable by either
+      family at equal weight, and when the matcher chooses wrong it leaves a weight-one residual
+      that the logical-operator check reports as a failure. The result is a flat few-percent floor
+      rather than a curve falling with distance. The rotated code derives its two defect sets
+      independently and is unaffected — measured before and after the change, its rates are
+      identical within sampling noise.</dd>
     </div>
     <div>
       <dt>Noise models</dt>

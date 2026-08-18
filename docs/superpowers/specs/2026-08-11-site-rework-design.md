@@ -64,17 +64,25 @@ After both fixes the engine reproduces the literature — p_th ≈ 10.9% data no
 phenomenological, both with reduced χ² near 1 — and agrees point-by-point with an independent
 JavaScript Monte Carlo written against the per-shot session API.
 
-### 3. OPEN — the XZZX decoder reuses the wrong defect set
+### 3. PARTLY FIXED — the XZZX decoder matched the same defects twice
 
-`let defects_x = defects_z.clone();` feeds the Z pass's defects to the X graph, whose
-`edge_to_qubit` mapping is different. A single X error on a d=3 patch returns the correct one-qubit
-X correction plus two spurious Z corrections, each a fresh error; their count scales with the
-graph, so the code degrades as it grows. Unchanged by the RNG fix.
+`let defects_x = defects_z.clone();` fed the Z pass's defects to the X graph, whose
+`edge_to_qubit` mapping differs. Every defect was explained twice, once per error family, and both
+corrections applied — a single X error came back with the right X correction plus two invented Z
+ones, their count growing with the lattice. XZZX went 5.4% at d=3 to 21.0% at d=7 at p=2%.
 
-The correct fix is one graph carrying both edge families with a per-edge type tag, decoded once,
-with each matched edge routed to X or Z by its tag. That is a decoder change, not a one-liner, and
-it needs validating against the obvious test before it can be trusted. Section 8 states the
-published result, then reports that this engine does not reproduce it and shows the measurement.
+Fixed with `build_combined_graph`: both edge families in one graph with a per-edge type tag and a
+single set of timelike edges, matched once, each chosen edge routed to X or Z by its tag. Verified:
+a single error of either type is now corrected exactly with no spurious operators at d = 3, 5, 7,
+and the runaway is gone (~2.6% flat at p=2%). The rotated path is untouched and measures identically
+before and after.
+
+Remaining: the curve is flat in d rather than falling. A lone boundary defect is explainable by
+either family at equal weight; when the matcher picks wrong it leaves a weight-one residual that the
+logical-operator check reports as a failure at any distance. Reproduce with a single Z error on
+qubit 0 — one defect, one *X* correction returned, residual Y trips both logical checks. The fix
+requires settling the boundary conventions and logical-operator representatives for this lattice,
+which is a design question, not a patch.
 
 ### Also open — circuit-level noise and tomography
 

@@ -521,65 +521,49 @@ pub extern "C" fn wasm_decode(
         let code = surface_code::XZZXSurfaceCode::new(d);
         let num_stabs = code.stabilizers.len();
 
-        let graph_z = code.build_syndrome_graph(num_rounds, true);
-        let mut defects_z = vec![false; graph_z.num_nodes];
+        // One matching over both error families. Decoding the same defect set
+        // independently on the X graph and the Z graph — which is what
+        // `defects_x = defects_z.clone()` amounted to — explains every defect
+        // twice and applies both corrections, so a single X error came back
+        // with the correct X correction plus invented Z ones.
+        let (graph, edge_is_x) = code.build_combined_graph(num_rounds);
+
+        let mut defects = vec![false; graph.num_nodes];
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs {
                 let outcome = session.syndrome[s_idx + t * num_stabs] == 1;
                 let prev_outcome = if t == 0 { false } else { session.syndrome[s_idx + (t - 1) * num_stabs] == 1 };
-                defects_z[s_idx + t * num_stabs] = outcome ^ prev_outcome;
+                defects[s_idx + t * num_stabs] = outcome ^ prev_outcome;
             }
         }
-        let mut erased_edges_z = vec![false; graph_z.edges.len()];
-        for edge_idx in 0..graph_z.edges.len() {
-            if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                let u = graph_z.edges[edge_idx].u;
+
+        let mut erased_edges = vec![false; graph.edges.len()];
+        for edge_idx in 0..graph.edges.len() {
+            if let Some(q_idx) = graph.edge_to_qubit[edge_idx] {
+                let u = graph.edges[edge_idx].u;
                 let t_layer = u / num_stabs;
                 let idx = q_idx + t_layer * num_data;
                 if idx < session.physical_erased.len() && session.physical_erased[idx] {
-                    erased_edges_z[edge_idx] = true;
-                }
-            }
-        }
-        let correction_z_edges = match decoder_type {
-            1 => decoder::decode_greedy(&graph_z, &defects_z, &erased_edges_z),
-            2 => decoder::decode_mwpm(&graph_z, &defects_z, &erased_edges_z),
-            _ => decoder::decode_union_find(&graph_z, &defects_z, &erased_edges_z),
-        };
-        for edge_idx in correction_z_edges {
-            if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                let u = graph_z.edges[edge_idx].u;
-                let t_layer = u / num_stabs;
-                if t_layer < num_rounds {
-                    session.correction_x[q_idx + t_layer * num_data] ^= 1;
+                    erased_edges[edge_idx] = true;
                 }
             }
         }
 
-        let graph_x = code.build_syndrome_graph(num_rounds, false);
-        let defects_x = defects_z.clone();
-        let mut erased_edges_x = vec![false; graph_x.edges.len()];
-        for edge_idx in 0..graph_x.edges.len() {
-            if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                let u = graph_x.edges[edge_idx].u;
-                let t_layer = u / num_stabs;
-                let idx = q_idx + t_layer * num_data;
-                if idx < session.physical_erased.len() && session.physical_erased[idx] {
-                    erased_edges_x[edge_idx] = true;
-                }
-            }
-        }
-        let correction_x_edges = match decoder_type {
-            1 => decoder::decode_greedy(&graph_x, &defects_x, &erased_edges_x),
-            2 => decoder::decode_mwpm(&graph_x, &defects_x, &erased_edges_x),
-            _ => decoder::decode_union_find(&graph_x, &defects_x, &erased_edges_x),
+        let correction_edges = match decoder_type {
+            1 => decoder::decode_greedy(&graph, &defects, &erased_edges),
+            2 => decoder::decode_mwpm(&graph, &defects, &erased_edges),
+            _ => decoder::decode_union_find(&graph, &defects, &erased_edges),
         };
-        for edge_idx in correction_x_edges {
-            if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                let u = graph_x.edges[edge_idx].u;
+        for edge_idx in correction_edges {
+            if let Some(q_idx) = graph.edge_to_qubit[edge_idx] {
+                let u = graph.edges[edge_idx].u;
                 let t_layer = u / num_stabs;
                 if t_layer < num_rounds {
-                    session.correction_z[q_idx + t_layer * num_data] ^= 1;
+                    if edge_is_x[edge_idx] {
+                        session.correction_x[q_idx + t_layer * num_data] ^= 1;
+                    } else {
+                        session.correction_z[q_idx + t_layer * num_data] ^= 1;
+                    }
                 }
             }
         }

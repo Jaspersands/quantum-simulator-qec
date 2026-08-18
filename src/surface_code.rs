@@ -948,6 +948,85 @@ impl XZZXSurfaceCode {
         }
     }
 
+    /// One graph carrying both error families, with a tag per edge.
+    ///
+    /// XZZX has a single syndrome but two edge families over the same nodes:
+    /// an X error flips the stabilizers on one diagonal, a Z error those on the
+    /// other. Decoding the whole defect set independently on each family — as
+    /// this file used to, via `defects_x = defects_z.clone()` — explains every
+    /// defect twice, once with X operators and once with Z, and applies both
+    /// corrections. A single X error came back with the right X correction plus
+    /// two invented Z ones, and the count of those grows with the lattice, so
+    /// the code got *worse* with distance far below threshold.
+    ///
+    /// Matching once over the union is the fix: every defect is explained
+    /// exactly once, and the tag says whether the chosen edge means "apply X
+    /// here" or "apply Z here".
+    ///
+    /// Returns the graph and, per edge, `true` if correcting it means applying
+    /// X. The flag is meaningless for the timelike edges, which carry no qubit.
+    pub fn build_combined_graph(&self, num_rounds: usize) -> (SyndromeGraph, Vec<bool>) {
+        let num_stabs = self.stabilizers.len();
+        let num_nodes = num_stabs * num_rounds;
+
+        let mut edges = Vec::new();
+        let mut edge_to_qubit = Vec::new();
+        let mut edge_is_x = Vec::new();
+        let mut edge_id = 0;
+
+        for t in 0..num_rounds {
+            for is_for_x_errors in [true, false] {
+                for q_idx in 0..self.data_qubits.len() {
+                    let (qx, qy) = self.data_qubits[q_idx];
+                    let mut connected_stabs = Vec::new();
+                    for (s_idx, stab) in self.stabilizers.iter().enumerate() {
+                        let (sx, sy) = *stab;
+                        let is_connected = if is_for_x_errors {
+                            (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 - 1) ||
+                            (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 + 1)
+                        } else {
+                            (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 - 1) ||
+                            (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 + 1)
+                        };
+                        if is_connected {
+                            connected_stabs.push(s_idx);
+                        }
+                    }
+
+                    if connected_stabs.len() == 2 {
+                        let u = connected_stabs[0] + t * num_stabs;
+                        let v = connected_stabs[1] + t * num_stabs;
+                        edges.push(Edge { u, v, id: edge_id });
+                        edge_to_qubit.push(Some(q_idx));
+                        edge_is_x.push(is_for_x_errors);
+                        edge_id += 1;
+                    } else if connected_stabs.len() == 1 {
+                        let u = connected_stabs[0] + t * num_stabs;
+                        let v = num_nodes;
+                        edges.push(Edge { u, v, id: edge_id });
+                        edge_to_qubit.push(Some(q_idx));
+                        edge_is_x.push(is_for_x_errors);
+                        edge_id += 1;
+                    }
+                }
+            }
+        }
+
+        // Timelike edges, once — they belong to neither family.
+        for t in 0..num_rounds.saturating_sub(1) {
+            for s_idx in 0..num_stabs {
+                let u = s_idx + t * num_stabs;
+                let v = s_idx + (t + 1) * num_stabs;
+                edges.push(Edge { u, v, id: edge_id });
+                edge_to_qubit.push(None);
+                edge_is_x.push(false);
+                edge_id += 1;
+            }
+        }
+
+        (SyndromeGraph { num_nodes, edges, edge_to_qubit }, edge_is_x)
+    }
+
     pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> bool {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
@@ -1082,11 +1161,10 @@ impl XZZXSurfaceCode {
         let mut physical_x = vec![false; num_data];
         let mut physical_z = vec![false; num_data];
 
-        let graph_z = self.build_syndrome_graph(1, true);
-        let mut erased_edges_z = vec![false; graph_z.edges.len()];
-
-        let graph_x = self.build_syndrome_graph(1, false);
-        let mut erased_edges_x = vec![false; graph_x.edges.len()];
+        // Erasure is a property of a qubit; the graph edges are derived from it
+        // below. The old code indexed an edge array by qubit index, which only
+        // lined up by accident for one of the two families.
+        let mut erased_qubits = vec![false; num_data];
 
         let round_p = get_drift_p(p, 0, correlated_noise);
         let p_erase = round_p * erasure_rate;
@@ -1095,8 +1173,7 @@ impl XZZXSurfaceCode {
         for q in 0..num_data {
             let (err_x, err_z, erased) = sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
             if erased {
-                erased_edges_z[q] = true;
-                erased_edges_x[q] = true;
+                erased_qubits[q] = true;
             }
             if err_x { physical_x[q] = true; }
             if err_z { physical_z[q] = true; }
@@ -1124,19 +1201,27 @@ impl XZZXSurfaceCode {
             measured[s_idx] = parity;
         }
 
-        let correction_z_edges = decode_by_type(&graph_z, &measured, decoder_type, &erased_edges_z);
-        let mut correction_x_data = vec![false; num_data];
-        for edge_idx in correction_z_edges {
-            if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                correction_x_data[q_idx] ^= true;
+        // One matching over both error families. See build_combined_graph.
+        let (graph, edge_is_x) = self.build_combined_graph(1);
+        let mut erased_edges = vec![false; graph.edges.len()];
+        for edge_idx in 0..graph.edges.len() {
+            if let Some(q_idx) = graph.edge_to_qubit[edge_idx] {
+                if erased_qubits[q_idx] {
+                    erased_edges[edge_idx] = true;
+                }
             }
         }
 
-        let correction_x_edges = decode_by_type(&graph_x, &measured, decoder_type, &erased_edges_x);
+        let correction_edges = decode_by_type(&graph, &measured, decoder_type, &erased_edges);
+        let mut correction_x_data = vec![false; num_data];
         let mut correction_z_data = vec![false; num_data];
-        for edge_idx in correction_x_edges {
-            if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                correction_z_data[q_idx] ^= true;
+        for edge_idx in correction_edges {
+            if let Some(q_idx) = graph.edge_to_qubit[edge_idx] {
+                if edge_is_x[edge_idx] {
+                    correction_x_data[q_idx] ^= true;
+                } else {
+                    correction_z_data[q_idx] ^= true;
+                }
             }
         }
 

@@ -22,8 +22,9 @@ running locally. Every number on the page is computed in the reader's browser on
 
 ## Engine defects found and fixed
 
-Three bugs surfaced while making the site report live data. All three are fixed in `src/` and in
-the committed `stabilizer_qec.wasm`.
+Four bugs surfaced while making the site report live data. Two are fixed outright, one is much
+improved but not finished, and two more are diagnosed but untouched. Everything below is reflected
+in `src/` and in the committed `stabilizer_qec.wasm`.
 
 ### 1. The WASM build's Monte Carlo was not random
 
@@ -61,30 +62,43 @@ After both fixes the engine reproduces the literature: threshold near 10% for pu
 near 2.6% phenomenological, and it agrees with an independent JavaScript Monte Carlo written
 against the per-shot session API to within sampling noise at every point tested.
 
-## Known engine defects (still open)
+## Partly fixed
 
-### The XZZX decoder reuses the wrong defect set
+### The XZZX decoder matched the same defects twice
 
-In the XZZX branch of `wasm_decode` (`src/lib.rs`), the second decoding pass does not derive its
-own defects:
+The XZZX branch used to derive its defects once and then decode them twice, on two graphs with
+different edge-to-qubit mappings — the second pass reused the first's defects verbatim:
 
 ```rust
 let graph_x = code.build_syndrome_graph(num_rounds, false);
-let defects_x = defects_z.clone();     // <-- the Z pass's defects, on the X graph
+let defects_x = defects_z.clone();     // the Z pass's defects, on the X graph
 ```
 
-XZZX has one syndrome and two edge families over the same nodes — one for the qubit diagonal an X
-error flips, one for the Z diagonal. Decoding the full defect set independently on both explains
-every defect twice, once with X's and once with Z's. Injecting a single X error on a d=3 patch
-returns the correct one-qubit X correction plus **two spurious Z corrections**, each a fresh error.
-Their count scales with the graph, so the code degrades as it grows: at p=2% unbiased over 4,000
-shots, the rotated code improves from 0.9% at d=3 to 0.05% at d=7 while XZZX degrades from 5.4% to
-21.0%, with a flat bias response from η=0.5 to η=64.
+XZZX has one syndrome and two edge families over the same nodes: an X error flips the stabilizers
+on one diagonal, a Z error those on the other. Decoding the whole defect set independently on each
+family explains every defect twice — once with X operators, once with Z — and applies both
+corrections. A single X error on a d=3 patch returned the correct one-qubit X correction plus two
+invented Z ones, and their count grew with the lattice, so the code degraded as it grew: at p=2%
+unbiased it went 5.4% at d=3 to 21.0% at d=7.
 
-**Fix**: build one graph carrying both edge families with a per-edge type tag, decode the defect
-set once, and route each matched edge's correction to X or Z by its tag. This is a decoder change
-rather than a one-line correction, and it needs validating against the obvious test — logical error
-must fall with distance below threshold — before it can be trusted.
+`build_combined_graph` now emits both edge families into one graph with a per-edge type tag, plus a
+single set of timelike edges. The defect set is matched once and each chosen edge's correction is
+routed to X or Z by its tag. After the change, **a single error of either type is corrected exactly,
+with no spurious operators, at d = 3, 5 and 7**, and the runaway is gone — XZZX sits near 2.6% at
+p=2% for every distance instead of climbing to 21%.
+
+The rotated code derives its two defect sets independently and is untouched; measured before and
+after, its rates are identical within sampling noise.
+
+**Still wrong**: the curve is flat in distance where it should fall. At the boundary a lone defect
+is explainable by either family at equal weight, and when the matcher picks wrong it leaves a
+weight-one residual that the logical-operator check counts as a failure — at any distance.
+Reproduce with a single Z error on qubit 0: one defect fires, the decoder answers with one *X*
+correction, and the residual Y trips both logical checks. Fixing it properly means settling the
+lattice's boundary conventions and the logical-operator representatives, which is a code-design
+question rather than a bug with an obvious patch.
+
+## Known engine defects (still open)
 
 ### Circuit-level noise
 
