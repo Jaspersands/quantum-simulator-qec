@@ -182,7 +182,15 @@ export function fitThreshold(points) {
       + 'carries no signal to fit. Widen the range of p, or raise the shot count.');
   }
 
-  const P_LO = 0.004, P_HI = 0.20, P_STEP = 0.002;
+  // Derive the search window from the sweep itself. A fixed window cannot serve
+  // all three noise models — their thresholds span two orders of magnitude,
+  // from ~11% for data noise down to a few tenths of a percent for
+  // circuit-level — and a threshold outside the window gets pinned to its edge
+  // and refused by the boundary guard below.
+  const sweptPs = usable.map((pt) => pt.p);
+  const P_LO = Math.max(1e-5, Math.min(...sweptPs) * 0.4);
+  const P_HI = Math.max(...sweptPs) * 1.6;
+  const P_STEP = (P_HI - P_LO) / 240;
 
   /** Coarse grid then a refinement around the winner, over a given point set. */
   const fitOver = (data) => {
@@ -199,8 +207,9 @@ export function fitThreshold(points) {
     // sitting on the boundary of the search rather than a fitted one.
     search(P_LO, P_HI, P_STEP, 0.5, 5.0, 0.1);
     if (best) {
+      const fine = P_STEP * 2;
       search(
-        Math.max(0.001, best.pTh - 0.004), best.pTh + 0.004, 0.0004,
+        Math.max(P_LO * 0.5, best.pTh - fine), best.pTh + fine, fine / 10,
         Math.max(0.3, best.nu - 0.2), best.nu + 0.2, 0.02,
       );
     }

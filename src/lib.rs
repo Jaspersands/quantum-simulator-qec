@@ -2,6 +2,7 @@ pub mod tableau;
 pub mod simulator;
 pub mod decoder;
 pub mod surface_code;
+pub mod circuit_model;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -634,26 +635,34 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
     // 2 = Z, 3 = Y, matching the bitmask the simulators return.
     let mut classes = [0usize; 4];
 
-    macro_rules! run_shots {
-        ($code:expr) => {
-            for _ in 0..runs {
-                let outcome = match noise_mode {
-                    0 => $code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
-                    1 => $code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                    2 => $code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
-                    _ => 0,
-                };
-                classes[(outcome & 3) as usize] += 1;
-            }
-        };
-    }
-
     if code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
-        run_shots!(code);
+        // The detector error model depends only on the code and the round
+        // count, so it is built once here rather than per shot.
+        let model = (noise_mode == 2)
+            .then(|| circuit_model::build(&code.circuit_layout(), num_rounds));
+        for _ in 0..runs {
+            let outcome = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
+                2 => code.simulate_circuit_noise_with_model(
+                    model.as_ref().unwrap(), num_rounds, p, bias, "zero",
+                    decoder_type, erasure_rate, correlated_noise),
+                _ => 0,
+            };
+            classes[(outcome & 3) as usize] += 1;
+        }
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
-        run_shots!(code);
+        for _ in 0..runs {
+            let outcome = match noise_mode {
+                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
+                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
+                _ => 0,
+            };
+            classes[(outcome & 3) as usize] += 1;
+        }
     }
 
     let total = runs.max(1) as f64;
@@ -667,6 +676,59 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
         FIDELITY_RESULTS[1] = p_i - p_x + p_y - p_z;
         FIDELITY_RESULTS[2] = p_i - p_x - p_y + p_z;
         std::ptr::addr_of!(FIDELITY_RESULTS) as *const f64
+    }
+}
+
+#[cfg(not(feature = "python"))]
+static mut FAULT_TEST: [f64; 2] = [0.0; 2];
+
+/// Exhaustive single-fault check for the circuit model. Returns [tested, failed].
+#[cfg(not(feature = "python"))]
+#[no_mangle]
+pub extern "C" fn wasm_circuit_single_fault_test(
+    d: usize,
+    num_rounds: usize,
+    decoder_type: usize,
+) -> *const f64 {
+    let code = surface_code::RotatedSurfaceCode::new(d);
+    let layout = code.circuit_layout();
+    let model = circuit_model::build(&layout, num_rounds);
+
+    // Logical Z runs down a column, logical X across a row; a residual X is a
+    // logical X when its parity against the column is odd, and vice versa.
+    let mut col = 0u128;
+    let mut row = 0u128;
+    for i in 0..d {
+        col |= 1u128 << (i * d);
+        row |= 1u128 << i;
+    }
+
+    let (tested, failed) =
+        circuit_model::single_fault_failures(&layout, &model, num_rounds, decoder_type, row, col);
+    unsafe {
+        FAULT_TEST[0] = tested as f64;
+        FAULT_TEST[1] = failed as f64;
+        std::ptr::addr_of!(FAULT_TEST) as *const f64
+    }
+}
+
+#[cfg(not(feature = "python"))]
+static mut MODEL_STATS: [f64; 12] = [0.0; 12];
+
+/// Diagnostics for the circuit detector error model.
+#[cfg(not(feature = "python"))]
+#[no_mangle]
+pub extern "C" fn wasm_circuit_model_stats(d: usize, num_rounds: usize) -> *const f64 {
+    let code = surface_code::RotatedSurfaceCode::new(d);
+    let st = circuit_model::stats(&code.circuit_layout(), num_rounds);
+    unsafe {
+        for i in 0..5 {
+            MODEL_STATS[i] = st.x_buckets[i] as f64;
+            MODEL_STATS[5 + i] = st.z_buckets[i] as f64;
+        }
+        MODEL_STATS[10] = st.x_edges as f64;
+        MODEL_STATS[11] = st.z_edges as f64;
+        std::ptr::addr_of!(MODEL_STATS) as *const f64
     }
 }
 
@@ -687,11 +749,16 @@ pub extern "C" fn wasm_run_benchmark(
 
     if code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
+        // Built once: the model is a property of the circuit, not of a shot.
+        let model = (noise_mode == 2)
+            .then(|| circuit_model::build(&code.circuit_layout(), num_rounds));
         for _ in 0..num_runs {
             let failed = match noise_mode {
                 0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
                 1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
+                2 => code.simulate_circuit_noise_with_model(
+                    model.as_ref().unwrap(), num_rounds, p, bias, "zero",
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             if failed != 0 {

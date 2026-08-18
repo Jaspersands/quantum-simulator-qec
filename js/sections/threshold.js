@@ -43,7 +43,14 @@ const TABLE_RUNS = 2000;
 const SWEEP_PS = {
   [NOISE.DATA]: [0.02, 0.04, 0.06, 0.08, 0.09, 0.10, 0.11, 0.12, 0.14],
   [NOISE.PHENOM]: [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.045, 0.06],
+  // Circuit-level threshold sits an order of magnitude lower again: every gate
+  // in the extraction circuit is a fault location, so a given per-gate rate
+  // does far more damage than the same number applied once per round.
+  [NOISE.CIRCUIT]: [0.0005, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.004, 0.005, 0.006],
 };
+
+/** Circuit-level runs a full tableau simulation per shot, so it needs fewer. */
+const SWEEP_RUNS_SCALE = { [NOISE.CIRCUIT]: 0.25 };
 
 /* -- The results table -------------------------------------------------- */
 
@@ -272,7 +279,8 @@ export function initThresholdSweep(root, compute) {
     status.textContent = 'Queued…';
 
     const noiseMode = Number(noiseSelect.value);
-    const runs = Math.max(100, Number(runsInput.value) || 500);
+    const scale = SWEEP_RUNS_SCALE[noiseMode] ?? 1;
+    const runs = Math.max(100, Math.round((Number(runsInput.value) || 500) * scale));
     const ps = currentPs();
     const base = {
       codeType: Number(codeSelect.value),

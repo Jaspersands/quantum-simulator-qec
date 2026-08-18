@@ -586,6 +586,7 @@
             <select id="threshold-noise" data-threshold-noise>
               <option value="0">Data noise only</option>
               <option value="1" selected>Phenomenological (T = d)</option>
+              <option value="2">Circuit-level (T = d)</option>
             </select>
           </div>
           <div class="field">
@@ -821,15 +822,13 @@
 
   <div class="aside">
     <span class="aside__label">On circuit-level noise</span>
-    Circuit-level is the only mode here that is not yet a fair test of the code. Two real bugs in it
-    are fixed — every shot used to replay identical measurement outcomes, and the X and Z ancillas
-    walked their plaquettes in the same order, so the two extraction circuits did not commute and a
-    <em>noiseless</em> circuit reported 100% logical error at <span class="sym">d = 5</span>. Both
-    are gone: a noiseless circuit now never fails, at any distance, and the curve rises with p as it
-    should. What is left is that the decoder has no model of the circuit — it matches on the
-    phenomenological graph, which knows nothing about the correlated two-qubit errors a failing CNOT
-    produces. So larger patches are penalised rather than helped, and no threshold appears. Section
-    10 sizes the gap and says what closing it takes.
+    Circuit-level is the strictest of the three models and was the last to work. Faults land on
+    individual gates, so a fault on an ancilla midway through its CNOTs propagates onto several data
+    qubits at once — and the decoder needs a map of the circuit to make sense of that, not the
+    phenomenological graph the other two use. It now decodes against a detector error model derived
+    from the circuit itself. The check that it works is exhaustive rather than statistical: every
+    single fault the circuit admits is corrected, at every distance, with both decoders. Section 10
+    has the detail.
   </div>
 </section>
 
@@ -908,27 +907,45 @@
     </div>
     <div>
       <dt>Circuit-level noise</dt>
-      <dd><strong>Two bugs fixed, one gap left.</strong> Every circuit-level shot used to replay the
-      same measurement outcomes, because the stabilizer tableau seeded its generator from a literal
-      in its constructor — the entire run was deterministic, and a noiseless circuit reported either
-      0% or 100% logical error depending only on the distance. Separately, X and Z ancillas walked
-      their plaquettes in the same order and boundary plaquettes compressed their two gates into the
-      first two time slots, so the two extraction circuits did not commute where plaquettes overlap
-      and each measurement disturbed the other. Ancillas now interleave in opposite orders — the
-      classic N and Z schedules — scheduled by direction rather than by index into a variable-length
-      list. A noiseless circuit now fails <em>never</em>, at <span class="mono">d = 3, 5, 7</span>,
-      and the curve rises monotonically with p. What is still missing is the decoder's model of the
-      circuit. It matches on the phenomenological spacetime graph, which has no edges for the
-      correlated two-qubit errors a CNOT failing mid-extraction produces, so it pairs those defects
-      wrongly. The cost is stark: at <span class="mono">p = 10⁻⁴</span> circuit-level gives 0.14%,
-      0.28%, 0.43% for <span class="mono">d = 3, 5, 7</span> — rising with distance — while
-      phenomenological noise at the comparable per-qubit rate of
-      <span class="mono">8×10⁻⁴</span> gives 0.005%, 0%, 0%. Closing it needs a detector error model:
-      enumerate the circuit's fault locations, record which detectors each fires and what data error
-      it leaves, decompose the faults that fire more than two detectors into graph-like pieces, and
-      decode on that. It also needs the decoder's per-edge correction widened from one qubit to
-      several. That is a build rather than a bug fix, and it is the one thing on this page still
-      waiting.</dd>
+      <dd>Faults are attributed to individual gates of the extraction circuit, which makes them
+      qualitatively harder than the other two models: a fault on an ancilla partway through its four
+      CNOTs propagates onto every data qubit it has yet to touch, so one fault becomes a correlated
+      multi-qubit data error — a <em>hook error</em>. The phenomenological graph has no edge for
+      that, so the matcher used to explain it with two unrelated edges and could walk the correction
+      into a logical operator. About one single fault in thirty did exactly that, and the code got
+      worse with distance rather than better. This is now decoded against a detector error model
+      derived from the circuit instead: every elementary fault is propagated as a Pauli frame, and
+      the detectors it fires together with the data error it leaves behind become one edge. Edges may
+      correct several qubits at once, which is precisely what the old graph could not express.</dd>
+    </div>
+    <div>
+      <dt>Building the model</dt>
+      <dd>Two things make it tractable. The circuit is defined once, as
+      <span class="mono">round_program</span>, and both the stabilizer simulation and the fault
+      propagation consume that same list — a model describing a subtly different circuit from the one
+      being run is worse than no model, and two hand-written copies would not stay in step. And the
+      decomposition that usually makes this hard is free here: a fault firing three or more detectors
+      normally has to be split into graph-like pieces, but the decoder already matches twice, once
+      per Pauli type, so a fault splits into its X part and its Z part and each is graph-like on its
+      own. Measured over the whole enumeration, no fault fires more than two detectors in either
+      graph.</dd>
+    </div>
+    <div>
+      <dt>Checking it</dt>
+      <dd>A distance-d code must survive <em>any</em> single fault, which makes for a test that is
+      exhaustive and deterministic rather than statistical. Every fault the circuit admits is
+      propagated, decoded against the model, corrected, and checked:
+      <strong>0 failures out of 600, 3,240 and 9,408 faults</strong> at
+      <span class="mono">d = 3, 5, 7</span>, for Union-Find and exact MWPM alike. That test earned
+      its keep twice. It showed the two CNOT schedules had to be transposes of each other <em>the
+      other way round</em> from the pairing first tried — which passes at d = 5 and d = 7 and fails
+      44 times out of 600 at d = 3, so sampling would likely have missed it. And it caught
+      state-preparation noise being applied before the baseline round, where an error sits in both
+      readings a detector compares, never fires it, and lands in the residual uncorrectable at any
+      distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
+      p² as theory demands, and a threshold appears where it should: the sweep in section 7 fits
+      <span class="mono">p_th ≈ 0.45%</span> with <span class="mono">ν ≈ 1.5</span> and a reduced
+      χ² near 1 — the closest to the textbook exponent of the three noise models.</dd>
     </div>
     <div>
       <dt>Detection events</dt>

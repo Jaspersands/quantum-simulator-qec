@@ -333,6 +333,97 @@ impl RotatedSurfaceCode {
     /// index into a variable-length neighbour list: a boundary plaquette has
     /// two neighbours, and compressing them into the first two time slots puts
     /// them in the wrong slots relative to the bulk.
+    /// The syndrome-extraction round, as a list of instructions.
+    ///
+    /// This is the single definition of the circuit. `simulate_circuit_noise`
+    /// executes it against the stabilizer tableau, and `circuit_model` walks the
+    /// same list propagating faults to build the decoding graph. Keeping two
+    /// hand-written copies of a circuit in step is exactly the kind of thing
+    /// that quietly rots, and a detector error model describing a slightly
+    /// different circuit from the one being run is worse than none.
+    ///
+    /// X and Z ancillas walk their plaquettes in opposite orders — the classic
+    /// N and Z schedules — and are scheduled by direction, so a boundary
+    /// plaquette's two gates land in the time slots its geometry calls for
+    /// rather than being compressed into the first two.
+    pub fn round_program(&self) -> Vec<crate::circuit_model::Op> {
+        use crate::circuit_model::{Op, StabKind};
+
+        // X ancillas walk their plaquette column-major, Z ancillas row-major —
+        // the two orders are transposes, which is what makes the extraction
+        // circuits commute where plaquettes overlap. The pairing is not
+        // arbitrary and not guessable: with the two orders swapped, every single
+        // fault is still corrected at d = 5 and d = 7 but 44 of 600 fail at
+        // d = 3. The exhaustive single-fault check settled which way round it
+        // goes.
+        const X_ORDER: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+        const Z_ORDER: [(i32, i32); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
+
+        let num_data = self.data_qubits.len();
+        let num_x = self.x_stabilizers.len();
+        let x_anc = |j: usize| num_data + j;
+        let z_anc = |k: usize| num_data + num_x + k;
+
+        let mut ops = Vec::new();
+
+        // Prepare ancillas: X-type in |+>, Z-type in |0>.
+        for j in 0..num_x {
+            ops.push(Op::Reset(x_anc(j)));
+            ops.push(Op::Noise(x_anc(j)));
+            ops.push(Op::H(x_anc(j)));
+            ops.push(Op::Noise(x_anc(j)));
+        }
+        for k in 0..self.z_stabilizers.len() {
+            ops.push(Op::Reset(z_anc(k)));
+            ops.push(Op::Noise(z_anc(k)));
+        }
+
+        // Four interleaved CNOT layers.
+        for step in 0..4 {
+            for j in 0..num_x {
+                let (dx, dy) = X_ORDER[step];
+                if let Some(data) = self.neighbor_at(&self.x_stabilizers[j], dx, dy) {
+                    ops.push(Op::Cnot(x_anc(j), data));
+                    ops.push(Op::Noise(x_anc(j)));
+                    ops.push(Op::Noise(data));
+                }
+            }
+            for k in 0..self.z_stabilizers.len() {
+                let (dx, dy) = Z_ORDER[step];
+                if let Some(data) = self.neighbor_at(&self.z_stabilizers[k], dx, dy) {
+                    ops.push(Op::Cnot(data, z_anc(k)));
+                    ops.push(Op::Noise(data));
+                    ops.push(Op::Noise(z_anc(k)));
+                }
+            }
+        }
+
+        // Rotate the X ancillas back and read everything out.
+        for j in 0..num_x {
+            ops.push(Op::H(x_anc(j)));
+            ops.push(Op::Noise(x_anc(j)));
+        }
+        for j in 0..num_x {
+            ops.push(Op::Measure(x_anc(j), StabKind::X, j));
+        }
+        for k in 0..self.z_stabilizers.len() {
+            ops.push(Op::Measure(z_anc(k), StabKind::Z, k));
+        }
+
+        ops
+    }
+
+    /// The circuit plus the sizes the model builder needs.
+    pub fn circuit_layout(&self) -> crate::circuit_model::CircuitLayout {
+        crate::circuit_model::CircuitLayout {
+            program: self.round_program(),
+            num_qubits: self.data_qubits.len() + self.x_stabilizers.len() + self.z_stabilizers.len(),
+            num_data: self.data_qubits.len(),
+            num_x_stabs: self.x_stabilizers.len(),
+            num_z_stabs: self.z_stabilizers.len(),
+        }
+    }
+
     pub fn neighbor_at(&self, stab: &(usize, usize), dx: i32, dy: i32) -> Option<usize> {
         let (sx, sy) = *stab;
         let qx = sx as i32 + dx;
@@ -690,245 +781,152 @@ impl RotatedSurfaceCode {
         (logical_x as u8) | ((logical_z as u8) << 1)
     }
 
+    /// One shot of circuit-level noise, decoded against the detector error model.
+    ///
+    /// Executes the same `round_program` the model was built from — see
+    /// `circuit_model` for why that matters — sampling a Pauli at every `Noise`
+    /// location and flipping each readout with probability p.
+    ///
     /// Returns the logical Pauli class left behind: bit 0 set if a logical X
     /// survived, bit 1 if a logical Z. 0 means the shot succeeded.
-    ///
-    /// A bare "did it fail" bool is not enough to characterise the logical
-    /// channel: under Pauli noise and a Pauli decoder the channel is itself a
-    /// Pauli channel, and reconstructing it needs the probability of each of
-    /// I, X, Y and Z separately.
-    pub fn simulate_circuit_noise(&self, num_rounds: usize, p: f64, bias: f64, init_state: &str, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
+    pub fn simulate_circuit_noise_with_model(
+        &self,
+        model: &crate::circuit_model::CircuitModel,
+        num_rounds: usize,
+        p: f64,
+        bias: f64,
+        init_state: &str,
+        decoder_type: usize,
+        // Erasure is not yet part of the circuit detector model; a located loss
+        // would need its own fault family and per-shot edge reweighting.
+        _erasure_rate: f64,
+        correlated_noise: usize,
+    ) -> u8 {
+        use crate::circuit_model::{Op, StabKind};
+
         let num_data = self.data_qubits.len();
-        let num_stabs_x = self.x_stabilizers.len();
-        let num_stabs_z = self.z_stabilizers.len();
-        let num_stabs = num_stabs_x + num_stabs_z;
-        let total_qubits = num_data + num_stabs;
-        
+        let num_x = self.x_stabilizers.len();
+        let num_z = self.z_stabilizers.len();
+        let total_qubits = num_data + num_x + num_z;
+
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
         let mut rng = next_shot_rng();
 
         // Seed the tableau's measurement randomness from this shot's generator.
-        // Left at its default every shot replays identical measurement outcomes
-        // and the whole circuit-level run is deterministic.
         let mut sim = crate::simulator::StabilizerSimulator::with_seed(total_qubits, rng.next_u64());
 
-        let graph_z = self.build_syndrome_graph(num_rounds, true);
-        let mut erased_edges_z = vec![false; graph_z.edges.len()];
+        let program = self.round_program();
+        let rounds_total = crate::circuit_model::rounds_executed(num_rounds);
+        let layers = crate::circuit_model::detector_layers(num_rounds);
 
-        let graph_x = self.build_syndrome_graph(num_rounds, false);
-        let mut erased_edges_x = vec![false; graph_x.edges.len()];
-  
-        let get_x_stab_qubit = |j: usize| num_data + j;
-        let get_z_stab_qubit = |k: usize| num_data + num_stabs_x + k;
-
-        let p_erase_init = p * erasure_rate;
-        let p_pauli_init = p * (1.0 - erasure_rate);
-  
+        // Prepare the logical state.
         if init_state == "plus" {
             for i in 0..num_data {
                 sim.apply_h(i);
-                if rng.next_f64() < p_erase_init {
-                    erased_edges_z[i] = true;
-                    erased_edges_x[i] = true;
-                    let choice = rng.next_u64() % 3;
-                    match choice {
-                        0 => sim.apply_x(i),
-                        1 => sim.apply_y(i),
-                        2 => sim.apply_z(i),
-                        _ => unreachable!(),
-                    }
-                } else {
-                    inject_single_qubit_noise(&mut sim, i, p_pauli_init, bias, &mut rng);
-                }
-            }
-        } else {
-            for i in 0..num_data {
-                if rng.next_f64() < p_erase_init {
-                    erased_edges_z[i] = true;
-                    erased_edges_x[i] = true;
-                    let choice = rng.next_u64() % 3;
-                    match choice {
-                        0 => sim.apply_x(i),
-                        1 => sim.apply_y(i),
-                        2 => sim.apply_z(i),
-                        _ => unreachable!(),
-                    }
-                } else {
-                    inject_single_qubit_noise(&mut sim, i, p_pauli_init, bias, &mut rng);
-                }
             }
         }
-  
-        // Helper to run one round of syndrome extraction
-        let run_round = |sim_obj: &mut crate::simulator::StabilizerSimulator, round_p: f64, rng_obj: &mut Xorshift| -> (Vec<bool>, Vec<bool>) {
-            let mut round_x = vec![false; num_stabs_x];
-            let mut round_z = vec![false; num_stabs_z];
-  
-            for j in 0..num_stabs_x {
-                let q = get_x_stab_qubit(j);
-                let m = sim_obj.measure_z(q);
-                if m == 1 {
-                    sim_obj.apply_x(q);
-                }
-                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
-                sim_obj.apply_h(q);
-                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
-            }
-            for k in 0..num_stabs_z {
-                let q = get_z_stab_qubit(k);
-                let m = sim_obj.measure_z(q);
-                if m == 1 {
-                    sim_obj.apply_x(q);
-                }
-                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
-            }
-  
-            // X and Z ancillas must walk their plaquettes in opposite orders —
-            // the classic "N" and "Z" schedules. Using one order for both, as
-            // this did, leaves the two extraction circuits non-commuting where
-            // plaquettes overlap, so each measurement disturbs the other and
-            // the round reports defects even with no noise at all.
-            const X_ORDER: [(i32, i32); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
-            const Z_ORDER: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
 
-            for step in 0..4 {
-                for j in 0..num_stabs_x {
-                    let (dx, dy) = X_ORDER[step];
-                    if let Some(data_idx) = self.neighbor_at(&self.x_stabilizers[j], dx, dy) {
-                        let anc_idx = get_x_stab_qubit(j);
-                        sim_obj.apply_cnot(anc_idx, data_idx);
-                        inject_two_qubit_noise(sim_obj, anc_idx, data_idx, round_p, bias, rng_obj);
+        // State-preparation noise used to be applied here, before the baseline
+        // round. That made it invisible: an error present during both the
+        // baseline and the first noisy round leaves their readings identical,
+        // so the detector comparing them never fires and the error goes
+        // straight into the residual, uncorrectable at any distance. It showed
+        // up as a stubborn p^1 term in a curve that should have scaled as
+        // p^ceil(d/2). Preparation noise belongs after the projection, and the
+        // first noisy round's gate noise already covers every data qubit, so it
+        // is simply folded in there.
+
+        let mut flips_x = vec![false; num_x * rounds_total];
+        let mut flips_z = vec![false; num_z * rounds_total];
+
+        for r in 0..rounds_total {
+            // The first round projects into the code space and the last is the
+            // perfect final readout every real memory experiment ends with;
+            // both are noiseless, and everything between carries noise.
+            let round_p = if r == 0 || r == rounds_total - 1 {
+                0.0
+            } else {
+                get_drift_p(p, r - 1, correlated_noise)
+            };
+
+            for &op in &program {
+                match op {
+                    Op::Reset(q) => {
+                        if sim.measure_z(q) == 1 {
+                            sim.apply_x(q);
+                        }
+                    }
+                    Op::H(q) => sim.apply_h(q),
+                    Op::Cnot(c, t) => sim.apply_cnot(c, t),
+                    Op::Noise(q) => inject_single_qubit_noise(&mut sim, q, round_p, bias, &mut rng),
+                    Op::Measure(q, kind, idx) => {
+                        let mut m = sim.measure_z(q) == 1;
+                        if round_p > 0.0 && rng.next_f64() < round_p {
+                            m ^= true;
+                        }
+                        match kind {
+                            StabKind::X => flips_x[r * num_x + idx] = m,
+                            StabKind::Z => flips_z[r * num_z + idx] = m,
+                        }
                     }
                 }
-                for k in 0..num_stabs_z {
-                    let (dx, dy) = Z_ORDER[step];
-                    if let Some(data_idx) = self.neighbor_at(&self.z_stabilizers[k], dx, dy) {
-                        let anc_idx = get_z_stab_qubit(k);
-                        sim_obj.apply_cnot(data_idx, anc_idx);
-                        inject_two_qubit_noise(sim_obj, data_idx, anc_idx, round_p, bias, rng_obj);
+            }
+
+            if r > 0 && r < rounds_total - 1 {
+                inject_correlated_noise_circuit(&mut sim, &self.data_qubits, self.d, correlated_noise, &mut rng);
+            }
+        }
+
+        // Detectors compare each reading against the previous round's.
+        let mut detectors_z = vec![false; num_z * layers];
+        for t in 0..layers {
+            for s in 0..num_z {
+                detectors_z[s + t * num_z] =
+                    flips_z[(t + 1) * num_z + s] != flips_z[t * num_z + s];
+            }
+        }
+        let mut detectors_x = vec![false; num_x * layers];
+        for t in 0..layers {
+            for s in 0..num_x {
+                detectors_x[s + t * num_x] =
+                    flips_x[(t + 1) * num_x + s] != flips_x[t * num_x + s];
+            }
+        }
+
+        // Decode on the model. An edge may correct several data qubits at once,
+        // which is the whole reason this model exists.
+        let apply = |sim: &mut crate::simulator::StabilizerSimulator,
+                     dg: &crate::circuit_model::DetectorGraph,
+                     defects: &[bool],
+                     is_x: bool| {
+            let erased_edges = vec![false; dg.graph.edges.len()];
+            let chosen = decode_by_type(&dg.graph, defects, decoder_type, &erased_edges);
+            for edge_idx in chosen {
+                let mask = dg.correction[edge_idx];
+                for q in 0..num_data {
+                    if (mask >> q) & 1 == 1 {
+                        if is_x { sim.apply_x(q); } else { sim.apply_z(q); }
                     }
                 }
             }
-  
-            for j in 0..num_stabs_x {
-                let q = get_x_stab_qubit(j);
-                sim_obj.apply_h(q);
-                inject_single_qubit_noise(sim_obj, q, round_p, bias, rng_obj);
-            }
-  
-            for j in 0..num_stabs_x {
-                let q = get_x_stab_qubit(j);
-                let mut m = sim_obj.measure_z(q) == 1;
-                if round_p > 0.0 && rng_obj.next_f64() < round_p {
-                    m ^= true;
-                }
-                round_x[j] = m;
-            }
-            for k in 0..num_stabs_z {
-                let q = get_z_stab_qubit(k);
-                let mut m = sim_obj.measure_z(q) == 1;
-                if round_p > 0.0 && rng_obj.next_f64() < round_p {
-                    m ^= true;
-                }
-                round_z[k] = m;
-            }
-  
-            (round_x, round_z)
         };
-  
-        // 1. Run a noiseless projection round to get the baseline syndrome
-        let (baseline_x, baseline_z) = run_round(&mut sim, 0.0, &mut rng);
-  
-        // 2. Run the noisy rounds
-        let mut measured_x = vec![vec![false; num_stabs_x]; num_rounds];
-        let mut measured_z = vec![vec![false; num_stabs_z]; num_rounds];
-  
-        for t in 0..num_rounds {
-            let round_p = get_drift_p(p, t, correlated_noise);
-            let p_erase = round_p * erasure_rate;
-            
-            for q in 0..num_data {
-                if rng.next_f64() < p_erase {
-                    erased_edges_z[t * num_data + q] = true;
-                    erased_edges_x[t * num_data + q] = true;
-                    let choice = rng.next_u64() % 3;
-                    match choice {
-                        0 => sim.apply_x(q),
-                        1 => sim.apply_y(q),
-                        2 => sim.apply_z(q),
-                        _ => unreachable!(),
-                    }
-                }
-            }
+        apply(&mut sim, &model.for_x_errors, &detectors_z, true);
+        apply(&mut sim, &model.for_z_errors, &detectors_x, false);
 
-            let (rx, rz) = run_round(&mut sim, round_p, &mut rng);
-            measured_x[t] = rx;
-            measured_z[t] = rz;
-
-            inject_correlated_noise_circuit(&mut sim, &self.data_qubits, self.d, correlated_noise, &mut rng);
-        }
-  
-        // --- DECODING Z-stabilizers (X errors) ---
-        let mut defects_z = vec![false; graph_z.num_nodes];
-        for t in 0..num_rounds {
-            for s_idx in 0..num_stabs_z {
-                let prev_outcome = if t == 0 { baseline_z[s_idx] } else { measured_z[t - 1][s_idx] };
-                let diff = measured_z[t][s_idx] ^ prev_outcome;
-                defects_z[s_idx + t * num_stabs_z] = diff;
-            }
-        }
-        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type, &erased_edges_z);
-  
-        let mut correction_x_data = vec![false; num_data];
-        for edge_idx in correction_z_edges {
-            if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                correction_x_data[q_idx] ^= true;
-            }
-        }
-  
-        // --- DECODING X-stabilizers (Z errors) ---
-        let mut defects_x = vec![false; graph_x.num_nodes];
-        for t in 0..num_rounds {
-            for s_idx in 0..num_stabs_x {
-                let prev_outcome = if t == 0 { baseline_x[s_idx] } else { measured_x[t - 1][s_idx] };
-                let diff = measured_x[t][s_idx] ^ prev_outcome;
-                defects_x[s_idx + t * num_stabs_x] = diff;
-            }
-        }
-        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type, &erased_edges_x);
-  
-        let mut correction_z_data = vec![false; num_data];
-        for edge_idx in correction_x_edges {
-            if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                correction_z_data[q_idx] ^= true;
-            }
-        }
- 
-        for i in 0..num_data {
-            if correction_x_data[i] {
-                sim.apply_x(i);
-            }
-            if correction_z_data[i] {
-                sim.apply_z(i);
-            }
-        }
- 
         if init_state == "plus" {
-            let mut logical_x = 0;
+            let mut logical = 0u8;
             for x_idx in 0..self.d {
-                let q_idx = x_idx + self.d * 0;
-                logical_x ^= sim.measure_x(q_idx);
+                logical ^= sim.measure_x(x_idx);
             }
-            (logical_x == 1) as u8
+            (logical == 1) as u8
         } else {
-            let mut logical_z = 0;
+            let mut logical = 0u8;
             for y_idx in 0..self.d {
-                let q_idx = 0 + self.d * y_idx;
-                logical_z ^= sim.measure_z(q_idx);
+                logical ^= sim.measure_z(self.d * y_idx);
             }
-            (logical_z == 1) as u8
+            (logical == 1) as u8
         }
     }
 }

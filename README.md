@@ -22,9 +22,8 @@ running locally. Every number on the page is computed in the reader's browser on
 
 ## Engine defects found and fixed
 
-Seven bugs surfaced while making the site report live data. Six are fixed; one circuit-level gap
-remains, characterised below. Everything here is reflected in `src/` and in the committed
-`stabilizer_qec.wasm`.
+Seven bugs surfaced while making the site report live data. All seven are fixed. Everything here is
+reflected in `src/` and in the committed `stabilizer_qec.wasm`.
 
 ### 1. FIXED — the WASM Monte Carlo was not random
 
@@ -46,7 +45,7 @@ decoder must match somewhere. More checks means more last-round lies, so logical
 distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
 noiseless.
 
-Thresholds after 1 and 2: ~11% data noise, ~2.7% phenomenological, both with reduced χ² near 1,
+Thresholds: ~11% data noise, ~2.7% phenomenological, ~0.45% circuit-level, both with reduced χ² near 1,
 agreeing point-by-point with an independent JavaScript Monte Carlo written against the per-shot
 session API.
 
@@ -111,32 +110,51 @@ Verified after both: no single X, Z or Y error causes a logical failure at d = 3
 falls with distance at every bias (η=64, p=2%: 0.48% → 0.05% → 0.03%); and XZZX beats the rotated
 code under bias as the literature says it should — at d=7, p=3%, η=64: **0.07% against 0.43%**.
 
-## Still open
+### 7. FIXED — the decoder had no model of the circuit
 
-### Circuit-level noise: the decoder has no model of the circuit
+Circuit-level noise is qualitatively harder than the other two models. A fault on an ancilla partway
+through its four CNOTs propagates onto every data qubit it has yet to touch, so one fault becomes a
+correlated multi-qubit data error — a *hook error*. The phenomenological spacetime graph has no edge
+for that, so the matcher explained it with two unrelated edges and could walk the correction into a
+logical operator. Roughly one single fault in thirty did exactly that, and the code got worse with
+distance instead of better.
 
-Bugs 3 and 4 made circuit-level noise a real measurement — noiseless is clean at every distance and
-the curve is monotonic in p. But the decoder still matches on the phenomenological spacetime graph,
-which carries no edges for the correlated two-qubit errors a CNOT failing mid-extraction produces,
-so it pairs those defects wrongly and distance costs more than it buys.
+`src/circuit_model.rs` derives the decoding graph from the circuit instead of assuming one. Every
+elementary fault is propagated as a Pauli frame — H swaps x and z, CNOT sends `x_target ^= x_control`
+and `z_control ^= z_target`, a Z-basis measurement flips exactly when the frame carries x — and the
+detectors it fires, together with the data error it leaves, become one edge. Edges may correct
+several qubits at once, which is what the old graph could not express.
 
-The gap is easy to size. At p = 10⁻⁴, circuit-level gives 0.14%, 0.28%, 0.43% for d = 3, 5, 7 —
-*rising* with distance. Phenomenological noise at the comparable per-qubit-per-round rate of
-8×10⁻⁴ gives 0.005%, 0%, 0% — falling to nothing, as it must. Roughly 3% of single faults produce a
-logical error, which is a distance-1 failure mode.
+Two things made it tractable:
 
-Closing it means building a detector error model:
+- **The circuit is defined once.** `round_program` returns the round as a list of instructions, and
+  both the stabilizer simulation and the fault propagation consume that same list. A detector error
+  model describing a subtly different circuit from the one being run is worse than none, and two
+  hand-written copies would not stay in step.
+- **Decomposition is free.** The usual hard part is splitting a fault that fires three or more
+  detectors into graph-like pieces. The decoder already matches twice, once per Pauli type, so a
+  fault splits into its X part and its Z part and each is graph-like alone. Measured over the whole
+  enumeration: no fault fires more than two detectors in either graph.
 
-1. Enumerate the circuit's elementary fault locations (each gate, each measurement, each Pauli).
-2. For each, run an otherwise noiseless circuit with just that fault and record which detectors fire
-   and what data-qubit residual it leaves.
-3. Decompose faults that fire more than two detectors into graph-like pieces — this is the part with
-   no shortcut, and what dedicated tools like Stim exist to do.
-4. Widen the decoder's per-edge correction from one qubit to a set, since a hook error corrects two.
-5. Cache the model per (d, T); it is fixed for a given code and round count.
+**Validation is exhaustive, not statistical.** A distance-d code must survive any one fault, so
+every fault the circuit admits is propagated, decoded, corrected and checked:
+**0 failures out of 600 / 3,240 / 9,408 faults** at d = 3 / 5 / 7, for Union-Find and exact MWPM
+alike. That test paid for itself twice:
 
-That is a build rather than a bug fix, and shipping an unvalidated version of it would undo the
-point of everything above.
+1. It showed the two CNOT schedules must be transposes *the other way round* from the pairing first
+   tried. The wrong pairing passes cleanly at d = 5 and d = 7 and fails 44 times out of 600 at
+   d = 3 — sampling would very likely have missed it.
+2. It caught state-preparation noise being applied before the baseline round, where an error sits in
+   both readings a detector compares, never fires it, and lands in the residual uncorrectable at any
+   distance. It had been showing up as a stubborn p¹ term.
+
+With both fixed, the logical error rate at d = 3 scales as p² as theory demands (ratios 3.1, 3.6,
+3.4 on successive doublings of p, against 4 for a clean p²), and a threshold appears where it should. The live sweep
+fits p_th = 0.45% with ν = 1.48 and reduced χ² = 1.05 — the closest to the textbook exponent of
+~1.46 of any of the three noise models.
+
+Not yet modelled: located erasure under circuit-level noise, which would need its own fault family
+and per-shot edge reweighting. Erasure works in the other two models.
 
 ## Repository Structure
 
@@ -144,6 +162,7 @@ point of everything above.
 src/tableau.rs        symplectic tableau and Clifford operations
 src/surface_code.rs   rotated and XZZX lattices, noise models, error generation
 src/decoder.rs        Union-Find cluster growth and peeling
+src/circuit_model.rs  detector error model derived from the extraction circuit
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer — structure only

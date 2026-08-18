@@ -50,34 +50,34 @@ module rebuilt; one gap remains.
 | 5 | Tomography ran three identical sims and called the result a Bloch vector | FIXED — Pauli transfer matrix diagonal |
 | 6 | XZZX matched one defect set twice, on two different graphs | FIXED — one combined graph, one matching |
 | 7 | XZZX scored logical errors against a hard-coded string that was not a logical operator | FIXED — stabilizer-group membership |
+| 8 | The decoder had no model of the circuit, so hook errors were mis-paired | FIXED — detector error model in `src/circuit_model.rs` |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)
 meaning *the channel shrinks nothing*; no single X, Z or Y error causes an XZZX logical failure at
 d = 3, 5 or 7; XZZX beats the rotated code under bias (d=7, p=3%, η=64: 0.07% against 0.43%); and
-thresholds land where the literature puts them, ~11% data noise and ~2.7% phenomenological, both
-with reduced χ² near 1.
+**every single circuit fault is corrected — 0 failures out of 600 / 3,240 / 9,408 at d = 3 / 5 / 7**,
+for Union-Find and exact MWPM alike.
 
-Bugs 6 and 7 were entangled: fixing the double-matching removed the runaway with distance but left
-the rate flat, which turned out to be the separate logical-check bug. Brute-force search over the
-actual stabilizer group confirmed the XZZX *construction* was always sound — minimum logical weight
-3 at d=3, above 4 at d=5 — so both faults were in decoding and scoring, not in the code.
+Thresholds now land where the literature puts them for all three noise models: ~11% data noise,
+~2.7% phenomenological, and 0.45% circuit-level (ν 1.48, reduced χ² 1.05).
 
-### Remaining: the decoder has no model of the circuit
+### On the detector error model
 
-Bugs 3 and 4 made circuit-level a real measurement — noiseless is clean at every distance, the curve
-is monotonic. The decoder still matches on the phenomenological spacetime graph, which carries no
-edges for the correlated two-qubit errors a CNOT failing mid-extraction produces.
+The circuit is defined once — `round_program` — and both the stabilizer simulation and the fault
+propagation consume it, so the model cannot drift from the circuit it describes. The decomposition
+that usually makes this hard is free: the decoder already matches once per Pauli type, so a fault
+splits into its X and Z parts and each is graph-like alone. No fault in the whole enumeration fires
+more than two detectors in either graph.
 
-Sized: at p = 10⁻⁴ circuit-level gives 0.14% / 0.28% / 0.43% for d = 3/5/7 — rising with distance —
-while phenomenological noise at the comparable per-qubit-per-round rate of 8×10⁻⁴ gives
-0.005% / 0% / 0%. About 3% of single faults produce a logical error.
+The exhaustive single-fault check is what made it possible to get right. It is deterministic and
+complete, and it caught two things sampling would have missed or misattributed: the CNOT schedules
+had to be transposes *the other way round* from the pairing first tried (which passes at d = 5 and
+d = 7 and fails 44/600 at d = 3), and state-preparation noise was being applied before the baseline
+round, where it sits in both readings a detector compares and so is never detected at all.
 
-Closing it means a detector error model: enumerate fault locations, record each one's detectors and
-data residual, decompose faults firing more than two detectors into graph-like pieces, widen the
-decoder's per-edge correction from one qubit to a set, and cache per (d, T). Step three is the one
-with no shortcut and is what tools like Stim exist for. Left undone deliberately: an unvalidated
-version would undo the point of the other seven fixes.
+Not modelled: located erasure under circuit-level noise, which needs its own fault family and
+per-shot edge reweighting.
 
 ## Decisions
 
