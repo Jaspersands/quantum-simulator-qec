@@ -23,10 +23,10 @@ export const DECODER_NAME = {
 };
 
 /**
- * CIRCUIT is listed because the engine accepts it, not because the page uses
- * it: circuit-level noise runs entirely inside the Rust batch entry points,
- * which are unusable here (see the note at the foot of this file), and it
- * cannot be driven through the per-shot session API.
+ * CIRCUIT is listed because the engine accepts it, not because the page offers
+ * it. `simulate_circuit_noise` returns a logical error rate that *falls* as p
+ * rises (measured at d=7: 89% at p=0.001 down to 51% at p=0.01) and is far
+ * worse at larger distances. Until that is fixed it is not a measurement.
  */
 export const NOISE = { DATA: 0, PHENOM: 1, CIRCUIT: 2 };
 
@@ -57,6 +57,15 @@ export async function instantiate(url = WASM_URL) {
   }
   const bytes = await response.arrayBuffer();
   const { instance } = await WebAssembly.instantiate(bytes, {});
+
+  // The engine's generator starts from a fixed constant, so without this every
+  // page load would produce byte-identical "measurements". Seed it from the
+  // platform CSPRNG so a reload genuinely re-samples.
+  if (typeof instance.exports.wasm_seed === 'function') {
+    const seed = new Uint32Array(2);
+    (self.crypto ?? globalThis.crypto).getRandomValues(seed);
+    instance.exports.wasm_seed(seed[0], seed[1]);
+  }
   return instance;
 }
 
@@ -274,14 +283,69 @@ export class Session {
   }
 }
 
-/* -- Deliberately not wrapped ------------------------------------------ */
+/* -- Monte Carlo ------------------------------------------------------- */
 
-/*
- * The engine also exports `wasm_run_benchmark` and
- * `wasm_estimate_logical_fidelity`, which run a whole Monte Carlo experiment
- * inside Rust. Neither is usable from this build: both seed their generator
- * from a compile-time constant (`Xorshift::new(12345)`) on the non-Python
- * cfg branch, so every shot in a batch is identical and the result collapses
- * to a step function. See js/montecarlo.js, which samples noise in JS and
- * drives the engine's real decoders one shot at a time instead.
+/**
+ * @typedef {object} RunConfig
+ * @property {number} d
+ * @property {number} codeType    CODE.*
+ * @property {number} decoder     DECODER.*
+ * @property {number} p           physical error rate
+ * @property {number} bias        eta; 0.5 is depolarizing, higher is Z-biased
+ * @property {number} rounds      syndrome extraction rounds; the last is perfect
+ * @property {number} runs        shots
+ * @property {number} noiseMode   NOISE.*
+ * @property {number} erasure     fraction of errors that are located losses
+ * @property {number} correlated  CORRELATED.*
  */
+
+/** @type {RunConfig} */
+export const DEFAULT_RUN = {
+  d: 5,
+  codeType: CODE.ROTATED,
+  decoder: DECODER.UNION_FIND,
+  p: 0.02,
+  bias: 0.5,
+  rounds: 3,
+  runs: 2000,
+  noiseMode: NOISE.PHENOM,
+  erasure: 0,
+  correlated: CORRELATED.NONE,
+};
+
+/**
+ * Monte Carlo logical error rate, run entirely inside the engine.
+ *
+ * @param {WebAssembly.Instance} instance
+ * @param {Partial<RunConfig>} config
+ * @returns {{rate:number, runs:number, seconds:number, runsPerSecond:number}}
+ */
+export function runBenchmark(instance, config) {
+  const c = { ...DEFAULT_RUN, ...config };
+
+  // Data noise is a single round by definition; otherwise the count has to be
+  // a real positive integer. Left unchecked, a nullish value would coerce to
+  // something plausible and hand back a single-round result wearing a
+  // phenomenological label.
+  let rounds = 1;
+  if (c.noiseMode !== NOISE.DATA) {
+    if (!Number.isInteger(c.rounds) || c.rounds < 1) {
+      throw new Error(`rounds must be a positive integer for noise mode ${c.noiseMode}, got ${c.rounds}`);
+    }
+    rounds = c.rounds;
+  }
+
+  const t0 = performance.now();
+  const rate = instance.exports.wasm_run_benchmark(
+    c.d, c.codeType, c.decoder, c.p, c.bias,
+    rounds, c.runs, c.noiseMode, c.erasure, c.correlated,
+  );
+  const seconds = (performance.now() - t0) / 1000;
+
+  return {
+    rate,
+    runs: c.runs,
+    seconds,
+    runsPerSecond: seconds > 0 ? Math.round(c.runs / seconds) : 0,
+  };
+}

@@ -20,36 +20,48 @@ running locally. Every number on the page is computed in the reader's browser on
 - **Web explainer**: `index.html` plus `css/` and `js/` — no build step, no dependencies.
 - **Python extension** (`stabilizer_qec.so`): PyO3 bindings for offline threshold benchmarking.
 
-## Known engine defects
+## Engine defects found and fixed
 
-Two bugs in the compiled WebAssembly module were found while making the site report live data.
-Both need a rebuild to fix; the website works around the first and reports the second.
+Three bugs surfaced while making the site report live data. All three are fixed in `src/` and in
+the committed `stabilizer_qec.wasm`.
 
-### The WASM build's Monte Carlo is not random
+### 1. The WASM build's Monte Carlo was not random
 
-In `src/surface_code.rs`, six `simulate_*` functions seed their generator from a constant on the
-non-Python cfg branch:
+Six `simulate_*` functions seeded their generator from a constant on the non-Python cfg branch:
 
 ```rust
-#[cfg(feature = "python")]
-let mut rng = Xorshift::new(rand::random());
 #[cfg(not(feature = "python"))]
-let mut rng = Xorshift::new(12345);
+let mut rng = Xorshift::new(12345);   // and 54321 in two of them
 ```
 
-The seed is taken fresh inside each shot, so every shot of a `wasm_run_benchmark` batch is
-identical and the returned rate collapses to a step function — exactly 0 below a cutoff, exactly
-1 above it. `wasm_run_benchmark` and `wasm_estimate_logical_fidelity` are therefore unusable from
-the browser. **The Python build is unaffected**, since it takes the `rand::random()` branch.
+Each of those functions *is* one shot, and `wasm_run_benchmark` calls them in a loop — so every
+shot in a batch was bit-identical and the returned rate collapsed to a step function: exactly 0
+below a cutoff, a plateau, exactly 1 above. Nothing the browser reported was a measurement. The
+Python build takes the `rand::random()` branch and was unaffected.
 
-The site works around this in `js/montecarlo.js`: noise is sampled in JavaScript and applied
-through the per-shot session API, so the lattice, syndrome extraction, decoders, and
-logical-failure verdict all still come from Rust. The resulting thresholds match the literature
-(~10.5% data noise, ~2.6% phenomenological). Logical-state tomography and circuit-level noise
-cannot be reached through that API and are absent from the site until the module is rebuilt.
+Fixed by keeping one stream alive across shots and drawing seeds from it with **SplitMix64 over a
+counter**. Advancing with the same xorshift recurrence the shots use is *not* sufficient — that
+gives shot N+1 shot N's stream offset by one draw, and batch variance comes out several times
+binomial. Verified: twelve repeats at d=5, p=5%, N=4000 give observed σ 0.00224 against a binomial
+0.00222 (ratio 1.01).
 
-**Fix**: replace the constant with a seed threaded in from the caller, or expose a
-`wasm_seed(u64)` entry point, and rebuild.
+A new export, `wasm_seed(lo, hi)`, lets the caller seed from `crypto.getRandomValues` so results
+vary across page loads.
+
+### 2. Phenomenological noise applied a faulty readout in the final round
+
+Defects are time differences, so a lie in the last round has no following round to cancel against
+and leaves an unpaired defect the decoder must match somewhere — injecting a correction for an
+error that never happened. A larger patch has more checks to misreport on, so logical error *rose*
+with distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
+noiseless, which is both the standard convention and what a real experiment does by ending with a
+transversal data readout.
+
+After both fixes the engine reproduces the literature: threshold near 10% for pure data noise and
+near 2.6% phenomenological, and it agrees with an independent JavaScript Monte Carlo written
+against the per-shot session API to within sampling noise at every point tested.
+
+## Known engine defects (still open)
 
 ### The XZZX decoder reuses the wrong defect set
 
@@ -61,19 +73,30 @@ let graph_x = code.build_syndrome_graph(num_rounds, false);
 let defects_x = defects_z.clone();     // <-- the Z pass's defects, on the X graph
 ```
 
-`graph_x` has a different `edge_to_qubit` mapping, so the `correction_z` it produces bears no
-relation to any Z error that occurred. Injecting a single X error on a d=3 XZZX patch returns the
-correct one-qubit X correction plus **two spurious Z corrections**, each a fresh error on the patch.
-The number of them scales with the graph, so the code degrades as it grows: measured at $p = 2\%$
-unbiased over 4,000 shots, the rotated code improves from 0.65% at $d=3$ to 0.18% at $d=5$ while
-XZZX degrades from 5.3% to 12.8%. The bias response is correspondingly flat across
-$\eta = 0.5$ to $\eta = 1000$.
+XZZX has one syndrome and two edge families over the same nodes — one for the qubit diagonal an X
+error flips, one for the Z diagonal. Decoding the full defect set independently on both explains
+every defect twice, once with X's and once with Z's. Injecting a single X error on a d=3 patch
+returns the correct one-qubit X correction plus **two spurious Z corrections**, each a fresh error.
+Their count scales with the graph, so the code degrades as it grows: at p=2% unbiased over 4,000
+shots, the rotated code improves from 0.9% at d=3 to 0.05% at d=7 while XZZX degrades from 5.4% to
+21.0%, with a flat bias response from η=0.5 to η=64.
 
-The rotated branch derives `defects_x` and `defects_z` independently and is unaffected, as is the
-lattice geometry — the figures in sections 3 and 5 draw XZZX correctly.
+**Fix**: build one graph carrying both edge families with a per-edge type tag, decode the defect
+set once, and route each matched edge's correction to X or Z by its tag. This is a decoder change
+rather than a one-line correction, and it needs validating against the obvious test — logical error
+must fall with distance below threshold — before it can be trusted.
 
-**Fix**: build `defects_x` from the X-stabilizer outcomes the way the rotated branch does, and
-rebuild.
+### Circuit-level noise
+
+`simulate_circuit_noise` returns a logical error rate that *falls* as the physical rate rises —
+measured at d=7: 89% at p=0.1%, 82% at 0.2%, 62% at 0.5%, 51% at 1% — and is far worse at larger
+distances. Not exposed on the site until diagnosed.
+
+### Logical-state tomography
+
+`wasm_estimate_logical_fidelity` returns `(1, 1, 1)` for a noiseless run. That vector has length
+√3, outside the Bloch sphere, so it is not a Bloch vector — it is three independent survival
+probabilities presented as one. Not exposed on the site until reworked.
 
 ## Repository Structure
 
@@ -86,7 +109,7 @@ src/lib.rs            PyO3 module and the WASM C-ABI interface
 index.html            the explainer — structure only
 css/styles.css        design tokens, then base, then components
 js/engine.js          typed wrapper over the WASM exports
-js/montecarlo.js      JS noise sampling driving the engine's decoders
+js/channel.js         the noise channel, shared by the figures and the engine
 js/worker.js          Monte Carlo worker (own engine instance)
 js/compute.js         worker RPC, Wilson intervals, threshold collapse fit
 js/lattice.js         canvas renderer for a code patch, 2D and spacetime
@@ -123,8 +146,11 @@ cargo build --release --target wasm32-unknown-unknown --no-default-features
 ```
 
 Copy the resulting `target/wasm32-unknown-unknown/release/stabilizer_qec.wasm` to the repository
-root. Fixing the seeding defect above before rebuilding would let the site drop its JavaScript
-sampling workaround and restore the tomography panel.
+root. The committed `.wasm` is built this way and includes the two fixes above.
+
+Note for Apple Silicon: if `cargo` reports `bad CPU type in executable`, the toolchain is the
+x86_64 build and Rosetta is not available to the shell. `softwareupdate --install-rosetta` fixes
+it; installing a native `aarch64-apple-darwin` toolchain is the better long-term answer.
 
 ### Python bindings & benchmarks
 

@@ -801,12 +801,15 @@
   <div class="aside">
     <span class="aside__label">Two things are missing here</span>
     Circuit-level noise and logical-state tomography were both in the previous version of this page
-    and are not in this one. Both depend on engine entry points whose random number generator is
-    seeded from a compile-time constant in the WebAssembly build, which made every shot in a batch
-    identical — the numbers they produced were not measurements. The rest of the page works around
-    that by sampling noise in JavaScript and driving the engine's decoders one shot at a time, but
-    neither of those two can be reached that way. Restoring them needs a rebuilt module. See
-    section 10.
+    and are not in this one. Neither is a rendering choice — both engine entry points return numbers
+    that cannot be right. <span class="mono">simulate_circuit_noise</span> reports a logical error
+    rate that <em>falls</em> as the physical rate rises: measured at
+    <span class="sym">d = 7</span>, 89% at <span class="sym">p = 0.1%</span> down to 51% at
+    <span class="sym">p = 1%</span>, and worse at larger distances throughout.
+    <span class="mono">wasm_estimate_logical_fidelity</span> returns
+    <span class="mono">(1, 1, 1)</span> for a noiseless run — a vector of length &radic;3, outside
+    the Bloch sphere, so it is not a Bloch vector at all but three separate survival probabilities
+    wearing one. They will come back when they measure something.
   </div>
 </section>
 
@@ -873,8 +876,13 @@
     <div>
       <dt>Noise models</dt>
       <dd>Pure data noise with perfect readout, and phenomenological noise adding independent
-      measurement errors per round over T = d rounds, the last of which is taken as perfect. Bias,
-      located erasure, spatial bursts, and slow temporal drift are layered on top.</dd>
+      measurement errors per round over T = d rounds. The final round is noiseless: defects are
+      time differences, so a lie in the last round has no following round to cancel against and
+      leaves an unpaired defect the decoder must match somewhere. Including it made the code get
+      <em>worse</em> with distance far below threshold — logical error rising from 1.9% at
+      <span class="sym">d = 3</span> to 10.9% at <span class="sym">d = 7</span> at
+      <span class="sym">p = 0.5%</span> — because a bigger patch has more checks to misreport on.
+      Bias, located erasure, spatial bursts, and slow temporal drift layer on top.</dd>
     </div>
     <div>
       <dt>Detection events</dt>
@@ -885,21 +893,25 @@
       the two coincide, so sections 3 to 5 are unaffected.</dd>
     </div>
     <div>
-      <dt>Where the sampling happens</dt>
-      <dd>Noise is drawn in JavaScript; everything that constitutes the physics — lattice,
-      syndrome extraction, all three decoders, and the logical-failure verdict — is the Rust
-      engine's, reached one shot at a time. This is a workaround, not a design choice: the engine's
-      own batch entry points seed their generator with the literal
-      <span class="mono">Xorshift::new(12345)</span> on the non-Python cfg branch, so every shot in a
-      batch comes out identical and the reported rate collapses to a step function. The offline
-      Python build takes the other branch and is unaffected. Fixing it is a six-line change in
-      <span class="mono">src/surface_code.rs</span> plus a rebuild.</dd>
+      <dt>Randomness</dt>
+      <dd>Shot seeds come from SplitMix64 over a counter, itself seeded from
+      <span class="mono">crypto.getRandomValues</span> when the module is instantiated — so the
+      figures re-sample on every reload rather than replaying one canned run. This was, until
+      recently, the single largest defect in the engine: the WebAssembly build drew
+      <span class="mono">Xorshift::new(12345)</span> <em>inside each shot</em>, making every shot of
+      a batch bit-identical and collapsing every reported rate to a step function. Seeding one
+      generator per shot from the previous shot's state is not enough either — that hands each shot
+      its predecessor's stream offset by a single draw, and batch variance comes out several times
+      larger than binomial. Measured after the fix, over twelve repeats at
+      <span class="mono">d = 5, p = 5%, N = 4000</span>: observed σ 0.00224 against a binomial
+      0.00222, a ratio of 1.01.</dd>
     </div>
     <div>
       <dt>Threading</dt>
-      <dd>Two engine instances. The main thread keeps one for the interactive figures so clicks
-      answer immediately; a worker holds a second for Monte Carlo, so a long sweep never blocks the
-      page.</dd>
+      <dd>Two engine instances, seeded independently. The main thread keeps one for the
+      interactive figures so clicks answer immediately; a worker holds a second for Monte Carlo, so
+      a long sweep never blocks the page. All sampling happens inside Rust — the browser only says
+      how many shots to run.</dd>
     </div>
     <div>
       <dt>Statistics</dt>

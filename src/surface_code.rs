@@ -28,6 +28,52 @@ impl Xorshift {
     }
 }
 
+/// Per-shot generator for the WebAssembly build.
+///
+/// The obvious `Xorshift::new(12345)` is a trap: these `simulate_*` functions
+/// are each one Monte Carlo shot, and `wasm_run_benchmark` calls them in a
+/// loop. Seeding from a constant inside the shot makes every shot in a batch
+/// bit-identical, so the reported rate collapses to a step function — flat
+/// zero, a plateau, then flat one — rather than a curve.
+///
+/// Instead keep one generator alive across calls and draw a fresh seed from it
+/// per shot. Single-threaded by construction: wasm32-unknown-unknown has no
+/// threads here, and the Python build takes the `rand::random()` branch and
+/// never touches this.
+#[cfg(not(feature = "python"))]
+static mut RNG_STREAM: u64 = 0x2545_F491_4F6C_DD1D;
+
+#[cfg(not(feature = "python"))]
+pub fn seed_global_rng(seed: u64) {
+    unsafe {
+        let slot = core::ptr::addr_of_mut!(RNG_STREAM);
+        slot.write(if seed == 0 { 0x2545_F491_4F6C_DD1D } else { seed });
+    }
+}
+
+/// SplitMix64 over a counter.
+///
+/// Advancing the shot seed with the same xorshift recurrence the shots
+/// themselves use is not enough: seeding shot N+1 with one step of shot N's
+/// state gives it shot N's stream offset by a single draw, so consecutive
+/// shots are almost perfectly correlated and batch variance comes out several
+/// times larger than binomial. SplitMix64 is built for exactly this job —
+/// a counter plus a strong finalizer, giving seeds that decorrelate.
+#[cfg(not(feature = "python"))]
+fn next_shot_rng() -> Xorshift {
+    unsafe {
+        let slot = core::ptr::addr_of_mut!(RNG_STREAM);
+        let counter = slot.read().wrapping_add(0x9E37_79B9_7F4A_7C15);
+        slot.write(counter);
+
+        let mut z = counter;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        Xorshift::new(z)
+    }
+}
+
 fn sample_biased_error(p: f64, eta: f64, rng: &mut Xorshift) -> (bool, bool) {
     if rng.next_f64() < p {
         let rand_val = rng.next_f64();
@@ -292,7 +338,7 @@ impl RotatedSurfaceCode {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
-        let mut rng = Xorshift::new(12345);
+        let mut rng = next_shot_rng();
 
         let num_stabs_z = self.z_stabilizers.len();
         let num_stabs_x = self.x_stabilizers.len();
@@ -335,7 +381,15 @@ impl RotatedSurfaceCode {
                         parity ^= true;
                     }
                 }
-                if rng.next_f64() < round_p {
+                // The final round is noiseless. Defects are time differences,
+                // so a lie in the last round has no following round to cancel
+                // against: it leaves an unpaired defect that the decoder must
+                // match somewhere, injecting a correction for an error that
+                // never happened. There are more checks to misreport on a
+                // bigger patch, so including it makes the code get *worse*
+                // with distance far below threshold. A real experiment ends
+                // with a transversal data readout it can trust; this is that.
+                if t + 1 < num_rounds && rng.next_f64() < round_p {
                     parity ^= true;
                 }
                 measured_z[t][s_idx] = parity;
@@ -349,7 +403,15 @@ impl RotatedSurfaceCode {
                         parity ^= true;
                     }
                 }
-                if rng.next_f64() < round_p {
+                // The final round is noiseless. Defects are time differences,
+                // so a lie in the last round has no following round to cancel
+                // against: it leaves an unpaired defect that the decoder must
+                // match somewhere, injecting a correction for an error that
+                // never happened. There are more checks to misreport on a
+                // bigger patch, so including it makes the code get *worse*
+                // with distance far below threshold. A real experiment ends
+                // with a transversal data readout it can trust; this is that.
+                if t + 1 < num_rounds && rng.next_f64() < round_p {
                     parity ^= true;
                 }
                 measured_x[t][s_idx] = parity;
@@ -425,7 +487,7 @@ impl RotatedSurfaceCode {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
-        let mut rng = Xorshift::new(12345);
+        let mut rng = next_shot_rng();
 
         let num_data = self.data_qubits.len();
         let mut physical_x = vec![false; num_data];
@@ -532,7 +594,7 @@ impl RotatedSurfaceCode {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
-        let mut rng = Xorshift::new(54321);
+        let mut rng = next_shot_rng();
 
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut erased_edges_z = vec![false; graph_z.edges.len()];
@@ -890,7 +952,7 @@ impl XZZXSurfaceCode {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
-        let mut rng = Xorshift::new(12345);
+        let mut rng = next_shot_rng();
 
         let num_stabs = self.stabilizers.len();
         let num_data = self.data_qubits.len();
@@ -940,7 +1002,15 @@ impl XZZXSurfaceCode {
                     if physical_z[q] { parity ^= true; }
                 }
 
-                if rng.next_f64() < round_p {
+                // The final round is noiseless. Defects are time differences,
+                // so a lie in the last round has no following round to cancel
+                // against: it leaves an unpaired defect that the decoder must
+                // match somewhere, injecting a correction for an error that
+                // never happened. There are more checks to misreport on a
+                // bigger patch, so including it makes the code get *worse*
+                // with distance far below threshold. A real experiment ends
+                // with a transversal data readout it can trust; this is that.
+                if t + 1 < num_rounds && rng.next_f64() < round_p {
                     parity ^= true;
                 }
                 measured[t][s_idx] = parity;
@@ -1006,7 +1076,7 @@ impl XZZXSurfaceCode {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
-        let mut rng = Xorshift::new(12345);
+        let mut rng = next_shot_rng();
 
         let num_data = self.data_qubits.len();
         let mut physical_x = vec![false; num_data];
@@ -1108,7 +1178,7 @@ impl XZZXSurfaceCode {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
-        let mut rng = Xorshift::new(54321);
+        let mut rng = next_shot_rng();
 
         let graph_z = self.build_syndrome_graph(num_rounds, true);
         let mut erased_edges_z = vec![false; graph_z.edges.len()];

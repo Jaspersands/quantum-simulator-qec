@@ -6,7 +6,7 @@
  */
 
 import { ERROR } from './engine.js';
-import { samplePauli, NONE, X, Z } from './montecarlo.js';
+import { samplePauli, NONE, X, Z } from './channel.js';
 
 /** Data qubits sit on a square grid two units apart on the doubled lattice. */
 function qubitAt(session, x, y) {

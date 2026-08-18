@@ -3,18 +3,15 @@
  *
  * Holds its own instance of the engine so that sweeps never block the main
  * thread. The main thread keeps a separate instance for interactive lattice
- * work; the two never share memory.
- *
- * Sampling goes through js/montecarlo.js rather than the engine's own
- * `wasm_run_benchmark` — see the note at the top of that file for why.
+ * work; the two never share memory, and each is seeded independently from the
+ * platform CSPRNG when it is instantiated.
  *
  * Protocol: the client posts {id, op, payload}. The worker replies with zero or
  * more {id, type:'progress', ...} messages and exactly one terminal
  * {id, type:'done', result} or {id, type:'error', message}.
  */
 
-import { instantiate, NOISE } from './engine.js';
-import { estimateLogicalErrorRate, DEFAULTS } from './montecarlo.js';
+import { instantiate, runBenchmark, DEFAULT_RUN, NOISE } from './engine.js';
 
 let enginePromise = null;
 
@@ -22,6 +19,9 @@ function engine() {
   if (!enginePromise) enginePromise = instantiate();
   return enginePromise;
 }
+
+/** T = d rounds of syndrome extraction is the standard convention. */
+const roundsFor = (config) => (config.noiseMode === NOISE.DATA ? 1 : config.rounds ?? config.d);
 
 const OPS = {
   /**
@@ -39,7 +39,7 @@ const OPS = {
       let fastest = 0;
       let total = 0;
       for (let i = 0; i < samples; i++) {
-        const result = estimateLogicalErrorRate(instance, config);
+        const result = runBenchmark(instance, config);
         total += result.runs;
         if (result.runsPerSecond > fastest) fastest = result.runsPerSecond;
       }
@@ -47,11 +47,11 @@ const OPS = {
     };
 
     // Discarded warm-up pass for each noise mode.
-    estimateLogicalErrorRate(instance, { noiseMode: NOISE.DATA, d: 5, runs: 2000 });
-    estimateLogicalErrorRate(instance, { noiseMode: NOISE.PHENOM, d: 5, rounds: 5, runs: 400 });
+    runBenchmark(instance, { noiseMode: NOISE.DATA, d: 5, runs: 4000 });
+    runBenchmark(instance, { noiseMode: NOISE.PHENOM, d: 5, rounds: 5, runs: 2000 });
 
-    const data = best({ noiseMode: NOISE.DATA, d: 5, rounds: 1, p: 0.05, runs: 2000 });
-    const phenom = best({ noiseMode: NOISE.PHENOM, d: 5, rounds: 5, p: 0.02, runs: 600 });
+    const data = best({ noiseMode: NOISE.DATA, d: 5, rounds: 1, p: 0.05, runs: 20000 });
+    const phenom = best({ noiseMode: NOISE.PHENOM, d: 5, rounds: 5, p: 0.02, runs: 8000 });
 
     return {
       dataRunsPerSecond: data.fastest,
@@ -61,7 +61,7 @@ const OPS = {
   },
 
   async benchmark(instance, config) {
-    return estimateLogicalErrorRate(instance, config);
+    return runBenchmark(instance, { ...config, rounds: roundsFor(config) });
   },
 
   /**
@@ -75,9 +75,8 @@ const OPS = {
 
     for (const d of distances) {
       for (const p of ps) {
-        // The standard convention is T = d rounds of syndrome extraction.
-        const rounds = base.noiseMode === NOISE.DATA ? 1 : d;
-        const { rate, runs } = estimateLogicalErrorRate(instance, { ...base, d, p, rounds });
+        const config = { ...base, d, p };
+        const { rate, runs } = runBenchmark(instance, { ...config, rounds: roundsFor(config) });
         points.push({ d, p, pL: rate, runs });
         done += 1;
         report({ done, total, d, p, pL: rate, runs });
@@ -94,9 +93,8 @@ const OPS = {
     const results = [];
     for (let i = 0; i < cells.length; i++) {
       const cell = cells[i];
-      const merged = { ...base, ...cell };
-      if (merged.noiseMode !== NOISE.DATA && merged.rounds == null) merged.rounds = merged.d;
-      const { rate, runs } = estimateLogicalErrorRate(instance, merged);
+      const config = { ...base, ...cell };
+      const { rate, runs } = runBenchmark(instance, { ...config, rounds: roundsFor(config) });
       const entry = { ...cell, pL: rate, runs };
       results.push(entry);
       report({ done: i + 1, total: cells.length, cell: entry });
@@ -113,7 +111,7 @@ self.onmessage = async (event) => {
     const handler = OPS[op];
     if (!handler) throw new Error(`unknown operation "${op}"`);
     const instance = await engine();
-    const result = await handler(instance, payload ?? { ...DEFAULTS }, report);
+    const result = await handler(instance, payload ?? { ...DEFAULT_RUN }, report);
     self.postMessage({ id, type: 'done', result });
   } catch (error) {
     self.postMessage({ id, type: 'error', message: error?.message ?? String(error) });

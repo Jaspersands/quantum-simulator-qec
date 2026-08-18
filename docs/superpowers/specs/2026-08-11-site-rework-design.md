@@ -28,79 +28,59 @@ with no navigation and no argument connecting them. Specific failures:
 6. **Heavy sweeps freeze the page.** `wasm_run_benchmark` runs on the main
    thread behind a `setTimeout(…, 50)`.
 
-## Constraint
+## Toolchain
 
-`cargo` and `rustup` on this machine are x86-64 binaries and fail with
-`bad CPU type in executable` on ARM. **`stabilizer_qec.wasm` cannot be rebuilt.**
-Its 25 `extern "C"` exports are fixed. All work is HTML/CSS/JS against the
-existing engine. No new simulation capability is in scope.
+The first attempt at `cargo` failed with `bad CPU type in executable` — the toolchain is
+`stable-x86_64-apple-darwin` on an M2 Pro, and Rosetta was not reachable from the shell at that
+moment. It became available later in the session, at which point the engine could be rebuilt and
+two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
+quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Two engine defects found during the rework
+## Three engine defects found during the rework
 
-Both were discovered while replacing fabricated numbers with live ones. Neither
-is fixable without rebuilding the module.
+All were discovered while replacing fabricated numbers with live ones. Two are fixed; one remains.
 
-### 1. The batch Monte Carlo entry points are not random
+### 1. FIXED — the batch Monte Carlo was not random
 
-`src/surface_code.rs` seeds its generator from a compile-time constant on the
-non-Python cfg branch:
+Six `simulate_*` functions seeded from a constant on the non-Python cfg branch
+(`Xorshift::new(12345)`, and `54321` in two). Each function is one shot and
+`wasm_run_benchmark` loops over them, so every shot in a batch was bit-identical and the rate
+collapsed to a step function — d=5 data noise returned exactly 0.000 for p ≤ 0.10, a flat ~0.21
+plateau to p=0.19, then exactly 1.000. Nothing the old page showed as "live" was a measurement.
 
-```rust
-#[cfg(feature = "python")]
-let mut rng = Xorshift::new(rand::random());
-#[cfg(not(feature = "python"))]
-let mut rng = Xorshift::new(12345);            // six occurrences
-```
+Fixed with SplitMix64 over a counter, plus a new `wasm_seed(lo, hi)` export seeded from
+`crypto.getRandomValues`. Seeding each shot from the previous shot's xorshift state is *not*
+sufficient — it hands shot N+1 shot N's stream offset by one draw. Verified: twelve repeats at
+d=5, p=5%, N=4000 give observed σ 0.00224 against binomial 0.00222 (ratio 1.01).
 
-The seed is taken fresh *inside each shot*, so every shot in a
-`wasm_run_benchmark` batch is bit-identical and the reported rate collapses to a
-step function. Measured directly: d=5 data noise returns exactly 0.000 for
-p ≤ 0.10, a flat ~0.21 plateau from p=0.13 to 0.19, then exactly 1.000 at
-p ≥ 0.21. Nothing in the old page's benchmark panel, threshold fitter, or Bloch
-sphere was a measurement. The offline Python build takes the other branch, which
-is why `threshold_plot.png` looked plausible.
+### 2. FIXED — phenomenological noise lied in the final round
 
-**Workaround adopted.** `js/montecarlo.js` samples noise in JavaScript and
-drives the engine one shot at a time through the session API
-(`wasm_clear_errors` → `wasm_toggle_error` → `wasm_decode`). The lattice,
-syndrome extraction, all three decoders, and the logical-failure verdict remain
-the engine's. The sampling distributions are transcriptions of
-`sample_biased_error`, `sample_biased_error_with_erasure`, `get_drift_p`, and
-`inject_correlated_noise`.
+Measurement errors were applied in every round including the last. Defects are time differences,
+so a last-round lie has no partner and leaves an unpaired defect the decoder must match somewhere.
+More checks means more last-round lies, so logical error *rose* with distance far below threshold
+(1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now noiseless.
 
-Verified against the session API first: a single X error decodes cleanly, a
-patch-spanning chain returns `failed = 1` with an empty syndrome, and a
-non-spanning chain returns `failed = 0`. Resulting thresholds land where the
-literature puts them — ~10.5% for data noise, ~2.6% phenomenological.
+After both fixes the engine reproduces the literature — p_th ≈ 10.9% data noise, ≈ 2.6%
+phenomenological, both with reduced χ² near 1 — and agrees point-by-point with an independent
+JavaScript Monte Carlo written against the per-shot session API.
 
-Costs: `wasm_estimate_logical_fidelity` (Bloch tomography) and circuit-level
-noise cannot be reached this way. Both are removed from the page, with the
-reason stated in sections 9 and 10.
+### 3. OPEN — the XZZX decoder reuses the wrong defect set
 
-### 2. The XZZX decoder reuses the wrong defect set
+`let defects_x = defects_z.clone();` feeds the Z pass's defects to the X graph, whose
+`edge_to_qubit` mapping is different. A single X error on a d=3 patch returns the correct one-qubit
+X correction plus two spurious Z corrections, each a fresh error; their count scales with the
+graph, so the code degrades as it grows. Unchanged by the RNG fix.
 
-In the XZZX branch of `wasm_decode`, the second decoding pass does not derive
-its own defects:
+The correct fix is one graph carrying both edge families with a per-edge type tag, decoded once,
+with each matched edge routed to X or Z by its tag. That is a decoder change, not a one-liner, and
+it needs validating against the obvious test before it can be trusted. Section 8 states the
+published result, then reports that this engine does not reproduce it and shows the measurement.
 
-```rust
-let graph_x = code.build_syndrome_graph(num_rounds, false);
-let defects_x = defects_z.clone();   // the Z pass's defects, on the X graph
-```
+### Also open — circuit-level noise and tomography
 
-`graph_x` has a different `edge_to_qubit` mapping, so the `correction_z` it
-produces is unrelated to any Z error that occurred. Verified directly: a single
-X error on a d=3 XZZX patch returns the correct one-qubit X correction plus two
-spurious Z corrections, each a fresh error on the patch. Their count scales with
-the graph, so the code degrades as it grows — at p=2% unbiased over 4,000 shots
-the rotated code improves 0.65% → 0.18% from d=3 to d=5 while XZZX degrades
-5.3% → 12.8%, with a flat bias response from η=0.5 to η=1000.
-
-The rotated branch derives both defect sets independently and is unaffected, as
-is the lattice geometry.
-
-Section 8 was rewritten to state the published result, then report that this
-engine does not reproduce it and show the measurement. Deleting the section
-would have been the dishonest option.
+`simulate_circuit_noise` returns a rate that falls as p rises (d=7: 89% at p=0.1% down to 51% at
+p=1%). `wasm_estimate_logical_fidelity` returns (1, 1, 1) at zero noise — length √3, outside the
+Bloch sphere, so three survival probabilities rather than a Bloch vector. Both stay off the page.
 
 ## Decisions
 
@@ -146,7 +126,7 @@ index.html            structure only, zero inline style
 css/styles.css        design tokens first, then base, then components
 js/engine.js          typed wrapper over the exports; the only module that
                       touches raw pointers or wasm memory
-js/montecarlo.js      JS noise sampling driving the engine's decoders per shot
+js/channel.js         the noise channel, shared by the figures and the engine
 js/worker.js          worker-side: own wasm instance, sweeps and tables
 js/compute.js         promise-based RPC client for the worker; Wilson intervals;
                       threshold scaling fit

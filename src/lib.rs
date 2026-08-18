@@ -61,6 +61,19 @@ pub struct WasmSession {
     syndrome: Vec<u8>,
 }
 
+/// Seed the generator that every shot draws from.
+///
+/// Without this the WebAssembly build is deterministic across page loads: the
+/// stream starts from the same constant every time, so a reader who reloads
+/// sees byte-identical "measurements". Callers should pass something from
+/// `crypto.getRandomValues`.
+#[cfg(not(feature = "python"))]
+#[no_mangle]
+pub extern "C" fn wasm_seed(seed_lo: u32, seed_hi: u32) {
+    let seed = ((seed_hi as u64) << 32) | (seed_lo as u64);
+    surface_code::seed_global_rng(seed);
+}
+
 #[no_mangle]
 pub extern "C" fn wasm_create_session(d: usize, code_type: usize) -> *mut WasmSession {
     let num_data = d * d;
