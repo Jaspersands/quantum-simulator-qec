@@ -78,6 +78,16 @@ pub struct DetectorGraph {
     pub graph: SyndromeGraph,
     /// Data qubits each edge corrects, as a bitmask.
     pub correction: Vec<u128>,
+    /// For each erasure site, the edges that become free when it is erased.
+    ///
+    /// An erasure is a *located* loss: the hardware knows the qubit was lost, so
+    /// the decoder knows a uniformly random Pauli struck that exact circuit
+    /// location. Every edge that location can produce therefore costs nothing,
+    /// and the matcher is told so by weighting them zero. On an ancilla midway
+    /// through its CNOTs that is several edges at once — the same propagation
+    /// that makes a hook error — which is why this has to come from the model
+    /// rather than from a qubit index.
+    pub site_edges: Vec<Vec<usize>>,
 }
 
 /// The model for one (code, round count).
@@ -87,6 +97,11 @@ pub struct CircuitModel {
     /// Detectors are X-stabilizer measurements; edges correct Z errors.
     pub for_z_errors: DetectorGraph,
     pub num_rounds: usize,
+    /// Noise locations per round, so a caller can index erasure sites as
+    /// `(round - 1) * noise_slots + slot`.
+    pub noise_slots: usize,
+    /// Total erasure sites across the noisy rounds.
+    pub erasure_sites: usize,
 }
 
 /// Pauli frame over data qubits and ancillas.
@@ -208,21 +223,32 @@ impl CircuitLayout {
         FaultEffect { flips_x_stab: flips_x, flips_z_stab: flips_z, residual_x, residual_z }
     }
 
-    /// Every elementary fault one round admits.
-    fn fault_locations(&self) -> Vec<Fault> {
+    /// Every elementary fault one round admits, paired with its erasure slot.
+    ///
+    /// A gate fault belongs to the noise location it sits at — that is the thing
+    /// an erasure can be *located* to. Readout flips have no slot; losing a
+    /// qubit and misreading a measurement are different failures.
+    fn fault_locations(&self) -> Vec<(Fault, Option<usize>)> {
         let mut out = Vec::new();
+        let mut slot = 0usize;
         for (i, op) in self.program.iter().enumerate() {
             match op {
                 Op::Noise(_) => {
                     for pauli in 1..=3u8 {
-                        out.push(Fault::Gate(i, pauli));
+                        out.push((Fault::Gate(i, pauli), Some(slot)));
                     }
+                    slot += 1;
                 }
-                Op::Measure(..) => out.push(Fault::Readout(i)),
+                Op::Measure(..) => out.push((Fault::Readout(i), None)),
                 _ => {}
             }
         }
         out
+    }
+
+    /// How many noise locations one round has.
+    pub fn noise_slots(&self) -> usize {
+        self.program.iter().filter(|op| matches!(op, Op::Noise(_))).count()
     }
 }
 
@@ -264,21 +290,30 @@ fn detectors(flips: &[bool], num_stabs: usize, rounds_total: usize) -> Vec<usize
     fired
 }
 
-/// Collect the edges of one graph from a set of (detector pair, correction).
+/// Collect the edges of one graph, keeping track of which erasure site each came
+/// from so a located loss can name the edges it makes free.
 fn assemble(
-    mut candidates: Vec<(Vec<usize>, u128)>,
+    candidates: Vec<(Vec<usize>, u128, usize)>,
     num_nodes: usize,
+    num_sites: usize,
 ) -> DetectorGraph {
     // One edge per distinct (endpoints, correction). Many faults share a
-    // signature; the matcher only needs the mechanism to exist once.
-    candidates.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
-    candidates.dedup();
+    // signature; the matcher only needs the mechanism to exist once, but every
+    // site that can produce it has to remember which edge it became.
+    let mut signatures: Vec<(Vec<usize>, u128)> =
+        candidates.iter().map(|(n, c, _)| (n.clone(), *c)).collect();
+    signatures.sort();
+    signatures.dedup();
+
+    let index_of = |nodes: &Vec<usize>, corr: u128| -> Option<usize> {
+        signatures.binary_search(&(nodes.clone(), corr)).ok()
+    };
 
     let mut edges = Vec::new();
     let mut edge_to_qubit = Vec::new();
     let mut correction = Vec::new();
 
-    for (nodes, corr) in candidates {
+    for (nodes, corr) in &signatures {
         let (u, v) = match nodes.len() {
             1 => (nodes[0], num_nodes), // to the boundary
             2 => (nodes[0], nodes[1]),
@@ -286,15 +321,25 @@ fn assemble(
         };
         // The matcher's own bookkeeping wants a representative qubit; the real
         // correction is the mask alongside.
-        let representative = if corr == 0 { None } else { Some(corr.trailing_zeros() as usize) };
+        let representative = if *corr == 0 { None } else { Some(corr.trailing_zeros() as usize) };
         edges.push(Edge { u, v, id: edges.len() });
         edge_to_qubit.push(representative);
-        correction.push(corr);
+        correction.push(*corr);
+    }
+
+    let mut site_edges = vec![Vec::new(); num_sites];
+    for (nodes, corr, site) in &candidates {
+        if let Some(id) = index_of(nodes, *corr) {
+            if id < edges.len() && !site_edges[*site].contains(&id) {
+                site_edges[*site].push(id);
+            }
+        }
     }
 
     DetectorGraph {
         graph: SyndromeGraph { num_nodes, edges, edge_to_qubit },
         correction,
+        site_edges,
     }
 }
 
@@ -321,7 +366,7 @@ pub fn single_fault_failures(
     let mut failures = 0usize;
 
     for round in 1..rounds_total - 1 {
-        for fault in layout.fault_locations() {
+        for (fault, _) in layout.fault_locations() {
             let effect = layout.propagate(fault, round, rounds_total);
             tested += 1;
 
@@ -334,12 +379,14 @@ pub fn single_fault_failures(
             // X errors, decoded on the Z-stabilizer detectors.
             let mut defects = vec![false; model.for_x_errors.graph.num_nodes];
             for &n in &dz { defects[n] = true; }
-            residual_x ^= correction_for(&model.for_x_errors, &defects, decoder_type);
+            let none_x = vec![false; model.for_x_errors.graph.edges.len()];
+            residual_x ^= correction_for(&model.for_x_errors, &defects, decoder_type, &none_x);
 
             // Z errors, decoded on the X-stabilizer detectors.
             let mut defects = vec![false; model.for_z_errors.graph.num_nodes];
             for &n in &dx { defects[n] = true; }
-            residual_z ^= correction_for(&model.for_z_errors, &defects, decoder_type);
+            let none_z = vec![false; model.for_z_errors.graph.edges.len()];
+            residual_z ^= correction_for(&model.for_z_errors, &defects, decoder_type, &none_z);
 
             let logical_x = (residual_x & logical_z_support).count_ones() % 2 == 1;
             let logical_z = (residual_z & logical_x_support).count_ones() % 2 == 1;
@@ -352,12 +399,16 @@ pub fn single_fault_failures(
 }
 
 /// Decode one graph and collect the data-qubit correction it implies.
-pub fn correction_for(dg: &DetectorGraph, defects: &[bool], decoder_type: usize) -> u128 {
-    let erased = vec![false; dg.graph.edges.len()];
+pub fn correction_for(
+    dg: &DetectorGraph,
+    defects: &[bool],
+    decoder_type: usize,
+    erased: &[bool],
+) -> u128 {
     let chosen = match decoder_type {
-        1 => crate::decoder::decode_greedy(&dg.graph, defects, &erased),
-        2 => crate::decoder::decode_mwpm(&dg.graph, defects, &erased),
-        _ => crate::decoder::decode_union_find(&dg.graph, defects, &erased),
+        1 => crate::decoder::decode_greedy(&dg.graph, defects, erased),
+        2 => crate::decoder::decode_mwpm(&dg.graph, defects, erased),
+        _ => crate::decoder::decode_union_find(&dg.graph, defects, erased),
     };
     let mut mask = 0u128;
     for edge_idx in chosen {
@@ -380,7 +431,7 @@ pub fn stats(layout: &CircuitLayout, num_rounds: usize) -> ModelStats {
     let rounds_total = rounds_executed(num_rounds);
     let mut st = ModelStats { x_buckets: [0; 5], z_buckets: [0; 5], x_edges: 0, z_edges: 0 };
     for round in 1..rounds_total - 1 {
-        for fault in layout.fault_locations() {
+        for (fault, _) in layout.fault_locations() {
             let effect = layout.propagate(fault, round, rounds_total);
             let dz = detectors(&effect.flips_z_stab, layout.num_z_stabs, rounds_total);
             let dx = detectors(&effect.flips_x_stab, layout.num_x_stabs, rounds_total);
@@ -401,32 +452,42 @@ pub fn build(layout: &CircuitLayout, num_rounds: usize) -> CircuitModel {
     let num_x_nodes = layout.num_x_stabs * layers;
     let num_z_nodes = layout.num_z_stabs * layers;
 
-    let mut for_x: Vec<(Vec<usize>, u128)> = Vec::new();
-    let mut for_z: Vec<(Vec<usize>, u128)> = Vec::new();
+    let noise_slots = layout.noise_slots();
+    let erasure_sites = noise_slots * num_rounds;
+
+    let mut for_x: Vec<(Vec<usize>, u128, usize)> = Vec::new();
+    let mut for_z: Vec<(Vec<usize>, u128, usize)> = Vec::new();
 
     // The first and last rounds are noiseless, so faults are enumerated only in
     // the rounds that actually carry noise.
     for round in 1..rounds_total - 1 {
-        for fault in layout.fault_locations() {
+        for (fault, slot) in layout.fault_locations() {
             let effect = layout.propagate(fault, round, rounds_total);
+            // Readout flips are not erasures, so they belong to no site; park
+            // them on a sentinel that no erasure ever names.
+            let site = slot
+                .map(|k| (round - 1) * noise_slots + k)
+                .unwrap_or(erasure_sites);
 
             // X errors show up in Z-stabilizer detectors.
             let dz = detectors(&effect.flips_z_stab, layout.num_z_stabs, rounds_total);
             if !dz.is_empty() && dz.len() <= 2 {
-                for_x.push((dz, effect.residual_x));
+                for_x.push((dz, effect.residual_x, site));
             }
 
             // Z errors show up in X-stabilizer detectors.
             let dx = detectors(&effect.flips_x_stab, layout.num_x_stabs, rounds_total);
             if !dx.is_empty() && dx.len() <= 2 {
-                for_z.push((dx, effect.residual_z));
+                for_z.push((dx, effect.residual_z, site));
             }
         }
     }
 
     CircuitModel {
-        for_x_errors: assemble(for_x, num_z_nodes),
-        for_z_errors: assemble(for_z, num_x_nodes),
+        for_x_errors: assemble(for_x, num_z_nodes, erasure_sites + 1),
+        for_z_errors: assemble(for_z, num_x_nodes, erasure_sites + 1),
         num_rounds,
+        noise_slots,
+        erasure_sites,
     }
 }

@@ -153,8 +153,22 @@ With both fixed, the logical error rate at d = 3 scales as p² as theory demands
 fits p_th = 0.45% with ν = 1.48 and reduced χ² = 1.05 — the closest to the textbook exponent of
 ~1.46 of any of the three noise models.
 
-Not yet modelled: located erasure under circuit-level noise, which would need its own fault family
-and per-shot edge reweighting. Erasure works in the other two models.
+### Located loss under circuit-level noise
+
+An erasure is a qubit the hardware knows it lost — the Pauli is uniform and unknown, the location is
+not. That makes it far easier to correct: every decoding edge the location could have produced costs
+nothing, so the matcher routes through it freely.
+
+Under circuit-level noise the location is a point in the circuit rather than a qubit, and an erasure
+on an ancilla partway through its CNOTs frees everything the loss goes on to touch — the same
+propagation that produces a hook error. The detector error model already records which edges each
+circuit location produces, so it answers that question directly: `DetectorGraph::site_edges` maps an
+erasure site to the edges it makes free.
+
+Measured at d = 5: logical error at p = 0.8% falls from 8.2% with no erasure, to 3.4% when half the
+faults are located, to nothing when all of them are. Fully located noise has its own threshold near
+p = 2%, roughly four times the Pauli threshold — and the fact that it *has* a threshold, rather than
+being perfect everywhere, is the check that the information is being used rather than assumed.
 
 ## Repository Structure
 

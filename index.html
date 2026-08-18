@@ -746,7 +746,7 @@
             <option value="1" selected>Phenomenological</option>
             <option value="2">Circuit-level (CNOTs)</option>
           </select>
-          <span class="field__hint">Circuit-level is honest but incomplete — see section 10.</span>
+          
         </div>
         <div class="field">
           <label class="field__label" for="bench-d">Distance</label>
@@ -946,6 +946,21 @@
       p² as theory demands, and a threshold appears where it should: the sweep in section 7 fits
       <span class="mono">p_th ≈ 0.45%</span> with <span class="mono">ν ≈ 1.5</span> and a reduced
       χ² near 1 — the closest to the textbook exponent of the three noise models.</dd>
+    </div>
+    <div>
+      <dt>Located loss</dt>
+      <dd>An erasure is a qubit the hardware knows it lost. That knowledge is worth a great deal: the
+      Pauli is uniform and unknown, but the <em>location</em> is not, so every decoding edge that
+      location could have produced costs nothing and the matcher is free to route through it. Under
+      circuit-level noise the location is a point in the circuit rather than a qubit, and an erasure
+      on an ancilla partway through its CNOTs frees everything the loss goes on to touch — the same
+      propagation that makes a hook error. The model already knows which edges each circuit location
+      produces, so it answers that directly. The effect is what the physics says it should be: at
+      <span class="mono">p = 0.8%</span> and <span class="mono">d = 5</span>, logical error falls
+      from 8.2% with no erasure to 3.4% when half the faults are located and to nothing when all of
+      them are. Fully located noise has its own threshold near
+      <span class="mono">p = 2%</span> — some four times the Pauli threshold, and still a threshold,
+      which is the check that the information is being used rather than assumed.</dd>
     </div>
     <div>
       <dt>Detection events</dt>

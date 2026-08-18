@@ -76,8 +76,11 @@ had to be transposes *the other way round* from the pairing first tried (which p
 d = 7 and fails 44/600 at d = 3), and state-preparation noise was being applied before the baseline
 round, where it sits in both readings a detector compares and so is never detected at all.
 
-Not modelled: located erasure under circuit-level noise, which needs its own fault family and
-per-shot edge reweighting.
+Located erasure is modelled too. `DetectorGraph::site_edges` maps each circuit location to the edges
+it can produce, so a known loss makes exactly those free — including, on an ancilla, everything the
+loss propagates onto. At d = 5, p = 0.8%: 8.2% with no erasure, 3.4% at half, nothing at full. Fully
+located noise has its own threshold near p = 2%, about four times the Pauli one; that it has a
+threshold at all is the check that the location information is used rather than assumed.
 
 ## Decisions
 

@@ -797,9 +797,7 @@ impl RotatedSurfaceCode {
         bias: f64,
         init_state: &str,
         decoder_type: usize,
-        // Erasure is not yet part of the circuit detector model; a located loss
-        // would need its own fault family and per-shot edge reweighting.
-        _erasure_rate: f64,
+        erasure_rate: f64,
         correlated_noise: usize,
     ) -> u8 {
         use crate::circuit_model::{Op, StabKind};
@@ -840,6 +838,7 @@ impl RotatedSurfaceCode {
 
         let mut flips_x = vec![false; num_x * rounds_total];
         let mut flips_z = vec![false; num_z * rounds_total];
+        let mut erased_sites = vec![false; model.erasure_sites];
 
         for r in 0..rounds_total {
             // The first round projects into the code space and the last is the
@@ -851,6 +850,7 @@ impl RotatedSurfaceCode {
                 get_drift_p(p, r - 1, correlated_noise)
             };
 
+            let mut slot = 0usize;
             for &op in &program {
                 match op {
                     Op::Reset(q) => {
@@ -860,7 +860,28 @@ impl RotatedSurfaceCode {
                     }
                     Op::H(q) => sim.apply_h(q),
                     Op::Cnot(c, t) => sim.apply_cnot(c, t),
-                    Op::Noise(q) => inject_single_qubit_noise(&mut sim, q, round_p, bias, &mut rng),
+                    Op::Noise(q) => {
+                        // A located loss: the hardware knows this qubit was lost
+                        // here, so the Pauli is uniform and — crucially — the
+                        // decoder gets told where. On an ancilla partway through
+                        // its CNOTs that knowledge covers everything the loss
+                        // goes on to touch.
+                        let p_erase = round_p * erasure_rate;
+                        let p_pauli = round_p * (1.0 - erasure_rate);
+                        if p_erase > 0.0 && rng.next_f64() < p_erase {
+                            match rng.next_u64() % 3 {
+                                0 => sim.apply_x(q),
+                                1 => sim.apply_y(q),
+                                _ => sim.apply_z(q),
+                            }
+                            if r > 0 && r < rounds_total - 1 {
+                                erased_sites[(r - 1) * model.noise_slots + slot] = true;
+                            }
+                        } else {
+                            inject_single_qubit_noise(&mut sim, q, p_pauli, bias, &mut rng);
+                        }
+                        slot += 1;
+                    }
                     Op::Measure(q, kind, idx) => {
                         let mut m = sim.measure_z(q) == 1;
                         if round_p > 0.0 && rng.next_f64() < round_p {
@@ -901,7 +922,17 @@ impl RotatedSurfaceCode {
                      dg: &crate::circuit_model::DetectorGraph,
                      defects: &[bool],
                      is_x: bool| {
-            let erased_edges = vec![false; dg.graph.edges.len()];
+            // Every edge an erased location could have produced costs nothing:
+            // the matcher is free to route through it, because the loss is known
+            // to have happened there.
+            let mut erased_edges = vec![false; dg.graph.edges.len()];
+            for (site, &lost) in erased_sites.iter().enumerate() {
+                if lost {
+                    for &edge in &dg.site_edges[site] {
+                        erased_edges[edge] = true;
+                    }
+                }
+            }
             let chosen = decode_by_type(&dg.graph, defects, decoder_type, &erased_edges);
             for edge_idx in chosen {
                 let mask = dg.correction[edge_idx];
