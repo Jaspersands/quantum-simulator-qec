@@ -4,10 +4,15 @@
  * Real hardware does not produce X, Y, and Z errors in equal measure; dephasing
  * usually dominates. The rotated code is built for symmetric noise and gains
  * little from that skew. The XZZX code alternates X and Z around every
- * plaquette, which turns a strong bias into an advantage.
+ * plaquette, which in the published result turns a strong bias into a much
+ * higher threshold.
  *
- * The figure sweeps the bias parameter and runs both codes at each value, so
- * the crossing point is measured rather than asserted.
+ * This engine does not reproduce that, and the figure reports what it measures
+ * rather than what it ought to show. The decoder's double-matching bug is
+ * fixed, so XZZX no longer degrades with distance — but its curve is flat where
+ * it should fall, because a lone boundary defect can be matched to the wrong
+ * error family and the resulting weight-one residual is scored as a logical
+ * failure. See section 10.
  */
 
 import { CODE, DECODER, NOISE } from '../engine.js';
@@ -99,9 +104,9 @@ export function initBias(root, compute) {
         class: 'note',
         text: xzzx.pL < rotated.pL
           ? 'XZZX came out ahead at the strongest bias, as the published result predicts.'
-          : 'XZZX did not pull ahead at any bias. That matches the defect described above — this '
-            + "engine's XZZX patch does not gain protection from distance, so it cannot show the "
-            + 'threshold advantage the variant exists for.',
+          : 'XZZX did not pull ahead at any bias, which matches the defect described above. Its '
+            + 'error rate no longer runs away with distance, but it is still flat rather than '
+            + 'falling, so the patch never gets far enough ahead for the bias advantage to show.',
       }),
     ]);
   }
