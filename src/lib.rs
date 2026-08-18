@@ -577,25 +577,14 @@ pub extern "C" fn wasm_decode(
             }
         }
 
-        let mut logical_err_1 = false;
-        for x_idx in 0..d {
-            let q = x_idx + d * 0;
-            let err = if x_idx % 2 == 0 { accumulated_z[q] } else { accumulated_x[q] };
-            if err {
-                logical_err_1 ^= true;
-            }
+        // Ask the stabilizer group directly rather than trusting a hard-coded
+        // logical string. See surface_code::LogicalCheck.
+        let (mut rx, mut rz) = (0u128, 0u128);
+        for q in 0..num_data {
+            if accumulated_x[q] { rx |= 1u128 << q; }
+            if accumulated_z[q] { rz |= 1u128 << q; }
         }
-
-        let mut logical_err_2 = false;
-        for y_idx in 0..d {
-            let q = 0 + d * y_idx;
-            let err = if y_idx % 2 == 0 { accumulated_x[q] } else { accumulated_z[q] };
-            if err {
-                logical_err_2 ^= true;
-            }
-        }
-
-        if logical_err_1 || logical_err_2 { 1 } else { 0 }
+        if code.logical.is_logical(rx, rz) { 1 } else { 0 }
     }
 }
 

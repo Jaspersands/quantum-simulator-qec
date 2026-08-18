@@ -74,6 +74,80 @@ fn next_shot_rng() -> Xorshift {
     }
 }
 
+/// Is a residual Pauli a logical error?
+///
+/// After decoding, a residual that commutes with every stabilizer is either a
+/// product of stabilizers — harmless — or a logical operator. Testing that
+/// directly is convention-free: reduce the residual against a row-reduced
+/// basis of the stabilizer group and see whether anything is left.
+///
+/// The alternative, and what this file did for the XZZX code, is to hard-code a
+/// string of Paulis believed to represent the logical operator and check
+/// anticommutation with it. When the string is wrong the check misfires on
+/// residuals that are not logical operators at all: a *weight-one* residual was
+/// being reported as a logical failure, which is impossible in a distance-3 or
+/// larger code, and it happened at every distance, so the logical error rate
+/// came out flat instead of falling.
+///
+/// Brute force over the actual stabilizer group confirms the XZZX construction
+/// is sound — minimum logical weight 3 at d=3, above 4 at d=5 — so the code was
+/// right and only the check was wrong.
+pub struct LogicalCheck {
+    /// Row-reduced stabilizer basis: (x bits, z bits, pivot is in x, pivot bit).
+    basis: Vec<(u128, u128, bool, u32)>,
+}
+
+impl LogicalCheck {
+    /// `stabilizers` are symplectic (x, z) bit patterns, one per generator.
+    pub fn new(stabilizers: &[(u128, u128)], num_qubits: usize) -> Self {
+        let mut basis: Vec<(u128, u128, bool, u32)> = Vec::new();
+
+        for &(mut x, mut z) in stabilizers {
+            for &(bx, bz, pivot_in_x, bit) in &basis {
+                let set = if pivot_in_x { (x >> bit) & 1 } else { (z >> bit) & 1 };
+                if set == 1 {
+                    x ^= bx;
+                    z ^= bz;
+                }
+            }
+            if x == 0 && z == 0 {
+                continue; // dependent on the rows already collected
+            }
+            let mut pivot = None;
+            for i in 0..num_qubits {
+                if (x >> i) & 1 == 1 {
+                    pivot = Some((true, i as u32));
+                    break;
+                }
+            }
+            if pivot.is_none() {
+                for i in 0..num_qubits {
+                    if (z >> i) & 1 == 1 {
+                        pivot = Some((false, i as u32));
+                        break;
+                    }
+                }
+            }
+            let (pivot_in_x, bit) = pivot.expect("non-zero row has a pivot");
+            basis.push((x, z, pivot_in_x, bit));
+        }
+
+        LogicalCheck { basis }
+    }
+
+    /// True when the residual is *not* a product of stabilizers.
+    pub fn is_logical(&self, mut x: u128, mut z: u128) -> bool {
+        for &(bx, bz, pivot_in_x, bit) in &self.basis {
+            let set = if pivot_in_x { (x >> bit) & 1 } else { (z >> bit) & 1 };
+            if set == 1 {
+                x ^= bx;
+                z ^= bz;
+            }
+        }
+        x != 0 || z != 0
+    }
+}
+
 fn sample_biased_error(p: f64, eta: f64, rng: &mut Xorshift) -> (bool, bool) {
     if rng.next_f64() < p {
         let rand_val = rng.next_f64();
@@ -865,6 +939,9 @@ pub struct XZZXSurfaceCode {
     pub stabilizers: Vec<(usize, usize)>,
     pub z_stabilizers: Vec<(usize, usize)>,
     pub x_stabilizers: Vec<(usize, usize)>,
+    /// Built once per code; see LogicalCheck for why the hard-coded string
+    /// this replaces was wrong.
+    pub logical: LogicalCheck,
 }
 
 impl XZZXSurfaceCode {
@@ -898,12 +975,38 @@ impl XZZXSurfaceCode {
             }
         }
 
+        // Symplectic form of each stabilizer. XZZX puts X on the NW/SE diagonal
+        // and Z on the NE/SW one; verified against the engine's own syndrome by
+        // injecting every single-qubit error and comparing which checks fire.
+        let index_of = |x: i32, y: i32| -> Option<usize> {
+            if x >= 1 && x < (2 * d) as i32 && y >= 1 && y < (2 * d) as i32 {
+                Some(((x - 1) as usize / 2) + d * ((y - 1) as usize / 2))
+            } else {
+                None
+            }
+        };
+        let mut ops: Vec<(u128, u128)> = Vec::with_capacity(stabilizers.len());
+        for &(sx, sy) in &stabilizers {
+            let (mut px, mut pz) = (0u128, 0u128);
+            for &(dx, dy, is_x) in &[
+                (-1i32, -1i32, true), (1, 1, true),
+                (1, -1, false), (-1, 1, false),
+            ] {
+                if let Some(q) = index_of(sx as i32 + dx, sy as i32 + dy) {
+                    if is_x { px |= 1u128 << q; } else { pz |= 1u128 << q; }
+                }
+            }
+            ops.push((px, pz));
+        }
+        let logical = LogicalCheck::new(&ops, d * d);
+
         XZZXSurfaceCode {
             d,
             data_qubits,
             stabilizers,
             z_stabilizers,
             x_stabilizers,
+            logical,
         }
     }
 
@@ -1092,11 +1195,10 @@ impl XZZXSurfaceCode {
 
         let mut measured = vec![vec![false; num_stabs]; num_rounds];
 
-        let graph_z = self.build_syndrome_graph(num_rounds, true);
-        let mut erased_edges_z = vec![false; graph_z.edges.len()];
-
-        let graph_x = self.build_syndrome_graph(num_rounds, false);
-        let mut erased_edges_x = vec![false; graph_x.edges.len()];
+        // Erasure is a property of a (qubit, round); graph edges are derived
+        // from it below. The old code indexed an edge-length array by
+        // `t * num_data + q`, which is not an edge index at all.
+        let mut erased_qubits = vec![false; num_data * num_rounds];
 
         for t in 0..num_rounds {
             let round_p = get_drift_p(p, t, correlated_noise);
@@ -1106,8 +1208,7 @@ impl XZZXSurfaceCode {
             for q in 0..num_data {
                 let (err_x, err_z, erased) = sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
                 if erased {
-                    erased_edges_z[t * num_data + q] = true;
-                    erased_edges_x[t * num_data + q] = true;
+                    erased_qubits[t * num_data + q] = true;
                 }
                 if err_x { physical_x[q] ^= true; }
                 if err_z { physical_z[q] ^= true; }
@@ -1147,7 +1248,10 @@ impl XZZXSurfaceCode {
             }
         }
 
-        let mut defects_z = vec![false; graph_z.num_nodes];
+        // One matching over both error families. See build_combined_graph.
+        let (graph, edge_is_x) = self.build_combined_graph(num_rounds);
+
+        let mut defects_z = vec![false; graph.num_nodes];
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs {
                 let prev_outcome = if t == 0 { false } else { measured[t - 1][s_idx] };
@@ -1155,22 +1259,27 @@ impl XZZXSurfaceCode {
                 defects_z[s_idx + t * num_stabs] = diff;
             }
         }
-        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type, &erased_edges_z);
-
-        let mut correction_x_data = vec![false; num_data];
-        for edge_idx in correction_z_edges {
-            if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
-                correction_x_data[q_idx] ^= true;
+        let mut erased_edges = vec![false; graph.edges.len()];
+        for edge_idx in 0..graph.edges.len() {
+            if let Some(q_idx) = graph.edge_to_qubit[edge_idx] {
+                let t_layer = graph.edges[edge_idx].u / self.stabilizers.len();
+                let idx = q_idx + t_layer * num_data;
+                if idx < erased_qubits.len() && erased_qubits[idx] {
+                    erased_edges[edge_idx] = true;
+                }
             }
         }
 
-        let defects_x = defects_z.clone();
-        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type, &erased_edges_x);
-
+        let correction_edges = decode_by_type(&graph, &defects_z, decoder_type, &erased_edges);
+        let mut correction_x_data = vec![false; num_data];
         let mut correction_z_data = vec![false; num_data];
-        for edge_idx in correction_x_edges {
-            if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
-                correction_z_data[q_idx] ^= true;
+        for edge_idx in correction_edges {
+            if let Some(q_idx) = graph.edge_to_qubit[edge_idx] {
+                if edge_is_x[edge_idx] {
+                    correction_x_data[q_idx] ^= true;
+                } else {
+                    correction_z_data[q_idx] ^= true;
+                }
             }
         }
 
@@ -1181,25 +1290,14 @@ impl XZZXSurfaceCode {
             residual_z[q] = physical_z[q] ^ correction_z_data[q];
         }
 
-        let mut logical_err_1 = false;
-        for x_idx in 0..self.d {
-            let q = x_idx + self.d * 0;
-            let err = if x_idx % 2 == 0 { residual_z[q] } else { residual_x[q] };
-            if err {
-                logical_err_1 ^= true;
-            }
+        // Ask the stabilizer group directly rather than trusting a hard-coded
+        // logical string. See LogicalCheck.
+        let (mut rx, mut rz) = (0u128, 0u128);
+        for q in 0..num_data {
+            if residual_x[q] { rx |= 1u128 << q; }
+            if residual_z[q] { rz |= 1u128 << q; }
         }
-
-        let mut logical_err_2 = false;
-        for y_idx in 0..self.d {
-            let q = 0 + self.d * y_idx;
-            let err = if y_idx % 2 == 0 { residual_x[q] } else { residual_z[q] };
-            if err {
-                logical_err_2 ^= true;
-            }
-        }
-
-        (logical_err_1 as u8) | ((logical_err_2 as u8) << 1)
+        self.logical.is_logical(rx, rz) as u8
     }
 
     /// Returns the logical Pauli class left behind: bit 0 set if a logical X
@@ -1290,25 +1388,14 @@ impl XZZXSurfaceCode {
             residual_z[q] = physical_z[q] ^ correction_z_data[q];
         }
 
-        let mut logical_err_1 = false;
-        for x_idx in 0..self.d {
-            let q = x_idx + self.d * 0;
-            let err = if x_idx % 2 == 0 { residual_z[q] } else { residual_x[q] };
-            if err {
-                logical_err_1 ^= true;
-            }
+        // Ask the stabilizer group directly rather than trusting a hard-coded
+        // logical string. See LogicalCheck.
+        let (mut rx, mut rz) = (0u128, 0u128);
+        for q in 0..num_data {
+            if residual_x[q] { rx |= 1u128 << q; }
+            if residual_z[q] { rz |= 1u128 << q; }
         }
-
-        let mut logical_err_2 = false;
-        for y_idx in 0..self.d {
-            let q = 0 + self.d * y_idx;
-            let err = if y_idx % 2 == 0 { residual_x[q] } else { residual_z[q] };
-            if err {
-                logical_err_2 ^= true;
-            }
-        }
-
-        (logical_err_1 as u8) | ((logical_err_2 as u8) << 1)
+        self.logical.is_logical(rx, rz) as u8
     }
 
     /// Returns the logical Pauli class left behind: bit 0 set if a logical X

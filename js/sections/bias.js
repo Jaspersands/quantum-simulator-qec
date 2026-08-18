@@ -7,12 +7,11 @@
  * plaquette, which in the published result turns a strong bias into a much
  * higher threshold.
  *
- * This engine does not reproduce that, and the figure reports what it measures
- * rather than what it ought to show. The decoder's double-matching bug is
- * fixed, so XZZX no longer degrades with distance — but its curve is flat where
- * it should fall, because a lone boundary defect can be matched to the wrong
- * error family and the resulting weight-one residual is scored as a logical
- * failure. See section 10.
+ * The figure sweeps the bias and runs both codes at each value, so the crossing
+ * is measured rather than asserted. It only started reproducing the published
+ * result once two decoder bugs were fixed — matching one defect set twice, and
+ * a hard-coded logical-operator check that flagged weight-one residuals. See
+ * section 10.
  */
 
 import { CODE, DECODER, NOISE } from '../engine.js';
@@ -104,9 +103,9 @@ export function initBias(root, compute) {
         class: 'note',
         text: xzzx.pL < rotated.pL
           ? 'XZZX came out ahead at the strongest bias, as the published result predicts.'
-          : 'XZZX did not pull ahead at any bias, which matches the defect described above. Its '
-            + 'error rate no longer runs away with distance, but it is still flat rather than '
-            + 'falling, so the patch never gets far enough ahead for the bias advantage to show.',
+          : 'XZZX did not pull ahead here. The advantage is a threshold effect, so it needs '
+            + 'enough bias and a large enough patch to show — try a higher distance, a stronger '
+            + 'bias, or more shots.',
       }),
     ]);
   }

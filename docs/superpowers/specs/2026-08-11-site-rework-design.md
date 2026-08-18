@@ -36,10 +36,10 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Six engine defects found during the rework
+## Seven engine defects found during the rework
 
-All surfaced while replacing fabricated numbers with live ones. Five are fixed at the source and
-the module rebuilt; two gaps remain, both characterised.
+All surfaced while replacing fabricated numbers with live ones. Six are fixed at the source and the
+module rebuilt; one gap remains.
 
 | # | Defect | Status |
 |---|---|---|
@@ -49,24 +49,30 @@ the module rebuilt; two gaps remain, both characterised.
 | 4 | X and Z extraction circuits used the same CNOT order, so they did not commute | FIXED — N/Z schedules, by direction |
 | 5 | Tomography ran three identical sims and called the result a Bloch vector | FIXED — Pauli transfer matrix diagonal |
 | 6 | XZZX matched one defect set twice, on two different graphs | FIXED — one combined graph, one matching |
+| 7 | XZZX scored logical errors against a hard-coded string that was not a logical operator | FIXED — stabilizer-group membership |
 
-Verification for each is in the README. The headline checks: batch variance now matches binomial
-(σ 0.00224 against 0.00222 over twelve repeats); a noiseless circuit fails never at any distance;
-zero-noise tomography returns (1, 1, 1) meaning *the channel shrinks nothing*; a single error of
-either type on an XZZX patch is corrected exactly at d = 3, 5, 7; and thresholds land where the
-literature puts them, ~11% data noise and ~2.7% phenomenological, both with reduced χ² near 1.
+Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
+repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)
+meaning *the channel shrinks nothing*; no single X, Z or Y error causes an XZZX logical failure at
+d = 3, 5 or 7; XZZX beats the rotated code under bias (d=7, p=3%, η=64: 0.07% against 0.43%); and
+thresholds land where the literature puts them, ~11% data noise and ~2.7% phenomenological, both
+with reduced χ² near 1.
 
-### Remaining, both stated on the page
+Bugs 6 and 7 were entangled: fixing the double-matching removed the runaway with distance but left
+the rate flat, which turned out to be the separate logical-check bug. Brute-force search over the
+actual stabilizer group confirmed the XZZX *construction* was always sound — minimum logical weight
+3 at d=3, above 4 at d=5 — so both faults were in decoding and scoring, not in the code.
 
-**XZZX is flat in distance.** The runaway is gone, but at the boundary a lone defect is explainable
-by either error family at equal weight; picking wrong leaves a weight-one residual that the
-logical-operator check scores as a failure, at any distance. Fixing it means settling this
-lattice's boundary conventions and logical-operator representatives.
+### Remaining: circuit-level noise has no threshold
 
-**Circuit-level noise has no threshold.** The decoder matches on the phenomenological spacetime
-graph, which has no edges for the correlated two-qubit errors a CNOT failing mid-extraction
-produces. Without those hook-error edges, larger patches are penalised rather than helped —
-measured down to p = 2×10⁻⁵. Building the circuit-level detector graph is new work.
+Below threshold a distance-d code should fail at order p^((d+1)/2), but a single fault causes a
+logical error roughly 3% of the time — measured at p = 2×10⁻⁵, where about one shot in twenty
+carries exactly one fault. The decoder still matches on the phenomenological spacetime graph, which
+has no edges for the correlated two-qubit errors a CNOT failing mid-extraction produces, so it pairs
+those defects wrongly. The fix is a detector error model: enumerate the circuit's fault locations,
+record which detectors each one fires and what data error it leaves, and decode on that graph. It
+also needs the decoder's `edge_to_qubit` widened, since a hook error corrects two qubits rather than
+one. That is a build rather than a bug fix.
 
 ## Decisions
 

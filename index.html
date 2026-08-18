@@ -646,20 +646,18 @@
       decouples into near-independent one-dimensional chains, lifting the threshold substantially.
     </p>
     <p>
-      <strong>This simulator still does not reproduce that result</strong>, though it is much
-      closer than it was. Its XZZX decoder used to run a second matching pass over a reused copy of
-      the first pass's defects, so a pure <span class="sym sym--x">X</span> error came back with
-      invented <span class="sym sym--z">Z</span> corrections attached — more of them the larger the
-      patch, which made the code get catastrophically <em>worse</em> with distance. That is fixed:
-      the two error families are now matched together in one pass, a single error of either type is
-      tolerated at every distance, and the runaway is gone.
+      It took three fixes to get this simulator to show it. Its XZZX decoder used to match one
+      defect set twice, on two graphs with different edge mappings, so a pure
+      <span class="sym sym--x">X</span> error came back with invented <span class="sym sym--z">Z</span>
+      corrections attached — more of them the larger the patch. And the logical-operator check used a
+      hard-coded string of Paulis that was simply wrong, so it reported failures for residuals that
+      were not logical operators at all, at every distance. Both are fixed: the two error families
+      are matched together in one pass, and whether a residual is a logical error is now decided by
+      asking the stabilizer group directly.
     </p>
     <p>
-      What remains is a flat curve where there should be a falling one. At the boundary, a lone
-      defect can be explained equally well by an X error or a Z error, and when the matcher picks
-      the wrong family it leaves a weight-one residual that the code's logical-operator check counts
-      as a failure — at any distance. So XZZX sits at a floor of a few percent instead of improving
-      as the patch grows, and the bias advantage cannot show through. Section 10 has the detail.
+      The result is the one the literature describes. Run the comparison: at strong bias XZZX pulls
+      clearly ahead of the rotated code, and both now improve as the patch grows.
     </p>
   </div>
 
@@ -877,22 +875,24 @@
     </div>
     <div>
       <dt>XZZX surface code</dt>
-      <dd>Every stabilizer measures alternating X and Z operators around its plaquette. Under
-      strongly biased noise the decoding problem should decouple into near-independent chains,
-      lifting the threshold substantially. <strong>Partly fixed, still not right.</strong> The
-      decoder used to derive defects once and then match them twice, on two graphs with different
-      edge-to-qubit mappings — the second pass reused the first's defects verbatim. Every defect was
-      therefore explained twice, once with X operators and once with Z, and both corrections
-      applied: a single X error returned the correct one-qubit X correction plus two invented Z
-      ones, and their number grew with the lattice, so the patch got worse as it got bigger. It now
-      builds one graph carrying both edge families with a per-edge type tag and matches once. A
-      single error of either type is corrected exactly, with no spurious operators, at every
-      distance tested. What is still wrong: at the boundary a lone defect is explainable by either
-      family at equal weight, and when the matcher chooses wrong it leaves a weight-one residual
-      that the logical-operator check reports as a failure. The result is a flat few-percent floor
-      rather than a curve falling with distance. The rotated code derives its two defect sets
-      independently and is unaffected — measured before and after the change, its rates are
-      identical within sampling noise.</dd>
+      <dd>Every stabilizer measures alternating X and Z operators around its plaquette — X on one
+      diagonal, Z on the other — which under biased noise decouples the decoding problem and lifts
+      the threshold. Getting this to work took two fixes. The decoder derived its defects once and
+      then matched them <em>twice</em>, on two graphs with different edge-to-qubit mappings, so every
+      defect was explained once with X operators and once with Z and both corrections applied; a
+      single X error returned the correct one-qubit X correction plus two invented Z ones, and their
+      number grew with the lattice. It now builds one graph carrying both edge families with a
+      per-edge type tag and matches once. Separately, the logical-operator check compared the
+      residual against a hard-coded alternating string of Paulis that did not represent a logical
+      operator of this lattice, so weight-one residuals — impossible logical errors in any code of
+      distance 3 or more — were counted as failures at every distance, which is why the error rate
+      came out flat instead of falling. That check now reduces the residual against a row-reduced
+      basis of the stabilizer group and asks whether anything is left, which needs no convention at
+      all. Brute-force search over the actual group confirms the construction was always sound:
+      minimum logical weight 3 at <span class="mono">d = 3</span> and above 4 at
+      <span class="mono">d = 5</span>. After both fixes, no single X, Z or Y error causes a logical
+      failure at any distance, the rate falls with distance at every bias, and XZZX beats the
+      rotated code under bias as it should.</dd>
     </div>
     <div>
       <dt>Noise models</dt>

@@ -22,9 +22,9 @@ running locally. Every number on the page is computed in the reader's browser on
 
 ## Engine defects found and fixed
 
-Six bugs surfaced while making the site report live data. Five are fixed; one XZZX issue and one
-circuit-level gap remain, both characterised below. Everything here is reflected in `src/` and in
-the committed `stabilizer_qec.wasm`.
+Seven bugs surfaced while making the site report live data. Six are fixed; one circuit-level gap
+remains, characterised below. Everything here is reflected in `src/` and in the committed
+`stabilizer_qec.wasm`.
 
 ### 1. FIXED — the WASM Monte Carlo was not random
 
@@ -81,21 +81,37 @@ Pauli transfer matrix computed properly. Verified: `(1, 1, 1)` at zero noise now
 *the channel shrinks nothing*, every factor stays in [−1, 1], and the site draws the sphere's image
 as an ellipsoid.
 
+### 6. FIXED — XZZX matched one defect set twice, and checked the wrong logical operator
+
+Two bugs, and both had to go before the code worked at all.
+
+The decoder derived its defects once then matched them *twice*, on two graphs with different
+edge-to-qubit mappings, because the second pass reused the first's defects verbatim
+(`let defects_x = defects_z.clone();`). XZZX has one syndrome and two edge families over the same
+nodes — an X error flips the stabilizers on one diagonal, a Z error those on the other — so this
+explained every defect twice and applied both corrections. A single X error returned the correct
+one-qubit X correction plus two invented Z ones, and their count grew with the lattice, so the code
+degraded as it grew: 5.4% at d=3 up to 21.0% at d=7, at p=2%. `build_combined_graph` now emits both
+families into one graph with a per-edge type tag and a single set of timelike edges; the defect set
+is matched once and each chosen edge routes to X or Z by its tag.
+
+That left the rate flat in distance rather than falling, which turned out to be a second, unrelated
+bug: the logical-operator check compared the residual against a hard-coded alternating string of
+Paulis that is not a logical operator of this lattice. It fired on residuals that were not logical
+operators at all — including *weight-one* residuals, which cannot be logical errors in any code of
+distance 3 or more — and it did so at every distance, hence the flat curve. The check now reduces
+the residual against a row-reduced basis of the stabilizer group and asks whether anything is left,
+which requires no convention about representatives.
+
+Brute-force search over the actual stabilizer group confirms the construction was always sound:
+minimum logical weight 3 at d=3, above 4 at d=5, for both codes. The bugs were entirely in the
+decoding and scoring.
+
+Verified after both: no single X, Z or Y error causes a logical failure at d = 3, 5 or 7; the rate
+falls with distance at every bias (η=64, p=2%: 0.48% → 0.05% → 0.03%); and XZZX beats the rotated
+code under bias as the literature says it should — at d=7, p=3%, η=64: **0.07% against 0.43%**.
+
 ## Still open
-
-### XZZX: matched once now, but flat in distance
-
-The double-matching bug is fixed — see `build_combined_graph`. Both edge families go into one graph
-with a per-edge type tag, the defect set is matched once, and each chosen edge routes to X or Z by
-its tag. A single error of either type is now corrected exactly, with no spurious operators, at
-d = 3, 5 and 7, and the old runaway (5.4% at d=3 climbing to 21.0% at d=7) is gone.
-
-What remains: the curve is flat in distance rather than falling. At the boundary a lone defect is
-explainable by either error family at equal weight, and when the matcher picks wrong it leaves a
-weight-one residual that the logical-operator check counts as a failure — at any distance.
-Reproduce with a single Z error on qubit 0: one defect fires and the decoder answers with one *X*
-correction. Settling it means fixing this lattice's boundary conventions and logical-operator
-representatives.
 
 ### Circuit-level noise: no threshold
 
