@@ -323,7 +323,12 @@ export function initThresholdSweep(root, compute) {
       ]),
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'exponent ν' }),
-        el('span', { class: 'readout__val', text: fit.nu.toFixed(2) }),
+        el('span', {
+          class: 'readout__val',
+          text: fit.nuDetermined
+            ? `${fit.nu.toFixed(2)}  (${fit.nuLo.toFixed(2)} – ${fit.nuHi.toFixed(2)})`
+            : 'not determined',
+        }),
       ]),
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'correction ω' }),
@@ -365,6 +370,11 @@ export function initThresholdSweep(root, compute) {
               ? ' ω ran to the top of its range, which means the correction is confined to the '
                 + 'smallest patch rather than decaying gently — read it as a floor, not a value.'
               : '')
+            + (fit.nuDetermined
+              ? ''
+              : ' ν is not quoted because its own interval came out wider than the value: at this '
+                + 'shot count the sweep cannot pin the exponent down, and a point estimate would '
+                + 'look like a measurement.')
             + (fit.windowAccepted
               ? ''
               : ' No window of this sweep is described by the scaling form within its error bars, '

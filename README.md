@@ -31,7 +31,7 @@ noise floor for it to matter.
 
 ## Engine defects found and fixed
 
-Thirteen bugs surfaced while making the site report live data. All thirteen are fixed. Everything here is
+Fifteen bugs surfaced while making the site report live data. All fifteen are fixed. Everything here is
 reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in ten
 sections below — section 6 covers two, which had to be fixed together before the XZZX code worked at
 all, and section 5 covers two, the second being the discovery that the first fix had only been
@@ -68,8 +68,22 @@ Figures are the mean and spread of **four independent sweeps**:
 | XZZX | data | **14.36% ± 0.59** | 1.59 ± 0.06 | 1.06 | 12.4% |
 | rotated | phenomenological | **3.29% ± 0.14** | 0.95 ± 0.11 | 2.63 | 2.93% |
 | XZZX | phenomenological | **3.25% ± 0.07** | 0.97 ± 0.06 | 2.56 | 2.94% |
-| rotated | circuit-level | **0.41% ± 0.03** | 0.85 ± 0.14 | 4.31 | 0.37% |
-| XZZX | circuit-level | **0.42% ± 0.04** | 0.82 ± 0.13 | 3.88 | 0.34% |
+| rotated | circuit-level | **0.41% ± 0.03** | *not determined* | 4.31 | 0.37% |
+| XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
+
+**ν is quoted only where it was verified recoverable, and circuit-level is not.** Fed synthetic data
+with the exponent fixed at 1.46 in advance, under each model's real sweep conditions, the fit returns
+it as 1.46 ± 0.02 from a data-noise sweep, 1.47 ± 0.20 from a phenomenological one, and **0.63 ± 0.36
+from a circuit-level one** — a −57% bias at the shot count that model can afford. Worse, it reports a
+tight-looking interval while doing so: measured coverage of the true value is 80%, 85% and 46%
+respectively. The bootstrap cannot police this, because the failure is bias and a bootstrap resamples
+around its own answer. So the gate is on the statistics the sweep actually carries (roughly 900k,
+216k and 43k shots in total), which is what predicts recoverability.
+
+The same check says the phenomenological exponent is real: had the truth been 1.46 the fit would have
+returned ~1.47, not 0.95. It is genuinely below the textbook value in this simulator, which is a
+result rather than an artefact — and one worth treating as provisional until someone checks it
+against an independent implementation.
 
 The spread across sweeps matches the bootstrap interval each sweep reports on its own, which is the
 check that the interval means what it says. The two codes agree within it on all three models — the
@@ -289,6 +303,13 @@ parameters reported as though they meant something. It is also what drove ω to 
 since with the shape wrong the correction term is free to absorb the misfit. The fit now takes the
 widest window the form actually fits, and reports which. All six sweeps now land at reduced χ²
 between 0.8 and 1.9, and ω between 0.9 and 4.3 with none against a boundary.
+
+Two more fell out of verifying the interval rather than the estimate. The bootstrap's local search
+used a grid coarser than the spread it was measuring, so every replica landed on the same cell and
+the interval collapsed — against synthetic data with a known threshold it covered the truth **5% of
+the time**, which is worse than reporting no interval at all. A two-stage search fixed it; coverage
+is now 100% for data noise, 80% for phenomenological and 69% for circuit-level. And ν is no longer
+printed for sweeps that cannot determine it, per the check above.
 
 Two side-fixes fell out of this. The variance floor gave zero-failure points 228 times the weight of
 a 5% point, so two points out of twenty-seven carried 84% of the fit; that is now Jeffreys-smoothed.

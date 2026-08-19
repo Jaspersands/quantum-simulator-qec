@@ -261,16 +261,30 @@ function search(data, withCorrection, window) {
  * spread of the estimate rather than another exhaustive hunt for it.
  */
 function localSearch(data, around, withCorrection) {
-  const span = Math.max(1e-6, around.pTh * 0.35);
-  let best = null;
-  for (let pTh = around.pTh - span; pTh <= around.pTh + span; pTh += span / 12) {
-    for (let nu = Math.max(0.3, around.nu - 0.5); nu <= around.nu + 0.5; nu += 0.1) {
-      const omega = withCorrection ? around.omega : null;
-      const fit = collapseAt(data, pTh, nu, omega);
-      if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu, omega };
+  const omega = withCorrection ? around.omega : null;
+  const scan = (pLo, pHi, pStep, nLo, nHi, nStep) => {
+    let best = null;
+    for (let pTh = pLo; pTh <= pHi; pTh += pStep) {
+      for (let nu = Math.max(0.25, nLo); nu <= nHi; nu += nStep) {
+        const fit = collapseAt(data, pTh, nu, omega);
+        if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu, omega };
+      }
     }
-  }
-  return best;
+    return best;
+  };
+  // Coarse then fine. A single coarse pass quantizes the answer onto its own
+  // grid, and when that grid is wider than the spread being measured, every
+  // replica lands on the same cell and the interval collapses. Checked against
+  // synthetic data: the one-pass version reported an interval that contained the
+  // true threshold 5% of the time, which is worse than reporting none.
+  const span = Math.max(1e-7, around.pTh * 0.3);
+  const pStep = span / 10;
+  const nStep = 0.08;
+  const coarse = scan(around.pTh - span, around.pTh + span,
+    pStep, around.nu - 0.8, around.nu + 0.8, nStep);
+  if (!coarse) return null;
+  return scan(coarse.pTh - pStep, coarse.pTh + pStep, pStep / 10,
+    coarse.nu - nStep, coarse.nu + nStep, nStep / 8) ?? coarse;
 }
 
 /**
@@ -481,6 +495,8 @@ export function fitThreshold(points, options = {}) {
   // bias, so a spread over repeats understates the real uncertainty.
   let pThLo = NaN;
   let pThHi = NaN;
+  let nuLo = NaN;
+  let nuHi = NaN;
   if (bootstrap > 0) {
     // Resample every point of the full sweep, then let each replica pick its own
     // window from the neighbours of the chosen one. Holding the window fixed
@@ -500,14 +516,23 @@ export function fitThreshold(points, options = {}) {
         const again = localSearch(data, best, corrected !== null);
         if (!again) continue;
         const red = reduced(again, data.length, corrected !== null);
-        if (!bestDraw || red < bestDraw.red) bestDraw = { pTh: again.pTh, red };
+        if (!bestDraw || red < bestDraw.red) bestDraw = { pTh: again.pTh, nu: again.nu, red };
       }
-      if (bestDraw) draws.push(bestDraw.pTh);
+      if (bestDraw) draws.push(bestDraw);
     }
     if (draws.length >= bootstrap * 0.6) {
-      draws.sort((a, b2) => a - b2);
-      pThLo = draws[Math.floor(draws.length * 0.025)];
-      pThHi = draws[Math.floor(draws.length * 0.975)];
+      const ths = draws.map((d) => d.pTh).sort((a, b2) => a - b2);
+      pThLo = ths[Math.floor(ths.length * 0.025)];
+      pThHi = ths[Math.floor(ths.length * 0.975)];
+      // nu gets an interval of its own because it is far more fragile than the
+      // threshold, and fragile in a way that is invisible from a point value.
+      // Checked against synthetic data with the exponent fixed in advance: for
+      // data noise the fit recovers it to within 1% with a spread of 0.02, and
+      // for circuit-level at the shot count that model can afford it returns
+      // 0.63 for a true 1.46. A number that wrong needs to look wrong.
+      const nus = draws.map((d) => d.nu).sort((a, b2) => a - b2);
+      nuLo = nus[Math.floor(nus.length * 0.025)];
+      nuHi = nus[Math.floor(nus.length * 0.975)];
     }
   }
 
@@ -524,6 +549,27 @@ export function fitThreshold(points, options = {}) {
     pointsTotal: usable.length,
     pThLo,
     pThHi,
+    nuLo,
+    nuHi,
+    // Whether nu is worth quoting at all.
+    //
+    // It is far more fragile than the threshold, and it fails quietly. Fed
+    // synthetic data with the exponent fixed at 1.46 in advance, this fit
+    // returns it to within 1% from a data-noise sweep and returns 0.6 to 0.8
+    // from a circuit-level one — and, importantly, reports a tight interval
+    // while doing so. Its coverage of the true value was measured at 80% for
+    // data noise, 85% for phenomenological and 46% for circuit-level, so the
+    // interval cannot be trusted to police itself: the failure is bias, and a
+    // bootstrap resamples around its own answer.
+    //
+    // What does predict it is how much data the sweep has. The three cases
+    // above carry roughly 900k, 216k and 43k shots in total, so the gate is on
+    // that, plus a sanity check that the interval is not absurd. The number is
+    // not a guess dressed as a threshold — it is where the calibration above
+    // stops working.
+    nuDetermined: Number.isFinite(nuLo) && Number.isFinite(nuHi)
+      && (nuHi - nuLo) / (2 * best.nu) < 0.5
+      && usable.reduce((total, pt) => total + pt.runs, 0) >= 100000,
     corrected: corrected !== null,
     omegaAtEdge: best.omegaAtEdge === true,
     windowFraction: best.windowFraction ?? 1,

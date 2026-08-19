@@ -633,6 +633,14 @@
 
   <div class="aside">
     <span class="aside__label">Reading the fit</span>
+    The exponent ν is reported only when the sweep can actually pin it down, which is not always.
+    Fed synthetic data with ν fixed at 1.46 in advance, the fit recovers it as 1.46 ± 0.02 from a
+    data-noise sweep and as 0.63 ± 0.36 from a circuit-level one — while reporting a tight interval
+    either way. Its interval covers the true value 80% of the time for data noise and 46% for
+    circuit-level, so the interval cannot be trusted to police itself; the failure is bias, and a
+    bootstrap resamples around its own answer. Where the sweep is too thin, the panel says
+    <em>not determined</em> rather than printing a number that would look like a measurement.
+    <br><br>
     The reduced χ² tells you whether the collapse is believable. Near 1 means the scaling ansatz
     describes the data within its error bars; much larger means the fit is being forced. It is not
     only a diagnostic here — it chooses how much of the sweep to fit. The scaling form is an
