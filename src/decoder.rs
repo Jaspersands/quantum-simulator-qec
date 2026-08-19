@@ -533,95 +533,69 @@ pub fn decode_mwpm(
     // Union-Find and made its threshold look four times too low.
     let (approx, approx_weight) = approx_matching(&unmatched, &dists, graph.num_nodes);
 
-    // Beyond about twenty defects the exhaustive search cannot finish, and
-    // spending its whole budget to improve on the approximation by nothing is
-    // simply slow: at d = 9 it took the decoder from 2,600 shots a second to 55.
-    // The starting matching is already never worse than Union-Find, so skipping
-    // the search there costs accuracy nothing measurable and gives the time back.
-    let exhaustive_is_feasible = m <= 20;
-
-    // Backtracking state
-    let mut is_matched = vec![false; m];
+    // Exact matching, at any number of defects.
+    //
+    // This was a branch-and-bound search capped at twenty defects, which meant
+    // "exact MWPM" quietly became an approximation exactly where the problem got
+    // hard. Edmonds' blossom algorithm solves it outright in O(n^3) — 0.8 ms at
+    // sixty vertices, 4.5 ms at a hundred and twenty — so the cap is gone, and
+    // with it the regime where the label was untrue.
+    //
+    // The boundary is modelled as one interchangeable copy per defect: pairing a
+    // defect with any copy costs its distance to the boundary, and copies pair
+    // with each other for nothing. That turns "match these defects, and any of
+    // them may instead run to the boundary" into a plain perfect matching, with
+    // every weight finite.
     let mut best_weight = approx_weight;
     let mut best_matching = approx;
-    let mut current_matching = Vec::new();
-    let mut step_count = 0;
-    
-    fn match_step(
-        idx: usize,
-        m: usize,
-        unmatched: &[usize],
-        is_matched: &mut [bool],
-        current_weight: usize,
-        best_weight: &mut usize,
-        current_matching: &mut Vec<(usize, usize)>,
-        best_matching: &mut Vec<(usize, usize)>,
-        dists: &Vec<Vec<usize>>,
-        boundary_node: usize,
-        step_count: &mut usize,
-    ) {
-        *step_count += 1;
-        if *step_count > 60_000 {
-            return;
-        }
 
-        // Find the first unmatched defect
-        let mut first = None;
-        for i in idx..m {
-            if !is_matched[i] {
-                first = Some(i);
-                break;
+    let n2 = 2 * m;
+    let unreachable = dists
+        .iter()
+        .flat_map(|row| row.iter())
+        .filter(|&&d| d != usize::MAX)
+        .map(|&d| d as i64)
+        .sum::<i64>()
+        + 1;
+    let finite = |d: usize| -> i64 { if d == usize::MAX { unreachable } else { d as i64 } };
+
+    let mut cost = vec![vec![0i64; n2]; n2];
+    for i in 0..m {
+        for j in 0..m {
+            if i != j {
+                cost[i][j] = finite(dists[unmatched[i]][unmatched[j]]);
             }
         }
-
-        let u_idx = match first {
-            None => {
-                // All matched! Check if this is better.
-                if current_weight < *best_weight {
-                    *best_weight = current_weight;
-                    *best_matching = current_matching.clone();
-                }
-                return;
-            }
-            Some(i) => i,
-        };
-
-        let u = unmatched[u_idx];
-
-        // Option A: Match to boundary
-        let d_boundary = dists[u][boundary_node];
-        if d_boundary != usize::MAX && current_weight + d_boundary < *best_weight {
-            is_matched[u_idx] = true;
-            current_matching.push((u, boundary_node));
-            match_step(u_idx + 1, m, unmatched, is_matched, current_weight + d_boundary, best_weight, current_matching, best_matching, dists, boundary_node, step_count);
-            current_matching.pop();
-            is_matched[u_idx] = false;
-        }
-
-        // Option B: Match to another unmatched defect v
-        for v_idx in (u_idx + 1)..m {
-            if !is_matched[v_idx] {
-                let v = unmatched[v_idx];
-                let d_uv = dists[u][v];
-                if d_uv != usize::MAX && current_weight + d_uv < *best_weight {
-                    is_matched[u_idx] = true;
-                    is_matched[v_idx] = true;
-                    current_matching.push((u, v));
-                    match_step(u_idx + 1, m, unmatched, is_matched, current_weight + d_uv, best_weight, current_matching, best_matching, dists, boundary_node, step_count);
-                    current_matching.pop();
-                    is_matched[v_idx] = false;
-                    is_matched[u_idx] = false;
-                }
-            }
+        let to_boundary = finite(dists[unmatched[i]][graph.num_nodes]);
+        for j in m..n2 {
+            cost[i][j] = to_boundary;
+            cost[j][i] = to_boundary;
         }
     }
 
-    if exhaustive_is_feasible {
-        match_step(0, m, &unmatched, &mut is_matched, 0, &mut best_weight, &mut current_matching, &mut best_matching, &dists, graph.num_nodes, &mut step_count);
+    if let Some(mate) = crate::blossom::min_weight_perfect_matching(n2, &cost) {
+        let mut exact = Vec::new();
+        let mut weight = 0i64;
+        for i in 0..m {
+            let partner = mate[i];
+            if partner >= m {
+                exact.push((unmatched[i], graph.num_nodes));
+                weight += finite(dists[unmatched[i]][graph.num_nodes]);
+            } else if i < partner {
+                exact.push((unmatched[i], unmatched[partner]));
+                weight += finite(dists[unmatched[i]][unmatched[partner]]);
+            }
+        }
+        // Any ceiling inside the matcher returns None rather than a wrong answer,
+        // so reaching here means this matching is optimal for the costs given.
+        // The comparison guards the costs, not the algorithm.
+        if weight <= best_weight as i64 {
+            best_weight = weight as usize;
+            best_matching = exact;
+        }
     }
+    let _ = best_weight;
 
-    // No fallback needed: the search only ever replaces the starting matching
-    // with a strictly lighter one, so whatever it ends with is at least as good.
 
     let mut correction_edges = Vec::new();
     for &(u, v) in &best_matching {

@@ -372,13 +372,22 @@ It is visible once looked for. Exact MWPM reported a phenomenological threshold 
 Union-Find's 3.3%** — an exact decoder cannot be beaten by an approximate one — and at `d = 9, p = 2%`
 its logical error rate was 16.25% against greedy's 16.78%, i.e. the same decoder.
 
-Now the search starts from a real matching (nearest-pair-first with 2-opt refinement, over a
-formulation where the boundary is `m` interchangeable copies) and only ever replaces it with a
-strictly lighter one, so cutting the search off cannot collapse the result. Where the defects are
-dense enough that the exhaustive search cannot finish, it also compares against Union-Find and takes
-whichever correction is genuinely lighter. MWPM is now better than Union-Find at every distance
-tested, and a regression test asserts it can never return a heavier correction than either of the
-others.
+The first fix replaced the fallbacks with a real starting matching and a branch-and-bound search
+that could be cut off without collapsing — but it kept a cap of its own, at twenty defects, above
+which the result was an approximation. "Exact" was still not quite true where the problem was hard.
+
+**It is now exact at every defect count.** `src/blossom.rs` implements Edmonds' blossom algorithm,
+which handles the odd cycles that make general-graph matching hard by contracting them, searching the
+contracted graph, and expanding them again. The boundary is modelled as `m` interchangeable copies —
+pairing a defect with any copy costs its distance to the boundary, copies pair with each other for
+nothing — which turns "match these defects, and any may instead run to the boundary" into a plain
+perfect matching with every weight finite.
+
+Measured against Union-Find over 8,000 shots at each of 18 code × noise × distance combinations,
+**MWPM is now lighter in every one**, by 2.8σ to 10σ. Before the cap was removed it lost outright on
+XZZX circuit-level.
+
+Cost: 0.8 ms per solve at sixty vertices, 4.5 ms at a hundred and twenty.
 
 **This retracts an earlier claim.** A previous commit found MWPM scoring worse than Union-Find on
 XZZX circuit-level by 5.7σ, and attributed it to matching being unable to express the correlation

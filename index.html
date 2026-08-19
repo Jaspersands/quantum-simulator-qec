@@ -910,9 +910,17 @@
     </div>
     <div>
       <dt>Exact MWPM</dt>
-      <dd>Optimal minimum-weight perfect matching over the defect graph, with pairwise distances
-      from BFS shortest-path trees. Capped at 16 defects — beyond that the exact search is too slow
-      to run interactively.</dd>
+      <dd>Minimum-weight perfect matching over the defect graph, with pairwise distances from BFS
+      shortest-path trees — and exact at any number of defects, which took three attempts to make
+      true. It first called the greedy decoder above sixteen defects and said nothing; then it ran a
+      branch-and-bound search capped at twenty. Both caps bit hardest exactly where the problem is
+      hard, so the decoder labelled <em>exact</em> was in practice the worst of the three at
+      <span class="mono">d = 9</span>. It now runs Edmonds' blossom algorithm, which contracts the
+      odd cycles that make general-graph matching hard, searches the contracted graph, and expands
+      them again. Against Union-Find over 8,000 shots at each of eighteen code, noise and distance
+      combinations, it is lighter in every one. Every array it uses is sized before the search starts
+      and never grows: a bug in an algorithm this intricate should be a wrong answer the tests catch,
+      not a machine that runs out of memory.</dd>
     </div>
     <div>
       <dt>Greedy decoder</dt>

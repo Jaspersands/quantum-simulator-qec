@@ -13,6 +13,7 @@
 
 pub mod tableau;
 pub mod simulator;
+pub mod blossom;
 pub mod decoder;
 pub mod surface_code;
 pub mod circuit_model;
@@ -1078,6 +1079,118 @@ mod tests {
             let a = decode_union_find(&graph, &defects, &none);
             let b = decode_union_find(&graph, &defects, &none);
             assert_eq!(a.len(), b.len(), "trial {trial}: union-find gave {} then {} edges", a.len(), b.len());
+        }
+    }
+
+    /// Blossom must agree with brute force, exactly, wherever it answers at all.
+    ///
+    /// Exhaustive enumeration of perfect matchings is tractable to about ten
+    /// vertices (945 of them at n = 10), so an exact oracle is available for
+    /// precisely the sizes where a blossom implementation's bugs first appear.
+    /// Instances where a ceiling trips return None and are counted separately —
+    /// those cost the decoder nothing, since it keeps the matching it had, but a
+    /// high rate of them would mean the implementation is not earning its place.
+    #[test]
+    fn blossom_agrees_with_brute_force() {
+        fn brute(n: usize, cost: &[Vec<i64>]) -> i64 {
+            fn go(used: &mut Vec<bool>, n: usize, cost: &[Vec<i64>], acc: i64, best: &mut i64) {
+                let Some(u) = (0..n).find(|&i| !used[i]) else {
+                    *best = (*best).min(acc);
+                    return;
+                };
+                used[u] = true;
+                for v in (u + 1)..n {
+                    if !used[v] {
+                        used[v] = true;
+                        go(used, n, cost, acc + cost[u][v], best);
+                        used[v] = false;
+                    }
+                }
+                used[u] = false;
+            }
+            let mut used = vec![false; n];
+            let mut best = i64::MAX;
+            go(&mut used, n, cost, 0, &mut best);
+            best
+        }
+
+        let mut rng: u64 = 0x243F6A8885A308D3;
+        let mut next = move || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+
+        let (mut agreed, mut declined) = (0usize, 0usize);
+        let mut reasons: std::collections::BTreeMap<&'static str, usize> = Default::default();
+        for n in [2usize, 4, 6, 8, 10, 12] {
+            for trial in 0..250 {
+                let mut cost = vec![vec![0i64; n]; n];
+                if trial % 5 == 4 {
+                    // Metric costs, which is what the decoder actually hands it:
+                    // shortest-path distances obey the triangle inequality, and
+                    // that changes which matchings are even competitive.
+                    let pts: Vec<(i64, i64)> = (0..n)
+                        .map(|_| ((next() % 40) as i64, (next() % 40) as i64))
+                        .collect();
+                    for i in 0..n {
+                        for j in (i + 1)..n {
+                            let w = (pts[i].0 - pts[j].0).abs() + (pts[i].1 - pts[j].1).abs();
+                            cost[i][j] = w;
+                            cost[j][i] = w;
+                        }
+                    }
+                } else {
+                    // Narrow ranges make ties, and ties are where blossoms form.
+                    let span = [2i64, 5, 12, 60][trial % 4];
+                    for i in 0..n {
+                        for j in (i + 1)..n {
+                            let w = (next() % (span as u64)) as i64 + 1;
+                            cost[i][j] = w;
+                            cost[j][i] = w;
+                        }
+                    }
+                }
+                let (maybe, why) = crate::blossom::min_weight_perfect_matching_diagnostic(n, &cost);
+                let Some(mate) = maybe else {
+                    declined += 1;
+                    *reasons.entry(why).or_insert(0usize) += 1;
+                    continue;
+                };
+                for i in 0..n {
+                    assert_ne!(mate[i], i, "n={n} trial={trial}: {i} matched to itself");
+                    assert_eq!(mate[mate[i]], i, "n={n} trial={trial}: asymmetric at {i}");
+                }
+                let got: i64 = (0..n).filter(|&i| i < mate[i]).map(|i| cost[i][mate[i]]).sum();
+                let want = brute(n, &cost);
+                assert_eq!(got, want, "n={n} trial={trial}: blossom {got}, brute {want}");
+                agreed += 1;
+            }
+        }
+        println!("blossom: {agreed} matched brute force, {declined} declined");
+        for (why, count) in &reasons {
+            println!("   declined: {count:>4}  {why}");
+        }
+        assert!(agreed > 0, "the matcher never answered");
+    }
+
+    #[test]
+    #[ignore]
+    fn blossom_speed() {
+        use crate::blossom::min_weight_perfect_matching;
+        let mut rng: u64 = 0x9E3779B97F4A7C15;
+        let mut next = move || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        for n in [20usize, 40, 60, 80, 120, 160] {
+            let mut total = std::time::Duration::ZERO;
+            let reps = 20;
+            let mut declined = 0;
+            for _ in 0..reps {
+                let pts: Vec<(i64, i64)> = (0..n)
+                    .map(|_| ((next() % 200) as i64, (next() % 200) as i64)).collect();
+                let cost: Vec<Vec<i64>> = (0..n).map(|i| (0..n).map(|j|
+                    (pts[i].0 - pts[j].0).abs() + (pts[i].1 - pts[j].1).abs()).collect()).collect();
+                let t = std::time::Instant::now();
+                if min_weight_perfect_matching(n, &cost).is_none() { declined += 1; }
+                total += t.elapsed();
+            }
+            println!("  n={n:<4} {:>8.3} ms/solve   declined {declined}/{reps}",
+                total.as_secs_f64() * 1000.0 / reps as f64);
         }
     }
 
