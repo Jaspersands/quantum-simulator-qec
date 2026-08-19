@@ -36,9 +36,9 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Fifteen engine defects found during the rework
+## Seventeen engine defects found during the rework
 
-All surfaced while replacing fabricated numbers with live ones. All fifteen are fixed at the source and
+All surfaced while replacing fabricated numbers with live ones. All seventeen are fixed at the source and
 the module rebuilt.
 
 | # | Defect | Status |
@@ -58,6 +58,8 @@ the module rebuilt.
 | 13 | The fit window was a hard-coded fraction, which fitted one noise model at reduced chi-squared 2.3 and another at 13.2 — a rejected model whose parameters therefore meant nothing | FIXED — widest window the scaling form actually fits, chosen by chi-squared |
 | 14 | The bootstrap's local search was coarser than the spread it measured, so replicas quantized onto one grid cell and the interval collapsed — measured coverage of a known threshold: 5% | FIXED — two-stage local search; coverage now 100% for data noise |
 | 15 | nu was reported for every sweep, including circuit-level where a true 1.46 comes back as 0.63 with a tight-looking interval | FIXED — quoted only where verified recoverable |
+| 16 | The Union-Find decoder iterated a HashSet, so identical inputs gave different corrections run to run | FIXED — cluster roots collected in node order |
+| 17 | "Exact MWPM" fell back to the greedy decoder above 16 defects or 50k steps, without saying so — at d=9 that was nearly every shot | FIXED — seeded branch-and-bound over a real matching, never heavier than the alternatives |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)

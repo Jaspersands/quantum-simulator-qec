@@ -31,8 +31,8 @@ noise floor for it to matter.
 
 ## Engine defects found and fixed
 
-Fifteen bugs surfaced while making the site report live data. All fifteen are fixed. Everything here is
-reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in ten
+Seventeen bugs surfaced while making the site report live data. All seventeen are fixed. Everything here is
+reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in twelve
 sections below — section 6 covers two, which had to be fixed together before the XZZX code worked at
 all, and section 5 covers two, the second being the discovery that the first fix had only been
 applied to a third of the cases it claimed to cover.
@@ -70,6 +70,22 @@ Figures are the mean and spread of **four independent sweeps**:
 | XZZX | phenomenological | **3.25% ± 0.07** | 0.97 ± 0.06 | 2.56 | 2.94% |
 | rotated | circuit-level | **0.41% ± 0.03** | *not determined* | 4.31 | 0.37% |
 | XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
+
+**Checked against an independent implementation, inconclusively.** An L×L toric code written from
+scratch in JavaScript — periodic lattice, no boundaries, its own noise, its own graph, its own
+approximate matcher, sharing nothing with the Rust engine — gives **ν = 1.41 ± 0.28** for
+phenomenological noise, against the engine's **0.89 ± 0.04**. Those differ by about 1.8σ. The
+threshold differs too (1.2% against 3.4%), which is expected since the decoder is weaker, but ν is a
+universal exponent and should not care. So the independent check does not confirm the engine's value;
+it is consistent with it, and equally consistent with the 3D value near 1.0 that the literature gives
+for this universality class. Narrowing it would need a proper minimum-weight matcher on the
+independent side — the toric ν did not tighten when its statistics were quadrupled, so the spread is
+the fit at these sizes, not the shots.
+
+Worth stating plainly: an earlier revision of this file compared the phenomenological ν against 1.46
+and called it low. That was the wrong comparison. 1.46 is the 2D value, which belongs to data noise;
+phenomenological noise is a 2+1-dimensional problem in a different universality class, where the
+expected exponent is near 1.0.
 
 **ν is quoted only where it was verified recoverable, and circuit-level is not.** Fed synthetic data
 with the exponent fixed at 1.46 in advance, under each model's real sweep conditions, the fit returns
@@ -335,6 +351,41 @@ The row is now split along the seam the Pauli already has, one word for the X ha
 half, so every shift stays inside a word. Checked directly at `d = 3, 5, 7, 9, 11`: both
 representatives commute with every stabilizer, anticommute with each other, and are not products of
 stabilizers.
+
+### 11. FIXED — the Union-Find decoder was not a function of its inputs
+
+Called twice with byte-identical arguments it returned 35 edges, then 37. The active cluster roots
+were collected into a `HashSet`, and Rust seeds each `HashSet`'s hasher randomly, so iterating one
+visits its elements in a different order every time. That order decides which cluster grows first and
+therefore which correction comes out. Collected in node order instead.
+
+Monte Carlo averages wash this out, so it did not bias any threshold — but it made every individual
+result unreproducible, in the default decoder.
+
+### 12. FIXED — "exact MWPM" silently ran the greedy decoder instead
+
+Two undisclosed limits: above sixteen defects it called `decode_greedy` and returned, and above
+50,000 backtracking steps it did the same. At `d = 9` phenomenological both are exceeded on nearly
+every shot, so asking for the best of the three decoders quietly gave you the worst.
+
+It is visible once looked for. Exact MWPM reported a phenomenological threshold near **0.75% against
+Union-Find's 3.3%** — an exact decoder cannot be beaten by an approximate one — and at `d = 9, p = 2%`
+its logical error rate was 16.25% against greedy's 16.78%, i.e. the same decoder.
+
+Now the search starts from a real matching (nearest-pair-first with 2-opt refinement, over a
+formulation where the boundary is `m` interchangeable copies) and only ever replaces it with a
+strictly lighter one, so cutting the search off cannot collapse the result. Where the defects are
+dense enough that the exhaustive search cannot finish, it also compares against Union-Find and takes
+whichever correction is genuinely lighter. MWPM is now better than Union-Find at every distance
+tested, and a regression test asserts it can never return a heavier correction than either of the
+others.
+
+**This retracts an earlier claim.** A previous commit found MWPM scoring worse than Union-Find on
+XZZX circuit-level by 5.7σ, and attributed it to matching being unable to express the correlation
+between the two edges a Y fault needs. The bias-dependence seemed to confirm it. It was the fallback:
+strong bias means fewer errors, fewer defects, and so a genuine MWPM rather than a silent greedy. With
+the decoder fixed, MWPM is better than Union-Find at η = 1, 10 and 1000 alike. The explanation was
+plausible, consistent with the evidence, and wrong.
 
 ### Located loss under circuit-level noise
 

@@ -1061,6 +1061,70 @@ mod tests {
         }
     }
 
+    #[test]
+    fn union_find_is_deterministic() {
+        use crate::decoder::decode_union_find;
+        let d = 9usize;
+        let code = crate::surface_code::RotatedSurfaceCode::new(d);
+        let graph = code.build_syndrome_graph(d, true);
+        let none = vec![false; graph.edges.len()];
+        let mut rng: u64 = 0xDEADBEEF12345678;
+        let mut next = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        for trial in 0..50 {
+            let mut defects = vec![false; graph.num_nodes];
+            for v in defects.iter_mut() {
+                if ((next() >> 11) as f64 / 9007199254740992.0) < 0.1 { *v = true; }
+            }
+            let a = decode_union_find(&graph, &defects, &none);
+            let b = decode_union_find(&graph, &defects, &none);
+            assert_eq!(a.len(), b.len(), "trial {trial}: union-find gave {} then {} edges", a.len(), b.len());
+        }
+    }
+
+    /// The matching decoder must never return a heavier correction than the
+    /// cheaper decoders it is supposed to beat.
+    ///
+    /// It used to. Above sixteen defects it handed the problem to the greedy
+    /// decoder without saying so, and above 50,000 search steps it did the same
+    /// — so at d = 9 phenomenological, where both limits are exceeded on nearly
+    /// every shot, asking for the best decoder silently gave you the worst. It
+    /// showed up as "exact MWPM" scoring below Union-Find and reporting a
+    /// threshold four times too low.
+    #[test]
+    fn matching_decoder_is_never_heavier_than_the_others() {
+        use crate::decoder::{decode_greedy, decode_mwpm, decode_union_find};
+        let mut rng: u64 = 0x853C49E6748FEA9B;
+        let mut next = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+
+        for d in [3usize, 5, 7, 9] {
+            let code = crate::surface_code::RotatedSurfaceCode::new(d);
+            let graph = code.build_syndrome_graph(d, true);
+            let none = vec![false; graph.edges.len()];
+            let weigh = |edges: &[usize]| edges.len();
+
+            for rate in [0.02f64, 0.05, 0.10] {
+                for _ in 0..40 {
+                    let mut defects = vec![false; graph.num_nodes];
+                    let mut count = 0;
+                    for v in defects.iter_mut() {
+                        if ((next() >> 11) as f64 / 9007199254740992.0) < rate {
+                            *v = true;
+                            count += 1;
+                        }
+                    }
+                    if count == 0 { continue; }
+                    let mw = weigh(&decode_mwpm(&graph, &defects, &none));
+                    let gr = weigh(&decode_greedy(&graph, &defects, &none));
+                    let uf = weigh(&decode_union_find(&graph, &defects, &none));
+                    assert!(
+                        mw <= gr && mw <= uf,
+                        "d={d} rate={rate} defects={count}: mwpm={mw} greedy={gr} union-find={uf}"
+                    );
+                }
+            }
+        }
+    }
+
     /// The Pauli frame must agree with the tableau, fault for fault.
     ///
     /// The XZZX circuit is simulated on the frame rather than the tableau, which
