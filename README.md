@@ -55,18 +55,29 @@ decoder must match somewhere. More checks means more last-round lies, so logical
 distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
 noiseless.
 
-Thresholds, fitted by universal collapse at bias `η = 0.5` over three repeats of a 3×7-point sweep
-(6,000 shots per point), agreeing point-by-point with an independent JavaScript Monte Carlo written
-against the per-shot session API:
+Thresholds at bias `η = 0.5`, `T = d`, located two ways: by **crossover** — sweeping `p` and asking
+where the distances swap order, which assumes nothing — and by **collapse fit** over the sweep
+windows the site itself uses, four repeats.
 
-| code | data | phenomenological | circuit-level |
+| code | noise | crossover | collapse fit |
 |---|---|---|---|
-| rotated | 11.68% ± 0.24 | 2.85% ± 0.06 | 0.332% ± 0.013 |
-| XZZX | 11.54% ± 0.28 | 2.86% ± 0.09 | 0.336% ± 0.026 |
+| rotated | data | ≈ 12.5% | 11.6% ± 0.3 |
+| XZZX | data | ≈ 11.8% | 11.4% ± 0.4 |
+| rotated | phenomenological | ≈ 3.0% | 2.82% ± 0.09 |
+| XZZX | phenomenological | ≈ 3.0% | 2.83% ± 0.08 |
+| rotated | circuit-level | ≈ 0.38% | 0.34% ± 0.03 |
+| XZZX | circuit-level | ≈ 0.35% | 0.32% ± 0.03 |
 
-The two codes agree everywhere here, which is the expected result: `η = 0.5` is depolarizing, and
-XZZX's advantage is a *biased*-noise effect. It appears once the bias is turned up — see the figure
-in section 8 of the site.
+**The two methods agree only to about 10%, and that disagreement is the real uncertainty** — the fit
+sits systematically below the crossover in every row, because a collapse is pulled toward whichever
+side of the threshold the sweep samples more densely. So the honest summary is two significant
+figures: **≈12% data noise, ≈2.9% phenomenological, ≈0.36% circuit-level.** Anything more precise
+would be quoting the method rather than the physics. The exponent ν is worse constrained still —
+±1.8 on the circuit-level fit — so it is not quoted as a result here.
+
+The two codes agree within that spread on all three models, which is the expected answer: `η = 0.5`
+is depolarizing, and XZZX's advantage is a *biased*-noise effect. It appears once the bias is turned
+up — see the figure in section 8 of the site.
 
 ### 3. FIXED — the stabilizer tableau replayed identical measurements
 
@@ -171,10 +182,9 @@ alike. That test paid for itself twice:
 With both fixed, the logical error rate at d = 3 scales as p² as theory demands (ratios 3.63, 3.73
 and 3.70 on successive doublings of p from 0.1% to 0.8%, against 4.0 for a clean p², at 200,000
 shots per point), and a threshold appears where it should. The live sweep
-fits p_th = 0.332% ± 0.013 with ν = 1.29 ± 0.31 and reduced χ² = 2.18. Data noise gives the exponent
-closest to the textbook ~1.46 (ν = 1.56 ± 0.16, reduced χ² = 1.18); the circuit-level fit is the
-noisiest of the three, which is unsurprising given it is the model with the most mechanisms per
-round and the smallest usable window of p.
+fits p_th ≈ 0.34%, with the crossover putting it nearer 0.38%. Of the three models this one is
+fitted worst — its exponent comes out ν = 2.1 ± 1.8, which is to say unmeasured — because it has the
+most fault mechanisms per round and the narrowest usable window of p.
 
 ### 8. FIXED — XZZX had no model of its circuit either
 
@@ -214,8 +224,8 @@ noiseless round must reproduce its outcomes exactly, at d = 3, 5 and 7 across se
 
 Verified: **0 failures out of 672 / 3,600 / 10,416 faults** at d = 3 / 5 / 7, Union-Find and exact
 MWPM alike; the rate now falls with distance (0.80% / 0.53% / 0.24% at p=0.2%); and a threshold fits
-at 0.336% ± 0.026 — statistically indistinguishable from the rotated code's 0.332% ± 0.013, and the
-assumption-free crossover agrees, both codes going flat between p = 0.33% and 0.36%.
+at ≈ 0.34%, indistinguishable from the rotated code, and the crossover agrees — both go flat around
+p = 0.33% and are clearly rising by 0.40%.
 
 The extra noise does show up, but *below* threshold rather than in the threshold. Every XZZX ancilla
 needs an H where the rotated code rotates only its X-type ones — 72 noise locations per round at

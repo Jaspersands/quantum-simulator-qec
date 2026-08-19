@@ -254,6 +254,47 @@ export function fitThreshold(points) {
       + 'threshold is not pinned down by this data');
   }
 
+  // A threshold is where the distances swap order, so a sweep that never shows
+  // them swap has not bracketed one. The collapse will still converge on such
+  // data — on a value pulled toward whichever side is populated, with a
+  // perfectly respectable chi-squared and no hint anything is wrong. Measured
+  // directly: a phenomenological sweep stopping at p = 3.6% fits 2.85% where the
+  // crossing, found by simply asking which distance wins, is near 3.1%.
+  // Repeating that measurement reproduces the bias rather than exposing it, so
+  // the check has to be structural — and the honest one is not a margin around
+  // p_th but the physical definition: does the largest distance go from winning
+  // at the bottom of the sweep to losing at the top?
+  const byP = new Map();
+  for (const pt of usable) {
+    if (!byP.has(pt.p)) byP.set(pt.p, []);
+    byP.get(pt.p).push(pt);
+  }
+  const ordered = [...byP.entries()]
+    .filter(([, pts]) => new Set(pts.map((q) => q.d)).size >= 2)
+    .sort((a, b) => a[0] - b[0]);
+  if (ordered.length >= 2) {
+    // Negative gap = the larger patch is ahead. Zero is not evidence either
+    // way — far below threshold every distance reads 0 and the gap vanishes —
+    // so look for the first rate where the larger patch is clearly ahead and
+    // the last where it is clearly behind, and require that order.
+    const gaps = ordered.map(([, pts]) => {
+      const lo = pts.reduce((a, q) => (q.d < a.d ? q : a));
+      const hi = pts.reduce((a, q) => (q.d > a.d ? q : a));
+      return hi.pL - lo.pL;
+    });
+    const firstAhead = gaps.findIndex((g) => g < 0);
+    let lastBehind = -1;
+    gaps.forEach((g, i) => { if (g > 0) lastBehind = i; });
+    if (firstAhead === -1 || lastBehind === -1 || firstAhead >= lastBehind) {
+      return reject('the sweep never shows the distances swap order, so it does '
+        + 'not bracket a threshold: the largest patch '
+        + (firstAhead === -1 ? 'is never ahead of the smallest'
+           : lastBehind === -1 ? 'is ahead throughout and never falls behind'
+           : 'falls behind before it is ever ahead')
+        + '. Widen the range of p until the curves visibly cross.');
+    }
+  }
+
   const dof = Math.max(1, fitted.length - 5); // 3 coefficients + p_th + nu
   return {
     pTh: best.pTh,

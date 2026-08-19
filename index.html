@@ -852,6 +852,9 @@
       rounds, unless they say otherwise. That matters more than it looks: the same code at the same
       <span class="mono">p</span> reports 8.8% at <span class="mono">η = 0.5</span> and 4.5% at
       <span class="mono">η = 1</span>, so a rate given without its noise model does not mean anything.
+      Thresholds are quoted to two significant figures: the collapse fit and the plain crossover
+      agree only to about 10%, and that gap is the real uncertainty rather than the fit's own error
+      bar.
     </p>
   </div>
 
@@ -954,12 +957,16 @@
       state-preparation noise being applied before the baseline round, where an error sits in both
       readings a detector compares, never fires it, and lands in the residual uncorrectable at any
       distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
-      p² as theory demands, and a threshold appears where it should: the sweep in section 7 fits
-      <span class="mono">p_th = 0.332% ± 0.013</span> with <span class="mono">ν = 1.29 ± 0.31</span>.
-      Data noise gives the exponent closest to the textbook <span class="mono">1.46</span>
-      (<span class="mono">ν = 1.56 ± 0.16</span>); circuit-level is the noisiest fit of the three,
-      having the most mechanisms per round and the narrowest usable window of
-      <span class="mono">p</span>. The XZZX model is
+      p² as theory demands, and a threshold appears where it should. Locating it two ways — the
+      collapse fit in section 7, and simply sweeping <span class="mono">p</span> to see where the
+      distances swap order, which assumes nothing — gives
+      <span class="mono">0.34%</span> and <span class="mono">0.38%</span>. They agree to about 10%,
+      and <em>that</em> is the honest uncertainty: a collapse is pulled toward whichever side of the
+      threshold its sweep samples more densely, so quoting three digits would be reporting the method
+      rather than the physics. Of the three noise models this one fits worst — its exponent lands at
+      <span class="mono">ν = 2.1 ± 1.8</span>, which is to say unmeasured — having the most fault
+      mechanisms per round and the narrowest usable window of <span class="mono">p</span>.
+      The XZZX model is
       held to the same bar and passes it: <strong>0 failures out of 672, 3,600 and 10,416
       faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test paid
       for itself a third time, settling a schedule that could not be reasoned out — see below.</dd>
@@ -990,10 +997,10 @@
       sublattices independently over all 576 combinations, scored on commutation against the tableau
       and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
       <br><br>
-      It fits a threshold of <span class="mono">0.336% ± 0.026</span>, which is
-      indistinguishable from the rotated code's <span class="mono">0.332% ± 0.013</span> — and the
-      crossover agrees, both codes going flat between <span class="mono">p = 0.33%</span> and
-      <span class="mono">0.36%</span>. The extra noise it carries shows up <em>below</em> threshold
+      It fits a threshold of <span class="mono">≈ 0.32%</span>, indistinguishable from the rotated
+      code's <span class="mono">≈ 0.34%</span> — and the crossover agrees, both codes going flat
+      around <span class="mono">p = 0.33%</span> and clearly rising by
+      <span class="mono">0.40%</span>. The extra noise it carries shows up <em>below</em> threshold
       instead. Every XZZX ancilla needs an H where the rotated code rotates only its X-type ones — 72
       noise locations per round at <span class="mono">d = 3</span> against 64 — and at
       <span class="mono">p = 0.26%, d = 7</span> that costs about a factor of two in logical error

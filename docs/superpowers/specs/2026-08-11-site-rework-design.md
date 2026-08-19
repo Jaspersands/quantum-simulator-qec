@@ -60,10 +60,13 @@ d = 3, 5 or 7; XZZX beats the rotated code under bias (d=7, p=3%, η=64: 0.07% a
 **every single circuit fault is corrected — 0 failures out of 600 / 3,240 / 9,408 at d = 3 / 5 / 7**,
 for Union-Find and exact MWPM alike.
 
-Thresholds now land where the literature puts them for all three noise models. Fitted by universal
-collapse at bias η = 0.5 (depolarizing — the default in every panel), three repeats each: data noise
-11.68% ± 0.24 (ν 1.56), phenomenological 2.85% ± 0.06 (ν 1.32), circuit-level 0.332% ± 0.013
-(ν 1.29). XZZX matches within error on all three, as it should at zero bias.
+Thresholds now land where the literature puts them for all three noise models. At bias η = 0.5
+(depolarizing — the default in every panel), located both by collapse fit and by plain crossover:
+≈12% data noise, ≈2.9% phenomenological, ≈0.36% circuit-level. The two methods agree only to about
+10% — the fit sits below the crossover every time, being pulled toward whichever side of the
+threshold the sweep samples more densely — so the figures are quoted to two significant figures and
+no further. XZZX matches the rotated code within that spread on all three, as it should at zero
+bias.
 
 ### On the detector error model
 
@@ -100,26 +103,29 @@ threshold at all is the check that the location information is used rather than 
 Each existing tool is placed at the point in the argument where it explains
 something. Nothing is discarded.
 
-| § | Beat | Carried by |
-|---|---|---|
-| 1 | You cannot copy a qubit and cannot look at one | Prose |
-| 2 | Measure *parity*, not state | New pure-JS single-plaquette demo |
-| 3 | Tile it — anatomy of the rotated surface code | Lattice renderer, read-only, hover a stabilizer to light its support |
-| 4 | Errors light up defects at the **endpoints of a chain** | Lattice + click-to-inject |
-| 5 | **The syndrome does not determine the error** | Lattice + decode, rendering error ⊕ correction |
-| 6 | So decode: Union-Find / Greedy / MWPM | Decoder panel |
-| 7 | Measurements lie too → repeat *d* rounds, decode in spacetime | Lattice in spacetime mode |
-| 8 | Does it work? Below threshold more qubits help; above it they hurt | Live sweep + fit + live results table |
-| 9 | Real noise is Z-biased → XZZX | Bias slider + code select |
-| 10 | The bench — run your own experiment | Full parameter console + tomography |
-| 11 | Under the hood | Engine internals |
+As built, ten sections. The plan had eleven; "the syndrome does not determine
+the error" and "so decode" turned out to be one argument, not two, and were
+merged during the build.
 
-§5 is the conceptual crux the current site never states. It is built from
-existing exports: inject a chain, let the decoder produce its own chain, render
-the residual `error ⊕ correction`. A closed loop is success; a chain spanning
-the lattice is a logical failure. `wasm_decode` already returns that verdict.
+| § | id | Beat | Carried by |
+|---|---|---|---|
+| 1 | `problem` | You cannot copy a qubit and cannot look at one | Prose |
+| 2 | `parity` | Measure *parity*, not state | Pure-JS single-plaquette demo |
+| 3 | `anatomy` | Tile it — anatomy of the rotated surface code | Lattice renderer, read-only, hover a stabilizer to light its support |
+| 4 | `syndrome` | Errors light up defects at the **endpoints of a chain** | Lattice + click-to-inject |
+| 5 | `decoding` | **The syndrome does not determine the error** — so decode | Lattice + decode, rendering error ⊕ correction; Union-Find / Greedy / MWPM |
+| 6 | `spacetime` | Measurements lie too → repeat *d* rounds, decode in spacetime | Lattice in spacetime mode |
+| 7 | `threshold` | Below threshold more qubits help; above it they hurt | Live sweep + fit + live results table |
+| 8 | `bias` | Real noise is Z-biased → XZZX | Bias sweep + code comparison |
+| 9 | `bench` | Run your own experiment | Full parameter console + tomography |
+| 10 | `internals` | Under the hood | Engine internals |
 
-§8 reframes the embarrassing table as the payoff: the crossover *is* the
+§5 is the conceptual crux the old site never stated. It is built from existing
+exports: inject a chain, let the decoder produce its own chain, render the
+residual `error ⊕ correction`. A closed loop is success; a chain spanning the
+lattice is a logical failure. `wasm_decode` already returns that verdict.
+
+§7 reframes the embarrassing table as the payoff: the crossover *is* the
 threshold.
 
 ## Architecture
@@ -157,9 +163,13 @@ Two load-bearing pieces:
 ES modules require HTTP, not `file://`. The `.wasm` fetch already required a
 server, and GitHub Pages serves over HTTP. No build step, no dependencies.
 
-## Engine API (fixed)
+## Engine API
+
+The 27 exports of the committed module, verified against it rather than
+transcribed:
 
 ```
+wasm_seed(lo, hi)                                     seed the shot generator
 wasm_create_session(d, code_type) -> ptr
 wasm_free_session(ptr)
 wasm_set_num_rounds(ptr, T)
@@ -175,16 +185,26 @@ wasm_clear_errors(ptr)
 wasm_decode(ptr, decoder) -> u8          1 = logical failure
 wasm_run_benchmark(d, code, decoder, p, bias, T, runs, noise, erasure, corr) -> f64
 wasm_estimate_logical_fidelity(d, code, decoder, p, bias, noise, T, runs,
-                               erasure, corr) -> *f64 (3 values)
+                               erasure, corr) -> *f64 (3 values, the PTM diagonal)
+```
+
+Three further exports exist only to check the engine, and are what the claims in
+§10 of the site rest on:
+
+```
+wasm_circuit_single_fault_test(d, T, decoder) -> *f64   [faults tested, uncorrected]
+wasm_circuit_model_stats(d, T)                -> *f64   detector-count buckets, edge counts
+wasm_noise_slots(d, code_type)                -> usize  noise locations per round
 ```
 
 Enumerations: `code_type` 0=Rotated 1=XZZX · `decoder` 0=Union-Find 1=Greedy
 2=Exact MWPM · `noise_mode` 0=Data 1=Phenomenological 2=Circuit-level ·
 `stabilizer type` 0=Z 1=X 2=XZZX · `correlated` 0=None 1=Bursts 2=Drift 3=Both.
 
-Note: the current Bloch-sphere call passes `noise_mode = 2` (circuit-level)
-hardcoded while its UI implies phenomenological. The rework exposes `noise_mode`
-as a real control instead.
+`wasm_estimate_logical_fidelity` used to pass `noise_mode = 2` hardcoded while
+its UI implied phenomenological; `noise_mode` is now a real control. Two older
+out-parameter accessors, `wasm_get_data_qubit_coord` and
+`wasm_get_stabilizer_coord`, were superseded by the `_x`/`_y` pairs and removed.
 
 ## Honest data
 
@@ -202,12 +222,19 @@ as a real control instead.
 Warm paper and ink, with accents muted enough to sit on cream:
 
 ```
---paper #f6f5f0   --surface #fff   --surface-sunk #faf9f6
---ink #1c1d1f     --ink-2 #4a4c50  --ink-3 #77797d
---rule #1c1d1f    --rule-soft #ddd9cf
---x #2f5fd0 (X)   --z #c0392b (Z)  --y #7b4bb5 (Y)
---defect #d68910  --ok #2c7a4b     --fail #b23a2e
+--paper #f4f2ec   --surface #fffefb   --surface-sunk #faf9f6
+--ink #1c1d1f     --ink-2 #4a4c50     --ink-3 #6b6d71
+--rule #1c1d1f    --rule-soft #ded9cd
+--x #2f5fd0 (X)   --z #c0392b (Z)     --y #7b4bb5 (Y)
+--defect #c98a06  --ok #2c7a4b        --fail #b23a2e
 ```
+
+Two of these moved after a contrast audit: `--ink-3` from #77797d (3.6–4.0:1 on
+paper, below AA) and `--defect` from #d68910 (2.55:1 on its own tint). Each
+status colour is now three tokens rather than one — a fill (`--defect-soft`), a
+line (`--defect`), and a text colour (`--defect-ink`) — because one value cannot
+serve as both a background wash and readable type on it. Every rendered
+foreground/background pair on the page was then measured at ≥ 4.5:1.
 
 Type: Lora (display), Inter (body), JetBrains Mono (data). Fonts move from a
 render-blocking `@import` to `<link rel=preconnect>` + `<link rel=stylesheet>`.

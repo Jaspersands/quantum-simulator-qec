@@ -3,6 +3,12 @@ import stabilizer_qec
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Bias is passed explicitly. The bindings default to 1.0 while the website runs
+# at 0.5 (equal parts X, Y and Z), and the two give materially different logical
+# error rates for the same p — so a benchmark that leaves it unstated cannot be
+# compared against the figures on the site.
+BIAS = 0.5
+
 def run_benchmarks():
     print("==================================================")
     # Highlight the premium, high-performance nature of the library
@@ -34,7 +40,7 @@ def run_benchmarks():
             failures = 0
             for _ in range(num_trials):
                 # Returns True if a logical error occurred
-                if code.simulate(num_rounds, p):
+                if code.simulate(num_rounds, p, BIAS):
                     failures += 1
             
             logical_p = failures / num_trials

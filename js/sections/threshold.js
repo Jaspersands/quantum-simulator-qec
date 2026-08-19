@@ -41,16 +41,31 @@ const TABLE_RUNS = 2000;
  * sweep range would waste most of its points saturated at one end or the other.
  */
 const SWEEP_PS = {
-  [NOISE.DATA]: [0.02, 0.04, 0.06, 0.08, 0.09, 0.10, 0.11, 0.12, 0.14],
+  // Reaches to 18%: the crossing sits near 12.5%, and a sweep with only one
+  // rate above it brackets the threshold too thinly for the collapse to pin
+  // down — the fit gets dragged toward the crowded low side.
+  [NOISE.DATA]: [0.02, 0.05, 0.08, 0.10, 0.11, 0.12, 0.13, 0.15, 0.18],
   [NOISE.PHENOM]: [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.045, 0.06],
   // Circuit-level threshold sits an order of magnitude lower again: every gate
-  // in the extraction circuit is a fault location, so a given per-gate rate
-  // does far more damage than the same number applied once per round.
-  [NOISE.CIRCUIT]: [0.0005, 0.001, 0.0015, 0.002, 0.0025, 0.003, 0.004, 0.005, 0.006],
+  // in the extraction circuit is a fault location, so a given per-gate rate does
+  // far more damage than the same number applied once per round. The window is
+  // centred on the crossing near 0.36% rather than started near zero — points
+  // where every distance reads 0.00% cost as much to measure as any other and
+  // tell the fit nothing.
+  [NOISE.CIRCUIT]: [0.0015, 0.0022, 0.0028, 0.0032, 0.0036, 0.0040, 0.0046, 0.0055, 0.0070],
 };
 
-/** Circuit-level runs a full tableau simulation per shot, so it needs fewer. */
-const SWEEP_RUNS_SCALE = { [NOISE.CIRCUIT]: 0.25 };
+/**
+ * Every sweep gets the same shot count.
+ *
+ * Circuit-level used to be cut to 0.25x for being the slowest model, which left
+ * ~300 shots on each point while the rates being separated were around 1% — three
+ * or four events per point, not enough to show the distances swap order at all.
+ * Now that its window no longer spends half its points where every distance
+ * reads 0.00%, the full count costs about the same wall-clock as it used to and
+ * actually resolves the crossing.
+ */
+const SWEEP_RUNS_SCALE = {};
 
 /* -- The results table -------------------------------------------------- */
 
@@ -235,7 +250,7 @@ export function initThresholdSweep(root, compute) {
     if (!fit?.ok) {
       fill(results, el('p', {
         class: 'muted fit-note',
-        text: `No threshold reported — ${fit?.reason ?? 'the fit did not converge'}.`,
+        text: `No threshold reported — ${(fit?.reason ?? 'the fit did not converge').replace(/\.$/, '')}.`,
       }));
       return;
     }
