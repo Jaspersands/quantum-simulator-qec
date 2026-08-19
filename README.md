@@ -61,16 +61,16 @@ windows the site itself uses, four repeats.
 
 | code | noise | crossover | collapse fit |
 |---|---|---|---|
-| rotated | data | ≈ 12.5% | 11.6% ± 0.3 |
-| XZZX | data | ≈ 11.8% | 11.4% ± 0.4 |
-| rotated | phenomenological | ≈ 3.0% | 2.82% ± 0.09 |
-| XZZX | phenomenological | ≈ 3.0% | 2.83% ± 0.08 |
-| rotated | circuit-level | ≈ 0.38% | 0.34% ± 0.03 |
-| XZZX | circuit-level | ≈ 0.35% | 0.32% ± 0.03 |
+| rotated | data | ≈ 12.5% | 10.9% ± 0.3 |
+| XZZX | data | ≈ 11.8% | 11.2% ± 0.3 |
+| rotated | phenomenological | ≈ 3.0% | 2.73% ± 0.05 |
+| XZZX | phenomenological | ≈ 3.0% | 2.87% ± 0.08 |
+| rotated | circuit-level | ≈ 0.38% | 0.35% ± 0.02 |
+| XZZX | circuit-level | ≈ 0.35% | 0.34% ± 0.02 |
 
-**The two methods agree only to about 10%, and that disagreement is the real uncertainty** — the fit
-sits systematically below the crossover in every row, because a collapse is pulled toward whichever
-side of the threshold the sweep samples more densely. So the honest summary is two significant
+**The two methods agree only to about 10% — 13% on data noise — and that disagreement is the real
+uncertainty.** The fit sits below the crossover in every row, because a collapse is pulled toward
+whichever side of the threshold its sweep samples more densely. So the honest summary is two significant
 figures: **≈12% data noise, ≈2.9% phenomenological, ≈0.36% circuit-level.** Anything more precise
 would be quoting the method rather than the physics. The exponent ν is worse constrained still —
 ±1.8 on the circuit-level fit — so it is not quoted as a result here.
@@ -229,8 +229,8 @@ p = 0.33% and are clearly rising by 0.40%.
 
 The extra noise does show up, but *below* threshold rather than in the threshold. Every XZZX ancilla
 needs an H where the rotated code rotates only its X-type ones — 72 noise locations per round at
-d = 3 against 64 — and at p = 0.26%, d = 7 that costs roughly a factor of two in logical error rate
-(0.73% against 0.31%). Threshold is set by where the curves cross, which the extra locations barely
+d = 3 against 64 — and at p = 0.26%, d = 7 that costs nearly a factor of three in logical error
+rate (0.76% against 0.26%, over 40,000 shots). Threshold is set by where the curves cross, which the extra locations barely
 move; the rate below it is not.
 
 One honest negative result: **the bias advantage does not survive the circuit.** At d=7, p=0.3%,
