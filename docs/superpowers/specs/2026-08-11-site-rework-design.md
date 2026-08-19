@@ -36,9 +36,9 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Twelve engine defects found during the rework
+## Thirteen engine defects found during the rework
 
-All surfaced while replacing fabricated numbers with live ones. All twelve are fixed at the source and
+All surfaced while replacing fabricated numbers with live ones. All thirteen are fixed at the source and
 the module rebuilt.
 
 | # | Defect | Status |
@@ -55,6 +55,7 @@ the module rebuilt.
 | 10 | Fix 5 reached only 2 of the 6 code×noise pairings; the rest returned pass/fail and the channel came back with r_x pinned at 1 | FIXED — derived logical representatives for XZZX, a Pauli frame shadowing the tableau for circuit-level |
 | 11 | The threshold fit omitted corrections to scaling, biasing every quoted threshold low by 15-20% | FIXED — corrected ansatz, more distances, bootstrap intervals |
 | 12 | `find_logical_pair` packed 2n bits into a u128, so XZZX from d = 9 up derived "logicals" that anticommuted with their own stabilizers | FIXED — split the row along the Pauli's own seam |
+| 13 | The fit window was a hard-coded fraction, which fitted one noise model at reduced chi-squared 2.3 and another at 13.2 — a rejected model whose parameters therefore meant nothing | FIXED — widest window the scaling form actually fits, chosen by chi-squared |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)

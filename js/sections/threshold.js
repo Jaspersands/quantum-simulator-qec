@@ -344,7 +344,11 @@ export function initThresholdSweep(root, compute) {
       ]),
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'points fitted' }),
-        el('span', { class: 'readout__val', text: `${fit.pointsUsed} of ${fit.pointsTotal}` }),
+        el('span', {
+          class: 'readout__val',
+          text: `${fit.pointsUsed} of ${fit.pointsTotal}`
+            + (fit.windowAccepted ? '' : ' · form not accepted'),
+        }),
       ]),
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'total runs' }),
@@ -361,6 +365,10 @@ export function initThresholdSweep(root, compute) {
               ? ' ω ran to the top of its range, which means the correction is confined to the '
                 + 'smallest patch rather than decaying gently — read it as a floor, not a value.'
               : '')
+            + (fit.windowAccepted
+              ? ''
+              : ' No window of this sweep is described by the scaling form within its error bars, '
+                + 'so these parameters are the least-bad fit rather than a measurement.')
           : 'Fitted without a correction to scaling: that needs four distances to separate from a '
             + 'shift in the threshold, and this sweep has three. Expect the value to sit high.',
       }),

@@ -31,7 +31,7 @@ noise floor for it to matter.
 
 ## Engine defects found and fixed
 
-Twelve bugs surfaced while making the site report live data. All twelve are fixed. Everything here is
+Thirteen bugs surfaced while making the site report live data. All thirteen are fixed. Everything here is
 reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in ten
 sections below — section 6 covers two, which had to be fixed together before the XZZX code worked at
 all, and section 5 covers two, the second being the discovery that the first fix had only been
@@ -58,41 +58,23 @@ distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final
 noiseless.
 
 Thresholds at bias `η = 0.5`, `T = d`. The collapse ansatz is the d → ∞ limit and these patches are
-small, so the fit carries the leading correction to scaling, `+ D·d^(-ω)`; the interval is a
-bootstrap over the shots.
+small, so the fit carries the leading correction to scaling, `+ D·d^(-ω)`, and fits it over the
+widest part of the sweep the scaling form actually describes — chosen by reduced χ², not by hand.
+Figures are the mean and spread of **four independent sweeps**:
 
-| code | noise | p_th | 95% interval | ν | uncorrected fit |
+| code | noise | p_th | ν | ω | uncorrected fit |
 |---|---|---|---|---|---|
-| rotated | data | **14.5%** | 14.1 – 15.2 | 1.48 | 12.3% |
-| XZZX | data | **14.6%** | 14.4 – 15.4 | 1.52 | 12.3% |
-| rotated | phenomenological | **3.25%** | 3.12 – 3.37 | 1.32 | 2.81% |
-| XZZX | phenomenological | **3.28%** | 3.18 – 3.43 | 1.44 | 2.80% |
-| rotated | circuit-level | **0.42%** | 0.35 – 0.49 | 0.96 | 0.36% |
-| XZZX | circuit-level | **0.49%** | 0.43 – 0.55 | 0.58 | 0.36% |
+| rotated | data | **14.65% ± 0.57** | 1.63 ± 0.05 | 0.94 | 12.2% |
+| XZZX | data | **14.36% ± 0.59** | 1.59 ± 0.06 | 1.06 | 12.4% |
+| rotated | phenomenological | **3.29% ± 0.14** | 0.95 ± 0.11 | 2.63 | 2.93% |
+| XZZX | phenomenological | **3.25% ± 0.07** | 0.97 ± 0.06 | 2.56 | 2.94% |
+| rotated | circuit-level | **0.41% ± 0.03** | 0.85 ± 0.14 | 4.31 | 0.37% |
+| XZZX | circuit-level | **0.42% ± 0.04** | 0.82 ± 0.13 | 3.88 | 0.34% |
 
-Earlier revisions of this file quoted the uncorrected column — ≈12%, ≈2.9%, ≈0.36% — and reported
-the gap between it and the raw crossings as irreducible uncertainty. It was not uncertainty, it was
-bias, and both estimates sat below the answer. What settles it is that the crossings **drift**, and
-the drift is monotone. For rotated data noise, where the sweep reaches d = 11:
-
-| pair | 3/5 | 3/7 | 3/9 | 3/11 | 5/7 | 5/9 | 5/11 | 7/9 | 7/11 | 9/11 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| crosses at | 10.5% | 11.5% | 12.2% | 12.6% | 13.2% | 13.3% | 13.4% | 13.3% | 13.5% | 13.7% |
-
-Every crossing climbs as the patches grow, and the largest pair is still climbing at 13.7% — so the
-threshold is above that, and the uncorrected fit's 12.3% is below *every* crossing involving d ≥ 5.
-That is not a close call. The corrected fit's 14.5% is where the drift is heading.
-
-Two independent checks that the corrected fit is the right one. Against synthetic data with a
-threshold fixed in advance and a correction term present, the uncorrected fit is biased +27% and
-stays there however many shots it is given, while the corrected fit is unbiased to within 2% and its
-error falls from 40% to 13% as shots go from 1,200 to 20,000 — bias versus noise, behaving as each
-should. And ν for data noise comes out **1.48 and 1.52** against a textbook value near 1.46, which
-the uncorrected fit had no business recovering and did not.
-
-The two codes agree within error on all three models, which is the expected answer at `η = 0.5`:
-that is depolarizing noise, and XZZX's advantage is a *biased*-noise effect. It appears once the
-bias is turned up — see the figure in section 8 of the site.
+The spread across sweeps matches the bootstrap interval each sweep reports on its own, which is the
+check that the interval means what it says. The two codes agree within it on all three models — the
+expected answer at `η = 0.5`, which is depolarizing noise, since XZZX's advantage is a *biased*-noise
+effect. It appears once the bias is turned up: see the figure in section 8 of the site.
 
 ### 3. FIXED — the stabilizer tableau replayed identical measurements
 
@@ -297,6 +279,16 @@ What makes it checkable without any fitting at all is that the pairwise crossing
 rotated data noise they climb monotonically from 10.5% (d = 3 against 5) to 13.7% (9 against 11) and
 are still climbing — so the threshold is above 13.7%, and the uncorrected fit's 12.3% lies below
 every crossing involving `d ≥ 5`.
+
+The fit window is chosen the same way, and for the same reason. The scaling form is an expansion
+about the threshold and stops describing points far from it, so some of the sweep has to be excluded
+— but a fraction picked by hand is how a threshold becomes an artefact of its author. One fixed
+choice of 75% gave a reduced χ² of 2.3 for data noise and **13.2 for phenomenological**: the same
+number fitting one model acceptably and rejecting another outright, with the rejected one's
+parameters reported as though they meant something. It is also what drove ω to the end of its range,
+since with the shape wrong the correction term is free to absorb the misfit. The fit now takes the
+widest window the form actually fits, and reports which. All six sweeps now land at reduced χ²
+between 0.8 and 1.9, and ω between 0.9 and 4.3 with none against a boundary.
 
 Two side-fixes fell out of this. The variance floor gave zero-failure points 228 times the weight of
 a 5% point, so two points out of twenty-seven carried 84% of the fit; that is now Jeffreys-smoothed.

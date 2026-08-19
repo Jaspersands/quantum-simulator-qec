@@ -220,7 +220,7 @@ function search(data, withCorrection, window) {
   const ps = data.map((pt) => pt.p);
   const P_LO = Math.min(...ps);
   const P_HI = Math.max(...ps);
-  const P_STEP = (P_HI - P_LO) / 200;
+  const P_STEP = (P_HI - P_LO) / 90;
   // A correction that dies faster than about d^-6 is indistinguishable from one
   // that touches only the smallest patch, so the range stops being informative
   // rather than stopping arbitrarily. Hitting the top is reported, not hidden.
@@ -239,7 +239,7 @@ function search(data, withCorrection, window) {
       }
     }
   };
-  scan(P_LO, P_HI, P_STEP, 0.5, 4.0, 0.1, omegas);
+  scan(P_LO, P_HI, P_STEP, 0.5, 4.0, 0.2, omegas);
   if (!best) return null;
   const fine = P_STEP * 2;
   const near = best.omega === null
@@ -257,6 +257,23 @@ function search(data, withCorrection, window) {
 }
 
 /**
+ * A tight search around a known answer — for the bootstrap, which needs the
+ * spread of the estimate rather than another exhaustive hunt for it.
+ */
+function localSearch(data, around, withCorrection) {
+  const span = Math.max(1e-6, around.pTh * 0.35);
+  let best = null;
+  for (let pTh = around.pTh - span; pTh <= around.pTh + span; pTh += span / 12) {
+    for (let nu = Math.max(0.3, around.nu - 0.5); nu <= around.nu + 0.5; nu += 0.1) {
+      const omega = withCorrection ? around.omega : null;
+      const fit = collapseAt(data, pTh, nu, omega);
+      if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu, omega };
+    }
+  }
+  return best;
+}
+
+/**
  * The collapse ansatz is an expansion about the threshold, so it only describes
  * points near it. Trim on the scaling variable itself rather than on p: |x| is
  * what the expansion is in, and it already folds in the distance.
@@ -268,6 +285,49 @@ function trimToCriticalRegion(data, fit, keepFraction) {
   const keep = Math.max(12, Math.ceil(scored.length * keepFraction));
   const kept = scored.slice(0, keep).map((e) => e.pt);
   return new Set(kept.map((pt) => pt.d)).size >= 2 ? kept : data;
+}
+
+/** Reduced chi-squared for a fit over a given point set. */
+function reduced(fit, n, withCorrection) {
+  return fit.chi2 / Math.max(1, n - (withCorrection ? 6 : 5));
+}
+
+/** Fractions of the sweep to consider keeping, widest first. */
+const WINDOWS = [1.0, 0.85, 0.75, 0.6, 0.5, 0.4];
+
+/**
+ * Choose how much of the sweep to fit, by whether the scaling form describes it.
+ *
+ * A fixed fraction cannot be right for every sweep, and picking one by hand is
+ * how a number becomes an artefact of its author. Measured across the three
+ * noise models, the same hard-coded 75% gave a reduced chi-squared of 2.3 for
+ * data noise, 13.2 for phenomenological and 0.8 for circuit-level — that is, the
+ * middle one was being fitted in a regime where the model is rejected outright,
+ * and a rejected model does not have meaningful parameters. It also drives the
+ * pathology this replaced: with the shape wrong, the correction exponent runs to
+ * whatever extreme best absorbs the misfit, and pins at the end of its range.
+ *
+ * So: take the widest window the scaling form actually fits. Points far from
+ * threshold are informative when the ansatz reaches them and misleading when it
+ * does not, and reduced chi-squared is exactly the statistic that says which.
+ */
+function selectWindow(all, withCorrection, seed) {
+  let fallback = null;
+  let chosen = null;
+  for (const fraction of WINDOWS) {
+    const data = trimToCriticalRegion(all, seed, fraction);
+    if (new Set(data.map((pt) => pt.d)).size < (withCorrection ? 4 : 2)) continue;
+    const fit = search(data, withCorrection, data);
+    if (!fit) continue;
+    const red = reduced(fit, data.length, withCorrection);
+    if (!fallback || red < fallback.red) fallback = { fit, data, red, fraction };
+    // Widest first, so the first acceptable one wins.
+    if (!chosen && red <= 2.0) chosen = { fit, data, red, fraction };
+  }
+  const winner = chosen ?? fallback;
+  if (!winner) return null;
+  return { ...winner.fit, window: winner.data, windowFraction: winner.fraction,
+           windowAccepted: chosen !== null };
 }
 
 /** One binomial draw, Poisson-approximated in the small-count tail. */
@@ -375,20 +435,19 @@ export function fitThreshold(points, options = {}) {
   // Locate the region, trim to it, refit. The trim is on |x| — the variable the
   // expansion is actually in — rather than on distance from p_th in p.
   const converge = (withCorrection) => {
-    let fit = search(usable, withCorrection, usable);
-    if (!fit) return null;
-    let data = usable;
-    for (let pass = 0; pass < 3; pass++) {
-      const trimmed = trimToCriticalRegion(usable, fit, 0.75);
-      if (trimmed.length === data.length) break;
-      const refined = search(trimmed, withCorrection, trimmed);
-      if (!refined) break;
-      const settled = Math.abs(refined.pTh - fit.pTh) < 1e-5;
-      fit = refined;
-      data = trimmed;
+    // Locate the region roughly, then let the data choose how much of it to fit.
+    let seed = search(usable, withCorrection, usable);
+    if (!seed) return null;
+    let picked = selectWindow(usable, withCorrection, seed);
+    // The window depends on where the threshold is and vice versa, so settle it.
+    for (let pass = 0; pass < 2 && picked; pass++) {
+      const again = selectWindow(usable, withCorrection, picked);
+      if (!again) break;
+      const settled = Math.abs(again.pTh - picked.pTh) < 1e-5;
+      picked = again;
       if (settled) break;
     }
-    return fit;
+    return picked;
   };
 
   const leading = converge(false);
@@ -423,13 +482,27 @@ export function fitThreshold(points, options = {}) {
   let pThLo = NaN;
   let pThHi = NaN;
   if (bootstrap > 0) {
+    // Resample every point of the full sweep, then let each replica pick its own
+    // window from the neighbours of the chosen one. Holding the window fixed
+    // would measure only the shot noise and call it the uncertainty, when the
+    // choice of window moved the answer by more than the shots did.
+    const here = WINDOWS.indexOf(best.windowFraction ?? 1);
+    const nearby = WINDOWS.filter((_, i) => Math.abs(i - here) <= 1);
     const draws = [];
     for (let b = 0; b < bootstrap; b++) {
-      const resampled = best.window.map((pt) => ({
+      const resampled = usable.map((pt) => ({
         ...pt, pL: resampleRate(pt.pL, pt.runs),
       }));
-      const again = search(resampled, corrected !== null, resampled);
-      if (again && !again.atEdge) draws.push(again.pTh);
+      let bestDraw = null;
+      for (const fraction of nearby) {
+        const data = trimToCriticalRegion(resampled, best, fraction);
+        if (new Set(data.map((pt) => pt.d)).size < 2) continue;
+        const again = localSearch(data, best, corrected !== null);
+        if (!again) continue;
+        const red = reduced(again, data.length, corrected !== null);
+        if (!bestDraw || red < bestDraw.red) bestDraw = { pTh: again.pTh, red };
+      }
+      if (bestDraw) draws.push(bestDraw.pTh);
     }
     if (draws.length >= bootstrap * 0.6) {
       draws.sort((a, b2) => a - b2);
@@ -453,6 +526,8 @@ export function fitThreshold(points, options = {}) {
     pThHi,
     corrected: corrected !== null,
     omegaAtEdge: best.omegaAtEdge === true,
+    windowFraction: best.windowFraction ?? 1,
+    windowAccepted: best.windowAccepted !== false,
     leading: leading ? { pTh: leading.pTh, nu: leading.nu } : null,
     crossings: found,
     ok: true,

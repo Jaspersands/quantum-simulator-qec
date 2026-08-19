@@ -634,8 +634,13 @@
   <div class="aside">
     <span class="aside__label">Reading the fit</span>
     The reduced χ² tells you whether the collapse is believable. Near 1 means the scaling ansatz
-    describes the data within its error bars. Much larger means the fit is being forced — usually
-    because the sweep reaches too far from threshold, where the universal form stops applying.
+    describes the data within its error bars; much larger means the fit is being forced. It is not
+    only a diagnostic here — it chooses how much of the sweep to fit. The scaling form is an
+    expansion about the threshold and stops describing points far from it, so the fit takes the
+    widest window the form still fits and reports what fraction that was. Picking a fraction by hand
+    is how a threshold becomes an artefact of its author: one fixed choice gave a reduced χ² of 2.3
+    for data noise and 13.2 for phenomenological — the same number fitting one model acceptably and
+    another not at all.
     <br><br>
     The interval is a bootstrap: the shots are resampled and the whole fit re-run a hundred-odd
     times, and the middle 95% of the answers is reported. That is a wider and more honest bar than
