@@ -36,10 +36,10 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Seven engine defects found during the rework
+## Nine engine defects found during the rework
 
-All surfaced while replacing fabricated numbers with live ones. Six are fixed at the source and the
-module rebuilt; one gap remains.
+All surfaced while replacing fabricated numbers with live ones. All nine are fixed at the source and
+the module rebuilt.
 
 | # | Defect | Status |
 |---|---|---|
@@ -51,6 +51,7 @@ module rebuilt; one gap remains.
 | 6 | XZZX matched one defect set twice, on two different graphs | FIXED — one combined graph, one matching |
 | 7 | XZZX scored logical errors against a hard-coded string that was not a logical operator | FIXED — stabilizer-group membership |
 | 8 | The decoder had no model of the circuit, so hook errors were mis-paired | FIXED — detector error model in `src/circuit_model.rs` |
+| 9 | XZZX + circuit-level never got fixes 6, 7 or 8, and got worse with distance | FIXED — `build_combined`, one graph, transposed sublattice schedules |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)
@@ -215,7 +216,6 @@ removed.
 
 ## Out of scope
 
-- Rebuilding the Rust/WASM engine (toolchain is broken; see Constraint)
 - New decoders, codes, or noise models
 - A threshold-collapse explorer, decoder head-to-head, or scripted story mode —
   considered and explicitly declined

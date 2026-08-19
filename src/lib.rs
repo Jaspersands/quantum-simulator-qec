@@ -596,13 +596,17 @@ static mut FIDELITY_RESULTS: [f64; 3] = [0.0; 3];
 /// Under Pauli noise and a Pauli decoder the effective logical channel is
 /// itself a Pauli channel,
 ///
-///     rho -> p_I rho + p_X X rho X + p_Y Y rho Y + p_Z Z rho Z
+/// ```text
+/// rho -> p_I rho + p_X X rho X + p_Y Y rho Y + p_Z Z rho Z
+/// ```
 ///
 /// which acts on a Bloch vector by shrinking each axis independently:
 ///
-///     rx' = rx (p_I + p_X - p_Y - p_Z)
-///     ry' = ry (p_I - p_X + p_Y - p_Z)
-///     rz' = rz (p_I - p_X - p_Y + p_Z)
+/// ```text
+/// rx' = rx (p_I + p_X - p_Y - p_Z)
+/// ry' = ry (p_I - p_X + p_Y - p_Z)
+/// rz' = rz (p_I - p_X - p_Y + p_Z)
+/// ```
 ///
 /// Those three factors are what this returns, in that order. They are a real
 /// characterisation of the channel: each lies in [-1, 1], and a noiseless
@@ -654,11 +658,17 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
         }
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
+        // One graph, not two: an XZZX plaquette reads X Z Z X from a single
+        // ancilla, so both error families fire the same detectors.
+        let model = (noise_mode == 2)
+            .then(|| circuit_model::build_combined(&code.circuit_layout(), num_rounds));
         for _ in 0..runs {
             let outcome = match noise_mode {
                 0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
                 1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
+                2 => code.simulate_circuit_noise_with_model(
+                    model.as_ref().unwrap(), num_rounds, p, bias,
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             classes[(outcome & 3) as usize] += 1;
@@ -767,11 +777,17 @@ pub extern "C" fn wasm_run_benchmark(
         }
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
+        // One graph, not two: an XZZX plaquette reads X Z Z X from a single
+        // ancilla, so both error families fire the same detectors.
+        let model = (noise_mode == 2)
+            .then(|| circuit_model::build_combined(&code.circuit_layout(), num_rounds));
         for _ in 0..num_runs {
             let failed = match noise_mode {
                 0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
                 1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
-                2 => code.simulate_circuit_noise(num_rounds, p, bias, "zero", decoder_type, erasure_rate, correlated_noise),
+                2 => code.simulate_circuit_noise_with_model(
+                    model.as_ref().unwrap(), num_rounds, p, bias,
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             if failed != 0 {
@@ -872,6 +888,147 @@ pub extern "C" fn wasm_get_stabilizer_y(ptr: *mut WasmSession, idx: usize) -> us
 #[cfg(test)]
 mod tests {
     use crate::simulator::StabilizerSimulator;
+
+    /// The extraction circuit must be a valid *simultaneous* measurement of all
+    /// plaquettes, not merely a correct one plaquette at a time.
+    ///
+    /// This cannot be checked on the Pauli frame. Frame simulation presumes the
+    /// circuit projects onto a stabilizer eigenspace and only tracks flips
+    /// relative to that; if the schedule made neighbouring plaquettes disturb
+    /// each other the frame picture would stay self-consistent while the real
+    /// device produced noise. So it is checked against the tableau: once the
+    /// first round has projected, every later noiseless round must reproduce its
+    /// outcomes exactly.
+    #[test]
+    fn xzzx_extraction_circuit_measures_commuting_stabilizers() {
+        use crate::circuit_model::Op;
+        for d in [3usize, 5, 7] {
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let program = code.round_program();
+            let num_stabs = code.stabilizers.len();
+            let n = code.data_qubits.len() + num_stabs;
+
+            for seed in [1u64, 2, 3, 4, 5] {
+                let mut sim = StabilizerSimulator::with_seed(n, seed);
+                let mut rounds: Vec<Vec<u8>> = Vec::new();
+                for _ in 0..4 {
+                    let mut out = vec![0u8; num_stabs];
+                    for &op in &program {
+                        match op {
+                            Op::Reset(q) => { if sim.measure_z(q) == 1 { sim.apply_x(q); } }
+                            Op::H(q) => sim.apply_h(q),
+                            Op::Cnot(c, t) => sim.apply_cnot(c, t),
+                            Op::Cz(a, b) => { sim.apply_h(b); sim.apply_cnot(a, b); sim.apply_h(b); }
+                            Op::Measure(q, _, idx) => out[idx] = sim.measure_z(q),
+                            Op::Noise(_) => {}
+                        }
+                    }
+                    rounds.push(out);
+                }
+                assert_eq!(rounds[1], rounds[2], "d={d} seed={seed}: round 2 != round 3");
+                assert_eq!(rounds[2], rounds[3], "d={d} seed={seed}: round 3 != round 4");
+            }
+        }
+    }
+
+    /// Every fault must fire at most two detectors, or the graph cannot express
+    /// it and the matcher will explain it with unrelated edges.
+    #[test]
+    fn xzzx_detector_model_is_graphlike() {
+        for d in [3usize, 5, 7] {
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let layout = code.circuit_layout();
+            let (buckets, edges) = crate::circuit_model::stats_combined(&layout, d);
+            assert!(edges > 0, "d={d}: model has no edges");
+            assert_eq!(buckets[3], 0, "d={d}: {} faults fire 3 detectors", buckets[3]);
+            assert_eq!(buckets[4], 0, "d={d}: {} faults fire 4+ detectors", buckets[4]);
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn xzzx_search_schedules() {
+        use crate::circuit_model::*;
+        const DIRS: [(i32, i32, bool); 4] =
+            [(-1, -1, true), (1, -1, false), (-1, 1, false), (1, 1, true)];
+        let mut perms: Vec<[usize; 4]> = Vec::new();
+        for a in 0..4 { for b in 0..4 { for c in 0..4 { for e in 0..4 {
+            let v = [a, b, c, e];
+            let mut seen = [false; 4];
+            if v.iter().all(|&i| { let n = !seen[i]; seen[i] = true; n }) { perms.push(v); }
+        }}}}
+        let ord = |p: &[usize; 4]| [DIRS[p[0]], DIRS[p[1]], DIRS[p[2]], DIRS[p[3]]];
+
+        let check = |d: usize, oa: &[(i32,i32,bool);4], ob: &[(i32,i32,bool);4]| -> (bool, usize, usize) {
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let program = code.round_program_ordered(oa, ob);
+            let ns = code.stabilizers.len();
+            let mut sim = crate::simulator::StabilizerSimulator::with_seed(
+                code.data_qubits.len() + ns, 7);
+            let mut rr: Vec<Vec<u8>> = Vec::new();
+            for _ in 0..3 {
+                let mut out = vec![0u8; ns];
+                for &op in &program {
+                    match op {
+                        Op::Reset(q) => { if sim.measure_z(q) == 1 { sim.apply_x(q); } }
+                        Op::H(q) => sim.apply_h(q),
+                        Op::Cnot(c, t) => sim.apply_cnot(c, t),
+                        Op::Cz(a, b) => { sim.apply_h(b); sim.apply_cnot(a, b); sim.apply_h(b); }
+                        Op::Measure(q, _, i) => out[i] = sim.measure_z(q),
+                        Op::Noise(_) => {}
+                    }
+                }
+                rr.push(out);
+            }
+            let commutes = rr[1] == rr[2];
+            let layout = CircuitLayout {
+                program,
+                num_qubits: code.data_qubits.len() + ns,
+                num_data: code.data_qubits.len(),
+                num_x_stabs: 0,
+                num_z_stabs: ns,
+            };
+            let model = build_combined(&layout, d);
+            let (t, f) = single_fault_failures_combined(
+                &layout, &model, d, 0, &|x, z| code.logical.is_logical(x, z));
+            (commutes, f, t)
+        };
+
+        let mut passes = Vec::new();
+        for pa in &perms {
+            for pb in &perms {
+                let (oa, ob) = (ord(pa), ord(pb));
+                let (c3, f3, _) = check(3, &oa, &ob);
+                if !c3 || f3 > 0 { continue; }
+                let (c5, f5, _) = check(5, &oa, &ob);
+                if c5 && f5 == 0 {
+                    println!("PASS  A={:?}  B={:?}", pa, pb);
+                    passes.push((*pa, *pb));
+                }
+            }
+        }
+        println!("total passing: {}", passes.len());
+    }
+
+    /// A distance-d code must survive any single fault. Deterministic and
+    /// complete — the same bar the rotated code is held to.
+    #[test]
+    fn xzzx_survives_every_single_circuit_fault() {
+        for d in [3usize, 5, 7] {
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let layout = code.circuit_layout();
+            let model = crate::circuit_model::build_combined(&layout, d);
+            for decoder in [0usize, 2] {
+                let (tested, failures) = crate::circuit_model::single_fault_failures_combined(
+                    &layout, &model, d, decoder,
+                    &|rx, rz| code.logical.is_logical(rx, rz),
+                );
+                assert!(tested > 0, "d={d}: nothing tested");
+                println!("XZZX d={d} decoder={decoder}: {failures}/{tested}");
+                assert_eq!(failures, 0, "d={d} decoder={decoder}: {failures}/{tested} faults uncorrected");
+            }
+        }
+    }
 
     #[test]
     fn test_bell_state() {
@@ -995,7 +1152,7 @@ mod tests {
         let code = crate::surface_code::RotatedSurfaceCode::new(3);
         for _ in 0..10 {
             let logical_err = code.simulate_phenomenological_noise(3, 0.0, 1.0, 0, 0.0, 0);
-            assert!(!logical_err);
+            assert_eq!(logical_err, 0);
         }
     }
 
@@ -1005,7 +1162,7 @@ mod tests {
         let mut error_count = 0;
         let num_runs = 500;
         for _ in 0..num_runs {
-            if code.simulate_phenomenological_noise(3, 0.005, 1.0, 0, 0.0, 0) {
+            if code.simulate_phenomenological_noise(3, 0.005, 1.0, 0, 0.0, 0) != 0 {
                 error_count += 1;
             }
         }
@@ -1109,11 +1266,28 @@ mod tests {
     #[test]
     fn test_circuit_level_noise_zero_noise() {
         let code_rotated = crate::surface_code::RotatedSurfaceCode::new(3);
-        let failed_rot = code_rotated.simulate_circuit_noise(2, 0.0, 1.0, "zero", 0, 0.0, 0);
-        assert!(!failed_rot);
+        let layout = code_rotated.circuit_layout();
+        let model = crate::circuit_model::build(&layout, 2);
+        let failed_rot =
+            code_rotated.simulate_circuit_noise_with_model(&model, 2, 0.0, 1.0, "zero", 0, 0.0, 0);
+        assert_eq!(failed_rot, 0);
 
         let code_xzzx = crate::surface_code::XZZXSurfaceCode::new(3);
-        let failed_xzzx = code_xzzx.simulate_circuit_noise(2, 0.0, 1.0, "zero", 0, 0.0, 0);
-        assert!(!failed_xzzx);
+        let xzzx_layout = code_xzzx.circuit_layout();
+        let xzzx_model = crate::circuit_model::build_combined(&xzzx_layout, 2);
+        let failed_xzzx =
+            code_xzzx.simulate_circuit_noise_with_model(&xzzx_model, 2, 0.0, 1.0, 0, 0.0, 0);
+        assert_eq!(failed_xzzx, 0);
+    }
+}
+
+/// Noise locations in one extraction round, for the two codes. Diagnostic.
+#[cfg(not(feature = "python"))]
+#[no_mangle]
+pub extern "C" fn wasm_noise_slots(d: usize, code_type: usize) -> usize {
+    if code_type == 0 {
+        surface_code::RotatedSurfaceCode::new(d).circuit_layout().noise_slots()
+    } else {
+        surface_code::XZZXSurfaceCode::new(d).circuit_layout().noise_slots()
     }
 }

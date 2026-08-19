@@ -53,6 +53,10 @@ pub enum Op {
     Reset(usize),
     H(usize),
     Cnot(usize, usize),
+    /// Controlled-Z. Symmetric, and the natural way to read a Z leg with an
+    /// ancilla held in |+> — which is what an XZZX plaquette needs, since it
+    /// reads X on one diagonal and Z on the other from a single ancilla.
+    Cz(usize, usize),
     /// Measure an ancilla in Z and reset it. Records one outcome.
     Measure(usize, StabKind, usize),
     /// A location where the hardware may apply a single-qubit Pauli.
@@ -105,23 +109,30 @@ pub struct CircuitModel {
 }
 
 /// Pauli frame over data qubits and ancillas.
-struct Frame {
-    x: Vec<bool>,
-    z: Vec<bool>,
+///
+/// For a Clifford circuit under Pauli noise this is a complete description: the
+/// noiseless circuit fixes what every measurement would read, and the frame says
+/// which of those readings are flipped. That is all a detector needs, and it is
+/// what lets a non-CSS code be simulated without tracking a tableau — provided
+/// the circuit really is a valid simultaneous measurement, which is a separate
+/// property and is tested against the tableau instead.
+pub(crate) struct Frame {
+    pub(crate) x: Vec<bool>,
+    pub(crate) z: Vec<bool>,
 }
 
 impl Frame {
-    fn new(n: usize) -> Self {
+    pub(crate) fn new(n: usize) -> Self {
         Frame { x: vec![false; n], z: vec![false; n] }
     }
 
-    fn apply(&mut self, q: usize, pauli: Pauli) {
+    pub(crate) fn apply(&mut self, q: usize, pauli: Pauli) {
         if pauli & 1 != 0 { self.x[q] ^= true; }
         if pauli & 2 != 0 { self.z[q] ^= true; }
     }
 
     /// Walk one op. Returns Some(outcome flipped) for a measurement.
-    fn step(&mut self, op: Op) -> Option<(StabKind, usize, bool)> {
+    pub(crate) fn step(&mut self, op: Op) -> Option<(StabKind, usize, bool)> {
         match op {
             Op::Reset(q) => {
                 self.x[q] = false;
@@ -138,6 +149,13 @@ impl Frame {
                 // X propagates control -> target, Z propagates target -> control.
                 if self.x[c] { self.x[t] ^= true; }
                 if self.z[t] { self.z[c] ^= true; }
+                None
+            }
+            Op::Cz(a, b) => {
+                // CZ is symmetric and turns an X on either side into a Z on the
+                // other; Z commutes with it and does not move.
+                if self.x[a] { self.z[b] ^= true; }
+                if self.x[b] { self.z[a] ^= true; }
                 None
             }
             Op::Measure(q, kind, idx) => {
@@ -490,4 +508,208 @@ pub fn build(layout: &CircuitLayout, num_rounds: usize) -> CircuitModel {
         noise_slots,
         erasure_sites,
     }
+}
+
+/* -- Non-CSS codes: one graph, two error families ------------------------ */
+
+/// A decoding graph for a code whose stabilizers are not separable into X and
+/// Z checks.
+///
+/// The CSS model above splits into two independent graphs because a rotated
+/// plaquette measures either X or Z, so X errors and Z errors light disjoint
+/// detector sets. An XZZX plaquette measures `X Z Z X` — one ancilla, one
+/// syndrome bit — so both families fire the *same* detectors and no such split
+/// exists. Instead there is a single node set carrying both edge families, and
+/// each edge names the X part and the Z part of the correction it implies.
+pub struct CombinedGraph {
+    pub graph: SyndromeGraph,
+    pub correction_x: Vec<u128>,
+    pub correction_z: Vec<u128>,
+    /// For each erasure site, the edges that become free when it is erased.
+    /// See `DetectorGraph::site_edges`.
+    pub site_edges: Vec<Vec<usize>>,
+}
+
+pub struct CombinedModel {
+    pub graph: CombinedGraph,
+    pub num_rounds: usize,
+    pub noise_slots: usize,
+    pub erasure_sites: usize,
+}
+
+/// Collect edges for a combined graph, deduplicating on the full signature.
+///
+/// Unlike the CSS case the correction is a pair, so two faults that fire the
+/// same detectors are still distinct mechanisms if they leave different Paulis.
+fn assemble_combined(
+    candidates: Vec<(Vec<usize>, u128, u128, usize)>,
+    num_nodes: usize,
+    num_sites: usize,
+) -> CombinedGraph {
+    let mut signatures: Vec<(Vec<usize>, u128, u128)> =
+        candidates.iter().map(|(n, cx, cz, _)| (n.clone(), *cx, *cz)).collect();
+    signatures.sort();
+    signatures.dedup();
+
+    let mut edges = Vec::new();
+    let mut edge_to_qubit = Vec::new();
+    let mut correction_x = Vec::new();
+    let mut correction_z = Vec::new();
+
+    for (nodes, cx, cz) in &signatures {
+        let (u, v) = match nodes.len() {
+            1 => (nodes[0], num_nodes), // to the boundary
+            2 => (nodes[0], nodes[1]),
+            _ => continue,
+        };
+        let representative = if *cx != 0 {
+            Some(cx.trailing_zeros() as usize)
+        } else if *cz != 0 {
+            Some(cz.trailing_zeros() as usize)
+        } else {
+            None
+        };
+        edges.push(Edge { u, v, id: edges.len() });
+        edge_to_qubit.push(representative);
+        correction_x.push(*cx);
+        correction_z.push(*cz);
+    }
+
+    let index_of = |nodes: &Vec<usize>, cx: u128, cz: u128| -> Option<usize> {
+        signatures.binary_search(&(nodes.clone(), cx, cz)).ok()
+    };
+
+    let mut site_edges = vec![Vec::new(); num_sites];
+    for (nodes, cx, cz, site) in &candidates {
+        if let Some(id) = index_of(nodes, *cx, *cz) {
+            if id < edges.len() && !site_edges[*site].contains(&id) {
+                site_edges[*site].push(id);
+            }
+        }
+    }
+
+    CombinedGraph {
+        graph: SyndromeGraph { num_nodes, edges, edge_to_qubit },
+        correction_x,
+        correction_z,
+        site_edges,
+    }
+}
+
+/// Build the detector error model for a non-CSS code.
+///
+/// Only X and Z faults are enumerated, never Y. Propagation is linear over the
+/// Pauli frame, so a Y fault is exactly the composition of the X and Z faults at
+/// the same location: it fires the XOR of their detectors and leaves the product
+/// of their residuals. Enumerating it as well would add an edge firing up to
+/// four detectors, which no graph can express — whereas letting the matcher pick
+/// the two graphlike edges reconstructs it exactly. This is the decomposition
+/// the CSS model got for free by matching twice.
+pub fn build_combined(layout: &CircuitLayout, num_rounds: usize) -> CombinedModel {
+    let rounds_total = rounds_executed(num_rounds);
+    let layers = detector_layers(num_rounds);
+    let num_nodes = layout.num_z_stabs * layers;
+
+    let noise_slots = layout.noise_slots();
+    let erasure_sites = noise_slots * num_rounds;
+
+    let mut candidates: Vec<(Vec<usize>, u128, u128, usize)> = Vec::new();
+
+    for round in 1..rounds_total - 1 {
+        for (fault, slot) in layout.fault_locations() {
+            if let Fault::Gate(_, 3) = fault {
+                continue; // Y is X then Z; see above.
+            }
+            let effect = layout.propagate(fault, round, rounds_total);
+            let site = slot
+                .map(|k| (round - 1) * noise_slots + k)
+                .unwrap_or(erasure_sites);
+
+            let d = detectors(&effect.flips_z_stab, layout.num_z_stabs, rounds_total);
+            if !d.is_empty() && d.len() <= 2 {
+                candidates.push((d, effect.residual_x, effect.residual_z, site));
+            }
+        }
+    }
+
+    CombinedModel {
+        graph: assemble_combined(candidates, num_nodes, erasure_sites + 1),
+        num_rounds,
+        noise_slots,
+        erasure_sites,
+    }
+}
+
+/// Decode a combined graph and collect the (X, Z) correction it implies.
+pub fn correction_for_combined(
+    cg: &CombinedGraph,
+    defects: &[bool],
+    decoder_type: usize,
+    erased: &[bool],
+) -> (u128, u128) {
+    let chosen = match decoder_type {
+        1 => crate::decoder::decode_greedy(&cg.graph, defects, erased),
+        2 => crate::decoder::decode_mwpm(&cg.graph, defects, erased),
+        _ => crate::decoder::decode_union_find(&cg.graph, defects, erased),
+    };
+    let (mut mx, mut mz) = (0u128, 0u128);
+    for edge_idx in chosen {
+        mx ^= cg.correction_x[edge_idx];
+        mz ^= cg.correction_z[edge_idx];
+    }
+    (mx, mz)
+}
+
+/// How many faults land in each detector-count bucket for a combined graph.
+/// Anything above two is a fault the graph cannot express.
+pub fn stats_combined(layout: &CircuitLayout, num_rounds: usize) -> ([usize; 5], usize) {
+    let rounds_total = rounds_executed(num_rounds);
+    let mut buckets = [0usize; 5];
+    for round in 1..rounds_total - 1 {
+        for (fault, _) in layout.fault_locations() {
+            if let Fault::Gate(_, 3) = fault {
+                continue;
+            }
+            let effect = layout.propagate(fault, round, rounds_total);
+            let d = detectors(&effect.flips_z_stab, layout.num_z_stabs, rounds_total);
+            buckets[d.len().min(4)] += 1;
+        }
+    }
+    let edges = build_combined(layout, num_rounds).graph.graph.edges.len();
+    (buckets, edges)
+}
+
+/// Exhaustively check every single fault against a combined model.
+///
+/// `is_logical` asks the code whether a residual is a logical operator; for a
+/// non-CSS code there is no straight row of qubits to measure, so the question
+/// has to go to the stabilizer group itself.
+pub fn single_fault_failures_combined(
+    layout: &CircuitLayout,
+    model: &CombinedModel,
+    num_rounds: usize,
+    decoder_type: usize,
+    is_logical: &dyn Fn(u128, u128) -> bool,
+) -> (usize, usize) {
+    let rounds_total = rounds_executed(num_rounds);
+    let mut tested = 0usize;
+    let mut failures = 0usize;
+    let none = vec![false; model.graph.graph.edges.len()];
+
+    for round in 1..rounds_total - 1 {
+        for (fault, _) in layout.fault_locations() {
+            let effect = layout.propagate(fault, round, rounds_total);
+            tested += 1;
+
+            let d = detectors(&effect.flips_z_stab, layout.num_z_stabs, rounds_total);
+            let mut defects = vec![false; model.graph.graph.num_nodes];
+            for &n in &d { defects[n] = true; }
+
+            let (cx, cz) = correction_for_combined(&model.graph, &defects, decoder_type, &none);
+            if is_logical(effect.residual_x ^ cx, effect.residual_z ^ cz) {
+                failures += 1;
+            }
+        }
+    }
+    (tested, failures)
 }

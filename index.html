@@ -762,6 +762,7 @@
             <option value="1">T = 1</option>
             <option value="3" selected>T = 3</option>
             <option value="5">T = 5</option>
+            <option value="7">T = 7</option>
           </select>
         </div>
         <div class="field">
@@ -876,7 +877,8 @@
       <dt>XZZX surface code</dt>
       <dd>Every stabilizer measures alternating X and Z operators around its plaquette — X on one
       diagonal, Z on the other — which under biased noise decouples the decoding problem and lifts
-      the threshold. Getting this to work took two fixes. The decoder derived its defects once and
+      the threshold. Getting this to work took three fixes, the third of which is described two
+      entries below. The decoder derived its defects once and
       then matched them <em>twice</em>, on two graphs with different edge-to-qubit mappings, so every
       defect was explained once with X operators and once with Z and both corrections applied; a
       single X error returned the correct one-qubit X correction plus two invented Z ones, and their
@@ -891,7 +893,8 @@
       minimum logical weight 3 at <span class="mono">d = 3</span> and above 4 at
       <span class="mono">d = 5</span>. After both fixes, no single X, Z or Y error causes a logical
       failure at any distance, the rate falls with distance at every bias, and XZZX beats the
-      rotated code under bias as it should.</dd>
+      rotated code under bias as it should — a data-noise result, which is the regime the figure in
+      section 8 measures.</dd>
     </div>
     <div>
       <dt>Noise models</dt>
@@ -928,7 +931,8 @@
       normally has to be split into graph-like pieces, but the decoder already matches twice, once
       per Pauli type, so a fault splits into its X part and its Z part and each is graph-like on its
       own. Measured over the whole enumeration, no fault fires more than two detectors in either
-      graph.</dd>
+      graph. That second argument is a CSS one and does not carry to the XZZX code, which has a
+      single stabilizer family and matches once; there the decomposition has to be made explicit.</dd>
     </div>
     <div>
       <dt>Checking it</dt>
@@ -945,7 +949,46 @@
       distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
       p² as theory demands, and a threshold appears where it should: the sweep in section 7 fits
       <span class="mono">p_th ≈ 0.45%</span> with <span class="mono">ν ≈ 1.5</span> and a reduced
-      χ² near 1 — the closest to the textbook exponent of the three noise models.</dd>
+      χ² near 1 — the closest to the textbook exponent of the three noise models. The XZZX model is
+      held to the same bar and passes it: <strong>0 failures out of 672, 3,600 and 10,416
+      faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test paid
+      for itself a third time, settling a schedule that could not be reasoned out — see below.</dd>
+    </div>
+    <div>
+      <dt>XZZX under a circuit</dt>
+      <dd>The model above is built for a CSS code. A rotated plaquette measures either X or Z, so the
+      two error families light disjoint detectors, the decoder matches twice — once per family — and
+      that split is also what makes the decomposition free. An XZZX plaquette reads
+      <span class="mono">X Z Z X</span> from a single ancilla: one syndrome bit, and both families
+      firing the <em>same</em> detectors. No such split exists. This pairing — XZZX with
+      circuit-level noise — was the last thing here that was simply wrong. It had received none of
+      the XZZX fixes, so it still matched two graphs and scored against the hard-coded string, and
+      its logical error rate <em>rose</em> with distance: 4.9% at <span class="mono">d = 3</span> to
+      40.6% at <span class="mono">d = 7</span>, at <span class="mono">p = 0.2%</span>. It now builds
+      one graph over a single node set, each edge naming the X part and the Z part of the correction
+      it implies. Only X and Z faults are enumerated, never Y — propagation is linear over the frame,
+      so a Y fault is exactly the composition of the two, and letting the matcher pick both graphlike
+      edges reconstructs it. That is the decomposition the CSS model got for free. The circuit holds
+      every ancilla in <span class="mono">|+&gt;</span> and reads an X leg with a CNOT, a Z leg with
+      a CZ.
+      <br><br>
+      The two sublattices have to walk their neighbours in <em>transposed</em> orders — the same
+      lesson the rotated code's N and Z schedules teach, and no more guessable the second time. With
+      any single order shared by both, all 24 permutations leave 10 to 12 of 672 single faults
+      uncorrectable at <span class="mono">d = 3</span>, while <span class="mono">d = 5</span> stays
+      clean — so only the exhaustive check at the smallest distance finds it. Searching the two
+      sublattices independently over all 576 combinations, scored on commutation against the tableau
+      and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
+      <br><br>
+      It fits a threshold of <span class="mono">≈ 0.40%</span> against the rotated code's
+      <span class="mono">0.45%</span>, and the gap is very nearly just the extra noise: every XZZX
+      ancilla needs an H, where the rotated code only rotates its X-type ones, giving 72 noise
+      locations per round at <span class="mono">d = 3</span> against 64. The bias advantage does not
+      survive the circuit. At <span class="mono">d = 7, p = 0.3%</span>, going from
+      <span class="mono">η = 1</span> to <span class="mono">η = 100</span> takes XZZX from 0.83% to
+      0.35% while the rotated code goes from 0.40% to 0.00%. Under circuit-level noise the failures
+      that dominate come from ancilla faults propagating through a CNOT and a CZ alike, and no amount
+      of dephasing bias suppresses those.</dd>
     </div>
     <div>
       <dt>Located loss</dt>

@@ -22,8 +22,10 @@ running locally. Every number on the page is computed in the reader's browser on
 
 ## Engine defects found and fixed
 
-Seven bugs surfaced while making the site report live data. All seven are fixed. Everything here is
-reflected in `src/` and in the committed `stabilizer_qec.wasm`.
+Nine bugs surfaced while making the site report live data. All nine are fixed. Everything here is
+reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in eight
+sections below — section 6 covers two, which had to be fixed together before the XZZX code worked
+at all.
 
 ### 1. FIXED — the WASM Monte Carlo was not random
 
@@ -45,9 +47,10 @@ decoder must match somewhere. More checks means more last-round lies, so logical
 distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
 noiseless.
 
-Thresholds: ~11% data noise, ~2.7% phenomenological, ~0.45% circuit-level, both with reduced χ² near 1,
-agreeing point-by-point with an independent JavaScript Monte Carlo written against the per-shot
-session API.
+Thresholds: ~11% data noise, ~2.7% phenomenological, ~0.45% circuit-level, each with reduced χ² near
+1, agreeing point-by-point with an independent JavaScript Monte Carlo written against the per-shot
+session API. The XZZX code has its own, measured separately: ~10% data noise and ~0.40%
+circuit-level.
 
 ### 3. FIXED — the stabilizer tableau replayed identical measurements
 
@@ -153,6 +156,55 @@ With both fixed, the logical error rate at d = 3 scales as p² as theory demands
 fits p_th = 0.45% with ν = 1.48 and reduced χ² = 1.05 — the closest to the textbook exponent of
 ~1.46 of any of the three noise models.
 
+### 8. FIXED — XZZX had no model of its circuit either
+
+The detector error model above is a CSS construction. A rotated plaquette measures either X or Z, so
+the two error families light disjoint detectors, the decoder matches twice — once per family — and
+that split is exactly what makes the decomposition free. An XZZX plaquette reads `X Z Z X` from a
+single ancilla: one syndrome bit, both families firing the same detectors, no split available.
+
+So the XZZX + circuit-level pairing never received any of the three XZZX fixes. It still built two
+graphs, matched the same defect set against both, and scored against the hard-coded logical string —
+bugs 6 and 7 alive in a path the bench UI let you select. Its logical error rate *rose* steeply with
+distance, from 4.9% at d=3 to 40.6% at d=7 at p=0.2%, where the rotated code at the same settings
+falls from 0.23% to 0.03%.
+
+`build_combined` now derives one graph over a single node set, each edge naming the X part and the Z
+part of the correction it implies. Only X and Z faults are enumerated, never Y: propagation is
+linear over the Pauli frame, so a Y fault is exactly the composition of the two, and letting the
+matcher pick both graphlike edges reconstructs it. That is the decomposition the CSS model got for
+free, made explicit. The circuit holds every ancilla in |+> and reads an X leg with a CNOT, a Z leg
+with a CZ.
+
+**The two sublattices must walk their neighbours in transposed orders** — the same lesson bug 4
+taught, and no more guessable the second time. With any single order shared by both sublattices, all
+24 permutations leave 10 to 12 of 672 single faults uncorrectable at d=3 while d=5 stays clean.
+Searching the two sublattices independently over all 576 combinations, scored on commutation against
+the tableau and on the exhaustive single-fault check, leaves exactly 6 that pass — all of them
+transposes. The search is kept as an ignored test (`xzzx_search_schedules`).
+
+Two properties need separate checks here, because the simulation runs on the Pauli frame rather than
+the tableau. The frame is exact for a Clifford circuit under Pauli noise, and it makes the scoring
+honest — an XZZX logical operator is a mixed X/Z string, so there is no row of qubits to measure the
+way the rotated code can, and the residual goes to the stabilizer group instead. But a frame
+presumes the circuit really is a valid *simultaneous* measurement; if the schedule made neighbouring
+plaquettes disturb each other the frame would stay self-consistent while the device produced noise.
+That property is tested against the tableau: after the first round has projected, every later
+noiseless round must reproduce its outcomes exactly, at d = 3, 5 and 7 across seeds.
+
+Verified: **0 failures out of 672 / 3,600 / 10,416 faults** at d = 3 / 5 / 7, Union-Find and exact
+MWPM alike; the rate now falls with distance (0.60% / 0.43% / 0.07% at p=0.2%); and a threshold fits
+at ~0.40%. That sits just below the rotated code's 0.45%, and the gap is very nearly the extra
+noise: every XZZX ancilla needs an H where the rotated code rotates only its X-type ones, giving 72
+noise locations per round at d=3 against 64.
+
+One honest negative result: **the bias advantage does not survive the circuit.** At d=7, p=0.3%,
+going from η=1 to η=100 takes XZZX from 0.83% to 0.35% while the rotated code goes from 0.40% to
+0.00%. Under circuit-level noise the dominant failures are ancilla faults propagating through a CNOT
+and a CZ alike, which no amount of dephasing bias suppresses. The XZZX advantage this project does
+reproduce (0.07% against 0.43% at d=7, p=3%, η=64) is a data-noise result, and the bias figure on
+the site measures it in that regime.
+
 ### Located loss under circuit-level noise
 
 An erasure is a qubit the hardware knows it lost — the Pauli is uniform and unknown, the location is
@@ -176,7 +228,7 @@ being perfect everywhere, is the check that the information is being used rather
 src/tableau.rs        symplectic tableau and Clifford operations
 src/surface_code.rs   rotated and XZZX lattices, noise models, error generation
 src/decoder.rs        Union-Find cluster growth and peeling
-src/circuit_model.rs  detector error model derived from the extraction circuit
+src/circuit_model.rs  detector error model derived from the extraction circuit, CSS and non-CSS
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer — structure only
