@@ -211,8 +211,8 @@ fn inject_correlated_noise(
     correlated_noise: usize,
     rng: &mut Xorshift,
 ) {
-    if correlated_noise == 1 || correlated_noise == 3 {
-        if rng.next_f64() < 0.02 {
+    if (correlated_noise == 1 || correlated_noise == 3)
+        && rng.next_f64() < 0.02 {
             let cx = rng.next_f64() * d as f64;
             let cy = rng.next_f64() * d as f64;
             for q in 0..data_qubits.len() {
@@ -233,7 +233,6 @@ fn inject_correlated_noise(
                 }
             }
         }
-    }
 }
 
 fn inject_correlated_noise_circuit(
@@ -243,8 +242,8 @@ fn inject_correlated_noise_circuit(
     correlated_noise: usize,
     rng: &mut Xorshift,
 ) {
-    if correlated_noise == 1 || correlated_noise == 3 {
-        if rng.next_f64() < 0.02 {
+    if (correlated_noise == 1 || correlated_noise == 3)
+        && rng.next_f64() < 0.02 {
             let cx = rng.next_f64() * d as f64;
             let cy = rng.next_f64() * d as f64;
             for q in 0..data_qubits.len() {
@@ -262,15 +261,10 @@ fn inject_correlated_noise_circuit(
                 }
             }
         }
-    }
 }
 
 
 
-fn inject_two_qubit_noise(sim: &mut crate::simulator::StabilizerSimulator, q1: usize, q2: usize, p: f64, bias: f64, rng: &mut Xorshift) {
-    inject_single_qubit_noise(sim, q1, p / 2.0, bias, rng);
-    inject_single_qubit_noise(sim, q2, p / 2.0, bias, rng);
-}
 
 fn decode_by_type(graph: &SyndromeGraph, defects: &[bool], decoder_type: usize, erased_edges: &[bool]) -> Vec<usize> {
     match decoder_type {
@@ -654,7 +648,7 @@ impl RotatedSurfaceCode {
         // We check this by checking the parity of residual X errors along a vertical line (x=1).
         let mut logical_x = false;
         for y_idx in 0..self.d {
-            let q_idx = 0 + self.d * y_idx; // Qubits along x=1 (indices 0, d, 2d, ...)
+            let q_idx = self.d * y_idx; // the leftmost column: 0, d, 2d, ...
             if residual_x[q_idx] {
                 logical_x ^= true;
             }
@@ -664,7 +658,7 @@ impl RotatedSurfaceCode {
         // We check this by checking the parity of residual Z errors along a horizontal line (y=1).
         let mut logical_z = false;
         for x_idx in 0..self.d {
-            let q_idx = x_idx + self.d * 0; // Qubits along y=1 (indices 0, 1, 2, ..., d-1)
+            let q_idx = x_idx; // the top row: 0, 1, 2, ..., d-1
             if residual_z[q_idx] {
                 logical_z ^= true;
             }
@@ -764,7 +758,7 @@ impl RotatedSurfaceCode {
 
         let mut logical_x = false;
         for y_idx in 0..self.d {
-            let q_idx = 0 + self.d * y_idx;
+            let q_idx = self.d * y_idx; // the leftmost column: 0, d, 2d, ...
             if residual_x[q_idx] {
                 logical_x ^= true;
             }
@@ -772,7 +766,7 @@ impl RotatedSurfaceCode {
 
         let mut logical_z = false;
         for x_idx in 0..self.d {
-            let q_idx = x_idx + self.d * 0;
+            let q_idx = x_idx; // the top row: 0, 1, 2, ..., d-1
             if residual_z[q_idx] {
                 logical_z ^= true;
             }
@@ -1159,9 +1153,8 @@ impl XZZXSurfaceCode {
                         }
                         slot += 1;
                     }
-                    Op::Measure(q, _, idx) => {
-                        let mut m = frame.step(op).map(|(_, _, f)| f).unwrap_or(false);
-                        let _ = q;
+                    Op::Measure(_, _, idx) => {
+                        let mut m = frame.step(op).is_some_and(|(_, _, flipped)| flipped);
                         if round_p > 0.0 && rng.next_f64() < round_p {
                             m ^= true;
                         }

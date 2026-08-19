@@ -34,7 +34,7 @@ impl Tableau {
     /// the whole run becomes deterministic, and a noiseless circuit reports
     /// either 0% or 100% logical error depending only on the code distance.
     pub fn with_seed(n: usize, seed: u64) -> Self {
-        let words_per_row = (n + 63) / 64;
+        let words_per_row = n.div_ceil(64);
         let num_rows = 2 * n + 1; // 2n rows + 1 scratch row
         let mut x = vec![0; num_rows * words_per_row];
         let mut z = vec![0; num_rows * words_per_row];

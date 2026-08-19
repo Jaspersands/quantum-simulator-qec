@@ -60,8 +60,10 @@ d = 3, 5 or 7; XZZX beats the rotated code under bias (d=7, p=3%, η=64: 0.07% a
 **every single circuit fault is corrected — 0 failures out of 600 / 3,240 / 9,408 at d = 3 / 5 / 7**,
 for Union-Find and exact MWPM alike.
 
-Thresholds now land where the literature puts them for all three noise models: ~11% data noise,
-~2.7% phenomenological, and 0.45% circuit-level (ν 1.48, reduced χ² 1.05).
+Thresholds now land where the literature puts them for all three noise models. Fitted by universal
+collapse at bias η = 0.5 (depolarizing — the default in every panel), three repeats each: data noise
+11.68% ± 0.24 (ν 1.56), phenomenological 2.85% ± 0.06 (ν 1.32), circuit-level 0.332% ± 0.013
+(ν 1.29). XZZX matches within error on all three, as it should at zero bias.
 
 ### On the detector error model
 

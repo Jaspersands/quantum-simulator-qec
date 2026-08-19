@@ -20,6 +20,14 @@ running locally. Every number on the page is computed in the reader's browser on
 - **Web explainer**: `index.html` plus `css/` and `js/` — no build step, no dependencies.
 - **Python extension** (`stabilizer_qec.so`): PyO3 bindings for offline threshold benchmarking.
 
+## A note on quoted figures
+
+Logical error rates below were measured at bias `η = 0.5` — equal parts X, Y and Z, the setting
+every panel on the site starts from — over `T = d` rounds, unless stated otherwise. This is not
+pedantry: the rotated code at `d = 5, p = 0.8%` circuit-level reports **8.8% at η = 0.5 and 4.5% at
+η = 1**, so a rate quoted without its noise model is not a measurement. Shot counts are given where
+a number is close enough to the noise floor for it to matter.
+
 ## Engine defects found and fixed
 
 Nine bugs surfaced while making the site report live data. All nine are fixed. Everything here is
@@ -47,10 +55,18 @@ decoder must match somewhere. More checks means more last-round lies, so logical
 distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
 noiseless.
 
-Thresholds: ~11% data noise, ~2.7% phenomenological, ~0.45% circuit-level, each with reduced χ² near
-1, agreeing point-by-point with an independent JavaScript Monte Carlo written against the per-shot
-session API. The XZZX code has its own, measured separately: ~10% data noise and ~0.40%
-circuit-level.
+Thresholds, fitted by universal collapse at bias `η = 0.5` over three repeats of a 3×7-point sweep
+(6,000 shots per point), agreeing point-by-point with an independent JavaScript Monte Carlo written
+against the per-shot session API:
+
+| code | data | phenomenological | circuit-level |
+|---|---|---|---|
+| rotated | 11.68% ± 0.24 | 2.85% ± 0.06 | 0.332% ± 0.013 |
+| XZZX | 11.54% ± 0.28 | 2.86% ± 0.09 | 0.336% ± 0.026 |
+
+The two codes agree everywhere here, which is the expected result: `η = 0.5` is depolarizing, and
+XZZX's advantage is a *biased*-noise effect. It appears once the bias is turned up — see the figure
+in section 8 of the site.
 
 ### 3. FIXED — the stabilizer tableau replayed identical measurements
 
@@ -111,7 +127,8 @@ decoding and scoring.
 
 Verified after both: no single X, Z or Y error causes a logical failure at d = 3, 5 or 7; the rate
 falls with distance at every bias (η=64, p=2%: 0.48% → 0.05% → 0.03%); and XZZX beats the rotated
-code under bias as the literature says it should — at d=7, p=3%, η=64: **0.07% against 0.43%**.
+code under bias as the literature says it should — at d=7, p=3%, η=64, data noise, 20,000 shots:
+**0.04% against 0.47%**.
 
 ### 7. FIXED — the decoder had no model of the circuit
 
@@ -151,10 +168,13 @@ alike. That test paid for itself twice:
    both readings a detector compares, never fires it, and lands in the residual uncorrectable at any
    distance. It had been showing up as a stubborn p¹ term.
 
-With both fixed, the logical error rate at d = 3 scales as p² as theory demands (ratios 3.1, 3.6,
-3.4 on successive doublings of p, against 4 for a clean p²), and a threshold appears where it should. The live sweep
-fits p_th = 0.45% with ν = 1.48 and reduced χ² = 1.05 — the closest to the textbook exponent of
-~1.46 of any of the three noise models.
+With both fixed, the logical error rate at d = 3 scales as p² as theory demands (ratios 3.63, 3.73
+and 3.70 on successive doublings of p from 0.1% to 0.8%, against 4.0 for a clean p², at 200,000
+shots per point), and a threshold appears where it should. The live sweep
+fits p_th = 0.332% ± 0.013 with ν = 1.29 ± 0.31 and reduced χ² = 2.18. Data noise gives the exponent
+closest to the textbook ~1.46 (ν = 1.56 ± 0.16, reduced χ² = 1.18); the circuit-level fit is the
+noisiest of the three, which is unsurprising given it is the model with the most mechanisms per
+round and the smallest usable window of p.
 
 ### 8. FIXED — XZZX had no model of its circuit either
 
@@ -193,16 +213,21 @@ That property is tested against the tableau: after the first round has projected
 noiseless round must reproduce its outcomes exactly, at d = 3, 5 and 7 across seeds.
 
 Verified: **0 failures out of 672 / 3,600 / 10,416 faults** at d = 3 / 5 / 7, Union-Find and exact
-MWPM alike; the rate now falls with distance (0.60% / 0.43% / 0.07% at p=0.2%); and a threshold fits
-at ~0.40%. That sits just below the rotated code's 0.45%, and the gap is very nearly the extra
-noise: every XZZX ancilla needs an H where the rotated code rotates only its X-type ones, giving 72
-noise locations per round at d=3 against 64.
+MWPM alike; the rate now falls with distance (0.80% / 0.53% / 0.24% at p=0.2%); and a threshold fits
+at 0.336% ± 0.026 — statistically indistinguishable from the rotated code's 0.332% ± 0.013, and the
+assumption-free crossover agrees, both codes going flat between p = 0.33% and 0.36%.
+
+The extra noise does show up, but *below* threshold rather than in the threshold. Every XZZX ancilla
+needs an H where the rotated code rotates only its X-type ones — 72 noise locations per round at
+d = 3 against 64 — and at p = 0.26%, d = 7 that costs roughly a factor of two in logical error rate
+(0.73% against 0.31%). Threshold is set by where the curves cross, which the extra locations barely
+move; the rate below it is not.
 
 One honest negative result: **the bias advantage does not survive the circuit.** At d=7, p=0.3%,
-going from η=1 to η=100 takes XZZX from 0.83% to 0.35% while the rotated code goes from 0.40% to
-0.00%. Under circuit-level noise the dominant failures are ancilla faults propagating through a CNOT
+going from η=1 to η=100 takes XZZX from 0.91% to 0.27% while the rotated code goes from 0.16% to
+0.00% (12,000 shots each). Under circuit-level noise the dominant failures are ancilla faults propagating through a CNOT
 and a CZ alike, which no amount of dephasing bias suppresses. The XZZX advantage this project does
-reproduce (0.07% against 0.43% at d=7, p=3%, η=64) is a data-noise result, and the bias figure on
+reproduce (0.04% against 0.47% at d=7, p=3%, η=64) is a data-noise result, and the bias figure on
 the site measures it in that regime.
 
 ### Located loss under circuit-level noise
@@ -217,8 +242,9 @@ propagation that produces a hook error. The detector error model already records
 circuit location produces, so it answers that question directly: `DetectorGraph::site_edges` maps an
 erasure site to the edges it makes free.
 
-Measured at d = 5: logical error at p = 0.8% falls from 8.2% with no erasure, to 3.4% when half the
-faults are located, to nothing when all of them are. Fully located noise has its own threshold near
+Measured at d = 5, p = 0.8%: logical error falls from 8.84% with no erasure, to 2.79% when half the
+faults are located, to 0.03% when all of them are — not quite nothing, because p = 0.8% still sits
+below the located-noise threshold rather than nowhere near it. Fully located noise has its own threshold near
 p = 2%, roughly four times the Pauli threshold — and the fact that it *has* a threshold, rather than
 being perfect everywhere, is the check that the information is being used rather than assumed.
 

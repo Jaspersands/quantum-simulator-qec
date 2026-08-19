@@ -71,7 +71,7 @@
     </div>
     <div class="vital">
       <div class="vital__label">Engine</div>
-      <div class="vital__value">131 KB</div>
+      <div class="vital__value" data-vital-engine><span class="pending"></span></div>
       <div class="vital__note">no dependencies, no build step</div>
     </div>
   </div>
@@ -281,8 +281,8 @@
             </select>
           </div>
           <div class="field">
-            <span class="field__label">Inject</span>
-            <div class="choices">
+            <span class="field__label" id="lbl-syndrome-inject">Inject</span>
+            <div class="choices" role="radiogroup" aria-labelledby="lbl-syndrome-inject">
               <label class="choice"><input type="radio" name="syndrome-error-type" value="0" checked><span class="choice__swatch choice__swatch--x"></span>X — bit flip</label>
               <label class="choice"><input type="radio" name="syndrome-error-type" value="1"><span class="choice__swatch choice__swatch--z"></span>Z — phase flip</label>
               <label class="choice"><input type="radio" name="syndrome-error-type" value="2"><span class="choice__swatch choice__swatch--erased"></span>Erasure</label>
@@ -350,8 +350,8 @@
         </div>
         <div class="rig__controls">
           <div class="field">
-            <span class="field__label">View</span>
-            <div class="segmented">
+            <span class="field__label" id="lbl-decode-view">View</span>
+            <div class="segmented" role="radiogroup" aria-labelledby="lbl-decode-view">
               <label class="segmented__opt"><input type="radio" name="decode-view" value="error" checked><span>Error + fix</span></label>
               <label class="segmented__opt"><input type="radio" name="decode-view" value="residual"><span>Residual</span></label>
             </div>
@@ -382,8 +382,8 @@
             </div>
           </div>
           <div class="field">
-            <span class="field__label">Inject</span>
-            <div class="choices choices--row">
+            <span class="field__label" id="lbl-decode-inject">Inject</span>
+            <div class="choices choices--row" role="radiogroup" aria-labelledby="lbl-decode-inject">
               <label class="choice"><input type="radio" name="decode-error-type" value="0" checked>X</label>
               <label class="choice"><input type="radio" name="decode-error-type" value="1">Z</label>
             </div>
@@ -478,8 +478,8 @@
             </select>
           </div>
           <div class="field">
-            <span class="field__label">Qubit clicks inject</span>
-            <div class="choices choices--row">
+            <span class="field__label" id="lbl-spacetime-inject">Qubit clicks inject</span>
+            <div class="choices choices--row" role="radiogroup" aria-labelledby="lbl-spacetime-inject">
               <label class="choice"><input type="radio" name="spacetime-error-type" value="0" checked>X</label>
               <label class="choice"><input type="radio" name="spacetime-error-type" value="1">Z</label>
             </div>
@@ -846,6 +846,13 @@
       Nothing on this page is precomputed. Every number was produced by a Rust stabilizer simulator
       compiled to WebAssembly and executed on your machine while you read.
     </p>
+    <p class="note">
+      Figures quoted below were measured at bias <span class="mono">η = 0.5</span> — equal parts X,
+      Y and Z, the setting every panel here starts from — over <span class="mono">T = d</span>
+      rounds, unless they say otherwise. That matters more than it looks: the same code at the same
+      <span class="mono">p</span> reports 8.8% at <span class="mono">η = 0.5</span> and 4.5% at
+      <span class="mono">η = 1</span>, so a rate given without its noise model does not mean anything.
+    </p>
   </div>
 
   <dl class="spec-list">
@@ -877,8 +884,8 @@
       <dt>XZZX surface code</dt>
       <dd>Every stabilizer measures alternating X and Z operators around its plaquette — X on one
       diagonal, Z on the other — which under biased noise decouples the decoding problem and lifts
-      the threshold. Getting this to work took three fixes, the third of which is described two
-      entries below. The decoder derived its defects once and
+      the threshold. Getting this to work took three fixes; the third is described under
+      <em>XZZX under a circuit</em>, further down this list. The decoder derived its defects once and
       then matched them <em>twice</em>, on two graphs with different edge-to-qubit mappings, so every
       defect was explained once with X operators and once with Z and both corrections applied; a
       single X error returned the correct one-qubit X correction plus two invented Z ones, and their
@@ -948,8 +955,11 @@
       readings a detector compares, never fires it, and lands in the residual uncorrectable at any
       distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
       p² as theory demands, and a threshold appears where it should: the sweep in section 7 fits
-      <span class="mono">p_th ≈ 0.45%</span> with <span class="mono">ν ≈ 1.5</span> and a reduced
-      χ² near 1 — the closest to the textbook exponent of the three noise models. The XZZX model is
+      <span class="mono">p_th = 0.332% ± 0.013</span> with <span class="mono">ν = 1.29 ± 0.31</span>.
+      Data noise gives the exponent closest to the textbook <span class="mono">1.46</span>
+      (<span class="mono">ν = 1.56 ± 0.16</span>); circuit-level is the noisiest fit of the three,
+      having the most mechanisms per round and the narrowest usable window of
+      <span class="mono">p</span>. The XZZX model is
       held to the same bar and passes it: <strong>0 failures out of 672, 3,600 and 10,416
       faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test paid
       for itself a third time, settling a schedule that could not be reasoned out — see below.</dd>
@@ -980,13 +990,18 @@
       sublattices independently over all 576 combinations, scored on commutation against the tableau
       and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
       <br><br>
-      It fits a threshold of <span class="mono">≈ 0.40%</span> against the rotated code's
-      <span class="mono">0.45%</span>, and the gap is very nearly just the extra noise: every XZZX
-      ancilla needs an H, where the rotated code only rotates its X-type ones, giving 72 noise
-      locations per round at <span class="mono">d = 3</span> against 64. The bias advantage does not
+      It fits a threshold of <span class="mono">0.336% ± 0.026</span>, which is
+      indistinguishable from the rotated code's <span class="mono">0.332% ± 0.013</span> — and the
+      crossover agrees, both codes going flat between <span class="mono">p = 0.33%</span> and
+      <span class="mono">0.36%</span>. The extra noise it carries shows up <em>below</em> threshold
+      instead. Every XZZX ancilla needs an H where the rotated code rotates only its X-type ones — 72
+      noise locations per round at <span class="mono">d = 3</span> against 64 — and at
+      <span class="mono">p = 0.26%, d = 7</span> that costs about a factor of two in logical error
+      rate, 0.73% against 0.31%. Where the curves cross is barely moved by the extra locations; how
+      low the rate goes beneath it is. The bias advantage does not
       survive the circuit. At <span class="mono">d = 7, p = 0.3%</span>, going from
-      <span class="mono">η = 1</span> to <span class="mono">η = 100</span> takes XZZX from 0.83% to
-      0.35% while the rotated code goes from 0.40% to 0.00%. Under circuit-level noise the failures
+      <span class="mono">η = 1</span> to <span class="mono">η = 100</span> takes XZZX from 0.91% to
+      0.27% while the rotated code goes from 0.16% to 0.00%. Under circuit-level noise the failures
       that dominate come from ancilla faults propagating through a CNOT and a CZ alike, and no amount
       of dephasing bias suppresses those.</dd>
     </div>
@@ -1000,7 +1015,7 @@
       propagation that makes a hook error. The model already knows which edges each circuit location
       produces, so it answers that directly. The effect is what the physics says it should be: at
       <span class="mono">p = 0.8%</span> and <span class="mono">d = 5</span>, logical error falls
-      from 8.2% with no erasure to 3.4% when half the faults are located and to nothing when all of
+      from 8.84% with no erasure to 2.79% when half the faults are located and to 0.03% when all of
       them are. Fully located noise has its own threshold near
       <span class="mono">p = 2%</span> — some four times the Pauli threshold, and still a threshold,
       which is the check that the information is being used rather than assumed.</dd>
@@ -1055,8 +1070,16 @@
     </div>
     <div>
       <dt>Also available</dt>
-      <dd>The same crate builds PyO3 bindings for offline threshold benchmarking. See
-      <span class="mono">run_benchmarks.py</span> in the repository.</dd>
+      <dd>The module exports three diagnostics alongside the simulation calls, which is how the
+      claims on this page were checked rather than asserted:
+      <span class="mono">wasm_circuit_single_fault_test</span> runs the exhaustive check and returns
+      the faults tested and the number uncorrected;
+      <span class="mono">wasm_circuit_model_stats</span> reports how many faults fire zero, one, two
+      or more detectors, which is what says whether the graph can express them; and
+      <span class="mono">wasm_noise_slots</span> gives the noise locations in one round, which is how
+      the two codes' thresholds were compared on equal terms. The same crate also builds PyO3
+      bindings for offline benchmarking — see <span class="mono">run_benchmarks.py</span> — and the
+      Rust test suite carries the schedule search and the frame-against-tableau comparison.</dd>
       </div>
     </dl>
 

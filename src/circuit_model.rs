@@ -38,6 +38,8 @@
 //! and a Z-basis measurement flips exactly when the frame carries x. That is
 //! linear in the gate count instead of quadratic in the qubit count.
 
+use std::collections::BTreeMap;
+
 use crate::decoder::{Edge, SyndromeGraph};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -140,9 +142,7 @@ impl Frame {
                 None
             }
             Op::H(q) => {
-                let x = self.x[q];
-                self.x[q] = self.z[q];
-                self.z[q] = x;
+                std::mem::swap(&mut self.x[q], &mut self.z[q]);
                 None
             }
             Op::Cnot(c, t) => {
@@ -173,13 +173,13 @@ impl Frame {
 
 /// What one fault does: which measurement outcomes it flips, and the data-qubit
 /// Pauli it leaves behind at the end.
-struct FaultEffect {
+pub(crate) struct FaultEffect {
     /// Indexed `round * num_stabs + stabilizer`, over the baseline round plus
     /// every noisy round.
-    flips_x_stab: Vec<bool>,
-    flips_z_stab: Vec<bool>,
-    residual_x: u128,
-    residual_z: u128,
+    pub(crate) flips_x_stab: Vec<bool>,
+    pub(crate) flips_z_stab: Vec<bool>,
+    pub(crate) residual_x: u128,
+    pub(crate) residual_z: u128,
 }
 
 pub struct CircuitLayout {
@@ -196,7 +196,7 @@ impl CircuitLayout {
     /// `rounds_total` counts the baseline round plus the noisy ones, so a fault
     /// injected before the baseline correctly cancels itself out of the first
     /// detector — which is what makes initialisation noise harmless when it is.
-    fn propagate(&self, fault: Fault, round: usize, rounds_total: usize) -> FaultEffect {
+    pub(crate) fn propagate(&self, fault: Fault, round: usize, rounds_total: usize) -> FaultEffect {
         let mut frame = Frame::new(self.num_qubits);
         let mut flips_x = vec![false; self.num_x_stabs * rounds_total];
         let mut flips_z = vec![false; self.num_z_stabs * rounds_total];
@@ -246,7 +246,7 @@ impl CircuitLayout {
     /// A gate fault belongs to the noise location it sits at — that is the thing
     /// an erasure can be *located* to. Readout flips have no slot; losing a
     /// qubit and misreading a measurement are different failures.
-    fn fault_locations(&self) -> Vec<(Fault, Option<usize>)> {
+    pub(crate) fn fault_locations(&self) -> Vec<(Fault, Option<usize>)> {
         let mut out = Vec::new();
         let mut slot = 0usize;
         for (i, op) in self.program.iter().enumerate() {
@@ -315,41 +315,56 @@ fn assemble(
     num_nodes: usize,
     num_sites: usize,
 ) -> DetectorGraph {
-    // One edge per distinct (endpoints, correction). Many faults share a
-    // signature; the matcher only needs the mechanism to exist once, but every
-    // site that can produce it has to remember which edge it became.
-    let mut signatures: Vec<(Vec<usize>, u128)> =
-        candidates.iter().map(|(n, c, _)| (n.clone(), *c)).collect();
-    signatures.sort();
-    signatures.dedup();
-
-    let index_of = |nodes: &Vec<usize>, corr: u128| -> Option<usize> {
-        signatures.binary_search(&(nodes.clone(), corr)).ok()
+    // Exactly one edge per node pair, carrying the most likely correction for
+    // it. A matching decoder can only ever decide "connect u and v" — it has no
+    // way to choose between two mechanisms that connect the same pair — so
+    // emitting both as parallel edges does not give it a choice, it just makes
+    // the choice arbitrary: whichever edge the shortest-path search happens to
+    // relax first supplies the correction. Every elementary fault in this model
+    // carries the same probability, so the most likely correction for a pair is
+    // simply the one the most mechanisms produce. Ties go to the smaller mask,
+    // which keeps the model reproducible rather than dependent on enumeration
+    // order.
+    let mut tally: BTreeMap<(usize, usize), BTreeMap<u128, usize>> = BTreeMap::new();
+    let endpoints = |nodes: &Vec<usize>| -> Option<(usize, usize)> {
+        match nodes.len() {
+            1 => Some((nodes[0], num_nodes)), // to the boundary
+            2 => Some((nodes[0], nodes[1])),
+            _ => None,
+        }
     };
+    for (nodes, corr, _) in &candidates {
+        if let Some(pair) = endpoints(nodes) {
+            *tally.entry(pair).or_default().entry(*corr).or_insert(0) += 1;
+        }
+    }
 
     let mut edges = Vec::new();
     let mut edge_to_qubit = Vec::new();
     let mut correction = Vec::new();
+    let mut edge_of_pair: BTreeMap<(usize, usize), usize> = BTreeMap::new();
 
-    for (nodes, corr) in &signatures {
-        let (u, v) = match nodes.len() {
-            1 => (nodes[0], num_nodes), // to the boundary
-            2 => (nodes[0], nodes[1]),
-            _ => continue,
-        };
+    for (&(u, v), corrs) in &tally {
+        let (&best, _) = corrs
+            .iter()
+            .max_by_key(|(mask, count)| (**count, std::cmp::Reverse(**mask)))
+            .expect("a tallied pair has at least one correction");
         // The matcher's own bookkeeping wants a representative qubit; the real
         // correction is the mask alongside.
-        let representative = if *corr == 0 { None } else { Some(corr.trailing_zeros() as usize) };
+        let representative = if best == 0 { None } else { Some(best.trailing_zeros() as usize) };
+        edge_of_pair.insert((u, v), edges.len());
         edges.push(Edge { u, v, id: edges.len() });
         edge_to_qubit.push(representative);
-        correction.push(*corr);
+        correction.push(best);
     }
 
     let mut site_edges = vec![Vec::new(); num_sites];
-    for (nodes, corr, site) in &candidates {
-        if let Some(id) = index_of(nodes, *corr) {
-            if id < edges.len() && !site_edges[*site].contains(&id) {
-                site_edges[*site].push(id);
+    for (nodes, _, site) in &candidates {
+        if let Some(pair) = endpoints(nodes) {
+            if let Some(&id) = edge_of_pair.get(&pair) {
+                if !site_edges[*site].contains(&id) {
+                    site_edges[*site].push(id);
+                }
             }
         }
     }
@@ -546,44 +561,57 @@ fn assemble_combined(
     num_nodes: usize,
     num_sites: usize,
 ) -> CombinedGraph {
-    let mut signatures: Vec<(Vec<usize>, u128, u128)> =
-        candidates.iter().map(|(n, cx, cz, _)| (n.clone(), *cx, *cz)).collect();
-    signatures.sort();
-    signatures.dedup();
+    // One edge per node pair, carrying the most likely correction. See
+    // `assemble` for why parallel edges are not a choice the matcher can make.
+    // It matters more here: on a single node set the competing mechanisms differ
+    // by Pauli *type*, not merely by position, so an arbitrary pick applies an X
+    // where a Z belonged.
+    let endpoints = |nodes: &Vec<usize>| -> Option<(usize, usize)> {
+        match nodes.len() {
+            1 => Some((nodes[0], num_nodes)), // to the boundary
+            2 => Some((nodes[0], nodes[1])),
+            _ => None,
+        }
+    };
+    let mut tally: BTreeMap<(usize, usize), BTreeMap<(u128, u128), usize>> = BTreeMap::new();
+    for (nodes, cx, cz, _) in &candidates {
+        if let Some(pair) = endpoints(nodes) {
+            *tally.entry(pair).or_default().entry((*cx, *cz)).or_insert(0) += 1;
+        }
+    }
 
     let mut edges = Vec::new();
     let mut edge_to_qubit = Vec::new();
     let mut correction_x = Vec::new();
     let mut correction_z = Vec::new();
+    let mut edge_of_pair: BTreeMap<(usize, usize), usize> = BTreeMap::new();
 
-    for (nodes, cx, cz) in &signatures {
-        let (u, v) = match nodes.len() {
-            1 => (nodes[0], num_nodes), // to the boundary
-            2 => (nodes[0], nodes[1]),
-            _ => continue,
-        };
-        let representative = if *cx != 0 {
+    for (&(u, v), corrs) in &tally {
+        let (&(cx, cz), _) = corrs
+            .iter()
+            .max_by_key(|(masks, count)| (**count, std::cmp::Reverse(**masks)))
+            .expect("a tallied pair has at least one correction");
+        let representative = if cx != 0 {
             Some(cx.trailing_zeros() as usize)
-        } else if *cz != 0 {
+        } else if cz != 0 {
             Some(cz.trailing_zeros() as usize)
         } else {
             None
         };
+        edge_of_pair.insert((u, v), edges.len());
         edges.push(Edge { u, v, id: edges.len() });
         edge_to_qubit.push(representative);
-        correction_x.push(*cx);
-        correction_z.push(*cz);
+        correction_x.push(cx);
+        correction_z.push(cz);
     }
 
-    let index_of = |nodes: &Vec<usize>, cx: u128, cz: u128| -> Option<usize> {
-        signatures.binary_search(&(nodes.clone(), cx, cz)).ok()
-    };
-
     let mut site_edges = vec![Vec::new(); num_sites];
-    for (nodes, cx, cz, site) in &candidates {
-        if let Some(id) = index_of(nodes, *cx, *cz) {
-            if id < edges.len() && !site_edges[*site].contains(&id) {
-                site_edges[*site].push(id);
+    for (nodes, _, _, site) in &candidates {
+        if let Some(pair) = endpoints(nodes) {
+            if let Some(&id) = edge_of_pair.get(&pair) {
+                if !site_edges[*site].contains(&id) {
+                    site_edges[*site].push(id);
+                }
             }
         }
     }

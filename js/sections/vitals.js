@@ -9,12 +9,25 @@
 
 import { $, fill, el } from '../dom.js';
 import { count } from '../compute.js';
+import { engineSize } from '../engine.js';
 
 export function initVitals(root, compute) {
   const dataRate = $('[data-vital-data]', root);
   const phenomRate = $('[data-vital-phenom]', root);
   const note = $('[data-vitals-note]', root);
+  const engine = $('[data-vital-engine]', root);
   if (!dataRate) return;
+
+  // Read off the module that actually loaded. A literal here read 131 KB against
+  // a 172 KB build — the exact kind of stale number this page exists not to print.
+  if (engine) {
+    engineSize().then((bytes) => {
+      fill(engine, [
+        document.createTextNode(Math.round(bytes / 1024).toString()),
+        el('span', { class: 'vital__unit', text: ' KB' }),
+      ]);
+    });
+  }
 
   compute.call('vitals').then((result) => {
     fill(dataRate, [

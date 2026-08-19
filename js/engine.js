@@ -41,6 +41,21 @@ export const CORRELATED = { NONE: 0, BURSTS: 1, DRIFT: 2, BOTH: 3 };
 /* -- Instantiation ------------------------------------------------------ */
 
 /**
+ * Size of the engine, in bytes, resolved once `instantiate` has fetched it.
+ *
+ * A promise rather than a number because the vitals card is built before the
+ * engine is loaded — the page renders first and fills in — so the card has to be
+ * able to wait for it.
+ */
+let announceSize;
+const enginePromise = new Promise((resolve) => { announceSize = resolve; });
+
+/** @returns {Promise<number>} bytes of the loaded module */
+export function engineSize() {
+  return enginePromise;
+}
+
+/**
  * Fetch and instantiate the engine.
  * @returns {Promise<WebAssembly.Instance>}
  */
@@ -50,6 +65,9 @@ export async function instantiate(url = WASM_URL) {
     throw new Error(`could not fetch engine (${response.status} ${response.statusText})`);
   }
   const bytes = await response.arrayBuffer();
+  // The page states the engine's size; take it from the module actually loaded
+  // rather than from a literal that goes stale the next time it is rebuilt.
+  announceSize(bytes.byteLength);
   const { instance } = await WebAssembly.instantiate(bytes, {});
 
   // The engine's generator starts from a fixed constant, so without this every

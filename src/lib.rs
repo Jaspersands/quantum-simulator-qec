@@ -1,3 +1,16 @@
+// The WASM surface is a C ABI: every export takes raw pointers that originate
+// from our own `wasm_create_session` and are handed straight back by the JS
+// wrapper, which is the only caller. Marking two dozen `extern "C"` entry points
+// `unsafe` would say nothing a reader does not already know from the ABI.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+// Several simulate/benchmark calls genuinely take a code, a decoder, a noise
+// model and its parameters. Bundling them into a struct would only move the
+// argument list somewhere else.
+#![allow(clippy::too_many_arguments)]
+// Index arithmetic over `round * num_stabs + stabilizer` is the subject matter
+// here; iterator adapters obscure it.
+#![allow(clippy::needless_range_loop)]
+
 pub mod tableau;
 pub mod simulator;
 pub mod decoder;
@@ -231,30 +244,6 @@ pub extern "C" fn wasm_get_data_qubit_count(ptr: *mut WasmSession) -> usize {
 }
 
 #[no_mangle]
-pub extern "C" fn wasm_get_data_qubit_coord(ptr: *mut WasmSession, idx: usize, out_xy: *mut usize) {
-    let session = unsafe { &*ptr };
-    if session.code_type == 0 {
-        let code = surface_code::RotatedSurfaceCode::new(session.d);
-        if idx < code.data_qubits.len() {
-            let (x, y) = code.data_qubits[idx];
-            unsafe {
-                *out_xy = x;
-                *out_xy.add(1) = y;
-            }
-        }
-    } else {
-        let code = surface_code::XZZXSurfaceCode::new(session.d);
-        if idx < code.data_qubits.len() {
-            let (x, y) = code.data_qubits[idx];
-            unsafe {
-                *out_xy = x;
-                *out_xy.add(1) = y;
-            }
-        }
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn wasm_get_stabilizer_count(ptr: *mut WasmSession) -> usize {
     let session = unsafe { &*ptr };
     if session.code_type == 0 {
@@ -263,37 +252,6 @@ pub extern "C" fn wasm_get_stabilizer_count(ptr: *mut WasmSession) -> usize {
     } else {
         let code = surface_code::XZZXSurfaceCode::new(session.d);
         code.stabilizers.len()
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn wasm_get_stabilizer_coord(ptr: *mut WasmSession, idx: usize, out_xy: *mut usize) {
-    let session = unsafe { &*ptr };
-    if session.code_type == 0 {
-        let code = surface_code::RotatedSurfaceCode::new(session.d);
-        let num_x = code.x_stabilizers.len();
-        if idx < num_x {
-            let (x, y) = code.x_stabilizers[idx];
-            unsafe {
-                *out_xy = x;
-                *out_xy.add(1) = y;
-            }
-        } else if idx < num_x + code.z_stabilizers.len() {
-            let (x, y) = code.z_stabilizers[idx - num_x];
-            unsafe {
-                *out_xy = x;
-                *out_xy.add(1) = y;
-            }
-        }
-    } else {
-        let code = surface_code::XZZXSurfaceCode::new(session.d);
-        if idx < code.stabilizers.len() {
-            let (x, y) = code.stabilizers[idx];
-            unsafe {
-                *out_xy = x;
-                *out_xy.add(1) = y;
-            }
-        }
     }
 }
 
@@ -503,7 +461,7 @@ pub extern "C" fn wasm_decode(
 
         let mut logical_x = false;
         for y_idx in 0..d {
-            let q_idx = 0 + d * y_idx;
+            let q_idx = d * y_idx; // the leftmost column: 0, d, 2d, ...
             if accumulated_x[q_idx] {
                 logical_x ^= true;
             }
@@ -511,7 +469,7 @@ pub extern "C" fn wasm_decode(
 
         let mut logical_z = false;
         for x_idx in 0..d {
-            let q_idx = x_idx + d * 0;
+            let q_idx = x_idx; // the top row: 0, 1, 2, ..., d-1
             if accumulated_z[q_idx] {
                 logical_z ^= true;
             }
@@ -928,6 +886,117 @@ mod tests {
                 assert_eq!(rounds[1], rounds[2], "d={d} seed={seed}: round 2 != round 3");
                 assert_eq!(rounds[2], rounds[3], "d={d} seed={seed}: round 3 != round 4");
             }
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn count_parallel_edges() {
+        use crate::circuit_model::*;
+        use std::collections::HashMap;
+        for d in [3usize, 5] {
+            // XZZX combined graph
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let layout = code.circuit_layout();
+            let m = build_combined(&layout, d);
+            let mut by_pair: HashMap<(usize, usize), usize> = HashMap::new();
+            for e in &m.graph.graph.edges {
+                *by_pair.entry((e.u.min(e.v), e.u.max(e.v))).or_insert(0) += 1;
+            }
+            let par = by_pair.values().filter(|&&c| c > 1).count();
+            let worst = by_pair.values().max().unwrap();
+            println!("XZZX    d={d}: {} edges, {} node-pairs, {} pairs with >1 edge, worst {}",
+                m.graph.graph.edges.len(), by_pair.len(), par, worst);
+
+            // rotated, both graphs
+            let rc = crate::surface_code::RotatedSurfaceCode::new(d);
+            let rl = rc.circuit_layout();
+            let rm = build(&rl, d);
+            for (name, g) in [("for_x", &rm.for_x_errors), ("for_z", &rm.for_z_errors)] {
+                let mut bp: HashMap<(usize, usize), usize> = HashMap::new();
+                for e in &g.graph.edges { *bp.entry((e.u.min(e.v), e.u.max(e.v))).or_insert(0) += 1; }
+                let p2 = bp.values().filter(|&&c| c > 1).count();
+                println!("rotated d={d} {name}: {} edges, {} node-pairs, {} pairs with >1 edge, worst {}",
+                    g.graph.edges.len(), bp.len(), p2, bp.values().max().unwrap());
+            }
+        }
+    }
+
+    /// The Pauli frame must agree with the tableau, fault for fault.
+    ///
+    /// The XZZX circuit is simulated on the frame rather than the tableau, which
+    /// is exact in theory for a Clifford circuit under Pauli noise — but only if
+    /// the propagation rules are right. A wrong CZ rule, or an H that fails to
+    /// swap, would give a self-consistent frame that quietly disagrees with the
+    /// physics. So every single fault is injected into both and the detectors
+    /// they fire are compared directly.
+    #[test]
+    fn xzzx_frame_propagation_agrees_with_the_tableau() {
+        use crate::circuit_model::*;
+        for d in [3usize, 5] {
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let layout = code.circuit_layout();
+            let program = &layout.program;
+            let ns = code.stabilizers.len();
+            let nq = code.data_qubits.len() + ns;
+            const ROUNDS: usize = 3;
+            let fault_round = 2usize;
+
+            let run_tableau = |inject: Option<(usize, u8)>| -> Vec<Vec<u8>> {
+                let mut sim = StabilizerSimulator::with_seed(nq, 20250818);
+                let mut all = Vec::new();
+                for r in 0..ROUNDS {
+                    let mut out = vec![0u8; ns];
+                    for (i, &op) in program.iter().enumerate() {
+                        if r == fault_round {
+                            if let Some((at, pauli)) = inject {
+                                if at == i {
+                                    if let Op::Noise(q) = op {
+                                        if pauli & 1 != 0 { sim.apply_x(q); }
+                                        if pauli & 2 != 0 { sim.apply_z(q); }
+                                    }
+                                }
+                            }
+                        }
+                        match op {
+                            Op::Reset(q) => { if sim.measure_z(q) == 1 { sim.apply_x(q); } }
+                            Op::H(q) => sim.apply_h(q),
+                            Op::Cnot(c, t) => sim.apply_cnot(c, t),
+                            Op::Cz(a, b) => { sim.apply_h(b); sim.apply_cnot(a, b); sim.apply_h(b); }
+                            Op::Measure(q, _, idx) => out[idx] = sim.measure_z(q),
+                            Op::Noise(_) => {}
+                        }
+                    }
+                    all.push(out);
+                }
+                all
+            };
+
+            let clean = run_tableau(None);
+            let mut checked = 0usize;
+            for (fault, _) in layout.fault_locations() {
+                let (at, pauli) = match fault {
+                    Fault::Gate(at, pauli) => (at, pauli),
+                    Fault::Readout(_) => continue, // classical, nothing to propagate
+                };
+                let dirty = run_tableau(Some((at, pauli)));
+                // What the tableau says this fault did to the readings.
+                let tableau: Vec<bool> = (0..ns)
+                    .map(|s| (dirty[fault_round][s] ^ clean[fault_round][s]) == 1)
+                    .collect();
+                // What the frame says.
+                let effect = layout.propagate(fault, fault_round, ROUNDS);
+                let frame: Vec<bool> = (0..ns)
+                    .map(|s| effect.flips_z_stab[fault_round * ns + s])
+                    .collect();
+                assert_eq!(
+                    tableau, frame,
+                    "d={d}: frame and tableau disagree for {:?} at op {at}", pauli
+                );
+                checked += 1;
+            }
+            assert!(checked > 100, "d={d}: only {checked} faults compared");
+            println!("d={d}: frame matches tableau on {checked} faults");
         }
     }
 

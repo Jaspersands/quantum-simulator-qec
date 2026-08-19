@@ -204,9 +204,7 @@ pub fn decode_union_find(
     let mut correction = Vec::new();
     let mut visited_nodes = vec![false; total_nodes];
     let mut active_defects = vec![false; total_nodes];
-    for i in 0..graph.num_nodes {
-        active_defects[i] = defects[i];
-    }
+    active_defects[..graph.num_nodes].copy_from_slice(&defects[..graph.num_nodes]);
 
     // Find connected components in the forest
     let mut forest_adj = vec![Vec::new(); total_nodes];
@@ -351,17 +349,15 @@ pub fn decode_greedy(
                     curr = p;
                 }
             }
-        } else {
-            if !is_matched[u] && !is_matched[v] {
-                is_matched[u] = true;
-                is_matched[v] = true;
-                let mut curr = v;
-                while let Some(p) = parent_nodes[u][curr] {
-                    if let Some(edge_idx) = parent_edges[u][curr] {
-                        correction_edges.push(edge_idx);
-                    }
-                    curr = p;
+        } else if !is_matched[u] && !is_matched[v] {
+            is_matched[u] = true;
+            is_matched[v] = true;
+            let mut curr = v;
+            while let Some(p) = parent_nodes[u][curr] {
+                if let Some(edge_idx) = parent_edges[u][curr] {
+                    correction_edges.push(edge_idx);
                 }
+                curr = p;
             }
         }
     }
