@@ -849,9 +849,11 @@
     <p class="note">
       Figures quoted below were measured at bias <span class="mono">η = 0.5</span> — equal parts X,
       Y and Z, the setting every panel here starts from — over <span class="mono">T = d</span>
-      rounds, unless they say otherwise. That matters more than it looks: the same code at the same
-      <span class="mono">p</span> reports 8.8% at <span class="mono">η = 0.5</span> and 4.5% at
-      <span class="mono">η = 1</span>, so a rate given without its noise model does not mean anything.
+      rounds, unless they say otherwise. That matters more than it looks. At
+      <span class="mono">d = 7, p = 0.3%</span> circuit-level the rotated code reads 1.07% at
+      <span class="mono">η = 1</span> and 2.37% at <span class="mono">η = 100</span>, while XZZX at
+      those same two settings reads 1.08% and 0.25% — the same <span class="mono">p</span>, and the
+      ranking between the codes reverses.
       Thresholds are quoted to two significant figures: the collapse fit and the plain crossover
       agree only to about 10%, and that gap is the real uncertainty rather than the fit's own error
       bar.
@@ -960,7 +962,7 @@
       p² as theory demands, and a threshold appears where it should. Locating it two ways — the
       collapse fit in section 7, and simply sweeping <span class="mono">p</span> to see where the
       distances swap order, which assumes nothing — gives
-      <span class="mono">0.34%</span> and <span class="mono">0.38%</span>. They agree to about 10%,
+      <span class="mono">≈ 0.30%</span> and <span class="mono">≈ 0.37%</span>. They agree to about 10%,
       and <em>that</em> is the honest uncertainty: a collapse is pulled toward whichever side of the
       threshold its sweep samples more densely, so quoting three digits would be reporting the method
       rather than the physics. Of the three noise models this one fits worst — its exponent lands at
@@ -997,20 +999,23 @@
       sublattices independently over all 576 combinations, scored on commutation against the tableau
       and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
       <br><br>
-      It fits a threshold of <span class="mono">≈ 0.34%</span>, indistinguishable from the rotated
-      code's <span class="mono">≈ 0.35%</span> — and the crossover agrees, both codes going flat
-      around <span class="mono">p = 0.33%</span> and clearly rising by
-      <span class="mono">0.40%</span>. The extra noise it carries shows up <em>below</em> threshold
+      Its threshold comes out <span class="mono">≈ 0.34%</span> by crossover against the rotated
+      code's <span class="mono">≈ 0.37%</span>, and the two are not cleanly separated: both go flat
+      around <span class="mono">p = 0.33%</span> and are rising by <span class="mono">0.40%</span>. The extra noise it carries shows up <em>below</em> threshold
       instead. Every XZZX ancilla needs an H where the rotated code rotates only its X-type ones — 72
       noise locations per round at <span class="mono">d = 3</span> against 64 — and at
-      <span class="mono">p = 0.26%, d = 7</span> that costs nearly a factor of three in logical
-      error rate — 0.76% against 0.26%, over 40,000 shots. Where the curves cross is barely moved by the extra locations; how
-      low the rate goes beneath it is. The bias advantage does not
-      survive the circuit. At <span class="mono">d = 7, p = 0.3%</span>, going from
-      <span class="mono">η = 1</span> to <span class="mono">η = 100</span> takes XZZX from 0.91% to
-      0.27% while the rotated code goes from 0.16% to 0.00%. Under circuit-level noise the failures
-      that dominate come from ancilla faults propagating through a CNOT and a CZ alike, and no amount
-      of dephasing bias suppresses those.</dd>
+      <span class="mono">p = 0.26%, d = 7</span> that costs about 30% in logical error rate — 0.74%
+      against 0.58% over 40,000 shots, which is the sort of size 12% more locations would predict.
+      <br><br>
+      The bias advantage <em>does</em> survive the circuit. At
+      <span class="mono">d = 7, p = 0.3%</span>, going from <span class="mono">η = 1</span> to
+      <span class="mono">η = 100</span> takes XZZX from 1.08% to 0.25% while the rotated code goes
+      the other way, 1.07% to 2.37% — better than nine-fold apart, where at
+      <span class="mono">η = 1</span> the two were level. This entry previously reported the
+      opposite, on the strength of a rotated simulator that counted only the logical error its
+      preparation could see. Under strong Z-bias the failures it was missing are precisely the ones
+      bias produces, so the rotated code appeared to improve. A measurement blind to half its
+      outcomes does not merely lose precision — it can invert the answer.</dd>
     </div>
     <div>
       <dt>Located loss</dt>
@@ -1022,7 +1027,7 @@
       propagation that makes a hook error. The model already knows which edges each circuit location
       produces, so it answers that directly. The effect is what the physics says it should be: at
       <span class="mono">p = 0.8%</span> and <span class="mono">d = 5</span>, logical error falls
-      from 8.84% with no erasure to 2.79% when half the faults are located and to 0.03% when all of
+      from 17.9% with no erasure to 5.6% when half the faults are located and to 0.02% when all of
       them are. Fully located noise has its own threshold near
       <span class="mono">p = 2%</span> — some four times the Pauli threshold, and still a threshold,
       which is the check that the information is being used rather than assumed.</dd>
@@ -1046,7 +1051,21 @@
       state. At zero noise that gave the "vector" <span class="mono">(1, 1, 1)</span>, of length
       &radic;3 — outside the Bloch sphere. The simulators now return which logical Pauli class
       survived rather than a bare pass/fail, so the four channel probabilities can be counted and
-      the shrink factors computed properly.</dd>
+      the shrink factors computed properly.
+      <br><br>
+      That fix was at first only half applied, which an audit of the numbers caught: four of the six
+      code-and-noise pairings still returned a bare pass/fail, and the channel built from them came
+      back with <span class="mono">r_x</span> pinned at exactly 1 — every failure counted as the same
+      kind. Two causes. The XZZX simulators asked their stabilizer group only <em>whether</em> the
+      residual was a logical operator, not which one; they now derive a pair of anticommuting logical
+      representatives — the null space of the commutation map, reduced modulo the stabilizer group —
+      and read the class off by commutation, so nothing is hard-coded. And the circuit-level
+      simulator asked the tableau, which can only answer the question its basis poses: prepared in
+      <span class="mono">|0_L&gt;</span> it sees a logical X and is blind to a logical Z, that being
+      an operator it commutes with. A Pauli frame now shadows the tableau through the same circuit
+      and gives both at once. The derived representatives are checked against the rotated code's own
+      independently known logicals — a column of X, a row of Z — over four thousand random residuals
+      at <span class="mono">d = 3</span> and <span class="mono">d = 5</span>.</dd>
     </div>
     <div>
       <dt>Randomness</dt>

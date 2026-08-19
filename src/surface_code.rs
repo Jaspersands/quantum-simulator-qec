@@ -95,6 +95,9 @@ fn next_shot_rng() -> Xorshift {
 pub struct LogicalCheck {
     /// Row-reduced stabilizer basis: (x bits, z bits, pivot is in x, pivot bit).
     basis: Vec<(u128, u128, bool, u32)>,
+    /// Anticommuting logical representatives, derived in `new`.
+    logical_x: (u128, u128),
+    logical_z: (u128, u128),
 }
 
 impl LogicalCheck {
@@ -132,11 +135,21 @@ impl LogicalCheck {
             basis.push((x, z, pivot_in_x, bit));
         }
 
-        LogicalCheck { basis }
+        let mut check = LogicalCheck { basis, logical_x: (0, 0), logical_z: (0, 0) };
+        let (lx, lz) = find_logical_pair(stabilizers, num_qubits, &check);
+        check.logical_x = lx;
+        check.logical_z = lz;
+        check
     }
 
     /// True when the residual is *not* a product of stabilizers.
-    pub fn is_logical(&self, mut x: u128, mut z: u128) -> bool {
+    pub fn is_logical(&self, x: u128, z: u128) -> bool {
+        let (rx, rz) = self.reduce(x, z);
+        rx != 0 || rz != 0
+    }
+
+    /// Reduce a Pauli against the stabilizer basis, leaving its logical part.
+    fn reduce(&self, mut x: u128, mut z: u128) -> (u128, u128) {
         for &(bx, bz, pivot_in_x, bit) in &self.basis {
             let set = if pivot_in_x { (x >> bit) & 1 } else { (z >> bit) & 1 };
             if set == 1 {
@@ -144,39 +157,148 @@ impl LogicalCheck {
                 z ^= bz;
             }
         }
-        x != 0 || z != 0
+        (x, z)
     }
+
+    /// The derived logical representatives, for tests and diagnostics.
+    pub fn representatives(&self) -> ((u128, u128), (u128, u128)) {
+        (self.logical_x, self.logical_z)
+    }
+
+    /// Which logical Pauli the residual is, as a class: bit 0 set for a logical
+    /// X, bit 1 for a logical Z, both for a Y, zero for success.
+    ///
+    /// "Did a logical error happen" is not enough to characterise the logical
+    /// channel — that needs the probability of I, X, Y and Z separately — and a
+    /// bare pass/fail silently reports every failure as the same kind. Which one
+    /// it is comes from commutation: a residual carries a logical X exactly when
+    /// it anticommutes with the logical Z operator, and vice versa.
+    pub fn classify(&self, x: u128, z: u128) -> u8 {
+        let (rx, rz) = self.reduce(x, z);
+        let anti = |(qx, qz): (u128, u128)| -> bool {
+            ((rx & qz).count_ones() + (rz & qx).count_ones()) % 2 == 1
+        };
+        (anti(self.logical_z) as u8) | ((anti(self.logical_x) as u8) << 1)
+    }
+}
+
+/// Row-reduce a GF(2) matrix in place and return the pivot column of each row.
+fn gf2_rref(rows: &mut Vec<u128>, width: usize) -> Vec<usize> {
+    let mut pivots = Vec::new();
+    let mut r = 0usize;
+    for col in 0..width {
+        let Some(sel) = (r..rows.len()).find(|&i| (rows[i] >> col) & 1 == 1) else {
+            continue;
+        };
+        rows.swap(r, sel);
+        for i in 0..rows.len() {
+            if i != r && (rows[i] >> col) & 1 == 1 {
+                rows[i] ^= rows[r];
+            }
+        }
+        pivots.push(col);
+        r += 1;
+        if r == rows.len() {
+            break;
+        }
+    }
+    rows.truncate(r);
+    pivots
+}
+
+/// A pair of anticommuting logical operators for the code, found rather than
+/// assumed.
+///
+/// The normalizer of the stabilizer group is the null space of the commutation
+/// map: P = (px, pz) commutes with every generator (sx, sz) exactly when
+/// `popcount(px & sz) + popcount(pz & sx)` is even for each, which is a linear
+/// system over GF(2) in the 2n bits of P. Anything in that null space which is
+/// not itself a product of stabilizers is a logical operator; a pair of them
+/// that anticommute are representatives of logical X and logical Z. Deriving
+/// them beats writing them down — a hard-coded string that was not a logical
+/// operator of the lattice is precisely what went wrong here before.
+///
+/// Which of the pair is called X and which Z is a convention, not a fact: for
+/// the rotated code the search recovers the usual column-of-X and row-of-Z, and
+/// `logical_classification_matches_the_rotated_code` pins that down against the
+/// code's own hand-derived answer. For XZZX every logical operator is a mixed
+/// X/Z string and no such preferred labelling exists, so the choice is simply
+/// made deterministically — the enumeration order is fixed — and the two axes of
+/// the reported channel are that basis, whatever it is called.
+fn find_logical_pair(
+    stabilizers: &[(u128, u128)],
+    num_qubits: usize,
+    reduced: &LogicalCheck,
+) -> ((u128, u128), (u128, u128)) {
+    let n = num_qubits;
+    let width = 2 * n;
+
+    // One row per generator: columns 0..n weight px, columns n..2n weight pz.
+    let mut rows: Vec<u128> = stabilizers
+        .iter()
+        .map(|&(sx, sz)| {
+            let mut row = 0u128;
+            for j in 0..n {
+                if (sz >> j) & 1 == 1 { row |= 1u128 << j; }
+                if (sx >> j) & 1 == 1 { row |= 1u128 << (n + j); }
+            }
+            row
+        })
+        .collect();
+    let pivots = gf2_rref(&mut rows, width);
+    let is_pivot: Vec<bool> = (0..width).map(|c| pivots.contains(&c)).collect();
+
+    // Null-space basis: one vector per free column.
+    let mut null = Vec::new();
+    for free in 0..width {
+        if is_pivot[free] { continue; }
+        let mut v = 1u128 << free;
+        for (r, &pc) in pivots.iter().enumerate() {
+            if (rows[r] >> free) & 1 == 1 { v |= 1u128 << pc; }
+        }
+        null.push(v);
+    }
+
+    let mask = if n >= 128 { u128::MAX } else { (1u128 << n) - 1 };
+    let split = |v: u128| -> (u128, u128) { (v & mask, (v >> n) & mask) };
+
+    let logicals: Vec<(u128, u128)> = null
+        .into_iter()
+        .map(split)
+        .filter(|&(x, z)| reduced.is_logical(x, z))
+        .collect();
+
+    for (i, &a) in logicals.iter().enumerate() {
+        for &b in &logicals[i + 1..] {
+            if ((a.0 & b.1).count_ones() + (a.1 & b.0).count_ones()) % 2 == 1 {
+                return (a, b);
+            }
+        }
+    }
+    // A code with no anticommuting pair in its normalizer encodes no qubit;
+    // every construction here encodes one, so this is unreachable.
+    ((0, 0), (0, 0))
+}
+
+/// The biased Pauli channel, in one place.
+///
+/// `eta` is the ratio of Z to (X + Y): at eta = 0.5 the three are equally
+/// likely, which is depolarizing noise. Returns the Pauli as a bitmask —
+/// 1 = X, 2 = Z, 3 = Y — or None if nothing happened.
+fn sample_pauli(p: f64, eta: f64, rng: &mut Xorshift) -> Option<u8> {
+    if p <= 0.0 || rng.next_f64() >= p {
+        return None;
+    }
+    let roll = rng.next_f64();
+    let p_z = eta / (eta + 1.0);
+    let p_x = 1.0 / (2.0 * (eta + 1.0));
+    Some(if roll < p_z { 2 } else if roll < p_z + p_x { 1 } else { 3 })
 }
 
 fn sample_biased_error(p: f64, eta: f64, rng: &mut Xorshift) -> (bool, bool) {
-    if rng.next_f64() < p {
-        let rand_val = rng.next_f64();
-        let p_z_ratio = eta / (eta + 1.0);
-        let p_x_ratio = 1.0 / (2.0 * (eta + 1.0));
-        if rand_val < p_z_ratio {
-            (false, true) // Z error
-        } else if rand_val < p_z_ratio + p_x_ratio {
-            (true, false) // X error
-        } else {
-            (true, true)  // Y error
-        }
-    } else {
-        (false, false)
-    }
-}
-
-fn inject_single_qubit_noise(sim: &mut crate::simulator::StabilizerSimulator, qubit: usize, p: f64, bias: f64, rng: &mut Xorshift) {
-    if rng.next_f64() < p {
-        let rand_val = rng.next_f64();
-        let p_z_ratio = bias / (bias + 1.0);
-        let p_x_ratio = 1.0 / (2.0 * (bias + 1.0));
-        if rand_val < p_z_ratio {
-            sim.apply_z(qubit);
-        } else if rand_val < p_z_ratio + p_x_ratio {
-            sim.apply_x(qubit);
-        } else {
-            sim.apply_y(qubit);
-        }
+    match sample_pauli(p, eta, rng) {
+        Some(pauli) => (pauli & 1 != 0, pauli & 2 != 0),
+        None => (false, false),
     }
 }
 
@@ -237,6 +359,7 @@ fn inject_correlated_noise(
 
 fn inject_correlated_noise_circuit(
     sim: &mut crate::simulator::StabilizerSimulator,
+    mut frame: Option<&mut crate::circuit_model::Frame>,
     data_qubits: &[(usize, usize)],
     d: usize,
     correlated_noise: usize,
@@ -253,11 +376,12 @@ fn inject_correlated_noise_circuit(
                 let dist = ((ux - cx).powi(2) + (uy - cy).powi(2)).sqrt();
                 if dist <= 1.5 {
                     let choice = rng.next_u64() % 3;
-                    match choice {
-                        0 => { sim.apply_x(q); }
-                        1 => { sim.apply_z(q); }
-                        _ => { sim.apply_y(q); }
-                    }
+                    let pauli = match choice {
+                        0 => { sim.apply_x(q); 1u8 }
+                        1 => { sim.apply_z(q); 2u8 }
+                        _ => { sim.apply_y(q); 3u8 }
+                    };
+                    if let Some(f) = frame.as_deref_mut() { f.apply(q, pauli); }
                 }
             }
         }
@@ -830,6 +954,15 @@ impl RotatedSurfaceCode {
         // first noisy round's gate noise already covers every data qubit, so it
         // is simply folded in there.
 
+        // A Pauli frame shadowing the tableau. The tableau alone can only answer
+        // the question its basis asks — prepared in |0_L> it detects a logical X
+        // and is blind to a logical Z, which commutes with everything it
+        // measures. That is fine for a pass/fail but not for a channel, which
+        // needs all four class probabilities. Propagation is linear, so the same
+        // injected Paulis carried through the same circuit give the residual
+        // directly, and the tableau's own measurement randomness does not enter.
+        let mut frame = crate::circuit_model::Frame::new(total_qubits);
+
         let mut flips_x = vec![false; num_x * rounds_total];
         let mut flips_z = vec![false; num_z * rounds_total];
         let mut erased_sites = vec![false; model.erasure_sites];
@@ -851,15 +984,17 @@ impl RotatedSurfaceCode {
                         if sim.measure_z(q) == 1 {
                             sim.apply_x(q);
                         }
+                        frame.step(op);
                     }
-                    Op::H(q) => sim.apply_h(q),
-                    Op::Cnot(c, t) => sim.apply_cnot(c, t),
+                    Op::H(q) => { sim.apply_h(q); frame.step(op); }
+                    Op::Cnot(c, t) => { sim.apply_cnot(c, t); frame.step(op); }
                     // The tableau has no native CZ; conjugating the target by H
                     // is the identity CZ = (I x H) CNOT (I x H).
                     Op::Cz(a, b) => {
                         sim.apply_h(b);
                         sim.apply_cnot(a, b);
                         sim.apply_h(b);
+                        frame.step(op);
                     }
                     Op::Noise(q) => {
                         // A located loss: the hardware knows this qubit was lost
@@ -870,20 +1005,28 @@ impl RotatedSurfaceCode {
                         let p_erase = round_p * erasure_rate;
                         let p_pauli = round_p * (1.0 - erasure_rate);
                         if p_erase > 0.0 && rng.next_f64() < p_erase {
-                            match rng.next_u64() % 3 {
-                                0 => sim.apply_x(q),
-                                1 => sim.apply_y(q),
+                            let pauli = 1 + (rng.next_u64() % 3) as u8;
+                            match pauli {
+                                1 => sim.apply_x(q),
+                                3 => sim.apply_y(q),
                                 _ => sim.apply_z(q),
                             }
+                            frame.apply(q, if pauli == 3 { 3 } else if pauli == 1 { 1 } else { 2 });
                             if r > 0 && r < rounds_total - 1 {
                                 erased_sites[(r - 1) * model.noise_slots + slot] = true;
                             }
-                        } else {
-                            inject_single_qubit_noise(&mut sim, q, p_pauli, bias, &mut rng);
+                        } else if let Some(pauli) = sample_pauli(p_pauli, bias, &mut rng) {
+                            match pauli {
+                                1 => sim.apply_x(q),
+                                2 => sim.apply_z(q),
+                                _ => sim.apply_y(q),
+                            }
+                            frame.apply(q, pauli);
                         }
                         slot += 1;
                     }
                     Op::Measure(q, kind, idx) => {
+                        frame.step(op);
                         let mut m = sim.measure_z(q) == 1;
                         if round_p > 0.0 && rng.next_f64() < round_p {
                             m ^= true;
@@ -897,7 +1040,8 @@ impl RotatedSurfaceCode {
             }
 
             if r > 0 && r < rounds_total - 1 {
-                inject_correlated_noise_circuit(&mut sim, &self.data_qubits, self.d, correlated_noise, &mut rng);
+                inject_correlated_noise_circuit(
+                    &mut sim, Some(&mut frame), &self.data_qubits, self.d, correlated_noise, &mut rng);
             }
         }
 
@@ -920,6 +1064,7 @@ impl RotatedSurfaceCode {
         // Decode on the model. An edge may correct several data qubits at once,
         // which is the whole reason this model exists.
         let apply = |sim: &mut crate::simulator::StabilizerSimulator,
+                     frame: &mut crate::circuit_model::Frame,
                      dg: &crate::circuit_model::DetectorGraph,
                      defects: &[bool],
                      is_x: bool| {
@@ -940,26 +1085,33 @@ impl RotatedSurfaceCode {
                 for q in 0..num_data {
                     if (mask >> q) & 1 == 1 {
                         if is_x { sim.apply_x(q); } else { sim.apply_z(q); }
+                        frame.apply(q, if is_x { 1 } else { 2 });
                     }
                 }
             }
         };
-        apply(&mut sim, &model.for_x_errors, &detectors_z, true);
-        apply(&mut sim, &model.for_z_errors, &detectors_x, false);
+        apply(&mut sim, &mut frame, &model.for_x_errors, &detectors_z, true);
+        apply(&mut sim, &mut frame, &model.for_z_errors, &detectors_x, false);
 
-        if init_state == "plus" {
-            let mut logical = 0u8;
-            for x_idx in 0..self.d {
-                logical ^= sim.measure_x(x_idx);
-            }
-            (logical == 1) as u8
-        } else {
-            let mut logical = 0u8;
-            for y_idx in 0..self.d {
-                logical ^= sim.measure_z(self.d * y_idx);
-            }
-            (logical == 1) as u8
+        // Logical X runs down a column, logical Z across a row; a residual X is
+        // a logical X when its parity against the column is odd, and vice versa.
+        // Reading this off the frame rather than measuring gives both at once —
+        // a measurement in one basis can only ever see one of them.
+        let (mut rx, mut rz) = (0u128, 0u128);
+        for q in 0..num_data {
+            if frame.x[q] { rx |= 1u128 << q; }
+            if frame.z[q] { rz |= 1u128 << q; }
         }
+        let (mut column, mut row) = (0u128, 0u128);
+        for i in 0..self.d {
+            column |= 1u128 << (i * self.d);
+            row |= 1u128 << i;
+        }
+        // `init_state` still chooses what is prepared — the tableau runs a real
+        // memory experiment — but the class is read from the frame, so it no
+        // longer decides which kind of failure is visible.
+        ((rx & column).count_ones() % 2) as u8
+            | ((((rz & row).count_ones() % 2) as u8) << 1)
     }
 }
 
@@ -1144,11 +1296,7 @@ impl XZZXSurfaceCode {
                             if noisy {
                                 erased_sites[(r - 1) * model.noise_slots + slot] = true;
                             }
-                        } else if p_pauli > 0.0 && rng.next_f64() < p_pauli {
-                            let roll = rng.next_f64();
-                            let p_z = bias / (bias + 1.0);
-                            let p_x = 1.0 / (2.0 * (bias + 1.0));
-                            let pauli: u8 = if roll < p_z { 2 } else if roll < p_z + p_x { 1 } else { 3 };
+                        } else if let Some(pauli) = sample_pauli(p_pauli, bias, &mut rng) {
                             frame.apply(q, pauli);
                         }
                         slot += 1;
@@ -1210,7 +1358,7 @@ impl XZZXSurfaceCode {
             if frame.x[q] { rx |= 1u128 << q; }
             if frame.z[q] { rz |= 1u128 << q; }
         }
-        self.logical.is_logical(rx ^ cx, rz ^ cz) as u8
+        self.logical.classify(rx ^ cx, rz ^ cz)
     }
     pub fn new(d: usize) -> Self {
         let mut data_qubits = Vec::new();
@@ -1564,7 +1712,7 @@ impl XZZXSurfaceCode {
             if residual_x[q] { rx |= 1u128 << q; }
             if residual_z[q] { rz |= 1u128 << q; }
         }
-        self.logical.is_logical(rx, rz) as u8
+        self.logical.classify(rx, rz)
     }
 
     /// Returns the logical Pauli class left behind: bit 0 set if a logical X
@@ -1662,7 +1810,7 @@ impl XZZXSurfaceCode {
             if residual_x[q] { rx |= 1u128 << q; }
             if residual_z[q] { rz |= 1u128 << q; }
         }
-        self.logical.is_logical(rx, rz) as u8
+        self.logical.classify(rx, rz)
     }
 
 }

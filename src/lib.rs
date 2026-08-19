@@ -922,6 +922,100 @@ mod tests {
         }
     }
 
+    /// `classify` must agree with the rotated code's own hand-derived logicals.
+    ///
+    /// That code knows its answer independently — logical X is a column of X,
+    /// logical Z a row of Z — so it is the one place the derived
+    /// representatives can be checked against something not derived the same
+    /// way. If the null-space search picked the wrong pair, or labelled X as Z,
+    /// this disagrees.
+    #[test]
+    fn logical_classification_matches_the_rotated_code() {
+        for d in [3usize, 5] {
+            let code = crate::surface_code::RotatedSurfaceCode::new(d);
+            let n = d * d;
+            let mut ops: Vec<(u128, u128)> = Vec::new();
+            for st in &code.x_stabilizers {
+                let mut px = 0u128;
+                for &(dx, dy) in &[(-1i32, -1i32), (-1, 1), (1, -1), (1, 1)] {
+                    if let Some(q) = code.neighbor_at(st, dx, dy) { px |= 1u128 << q; }
+                }
+                ops.push((px, 0));
+            }
+            for st in &code.z_stabilizers {
+                let mut pz = 0u128;
+                for &(dx, dy) in &[(-1i32, -1i32), (-1, 1), (1, -1), (1, 1)] {
+                    if let Some(q) = code.neighbor_at(st, dx, dy) { pz |= 1u128 << q; }
+                }
+                ops.push((0, pz));
+            }
+            let check = crate::surface_code::LogicalCheck::new(&ops, n);
+
+            // The code's own convention, from its simulators.
+            let mut column = 0u128; // logical X support
+            let mut row = 0u128;    // logical Z support
+            for i in 0..d {
+                column |= 1u128 << (i * d);
+                row |= 1u128 << i;
+            }
+
+            let mut rng: u64 = 0x2545F4914F6CDD1D;
+            let mut checked = 0usize;
+            for _ in 0..4000 {
+                let mut next = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+                let mask = if n >= 128 { u128::MAX } else { (1u128 << n) - 1 };
+                let rx = ((next() as u128) | ((next() as u128) << 64)) & mask;
+                let rz = ((next() as u128) | ((next() as u128) << 64)) & mask;
+
+                let want = ((rx & column).count_ones() % 2) as u8
+                    | (((rz & row).count_ones() % 2) as u8) << 1;
+                let got = check.classify(rx, rz);
+                assert_eq!(got, want, "d={d}: classify disagreed on rx={rx:b} rz={rz:b}");
+                checked += 1;
+            }
+            assert!(checked > 1000);
+        }
+    }
+
+    /// The frame shadowing the rotated circuit must stay in step with it.
+    ///
+    /// The class is now read off a Pauli frame carried alongside the tableau. If
+    /// any gate, injected Pauli or applied correction failed to reach the frame,
+    /// the two would drift apart silently — the shot would still "work" and just
+    /// report the wrong logical class. Two things pin it down: a noiseless
+    /// circuit must leave the frame clean, and under noise the two logical types
+    /// must occur at comparable rates, since at bias 0.5 nothing distinguishes
+    /// X from Z.
+    #[test]
+    fn rotated_circuit_frame_tracks_the_tableau() {
+        let d = 5usize;
+        let code = crate::surface_code::RotatedSurfaceCode::new(d);
+        let layout = code.circuit_layout();
+        let model = crate::circuit_model::build(&layout, d);
+
+        for _ in 0..200 {
+            let clean = code.simulate_circuit_noise_with_model(
+                &model, d, 0.0, 0.5, "zero", 0, 0.0, 0);
+            assert_eq!(clean, 0, "a noiseless circuit left something in the frame");
+        }
+
+        let (mut only_x, mut only_z, mut both, mut n) = (0usize, 0usize, 0usize, 0usize);
+        for _ in 0..4000 {
+            let c = code.simulate_circuit_noise_with_model(
+                &model, d, 0.006, 0.5, "zero", 0, 0.0, 0);
+            match c { 0 => {}, 1 => only_x += 1, 2 => only_z += 1, _ => both += 1 }
+            if c != 0 { n += 1 }
+        }
+        assert!(n > 40, "too few failures to judge: {n}");
+        let x = only_x + both;
+        let z = only_z + both;
+        let ratio = x as f64 / z.max(1) as f64;
+        assert!(
+            ratio > 0.5 && ratio < 2.0,
+            "logical X and Z should be comparable at bias 0.5, got X={x} Z={z} (ratio {ratio:.2})"
+        );
+    }
+
     /// The Pauli frame must agree with the tableau, fault for fault.
     ///
     /// The XZZX circuit is simulated on the frame rather than the tableau, which

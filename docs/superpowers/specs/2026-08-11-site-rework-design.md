@@ -36,9 +36,9 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Nine engine defects found during the rework
+## Ten engine defects found during the rework
 
-All surfaced while replacing fabricated numbers with live ones. All nine are fixed at the source and
+All surfaced while replacing fabricated numbers with live ones. All ten are fixed at the source and
 the module rebuilt.
 
 | # | Defect | Status |
@@ -47,11 +47,12 @@ the module rebuilt.
 | 2 | Phenomenological noise applied a faulty readout in the final round | FIXED — final round noiseless |
 | 3 | `Tableau::new` hardcoded its RNG state, so circuit runs were deterministic | FIXED — `Tableau::with_seed` |
 | 4 | X and Z extraction circuits used the same CNOT order, so they did not commute | FIXED — N/Z schedules, by direction |
-| 5 | Tomography ran three identical sims and called the result a Bloch vector | FIXED — Pauli transfer matrix diagonal |
+| 5 | Tomography ran three identical sims and called the result a Bloch vector | FIXED — Pauli transfer matrix diagonal; see 10 |
 | 6 | XZZX matched one defect set twice, on two different graphs | FIXED — one combined graph, one matching |
 | 7 | XZZX scored logical errors against a hard-coded string that was not a logical operator | FIXED — stabilizer-group membership |
 | 8 | The decoder had no model of the circuit, so hook errors were mis-paired | FIXED — detector error model in `src/circuit_model.rs` |
 | 9 | XZZX + circuit-level never got fixes 6, 7 or 8, and got worse with distance | FIXED — `build_combined`, one graph, transposed sublattice schedules |
+| 10 | Fix 5 reached only 2 of the 6 code×noise pairings; the rest returned pass/fail and the channel came back with r_x pinned at 1 | FIXED — derived logical representatives for XZZX, a Pauli frame shadowing the tableau for circuit-level |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)

@@ -24,16 +24,18 @@ running locally. Every number on the page is computed in the reader's browser on
 
 Logical error rates below were measured at bias `η = 0.5` — equal parts X, Y and Z, the setting
 every panel on the site starts from — over `T = d` rounds, unless stated otherwise. This is not
-pedantry: the rotated code at `d = 5, p = 0.8%` circuit-level reports **8.8% at η = 0.5 and 4.5% at
-η = 1**, so a rate quoted without its noise model is not a measurement. Shot counts are given where
-a number is close enough to the noise floor for it to matter.
+pedantry. At `d = 7, p = 0.3%` circuit-level the rotated code reports **1.07% at η = 1 and 2.37% at
+η = 100**, while XZZX at the same two settings reports **1.08% and 0.25%** — the same p, and the
+ranking between the codes reverses. Shot counts are given where a number is close enough to the
+noise floor for it to matter.
 
 ## Engine defects found and fixed
 
-Nine bugs surfaced while making the site report live data. All nine are fixed. Everything here is
+Ten bugs surfaced while making the site report live data. All ten are fixed. Everything here is
 reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in eight
-sections below — section 6 covers two, which had to be fixed together before the XZZX code worked
-at all.
+sections below — section 6 covers two, which had to be fixed together before the XZZX code worked at
+all, and section 5 covers two, the second being the discovery that the first fix had only been
+applied to a third of the cases it claimed to cover.
 
 ### 1. FIXED — the WASM Monte Carlo was not random
 
@@ -65,8 +67,8 @@ windows the site itself uses, four repeats.
 | XZZX | data | ≈ 11.8% | 11.2% ± 0.3 |
 | rotated | phenomenological | ≈ 3.0% | 2.73% ± 0.05 |
 | XZZX | phenomenological | ≈ 3.0% | 2.87% ± 0.08 |
-| rotated | circuit-level | ≈ 0.38% | 0.35% ± 0.02 |
-| XZZX | circuit-level | ≈ 0.35% | 0.34% ± 0.02 |
+| rotated | circuit-level | ≈ 0.37% | ≈ 0.30% |
+| XZZX | circuit-level | ≈ 0.34% | ≈ 0.29% |
 
 **The two methods agree only to about 10% — 13% on data noise — and that disagreement is the real
 uncertainty.** The fit sits below the crossover in every row, because a collapse is pulled toward
@@ -109,6 +111,22 @@ than a bare pass/fail, so the four channel probabilities can be counted and the 
 Pauli transfer matrix computed properly. Verified: `(1, 1, 1)` at zero noise now correctly means
 *the channel shrinks nothing*, every factor stays in [−1, 1], and the site draws the sphere's image
 as an ellipsoid.
+
+**This fix was at first only half applied**, which a later audit of the printed numbers caught: four
+of the six code-and-noise pairings still returned a bare pass/fail, and the channel built from them
+came back with `r_x` pinned at exactly 1 — every failure counted as the same kind. Two causes. The
+XZZX simulators asked their stabilizer group only *whether* the residual was logical, not which one;
+they now derive a pair of anticommuting logical representatives (the null space of the commutation
+map, reduced modulo the stabilizer group) and read the class off by commutation, so nothing is
+hard-coded. And the circuit-level simulator asked the tableau, which can only answer the question its
+basis poses — prepared in |0_L> it sees a logical X and is blind to a logical Z, an operator it
+commutes with. A Pauli frame now shadows the tableau through the same circuit and yields both.
+
+Two consequences worth stating. The derived representatives are checked against the rotated code's
+own independently known logicals — a column of X, a row of Z — over 4,000 random residuals at
+d = 3 and 5. And the circuit-level failure rate roughly doubled, because it now counts logical X and
+Z where before it counted only whichever the preparation could see; data and phenomenological noise
+had always counted both, so this makes the three models comparable rather than changing the physics.
 
 ### 6. FIXED — XZZX matched one defect set twice, and checked the wrong logical operator
 
@@ -229,16 +247,23 @@ p = 0.33% and are clearly rising by 0.40%.
 
 The extra noise does show up, but *below* threshold rather than in the threshold. Every XZZX ancilla
 needs an H where the rotated code rotates only its X-type ones — 72 noise locations per round at
-d = 3 against 64 — and at p = 0.26%, d = 7 that costs nearly a factor of three in logical error
-rate (0.76% against 0.26%, over 40,000 shots). Threshold is set by where the curves cross, which the extra locations barely
+d = 3 against 64 — and at p = 0.26%, d = 7 that costs about 30% in logical error rate — 0.74%
+against 0.58% over 40,000 shots, which is the sort of size the 12% extra locations would predict.
+An earlier draft put this at a factor of three; that was the class-counting bug of section 5, which
+had the rotated code reporting only half its failures. Threshold is set by where the curves cross, which the extra locations barely
 move; the rate below it is not.
 
-One honest negative result: **the bias advantage does not survive the circuit.** At d=7, p=0.3%,
-going from η=1 to η=100 takes XZZX from 0.91% to 0.27% while the rotated code goes from 0.16% to
-0.00% (12,000 shots each). Under circuit-level noise the dominant failures are ancilla faults propagating through a CNOT
-and a CZ alike, which no amount of dephasing bias suppresses. The XZZX advantage this project does
-reproduce (0.04% against 0.47% at d=7, p=3%, η=64) is a data-noise result, and the bias figure on
-the site measures it in that regime.
+**The bias advantage survives the circuit**, which an earlier draft of this file denied. At d=7,
+p=0.3%, going from η=1 to η=100 takes XZZX from 1.08% to 0.25% while the rotated code goes the other
+way, 1.07% to 2.37% — better than nine-fold apart, where at η=1 the two are level (15,000 shots
+each).
+
+That earlier "honest negative result" was an artifact of the bug in section 5. The rotated
+circuit-level simulator counted only the logical error its preparation could see, and under strong
+Z-bias the failures it was missing are exactly the ones bias produces — so it looked as though the
+rotated code improved to 0.00% while XZZX did not. Counting both classes shows the opposite. It is a
+good illustration of why a measurement that cannot see half its outcomes is worse than no
+measurement: it does not merely lose precision, it can invert the conclusion.
 
 ### Located loss under circuit-level noise
 
@@ -252,8 +277,8 @@ propagation that produces a hook error. The detector error model already records
 circuit location produces, so it answers that question directly: `DetectorGraph::site_edges` maps an
 erasure site to the edges it makes free.
 
-Measured at d = 5, p = 0.8%: logical error falls from 8.84% with no erasure, to 2.79% when half the
-faults are located, to 0.03% when all of them are — not quite nothing, because p = 0.8% still sits
+Measured at d = 5, p = 0.8%: logical error falls from 17.9% with no erasure, to 5.6% when half the
+faults are located, to 0.02% when all of them are — not quite nothing, because p = 0.8% still sits
 below the located-noise threshold rather than nowhere near it. Fully located noise has its own threshold near
 p = 2%, roughly four times the Pauli threshold — and the fact that it *has* a threshold, rather than
 being perfect everywhere, is the check that the information is being used rather than assumed.
