@@ -36,9 +36,9 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Ten engine defects found during the rework
+## Twelve engine defects found during the rework
 
-All surfaced while replacing fabricated numbers with live ones. All ten are fixed at the source and
+All surfaced while replacing fabricated numbers with live ones. All twelve are fixed at the source and
 the module rebuilt.
 
 | # | Defect | Status |
@@ -53,6 +53,8 @@ the module rebuilt.
 | 8 | The decoder had no model of the circuit, so hook errors were mis-paired | FIXED — detector error model in `src/circuit_model.rs` |
 | 9 | XZZX + circuit-level never got fixes 6, 7 or 8, and got worse with distance | FIXED — `build_combined`, one graph, transposed sublattice schedules |
 | 10 | Fix 5 reached only 2 of the 6 code×noise pairings; the rest returned pass/fail and the channel came back with r_x pinned at 1 | FIXED — derived logical representatives for XZZX, a Pauli frame shadowing the tableau for circuit-level |
+| 11 | The threshold fit omitted corrections to scaling, biasing every quoted threshold low by 15-20% | FIXED — corrected ansatz, more distances, bootstrap intervals |
+| 12 | `find_logical_pair` packed 2n bits into a u128, so XZZX from d = 9 up derived "logicals" that anticommuted with their own stabilizers | FIXED — split the row along the Pauli's own seam |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)
@@ -61,13 +63,14 @@ d = 3, 5 or 7; XZZX beats the rotated code under bias (d=7, p=3%, η=64: 0.07% a
 **every single circuit fault is corrected — 0 failures out of 600 / 3,240 / 9,408 at d = 3 / 5 / 7**,
 for Union-Find and exact MWPM alike.
 
-Thresholds now land where the literature puts them for all three noise models. At bias η = 0.5
-(depolarizing — the default in every panel), located both by collapse fit and by plain crossover:
-≈12% data noise, ≈2.9% phenomenological, ≈0.36% circuit-level. The two methods agree only to about
-10% — the fit sits below the crossover every time, being pulled toward whichever side of the
-threshold the sweep samples more densely — so the figures are quoted to two significant figures and
-no further. XZZX matches the rotated code within that spread on all three, as it should at zero
-bias.
+Thresholds are fitted with the leading correction to scaling, `+ D·d^(-omega)`, rather than by the
+bare collapse. The bare collapse is the d -> infinity statement and these patches are small: against
+synthetic data with a known threshold it comes back 27% high and stays there however many shots it
+is given. At bias eta = 0.5, with bootstrap intervals: data noise 14.5% (14.1-15.2, nu 1.48),
+phenomenological 3.25% (3.12-3.37, nu 1.32), circuit-level 0.42% (0.35-0.49, nu 0.96). XZZX matches
+within error on all three, as it should at zero bias. Separating the correction from a shift in the
+threshold needs four distances, so the sweeps run to d = 9, and to d = 11 for data noise where it is
+cheap enough.
 
 ### On the detector error model
 

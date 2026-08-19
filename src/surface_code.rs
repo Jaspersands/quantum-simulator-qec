@@ -182,18 +182,45 @@ impl LogicalCheck {
     }
 }
 
+/// A row of the commutation matrix: 2n columns, held as two n-bit halves.
+///
+/// One u128 is not enough. A Pauli on n qubits needs 2n bits, and the codes here
+/// reach n = 121 at d = 11 — so a single word overflows from d = 9 up, silently,
+/// producing "logical" operators that anticommute with the stabilizers they are
+/// supposed to commute with. Splitting the row along the same seam the Pauli
+/// already has keeps every shift inside a word.
+#[derive(Clone, Copy, Default, PartialEq)]
+struct Row {
+    lo: u128, // columns 0..n   — coefficients on the x part
+    hi: u128, // columns n..2n  — coefficients on the z part
+}
+
+impl Row {
+    fn get(&self, col: usize, n: usize) -> bool {
+        if col < n { (self.lo >> col) & 1 == 1 } else { (self.hi >> (col - n)) & 1 == 1 }
+    }
+    fn set(&mut self, col: usize, n: usize) {
+        if col < n { self.lo |= 1u128 << col; } else { self.hi |= 1u128 << (col - n); }
+    }
+    fn xor(&mut self, other: &Row) {
+        self.lo ^= other.lo;
+        self.hi ^= other.hi;
+    }
+}
+
 /// Row-reduce a GF(2) matrix in place and return the pivot column of each row.
-fn gf2_rref(rows: &mut Vec<u128>, width: usize) -> Vec<usize> {
+fn gf2_rref(rows: &mut Vec<Row>, width: usize, n: usize) -> Vec<usize> {
     let mut pivots = Vec::new();
     let mut r = 0usize;
     for col in 0..width {
-        let Some(sel) = (r..rows.len()).find(|&i| (rows[i] >> col) & 1 == 1) else {
+        let Some(sel) = (r..rows.len()).find(|&i| rows[i].get(col, n)) else {
             continue;
         };
         rows.swap(r, sel);
+        let pivot_row = rows[r];
         for i in 0..rows.len() {
-            if i != r && (rows[i] >> col) & 1 == 1 {
-                rows[i] ^= rows[r];
+            if i != r && rows[i].get(col, n) {
+                rows[i].xor(&pivot_row);
             }
         }
         pivots.push(col);
@@ -234,37 +261,36 @@ fn find_logical_pair(
     let width = 2 * n;
 
     // One row per generator: columns 0..n weight px, columns n..2n weight pz.
-    let mut rows: Vec<u128> = stabilizers
+    let mut rows: Vec<Row> = stabilizers
         .iter()
         .map(|&(sx, sz)| {
-            let mut row = 0u128;
+            let mut row = Row::default();
             for j in 0..n {
-                if (sz >> j) & 1 == 1 { row |= 1u128 << j; }
-                if (sx >> j) & 1 == 1 { row |= 1u128 << (n + j); }
+                if (sz >> j) & 1 == 1 { row.set(j, n); }
+                if (sx >> j) & 1 == 1 { row.set(n + j, n); }
             }
             row
         })
         .collect();
-    let pivots = gf2_rref(&mut rows, width);
+    let pivots = gf2_rref(&mut rows, width, n);
     let is_pivot: Vec<bool> = (0..width).map(|c| pivots.contains(&c)).collect();
 
     // Null-space basis: one vector per free column.
-    let mut null = Vec::new();
+    let mut null: Vec<Row> = Vec::new();
     for free in 0..width {
         if is_pivot[free] { continue; }
-        let mut v = 1u128 << free;
+        let mut v = Row::default();
+        v.set(free, n);
         for (r, &pc) in pivots.iter().enumerate() {
-            if (rows[r] >> free) & 1 == 1 { v |= 1u128 << pc; }
+            if rows[r].get(free, n) { v.set(pc, n); }
         }
         null.push(v);
     }
 
-    let mask = if n >= 128 { u128::MAX } else { (1u128 << n) - 1 };
-    let split = |v: u128| -> (u128, u128) { (v & mask, (v >> n) & mask) };
-
+    // A null-space vector's halves are exactly the Pauli's x and z parts.
     let logicals: Vec<(u128, u128)> = null
         .into_iter()
-        .map(split)
+        .map(|v| (v.lo, v.hi))
         .filter(|&(x, z)| reduced.is_logical(x, z))
         .collect();
 

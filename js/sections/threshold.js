@@ -16,9 +16,29 @@ import { Plot, plotLegend } from '../plot.js';
 import { wilson, fitThreshold, collapseCurve, percent, count } from '../compute.js';
 import { $, fill, el } from '../dom.js';
 
-const DISTANCES = [3, 5, 7];
+/**
+ * Distances swept, per noise model.
+ *
+ * Three distances is not enough. The collapse ansatz is the d -> infinity limit,
+ * and these patches are small, so a fit that ignores the approach to that limit
+ * comes out biased — measured against synthetic data with a known threshold, by
+ * +27% with three distances, and it does not improve with more shots because it
+ * is bias, not noise. Separating the correction from a shift in the threshold
+ * needs a fourth distance; a fifth roughly halves the residual error again. See
+ * `fitThreshold`.
+ */
+const DISTANCES = {
+  [NOISE.DATA]: [3, 5, 7, 9, 11],
+  [NOISE.PHENOM]: [3, 5, 7, 9],
+  [NOISE.CIRCUIT]: [3, 5, 7, 9],
+};
 
-const SERIES_COLOR = { 3: 'var(--d3)', 5: 'var(--d5)', 7: 'var(--d7)' };
+const SERIES_COLOR = {
+  3: 'var(--d3)', 5: 'var(--d5)', 7: 'var(--d7)', 9: 'var(--d9)', 11: 'var(--d11)',
+};
+
+/** The load-time table is a reference, not a fit; three distances make the point. */
+const TABLE_DISTANCES = [3, 5, 7];
 
 /** Physical rates spanning both sides of the threshold for both noise models. */
 const TABLE_PS = [0.005, 0.01, 0.02, 0.05, 0.10, 0.15];
@@ -65,7 +85,20 @@ const SWEEP_PS = {
  * reads 0.00%, the full count costs about the same wall-clock as it used to and
  * actually resolves the crossing.
  */
-const SWEEP_RUNS_SCALE = {};
+/**
+ * Shots per point, per noise model — set by what each can afford, not by taste.
+ *
+ * Precision here is shot-limited rather than method-limited: on synthetic data
+ * the corrected fit's rms error falls from 40% at 1,200 shots to 13% at 20,000.
+ * Data noise is cheap enough to buy that outright. The other two are not, and
+ * their sweeps are correspondingly less precise — which the reported interval
+ * shows rather than hides. Wall-clock is around 20s, 25s and 80s.
+ */
+const SWEEP_RUNS = {
+  [NOISE.DATA]: 20000,
+  [NOISE.PHENOM]: 6000,
+  [NOISE.CIRCUIT]: 1200,
+};
 
 /* -- The results table -------------------------------------------------- */
 
@@ -77,7 +110,7 @@ export function initResultsTable(root, compute) {
 
   const cells = [];
   for (const model of TABLE_MODELS) {
-    for (const d of DISTANCES) {
+    for (const d of TABLE_DISTANCES) {
       for (const p of TABLE_PS) {
         cells.push({ noiseMode: model.noiseMode, rounds: model.rounds, d, p });
       }
@@ -92,10 +125,10 @@ export function initResultsTable(root, compute) {
   function paint() {
     const rows = [];
     for (const model of TABLE_MODELS) {
-      DISTANCES.forEach((d, i) => {
+      TABLE_DISTANCES.forEach((d, i) => {
         const tds = [];
         if (i === 0) {
-          tds.push(el('th', { scope: 'rowgroup', rowspan: String(DISTANCES.length) }, [
+          tds.push(el('th', { scope: 'rowgroup', rowspan: String(TABLE_DISTANCES.length) }, [
             el('strong', { text: model.label }),
             el('span', { class: 'ci', text: model.sub }),
           ]));
@@ -197,7 +230,7 @@ export function initThresholdSweep(root, compute) {
   const decoderSelect = $('[data-threshold-decoder]', root);
   const noiseSelect = $('[data-threshold-noise]', root);
   const codeSelect = $('[data-threshold-code]', root);
-  const runsInput = $('[data-threshold-runs]', root);
+  const planNote = $('[data-threshold-plan]', root);
   if (!canvas) return;
 
   canvas.dataset.aspect = '0.68';
@@ -208,8 +241,26 @@ export function initThresholdSweep(root, compute) {
     formatY: (v) => `${(v * 100).toFixed(0)}%`,
   });
 
-  const seriesMeta = DISTANCES.map((d) => ({ d, label: `d = ${d}`, color: SERIES_COLOR[d] }));
-  legend.innerHTML = plotLegend(seriesMeta);
+  // The distances swept depend on the noise model — circuit-level cannot afford
+  // what data noise can — so the legend follows the selection.
+  const currentDistances = () => DISTANCES[Number(noiseSelect.value)] ?? [3, 5, 7];
+  let seriesMeta = [];
+  function refreshLegend() {
+    seriesMeta = currentDistances().map((d) => ({ d, label: `d = ${d}`, color: SERIES_COLOR[d] }));
+    legend.innerHTML = plotLegend(seriesMeta);
+  }
+  refreshLegend();
+
+  /** Say up front what the sweep about to run will actually cost. */
+  function describeSweep() {
+    if (!planNote) return;
+    const mode = Number(noiseSelect.value);
+    const ds = currentDistances();
+    const runs = SWEEP_RUNS[mode] ?? 4000;
+    const cells = ds.length * (SWEEP_PS[mode] ?? []).length;
+    planNote.textContent = `d = ${ds.join(', ')} · ${count(runs)} shots × ${cells} points`;
+  }
+  describeSweep();
 
   let points = [];
   let running = false;
@@ -254,18 +305,42 @@ export function initThresholdSweep(root, compute) {
       }));
       return;
     }
+    const interval = Number.isFinite(fit.pThLo) && Number.isFinite(fit.pThHi)
+      ? `${percent(fit.pThLo)} – ${percent(fit.pThHi)}`
+      : 'not resolved';
+    const crossText = fit.crossings.length
+      ? fit.crossings.map((c) => `${c.small}/${c.large} at ${percent(c.p)}`).join(', ')
+      : 'none in range';
+
     fill(results, [
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'threshold p_th' }),
         el('span', { class: 'readout__val readout__val--ink', text: percent(fit.pTh) }),
       ]),
       el('div', { class: 'readout__row' }, [
+        el('span', { class: 'readout__key', text: '95% interval' }),
+        el('span', { class: 'readout__val', text: interval }),
+      ]),
+      el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'exponent ν' }),
         el('span', { class: 'readout__val', text: fit.nu.toFixed(2) }),
       ]),
       el('div', { class: 'readout__row' }, [
+        el('span', { class: 'readout__key', text: 'correction ω' }),
+        el('span', {
+          class: 'readout__val',
+          text: fit.corrected
+            ? (fit.omegaAtEdge ? `≥ ${fit.omega.toFixed(0)}` : fit.omega.toFixed(2))
+            : 'not fitted',
+        }),
+      ]),
+      el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'reduced χ²' }),
         el('span', { class: 'readout__val', text: fit.reducedChi2.toFixed(2) }),
+      ]),
+      el('div', { class: 'readout__row' }, [
+        el('span', { class: 'readout__key', text: 'curves cross at' }),
+        el('span', { class: 'readout__val', text: crossText }),
       ]),
       el('div', { class: 'readout__row' }, [
         el('span', { class: 'readout__key', text: 'points fitted' }),
@@ -277,7 +352,17 @@ export function initThresholdSweep(root, compute) {
       ]),
       el('p', {
         class: 'note',
-        text: 'The fit uses only points near the threshold, where the scaling form applies.',
+        text: fit.corrected
+          ? 'Fitted with the leading correction to scaling, which the collapse alone leaves out. '
+            + `Without it the same data gives ${percent(fit.leading.pTh)} — that gap is the `
+            + 'finite-size effect, not a disagreement about the physics. The interval is a '
+            + 'bootstrap over the shots.'
+            + (fit.omegaAtEdge
+              ? ' ω ran to the top of its range, which means the correction is confined to the '
+                + 'smallest patch rather than decaying gently — read it as a floor, not a value.'
+              : '')
+          : 'Fitted without a correction to scaling: that needs four distances to separate from a '
+            + 'shift in the threshold, and this sweep has three. Expect the value to sit high.',
       }),
     ]);
   }
@@ -294,8 +379,8 @@ export function initThresholdSweep(root, compute) {
     status.textContent = 'Queued…';
 
     const noiseMode = Number(noiseSelect.value);
-    const scale = SWEEP_RUNS_SCALE[noiseMode] ?? 1;
-    const runs = Math.max(100, Math.round((Number(runsInput.value) || 500) * scale));
+    const runs = SWEEP_RUNS[noiseMode] ?? 4000;
+    const distances = currentDistances();
     const ps = currentPs();
     const base = {
       codeType: Number(codeSelect.value),
@@ -306,7 +391,7 @@ export function initThresholdSweep(root, compute) {
     };
 
     try {
-      await compute.call('sweep', { distances: DISTANCES, ps, base }, (progress) => {
+      await compute.call('sweep', { distances, ps, base }, (progress) => {
         points.push({ d: progress.d, p: progress.p, pL: progress.pL, runs: progress.runs });
         status.textContent = `d = ${progress.d}, p = ${percent(progress.p, 1)} · ${progress.done}/${progress.total}`;
         meter.style.width = `${(progress.done / progress.total) * 100}%`;
@@ -315,7 +400,7 @@ export function initThresholdSweep(root, compute) {
 
       status.textContent = 'Fitting collapse…';
       await new Promise((r) => setTimeout(r, 0));
-      const fit = fitThreshold(points);
+      const fit = fitThreshold(points, { bootstrap: 120 });
       drawPlot(fit);
       showFit(fit, points.length * runs);
       status.textContent = `Done — ${count(points.length * runs)} runs across ${points.length} points.`;
@@ -330,8 +415,22 @@ export function initThresholdSweep(root, compute) {
 
   runBtn.addEventListener('click', runSweep);
   noiseSelect.addEventListener('change', () => {
-    // The two models sweep different ranges, so old points would be misplaced.
+    // Each model sweeps its own range and its own set of distances, so old
+    // points would be both misplaced and mislabelled.
     points = [];
+    refreshLegend();
+
+  /** Say up front what the sweep about to run will actually cost. */
+  function describeSweep() {
+    if (!planNote) return;
+    const mode = Number(noiseSelect.value);
+    const ds = currentDistances();
+    const runs = SWEEP_RUNS[mode] ?? 4000;
+    const cells = ds.length * (SWEEP_PS[mode] ?? []).length;
+    planNote.textContent = `d = ${ds.join(', ')} · ${count(runs)} shots × ${cells} points`;
+  }
+  describeSweep();
+    describeSweep();
     fill(results, el('p', { class: 'muted fit-note', text: 'Range changed — run the sweep.' }));
     status.textContent = 'Ready.';
     drawPlot(null);

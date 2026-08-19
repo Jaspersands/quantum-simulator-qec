@@ -31,8 +31,8 @@ noise floor for it to matter.
 
 ## Engine defects found and fixed
 
-Ten bugs surfaced while making the site report live data. All ten are fixed. Everything here is
-reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in eight
+Twelve bugs surfaced while making the site report live data. All twelve are fixed. Everything here is
+reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in ten
 sections below — section 6 covers two, which had to be fixed together before the XZZX code worked at
 all, and section 5 covers two, the second being the discovery that the first fix had only been
 applied to a third of the cases it claimed to cover.
@@ -57,29 +57,42 @@ decoder must match somewhere. More checks means more last-round lies, so logical
 distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
 noiseless.
 
-Thresholds at bias `η = 0.5`, `T = d`, located two ways: by **crossover** — sweeping `p` and asking
-where the distances swap order, which assumes nothing — and by **collapse fit** over the sweep
-windows the site itself uses, four repeats.
+Thresholds at bias `η = 0.5`, `T = d`. The collapse ansatz is the d → ∞ limit and these patches are
+small, so the fit carries the leading correction to scaling, `+ D·d^(-ω)`; the interval is a
+bootstrap over the shots.
 
-| code | noise | crossover | collapse fit |
-|---|---|---|---|
-| rotated | data | ≈ 12.5% | 10.9% ± 0.3 |
-| XZZX | data | ≈ 11.8% | 11.2% ± 0.3 |
-| rotated | phenomenological | ≈ 3.0% | 2.73% ± 0.05 |
-| XZZX | phenomenological | ≈ 3.0% | 2.87% ± 0.08 |
-| rotated | circuit-level | ≈ 0.37% | ≈ 0.30% |
-| XZZX | circuit-level | ≈ 0.34% | ≈ 0.29% |
+| code | noise | p_th | 95% interval | ν | uncorrected fit |
+|---|---|---|---|---|---|
+| rotated | data | **14.5%** | 14.1 – 15.2 | 1.48 | 12.3% |
+| XZZX | data | **14.6%** | 14.4 – 15.4 | 1.52 | 12.3% |
+| rotated | phenomenological | **3.25%** | 3.12 – 3.37 | 1.32 | 2.81% |
+| XZZX | phenomenological | **3.28%** | 3.18 – 3.43 | 1.44 | 2.80% |
+| rotated | circuit-level | **0.42%** | 0.35 – 0.49 | 0.96 | 0.36% |
+| XZZX | circuit-level | **0.49%** | 0.43 – 0.55 | 0.58 | 0.36% |
 
-**The two methods agree only to about 10% — 13% on data noise — and that disagreement is the real
-uncertainty.** The fit sits below the crossover in every row, because a collapse is pulled toward
-whichever side of the threshold its sweep samples more densely. So the honest summary is two significant
-figures: **≈12% data noise, ≈2.9% phenomenological, ≈0.36% circuit-level.** Anything more precise
-would be quoting the method rather than the physics. The exponent ν is worse constrained still —
-±1.8 on the circuit-level fit — so it is not quoted as a result here.
+Earlier revisions of this file quoted the uncorrected column — ≈12%, ≈2.9%, ≈0.36% — and reported
+the gap between it and the raw crossings as irreducible uncertainty. It was not uncertainty, it was
+bias, and both estimates sat below the answer. What settles it is that the crossings **drift**, and
+the drift is monotone. For rotated data noise, where the sweep reaches d = 11:
 
-The two codes agree within that spread on all three models, which is the expected answer: `η = 0.5`
-is depolarizing, and XZZX's advantage is a *biased*-noise effect. It appears once the bias is turned
-up — see the figure in section 8 of the site.
+| pair | 3/5 | 3/7 | 3/9 | 3/11 | 5/7 | 5/9 | 5/11 | 7/9 | 7/11 | 9/11 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| crosses at | 10.5% | 11.5% | 12.2% | 12.6% | 13.2% | 13.3% | 13.4% | 13.3% | 13.5% | 13.7% |
+
+Every crossing climbs as the patches grow, and the largest pair is still climbing at 13.7% — so the
+threshold is above that, and the uncorrected fit's 12.3% is below *every* crossing involving d ≥ 5.
+That is not a close call. The corrected fit's 14.5% is where the drift is heading.
+
+Two independent checks that the corrected fit is the right one. Against synthetic data with a
+threshold fixed in advance and a correction term present, the uncorrected fit is biased +27% and
+stays there however many shots it is given, while the corrected fit is unbiased to within 2% and its
+error falls from 40% to 13% as shots go from 1,200 to 20,000 — bias versus noise, behaving as each
+should. And ν for data noise comes out **1.48 and 1.52** against a textbook value near 1.46, which
+the uncorrected fit had no business recovering and did not.
+
+The two codes agree within error on all three models, which is the expected answer at `η = 0.5`:
+that is depolarizing noise, and XZZX's advantage is a *biased*-noise effect. It appears once the
+bias is turned up — see the figure in section 8 of the site.
 
 ### 3. FIXED — the stabilizer tableau replayed identical measurements
 
@@ -264,6 +277,51 @@ Z-bias the failures it was missing are exactly the ones bias produces — so it 
 rotated code improved to 0.00% while XZZX did not. Counting both classes shows the opposite. It is a
 good illustration of why a measurement that cannot see half its outcomes is worse than no
 measurement: it does not merely lose precision, it can invert the conclusion.
+
+### 9. FIXED — the threshold fit ignored corrections to scaling
+
+Every threshold this project quoted was low, by 15 to 20%, and the reason was in the ansatz rather
+than the engine. Finite-size collapse says the curves for every distance fall onto one universal
+curve against `x = (p - p_th)·d^(1/ν)`. That is the `d → ∞` statement. The patches here start at
+nine qubits, and the approach to the limit is not a rounding error.
+
+Diagnosed on synthetic data with the threshold fixed in advance: the bare collapse comes back **27%
+high and stays there** as shots increase — the signature of bias, not noise — while adding the
+leading correction `+ D·d^(-ω)` recovers the true value to within 2%, its error falling from 40% to
+13% as shots go from 1,200 to 20,000. Separating that term from a shift in the threshold needs a
+fourth distance, so the sweeps now run to `d = 9`, and to `d = 11` for data noise where a point costs
+0.06s. With three distances the panel says so and reports the uncorrected number rather than
+pretending.
+
+What makes it checkable without any fitting at all is that the pairwise crossings **drift**. For
+rotated data noise they climb monotonically from 10.5% (d = 3 against 5) to 13.7% (9 against 11) and
+are still climbing — so the threshold is above 13.7%, and the uncorrected fit's 12.3% lies below
+every crossing involving `d ≥ 5`.
+
+Two side-fixes fell out of this. The variance floor gave zero-failure points 228 times the weight of
+a 5% point, so two points out of twenty-seven carried 84% of the fit; that is now Jeffreys-smoothed.
+And confidence intervals are a bootstrap over shots rather than the spread of repeated sweeps — a
+fit biased by its own window reproduces that bias on every repeat, so the old interval was tight and
+wrong.
+
+An extrapolation of the crossings to infinite `d` was tried as a third estimator and dropped: over 40
+synthetic realizations it came out biased −35% with an rms error of 49%, against −2% and 13% for the
+corrected fit. Three crossings and three parameters is an exact fit, and the drift exponent runs away
+with the intercept. The raw crossings are still displayed — they are where the curves visibly cross —
+but they are not an estimate.
+
+### 10. FIXED — derived logical operators overflowed their word from d = 9
+
+Found while extending the sweeps, and latent until then. `find_logical_pair` searches the null space
+of the commutation map by packing a Pauli's 2n bits into a `u128`. At `d = 9` that is 162 bits. The
+shift silently wrapped, and the "logical operators" it returned **anticommuted with the stabilizers
+they were supposed to commute with** — while the logical error rates they produced looked entirely
+plausible, falling with distance exactly as they should.
+
+The row is now split along the seam the Pauli already has, one word for the X half and one for the Z
+half, so every shift stays inside a word. Checked directly at `d = 3, 5, 7, 9, 11`: both
+representatives commute with every stabilizer, anticommute with each other, and are not products of
+stabilizers.
 
 ### Located loss under circuit-level noise
 

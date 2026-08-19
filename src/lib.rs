@@ -1016,6 +1016,51 @@ mod tests {
         );
     }
 
+    /// The derived logical representatives must actually be logical operators.
+    ///
+    /// `find_logical_pair` packs a Pauli into 2n bits of a u128, so a code with
+    /// n > 64 data qubits — XZZX from d = 9 up — would silently run off the end
+    /// of the word. Wrong representatives do not announce themselves: the shot
+    /// still returns a class, just the wrong one, and the rate can look entirely
+    /// plausible. So check the defining properties directly.
+    #[test]
+    fn derived_logicals_are_valid_at_every_distance() {
+        for d in [3usize, 5, 7, 9, 11] {
+            let code = crate::surface_code::XZZXSurfaceCode::new(d);
+            let n = d * d;
+            let (lx, lz) = code.logical.representatives();
+
+            // Rebuild the stabilizer set the way the constructor does.
+            let index_of = |x: i32, y: i32| -> Option<usize> {
+                if x >= 1 && x < (2 * d) as i32 && y >= 1 && y < (2 * d) as i32 {
+                    Some(((x - 1) as usize / 2) + d * ((y - 1) as usize / 2))
+                } else { None }
+            };
+            let mut ops: Vec<(u128, u128)> = Vec::new();
+            for &(sx, sy) in &code.stabilizers {
+                let (mut px, mut pz) = (0u128, 0u128);
+                for &(dx, dy, is_x) in &[(-1i32,-1i32,true), (1,1,true), (1,-1,false), (-1,1,false)] {
+                    if let Some(q) = index_of(sx as i32 + dx, sy as i32 + dy) {
+                        if is_x { px |= 1u128 << q; } else { pz |= 1u128 << q; }
+                    }
+                }
+                ops.push((px, pz));
+            }
+
+            let commutes = |a: (u128, u128), b: (u128, u128)| {
+                ((a.0 & b.1).count_ones() + (a.1 & b.0).count_ones()) % 2 == 0
+            };
+            assert!(lx != (0, 0) && lz != (0, 0), "d={d}: no logical pair found (n={n})");
+            for (i, &st) in ops.iter().enumerate() {
+                assert!(commutes(lx, st), "d={d}: logical_x anticommutes with stabilizer {i}");
+                assert!(commutes(lz, st), "d={d}: logical_z anticommutes with stabilizer {i}");
+            }
+            assert!(!commutes(lx, lz), "d={d}: the two representatives commute");
+            assert!(code.logical.is_logical(lx.0, lx.1), "d={d}: logical_x is a stabilizer product");
+            assert!(code.logical.is_logical(lz.0, lz.1), "d={d}: logical_z is a stabilizer product");
+        }
+    }
+
     /// The Pauli frame must agree with the tableau, fault for fault.
     ///
     /// The XZZX circuit is simulated on the frame rather than the tableau, which

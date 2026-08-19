@@ -562,10 +562,21 @@
       is always the phenomenological or circuit-level one.
     </p>
     <p>
-      To locate the crossing precisely, sweep <span class="sym">p</span> across all three distances
+      To locate the crossing precisely, sweep <span class="sym">p</span> across several distances
       and fit. Near threshold the curves for every distance collapse onto a single universal curve
       when plotted against <span class="sym">(p − p_th) · d<sup>1/ν</sup></span>; the pair of values
       that makes the collapse tightest is the threshold and its critical exponent.
+    </p>
+    <p>
+      That statement is exactly true only for infinitely large patches. These are not large — the
+      smallest is nine qubits — and the approach to the limit is not a rounding error. Fit the bare
+      collapse to synthetic data with a threshold known in advance and it comes back
+      <strong>27% high</strong>, and stays there however many shots you spend, because it is bias
+      rather than noise. So the fit carries the leading correction as well,
+      <span class="sym">+ D · d<sup>−ω</sup></span>, which is what makes the curves approach a common
+      shape rather than already lie on one. Separating that term from a shift in the threshold needs
+      at least four distances; with three, the panel says so and reports the uncorrected value
+      instead of pretending.
     </p>
   </div>
 
@@ -605,9 +616,10 @@
             </select>
           </div>
           <div class="field">
-            <label class="field__label" for="threshold-runs">Shots per point</label>
-            <input type="number" id="threshold-runs" data-threshold-runs value="1200" min="100" max="20000" step="100">
-            <span class="field__hint">27 points — 3 distances × 9 rates. More shots, tighter bars, slower sweep.</span>
+            <span class="field__label">Sweep</span>
+            <span class="field__value mono" data-threshold-plan>—</span>
+            <span class="field__hint">Set by what each model can afford. Precision here is limited by
+            shots, not by the fit.</span>
           </div>
           <button class="btn btn--primary btn--block" data-threshold-run>Run sweep</button>
           <div class="meter"><div class="meter__fill" data-threshold-meter></div></div>
@@ -624,6 +636,14 @@
     The reduced χ² tells you whether the collapse is believable. Near 1 means the scaling ansatz
     describes the data within its error bars. Much larger means the fit is being forced — usually
     because the sweep reaches too far from threshold, where the universal form stops applying.
+    <br><br>
+    The interval is a bootstrap: the shots are resampled and the whole fit re-run a hundred-odd
+    times, and the middle 95% of the answers is reported. That is a wider and more honest bar than
+    repeating the sweep and taking the spread, because a fit biased by its own window reproduces
+    that bias on every repeat — the spread would look reassuringly tight and be wrong. Precision
+    here is limited by shots rather than by the method: on synthetic data the fit's error falls from
+    40% at 1,200 shots per point to 13% at 20,000, which is why data noise sweeps far more shots
+    than circuit-level can afford.
   </div>
 </section>
 
@@ -854,9 +874,10 @@
       <span class="mono">η = 1</span> and 2.37% at <span class="mono">η = 100</span>, while XZZX at
       those same two settings reads 1.08% and 0.25% — the same <span class="mono">p</span>, and the
       ranking between the codes reverses.
-      Thresholds are quoted to two significant figures: the collapse fit and the plain crossover
-      agree only to about 10%, and that gap is the real uncertainty rather than the fit's own error
-      bar.
+      Thresholds come from a collapse fit carrying the leading correction to scaling, with a
+      bootstrap interval. An earlier version of this page quoted the uncorrected fit and treated its
+      disagreement with the raw crossings as irreducible uncertainty; it was bias, and both numbers
+      sat low. See section 7.
     </p>
   </div>
 
@@ -960,14 +981,11 @@
       readings a detector compares, never fires it, and lands in the residual uncorrectable at any
       distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
       p² as theory demands, and a threshold appears where it should. Locating it two ways — the
-      collapse fit in section 7, and simply sweeping <span class="mono">p</span> to see where the
-      distances swap order, which assumes nothing — gives
-      <span class="mono">≈ 0.30%</span> and <span class="mono">≈ 0.37%</span>. They agree to about 10%,
-      and <em>that</em> is the honest uncertainty: a collapse is pulled toward whichever side of the
-      threshold its sweep samples more densely, so quoting three digits would be reporting the method
-      rather than the physics. Of the three noise models this one fits worst — its exponent lands at
-      <span class="mono">ν = 2.1 ± 1.8</span>, which is to say unmeasured — having the most fault
-      mechanisms per round and the narrowest usable window of <span class="mono">p</span>.
+      collapse fit in section 7 gives <span class="mono">0.42%</span>, with a bootstrap interval of
+      <span class="mono">0.35% – 0.49%</span>. That is the widest interval of the three models, and
+      honestly so: circuit-level is much the slowest to simulate, so its sweep affords 1,200 shots a
+      point where data noise gets 20,000, and the precision is limited by that rather than by the
+      fit. Its exponent, <span class="mono">ν = 0.96</span>, deserves the same caution.
       The XZZX model is
       held to the same bar and passes it: <strong>0 failures out of 672, 3,600 and 10,416
       faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test paid
@@ -999,9 +1017,11 @@
       sublattices independently over all 576 combinations, scored on commutation against the tableau
       and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
       <br><br>
-      Its threshold comes out <span class="mono">≈ 0.34%</span> by crossover against the rotated
-      code's <span class="mono">≈ 0.37%</span>, and the two are not cleanly separated: both go flat
-      around <span class="mono">p = 0.33%</span> and are rising by <span class="mono">0.40%</span>. The extra noise it carries shows up <em>below</em> threshold
+      Its threshold comes out <span class="mono">0.49%</span> against the rotated code's
+      <span class="mono">0.42%</span>, with bootstrap intervals of
+      <span class="mono">0.43 – 0.55%</span> and <span class="mono">0.35 – 0.49%</span> that
+      overlap. On this evidence the two are not separated, and at 1,200 shots a point they will not
+      be. The extra noise it carries shows up <em>below</em> threshold
       instead. Every XZZX ancilla needs an H where the rotated code rotates only its X-type ones — 72
       noise locations per round at <span class="mono">d = 3</span> against 64 — and at
       <span class="mono">p = 0.26%, d = 7</span> that costs about 30% in logical error rate — 0.74%

@@ -54,6 +54,8 @@
   --d3: #2f5fd0;
   --d5: #c0392b;
   --d7: #2c7a4b;
+  --d9: #7b4bb5;
+  --d11: #a8620b;
 
   /* Type */
   --font-display: Lora, Georgia, "Times New Roman", serif;
@@ -416,6 +418,12 @@ a { color: var(--x); text-decoration-thickness: 1px; text-underline-offset: 2px;
   color: var(--ink-2);
 }
 
+.field__value {
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  padding: 0.35rem 0;
+}
+
 .field__hint { font-size: var(--t-micro); color: var(--ink-3); line-height: 1.4; }
 
 select,
@@ -681,6 +689,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--d3 { border-color: var(--d3); }
 .legend__key--d5 { border-color: var(--d5); }
 .legend__key--d7 { border-color: var(--d7); }
+.legend__key--d9 { border-color: var(--d9); }
+.legend__key--d11 { border-color: var(--d11); }
 
 /* Key/value list for the internals section */
 .spec-list { margin: 0; display: grid; gap: 0; }
