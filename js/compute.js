@@ -261,13 +261,25 @@ function search(data, withCorrection, window) {
  * spread of the estimate rather than another exhaustive hunt for it.
  */
 function localSearch(data, around, withCorrection) {
-  const omega = withCorrection ? around.omega : null;
+  // The correction exponent has to be searched here too, not pinned to the value
+  // the point estimate happened to pick. Fixing it makes the replicas a
+  // different estimator from the one being reported, and a different estimator's
+  // spread is not that number's uncertainty: measured over six sweeps, one
+  // interval in six came back not containing the very estimate it was an
+  // interval for. Neighbouring values are enough — the point estimate has
+  // already located the region.
+  const OMEGAS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6];
+  const omegas = withCorrection
+    ? OMEGAS.filter((o) => Math.abs(Math.log(o / around.omega)) <= Math.log(2.2))
+    : [null];
   const scan = (pLo, pHi, pStep, nLo, nHi, nStep) => {
     let best = null;
     for (let pTh = pLo; pTh <= pHi; pTh += pStep) {
       for (let nu = Math.max(0.25, nLo); nu <= nHi; nu += nStep) {
-        const fit = collapseAt(data, pTh, nu, omega);
-        if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu, omega };
+        for (const omega of omegas) {
+          const fit = collapseAt(data, pTh, nu, omega);
+          if (fit && (!best || fit.chi2 < best.chi2)) best = { ...fit, pTh, nu, omega };
+        }
       }
     }
     return best;
