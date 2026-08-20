@@ -71,16 +71,26 @@ Figures are the mean and spread of **four independent sweeps**:
 | rotated | circuit-level | **0.41% ± 0.03** | *not determined* | 4.31 | 0.37% |
 | XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
 
-**Checked against an independent implementation, inconclusively.** An L×L toric code written from
-scratch in JavaScript — periodic lattice, no boundaries, its own noise, its own graph, its own
-approximate matcher, sharing nothing with the Rust engine — gives **ν = 1.41 ± 0.28** for
-phenomenological noise, against the engine's **0.89 ± 0.04**. Those differ by about 1.8σ. The
-threshold differs too (1.2% against 3.4%), which is expected since the decoder is weaker, but ν is a
-universal exponent and should not care. So the independent check does not confirm the engine's value;
-it is consistent with it, and equally consistent with the 3D value near 1.0 that the literature gives
-for this universality class. Narrowing it would need a proper minimum-weight matcher on the
-independent side — the toric ν did not tighten when its statistics were quadrupled, so the spread is
-the fit at these sizes, not the shots.
+**Confirmed against an independent implementation.** An L×L toric code written from scratch in
+JavaScript — periodic lattice, no boundaries, its own noise, its own syndrome, its own graph, its own
+scoring, sharing no physics with the Rust engine — gives **ν = 0.86** for phenomenological noise,
+against the engine's **0.89 ± 0.04**. Two implementations that share nothing but the arithmetic agree
+on the exponent.
+
+Getting there required fixing the harness rather than the engine. Its decoder was
+nearest-pair-plus-2-opt, which is not minimum-weight, and that was a confound rather than a control:
+a weak decoder moves the threshold, and at these sizes drags the fit with it. Given the same exact
+matcher the engine uses — the one thing now deliberately shared, because minimum-weight matching is a
+generic graph problem with a single right answer, checked against brute force on 1,500 instances —
+the toric threshold moves from **1.51% to 3.04%**, next door to the engine's 3.36%, and reduced χ²
+settles near 1. Exact agreement on the threshold is not expected: these are different codes. ν is the
+universal quantity, and it agrees.
+
+Reproduce with `node tools/toric_exponent.mjs 7000`, which runs both matchers over the same lattices,
+rates and seeds and prints both exponents. An earlier revision of this file quoted 1.41 ± 0.28 from
+this harness; that came from an uncommitted script whose settings are lost, and it does not reproduce
+— the committed driver gives 0.94 with the approximate matcher and 0.86 with the exact one. The
+driver is committed now precisely so that cannot happen again.
 
 Worth stating plainly: an earlier revision of this file compared the phenomenological ν against 1.46
 and called it low. That was the wrong comparison. 1.46 is the 2D value, which belongs to data noise;
@@ -97,9 +107,9 @@ around its own answer. So the gate is on the statistics the sweep actually carri
 216k and 43k shots in total), which is what predicts recoverability.
 
 The same check says the phenomenological exponent is real: had the truth been 1.46 the fit would have
-returned ~1.47, not 0.95. It is genuinely below the textbook value in this simulator, which is a
-result rather than an artefact — and one worth treating as provisional until someone checks it
-against an independent implementation.
+returned ~1.47, not 0.95. It is genuinely below the 2D textbook value, which is a result rather than
+an artefact — the 2D value does not apply to a 2+1-dimensional problem — and the independent toric
+code above now agrees with it.
 
 The spread across sweeps matches the bootstrap interval each sweep reports on its own, which is the
 check that the interval means what it says. The two codes agree within it on all three models — the

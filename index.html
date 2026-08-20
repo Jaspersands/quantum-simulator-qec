@@ -1144,7 +1144,11 @@
       <span class="mono">wasm_circuit_model_stats</span> reports how many faults fire zero, one, two
       or more detectors, which is what says whether the graph can express them; and
       <span class="mono">wasm_noise_slots</span> gives the noise locations in one round, which is how
-      the two codes' thresholds were compared on equal terms. The same crate also builds PyO3
+      the two codes' thresholds were compared on equal terms. Two more,
+      <span class="mono">wasm_match_cost_ptr</span> and <span class="mono">wasm_match_solve</span>,
+      hand the exact matcher to anything that wants it — which is how the independent toric-code
+      cross-check in <span class="mono">tools/</span> got a decoder good enough to compare against.
+      The same crate also builds PyO3
       bindings for offline benchmarking — see <span class="mono">run_benchmarks.py</span> — and the
       Rust test suite carries the schedule search and the frame-against-tableau comparison.</dd>
       </div>

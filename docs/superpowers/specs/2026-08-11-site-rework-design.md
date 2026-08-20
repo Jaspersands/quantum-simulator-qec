@@ -36,7 +36,7 @@ moment. It became available later in the session, at which point the engine coul
 two of the three defects below were fixed at the source. `softwareupdate --install-rosetta` is the
 quick fix; a native `aarch64-apple-darwin` toolchain is the better one.
 
-## Seventeen engine defects found during the rework
+## Nineteen engine defects found during the rework
 
 All surfaced while replacing fabricated numbers with live ones. All seventeen are fixed at the source and
 the module rebuilt.
@@ -60,6 +60,8 @@ the module rebuilt.
 | 15 | nu was reported for every sweep, including circuit-level where a true 1.46 comes back as 0.63 with a tight-looking interval | FIXED — quoted only where verified recoverable |
 | 16 | The Union-Find decoder iterated a HashSet, so identical inputs gave different corrections run to run | FIXED — cluster roots collected in node order |
 | 17 | "Exact MWPM" fell back to the greedy decoder above 16 defects or 50k steps, without saying so — at d=9 that was nearly every shot | FIXED — seeded branch-and-bound over a real matching, never heavier than the alternatives |
+| 18 | That fix kept a cap of its own at 20 defects, so "exact" was still an approximation where the problem is hard — and MWPM lost to Union-Find on XZZX circuit-level | FIXED — Edmonds' blossom in `src/blossom.rs`, exact at any count; MWPM now lighter in all 18 code×noise×distance combinations |
+| 19 | The bootstrap pinned omega while the point estimate searched it, making the interval a different estimator's spread — 1 in 6 excluded its own point estimate | FIXED — replicas search omega too; containment 8/8, 8/8, 3/3 |
 
 Headline verifications: batch variance matches binomial (σ 0.00224 against 0.00222 over twelve
 repeats); a noiseless circuit fails never at any distance; zero-noise tomography returns (1, 1, 1)
@@ -96,6 +98,27 @@ it can produce, so a known loss makes exactly those free — including, on an an
 loss propagates onto. At d = 5, p = 0.8%: 8.2% with no erasure, 3.4% at half, nothing at full. Fully
 located noise has its own threshold near p = 2%, about four times the Pauli one; that it has a
 threshold at all is the check that the location information is used rather than assumed.
+
+## The independent cross-check, settled
+
+The phenomenological exponent was the last open question: the engine reported
+nu ~ 0.89 +/- 0.04, and an independent from-scratch toric code reported
+1.41 +/- 0.28 — 1.8 sigma apart, which confirmed nothing.
+
+The harness was at fault, not the engine. Its decoder was nearest-pair-plus-2-opt,
+which is not minimum-weight, and a weak decoder shifts the threshold and drags the
+fit with it. `wasm_match_cost_ptr` / `wasm_match_solve` now expose the engine's
+exact matcher so the harness can borrow it — the only thing the two sides share,
+and chosen deliberately: minimum-weight matching is a generic graph problem with
+one right answer, verified against brute force on 1,500 instances, so sharing it
+removes a confound rather than introducing one. Lattice, noise, syndrome, graph
+and scoring remain entirely separate.
+
+With that, over 224,000 shots: the toric threshold moves from 1.51% to 3.04%
+(the engine's is 3.36% — different codes, so exact agreement is not expected) and
+**nu comes out 0.86 against the engine's 0.89**. Reproduce with
+`node tools/toric_exponent.mjs 7000`, which runs both matchers over identical
+lattices, rates and seeds.
 
 ## Decisions
 
@@ -204,7 +227,13 @@ Three further exports exist only to check the engine, and are what the claims in
 wasm_circuit_single_fault_test(d, T, decoder) -> *f64   [faults tested, uncorrected]
 wasm_circuit_model_stats(d, T)                -> *f64   detector-count buckets, edge counts
 wasm_noise_slots(d, code_type)                -> usize  noise locations per round
+wasm_match_cost_ptr()                         -> *i64   n*n cost buffer, row-major
+wasm_match_solve(n)                           -> *u32   partners, or u32::MAX if declined
 ```
+
+The last two hand the exact matcher to callers outside the decoder, which is how
+the independent toric-code check in `tools/` got a decoder good enough to be
+compared against.
 
 Enumerations: `code_type` 0=Rotated 1=XZZX · `decoder` 0=Union-Find 1=Greedy
 2=Exact MWPM · `noise_mode` 0=Data 1=Phenomenological 2=Circuit-level ·

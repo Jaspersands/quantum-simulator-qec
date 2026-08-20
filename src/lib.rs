@@ -1676,3 +1676,68 @@ pub extern "C" fn wasm_noise_slots(d: usize, code_type: usize) -> usize {
         surface_code::XZZXSurfaceCode::new(d).circuit_layout().noise_slots()
     }
 }
+
+/// Largest matching this export accepts; matches `blossom::MAX_VERTICES`.
+#[cfg(not(feature = "python"))]
+pub const MATCH_MAX: usize = 512;
+
+#[cfg(not(feature = "python"))]
+static mut MATCH_COST: [i64; MATCH_MAX * MATCH_MAX] = [0; MATCH_MAX * MATCH_MAX];
+
+#[cfg(not(feature = "python"))]
+static mut MATCH_OUT: [u32; MATCH_MAX] = [0; MATCH_MAX];
+
+/// Row-major cost buffer for `wasm_match_solve`. Write `n*n` weights here first.
+///
+/// Exposed so the independent cross-check in `tools/` can use the same exact
+/// matcher the decoder does. That is deliberate: the point of that harness is to
+/// test the *physics* against a second implementation, and it shares no lattice,
+/// noise, graph or scoring with the engine. Its decoder being weaker was a
+/// confound rather than a control — a poor matcher shifts the threshold, and at
+/// these sizes can distort the exponent too. Sharing a matcher that has been
+/// checked against brute force on 1,500 instances removes that confound without
+/// touching anything the comparison is about.
+#[cfg(not(feature = "python"))]
+#[no_mangle]
+pub extern "C" fn wasm_match_cost_ptr() -> *mut i64 {
+    std::ptr::addr_of_mut!(MATCH_COST) as *mut i64
+}
+
+/// Solve the matching in the cost buffer. Returns a pointer to `n` partners, or
+/// all `u32::MAX` if the matcher declined.
+#[cfg(not(feature = "python"))]
+#[no_mangle]
+pub extern "C" fn wasm_match_solve(n: usize) -> *const u32 {
+    if n > MATCH_MAX {
+        unsafe {
+            let out = std::ptr::addr_of_mut!(MATCH_OUT) as *mut u32;
+            for i in 0..MATCH_MAX {
+                *out.add(i) = u32::MAX;
+            }
+            return out as *const u32;
+        }
+    }
+    let cost: Vec<Vec<i64>> = unsafe {
+        let base = std::ptr::addr_of!(MATCH_COST) as *const i64;
+        (0..n)
+            .map(|i| (0..n).map(|j| *base.add(i * n + j)).collect())
+            .collect()
+    };
+    let mate = blossom::min_weight_perfect_matching(n, &cost);
+    unsafe {
+        let out = std::ptr::addr_of_mut!(MATCH_OUT) as *mut u32;
+        match mate {
+            Some(m) => {
+                for (i, &partner) in m.iter().enumerate() {
+                    *out.add(i) = partner as u32;
+                }
+            }
+            None => {
+                for i in 0..n {
+                    *out.add(i) = u32::MAX;
+                }
+            }
+        }
+        out as *const u32
+    }
+}

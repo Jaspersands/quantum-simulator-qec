@@ -47,8 +47,11 @@ const ring = (a, b, L) => { const d = Math.abs(a - b); return Math.min(d, L - d)
  * the number of defects, so it degrades as the patch grows. That produced a
  * logical error rate that fell from L = 3 to 7 and then jumped at L = 9, which
  * reads as a threshold far below the truth rather than as a decoder failing.
+ *
+ * Kept alongside the exact matcher so the effect of decoder quality on the
+ * measured exponent can be seen rather than argued about.
  */
-function match(defects, dist) {
+export function approxMatch(defects, dist) {
   const n = defects.length;
   const used = new Array(n).fill(false);
   const pairs = [];
@@ -80,8 +83,56 @@ function match(defects, dist) {
   return pairs;
 }
 
+/**
+ * An exact matcher backed by the engine's blossom implementation.
+ *
+ * This is the one thing the two sides share, and deliberately. The comparison is
+ * about the physics — lattice, stabilizers, noise, syndrome, scoring, all of
+ * which remain separate — and the approximate matcher was a confound in it: a
+ * weak decoder moves the threshold, and at these sizes can drag the exponent
+ * with it. Minimum-weight matching is a generic graph problem with a single
+ * right answer, checked here against brute force on 1,500 instances, so using
+ * the same one on both sides removes a difference that was never the point.
+ *
+ * Falls back to the approximation above the export's ceiling, and counts how
+ * often that happens so the caller can tell whether it mattered.
+ */
+export function makeExactMatcher(exports) {
+  const stats = { exact: 0, fellBack: 0 };
+  const matcher = (defects, dist) => {
+    const n = defects.length;
+    if (n === 0) return [];
+    if (n > 512 || n % 2 !== 0) {
+      stats.fellBack += 1;
+      return approxMatch(defects, dist);
+    }
+    const ptr = exports.wasm_match_cost_ptr();
+    const buf = new BigInt64Array(exports.memory.buffer, ptr, n * n);
+    for (let i = 0; i < n; i++) {
+      buf[i * n + i] = 0n;
+      for (let j = i + 1; j < n; j++) {
+        const w = BigInt(dist(i, j));
+        buf[i * n + j] = w;
+        buf[j * n + i] = w;
+      }
+    }
+    const out = exports.wasm_match_solve(n);
+    const mate = new Uint32Array(exports.memory.buffer, out, n);
+    if (mate[0] === 0xffffffff) {
+      stats.fellBack += 1;
+      return approxMatch(defects, dist);
+    }
+    stats.exact += 1;
+    const pairs = [];
+    for (let i = 0; i < n; i++) if (i < mate[i]) pairs.push([i, mate[i]]);
+    return pairs;
+  };
+  matcher.stats = stats;
+  return matcher;
+}
+
 /** One shot. Returns 1 if a logical error survived. */
-export function shot(code, T, p, rand) {
+export function shot(code, T, p, rand, match = approxMatch) {
   const { L, nQ, nV, H, V, incident, cutX, cutY } = code;
   const error = new Uint8Array(nQ);
   const syn = [];
