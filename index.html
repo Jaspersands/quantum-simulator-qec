@@ -1002,12 +1002,12 @@
       state-preparation noise being applied before the baseline round, where an error sits in both
       readings a detector compares, never fires it, and lands in the residual uncorrectable at any
       distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
-      p² as theory demands, and a threshold appears where it should. The collapse fit in section 7
-      puts it at <span class="mono">0.42%</span>, with a bootstrap interval of
-      <span class="mono">0.35% to 0.49%</span>. That is the widest interval of the three models, for
-      a good reason: circuit-level is much the slowest to simulate, so its sweep affords 1,200 shots
-      a point where data noise gets 20,000, and the precision is limited by that rather than by the
-      fit. Its exponent, <span class="mono">ν = 0.96</span>, deserves the same caution.
+      p² as theory demands, and a threshold appears where it should. The collapse fit of section 7,
+      run four times independently, puts it at <span class="mono">0.41% ± 0.03</span>. That is the
+      least precise of the three models, for a good reason: circuit-level is much the slowest to
+      simulate, so its sweep affords 1,200 shots a point where data noise gets 20,000, and the
+      precision is limited by that rather than by the fit. Its exponent is not determined at that
+      shot count, for the reason the aside in section 7 gives.
       The XZZX model is
       held to the same bar and passes it: <strong>0 failures out of 672, 3,600 and 10,416
       faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test caught
@@ -1039,11 +1039,10 @@
       sublattices independently over all 576 combinations, scored on commutation against the tableau
       and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
       <br><br>
-      Its threshold comes out <span class="mono">0.49%</span> against the rotated code's
-      <span class="mono">0.42%</span>, with bootstrap intervals of
-      <span class="mono">0.43 to 0.55%</span> and <span class="mono">0.35 to 0.49%</span> that
-      overlap. On this evidence the two are not separated, and at 1,200 shots a point they will not
-      be. The extra noise it carries shows up below threshold instead. Every XZZX ancilla needs an H
+      Its threshold comes out <span class="mono">0.42% ± 0.04</span> against the rotated code's
+      <span class="mono">0.41% ± 0.03</span>, mean and spread over four independent sweeps each. On
+      this evidence the two are not separated, and at 1,200 shots a point they will not be. The
+      extra noise it carries shows up below threshold instead. Every XZZX ancilla needs an H
       where the rotated code rotates only its X-type ones (72 noise locations per round at
       <span class="mono">d = 3</span> against 64), and at
       <span class="mono">p = 0.26%, d = 7</span> that costs about 30% in logical error rate: 0.74%

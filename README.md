@@ -236,10 +236,10 @@ alike. That test caught two more bugs:
 
 With both fixed, the logical error rate at d = 3 scales as p² as theory demands (ratios 3.63, 3.73
 and 3.70 on successive doublings of p from 0.1% to 0.8%, against 4.0 for a clean p², at 200,000
-shots per point), and a threshold appears where it should. The live sweep fits p_th ≈ 0.34%, with
-the crossover putting it nearer 0.38%. Of the three models this one is fitted worst, with an
-exponent of ν = 2.1 ± 1.8, effectively unmeasured, because it has the most fault mechanisms per
-round and the narrowest usable window of p.
+shots per point), and a threshold appears where it should: **0.41% ± 0.03** over four sweeps (table
+above). The uncorrected collapse puts it at 0.37%; the gap is the finite-size bias section 9
+describes. Of the three models this one is fitted worst, and its exponent is not determined,
+because it has the most fault mechanisms per round and the narrowest usable window of p.
 
 ### 8. XZZX had no model of its circuit either
 
@@ -278,9 +278,10 @@ That property is tested against the tableau: after the first round has projected
 noiseless round must reproduce its outcomes exactly, at d = 3, 5 and 7 across seeds.
 
 Verified: **0 failures out of 672 / 3,600 / 10,416 faults** at d = 3 / 5 / 7, Union-Find and exact
-MWPM alike; the rate now falls with distance (0.80% / 0.53% / 0.24% at p=0.2%); and a threshold fits
-at ≈ 0.34%, indistinguishable from the rotated code. The crossover agrees: both go flat around
-p = 0.33% and are clearly rising by 0.40%.
+MWPM alike; the rate now falls with distance (0.80% / 0.53% / 0.24% at p=0.2%); and the threshold
+fits at **0.42% ± 0.04**, indistinguishable from the rotated code's 0.41% ± 0.03. The raw
+crossovers agree with each other: both codes go flat around p = 0.33% and are rising by 0.40%,
+which sits below the fitted value by the finite-size margin section 9 describes.
 
 The extra noise does show up, but below threshold rather than in the threshold. Every XZZX ancilla
 needs an H where the rotated code rotates only its X-type ones (72 noise locations per round at
