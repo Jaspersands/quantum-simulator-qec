@@ -86,12 +86,12 @@ export function initSpacetime(root, instance) {
       const isLastRound = target.t === session.rounds - 1;
       update(`Readout of plaquette #${target.idx} lies in round ${target.t}. `
         + (isLastRound
-          ? 'This is the final round, so only one detection event appears — the partner would '
+          ? 'This is the final round, so only one detection event appears; the partner would '
             + 'fall in a round that was never measured. An unpaired event has nothing to cancel '
             + 'against, which is why a real experiment ends with a round it can trust.'
           : 'It disagrees with its neighbours in time for exactly one round, so two detection '
             + 'events appear on the same plaquette in consecutive layers, joined by the amber '
-            + 'line. A pair separated in time, not in space — the signature the decoder uses to '
+            + 'line. A pair separated in time, not in space, is the signature the decoder uses to '
             + 'discount it.'));
     } else {
       const checked = $$('[name="spacetime-error-type"]', root).find((r) => r.checked);
@@ -99,7 +99,7 @@ export function initSpacetime(root, instance) {
       decoded = false;
       update('A real data error persists from the round it appears in onwards, so it flips the '
         + 'reading once and leaves it flipped. That shows up as a pair of detection events side '
-        + 'by side within a single layer — separated in space, not in time.');
+        + 'by side within a single layer, separated in space rather than in time.');
     }
     setVerdict('idle', 'Run the decoder to see whether it can separate the two.');
   };
@@ -107,7 +107,7 @@ export function initSpacetime(root, instance) {
   $('[data-spacetime-run]', root)?.addEventListener('click', () => {
     const state = session.read();
     if (countSet(state.defects) === 0) {
-      setVerdict('idle', 'No detection events — nothing to decode.');
+      setVerdict('idle', 'No detection events, so nothing to decode.');
       return;
     }
     const decoder = Number(decoderSelect.value);

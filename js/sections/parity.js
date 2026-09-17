@@ -162,7 +162,7 @@ export function initParity(root) {
 
     const alternatives = siblings().length - 1;
     verdict.innerHTML = lit
-      ? `The plaquette fires. It has told you an <strong>odd</strong> number of these four qubits flipped — and nothing else. <strong>${alternatives}</strong> other patterns of errors produce this exact same outcome.`
+      ? `The plaquette fires. It has told you an <strong>odd</strong> number of these four qubits flipped, and nothing else. <strong>${alternatives}</strong> other patterns of errors produce this exact same outcome.`
       : `The plaquette is quiet. That does <em>not</em> mean nothing happened: an <strong>even</strong> number of flips also reads as quiet. <strong>${alternatives}</strong> other patterns look identical from here.`;
 
     twinBtn.disabled = alternatives === 0;

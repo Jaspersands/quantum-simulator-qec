@@ -4,9 +4,9 @@ A Rust stabilizer circuit simulator and decoder for rotated surface codes and XZ
 Compiles to WebAssembly for an interactive browser explainer, and to PyO3 Python bindings
 (`stabilizer_qec`) for Monte Carlo threshold benchmarking.
 
-The website is a guided explanation of surface-code error correction — errors, syndromes,
-decoding, spacetime, threshold — where each interactive figure is driven by the real engine
-running locally. Every number on the page is computed in the reader's browser on load.
+The website walks through surface-code error correction in order: errors, syndromes, decoding,
+spacetime, threshold. Each interactive figure is driven by the real engine running locally, and
+every number on the page is computed in the reader's browser on load.
 
 ## Key Features
 
@@ -17,50 +17,50 @@ running locally. Every number on the page is computed in the reader's browser on
   located erasure, spatial bursts, and slow temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   and a greedy nearest-neighbour baseline.
-- **Web explainer**: `index.html` plus `css/` and `js/` — no build step, no dependencies.
+- **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies.
 - **Python extension** (`stabilizer_qec.so`): PyO3 bindings for offline threshold benchmarking.
 
 ## A note on quoted figures
 
-Logical error rates below were measured at bias `η = 0.5` — equal parts X, Y and Z, the setting
-every panel on the site starts from — over `T = d` rounds, unless stated otherwise. This is not
-pedantry. At `d = 7, p = 0.3%` circuit-level the rotated code reports **1.07% at η = 1 and 2.37% at
-η = 100**, while XZZX at the same two settings reports **1.08% and 0.25%** — the same p, and the
-ranking between the codes reverses. Shot counts are given where a number is close enough to the
-noise floor for it to matter.
+Unless stated otherwise, the logical error rates below were measured at bias `η = 0.5` (equal
+parts X, Y and Z, which is the setting every panel on the site starts from) over `T = d` rounds.
+The bias matters more than it might seem. At `d = 7, p = 0.3%` circuit-level, the rotated code
+reports **1.07% at η = 1 and 2.37% at η = 100**, while XZZX at the same two settings reports
+**1.08% and 0.25%**. Same p, and the ranking between the codes reverses. Shot counts are given
+where a number is close enough to the noise floor for it to matter.
 
 ## Engine defects found and fixed
 
-Seventeen bugs surfaced while making the site report live data. All seventeen are fixed. Everything here is
-reflected in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in twelve
-sections below — section 6 covers two, which had to be fixed together before the XZZX code worked at
-all, and section 5 covers two, the second being the discovery that the first fix had only been
-applied to a third of the cases it claimed to cover.
+Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
+fixes are in `src/` and in the committed `stabilizer_qec.wasm`. They are written up in twelve
+sections below. Section 6 covers two bugs that had to be fixed together before the XZZX code
+worked at all, and section 5 covers two, the second being the discovery that the first fix had
+only been applied to a third of the cases it claimed to cover.
 
-### 1. FIXED — the WASM Monte Carlo was not random
+### 1. The WASM Monte Carlo was not random
 
 Six `simulate_*` functions seeded from a constant on the non-Python cfg branch
-(`Xorshift::new(12345)`, and `54321` in two). Each of those functions *is* one shot and
+(`Xorshift::new(12345)`, and `54321` in two). Each of those functions is one shot and
 `wasm_run_benchmark` loops over them, so every shot in a batch was bit-identical and the reported
-rate collapsed to a step function — exactly 0 below a cutoff, a plateau, exactly 1 above.
+rate collapsed to a step function: exactly 0 below a cutoff, a plateau, exactly 1 above.
 
 Fixed with SplitMix64 over a counter, plus a `wasm_seed(lo, hi)` export seeded from
-`crypto.getRandomValues`. Seeding each shot from the previous shot's xorshift state is *not*
-enough — that hands shot N+1 shot N's stream offset by one draw, and batch variance comes out
-several times binomial. Verified: twelve repeats at d=5, p=5%, N=4000 give observed σ 0.00224
+`crypto.getRandomValues`. Seeding each shot from the previous shot's xorshift state is not
+enough, because that hands shot N+1 shot N's stream offset by one draw, and batch variance comes
+out several times binomial. Verified: twelve repeats at d=5, p=5%, N=4000 give observed σ 0.00224
 against binomial 0.00222 (ratio 1.01).
 
-### 2. FIXED — phenomenological noise lied in the final round
+### 2. Phenomenological noise lied in the final round
 
-Defects are time differences, so a last-round lie has no partner and leaves an unpaired defect the
-decoder must match somewhere. More checks means more last-round lies, so logical error *rose* with
-distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round is now
-noiseless.
+Defects are time differences, so a lie in the last round has no partner and leaves an unpaired
+defect the decoder must match somewhere. More checks means more last-round lies, so logical error
+rose with distance far below threshold (1.9% at d=3 to 10.9% at d=7, at p=0.5%). The final round
+is now noiseless.
 
 Thresholds at bias `η = 0.5`, `T = d`. The collapse ansatz is the d → ∞ limit and these patches are
 small, so the fit carries the leading correction to scaling, `+ D·d^(-ω)`, and fits it over the
-widest part of the sweep the scaling form actually describes — chosen by reduced χ², not by hand.
-Figures are the mean and spread of **four independent sweeps**:
+widest part of the sweep the scaling form actually describes. That window is chosen by reduced χ²,
+not by hand. Figures are the mean and spread of **four independent sweeps**:
 
 | code | noise | p_th | ν | ω | uncorrected fit |
 |---|---|---|---|---|---|
@@ -72,71 +72,72 @@ Figures are the mean and spread of **four independent sweeps**:
 | XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
 
 **Confirmed against an independent implementation.** An L×L toric code written from scratch in
-JavaScript — periodic lattice, no boundaries, its own noise, its own syndrome, its own graph, its own
-scoring, sharing no physics with the Rust engine — gives **ν = 0.86** for phenomenological noise,
-against the engine's **0.89 ± 0.04**. Two implementations that share nothing but the arithmetic agree
-on the exponent.
+JavaScript (periodic lattice, no boundaries, with its own noise, syndrome, graph and scoring, and
+sharing no physics with the Rust engine) gives **ν = 0.86** for phenomenological noise, against
+the engine's **0.89 ± 0.04**. Two implementations that share nothing but the arithmetic agree on
+the exponent.
 
 Getting there required fixing the harness rather than the engine. Its decoder was
 nearest-pair-plus-2-opt, which is not minimum-weight, and that was a confound rather than a control:
-a weak decoder moves the threshold, and at these sizes drags the fit with it. Given the same exact
-matcher the engine uses — the one thing now deliberately shared, because minimum-weight matching is a
-generic graph problem with a single right answer, checked against brute force on 1,500 instances —
-the toric threshold moves from **1.51% to 3.04%**, next door to the engine's 3.36%, and reduced χ²
-settles near 1. Exact agreement on the threshold is not expected: these are different codes. ν is the
-universal quantity, and it agrees.
+a weak decoder moves the threshold, and at these sizes drags the fit with it. The harness now uses
+the same exact matcher the engine does. That is the one thing deliberately shared, since
+minimum-weight matching is a generic graph problem with a single right answer, and the matcher has
+been checked against brute force on 1,500 instances. With it, the toric threshold moves from
+**1.51% to 3.04%**, close to the engine's 3.36%, and reduced χ² settles near 1. Exact agreement on
+the threshold is not expected, since these are different codes. ν is the universal quantity, and it
+agrees.
 
 Reproduce with `node tools/toric_exponent.mjs 7000`, which runs both matchers over the same lattices,
 rates and seeds and prints both exponents. An earlier revision of this file quoted 1.41 ± 0.28 from
-this harness; that came from an uncommitted script whose settings are lost, and it does not reproduce
-— the committed driver gives 0.94 with the approximate matcher and 0.86 with the exact one. The
-driver is committed now precisely so that cannot happen again.
+this harness. That number came from an uncommitted script whose settings are lost, and it does not
+reproduce: the committed driver gives 0.94 with the approximate matcher and 0.86 with the exact one.
+The driver is committed now so that cannot happen again.
 
-Worth stating plainly: an earlier revision of this file compared the phenomenological ν against 1.46
-and called it low. That was the wrong comparison. 1.46 is the 2D value, which belongs to data noise;
-phenomenological noise is a 2+1-dimensional problem in a different universality class, where the
+An earlier revision of this file also compared the phenomenological ν against 1.46 and called it
+low. That was the wrong comparison. 1.46 is the 2D value, which belongs to data noise.
+Phenomenological noise is a 2+1-dimensional problem in a different universality class, where the
 expected exponent is near 1.0.
 
 **ν is quoted only where it was verified recoverable, and circuit-level is not.** Fed synthetic data
 with the exponent fixed at 1.46 in advance, under each model's real sweep conditions, the fit returns
 it as 1.46 ± 0.02 from a data-noise sweep, 1.47 ± 0.20 from a phenomenological one, and **0.63 ± 0.36
-from a circuit-level one** — a −57% bias at the shot count that model can afford. Worse, it reports a
+from a circuit-level one**, a −57% bias at the shot count that model can afford. It also reports a
 tight-looking interval while doing so: measured coverage of the true value is 80%, 85% and 46%
-respectively. The bootstrap cannot police this, because the failure is bias and a bootstrap resamples
+respectively. The bootstrap cannot catch this, because the failure is bias and a bootstrap resamples
 around its own answer. So the gate is on the statistics the sweep actually carries (roughly 900k,
 216k and 43k shots in total), which is what predicts recoverability.
 
-The same check says the phenomenological exponent is real: had the truth been 1.46 the fit would have
-returned ~1.47, not 0.95. It is genuinely below the 2D textbook value, which is a result rather than
-an artefact — the 2D value does not apply to a 2+1-dimensional problem — and the independent toric
-code above now agrees with it.
+The same check says the phenomenological exponent is real: had the truth been 1.46, the fit would
+have returned about 1.47, not 0.95. It really is below the 2D textbook value, and that is a result
+rather than an artefact, since the 2D value does not apply to a 2+1-dimensional problem. The
+independent toric code above agrees with it.
 
 The spread across sweeps matches the bootstrap interval each sweep reports on its own, which is the
-check that the interval means what it says. The two codes agree within it on all three models — the
-expected answer at `η = 0.5`, which is depolarizing noise, since XZZX's advantage is a *biased*-noise
-effect. It appears once the bias is turned up: see the figure in section 8 of the site.
+check that the interval means what it says. The two codes agree within it on all three models. That
+is the expected answer at `η = 0.5`, which is depolarizing noise; XZZX's advantage is a biased-noise
+effect, and it appears once the bias is turned up (see the figure in section 8 of the site).
 
-### 3. FIXED — the stabilizer tableau replayed identical measurements
+### 3. The stabilizer tableau replayed identical measurements
 
 `Tableau::new` hardcoded `rng_state: 0xdeadbeef12345678`, so every `StabilizerSimulator` ever
 constructed drew the same sequence of random measurement outcomes. Circuit-level runs were entirely
-deterministic — a *noiseless* circuit reported exactly 0% or exactly 100% logical error depending
-only on the distance. `Tableau::with_seed` now threads a seed from the shot's own generator. This
-one also affected the Python build.
+deterministic: a noiseless circuit reported exactly 0% or exactly 100% logical error depending only
+on the distance. `Tableau::with_seed` now threads a seed from the shot's own generator. This one
+also affected the Python build.
 
-### 4. FIXED — the two extraction circuits did not commute
+### 4. The two extraction circuits did not commute
 
 X and Z ancillas walked their plaquettes in the same order, and boundary plaquettes compressed
 their two CNOTs into the first two time slots. The X and Z stabilizer measurements therefore
 interfered where plaquettes overlap, and each disturbed the other. Ancillas now interleave in
-opposite orders — the classic N and Z schedules — scheduled by *direction* rather than by index
-into a variable-length neighbour list. A noiseless circuit now fails **never**, at d = 3, 5 and 7,
-and the curve rises monotonically with p.
+opposite orders (the classic N and Z schedules), scheduled by direction rather than by index into
+a variable-length neighbour list. A noiseless circuit now never fails at d = 3, 5 and 7, and the
+curve rises monotonically with p.
 
-### 5. FIXED — logical tomography returned something outside the Bloch sphere
+### 5. Logical tomography returned something outside the Bloch sphere
 
-`wasm_estimate_logical_fidelity` ran three *identical* simulations — for data and phenomenological
-noise the three calls differed in nothing but the variable each was assigned to — and reported
+`wasm_estimate_logical_fidelity` ran three identical simulations (for data and phenomenological
+noise the three calls differed in nothing but the variable each was assigned to) and reported
 `1 - 2*failure_rate` for each as though they were Bloch components. At zero noise that gave
 `(1, 1, 1)`, a "state" of length √3.
 
@@ -144,33 +145,34 @@ Under Pauli noise and a Pauli decoder the logical channel is itself a Pauli chan
 each Bloch axis independently. The simulators now return which logical Pauli class survived rather
 than a bare pass/fail, so the four channel probabilities can be counted and the diagonal of the
 Pauli transfer matrix computed properly. Verified: `(1, 1, 1)` at zero noise now correctly means
-*the channel shrinks nothing*, every factor stays in [−1, 1], and the site draws the sphere's image
+the channel shrinks nothing, every factor stays in [−1, 1], and the site draws the sphere's image
 as an ellipsoid.
 
 **This fix was at first only half applied**, which a later audit of the printed numbers caught: four
 of the six code-and-noise pairings still returned a bare pass/fail, and the channel built from them
-came back with `r_x` pinned at exactly 1 — every failure counted as the same kind. Two causes. The
-XZZX simulators asked their stabilizer group only *whether* the residual was logical, not which one;
-they now derive a pair of anticommuting logical representatives (the null space of the commutation
-map, reduced modulo the stabilizer group) and read the class off by commutation, so nothing is
-hard-coded. And the circuit-level simulator asked the tableau, which can only answer the question its
-basis poses — prepared in |0_L> it sees a logical X and is blind to a logical Z, an operator it
-commutes with. A Pauli frame now shadows the tableau through the same circuit and yields both.
+came back with `r_x` pinned at exactly 1, meaning every failure was counted as the same kind. There
+were two causes. The XZZX simulators asked their stabilizer group only whether the residual was
+logical, not which one; they now derive a pair of anticommuting logical representatives (the null
+space of the commutation map, reduced modulo the stabilizer group) and read the class off by
+commutation, so nothing is hard-coded. And the circuit-level simulator asked the tableau, which can
+only answer the question its basis poses: prepared in |0_L> it sees a logical X and is blind to a
+logical Z, an operator it commutes with. A Pauli frame now shadows the tableau through the same
+circuit and yields both.
 
-Two consequences worth stating. The derived representatives are checked against the rotated code's
-own independently known logicals — a column of X, a row of Z — over 4,000 random residuals at
-d = 3 and 5. And the circuit-level failure rate roughly doubled, because it now counts logical X and
-Z where before it counted only whichever the preparation could see; data and phenomenological noise
-had always counted both, so this makes the three models comparable rather than changing the physics.
+Two consequences. The derived representatives are checked against the rotated code's own
+independently known logicals (a column of X, a row of Z) over 4,000 random residuals at d = 3 and
+5. And the circuit-level failure rate roughly doubled, because it now counts logical X and Z where
+before it counted only whichever the preparation could see. Data and phenomenological noise had
+always counted both, so this makes the three models comparable rather than changing the physics.
 
-### 6. FIXED — XZZX matched one defect set twice, and checked the wrong logical operator
+### 6. XZZX matched one defect set twice, and checked the wrong logical operator
 
 Two bugs, and both had to go before the code worked at all.
 
-The decoder derived its defects once then matched them *twice*, on two graphs with different
+The decoder derived its defects once then matched them twice, on two graphs with different
 edge-to-qubit mappings, because the second pass reused the first's defects verbatim
 (`let defects_x = defects_z.clone();`). XZZX has one syndrome and two edge families over the same
-nodes — an X error flips the stabilizers on one diagonal, a Z error those on the other — so this
+nodes (an X error flips the stabilizers on one diagonal, a Z error those on the other), so this
 explained every defect twice and applied both corrections. A single X error returned the correct
 one-qubit X correction plus two invented Z ones, and their count grew with the lattice, so the code
 degraded as it grew: 5.4% at d=3 up to 21.0% at d=7, at p=2%. `build_combined_graph` now emits both
@@ -180,8 +182,8 @@ is matched once and each chosen edge routes to X or Z by its tag.
 That left the rate flat in distance rather than falling, which turned out to be a second, unrelated
 bug: the logical-operator check compared the residual against a hard-coded alternating string of
 Paulis that is not a logical operator of this lattice. It fired on residuals that were not logical
-operators at all — including *weight-one* residuals, which cannot be logical errors in any code of
-distance 3 or more — and it did so at every distance, hence the flat curve. The check now reduces
+operators at all, including weight-one residuals, which cannot be logical errors in any code of
+distance 3 or more, and it did so at every distance, hence the flat curve. The check now reduces
 the residual against a row-reduced basis of the stabilizer group and asks whether anything is left,
 which requires no convention about representatives.
 
@@ -191,21 +193,21 @@ decoding and scoring.
 
 Verified after both: no single X, Z or Y error causes a logical failure at d = 3, 5 or 7; the rate
 falls with distance at every bias (η=64, p=2%: 0.48% → 0.05% → 0.03%); and XZZX beats the rotated
-code under bias as the literature says it should — at d=7, p=3%, η=64, data noise, 20,000 shots:
+code under bias as the literature says it should. At d=7, p=3%, η=64, data noise, 20,000 shots:
 **0.04% against 0.47%**.
 
-### 7. FIXED — the decoder had no model of the circuit
+### 7. The decoder had no model of the circuit
 
 Circuit-level noise is qualitatively harder than the other two models. A fault on an ancilla partway
 through its four CNOTs propagates onto every data qubit it has yet to touch, so one fault becomes a
-correlated multi-qubit data error — a *hook error*. The phenomenological spacetime graph has no edge
-for that, so the matcher explained it with two unrelated edges and could walk the correction into a
-logical operator. Roughly one single fault in thirty did exactly that, and the code got worse with
-distance instead of better.
+correlated multi-qubit data error, known as a hook error. The phenomenological spacetime graph has
+no edge for that, so the matcher explained it with two unrelated edges and could walk the correction
+into a logical operator. Roughly one single fault in thirty did exactly that, and the code got worse
+with distance instead of better.
 
 `src/circuit_model.rs` derives the decoding graph from the circuit instead of assuming one. Every
-elementary fault is propagated as a Pauli frame — H swaps x and z, CNOT sends `x_target ^= x_control`
-and `z_control ^= z_target`, a Z-basis measurement flips exactly when the frame carries x — and the
+elementary fault is propagated as a Pauli frame (H swaps x and z, CNOT sends `x_target ^= x_control`
+and `z_control ^= z_target`, a Z-basis measurement flips exactly when the frame carries x), and the
 detectors it fires, together with the data error it leaves, become one edge. Edges may correct
 several qubits at once, which is what the old graph could not express.
 
@@ -223,34 +225,34 @@ Two things made it tractable:
 **Validation is exhaustive, not statistical.** A distance-d code must survive any one fault, so
 every fault the circuit admits is propagated, decoded, corrected and checked:
 **0 failures out of 600 / 3,240 / 9,408 faults** at d = 3 / 5 / 7, for Union-Find and exact MWPM
-alike. That test paid for itself twice:
+alike. That test caught two more bugs:
 
-1. It showed the two CNOT schedules must be transposes *the other way round* from the pairing first
+1. It showed the two CNOT schedules must be transposes the other way round from the pairing first
    tried. The wrong pairing passes cleanly at d = 5 and d = 7 and fails 44 times out of 600 at
-   d = 3 — sampling would very likely have missed it.
+   d = 3, so sampling would very likely have missed it.
 2. It caught state-preparation noise being applied before the baseline round, where an error sits in
    both readings a detector compares, never fires it, and lands in the residual uncorrectable at any
    distance. It had been showing up as a stubborn p¹ term.
 
 With both fixed, the logical error rate at d = 3 scales as p² as theory demands (ratios 3.63, 3.73
 and 3.70 on successive doublings of p from 0.1% to 0.8%, against 4.0 for a clean p², at 200,000
-shots per point), and a threshold appears where it should. The live sweep
-fits p_th ≈ 0.34%, with the crossover putting it nearer 0.38%. Of the three models this one is
-fitted worst — its exponent comes out ν = 2.1 ± 1.8, which is to say unmeasured — because it has the
-most fault mechanisms per round and the narrowest usable window of p.
+shots per point), and a threshold appears where it should. The live sweep fits p_th ≈ 0.34%, with
+the crossover putting it nearer 0.38%. Of the three models this one is fitted worst, with an
+exponent of ν = 2.1 ± 1.8, effectively unmeasured, because it has the most fault mechanisms per
+round and the narrowest usable window of p.
 
-### 8. FIXED — XZZX had no model of its circuit either
+### 8. XZZX had no model of its circuit either
 
 The detector error model above is a CSS construction. A rotated plaquette measures either X or Z, so
-the two error families light disjoint detectors, the decoder matches twice — once per family — and
+the two error families light disjoint detectors, the decoder matches twice (once per family), and
 that split is exactly what makes the decomposition free. An XZZX plaquette reads `X Z Z X` from a
 single ancilla: one syndrome bit, both families firing the same detectors, no split available.
 
 So the XZZX + circuit-level pairing never received any of the three XZZX fixes. It still built two
-graphs, matched the same defect set against both, and scored against the hard-coded logical string —
-bugs 6 and 7 alive in a path the bench UI let you select. Its logical error rate *rose* steeply with
-distance, from 4.9% at d=3 to 40.6% at d=7 at p=0.2%, where the rotated code at the same settings
-falls from 0.23% to 0.03%.
+graphs, matched the same defect set against both, and scored against the hard-coded logical string.
+Bugs 6 and 7 were still alive in a path the bench UI let you select. Its logical error rate rose
+steeply with distance, from 4.9% at d=3 to 40.6% at d=7 at p=0.2%, where the rotated code at the
+same settings falls from 0.23% to 0.03%.
 
 `build_combined` now derives one graph over a single node set, each edge naming the X part and the Z
 part of the correction it implies. Only X and Z faults are enumerated, never Y: propagation is
@@ -259,48 +261,48 @@ matcher pick both graphlike edges reconstructs it. That is the decomposition the
 free, made explicit. The circuit holds every ancilla in |+> and reads an X leg with a CNOT, a Z leg
 with a CZ.
 
-**The two sublattices must walk their neighbours in transposed orders** — the same lesson bug 4
-taught, and no more guessable the second time. With any single order shared by both sublattices, all
-24 permutations leave 10 to 12 of 672 single faults uncorrectable at d=3 while d=5 stays clean.
-Searching the two sublattices independently over all 576 combinations, scored on commutation against
-the tableau and on the exhaustive single-fault check, leaves exactly 6 that pass — all of them
-transposes. The search is kept as an ignored test (`xzzx_search_schedules`).
+**The two sublattices must walk their neighbours in transposed orders.** This is the same lesson
+bug 4 taught, and it was no more guessable the second time. With any single order shared by both
+sublattices, all 24 permutations leave 10 to 12 of 672 single faults uncorrectable at d=3 while d=5
+stays clean. Searching the two sublattices independently over all 576 combinations, scored on
+commutation against the tableau and on the exhaustive single-fault check, leaves exactly 6 that
+pass, all of them transposes. The search is kept as an ignored test (`xzzx_search_schedules`).
 
 Two properties need separate checks here, because the simulation runs on the Pauli frame rather than
-the tableau. The frame is exact for a Clifford circuit under Pauli noise, and it makes the scoring
-honest — an XZZX logical operator is a mixed X/Z string, so there is no row of qubits to measure the
+the tableau. The frame is exact for a Clifford circuit under Pauli noise, and it keeps the scoring
+sound: an XZZX logical operator is a mixed X/Z string, so there is no row of qubits to measure the
 way the rotated code can, and the residual goes to the stabilizer group instead. But a frame
-presumes the circuit really is a valid *simultaneous* measurement; if the schedule made neighbouring
-plaquettes disturb each other the frame would stay self-consistent while the device produced noise.
+presumes the circuit really is a valid simultaneous measurement; if the schedule made neighbouring
+plaquettes disturb each other, the frame would stay self-consistent while the device produced noise.
 That property is tested against the tableau: after the first round has projected, every later
 noiseless round must reproduce its outcomes exactly, at d = 3, 5 and 7 across seeds.
 
 Verified: **0 failures out of 672 / 3,600 / 10,416 faults** at d = 3 / 5 / 7, Union-Find and exact
 MWPM alike; the rate now falls with distance (0.80% / 0.53% / 0.24% at p=0.2%); and a threshold fits
-at ≈ 0.34%, indistinguishable from the rotated code, and the crossover agrees — both go flat around
+at ≈ 0.34%, indistinguishable from the rotated code. The crossover agrees: both go flat around
 p = 0.33% and are clearly rising by 0.40%.
 
-The extra noise does show up, but *below* threshold rather than in the threshold. Every XZZX ancilla
-needs an H where the rotated code rotates only its X-type ones — 72 noise locations per round at
-d = 3 against 64 — and at p = 0.26%, d = 7 that costs about 30% in logical error rate — 0.74%
-against 0.58% over 40,000 shots, which is the sort of size the 12% extra locations would predict.
-An earlier draft put this at a factor of three; that was the class-counting bug of section 5, which
-had the rotated code reporting only half its failures. Threshold is set by where the curves cross, which the extra locations barely
-move; the rate below it is not.
+The extra noise does show up, but below threshold rather than in the threshold. Every XZZX ancilla
+needs an H where the rotated code rotates only its X-type ones (72 noise locations per round at
+d = 3 against 64), and at p = 0.26%, d = 7 that costs about 30% in logical error rate: 0.74% against
+0.58% over 40,000 shots, which is roughly the size 12% extra locations would predict. An earlier
+draft put this at a factor of three; that was the class-counting bug of section 5, which had the
+rotated code reporting only half its failures. Threshold is set by where the curves cross, which the
+extra locations barely move; the rate below it is not.
 
 **The bias advantage survives the circuit**, which an earlier draft of this file denied. At d=7,
 p=0.3%, going from η=1 to η=100 takes XZZX from 1.08% to 0.25% while the rotated code goes the other
-way, 1.07% to 2.37% — better than nine-fold apart, where at η=1 the two are level (15,000 shots
-each).
+way, 1.07% to 2.37%. That is better than nine-fold apart, where at η=1 the two are level (15,000
+shots each).
 
 That earlier "honest negative result" was an artifact of the bug in section 5. The rotated
 circuit-level simulator counted only the logical error its preparation could see, and under strong
-Z-bias the failures it was missing are exactly the ones bias produces — so it looked as though the
-rotated code improved to 0.00% while XZZX did not. Counting both classes shows the opposite. It is a
-good illustration of why a measurement that cannot see half its outcomes is worse than no
-measurement: it does not merely lose precision, it can invert the conclusion.
+Z-bias the failures it was missing are exactly the ones bias produces, so it looked as though the
+rotated code improved to 0.00% while XZZX did not. Counting both classes shows the opposite. A
+measurement that cannot see half its outcomes does not just lose precision; it can invert the
+conclusion.
 
-### 9. FIXED — the threshold fit ignored corrections to scaling
+### 9. The threshold fit ignored corrections to scaling
 
 Every threshold this project quoted was low, by 15 to 20%, and the reason was in the ansatz rather
 than the engine. Finite-size collapse says the curves for every distance fall onto one universal
@@ -308,21 +310,21 @@ curve against `x = (p - p_th)·d^(1/ν)`. That is the `d → ∞` statement. The
 nine qubits, and the approach to the limit is not a rounding error.
 
 Diagnosed on synthetic data with the threshold fixed in advance: the bare collapse comes back **27%
-high and stays there** as shots increase — the signature of bias, not noise — while adding the
-leading correction `+ D·d^(-ω)` recovers the true value to within 2%, its error falling from 40% to
-13% as shots go from 1,200 to 20,000. Separating that term from a shift in the threshold needs a
-fourth distance, so the sweeps now run to `d = 9`, and to `d = 11` for data noise where a point costs
-0.06s. With three distances the panel says so and reports the uncorrected number rather than
-pretending.
+high and stays there** as shots increase, which is the signature of bias rather than noise. Adding
+the leading correction `+ D·d^(-ω)` recovers the true value to within 2%, with its error falling
+from 40% to 13% as shots go from 1,200 to 20,000. Separating that term from a shift in the threshold
+needs a fourth distance, so the sweeps now run to `d = 9`, and to `d = 11` for data noise where a
+point costs 0.06s. With three distances the panel says so and reports the uncorrected number
+instead.
 
-What makes it checkable without any fitting at all is that the pairwise crossings **drift**. For
+What makes it checkable without any fitting at all is that the pairwise crossings drift. For
 rotated data noise they climb monotonically from 10.5% (d = 3 against 5) to 13.7% (9 against 11) and
-are still climbing — so the threshold is above 13.7%, and the uncorrected fit's 12.3% lies below
+are still climbing. So the threshold is above 13.7%, and the uncorrected fit's 12.3% lies below
 every crossing involving `d ≥ 5`.
 
 The fit window is chosen the same way, and for the same reason. The scaling form is an expansion
-about the threshold and stops describing points far from it, so some of the sweep has to be excluded
-— but a fraction picked by hand is how a threshold becomes an artefact of its author. One fixed
+about the threshold and stops describing points far from it, so some of the sweep has to be
+excluded. But a fraction picked by hand makes the threshold depend on whoever picked it. One fixed
 choice of 75% gave a reduced χ² of 2.3 for data noise and **13.2 for phenomenological**: the same
 number fitting one model acceptably and rejecting another outright, with the rejected one's
 parameters reported as though they meant something. It is also what drove ω to the end of its range,
@@ -330,31 +332,31 @@ since with the shape wrong the correction term is free to absorb the misfit. The
 widest window the form actually fits, and reports which. All six sweeps now land at reduced χ²
 between 0.8 and 1.9, and ω between 0.9 and 4.3 with none against a boundary.
 
-Two more fell out of verifying the interval rather than the estimate. The bootstrap's local search
-used a grid coarser than the spread it was measuring, so every replica landed on the same cell and
-the interval collapsed — against synthetic data with a known threshold it covered the truth **5% of
-the time**, which is worse than reporting no interval at all. A two-stage search fixed it; coverage
-is now 100% for data noise, 80% for phenomenological and 69% for circuit-level. And ν is no longer
-printed for sweeps that cannot determine it, per the check above.
+Two more bugs fell out of verifying the interval rather than the estimate. The bootstrap's local
+search used a grid coarser than the spread it was measuring, so every replica landed on the same
+cell and the interval collapsed. Against synthetic data with a known threshold it covered the truth
+**5% of the time**, which is worse than reporting no interval at all. A two-stage search fixed it;
+coverage is now 100% for data noise, 80% for phenomenological and 69% for circuit-level. And ν is no
+longer printed for sweeps that cannot determine it, per the check above.
 
-Two side-fixes fell out of this. The variance floor gave zero-failure points 228 times the weight of
-a 5% point, so two points out of twenty-seven carried 84% of the fit; that is now Jeffreys-smoothed.
-And confidence intervals are a bootstrap over shots rather than the spread of repeated sweeps — a
-fit biased by its own window reproduces that bias on every repeat, so the old interval was tight and
-wrong.
+Two side-fixes also came out of this. The variance floor gave zero-failure points 228 times the
+weight of a 5% point, so two points out of twenty-seven carried 84% of the fit; that is now
+Jeffreys-smoothed. And confidence intervals are a bootstrap over shots rather than the spread of
+repeated sweeps, because a fit biased by its own window reproduces that bias on every repeat, so
+the old interval was tight and wrong.
 
 An extrapolation of the crossings to infinite `d` was tried as a third estimator and dropped: over 40
 synthetic realizations it came out biased −35% with an rms error of 49%, against −2% and 13% for the
 corrected fit. Three crossings and three parameters is an exact fit, and the drift exponent runs away
-with the intercept. The raw crossings are still displayed — they are where the curves visibly cross —
-but they are not an estimate.
+with the intercept. The raw crossings are still displayed, since they are where the curves visibly
+cross, but they are not an estimate.
 
-### 10. FIXED — derived logical operators overflowed their word from d = 9
+### 10. Derived logical operators overflowed their word from d = 9
 
 Found while extending the sweeps, and latent until then. `find_logical_pair` searches the null space
 of the commutation map by packing a Pauli's 2n bits into a `u128`. At `d = 9` that is 162 bits. The
 shift silently wrapped, and the "logical operators" it returned **anticommuted with the stabilizers
-they were supposed to commute with** — while the logical error rates they produced looked entirely
+they were supposed to commute with**, while the logical error rates they produced looked entirely
 plausible, falling with distance exactly as they should.
 
 The row is now split along the seam the Pauli already has, one word for the X half and one for the Z
@@ -362,35 +364,35 @@ half, so every shift stays inside a word. Checked directly at `d = 3, 5, 7, 9, 1
 representatives commute with every stabilizer, anticommute with each other, and are not products of
 stabilizers.
 
-### 11. FIXED — the Union-Find decoder was not a function of its inputs
+### 11. The Union-Find decoder was not a function of its inputs
 
 Called twice with byte-identical arguments it returned 35 edges, then 37. The active cluster roots
 were collected into a `HashSet`, and Rust seeds each `HashSet`'s hasher randomly, so iterating one
 visits its elements in a different order every time. That order decides which cluster grows first and
 therefore which correction comes out. Collected in node order instead.
 
-Monte Carlo averages wash this out, so it did not bias any threshold — but it made every individual
+Monte Carlo averages wash this out, so it did not bias any threshold, but it made every individual
 result unreproducible, in the default decoder.
 
-### 12. FIXED — "exact MWPM" silently ran the greedy decoder instead
+### 12. "Exact MWPM" silently ran the greedy decoder instead
 
 Two undisclosed limits: above sixteen defects it called `decode_greedy` and returned, and above
 50,000 backtracking steps it did the same. At `d = 9` phenomenological both are exceeded on nearly
 every shot, so asking for the best of the three decoders quietly gave you the worst.
 
 It is visible once looked for. Exact MWPM reported a phenomenological threshold near **0.75% against
-Union-Find's 3.3%** — an exact decoder cannot be beaten by an approximate one — and at `d = 9, p = 2%`
+Union-Find's 3.3%**, and an exact decoder cannot be beaten by an approximate one. At `d = 9, p = 2%`
 its logical error rate was 16.25% against greedy's 16.78%, i.e. the same decoder.
 
 The first fix replaced the fallbacks with a real starting matching and a branch-and-bound search
-that could be cut off without collapsing — but it kept a cap of its own, at twenty defects, above
+that could be cut off without collapsing, but it kept a cap of its own, at twenty defects, above
 which the result was an approximation. "Exact" was still not quite true where the problem was hard.
 
 **It is now exact at every defect count.** `src/blossom.rs` implements Edmonds' blossom algorithm,
 which handles the odd cycles that make general-graph matching hard by contracting them, searching the
-contracted graph, and expanding them again. The boundary is modelled as `m` interchangeable copies —
-pairing a defect with any copy costs its distance to the boundary, copies pair with each other for
-nothing — which turns "match these defects, and any may instead run to the boundary" into a plain
+contracted graph, and expanding them again. The boundary is modelled as `m` interchangeable copies:
+pairing a defect with any copy costs its distance to the boundary, and copies pair with each other
+for nothing. That turns "match these defects, and any may instead run to the boundary" into a plain
 perfect matching with every weight finite.
 
 Measured against Union-Find over 8,000 shots at each of 18 code × noise × distance combinations,
@@ -401,28 +403,29 @@ Cost: 0.8 ms per solve at sixty vertices, 4.5 ms at a hundred and twenty.
 
 **This retracts an earlier claim.** A previous commit found MWPM scoring worse than Union-Find on
 XZZX circuit-level by 5.7σ, and attributed it to matching being unable to express the correlation
-between the two edges a Y fault needs. The bias-dependence seemed to confirm it. It was the fallback:
-strong bias means fewer errors, fewer defects, and so a genuine MWPM rather than a silent greedy. With
-the decoder fixed, MWPM is better than Union-Find at η = 1, 10 and 1000 alike. The explanation was
-plausible, consistent with the evidence, and wrong.
+between the two edges a Y fault needs. The bias-dependence seemed to confirm it. The real cause was
+the fallback: strong bias means fewer errors, fewer defects, and so a genuine MWPM rather than a
+silent greedy. With the decoder fixed, MWPM is better than Union-Find at η = 1, 10 and 1000 alike.
+The earlier explanation was plausible and consistent with the evidence, but wrong.
 
 ### Located loss under circuit-level noise
 
-An erasure is a qubit the hardware knows it lost — the Pauli is uniform and unknown, the location is
-not. That makes it far easier to correct: every decoding edge the location could have produced costs
-nothing, so the matcher routes through it freely.
+An erasure is a qubit the hardware knows it lost. The Pauli is uniform and unknown, but the location
+is known, and that makes it far easier to correct: every decoding edge the location could have
+produced costs nothing, so the matcher routes through it freely.
 
 Under circuit-level noise the location is a point in the circuit rather than a qubit, and an erasure
-on an ancilla partway through its CNOTs frees everything the loss goes on to touch — the same
+on an ancilla partway through its CNOTs frees everything the loss goes on to touch, by the same
 propagation that produces a hook error. The detector error model already records which edges each
 circuit location produces, so it answers that question directly: `DetectorGraph::site_edges` maps an
 erasure site to the edges it makes free.
 
 Measured at d = 5, p = 0.8%: logical error falls from 17.9% with no erasure, to 5.6% when half the
-faults are located, to 0.02% when all of them are — not quite nothing, because p = 0.8% still sits
-below the located-noise threshold rather than nowhere near it. Fully located noise has its own threshold near
-p = 2%, roughly four times the Pauli threshold — and the fact that it *has* a threshold, rather than
-being perfect everywhere, is the check that the information is being used rather than assumed.
+faults are located, to 0.02% when all of them are. It is not quite zero because p = 0.8% still sits
+below the located-noise threshold rather than nowhere near it. Fully located noise has its own
+threshold near p = 2%, roughly four times the Pauli threshold. The fact that it has a threshold at
+all, rather than being perfect everywhere, is the check that the information is being used rather
+than assumed.
 
 ## Repository Structure
 
@@ -433,7 +436,7 @@ src/decoder.rs        Union-Find cluster growth and peeling
 src/circuit_model.rs  detector error model derived from the extraction circuit, CSS and non-CSS
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
-index.html            the explainer — structure only
+index.html            the explainer (structure only)
 css/styles.css        design tokens, then base, then components
 js/engine.js          typed wrapper over the WASM exports
 js/channel.js         the noise channel, shared by the figures and the engine
@@ -452,8 +455,8 @@ run_data_benchmarks.py  data-noise threshold benchmarks
 
 ### The website
 
-It is a static site with no build step, but it does need to be served over HTTP — ES modules and
-the `.wasm` fetch both fail from `file://`.
+It is a static site with no build step, but it does need to be served over HTTP, since ES modules
+and the `.wasm` fetch both fail from `file://`.
 
 ```bash
 python3 -m http.server 8080
@@ -474,7 +477,7 @@ cargo build --release --target wasm32-unknown-unknown --no-default-features
 ```
 
 Copy the resulting `target/wasm32-unknown-unknown/release/stabilizer_qec.wasm` to the repository
-root. The committed `.wasm` is built this way and includes the two fixes above.
+root. The committed `.wasm` is built this way and includes the fixes above.
 
 Note for Apple Silicon: if `cargo` reports `bad CPU type in executable`, the toolchain is the
 x86_64 build and Rosetta is not available to the shell. `softwareupdate --install-rosetta` fixes

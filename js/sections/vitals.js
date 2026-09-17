@@ -39,7 +39,7 @@ export function initVitals(root, compute) {
       el('span', { class: 'vital__unit', text: ' runs/s' }),
     ]);
     if (note) {
-      note.textContent = `Timed on this device just now — best of several samples over `
+      note.textContent = `Timed on this device just now, best of several samples over `
         + `${count(result.sampleRuns)} decoded shots at d = 5. A throttled or busy machine will read lower.`;
     }
   }).catch((error) => {

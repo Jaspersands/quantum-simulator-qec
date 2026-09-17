@@ -104,7 +104,7 @@ export function initBias(root, compute) {
         text: xzzx.pL < rotated.pL
           ? 'XZZX came out ahead at the strongest bias, as the published result predicts.'
           : 'XZZX did not pull ahead here. The advantage is a threshold effect, so it needs '
-            + 'enough bias and a large enough patch to show — try a higher distance, a stronger '
+            + 'enough bias and a large enough patch to show. Try a higher distance, a stronger '
             + 'bias, or more shots.',
       }),
     ]);
@@ -147,7 +147,7 @@ export function initBias(root, compute) {
 
       draw(collected);
       summarise(collected);
-      status.textContent = `Done — ${count(cells.length * runs)} runs.`;
+      status.textContent = `Done: ${count(cells.length * runs)} runs.`;
     } catch (error) {
       status.textContent = `Comparison failed: ${error.message}`;
     } finally {

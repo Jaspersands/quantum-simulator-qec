@@ -12,8 +12,8 @@ import { LatticeView, legendHTML } from '../lattice.js';
 import { $, fill, el } from '../dom.js';
 
 const STAB_DESCRIPTION = {
-  0: 'measures Z⊗Z⊗Z⊗Z — it fires when an odd number of its qubits took an X error',
-  1: 'measures X⊗X⊗X⊗X — it fires when an odd number of its qubits took a Z error',
+  0: 'measures Z⊗Z⊗Z⊗Z, and fires when an odd number of its qubits took an X error',
+  1: 'measures X⊗X⊗X⊗X, and fires when an odd number of its qubits took a Z error',
   2: 'measures alternating X and Z around the plaquette',
 };
 
@@ -75,7 +75,7 @@ export function initAnatomy(root, instance) {
           class: 'note',
           text: watchers.length > 1
             ? 'An error here disturbs every one of them, which is how its position gets pinned down.'
-            : 'Only one check covers this qubit — boundary qubits are the least constrained on the patch.',
+            : 'Only one check covers this qubit. Boundary qubits are the least constrained on the patch.',
         }),
       ]);
     }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Keeping a Qubit Alive — an interactive surface-code simulator</title>
+<title>Keeping a Qubit Alive: an interactive surface-code simulator</title>
 <meta name="description" content="An interactive explanation of quantum error correction, running a real Rust stabilizer simulator compiled to WebAssembly in your browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,9 +48,9 @@
   <p class="hero__eyebrow">Rust · WebAssembly · running locally</p>
   <h1 class="hero__title">Keeping a qubit alive</h1>
   <p class="hero__lede">
-    A qubit cannot be copied and cannot be looked at. Both of the things that make classical
-    error correction easy are forbidden. <strong>Quantum error correction is the workaround</strong> —
-    and everything below is a real stabilizer simulator running in your browser, not a recording of one.
+    A qubit cannot be copied and cannot be looked at, so both of the things that make classical
+    error correction easy are off the table. <strong>Quantum error correction is the workaround.</strong>
+    Everything below is a real stabilizer simulator running in your browser, not a recording of one.
   </p>
 
   <div class="boot-error" data-boot-error hidden></div>
@@ -89,7 +89,7 @@
   <div class="prose">
     <p class="lead">
       Protecting classical information is easy because you are allowed to cheat. Store three copies
-      of a bit, read all three, take the majority. Both moves — copying and reading — are free.
+      of a bit, read all three, take the majority. Both moves, copying and reading, are free.
     </p>
     <p>
       Neither is available for a qubit. The no-cloning theorem forbids duplicating an unknown quantum
@@ -98,13 +98,13 @@
       the state you care about is a qubit you are not allowed to inspect.
     </p>
     <p>
-      Worse, the errors are continuous. A classical bit fails one way — it flips. A qubit can rotate
-      by any angle on the Bloch sphere, in any direction. There are infinitely many ways to be
-      slightly wrong.
+      Worse, the errors are continuous. A classical bit fails in one way: it flips. A qubit can rotate
+      by any angle on the Bloch sphere, in any direction, so there are infinitely many ways for it to
+      be slightly wrong.
     </p>
     <p>
-      Quantum error correction gets around all three at once, and the trick is the same trick each
-      time: <strong>never look at the data</strong>. Look only at relationships between qubits.
+      Quantum error correction gets around all three at once, and the trick is the same each time:
+      <strong>never look at the data</strong>. Look only at relationships between qubits.
     </p>
   </div>
 </section>
@@ -120,8 +120,8 @@
   <div class="prose">
     <p>
       Here is the move that makes everything else possible. Instead of measuring a qubit, measure
-      whether a <em>group</em> of qubits agrees with itself — their parity. The answer is a single
-      bit: even or odd. It says nothing whatsoever about what any individual qubit holds, so it
+      whether a <em>group</em> of qubits agrees with itself, which is their parity. The answer is a
+      single bit, even or odd. It says nothing about what any individual qubit holds, so it
       collapses nothing you cared about.
     </p>
     <p>
@@ -153,18 +153,18 @@
 
   <div class="prose">
     <p>
-      That is the bargain. The measurement is safe precisely <em>because</em> it is blind — and being
-      blind, it leaves you with an ambiguity you will have to resolve some other way. Hold onto that.
-      It comes back in section 05 as the central difficulty of the whole field.
+      The measurement is safe <em>because</em> it is blind, and being blind, it leaves you with an
+      ambiguity you will have to resolve some other way. That ambiguity comes back in section 05 as
+      the central difficulty of the whole field.
     </p>
   </div>
 
   <div class="aside">
     <span class="aside__label">On continuous errors</span>
-    This also quietly solves the third problem. Measuring a stabilizer projects a continuously
-    rotated qubit onto either "no error" or "a discrete Pauli error". The infinity of possible
-    wrongness collapses into a handful of cases the moment you check. Correcting X, Y, and Z is
-    enough to correct everything.
+    This also solves the third problem. Measuring a stabilizer projects a continuously rotated
+    qubit onto either "no error" or "a discrete Pauli error". The infinitely many possible rotations
+    collapse into a handful of cases the moment you check, so correcting X, Y, and Z is enough to
+    correct everything.
   </div>
 </section>
 
@@ -185,9 +185,9 @@
     </p>
     <p>
       There are <span class="sym">d² − 1</span> checks constraining <span class="sym">d²</span>
-      qubits. The single degree of freedom left over is the logical qubit — spread across the whole
-      patch, stored in no particular place, and therefore not destroyable by damaging any particular
-      place.
+      qubits. The single degree of freedom left over is the logical qubit. It is spread across the
+      whole patch and stored in no particular place, so damaging any particular place cannot
+      destroy it.
     </p>
     <p>
       Hover anything below to see what watches what.
@@ -232,9 +232,9 @@
   <div class="prose">
     <p>
       The distance <span class="sym">d</span> is the length of the shortest path across the patch,
-      and it sets how many individual failures it takes to destroy the logical qubit: you need at
-      least <span class="sym">d</span> of them, arranged in a line. That is the entire value
-      proposition. Everything after this is about making that line unlikely.
+      and it sets how many individual failures it takes to destroy the logical qubit: at least
+      <span class="sym">d</span> of them, arranged in a line. Everything after this is about making
+      that line unlikely.
     </p>
   </div>
 </section>
@@ -251,7 +251,7 @@
     <p>
       Now break it. Click a data qubit to inject an error and watch which checks fire. The pattern
       of fired checks is called the <strong>syndrome</strong>, and it is the only information you
-      ever get — the errors themselves are, by construction, invisible.
+      ever get. The errors themselves are, by construction, invisible.
     </p>
     <p>
       Then press <strong>Grow a chain</strong> and watch what happens. A run of adjacent errors
@@ -283,12 +283,12 @@
           <div class="field">
             <span class="field__label" id="lbl-syndrome-inject">Inject</span>
             <div class="choices" role="radiogroup" aria-labelledby="lbl-syndrome-inject">
-              <label class="choice"><input type="radio" name="syndrome-error-type" value="0" checked><span class="choice__swatch choice__swatch--x"></span>X — bit flip</label>
-              <label class="choice"><input type="radio" name="syndrome-error-type" value="1"><span class="choice__swatch choice__swatch--z"></span>Z — phase flip</label>
+              <label class="choice"><input type="radio" name="syndrome-error-type" value="0" checked><span class="choice__swatch choice__swatch--x"></span>X (bit flip)</label>
+              <label class="choice"><input type="radio" name="syndrome-error-type" value="1"><span class="choice__swatch choice__swatch--z"></span>Z (phase flip)</label>
               <label class="choice"><input type="radio" name="syndrome-error-type" value="2"><span class="choice__swatch choice__swatch--erased"></span>Erasure</label>
             </div>
             <span class="field__hint">An erasure is a qubit known to have been lost. It fires no
-            check on its own — what it hands the decoder is the location.</span>
+            check on its own; what it hands the decoder is the location.</span>
           </div>
           <div class="readout" aria-live="polite" data-syndrome-readout></div>
           <div class="btn-row">
@@ -304,9 +304,9 @@
 
   <div class="prose">
     <p>
-      This is the fact the rest of the page is built on. <strong>The syndrome sees the boundary of an
+      The rest of the page is built on this fact: <strong>the syndrome sees the boundary of an
       error chain, never the chain itself.</strong> Two defects tell you that something connects
-      them. They do not tell you what.
+      them, not what.
     </p>
   </div>
 </section>
@@ -323,14 +323,15 @@
     <p>
       A decoder takes the syndrome and proposes a correction: some chain of errors with the same
       endpoints. Any such chain will silence every check. The decoder has no way to know whether it
-      picked the one that actually happened, so it picks the most probable — usually, the shortest.
+      picked the one that actually happened, so it picks the most probable one, which is usually
+      the shortest.
     </p>
     <p>
-      Remarkably, <strong>it does not need to be right</strong>. Apply the correction on top of the
-      true error and look at what is left over, the <em>residual</em>. If the residual closes into
-      loops, it acts trivially on the logical qubit and you have won despite guessing wrong. Only if
-      the residual runs all the way across the patch have you lost — and then every check reads
-      quiet while the answer is silently wrong.
+      The surprising part is that <strong>it does not need to be right</strong>. Apply the
+      correction on top of the true error and look at what is left over, the <em>residual</em>. If
+      the residual closes into loops, it acts trivially on the logical qubit and you have won despite
+      guessing wrong. You have only lost if the residual runs all the way across the patch, and in
+      that case every check reads quiet while the answer is wrong.
     </p>
     <p>
       Inject errors, decode, and switch the view to <strong>Residual</strong>.
@@ -405,14 +406,14 @@
     <p>
       Press <strong>Long chain</strong> a few times at <span class="sym">d = 3</span>. Once the chain
       is longer than half the patch, the shortest way to close it is the wrong way round, the decoder
-      takes it, and the residual becomes a logical operator. This is what a logical error <em>is</em>:
-      not a failure to find a consistent correction, but a confident and consistent wrong answer.
+      takes it, and the residual becomes a logical operator. That is what a logical error is: the
+      decoder finds a consistent correction, and it is the wrong one.
     </p>
     <p>
       The three decoders trade accuracy against speed. Union-Find grows clusters until each contains
       an even number of defects and peels them, in near-linear time. Exact minimum-weight perfect
-      matching finds the genuinely optimal pairing and costs a great deal more. Greedy just pairs
-      nearest neighbours and is the fastest and worst.
+      matching finds the optimal pairing and costs a great deal more. Greedy just pairs nearest
+      neighbours and is the fastest and the worst.
     </p>
   </div>
 </section>
@@ -429,13 +430,13 @@
     <p>
       Everything so far assumed the syndrome was trustworthy. It is not. The parity checks are
       themselves small quantum circuits on real hardware, and they misreport. A single lying readout
-      is indistinguishable from a real error — and "correcting" an error that never happened
+      is indistinguishable from a real error, and "correcting" an error that never happened
       introduces one.
     </p>
     <p>
       The fix is to measure repeatedly and decode the whole history at once. What the decoder
       actually matches is not the raw readings but the places they <em>change</em> between one
-      round and the next — the detection events. Under that lens the two failure modes separate.
+      round and the next, called detection events. Seen that way, the two failure modes separate.
       A data error flips a check once and leaves it flipped, giving two events side by side in one
       layer. A lying readout disagrees with itself for a single round, giving two events on the
       same check in consecutive layers: a pair separated in <em>time</em> rather than in space.
@@ -499,8 +500,8 @@
 
   <div class="prose">
     <p>
-      This costs you: <span class="sym">d</span> rounds of measurement per logical operation, and a
-      decoding problem that grows in three dimensions instead of two. It is also non-negotiable. Every
+      This costs <span class="sym">d</span> rounds of measurement per logical operation, and a
+      decoding problem that grows in three dimensions instead of two. There is no way around it. Every
       figure before this one was describing an idealisation.
     </p>
   </div>
@@ -520,17 +521,17 @@
       physical qubits, does the logical qubit get better?</strong>
     </p>
     <p>
-      The answer is not always yes, and that is the entire subtlety. A bigger patch corrects longer
-      error chains — but it also has more qubits to go wrong, and more checks to misreport. Below
-      some critical physical error rate the first effect wins and logical error falls off
-      exponentially in <span class="sym">d</span>. Above it, the second wins and adding qubits makes
-      things actively worse. That crossing point is the <strong>threshold</strong>.
+      The answer is not always yes. A bigger patch corrects longer error chains, but it also has
+      more qubits to go wrong and more checks to misreport. Below some critical physical error rate
+      the first effect wins and logical error falls off exponentially in
+      <span class="sym">d</span>. Above it, the second wins and adding qubits makes things worse.
+      That crossing point is the <strong>threshold</strong>.
     </p>
     <p>
       The table below is measured in your browser right now. Read the bottom row of each block: it
       compares <span class="sym">d = 3</span> against <span class="sym">d = 7</span> and reports
-      which side of the threshold that column is on — or says so plainly when the two are within
-      each other's error bars, which is exactly what the threshold itself looks like.
+      which side of the threshold that column is on, or says so when the two are within each
+      other's error bars, which is what the threshold itself looks like.
     </p>
   </div>
 
@@ -558,8 +559,8 @@
   <div class="prose">
     <p>
       Notice that the two noise models cross over in different places. Perfect measurements buy you a
-      much higher threshold than faulty ones — which is why the honest number to quote for hardware
-      is always the phenomenological or circuit-level one.
+      much higher threshold than faulty ones, which is why the number to quote for real hardware is
+      always the phenomenological or circuit-level one.
     </p>
     <p>
       To locate the crossing precisely, sweep <span class="sym">p</span> across several distances
@@ -568,15 +569,15 @@
       that makes the collapse tightest is the threshold and its critical exponent.
     </p>
     <p>
-      That statement is exactly true only for infinitely large patches. These are not large — the
-      smallest is nine qubits — and the approach to the limit is not a rounding error. Fit the bare
+      That statement is exactly true only for infinitely large patches. These are not large (the
+      smallest is nine qubits), and the approach to the limit is not a rounding error. Fit the bare
       collapse to synthetic data with a threshold known in advance and it comes back
       <strong>27% high</strong>, and stays there however many shots you spend, because it is bias
       rather than noise. So the fit carries the leading correction as well,
-      <span class="sym">+ D · d<sup>−ω</sup></span>, which is what makes the curves approach a common
-      shape rather than already lie on one. Separating that term from a shift in the threshold needs
-      at least four distances; with three, the panel says so and reports the uncorrected value
-      instead of pretending.
+      <span class="sym">+ D · d<sup>−ω</sup></span>, which lets the curves approach a common shape
+      rather than requiring them to already lie on one. Separating that term from a shift in the
+      threshold needs at least four distances; with three, the panel says so and reports the
+      uncorrected value.
     </p>
   </div>
 
@@ -635,25 +636,25 @@
     <span class="aside__label">Reading the fit</span>
     The exponent ν is reported only when the sweep can actually pin it down, which is not always.
     Fed synthetic data with ν fixed at 1.46 in advance, the fit recovers it as 1.46 ± 0.02 from a
-    data-noise sweep and as 0.63 ± 0.36 from a circuit-level one — while reporting a tight interval
+    data-noise sweep and as 0.63 ± 0.36 from a circuit-level one, and reports a tight interval
     either way. Its interval covers the true value 80% of the time for data noise and 46% for
-    circuit-level, so the interval cannot be trusted to police itself; the failure is bias, and a
-    bootstrap resamples around its own answer. Where the sweep is too thin, the panel says
-    <em>not determined</em> rather than printing a number that would look like a measurement.
+    circuit-level, so the interval cannot be trusted to catch the problem itself: the failure is
+    bias, and a bootstrap resamples around its own answer. Where the sweep is too thin, the panel
+    says <em>not determined</em> rather than printing a number that would look like a measurement.
     <br><br>
     The reduced χ² tells you whether the collapse is believable. Near 1 means the scaling ansatz
-    describes the data within its error bars; much larger means the fit is being forced. It is not
-    only a diagnostic here — it chooses how much of the sweep to fit. The scaling form is an
+    describes the data within its error bars; much larger means the fit is being forced. Here it is
+    not only a diagnostic, it also chooses how much of the sweep to fit. The scaling form is an
     expansion about the threshold and stops describing points far from it, so the fit takes the
     widest window the form still fits and reports what fraction that was. Picking a fraction by hand
-    is how a threshold becomes an artefact of its author: one fixed choice gave a reduced χ² of 2.3
-    for data noise and 13.2 for phenomenological — the same number fitting one model acceptably and
+    makes the threshold depend on whoever picked it: one fixed choice gave a reduced χ² of 2.3 for
+    data noise and 13.2 for phenomenological, the same number fitting one model acceptably and
     another not at all.
     <br><br>
     The interval is a bootstrap: the shots are resampled and the whole fit re-run a hundred-odd
-    times, and the middle 95% of the answers is reported. That is a wider and more honest bar than
-    repeating the sweep and taking the spread, because a fit biased by its own window reproduces
-    that bias on every repeat — the spread would look reassuringly tight and be wrong. Precision
+    times, and the middle 95% of the answers is reported. That gives a wider but more accurate bar
+    than repeating the sweep and taking the spread, because a fit biased by its own window
+    reproduces that bias on every repeat, so the spread would look tight and be wrong. Precision
     here is limited by shots rather than by the method: on synthetic data the fit's error falls from
     40% at 1,200 shots per point to 13% at 20,000, which is why data noise sweeps far more shots
     than circuit-level can afford.
@@ -671,8 +672,8 @@
   <div class="prose">
     <p>
       Real devices do not produce X, Y, and Z errors in equal measure. In most superconducting and
-      spin qubits, dephasing dominates — Z errors can be one or two orders of magnitude more common
-      than bit flips. A code designed for symmetric noise is leaving that structure on the table.
+      spin qubits, dephasing dominates, and Z errors can be one or two orders of magnitude more
+      common than bit flips. A code designed for symmetric noise ignores that structure.
     </p>
     <p>
       The XZZX variant alternates X and Z operators around every plaquette instead of using separate
@@ -683,8 +684,8 @@
       It took three fixes to get this simulator to show it. Its XZZX decoder used to match one
       defect set twice, on two graphs with different edge mappings, so a pure
       <span class="sym sym--x">X</span> error came back with invented <span class="sym sym--z">Z</span>
-      corrections attached — more of them the larger the patch. And the logical-operator check used a
-      hard-coded string of Paulis that was simply wrong, so it reported failures for residuals that
+      corrections attached, and more of them the larger the patch. And the logical-operator check used
+      a hard-coded string of Paulis that was simply wrong, so it reported failures for residuals that
       were not logical operators at all, at every distance. Both are fixed: the two error families
       are matched together in one pass, and whether a residual is a logical error is now decided by
       asking the stabilizer group directly.
@@ -744,8 +745,8 @@
 
   <div class="prose">
     <p>
-      The argument is finished. This is the instrument it was describing, with every parameter
-      exposed — including the ones the narrative had no use for: located losses, spatial burst
+      That is the whole argument. This is the instrument it was describing, with every parameter
+      exposed, including the ones the narrative had no use for: located losses, spatial burst
       noise, and slow temporal drift.
     </p>
   </div>
@@ -837,7 +838,7 @@
       <p class="rig__caption">
         Under Pauli noise and a Pauli decoder the logical qubit sees a Pauli channel, which shrinks
         each axis of the Bloch sphere independently. The three factors below are those shrink
-        amounts — the diagonal of the channel's transfer matrix. A noiseless channel leaves all
+        amounts, the diagonal of the channel's transfer matrix. A noiseless channel leaves all
         three at 1 because it shrinks nothing; noise the decoder cannot undo squashes the sphere
         toward a point.
       </p>
@@ -858,7 +859,7 @@
     <span class="aside__label">On circuit-level noise</span>
     Circuit-level is the strictest of the three models and was the last to work. Faults land on
     individual gates, so a fault on an ancilla midway through its CNOTs propagates onto several data
-    qubits at once — and the decoder needs a map of the circuit to make sense of that, not the
+    qubits at once, and the decoder needs a map of the circuit to make sense of that, not the
     phenomenological graph the other two use. It now decodes against a detector error model derived
     from the circuit itself. The check that it works is exhaustive rather than statistical: every
     single fault the circuit admits is corrected, at every distance, with both decoders. Section 10
@@ -880,12 +881,12 @@
       compiled to WebAssembly and executed on your machine while you read.
     </p>
     <p class="note">
-      Figures quoted below were measured at bias <span class="mono">η = 0.5</span> — equal parts X,
-      Y and Z, the setting every panel here starts from — over <span class="mono">T = d</span>
-      rounds, unless they say otherwise. That matters more than it looks. At
+      Unless they say otherwise, figures quoted below were measured at bias
+      <span class="mono">η = 0.5</span> (equal parts X, Y and Z, the setting every panel here starts
+      from) over <span class="mono">T = d</span> rounds. The bias matters more than it looks. At
       <span class="mono">d = 7, p = 0.3%</span> circuit-level the rotated code reads 1.07% at
       <span class="mono">η = 1</span> and 2.37% at <span class="mono">η = 100</span>, while XZZX at
-      those same two settings reads 1.08% and 0.25% — the same <span class="mono">p</span>, and the
+      those same two settings reads 1.08% and 0.25%. Same <span class="mono">p</span>, and the
       ranking between the codes reverses.
       Thresholds come from a collapse fit carrying the leading correction to scaling, with a
       bootstrap interval. An earlier version of this page quoted the uncorrected fit and treated its
@@ -911,7 +912,7 @@
     <div>
       <dt>Exact MWPM</dt>
       <dd>Minimum-weight perfect matching over the defect graph, with pairwise distances from BFS
-      shortest-path trees — and exact at any number of defects, which took three attempts to make
+      shortest-path trees. It is exact at any number of defects, which took three attempts to make
       true. It first called the greedy decoder above sixteen defects and said nothing; then it ran a
       branch-and-bound search capped at twenty. Both caps bit hardest exactly where the problem is
       hard, so the decoder labelled <em>exact</em> was in practice the worst of the three at
@@ -919,8 +920,8 @@
       odd cycles that make general-graph matching hard, searches the contracted graph, and expands
       them again. Against Union-Find over 8,000 shots at each of eighteen code, noise and distance
       combinations, it is lighter in every one. Every array it uses is sized before the search starts
-      and never grows: a bug in an algorithm this intricate should be a wrong answer the tests catch,
-      not a machine that runs out of memory.</dd>
+      and never grows, so a bug in the algorithm shows up as a wrong answer the tests catch rather
+      than as a machine that runs out of memory.</dd>
     </div>
     <div>
       <dt>Greedy decoder</dt>
@@ -929,26 +930,26 @@
     </div>
     <div>
       <dt>XZZX surface code</dt>
-      <dd>Every stabilizer measures alternating X and Z operators around its plaquette — X on one
-      diagonal, Z on the other — which under biased noise decouples the decoding problem and lifts
+      <dd>Every stabilizer measures alternating X and Z operators around its plaquette (X on one
+      diagonal, Z on the other), which under biased noise decouples the decoding problem and lifts
       the threshold. Getting this to work took three fixes; the third is described under
       <em>XZZX under a circuit</em>, further down this list. The decoder derived its defects once and
-      then matched them <em>twice</em>, on two graphs with different edge-to-qubit mappings, so every
-      defect was explained once with X operators and once with Z and both corrections applied; a
-      single X error returned the correct one-qubit X correction plus two invented Z ones, and their
-      number grew with the lattice. It now builds one graph carrying both edge families with a
-      per-edge type tag and matches once. Separately, the logical-operator check compared the
-      residual against a hard-coded alternating string of Paulis that did not represent a logical
-      operator of this lattice, so weight-one residuals — impossible logical errors in any code of
-      distance 3 or more — were counted as failures at every distance, which is why the error rate
-      came out flat instead of falling. That check now reduces the residual against a row-reduced
-      basis of the stabilizer group and asks whether anything is left, which needs no convention at
-      all. Brute-force search over the actual group confirms the construction was always sound:
-      minimum logical weight 3 at <span class="mono">d = 3</span> and above 4 at
+      then matched them twice, on two graphs with different edge-to-qubit mappings, so every defect
+      was explained once with X operators and once with Z and both corrections applied; a single X
+      error returned the correct one-qubit X correction plus two invented Z ones, and their number
+      grew with the lattice. It now builds one graph carrying both edge families with a per-edge
+      type tag and matches once. Separately, the logical-operator check compared the residual
+      against a hard-coded alternating string of Paulis that did not represent a logical operator of
+      this lattice, so weight-one residuals, which cannot be logical errors in any code of distance
+      3 or more, were counted as failures at every distance. That is why the error rate came out
+      flat instead of falling. The check now reduces the residual against a row-reduced basis of the
+      stabilizer group and asks whether anything is left, which needs no convention at all.
+      Brute-force search over the actual group confirms the construction was always sound: minimum
+      logical weight 3 at <span class="mono">d = 3</span> and above 4 at
       <span class="mono">d = 5</span>. After both fixes, no single X, Z or Y error causes a logical
       failure at any distance, the rate falls with distance at every bias, and XZZX beats the
-      rotated code under bias as it should — a data-noise result, which is the regime the figure in
-      section 8 measures.</dd>
+      rotated code under bias as it should. That is a data-noise result, which is the regime the
+      figure in section 8 measures.</dd>
     </div>
     <div>
       <dt>Noise models</dt>
@@ -957,7 +958,7 @@
       to the individual gates of the extraction circuit. The final round is noiseless in every
       model: defects are time differences, so a lie in the last round has no following round to
       cancel against and leaves an unpaired defect the decoder must match somewhere. Including it
-      made the code get <em>worse</em> with distance far below threshold — logical error rising from
+      made the code get worse with distance far below threshold, with logical error rising from
       1.9% at <span class="sym">d = 3</span> to 10.9% at <span class="sym">d = 7</span> at
       <span class="sym">p = 0.5%</span>. Bias, located erasure, spatial bursts, and slow temporal
       drift layer on top.</dd>
@@ -967,19 +968,19 @@
       <dd>Faults are attributed to individual gates of the extraction circuit, which makes them
       qualitatively harder than the other two models: a fault on an ancilla partway through its four
       CNOTs propagates onto every data qubit it has yet to touch, so one fault becomes a correlated
-      multi-qubit data error — a <em>hook error</em>. The phenomenological graph has no edge for
-      that, so the matcher used to explain it with two unrelated edges and could walk the correction
-      into a logical operator. About one single fault in thirty did exactly that, and the code got
-      worse with distance rather than better. This is now decoded against a detector error model
-      derived from the circuit instead: every elementary fault is propagated as a Pauli frame, and
-      the detectors it fires together with the data error it leaves behind become one edge. Edges may
-      correct several qubits at once, which is precisely what the old graph could not express.</dd>
+      multi-qubit data error, known as a <em>hook error</em>. The phenomenological graph has no edge
+      for that, so the matcher used to explain it with two unrelated edges and could walk the
+      correction into a logical operator. About one single fault in thirty did exactly that, and the
+      code got worse with distance rather than better. This is now decoded against a detector error
+      model derived from the circuit instead: every elementary fault is propagated as a Pauli frame,
+      and the detectors it fires together with the data error it leaves behind become one edge. Edges
+      may correct several qubits at once, which is what the old graph could not express.</dd>
     </div>
     <div>
       <dt>Building the model</dt>
       <dd>Two things make it tractable. The circuit is defined once, as
       <span class="mono">round_program</span>, and both the stabilizer simulation and the fault
-      propagation consume that same list — a model describing a subtly different circuit from the one
+      propagation consume that same list. A model describing a subtly different circuit from the one
       being run is worse than no model, and two hand-written copies would not stay in step. And the
       decomposition that usually makes this hard is free here: a fault firing three or more detectors
       normally has to be split into graph-like pieces, but the decoder already matches twice, once
@@ -990,73 +991,73 @@
     </div>
     <div>
       <dt>Checking it</dt>
-      <dd>A distance-d code must survive <em>any</em> single fault, which makes for a test that is
+      <dd>A distance-d code must survive any single fault, which makes for a test that is
       exhaustive and deterministic rather than statistical. Every fault the circuit admits is
       propagated, decoded against the model, corrected, and checked:
       <strong>0 failures out of 600, 3,240 and 9,408 faults</strong> at
-      <span class="mono">d = 3, 5, 7</span>, for Union-Find and exact MWPM alike. That test earned
-      its keep twice. It showed the two CNOT schedules had to be transposes of each other <em>the
-      other way round</em> from the pairing first tried — which passes at d = 5 and d = 7 and fails
+      <span class="mono">d = 3, 5, 7</span>, for Union-Find and exact MWPM alike. That test caught
+      two further bugs. It showed the two CNOT schedules had to be transposes of each other <em>the
+      other way round</em> from the pairing first tried, which passes at d = 5 and d = 7 and fails
       44 times out of 600 at d = 3, so sampling would likely have missed it. And it caught
       state-preparation noise being applied before the baseline round, where an error sits in both
       readings a detector compares, never fires it, and lands in the residual uncorrectable at any
       distance. With both fixed the logical error rate at <span class="mono">d = 3</span> scales as
-      p² as theory demands, and a threshold appears where it should. Locating it two ways — the
-      collapse fit in section 7 gives <span class="mono">0.42%</span>, with a bootstrap interval of
-      <span class="mono">0.35% – 0.49%</span>. That is the widest interval of the three models, and
-      honestly so: circuit-level is much the slowest to simulate, so its sweep affords 1,200 shots a
-      point where data noise gets 20,000, and the precision is limited by that rather than by the
+      p² as theory demands, and a threshold appears where it should. The collapse fit in section 7
+      puts it at <span class="mono">0.42%</span>, with a bootstrap interval of
+      <span class="mono">0.35% to 0.49%</span>. That is the widest interval of the three models, for
+      a good reason: circuit-level is much the slowest to simulate, so its sweep affords 1,200 shots
+      a point where data noise gets 20,000, and the precision is limited by that rather than by the
       fit. Its exponent, <span class="mono">ν = 0.96</span>, deserves the same caution.
       The XZZX model is
       held to the same bar and passes it: <strong>0 failures out of 672, 3,600 and 10,416
-      faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test paid
-      for itself a third time, settling a schedule that could not be reasoned out — see below.</dd>
+      faults</strong> at <span class="mono">d = 3, 5, 7</span>, both decoders. There the test caught
+      a third bug, settling a schedule that could not be reasoned out (see below).</dd>
     </div>
     <div>
       <dt>XZZX under a circuit</dt>
       <dd>The model above is built for a CSS code. A rotated plaquette measures either X or Z, so the
-      two error families light disjoint detectors, the decoder matches twice — once per family — and
+      two error families light disjoint detectors, the decoder matches twice (once per family), and
       that split is also what makes the decomposition free. An XZZX plaquette reads
       <span class="mono">X Z Z X</span> from a single ancilla: one syndrome bit, and both families
-      firing the <em>same</em> detectors. No such split exists. This pairing — XZZX with
-      circuit-level noise — was the last thing here that was simply wrong. It had received none of
-      the XZZX fixes, so it still matched two graphs and scored against the hard-coded string, and
-      its logical error rate <em>rose</em> with distance: 4.9% at <span class="mono">d = 3</span> to
-      40.6% at <span class="mono">d = 7</span>, at <span class="mono">p = 0.2%</span>. It now builds
-      one graph over a single node set, each edge naming the X part and the Z part of the correction
-      it implies. Only X and Z faults are enumerated, never Y — propagation is linear over the frame,
-      so a Y fault is exactly the composition of the two, and letting the matcher pick both graphlike
+      firing the same detectors. No such split exists. This pairing, XZZX with circuit-level noise,
+      was the last thing here that was simply wrong. It had received none of the XZZX fixes, so it
+      still matched two graphs and scored against the hard-coded string, and its logical error rate
+      rose with distance: 4.9% at <span class="mono">d = 3</span> to 40.6% at
+      <span class="mono">d = 7</span>, at <span class="mono">p = 0.2%</span>. It now builds one
+      graph over a single node set, each edge naming the X part and the Z part of the correction it
+      implies. Only X and Z faults are enumerated, never Y. Propagation is linear over the frame, so
+      a Y fault is exactly the composition of the two, and letting the matcher pick both graphlike
       edges reconstructs it. That is the decomposition the CSS model got for free. The circuit holds
       every ancilla in <span class="mono">|+&gt;</span> and reads an X leg with a CNOT, a Z leg with
       a CZ.
       <br><br>
-      The two sublattices have to walk their neighbours in <em>transposed</em> orders — the same
-      lesson the rotated code's N and Z schedules teach, and no more guessable the second time. With
-      any single order shared by both, all 24 permutations leave 10 to 12 of 672 single faults
-      uncorrectable at <span class="mono">d = 3</span>, while <span class="mono">d = 5</span> stays
-      clean — so only the exhaustive check at the smallest distance finds it. Searching the two
+      The two sublattices have to walk their neighbours in <em>transposed</em> orders. This is the
+      same lesson the rotated code's N and Z schedules teach, and it was no more guessable the second
+      time. With any single order shared by both, all 24 permutations leave 10 to 12 of 672 single
+      faults uncorrectable at <span class="mono">d = 3</span>, while <span class="mono">d = 5</span>
+      stays clean, so only the exhaustive check at the smallest distance finds it. Searching the two
       sublattices independently over all 576 combinations, scored on commutation against the tableau
       and on the single-fault check, leaves exactly 6 that pass. All 6 are transposes.
       <br><br>
       Its threshold comes out <span class="mono">0.49%</span> against the rotated code's
       <span class="mono">0.42%</span>, with bootstrap intervals of
-      <span class="mono">0.43 – 0.55%</span> and <span class="mono">0.35 – 0.49%</span> that
+      <span class="mono">0.43 to 0.55%</span> and <span class="mono">0.35 to 0.49%</span> that
       overlap. On this evidence the two are not separated, and at 1,200 shots a point they will not
-      be. The extra noise it carries shows up <em>below</em> threshold
-      instead. Every XZZX ancilla needs an H where the rotated code rotates only its X-type ones — 72
-      noise locations per round at <span class="mono">d = 3</span> against 64 — and at
-      <span class="mono">p = 0.26%, d = 7</span> that costs about 30% in logical error rate — 0.74%
-      against 0.58% over 40,000 shots, which is the sort of size 12% more locations would predict.
+      be. The extra noise it carries shows up below threshold instead. Every XZZX ancilla needs an H
+      where the rotated code rotates only its X-type ones (72 noise locations per round at
+      <span class="mono">d = 3</span> against 64), and at
+      <span class="mono">p = 0.26%, d = 7</span> that costs about 30% in logical error rate: 0.74%
+      against 0.58% over 40,000 shots, which is roughly the size 12% more locations would predict.
       <br><br>
-      The bias advantage <em>does</em> survive the circuit. At
+      The bias advantage does survive the circuit. At
       <span class="mono">d = 7, p = 0.3%</span>, going from <span class="mono">η = 1</span> to
       <span class="mono">η = 100</span> takes XZZX from 1.08% to 0.25% while the rotated code goes
-      the other way, 1.07% to 2.37% — better than nine-fold apart, where at
+      the other way, 1.07% to 2.37%. That is better than nine-fold apart, where at
       <span class="mono">η = 1</span> the two were level. This entry previously reported the
       opposite, on the strength of a rotated simulator that counted only the logical error its
-      preparation could see. Under strong Z-bias the failures it was missing are precisely the ones
+      preparation could see. Under strong Z-bias the failures it was missing are exactly the ones
       bias produces, so the rotated code appeared to improve. A measurement blind to half its
-      outcomes does not merely lose precision — it can invert the answer.</dd>
+      outcomes does not just lose precision; it can invert the answer.</dd>
     </div>
     <div>
       <dt>Located loss</dt>
@@ -1064,14 +1065,14 @@
       Pauli is uniform and unknown, but the <em>location</em> is not, so every decoding edge that
       location could have produced costs nothing and the matcher is free to route through it. Under
       circuit-level noise the location is a point in the circuit rather than a qubit, and an erasure
-      on an ancilla partway through its CNOTs frees everything the loss goes on to touch — the same
+      on an ancilla partway through its CNOTs frees everything the loss goes on to touch, by the same
       propagation that makes a hook error. The model already knows which edges each circuit location
       produces, so it answers that directly. The effect is what the physics says it should be: at
       <span class="mono">p = 0.8%</span> and <span class="mono">d = 5</span>, logical error falls
       from 17.9% with no erasure to 5.6% when half the faults are located and to 0.02% when all of
       them are. Fully located noise has its own threshold near
-      <span class="mono">p = 2%</span> — some four times the Pauli threshold, and still a threshold,
-      which is the check that the information is being used rather than assumed.</dd>
+      <span class="mono">p = 2%</span>, some four times the Pauli threshold. That it still has a
+      threshold is the check that the information is being used rather than assumed.</dd>
     </div>
     <div>
       <dt>Detection events</dt>
@@ -1084,40 +1085,39 @@
     <div>
       <dt>Logical channel</dt>
       <dd>Under Pauli noise and a Pauli decoder the logical qubit sees a Pauli channel, which
-      shrinks each Bloch axis independently, so the honest characterisation is the diagonal of its
-      transfer matrix — three factors in [−1, 1] that are all 1 when the channel does nothing. The
-      previous version ran three <em>identical</em> simulations, differing in nothing but the
-      variable each result was assigned to, and reported
-      <span class="mono">1 − 2·failure_rate</span> for each as though they were the components of a
-      state. At zero noise that gave the "vector" <span class="mono">(1, 1, 1)</span>, of length
-      &radic;3 — outside the Bloch sphere. The simulators now return which logical Pauli class
-      survived rather than a bare pass/fail, so the four channel probabilities can be counted and
-      the shrink factors computed properly.
+      shrinks each Bloch axis independently, so the right characterisation is the diagonal of its
+      transfer matrix: three factors in [−1, 1] that are all 1 when the channel does nothing. The
+      previous version ran three identical simulations, differing in nothing but the variable each
+      result was assigned to, and reported <span class="mono">1 − 2·failure_rate</span> for each as
+      though they were the components of a state. At zero noise that gave the "vector"
+      <span class="mono">(1, 1, 1)</span>, of length &radic;3, which is outside the Bloch sphere.
+      The simulators now return which logical Pauli class survived rather than a bare pass/fail, so
+      the four channel probabilities can be counted and the shrink factors computed properly.
       <br><br>
       That fix was at first only half applied, which an audit of the numbers caught: four of the six
       code-and-noise pairings still returned a bare pass/fail, and the channel built from them came
-      back with <span class="mono">r_x</span> pinned at exactly 1 — every failure counted as the same
-      kind. Two causes. The XZZX simulators asked their stabilizer group only <em>whether</em> the
-      residual was a logical operator, not which one; they now derive a pair of anticommuting logical
-      representatives — the null space of the commutation map, reduced modulo the stabilizer group —
-      and read the class off by commutation, so nothing is hard-coded. And the circuit-level
-      simulator asked the tableau, which can only answer the question its basis poses: prepared in
-      <span class="mono">|0_L&gt;</span> it sees a logical X and is blind to a logical Z, that being
-      an operator it commutes with. A Pauli frame now shadows the tableau through the same circuit
-      and gives both at once. The derived representatives are checked against the rotated code's own
-      independently known logicals — a column of X, a row of Z — over four thousand random residuals
-      at <span class="mono">d = 3</span> and <span class="mono">d = 5</span>.</dd>
+      back with <span class="mono">r_x</span> pinned at exactly 1, meaning every failure was counted
+      as the same kind. There were two causes. The XZZX simulators asked their stabilizer group only
+      whether the residual was a logical operator, not which one; they now derive a pair of
+      anticommuting logical representatives (the null space of the commutation map, reduced modulo
+      the stabilizer group) and read the class off by commutation, so nothing is hard-coded. And the
+      circuit-level simulator asked the tableau, which can only answer the question its basis poses:
+      prepared in <span class="mono">|0_L&gt;</span> it sees a logical X and is blind to a logical
+      Z, an operator it commutes with. A Pauli frame now shadows the tableau through the same
+      circuit and gives both at once. The derived representatives are checked against the rotated
+      code's own independently known logicals (a column of X, a row of Z) over four thousand random
+      residuals at <span class="mono">d = 3</span> and <span class="mono">d = 5</span>.</dd>
     </div>
     <div>
       <dt>Randomness</dt>
       <dd>Shot seeds come from SplitMix64 over a counter, itself seeded from
-      <span class="mono">crypto.getRandomValues</span> when the module is instantiated — so the
+      <span class="mono">crypto.getRandomValues</span> when the module is instantiated, so the
       figures re-sample on every reload rather than replaying one canned run. This was, until
       recently, the single largest defect in the engine: the WebAssembly build drew
-      <span class="mono">Xorshift::new(12345)</span> <em>inside each shot</em>, making every shot of
-      a batch bit-identical and collapsing every reported rate to a step function. Seeding one
-      generator per shot from the previous shot's state is not enough either — that hands each shot
-      its predecessor's stream offset by a single draw, and batch variance comes out several times
+      <span class="mono">Xorshift::new(12345)</span> inside each shot, making every shot of a batch
+      bit-identical and collapsing every reported rate to a step function. Seeding one generator per
+      shot from the previous shot's state is not enough either, because that hands each shot its
+      predecessor's stream offset by a single draw, and batch variance comes out several times
       larger than binomial. Measured after the fix, over twelve repeats at
       <span class="mono">d = 5, p = 5%, N = 4000</span>: observed σ 0.00224 against a binomial
       0.00222, a ratio of 1.01.</dd>
@@ -1126,7 +1126,7 @@
       <dt>Threading</dt>
       <dd>Two engine instances, seeded independently. The main thread keeps one for the
       interactive figures so clicks answer immediately; a worker holds a second for Monte Carlo, so
-      a long sweep never blocks the page. All sampling happens inside Rust — the browser only says
+      a long sweep never blocks the page. All sampling happens inside Rust; the browser only says
       how many shots to run.</dd>
     </div>
     <div>
@@ -1146,11 +1146,11 @@
       <span class="mono">wasm_noise_slots</span> gives the noise locations in one round, which is how
       the two codes' thresholds were compared on equal terms. Two more,
       <span class="mono">wasm_match_cost_ptr</span> and <span class="mono">wasm_match_solve</span>,
-      hand the exact matcher to anything that wants it — which is how the independent toric-code
+      hand the exact matcher to anything that wants it, which is how the independent toric-code
       cross-check in <span class="mono">tools/</span> got a decoder good enough to compare against.
-      The same crate also builds PyO3
-      bindings for offline benchmarking — see <span class="mono">run_benchmarks.py</span> — and the
-      Rust test suite carries the schedule search and the frame-against-tableau comparison.</dd>
+      The same crate also builds PyO3 bindings for offline benchmarking (see
+      <span class="mono">run_benchmarks.py</span>), and the Rust test suite carries the schedule
+      search and the frame-against-tableau comparison.</dd>
       </div>
     </dl>
 

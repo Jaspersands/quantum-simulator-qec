@@ -77,8 +77,8 @@ export function initSyndrome(root, instance) {
       session.toggleErasure(target.idx, target.t);
       // An erasure on its own moves no check, so without a word here the click
       // looks like it did nothing.
-      update('Marked as erased. A located loss changes no syndrome by itself — '
-        + 'what it gives the decoder is the position, which is worth far more '
+      update('Marked as erased. A located loss changes no syndrome by itself. '
+        + 'What it gives the decoder is the position, which is worth far more '
         + 'than the same error arriving unannounced.');
       return;
     }
@@ -121,16 +121,16 @@ export function initSyndrome(root, instance) {
       ? 'one at each end. Every check in the middle covers two of the errors, reads even parity, and stays quiet.'
       : defects === 1
         ? 'just one. The chain runs into the edge of the patch, and an endpoint that reaches a boundary is absorbed by it.'
-        : 'none at all. This chain reaches the boundary at both ends, so there is nothing left to detect — which is precisely the situation section 5 is about.';
-    update(`A straight chain of ${chain.length} errors, and ${defects} defect${defects === 1 ? '' : 's'} — ${tail}`);
+        : 'none at all. This chain reaches the boundary at both ends, so there is nothing left to detect. That is the situation section 5 is about.';
+    update(`A straight chain of ${chain.length} errors, and ${defects} defect${defects === 1 ? '' : 's'}: ${tail}`);
   });
 
   $('[data-syndrome-scatter]', root)?.addEventListener('click', () => {
     session.clearErrors();
     const touched = scatter(session, { p: 0.08 });
     update(touched
-      ? 'Depolarizing noise at p = 8% — the same channel the Monte Carlo uses. This is what the decoder actually receives.'
-      : 'Nothing landed that time — noise is random. Try again.');
+      ? 'Depolarizing noise at p = 8%, the same channel the Monte Carlo uses. This is what the decoder actually receives.'
+      : 'Nothing landed that time. Noise is random; try again.');
   });
 
   $('[data-syndrome-clear]', root)?.addEventListener('click', () => {

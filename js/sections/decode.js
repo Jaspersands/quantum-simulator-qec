@@ -79,7 +79,7 @@ export function initDecode(root, instance) {
     const decoder = Number(decoderSelect.value);
     const state = session.read();
     if (countSet(state.errorX) + countSet(state.errorZ) === 0) {
-      setVerdict('idle', 'Nothing to decode — inject some errors first.');
+      setVerdict('idle', 'Nothing to decode. Inject some errors first.');
       return;
     }
 
@@ -100,7 +100,7 @@ export function initDecode(root, instance) {
         `<strong>Recovered exactly.</strong> ${name} reconstructed the error it was shown. Residual weight 0.`);
     } else {
       setVerdict('ok',
-        `<strong>Recovered.</strong> ${name} did not guess your exact error — a residual of weight ${weight} is left behind — `
+        `<strong>Recovered.</strong> ${name} did not guess your exact error, and a residual of weight ${weight} is left behind, `
         + `but it closes into loops rather than crossing the patch, and loops act trivially on the logical qubit. `
         + `A different guess, the same outcome.`);
     }
@@ -132,7 +132,7 @@ export function initDecode(root, instance) {
     const checked = $$('[name="decode-error-type"]', root).find((r) => r.checked);
     session.toggleError(target.idx, Number(checked?.value ?? ERROR.X), target.t);
     decoded = false;
-    setVerdict('idle', 'Syndrome changed — run the decoder again.');
+    setVerdict('idle', 'Syndrome changed. Run the decoder again.');
     update();
   };
 

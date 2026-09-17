@@ -203,7 +203,7 @@ export function initResultsTable(root, compute) {
     status.textContent = `Measuring… ${done} / ${total} cells`;
     paint();
   }).then(() => {
-    status.textContent = `Complete — ${count(cells.length * TABLE_RUNS)} Monte Carlo runs in your browser.`;
+    status.textContent = `Complete: ${count(cells.length * TABLE_RUNS)} Monte Carlo runs in your browser.`;
     caption.textContent = 'Union-Find decoder, rotated surface code, unbiased noise. '
       + 'Ranges are Wilson 95% intervals. The verdict row reads "too close" where those intervals '
       + 'overlap, which is what sitting on the threshold looks like. Every figure here was computed '
@@ -301,7 +301,7 @@ export function initThresholdSweep(root, compute) {
     if (!fit?.ok) {
       fill(results, el('p', {
         class: 'muted fit-note',
-        text: `No threshold reported — ${(fit?.reason ?? 'the fit did not converge').replace(/\.$/, '')}.`,
+        text: `No threshold reported: ${(fit?.reason ?? 'the fit did not converge').replace(/\.$/, '')}.`,
       }));
       return;
     }
@@ -363,12 +363,12 @@ export function initThresholdSweep(root, compute) {
         class: 'note',
         text: fit.corrected
           ? 'Fitted with the leading correction to scaling, which the collapse alone leaves out. '
-            + `Without it the same data gives ${percent(fit.leading.pTh)} — that gap is the `
+            + `Without it the same data gives ${percent(fit.leading.pTh)}. That gap is the `
             + 'finite-size effect, not a disagreement about the physics. The interval is a '
             + 'bootstrap over the shots.'
             + (fit.omegaAtEdge
               ? ' ω ran to the top of its range, which means the correction is confined to the '
-                + 'smallest patch rather than decaying gently — read it as a floor, not a value.'
+                + 'smallest patch rather than decaying gently, so read it as a floor, not a value.'
               : '')
             + (fit.nuDetermined
               ? ''
@@ -421,7 +421,7 @@ export function initThresholdSweep(root, compute) {
       const fit = fitThreshold(points, { bootstrap: 120 });
       drawPlot(fit);
       showFit(fit, points.length * runs);
-      status.textContent = `Done — ${count(points.length * runs)} runs across ${points.length} points.`;
+      status.textContent = `Done: ${count(points.length * runs)} runs across ${points.length} points.`;
     } catch (error) {
       status.textContent = `Sweep failed: ${error.message}`;
     } finally {
@@ -449,7 +449,7 @@ export function initThresholdSweep(root, compute) {
   }
   describeSweep();
     describeSweep();
-    fill(results, el('p', { class: 'muted fit-note', text: 'Range changed — run the sweep.' }));
+    fill(results, el('p', { class: 'muted fit-note', text: 'Range changed. Run the sweep.' }));
     status.textContent = 'Ready.';
     drawPlot(null);
   });

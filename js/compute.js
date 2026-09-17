@@ -419,7 +419,7 @@ export function fitThreshold(points, options = {}) {
   const rates = usable.map((pt) => pt.pL);
   const resolution = Math.min(...usable.map((pt) => 1 / pt.runs));
   if (Math.max(...rates) - Math.min(...rates) <= resolution) {
-    return reject('every point returned the same logical error rate — the sweep '
+    return reject('every point returned the same logical error rate, so the sweep '
       + 'carries no signal to fit. Widen the range of p, or raise the shot count.');
   }
 

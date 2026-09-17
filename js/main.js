@@ -34,7 +34,7 @@ function fail(message) {
   host.textContent = message;
 }
 
-const SERVE_HINT = 'ES modules and the .wasm fetch both need HTTP — run '
+const SERVE_HINT = 'ES modules and the .wasm fetch both need HTTP. Run '
   + '`python3 -m http.server` from the project root rather than opening the file directly.';
 
 async function boot() {
@@ -49,8 +49,8 @@ async function boot() {
     compute = new Compute();
   } catch (error) {
     fail(`Could not start the simulation worker (${error.message}). `
-      + 'The Monte Carlo sections — the results table, the threshold sweep, the bias comparison, '
-      + 'and the bench — need module workers, which this browser appears not to support. '
+      + 'The Monte Carlo sections (the results table, the threshold sweep, the bias comparison, '
+      + 'and the bench) need module workers, which this browser appears not to support. '
       + 'The interactive lattice figures below still work.');
   }
 
