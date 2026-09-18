@@ -31,9 +31,9 @@
 
   /* Semantic accents — muted enough to sit on cream */
   --x:      #2f5fd0;
-  --x-soft: #d3def6;
+  --x-soft: #dfe7fa;
   --z:      #c0392b;
-  --z-soft: #f4d6d1;
+  --z-soft: #f8e2df;
   --y:      #7b4bb5;
   --y-soft: #ebe1f7;
   /* The -soft pairs are fills; the -ink pairs are the readable text on them.
@@ -267,44 +267,31 @@ img { max-width: 100%; height: auto; }
 }
 .hero__lede strong { color: var(--ink); font-weight: 600; }
 
-/* The lede and readout on the left, the live lattice filling the right: a
-   diagram that happens to be running. */
-.hero__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
-  gap: var(--s6) var(--s7);
-  align-items: center;
-  margin-top: var(--s5);
-}
-.hero__text { min-width: 0; }
+/* The live lattice: the middle rows of a large patch, drawn as an ink figure
+   the full width of the column, between the lede and the stat cards. */
 .opener { min-width: 0; }
 .opener__canvas {
   width: 100%;
-  height: 480px;
+  height: 300px;
   touch-action: pan-y;
   cursor: crosshair;
 }
 .opener--still .opener__canvas { cursor: default; }
 .opener__readout {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, max-content));
-  gap: 2px var(--s5);
-  margin: var(--s5) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  margin: var(--s3) 0 0;
   font-family: var(--font-mono);
   font-size: var(--t-micro);
+  letter-spacing: 0.02em;
   color: var(--ink-3);
 }
 .opener__readout b { color: var(--ink); font-weight: 600; transition: color 0.25s; }
 .opener__readout b.flare { color: var(--fail); }
-.opener__readout .vital__unit { color: var(--ink-3); font-weight: 400; }
-@media (max-width: 860px) {
-  .hero__grid { grid-template-columns: minmax(0, 1fr); }
-  .opener__canvas { height: 360px; }
-}
-@media (max-width: 560px) {
-  .opener__canvas { height: 300px; }
-  .opener__readout { grid-template-columns: minmax(0, 1fr); }
-}
+.opener__hint { margin-left: auto; }
+@media (max-width: 860px) { .opener__canvas { height: 260px; } .opener__hint { margin-left: 0; } }
+@media (max-width: 560px) { .opener__canvas { height: 220px; } }
 
 .section__head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
 
@@ -571,6 +558,27 @@ input[type="number"] { cursor: text; }
 /* --------------------------------------------------------------------------
    9. Data display
    -------------------------------------------------------------------------- */
+
+.vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--s4); }
+
+.vital {
+  background: var(--surface);
+  border: var(--rule-w) solid var(--rule);
+  box-shadow: var(--lift-1);
+  padding: var(--s4);
+}
+.vital__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin-bottom: var(--s1);
+}
+.vital__value { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+.vital__unit { font-size: 0.72em; color: var(--ink-3); }
+.vital__note { font-size: var(--t-micro); color: var(--ink-3); margin-top: var(--s1); }
 
 /* A value still being computed */
 .pending { color: var(--ink-3); font-weight: 400; }

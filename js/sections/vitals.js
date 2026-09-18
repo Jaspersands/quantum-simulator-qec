@@ -1,5 +1,5 @@
 /**
- * The throughput figures in the readout under the lede.
+ * The four cards under the live lattice.
  *
  * Throughput is measured in the reader's own browser on load rather than being
  * quoted from a benchmark run once on the author's machine. The numbers a
@@ -39,9 +39,8 @@ export function initVitals(root, compute) {
       el('span', { class: 'vital__unit', text: ' runs/s' }),
     ]);
     if (note) {
-      note.textContent = 'Move the pointer over the patch to add errors; a chain across the whole width is a '
-        + `logical error. Throughput timed on this device just now, best of several samples over `
-        + `${count(result.sampleRuns)} decoded shots at d = 5; a throttled or busy machine will read lower.`;
+      note.textContent = `Timed on this device just now, best of several samples over `
+        + `${count(result.sampleRuns)} decoded shots at d = 5. A throttled or busy machine will read lower.`;
     }
   }).catch((error) => {
     dataRate.innerHTML = '<span class="muted">unavailable</span>';
