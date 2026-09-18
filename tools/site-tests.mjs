@@ -1,6 +1,6 @@
 // Node tests for the pure site modules. Run: node tools/site-tests.mjs
 import assert from 'node:assert/strict';
-import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } from '../js/opener-math.js';
+import { poisson, footprintRate, layoutFor, bandLayoutFor, chainsFromCorrection, pickPauli } from '../js/opener-math.js';
 import { planChunks } from '../js/stream.js';
 
 let passed = 0, failed = 0;
@@ -31,6 +31,16 @@ test('layoutFor: the patch fills the height and is centred horizontally', () => 
   assert.equal(L.originX, 310);
   assert.equal(L.originY, 20);
   assert.ok(Math.abs(L.unit - 380 / 30) < 1e-9);
+});
+
+test('bandLayoutFor: an odd distance about one cell per `cell` px, the patch spanning the width, centred vertically', () => {
+  const L = bandLayoutFor(1080, 300, 32);
+  assert.equal(L.d, 35);
+  assert.ok(Math.abs(L.unit * (2 * L.d + 2.4) - 1080) < 1e-9);          // patch plus a 1.2-unit margin each side
+  assert.ok(Math.abs(L.originX - 1.2 * L.unit) < 1e-9);
+  assert.ok(L.originY < 0 && Math.abs(L.originY - (300 - 2 * L.d * L.unit) / 2) < 1e-9);
+  assert.equal(bandLayoutFor(358, 220, 22).d, 17);
+  assert.equal(bandLayoutFor(100, 100, 40).d, 5);
 });
 
 test('pickPauli follows the mix', () => {

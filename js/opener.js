@@ -1,46 +1,48 @@
 /**
  * The live lattice at the top of the page.
  *
- * A distance-d rotated patch on the main-thread engine, taking Poisson noise
- * and pointer noise, decoded by exact MWPM every round, drawn as an ink
- * diagram on the paper. It has its own renderer: the figures' LatticeView is
- * built for small patches with hover and keyboard cursors, and this one needs
- * neither, but does need per-frame animation of the decoder's chains.
+ * A large rotated patch on the main-thread engine, as wide as the column and
+ * cropped to a band, taking Poisson noise and pointer noise and decoded by
+ * exact MWPM every round. It is drawn as an ink figure: hairline grid, small
+ * dots, a whisper of tint on the checks, errors and corrections as marks. It
+ * has its own renderer: the figures' LatticeView is built for small patches
+ * with hover and keyboard cursors, and this one needs neither, but does need
+ * per-frame animation of the decoder's chains.
  */
 
 import { Session, DECODER, ERROR, STAB } from './engine.js';
-import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } from './opener-math.js';
+import { poisson, footprintRate, bandLayoutFor, chainsFromCorrection, pickPauli } from './opener-math.js';
 import { $ } from './dom.js';
 
 const C = {
-  PAD: 18,
-  AMBIENT: 0.8,                                           // errors / s over the patch
+  CELL: 32, CELL_PHONE: 24,                               // px per lattice cell; sets the distance from the width
+  AMBIENT: 2.4,                                           // errors / s over the patch; about a third of it lands in the band
   CURSOR_PEAK: 6, CURSOR_SIGMA: 1.1,                      // errors / s / qubit at the pointer; cells
   PAULI: [['X', 0.45], ['Z', 0.45], ['Y', 0.10]],
   CURSOR_PAULI: [['X', 0.8], ['Z', 0.15], ['Y', 0.05]],   // bit-flip biased, so a sweep builds a chain
-  MAX_PENDING: 90,
-  ROUND: 1400, TICK: 50,                                  // ms
-  T_ERR: 180, T_DEF: 220, T_CHAIN: 380, T_HOLD: 260, T_FADE: 320, T_FLASH: 600,
+  MAX_PENDING: 120,
+  ROUND: 1500, TICK: 50,                                  // ms
+  T_ERR: 180, T_DEF: 220, T_CHAIN: 420, T_HOLD: 300, T_FADE: 360, T_FLASH: 700,
+  TINT: 0.07,                                             // the checkerboard, as a whisper
 };
-
-/** Code distance for the space the patch has: the shorter side of the canvas. */
-function distanceFor(side) {
-  if (side < 320) return 9;
-  if (side < 420) return 11;
-  return 15;
-}
 
 /** Read the palette out of CSS so the stylesheet stays the single source. */
 function palette() {
   const css = getComputedStyle(document.documentElement);
   const get = (name, fallback) => (css.getPropertyValue(name).trim() || fallback);
   return {
-    surface: get('--surface', '#fffefb'), ink: get('--ink', '#1c1d1f'), ink3: get('--ink-3', '#6b6d71'),
-    rule: get('--rule-soft', '#ded9cd'), x: get('--x', '#2f5fd0'), xSoft: get('--x-soft', '#d3def6'),
-    z: get('--z', '#c0392b'), zSoft: get('--z-soft', '#f4d6d1'), y: get('--y', '#7b4bb5'),
+    surface: get('--surface', '#fffefb'), ink: get('--ink', '#1c1d1f'), ink2: get('--ink-2', '#4a4c50'),
+    ink3: get('--ink-3', '#6b6d71'), rule: get('--rule', '#1c1d1f'),
+    x: get('--x', '#2f5fd0'), z: get('--z', '#c0392b'), y: get('--y', '#7b4bb5'),
     defect: get('--defect', '#c98a06'), defectSoft: get('--defect-soft', '#fbeec6'),
     ok: get('--ok', '#2c7a4b'), fail: get('--fail', '#b23a2e'),
   };
+}
+
+/** `#rrggbb` at an alpha, for the tints the tokens do not carry. */
+function withAlpha(hex, alpha) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 export function initOpener(root, instance) {
@@ -56,7 +58,7 @@ export function initOpener(root, instance) {
   const now = () => performance.now();
 
   const S = {
-    session: null, L: null, width: 0, height: 0, dpr: 1, plaquettes: [],
+    session: null, L: null, width: 0, height: 0, dpr: 1, plaquettes: [], rowVisible: [], stabVisible: [],
     pending: [], lit: new Map(), anim: null, flashAt: -Infinity,
     rounds: 0, phys: 0, logical: 0, decodeMs: null,
     pointer: { x: 0, y: 0, t: -Infinity },
@@ -70,20 +72,22 @@ export function initOpener(root, instance) {
     S.session = new Session(instance, { d, rounds: 1 });
     S.pending = []; S.lit = new Map(); S.anim = null;
     out.d.textContent = String(d);
-    canvas.setAttribute('aria-label', canvas.getAttribute('aria-label').replace(/distance-\d+/, `distance-${d}`));
+    canvas.setAttribute('aria-label', canvas.getAttribute('aria-label').replace(/of a (distance-\d+ )?large/, `of a distance-${d} large`));
   }
 
   function fit() {
     const rect = canvas.getBoundingClientRect();
-    const w = rect.width || 800, h = rect.height || 420;
+    const w = rect.width || 800, h = rect.height || 300;
     S.dpr = Math.min(2, devicePixelRatio || 1);
     canvas.width = Math.round(w * S.dpr); canvas.height = Math.round(h * S.dpr);
     ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
     S.width = w; S.height = h;
-    const d = distanceFor(Math.min(w, h));
-    if (!S.session || S.session.d !== d) rebuild(d);
-    S.L = layoutFor(w, h, d, C.PAD);
+    S.L = bandLayoutFor(w, h, w < 560 ? C.CELL_PHONE : C.CELL);
+    if (!S.session || S.session.d !== S.L.d) rebuild(S.L.d);
     S.plaquettes = S.session.stabilizers.map((st) => plaquette(st));
+    // Rows above and below the band are decoded but never drawn.
+    S.rowVisible = S.session.dataQubits.map((q) => { const y = at(q.x, q.y).y; return y > -S.L.unit && y < h + S.L.unit; });
+    S.stabVisible = S.session.stabilizers.map((st) => { const y = at(st.x, st.y).y; return y > -2 * S.L.unit && y < h + 2 * S.L.unit; });
     S.dirty = true;
   }
 
@@ -187,46 +191,62 @@ export function initOpener(root, instance) {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
   function drawStatic() {
-    for (const p of S.plaquettes) {
+    const { unit } = S.L;
+    // Checks: a whisper of tint, so the checkerboard is there when you look for it.
+    for (let i = 0; i < S.plaquettes.length; i++) {
+      if (!S.stabVisible[i]) continue;
+      const p = S.plaquettes[i];
       tracePlaquette(p);
-      ctx.fillStyle = p.st.type === STAB.X ? colors.xSoft : colors.zSoft;
+      ctx.fillStyle = withAlpha(p.st.type === STAB.X ? colors.x : colors.z, C.TINT);
       ctx.fill();
-      ctx.strokeStyle = colors.rule; ctx.lineWidth = 1; ctx.stroke();
     }
-    const r = Math.max(2.2, Math.min(4, S.L.unit * 0.28));
+    // The grid: hairlines through the qubits, which bound every plaquette.
+    const d = S.session.d;
+    ctx.beginPath();
+    for (let i = 0; i < d; i++) {
+      const v = (2 * i + 1) * unit;
+      const y = S.L.originY + v;
+      if (y > -unit && y < S.height + unit) { ctx.moveTo(S.L.originX + unit, y); ctx.lineTo(S.L.originX + (2 * d - 1) * unit, y); }
+      ctx.moveTo(S.L.originX + v, Math.max(0, S.L.originY + unit)); ctx.lineTo(S.L.originX + v, Math.min(S.height, S.L.originY + (2 * d - 1) * unit));
+    }
+    ctx.strokeStyle = withAlpha(colors.ink, 0.22); ctx.lineWidth = 0.6; ctx.stroke();
+    // Boundary checks: hairline outlines only.
+    ctx.beginPath();
+    for (let i = 0; i < S.plaquettes.length; i++) {
+      if (!S.stabVisible[i] || S.plaquettes[i].pts.length !== 2) continue;
+      tracePlaquette(S.plaquettes[i]);
+      ctx.strokeStyle = withAlpha(colors.ink, 0.22); ctx.lineWidth = 0.6; ctx.stroke();
+    }
+    // Qubits: small ink dots.
+    const r = Math.max(1.4, Math.min(2.2, unit * 0.13));
+    ctx.fillStyle = withAlpha(colors.ink, 0.55);
     for (const q of S.session.dataQubits) {
+      if (!S.rowVisible[q.idx]) continue;
       const c = at(q.x, q.y);
-      ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = colors.surface; ctx.fill();
-      ctx.strokeStyle = colors.ink3; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fill();
     }
   }
 
   function drawLit(idx, alpha) {
+    if (!S.stabVisible[idx]) return;
     const p = S.plaquettes[idx];
     ctx.globalAlpha = alpha;
     tracePlaquette(p);
-    ctx.fillStyle = colors.defectSoft; ctx.fill();
-    ctx.strokeStyle = colors.defect; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = withAlpha(colors.defect, 0.16); ctx.fill();
+    ctx.strokeStyle = colors.defect; ctx.lineWidth = 1; ctx.stroke();
     const c = at(p.st.x, p.st.y);
-    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2.5, S.L.unit * 0.3), 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, S.L.unit * 0.16), 0, Math.PI * 2);
     ctx.fillStyle = colors.defect; ctx.fill();
     ctx.globalAlpha = 1;
   }
 
   function drawError(e, grow, alpha) {
+    if (!S.rowVisible[e.q]) return;
     const q = S.session.dataQubits[e.q], c = at(q.x, q.y);
-    const r = Math.max(3, S.L.unit * (0.3 + 0.28 * grow));
+    const r = Math.max(2.5, S.L.unit * (0.2 + 0.14 * grow));
     ctx.globalAlpha = alpha;
     ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
     ctx.fillStyle = pauliColor(e.pauli); ctx.fill();
-    if (r >= 6) {
-      // The letter is the second, non-colour channel for the Pauli type, as in the figures.
-      ctx.fillStyle = colors.surface;
-      ctx.font = `700 ${Math.round(r * 1.15)}px "JetBrains Mono", monospace`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(e.pauli, c.x, c.y);
-    }
     ctx.globalAlpha = 1;
   }
 
@@ -245,10 +265,11 @@ export function initOpener(root, instance) {
   function drawChains(chains, frac, alpha) {
     ctx.save();
     ctx.globalAlpha = alpha; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = colors.ok; ctx.lineWidth = Math.max(2, S.L.unit * 0.22);
+    ctx.strokeStyle = colors.ok; ctx.lineWidth = 1.6;
     for (const ch of chains) {
+      if (!ch.qubits.some((q) => S.rowVisible[q])) continue;
       const pts = ch.qubits.map((q) => at(S.session.dataQubits[q].x, S.session.dataQubits[q].y));
-      if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, Math.max(5, S.L.unit * 0.45), 0, Math.PI * 2); ctx.stroke(); }
+      if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0].x, pts[0].y, Math.max(4, S.L.unit * 0.3), 0, Math.PI * 2); ctx.stroke(); }
       else strokePartial(pts, frac);
     }
     ctx.restore();
@@ -273,19 +294,16 @@ export function initOpener(root, instance) {
     }
     const flash = t - S.flashAt;
     if (flash >= 0 && flash < C.T_FLASH) {
-      ctx.save();
-      ctx.globalAlpha = 0.5 * (1 - flash / C.T_FLASH);
-      ctx.strokeStyle = colors.fail; ctx.lineWidth = 6;
-      ctx.strokeRect(S.L.originX - 3, S.L.originY - 3, S.L.size + 6, S.L.size + 6);
-      ctx.restore();
+      // A logical error: the band takes a wash of the failure colour and lets it go.
+      ctx.fillStyle = withAlpha(colors.fail, 0.09 * (1 - flash / C.T_FLASH));
+      ctx.fillRect(0, 0, S.width, S.height);
     }
     if (t - S.pointer.t < 400) {
       const r = 2.4 * C.CURSOR_SIGMA * 2 * S.L.unit;
       const g = ctx.createRadialGradient(S.pointer.x, S.pointer.y, 0, S.pointer.x, S.pointer.y, r);
-      g.addColorStop(0, colors.defectSoft); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.save(); ctx.globalAlpha = 0.45; ctx.fillStyle = g;
+      g.addColorStop(0, withAlpha(colors.defect, 0.10)); g.addColorStop(1, withAlpha(colors.defect, 0));
+      ctx.fillStyle = g;
       ctx.fillRect(S.pointer.x - r, S.pointer.y - r, 2 * r, 2 * r);
-      ctx.restore();
     }
   }
 
@@ -302,11 +320,11 @@ export function initOpener(root, instance) {
 
   function still() {
     root.querySelector('.opener')?.classList.add('opener--still');
-    const d = S.session.d, row = Math.floor(d / 2), col = Math.floor(d / 3);
+    const d = S.session.d, row = Math.floor(d / 2), col = Math.floor(d / 4);
     const t = now();
-    for (let c = col; c < col + 3; c++) inject(row * d + c, 'X', t);              // a short X chain
-    const top = Math.max(0, row - 5);
-    for (let r = top; r < top + 2; r++) inject(r * d + col + Math.floor(d / 2), 'Z', t);   // and a Z pair above it
+    for (let c = col; c < col + 4; c++) inject(row * d + c, 'X', t);              // a short X chain in the band
+    const top = Math.max(0, row - 2);
+    for (let r = top; r < top + 2; r++) inject(r * d + Math.min(d - 1, col + Math.floor(d / 2)), 'Z', t);   // and a Z pair beside it
     refreshLit(t);
     const { correctionX, correctionZ } = S.session.decode(DECODER.MWPM);
     const anim = { t0: t - C.T_CHAIN, chains: chainsFromCorrection(S.session, correctionX, correctionZ), errors: S.pending, lit: [...S.lit.keys()], failed: false };

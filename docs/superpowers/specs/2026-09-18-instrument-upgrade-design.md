@@ -3,6 +3,17 @@
 **Date:** 2026-09-18
 **Status:** Approved (direction C, "Instrument"; Jasper asked for the plan and the build to run overnight)
 
+## Amendment (2026-09-19)
+
+Jasper's read of the first build: "the old version looked a little more sophisticated and the new
+version looks a little too toy … just want the top especially to look very sophisticated like it
+did." The top now keeps the old structure exactly — eyebrow, title, lede, the four stat cards — and
+the live lattice sits between the lede and the cards as an ink figure: a distance-35 patch as wide
+as the column, cropped to a 300 px band, hairline grid, small dots, a 7 % tint on the checks, errors
+as small marks, defects as thin amber outlines, corrections as thin green lines. The two-column
+hero, the pastel tiles and the lettered discs are gone; the washes are back to their original
+values. Section 1 below describes the first build and is superseded by this.
+
 ## Problem
 
 jaspersands.com now opens with a distance-27 surface code decoded live by this engine. Next to it
