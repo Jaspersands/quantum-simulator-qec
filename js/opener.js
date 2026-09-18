@@ -304,8 +304,9 @@ export function initOpener(root, instance) {
     root.querySelector('.opener')?.classList.add('opener--still');
     const d = S.session.d, row = Math.floor(d / 2), col = Math.floor(d / 3);
     const t = now();
-    for (let c = col; c < col + 3; c++) inject(row * d + c, 'X', t);
-    for (let r = row - 5; r < row - 3; r++) inject(r * d + col + Math.floor(d / 2), 'Z', t);
+    for (let c = col; c < col + 3; c++) inject(row * d + c, 'X', t);              // a short X chain
+    const top = Math.max(0, row - 5);
+    for (let r = top; r < top + 2; r++) inject(r * d + col + Math.floor(d / 2), 'Z', t);   // and a Z pair above it
     refreshLit(t);
     const { correctionX, correctionZ } = S.session.decode(DECODER.MWPM);
     const anim = { t0: t - C.T_CHAIN, chains: chainsFromCorrection(S.session, correctionX, correctionZ), errors: S.pending, lit: [...S.lit.keys()], failed: false };
@@ -329,6 +330,8 @@ export function initOpener(root, instance) {
   readout();
   if (reduced) {
     still();
+    let rt = 0;
+    addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fit(); still(); }, 150); });
   } else {
     canvas.addEventListener('pointermove', (e) => {
       const r = canvas.getBoundingClientRect();
