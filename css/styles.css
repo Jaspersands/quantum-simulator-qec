@@ -267,31 +267,18 @@ img { max-width: 100%; height: auto; }
 }
 .hero__lede strong { color: var(--ink); font-weight: 600; }
 
-/* The live lattice: the middle rows of a large patch, drawn as an ink figure
-   the full width of the column, between the lede and the stat cards. */
-.opener { min-width: 0; }
+/* The live patch under the hero, in the figure vocabulary. */
+.opener { margin-top: var(--s7); }
+.opener__stage { align-items: center; }
 .opener__canvas {
   width: 100%;
-  height: 300px;
+  max-width: 560px;
+  aspect-ratio: 1 / 1;
   touch-action: pan-y;
   cursor: crosshair;
 }
 .opener--still .opener__canvas { cursor: default; }
-.opener__readout {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s1) var(--s4);
-  margin: var(--s3) 0 0;
-  font-family: var(--font-mono);
-  font-size: var(--t-micro);
-  letter-spacing: 0.02em;
-  color: var(--ink-3);
-}
-.opener__readout b { color: var(--ink); font-weight: 600; transition: color 0.25s; }
-.opener__readout b.flare { color: var(--fail); }
-.opener__hint { margin-left: auto; }
-@media (max-width: 860px) { .opener__canvas { height: 260px; } .opener__hint { margin-left: 0; } }
-@media (max-width: 560px) { .opener__canvas { height: 220px; } }
+.readout__val.flare { color: var(--fail); transition: color 0.25s; }
 
 .section__head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
 

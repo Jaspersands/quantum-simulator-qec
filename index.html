@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/styles.css?v=2026-09-19">
 </head>
 <body>
 
@@ -55,19 +55,6 @@
     Everything below is a real stabilizer simulator running in your browser, not a recording of one.
   </p>
 
-  <div class="opener pad-top">
-    <canvas class="opener__canvas" data-opener-canvas
-      aria-label="The middle rows of a large rotated surface code taking random errors and correcting them with minimum-weight perfect matching, live. Move the pointer over it to add noise."></canvas>
-    <p class="opener__readout" data-opener-readout>
-      <span>d = <b data-opener-d>·</b></span>
-      <span>rounds <b data-opener-rounds>0</b></span>
-      <span>physical errors <b data-opener-phys>0</b></span>
-      <span>logical errors <b data-opener-logic>0</b></span>
-      <span>MWPM <b data-opener-ms>·</b></span>
-      <span class="opener__hint">move the pointer to add errors · a chain across the whole width is a logical error</span>
-    </p>
-  </div>
-
   <div class="vitals pad-top">
     <div class="vital">
       <div class="vital__label">Data noise</div>
@@ -90,6 +77,37 @@
   </div>
   <p class="rig__caption" data-vitals-note>Measuring throughput on this device…</p>
 </header>
+
+<figure class="figure opener" data-opener>
+  <figcaption class="figure__cap">
+    <span class="figure__num">Live</span>
+    <span class="figure__title">a patch under noise, decoded every round</span>
+    <span class="figure__meta">exact MWPM · move the pointer to add errors</span>
+  </figcaption>
+  <div class="figure__body">
+    <div class="rig rig--wide">
+      <div class="rig__stage opener__stage">
+        <canvas class="opener__canvas" data-opener-canvas
+          aria-label="A distance-15 rotated surface code taking random errors and correcting them with minimum-weight perfect matching, live. Move the pointer over it to add noise."></canvas>
+      </div>
+      <div class="rig__controls">
+        <div class="readout" aria-live="off">
+          <div class="readout__row"><span class="readout__key">distance</span><span class="readout__val" data-opener-d>·</span></div>
+          <div class="readout__row"><span class="readout__key">rounds</span><span class="readout__val" data-opener-rounds>0</span></div>
+          <div class="readout__row"><span class="readout__key">physical errors</span><span class="readout__val" data-opener-phys>0</span></div>
+          <div class="readout__row"><span class="readout__key">logical errors</span><span class="readout__val" data-opener-logic>0</span></div>
+          <div class="readout__row"><span class="readout__key">decode</span><span class="readout__val" data-opener-ms>·</span></div>
+        </div>
+        <div class="legend" data-opener-legend></div>
+        <p class="note">
+          Errors arrive at random, and under the pointer. Each round the decoder matches the fired
+          checks and the correction is drawn; a chain of errors across the whole width that the
+          decoder cannot tell from a correction is a logical error.
+        </p>
+      </div>
+    </div>
+  </div>
+</figure>
 
 
 <!-- 01 ================================================================== -->
@@ -1210,6 +1228,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js?v=2026-09-19"></script>
 </body>
 </html>

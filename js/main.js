@@ -72,7 +72,7 @@ async function boot() {
   }
 
   // The lattice at the top runs first; the figures below share the same instance.
-  window.__opener = initOpener($('#overview'), instance);
+  window.__opener = initOpener($('[data-opener]'), instance);
 
   initAnatomy($('#anatomy'), instance);
   initSyndrome($('#syndrome'), instance);
