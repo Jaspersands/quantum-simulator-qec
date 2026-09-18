@@ -13,6 +13,7 @@
 import { Session, ERROR, CODE, DECODER_NAME } from '../engine.js';
 import { LatticeView, legendHTML } from '../lattice.js';
 import { countSet } from '../patterns.js';
+import { ambient } from '../ambient.js';
 import { $, $$, fill, el } from '../dom.js';
 
 export function initSpacetime(root, instance) {
@@ -130,5 +131,30 @@ export function initSpacetime(root, instance) {
   decoderSelect.addEventListener('change', () => { if (decoded) $('[data-spacetime-run]', root).click(); });
 
   rebuild();
+
+  // Ambient: the stack reveals itself on first sight, then a readout lies now and then.
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  let revealed = false;
+  ambient({
+    root, canvas, every: 4000,
+    act: async () => {
+      if (!revealed) {
+        revealed = true;
+        for (let k = 1; k <= session.rounds; k++) { view.visibleRounds = k; view.draw(); await wait(350); }
+        view.visibleRounds = Infinity; view.draw();
+        return;
+      }
+      const state = session.read();
+      if (state.defects.some((v) => v)) return;       // the reader has left something in place
+      const idx = Math.floor(Math.random() * session.numStab);
+      const t = Math.max(0, Math.floor(session.rounds / 2) - 1);
+      session.toggleMeasurementError(idx, t);
+      update();
+      await wait(2000);
+      if (!session.ptr) return;
+      session.clearErrors();
+      update();
+    },
+  });
   return { rebuild };
 }

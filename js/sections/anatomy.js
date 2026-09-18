@@ -7,8 +7,9 @@
  * what makes a single defect locatable at all.
  */
 
-import { Session } from '../engine.js';
+import { Session, DECODER } from '../engine.js';
 import { LatticeView, legendHTML } from '../lattice.js';
+import { ambient } from '../ambient.js';
 import { $, fill, el } from '../dom.js';
 
 const STAB_DESCRIPTION = {
@@ -109,12 +110,31 @@ export function initAnatomy(root, instance) {
     describeIdle();
   }
 
-  view.onHover = describe;
-
   distanceSelect.addEventListener('change', rebuild);
   codeSelect.addEventListener('change', rebuild);
 
   rebuild();
+
+  // Ambient: one error, its correction, then clean — until the reader takes over.
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const heartbeat = ambient({
+    root, canvas, every: 2800,
+    act: async () => {
+      if (view.hover) return;                         // the hover readout is the figure's job
+      const q = Math.floor(Math.random() * session.numData);
+      session.toggleError(q, Math.random() < 0.5 ? 0 : 1);
+      view.draw();
+      await wait(1100);
+      if (!session.ptr) return;
+      session.decode(DECODER.MWPM);
+      view.draw();
+      await wait(900);
+      if (!session.ptr) return;
+      session.clearErrors();
+      view.draw();
+    },
+  });
+  view.onHover = (target) => { describe(target); if (target) heartbeat.pause(); else heartbeat.resume(); };
 
   return { rebuild, get session() { return session; } };
 }
