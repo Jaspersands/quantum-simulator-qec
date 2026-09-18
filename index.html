@@ -47,35 +47,35 @@
 <header class="hero" id="overview">
   <p class="hero__eyebrow">Rust · WebAssembly · running locally</p>
   <h1 class="hero__title">Keeping a qubit alive</h1>
-  <p class="hero__lede">
-    A qubit cannot be copied and cannot be looked at, so both of the things that make classical
-    error correction easy are off the table. <strong>Quantum error correction is the workaround.</strong>
-    Everything below is a real stabilizer simulator running in your browser, not a recording of one.
-  </p>
-
   <div class="boot-error" data-boot-error hidden></div>
 
-  <div class="vitals pad-top">
-    <div class="vital">
-      <div class="vital__label">Data noise</div>
-      <div class="vital__value" data-vital-data><span class="pending"></span></div>
+  <div class="hero__grid">
+    <div class="hero__text">
+      <p class="hero__lede">
+        A qubit cannot be copied and cannot be looked at, so both of the things that make classical
+        error correction easy are off the table. <strong>Quantum error correction is the workaround.</strong>
+        Everything below is a real stabilizer simulator running in your browser, not a recording of one.
+      </p>
+      <p class="opener__readout" data-opener-readout>
+        <span>d = <b data-opener-d>15</b></span>
+        <span>rounds <b data-opener-rounds>0</b></span>
+        <span>physical errors <b data-opener-phys>0</b></span>
+        <span>logical errors <b data-opener-logic>0</b></span>
+        <span>MWPM <b data-opener-ms>·</b></span>
+        <span>engine <b data-vital-engine><span class="pending"></span></b></span>
+        <span>data noise <b data-vital-data><span class="pending"></span></b></span>
+        <span>phenomenological <b data-vital-phenom><span class="pending"></span></b></span>
+      </p>
+      <p class="rig__caption" data-vitals-note>
+        Move the pointer over the patch to add errors; a chain across the whole width is a logical error.
+        Measuring throughput on this device…
+      </p>
     </div>
-    <div class="vital">
-      <div class="vital__label">Phenomenological</div>
-      <div class="vital__value" data-vital-phenom><span class="pending"></span></div>
-    </div>
-    <div class="vital">
-      <div class="vital__label">Decoder complexity</div>
-      <div class="vital__value">O(N α(N))</div>
-      <div class="vital__note">Union-Find, near-linear</div>
-    </div>
-    <div class="vital">
-      <div class="vital__label">Engine</div>
-      <div class="vital__value" data-vital-engine><span class="pending"></span></div>
-      <div class="vital__note">no dependencies, no build step</div>
+    <div class="opener">
+      <canvas class="opener__canvas" data-opener-canvas
+        aria-label="A distance-15 rotated surface code taking random errors and correcting them with minimum-weight perfect matching, live. Move the pointer over it to add noise."></canvas>
     </div>
   </div>
-  <p class="rig__caption" data-vitals-note>Measuring throughput on this device…</p>
 </header>
 
 

@@ -11,6 +11,7 @@ import { Compute } from './compute.js';
 import { initNav } from './nav.js';
 import { $ } from './dom.js';
 
+import { initOpener } from './opener.js';
 import { initParity } from './sections/parity.js';
 import { initAnatomy } from './sections/anatomy.js';
 import { initSyndrome } from './sections/syndrome.js';
@@ -69,6 +70,9 @@ async function boot() {
     fail(`Could not load the simulation engine (${error.message}). ${SERVE_HINT}`);
     return;
   }
+
+  // The lattice at the top runs first; the figures below share the same instance.
+  window.__opener = initOpener($('#overview'), instance);
 
   initAnatomy($('#anatomy'), instance);
   initSyndrome($('#syndrome'), instance);

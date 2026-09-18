@@ -267,6 +267,42 @@ img { max-width: 100%; height: auto; }
 }
 .hero__lede strong { color: var(--ink); font-weight: 600; }
 
+/* The lede and readout on the left, the live lattice filling the right: a
+   diagram that happens to be running. */
+.hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
+  gap: var(--s6) var(--s7);
+  align-items: center;
+  margin-top: var(--s5);
+}
+.hero__text { min-width: 0; }
+.opener { min-width: 0; }
+.opener__canvas {
+  width: 100%;
+  height: 480px;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+.opener--still .opener__canvas { cursor: default; }
+.opener__readout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: 2px var(--s5);
+  margin: var(--s5) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+}
+.opener__readout b { color: var(--ink); font-weight: 600; transition: color 0.25s; }
+.opener__readout b.flare { color: var(--fail); }
+.opener__readout .vital__unit { color: var(--ink-3); font-weight: 400; }
+@media (max-width: 860px) {
+  .hero__grid { grid-template-columns: minmax(0, 1fr); }
+  .opener__canvas { height: 360px; }
+}
+@media (max-width: 560px) { .opener__canvas { height: 300px; } }
+
 .section__head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
 
 .section__num {
