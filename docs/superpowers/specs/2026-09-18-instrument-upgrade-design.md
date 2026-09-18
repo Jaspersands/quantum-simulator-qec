@@ -14,6 +14,18 @@ as small marks, defects as thin amber outlines, corrections as thin green lines.
 hero, the pastel tiles and the lettered discs are gone; the washes are back to their original
 values. Section 1 below describes the first build and is superseded by this.
 
+## Amendment 2 (2026-09-19)
+
+Seen with the band, Jasper asked for the old top exactly as it was — title, lede, the four stat
+cards — and then "the chess board thing", the whole square patch, but "sophisticated physics",
+not "a video game". The patch is now a figure directly under the hero, in the figure vocabulary:
+caption line, the patch on the left (up to 560 px, d = 15 / 11 / 9 by width), a mono readout of
+the counters, the legend and a note on the right. It is drawn the way a figure in a paper is
+drawn: two muted tones for the checks (10 %), hairline edges through the qubits, small filled ink
+dots for the data qubits, errors as plain coloured marks with no lettering, fired checks as a
+quiet amber fill with a thin edge and no centre dot, corrections as thin green lines, a logical
+error as a faint wash over the patch. Amendment 1's band is superseded.
+
 ## Problem
 
 jaspersands.com now opens with a distance-27 surface code decoded live by this engine. Next to it

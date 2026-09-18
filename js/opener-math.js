@@ -36,21 +36,6 @@ export function layoutFor(width, height, d, pad) {
   };
 }
 
-/**
- * A patch as wide as the band, cropped top and bottom: the distance is the odd
- * number of cells that fit the width at about `cell` pixels each, so the
- * left and right boundaries sit at the band's edges and the middle rows show.
- * `unit` is pixels per doubled-grid step; originY is negative when the patch
- * is taller than the band.
- */
-export function bandLayoutFor(width, height, cell) {
-  let d = Math.max(5, Math.round(width / cell));
-  if (d % 2 === 0) d += 1;
-  // A margin of 1.2 units each side keeps the boundary half-discs inside the band.
-  const unit = width / (2 * d + 2.4);
-  return { d, unit, originX: 1.2 * unit, originY: (height - 2 * d * unit) / 2 };
-}
-
 export function pickPauli(rand, mix) {
   let r = rand();
   for (const [pauli, weight] of mix) { r -= weight; if (r <= 0) return pauli; }
