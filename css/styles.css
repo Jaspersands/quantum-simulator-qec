@@ -301,7 +301,10 @@ img { max-width: 100%; height: auto; }
   .hero__grid { grid-template-columns: minmax(0, 1fr); }
   .opener__canvas { height: 360px; }
 }
-@media (max-width: 560px) { .opener__canvas { height: 300px; } }
+@media (max-width: 560px) {
+  .opener__canvas { height: 300px; }
+  .opener__readout { grid-template-columns: minmax(0, 1fr); }
+}
 
 .section__head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
 
