@@ -207,9 +207,10 @@ export class LatticeView {
   #stabStyle(type, triggered) {
     const c = this.colors;
     if (triggered) return { fill: c.defectSoft, stroke: c.defect, label: c.defect };
-    if (type === STAB.X) return { fill: c.xSoft, stroke: c.rule, label: c.ink3 };
-    if (type === STAB.Z) return { fill: c.zSoft, stroke: c.rule, label: c.ink3 };
-    return { fill: c.ySoft, stroke: c.rule, label: c.ink3 };
+    // Letters sit on the washes, which are too deep for --ink-3 to clear 4.5:1.
+    if (type === STAB.X) return { fill: c.xSoft, stroke: c.rule, label: c.ink2 };
+    if (type === STAB.Z) return { fill: c.zSoft, stroke: c.rule, label: c.ink2 };
+    return { fill: c.ySoft, stroke: c.rule, label: c.ink2 };
   }
 
   #stabLabel(type) {
