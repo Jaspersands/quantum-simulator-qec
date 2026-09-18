@@ -714,6 +714,9 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--d9 { border-color: var(--d9); }
 .legend__key--d11 { border-color: var(--d11); }
 
+/* The bench's strip chart: the estimate settling as shots accumulate. */
+.meter-chart { width: 100%; }
+
 /* Two plots side by side over the results table. */
 .results-plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); }
 .results-plots__label {

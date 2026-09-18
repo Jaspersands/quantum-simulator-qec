@@ -1,6 +1,7 @@
 // Node tests for the pure site modules. Run: node tools/site-tests.mjs
 import assert from 'node:assert/strict';
 import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } from '../js/opener-math.js';
+import { planChunks } from '../js/stream.js';
 
 let passed = 0, failed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log(`  ✓ ${name}`); } catch (e) { failed++; console.log(`  ✗ ${name}\n    ${e.message}`); } };
@@ -80,6 +81,16 @@ test('chainsFromCorrection: separate X and Z components come back as separate ch
   assert.equal(chains.length, 2);
   assert.deepEqual(chains.find((c) => c.type === 'X').qubits, [12]);
   assert.equal(chains.find((c) => c.type === 'Z').qubits.length, 2);
+});
+
+test('planChunks covers the request exactly with no empty chunk', () => {
+  for (const total of [1, 249, 250, 251, 5000, 200000]) {
+    const chunks = planChunks(total);
+    assert.equal(chunks.reduce((a, b) => a + b, 0), total, `total ${total}`);
+    assert.ok(chunks.every((c) => c > 0), `total ${total} has an empty chunk`);
+    assert.ok(chunks.length <= 61, `total ${total}: ${chunks.length} chunks`);
+  }
+  assert.deepEqual(planChunks(600), [250, 250, 100]);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -859,11 +859,14 @@
       </div>
 
       <div class="rig rig--wide">
+        <div class="rig__stage">
+          <canvas class="meter-chart" data-bench-meter aria-label="No run yet."></canvas>
+        </div>
         <div class="stack">
           <button class="btn btn--primary" data-bench-run>Run Monte Carlo</button>
           <p class="status" role="status" data-bench-status>Ready.</p>
+          <div class="readout" aria-live="polite" data-bench-output></div>
         </div>
-        <div class="readout" aria-live="polite" data-bench-output></div>
       </div>
 
       <h3>The logical channel</h3>

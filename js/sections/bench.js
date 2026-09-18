@@ -8,6 +8,7 @@
 
 import { DECODER_NAME, NOISE_NAME } from '../engine.js';
 import { ChannelView } from '../channel-view.js';
+import { Meter } from '../meter.js';
 import { wilson, percent, count } from '../compute.js';
 import { $, fill, el } from '../dom.js';
 
@@ -74,36 +75,63 @@ export function initBench(root, compute) {
     }
   });
 
+  // The run streams: chunks land as progress messages, and the estimate is
+  // drawn converging. A second click stops after the current chunk.
+  const meterCanvas = $('[data-bench-meter]', root);
+  const meter = meterCanvas ? new Meter(meterCanvas) : null;
+  meter?.render({ total: 1, samples: [] });
+  let job = null;
+
+  const row = (k, v) => el('div', { class: 'readout__row' }, [
+    el('span', { class: 'readout__key', text: k }),
+    el('span', { class: 'readout__val', text: v }),
+  ]);
+
   runBtn.addEventListener('click', async () => {
+    if (job) {
+      compute.cancel(job.id);
+      runBtn.disabled = true;
+      status.textContent = 'Stopping after this chunk…';
+      return;
+    }
     const config = readConfig(root);
-    runBtn.disabled = true;
+    const samples = [];
+    let meanRate = 0;
+    runBtn.textContent = 'Stop';
     status.textContent = `Running ${count(config.runs)} shots…`;
 
-    try {
-      const result = await compute.call('benchmark', config);
-      const ci = wilson(result.rate, result.runs);
+    const paint = (p, final = false) => {
+      const rate = p.done ? p.failures / p.done : 0;
+      const ci = wilson(rate, p.done);
+      meter?.render({ total: config.runs, samples, final });
       fill(output, [
-        el('div', { class: 'readout__row' }, [
-          el('span', { class: 'readout__key', text: 'logical error rate' }),
-          el('span', { class: 'readout__val', text: percent(result.rate) }),
-        ]),
-        el('div', { class: 'readout__row' }, [
-          el('span', { class: 'readout__key', text: '95% interval' }),
-          el('span', { class: 'readout__val', text: `${percent(ci.lo)} – ${percent(ci.hi)}` }),
-        ]),
-        el('div', { class: 'readout__row' }, [
-          el('span', { class: 'readout__key', text: 'throughput' }),
-          el('span', { class: 'readout__val', text: `${count(result.runsPerSecond)} shots/s` }),
-        ]),
-        el('div', { class: 'readout__row' }, [
-          el('span', { class: 'readout__key', text: 'wall time' }),
-          el('span', { class: 'readout__val', text: `${result.seconds.toFixed(2)} s` }),
-        ]),
+        row('logical error rate', p.done ? percent(rate) : '—'),
+        row('95% interval', p.done ? `${percent(ci.lo)} – ${percent(ci.hi)}` : '—'),
+        row('throughput', `${count(meanRate)} shots/s`),
+        row('shots', `${count(p.done)} / ${count(config.runs)}`),
+        row('wall time', `${p.seconds.toFixed(2)} s`),
       ]);
-      status.textContent = `${DECODER_NAME[config.decoder]} · ${NOISE_NAME[config.noiseMode]} · d = ${config.d}`;
+    };
+
+    try {
+      job = compute.call('stream', config, (p) => {
+        const rate = p.failures / p.done;
+        const ci = wilson(rate, p.done);
+        samples.push({ done: p.done, rate, lo: ci.lo, hi: ci.hi });
+        meanRate = p.seconds > 0 ? Math.round(p.done / p.seconds) : 0;
+        paint(p);
+      });
+      const result = await job;
+      meanRate = result.runsPerSecond;
+      paint({ done: result.runs, failures: result.failures, seconds: result.seconds }, true);
+      status.textContent = `${result.cancelled ? 'Stopped' : 'Done'} · ${DECODER_NAME[config.decoder]} · `
+        + `${NOISE_NAME[config.noiseMode]} · d = ${config.d}`
+        + (result.cancelled ? ` · ${count(result.runs)} of ${count(config.runs)} shots` : '');
     } catch (error) {
       status.textContent = `Failed: ${error.message}`;
     } finally {
+      job = null;
+      runBtn.textContent = 'Run Monte Carlo';
       runBtn.disabled = false;
     }
   });
