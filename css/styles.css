@@ -714,6 +714,17 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--d9 { border-color: var(--d9); }
 .legend__key--d11 { border-color: var(--d11); }
 
+/* Two plots side by side over the results table. */
+.results-plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); }
+.results-plots__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+@media (max-width: 720px) { .results-plots { grid-template-columns: minmax(0, 1fr); } }
+
 /* Key/value list for the internals section */
 .spec-list { margin: 0; display: grid; gap: 0; }
 .spec-list > div {

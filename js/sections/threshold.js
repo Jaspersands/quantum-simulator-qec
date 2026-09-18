@@ -122,6 +122,36 @@ export function initResultsTable(root, compute) {
   let failed = false;
   const key = (c) => `${c.noiseMode}:${c.d}:${c.p}`;
 
+  // The same cells, drawn: one plot per noise model, one series per distance,
+  // points landing as they are measured. The crossing is the figure.
+  const plots = TABLE_MODELS.map((m) => {
+    const c = $(`[data-results-plot="${m.noiseMode}"]`, root);
+    if (!c) return null;
+    c.dataset.aspect = '0.7';
+    return new Plot(c, {
+      xLabel: 'physical error rate  p', yLabel: 'logical error rate  p_L',
+      formatX: (v) => `${(v * 100).toFixed(0)}%`, formatY: (v) => `${(v * 100).toFixed(0)}%`, xTicks: 3,
+    });
+  });
+  const plotLegendEl = $('[data-results-legend]', root);
+  if (plotLegendEl) plotLegendEl.innerHTML = plotLegend(TABLE_DISTANCES.map((d) => ({ label: `d = ${d}`, color: SERIES_COLOR[d] })));
+
+  function paintPlots() {
+    TABLE_MODELS.forEach((model, i) => {
+      const plot = plots[i];
+      if (!plot) return;
+      const series = TABLE_DISTANCES.map((d) => {
+        const points = TABLE_PS
+          .map((p) => ({ p, entry: results.get(key({ noiseMode: model.noiseMode, d, p })) }))
+          .filter((x) => x.entry)
+          .map(({ p, entry }) => { const ci = wilson(entry.pL, entry.runs); return { x: p, y: entry.pL, lo: ci.lo, hi: ci.hi }; });
+        return { label: `d = ${d}`, color: SERIES_COLOR[d], points, line: points.length > 1 ? points.map(({ x, y }) => ({ x, y })) : undefined };
+      });
+      plot.render({ series, xRange: [0, TABLE_PS[TABLE_PS.length - 1] * 1.06], empty: 'Measuring…' });
+    });
+  }
+  paintPlots();
+
   function paint() {
     const rows = [];
     for (const model of TABLE_MODELS) {
@@ -202,6 +232,7 @@ export function initResultsTable(root, compute) {
     results.set(key(cell), { pL: cell.pL, runs: cell.runs });
     status.textContent = `Measuring… ${done} / ${total} cells`;
     paint();
+    paintPlots();
   }).then(() => {
     status.textContent = `Complete: ${count(cells.length * TABLE_RUNS)} Monte Carlo runs in your browser.`;
     caption.textContent = 'Union-Find decoder, rotated surface code, unbiased noise. '
@@ -209,12 +240,14 @@ export function initResultsTable(root, compute) {
       + 'overlap, which is what sitting on the threshold looks like. Every figure here was computed '
       + 'on this page load; reload and they will move within their intervals.';
     paint();
+    paintPlots();
   }).catch((error) => {
     status.textContent = `Could not complete: ${error.message}`;
     // Repaint so cells that never landed stop showing the animated pending
     // indicator — otherwise a failed run looks identical to one still running.
     failed = true;
     paint();
+    paintPlots();
   });
 }
 
