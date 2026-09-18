@@ -51,10 +51,18 @@ export class Compute {
   call(op, payload, onProgress) {
     if (this.dead) return Promise.reject(new Error(this.dead));
     const id = this.nextId++;
-    return new Promise((resolve, reject) => {
+    const promise = new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject, onProgress });
       this.worker.postMessage({ id, op, payload });
     });
+    promise.id = id;
+    return promise;
+  }
+
+  /** Ask a streaming job to stop after its current chunk; it resolves with what it has. */
+  cancel(id) {
+    if (this.dead || !this.pending.has(id)) return;
+    this.worker.postMessage({ id, op: 'cancel' });
   }
 }
 

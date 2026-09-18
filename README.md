@@ -17,7 +17,9 @@ every number on the page is computed in the reader's browser on load.
   located erasure, spatial bursts, and slow temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   and a greedy nearest-neighbour baseline.
-- **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies.
+- **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
+  at the top of the page runs the engine live, every figure is driven by it, the threshold table is
+  plotted as it is measured, and the bench streams its estimate.
 - **Python extension** (`stabilizer_qec.so`): PyO3 bindings for offline threshold benchmarking.
 
 ## A note on quoted figures
@@ -464,6 +466,13 @@ python3 -m http.server 8080
 ```
 
 Then open `http://localhost:8080`.
+
+The site's pure modules have Node tests, and the palette has a contrast check:
+
+```bash
+node tools/site-tests.mjs
+node tools/contrast.mjs
+```
 
 ### Rust library
 

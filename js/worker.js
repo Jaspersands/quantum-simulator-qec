@@ -8,10 +8,13 @@
  *
  * Protocol: the client posts {id, op, payload}. The worker replies with zero or
  * more {id, type:'progress', ...} messages and exactly one terminal
- * {id, type:'done', result} or {id, type:'error', message}.
+ * {id, type:'done', result} or {id, type:'error', message}. A later
+ * {id, op:'cancel'} asks a streaming job with that id to stop after its
+ * current chunk; it still ends with a normal 'done' carrying what it measured.
  */
 
 import { instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE } from './engine.js';
+import { planChunks } from './stream.js';
 
 let enginePromise = null;
 
@@ -22,6 +25,9 @@ function engine() {
 
 /** T = d rounds of syndrome extraction is the standard convention. */
 const roundsFor = (config) => (config.noiseMode === NOISE.DATA ? 1 : config.rounds ?? config.d);
+
+/** Ids of streaming jobs asked to stop; checked between chunks. */
+const cancelled = new Set();
 
 const OPS = {
   /**
@@ -69,6 +75,27 @@ const OPS = {
   },
 
   /**
+   * The bench's run, in chunks, reporting the running estimate after each so
+   * the page can draw it converging. Between chunks the loop yields to the
+   * event loop, which is what lets a cancel message land mid-run.
+   */
+  async stream(instance, config, report, control) {
+    const total = config.runs;
+    let done = 0, failures = 0, seconds = 0, last = 0;
+    for (const n of planChunks(total)) {
+      if (control.cancelled()) break;
+      const r = runBenchmark(instance, { ...config, rounds: roundsFor(config), runs: n });
+      done += n; failures += Math.round(r.rate * n); seconds += r.seconds; last = r.runsPerSecond;
+      report({ done, total, failures, seconds, chunkRunsPerSecond: last });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return {
+      runs: done, failures, rate: done ? failures / done : 0, seconds,
+      runsPerSecond: seconds > 0 ? Math.round(done / seconds) : 0, cancelled: control.cancelled(),
+    };
+  },
+
+  /**
    * Sweep a grid of (distance, physical error rate) points.
    * Emits a progress message per point so the caller can draw as it goes.
    */
@@ -109,15 +136,19 @@ const OPS = {
 
 self.onmessage = async (event) => {
   const { id, op, payload } = event.data;
+  if (op === 'cancel') { cancelled.add(id); return; }
   const report = (progress) => self.postMessage({ id, type: 'progress', ...progress });
+  const control = { cancelled: () => cancelled.has(id) };
 
   try {
     const handler = OPS[op];
     if (!handler) throw new Error(`unknown operation "${op}"`);
     const instance = await engine();
-    const result = await handler(instance, payload ?? { ...DEFAULT_RUN }, report);
+    const result = await handler(instance, payload ?? { ...DEFAULT_RUN }, report, control);
     self.postMessage({ id, type: 'done', result });
   } catch (error) {
     self.postMessage({ id, type: 'error', message: error?.message ?? String(error) });
+  } finally {
+    cancelled.delete(id);
   }
 };

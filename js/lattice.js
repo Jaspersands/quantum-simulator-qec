@@ -63,6 +63,8 @@ export class LatticeView {
     this.colors = palette();
     this.session = null;
     this.hover = null;
+    /** Rounds at or beyond this index are not drawn; the spacetime figure reveals its stack with it. */
+    this.visibleRounds = Infinity;
     /** @type {(target: {kind: 'qubit'|'stabilizer', idx: number, t: number}, event: MouseEvent) => void} */
     this.onPick = null;
     this.onHover = null;
@@ -207,9 +209,10 @@ export class LatticeView {
   #stabStyle(type, triggered) {
     const c = this.colors;
     if (triggered) return { fill: c.defectSoft, stroke: c.defect, label: c.defect };
-    if (type === STAB.X) return { fill: c.xSoft, stroke: c.rule, label: c.ink3 };
-    if (type === STAB.Z) return { fill: c.zSoft, stroke: c.rule, label: c.ink3 };
-    return { fill: c.ySoft, stroke: c.rule, label: c.ink3 };
+    // Letters sit on the washes, which are too deep for --ink-3 to clear 4.5:1.
+    if (type === STAB.X) return { fill: c.xSoft, stroke: c.rule, label: c.ink2 };
+    if (type === STAB.Z) return { fill: c.zSoft, stroke: c.rule, label: c.ink2 };
+    return { fill: c.ySoft, stroke: c.rule, label: c.ink2 };
   }
 
   #stabLabel(type) {
@@ -243,7 +246,8 @@ export class LatticeView {
 
     const qubitRadius = rounds === 1 ? Math.max(7, Math.min(11, 120 / session.d)) : 5;
 
-    for (let t = 0; t < rounds; t++) {
+    const shown = Math.min(rounds, this.visibleRounds);
+    for (let t = 0; t < shown; t++) {
       // Earlier rounds recede slightly, but stay readable — they carry as much
       // of the story as the latest one.
       const dim = rounds === 1 ? 1 : 0.72 + 0.28 * (t / Math.max(1, rounds - 1));
@@ -409,7 +413,7 @@ export class LatticeView {
   #drawWorldlines(state, nStab) {
     const ctx = this.ctx;
     const session = this.session;
-    for (let t = 0; t < session.rounds - 1; t++) {
+    for (let t = 0; t < Math.min(session.rounds, this.visibleRounds) - 1; t++) {
       for (let i = 0; i < nStab; i++) {
         const stab = session.stabilizers[i];
         const a = this.project(stab.x, stab.y, t);

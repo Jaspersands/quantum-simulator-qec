@@ -31,9 +31,9 @@
 
   /* Semantic accents — muted enough to sit on cream */
   --x:      #2f5fd0;
-  --x-soft: #dfe7fa;
+  --x-soft: #d3def6;
   --z:      #c0392b;
-  --z-soft: #f8e2df;
+  --z-soft: #f4d6d1;
   --y:      #7b4bb5;
   --y-soft: #ebe1f7;
   /* The -soft pairs are fills; the -ink pairs are the readable text on them.
@@ -267,6 +267,45 @@ img { max-width: 100%; height: auto; }
 }
 .hero__lede strong { color: var(--ink); font-weight: 600; }
 
+/* The lede and readout on the left, the live lattice filling the right: a
+   diagram that happens to be running. */
+.hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
+  gap: var(--s6) var(--s7);
+  align-items: center;
+  margin-top: var(--s5);
+}
+.hero__text { min-width: 0; }
+.opener { min-width: 0; }
+.opener__canvas {
+  width: 100%;
+  height: 480px;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+.opener--still .opener__canvas { cursor: default; }
+.opener__readout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: 2px var(--s5);
+  margin: var(--s5) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+}
+.opener__readout b { color: var(--ink); font-weight: 600; transition: color 0.25s; }
+.opener__readout b.flare { color: var(--fail); }
+.opener__readout .vital__unit { color: var(--ink-3); font-weight: 400; }
+@media (max-width: 860px) {
+  .hero__grid { grid-template-columns: minmax(0, 1fr); }
+  .opener__canvas { height: 360px; }
+}
+@media (max-width: 560px) {
+  .opener__canvas { height: 300px; }
+  .opener__readout { grid-template-columns: minmax(0, 1fr); }
+}
+
 .section__head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
 
 .section__num {
@@ -329,27 +368,24 @@ a { color: var(--x); text-decoration-thickness: 1px; text-underline-offset: 2px;
 }
 
 /* --------------------------------------------------------------------------
-   6. Panels — the one container vocabulary
+   6. Figures — the one container vocabulary
+   A figure sits on the paper: a hairline above, a caption line in the mono
+   voice, the stage with no border and no shadow. Only the bench console keeps
+   a frame, because it is a console.
    -------------------------------------------------------------------------- */
 
-.panel {
-  background: var(--surface);
-  border: var(--rule-w) solid var(--rule);
-  box-shadow: var(--lift-2);
+.figure {
   margin: var(--s6) 0;
+  padding-top: var(--s3);
+  border-top: var(--rule-w) solid var(--rule);
 }
 
-.panel__head {
+.figure__cap {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s4);
-  padding: var(--s3) var(--s4);
-  border-bottom: 1px solid var(--rule-soft);
-  background: var(--surface-sunk);
-}
-
-.panel__label {
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+  margin: 0 0 var(--s4);
   font-family: var(--font-mono);
   font-size: var(--t-micro);
   text-transform: uppercase;
@@ -357,8 +393,16 @@ a { color: var(--x); text-decoration-thickness: 1px; text-underline-offset: 2px;
   font-weight: 600;
   color: var(--ink-2);
 }
+.figure__num { color: var(--ink); font-weight: 700; }
+.figure__meta { margin-left: auto; color: var(--ink-3); font-weight: 500; }
 
-.panel__body { padding: var(--s5); }
+.figure__body { min-width: 0; }
+
+.figure--console .figure__body {
+  border: 1px solid var(--rule-soft);
+  padding: var(--s5);
+  background: var(--surface);
+}
 
 /* Figure + controls, side by side; stacks on narrow screens */
 .rig { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: var(--s5); align-items: start; }
@@ -375,9 +419,6 @@ a { color: var(--x); text-decoration-thickness: 1px; text-underline-offset: 2px;
   flex-direction: column;
   align-items: center;
   gap: var(--s3);
-  background: var(--surface-sunk);
-  border: 1px solid var(--rule-soft);
-  padding: var(--s4);
   min-width: 0;
 }
 
@@ -531,27 +572,6 @@ input[type="number"] { cursor: text; }
    9. Data display
    -------------------------------------------------------------------------- */
 
-.vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--s4); }
-
-.vital {
-  background: var(--surface);
-  border: var(--rule-w) solid var(--rule);
-  box-shadow: var(--lift-1);
-  padding: var(--s4);
-}
-.vital__label {
-  font-family: var(--font-mono);
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  font-weight: 600;
-  color: var(--ink-3);
-  margin-bottom: var(--s1);
-}
-.vital__value { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
-.vital__unit { font-size: 0.72em; color: var(--ink-3); }
-.vital__note { font-size: var(--t-micro); color: var(--ink-3); margin-top: var(--s1); }
-
 /* A value still being computed */
 .pending { color: var(--ink-3); font-weight: 400; }
 .pending::after {
@@ -621,7 +641,12 @@ input[type="number"] { cursor: text; }
 .meter__fill { height: 100%; background: var(--ink); width: 0; transition: width 0.2s linear; }
 
 /* Tables */
-.table-wrap { overflow-x: auto; border: var(--rule-w) solid var(--rule); box-shadow: var(--lift-2); background: var(--surface); }
+.table-wrap {
+  overflow-x: auto;
+  border-top: var(--rule-w) solid var(--rule);
+  border-bottom: var(--rule-w) solid var(--rule);
+  background: var(--surface);
+}
 
 table { border-collapse: collapse; width: 100%; font-size: var(--t-small); }
 
@@ -691,6 +716,20 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--d7 { border-color: var(--d7); }
 .legend__key--d9 { border-color: var(--d9); }
 .legend__key--d11 { border-color: var(--d11); }
+
+/* The bench's strip chart: the estimate settling as shots accumulate. */
+.meter-chart { width: 100%; }
+
+/* Two plots side by side over the results table. */
+.results-plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); }
+.results-plots__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+@media (max-width: 720px) { .results-plots { grid-template-columns: minmax(0, 1fr); } }
 
 /* Key/value list for the internals section */
 .spec-list { margin: 0; display: grid; gap: 0; }
