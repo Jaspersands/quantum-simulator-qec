@@ -115,15 +115,29 @@ three symptoms. Components with identical symptoms merge by XOR probability, p �
 p₂(1 − p₁). Components with empty symptoms are dropped. A component with observables but no
 detectors is an undetectable logical error, and the builder fails on it.
 
-**Decomposition.** A mechanism firing at most two detectors is its own single piece. Otherwise it is
-split, in order of preference:
+**Decomposition** (revised during the build; see the amendment below). Faults are decomposed the
+way Stim's error analyzer decomposes them, so that this engine's matching graph is the one
+PyMatching builds from Stim's model:
 
-1. Into its X part and its Z part, since propagation is linear and a Y is X·Z.
-2. Per qubit, for a two-qubit Pauli, giving at most four single-type pieces.
-3. Into graph-like mechanisms that already exist in the model and whose symptoms XOR to this piece.
+1. Each composite channel instance (`DEPOLARIZE1`, `DEPOLARIZE2`, `PAULI_CHANNEL_1`) splits every
+   combination of its basis errors using only that channel's own single-detector combinations and
+   its irreducible two-detector ones, as in Stim's `decompose_helper_add_error_combinations`.
+   Stim's basis order is kept.
+2. Anything still wider than two detectors goes through Stim's global pass: a backtracking
+   partition into known one- and two-detector pieces with matching observables, then a greedy
+   fallback that allows one remnant edge.
+3. Faults that share a symptom but decompose differently remain separate mechanisms, each with
+   its own probability.
 
-If none works, building fails and names the fault. Invariants: every piece has at most two
-detectors, and the pieces XOR back to the mechanism exactly.
+If none of this works, building fails and names the fault. Invariants: every piece has one or two
+detectors, and the pieces XOR back to the fault exactly, observables included. Stim assumes that
+last property; this engine checks it.
+
+**Amendment (build night).** The first decomposition kept any fault with at most two detectors
+whole. A Y fault on a boundary qubit then became an edge joining the X-check and Z-check graphs,
+and two single faults of the d = 3 memory-X circuit under SD6 decoded into logical errors, which
+PyMatching on Stim's model corrected. The exhaustive single-fault check caught it. Mirroring
+Stim's analyzer fixed it, and a new check, 1b, compares the decomposed graphs edge for edge.
 
 **Stim's `.dem` text is read and written**, covering `error`, `detector`, `logical_observable`,
 `shift_detectors` and `repeat`, with `^` separators read as pieces. Reading does not re-derive
@@ -240,6 +254,10 @@ The matrix:
   noise parameters set to 0.003. Stim writes these circuits and ours parses them.
 - Our `to_circuit` for {rotated, XZZX} × {Current(p = 0.003, η = 0.5), SD6(p = 0.003)} × d = 3, 5, 7
   × memory_z. We write these and Stim parses them.
+
+**1b. The matching graphs are identical.** Our decomposed model and Stim's
+(`decompose_errors=True`, on the flattened circuit) decompose every symptom the same way, and every
+edge has the same probability, to 1e-9 relative.
 
 **2. The decoders agree shot for shot.** On 100,000 Stim-sampled shots per circuit, at SD6 d = 3,
 5, 7 and p ∈ {0.003, 0.006}, our decoder and PyMatching each decode identical detection events

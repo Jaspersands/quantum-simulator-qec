@@ -661,6 +661,7 @@
               <option value="0">Data noise only</option>
               <option value="1" selected>Phenomenological (T = d)</option>
               <option value="2">Circuit-level (T = d)</option>
+              <option value="3">Circuit-level, SD6 (T = d, per basis)</option>
             </select>
           </div>
           <div class="field">
@@ -842,8 +843,8 @@
             <option value="0">Data noise only</option>
             <option value="1" selected>Phenomenological</option>
             <option value="2">Circuit-level (CNOTs)</option>
+            <option value="3">Circuit-level, SD6 (per basis)</option>
           </select>
-          
         </div>
         <div class="field">
           <label class="field__label" for="bench-d">Distance</label>
@@ -943,8 +944,10 @@
 
   <div class="prose">
     <p>
-      Nothing on this page is precomputed. Every number was produced by a Rust stabilizer simulator
-      compiled to WebAssembly and executed on your machine while you read.
+      Nothing of ours is precomputed. Every number was produced by a Rust stabilizer simulator
+      compiled to WebAssembly and executed on your machine while you read. The one exception is
+      marked: Figure 8 checks this engine against Stim and PyMatching, the tools the field uses,
+      and PyMatching's side of that check was recorded, because it does not run in a browser.
     </p>
     <p class="note">
       Unless they say otherwise, figures quoted below were measured at bias
@@ -960,6 +963,63 @@
       sat low. See section 7.
     </p>
   </div>
+
+  <div class="prose">
+    <p>
+      Every circuit on this page can also be written out in Stim's circuit language, and every
+      circuit Stim writes can be read in. That makes the engine checkable against the reference
+      implementation rather than only against itself. The strictest check is the error model:
+      for each circuit, list every elementary fault, the checks it trips, the logical observable
+      it flips, and its probability. Stim derives that list one way; this engine derives it by
+      walking the circuit backwards. The two lists must agree entry for entry, and so must the
+      matching graphs built from them.
+    </p>
+  </div>
+
+  <figure class="figure" data-xcheck>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 8</span>
+      <span class="figure__title">checked against Stim</span>
+      <span class="figure__meta">† recorded, not computed here</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck">
+          <caption class="visually-hidden">This engine's detector error model against Stim's, circuit by circuit</caption>
+          <thead>
+            <tr>
+              <th scope="col">Circuit, p = 0.3%, T = d</th>
+              <th scope="col" class="num">Detectors</th>
+              <th scope="col" class="num">Mechanisms, ours / Stim's</th>
+              <th scope="col" class="num">Largest Δp / p</th>
+              <th scope="col">Error model, now</th>
+              <th scope="col">Matching graph †</th>
+            </tr>
+          </thead>
+          <tbody data-xcheck-models></tbody>
+        </table>
+      </div>
+      <button class="btn xcheck__more" data-xcheck-more hidden></button>
+      <div class="table-wrap">
+        <table class="xcheck">
+          <caption class="visually-hidden">Logical error rate and decoding, this engine against PyMatching, rotated code under SD6</caption>
+          <thead>
+            <tr>
+              <th scope="col">Rotated, SD6</th>
+              <th scope="col" class="num">p_L, ours</th>
+              <th scope="col" class="num">p_L, PyMatching †</th>
+              <th scope="col" class="num">Disagree †</th>
+              <th scope="col" class="num">Decode, ours</th>
+              <th scope="col" class="num">PyMatching †</th>
+            </tr>
+          </thead>
+          <tbody data-xcheck-decoding></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-xcheck-status>Runs when you scroll here.</p>
+      <p class="note" data-xcheck-foot></p>
+    </div>
+  </figure>
 
   <dl class="spec-list">
     <div>
