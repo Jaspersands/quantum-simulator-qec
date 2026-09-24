@@ -20,6 +20,8 @@ pub mod circuit_model;
 pub mod circuit;
 pub mod dem;
 pub mod dem_decoder;
+pub mod frame_sampler;
+pub mod shots;
 #[cfg(test)]
 mod fixtures;
 
