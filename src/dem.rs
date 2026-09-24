@@ -20,12 +20,12 @@
 //! `sz` non-empty means some detector anticommutes with the state the reset
 //! prepares, so its value is a coin flip. That is an error, not a warning.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use crate::circuit::{fmt_args, split_instruction, Basis, Circuit, Instr};
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Piece {
     pub detectors: Vec<u32>,
     pub observables: u64,
@@ -38,7 +38,9 @@ pub struct Mechanism {
     pub detectors: Vec<u32>,
     pub observables: u64,
     /// Graph-like components (at most two detectors each) that XOR back to the
-    /// mechanism. Empty for a hyperedge nobody decomposed.
+    /// mechanism. Empty for a hyperedge nobody decomposed. Faults that share a
+    /// symptom but split differently are separate mechanisms, each with its own
+    /// probability, as in Stim's decomposed models.
     pub pieces: Vec<Piece>,
 }
 
@@ -140,14 +142,6 @@ fn is_zero(a: &[u64]) -> bool {
 
 /* -- The builder ----------------------------------------------------------- */
 
-/// One single-qubit, single-type part of a fault. Kind 1 comes from an X
-/// component, 2 from a Z component, 0 from a classical readout flip.
-#[derive(Clone, PartialEq)]
-struct Atom {
-    sym: Vec<u64>,
-    kind: u8,
-}
-
 /// Where a fault came from, for error messages.
 #[derive(Clone, Copy)]
 struct Origin {
@@ -187,9 +181,11 @@ impl Origin {
 struct Entry {
     sym: Vec<u64>,
     p: f64,
-    /// Up to four distinct ways the merged faults split into atoms; any one that
-    /// decomposes will do.
-    atom_options: Vec<Vec<Atom>>,
+    /// Each distinct way a fault with this symptom was split into pieces, with
+    /// its own probability. Faults can share a symptom without sharing a
+    /// decomposition, and each contributes its own pieces to the matching graph,
+    /// as they do in Stim's decomposed models.
+    variants: Vec<(Vec<Vec<u64>>, f64)>,
     origin: Origin,
 }
 
@@ -200,13 +196,16 @@ struct Builder {
 }
 
 impl Builder {
-    fn add(&mut self, p: f64, atoms: Vec<Atom>, origin: Origin) {
+    /// Record a fault of probability `p` whose symptom is the XOR of `pieces`.
+    fn add(&mut self, p: f64, pieces: Vec<Vec<u64>>, origin: Origin) {
         if p <= 0.0 {
             return;
         }
+        let mut pieces: Vec<Vec<u64>> = pieces.into_iter().filter(|x| !is_zero(x)).collect();
+        pieces.sort();
         let mut sym = self.space.zero();
-        for a in &atoms {
-            xor_into(&mut sym, &a.sym);
+        for x in &pieces {
+            xor_into(&mut sym, x);
         }
         if is_zero(&sym) {
             return;
@@ -215,27 +214,17 @@ impl Builder {
             Some(&i) => {
                 let e = &mut self.entries[i];
                 e.p = xor_prob(e.p, p);
-                if e.atom_options.len() < 4 && !e.atom_options.contains(&atoms) {
-                    e.atom_options.push(atoms);
+                match e.variants.iter_mut().find(|v| v.0 == pieces) {
+                    Some(v) => v.1 = xor_prob(v.1, p),
+                    None => e.variants.push((pieces, p)),
                 }
             }
             None => {
                 self.index.insert(sym.clone(), self.entries.len());
-                self.entries.push(Entry { sym, p, atom_options: vec![atoms], origin });
+                self.entries.push(Entry { sym, p, variants: vec![(pieces, p)], origin });
             }
         }
     }
-}
-
-fn atoms_for(pauli: u8, q: usize, sx: &[Vec<u64>], sz: &[Vec<u64>]) -> Vec<Atom> {
-    let mut out = Vec::new();
-    if pauli & 1 != 0 {
-        out.push(Atom { sym: sx[q].clone(), kind: 1 });
-    }
-    if pauli & 2 != 0 {
-        out.push(Atom { sym: sz[q].clone(), kind: 2 });
-    }
-    out
 }
 
 fn nondeterministic(space: &Space, coords: &[Vec<f64>], sym: &[u64], q: usize, what: &str) -> String {
@@ -315,7 +304,7 @@ impl Dem {
                         }
                         if *flip > 0.0 {
                             let origin = Origin { instr: idx, name: "measurement flip", a: q, b: None, pauli: (1, 0) };
-                            b.add(*flip, vec![Atom { sym: rec_sym[m].clone(), kind: 0 }], origin);
+                            b.add(*flip, vec![rec_sym[m].clone()], origin);
                         }
                     }
                 }
@@ -340,21 +329,38 @@ impl Dem {
                         xor_into(&mut sx[bq], &sz[a]);
                     }
                 }
+                // X_ERROR, Y_ERROR and Z_ERROR are single faults and stay whole
+                // here, a Y included, as Stim leaves them; anything wider than a
+                // pair is split by the global pass below.
                 Instr::PauliError { pauli, p, qubits } => {
                     for &q in qubits {
-                        let origin = Origin { instr: idx, name: "Pauli error", a: q, b: None, pauli: (*pauli, 0) };
-                        b.add(*p, atoms_for(*pauli, q as usize, &sx, &sz), origin);
+                        let q = q as usize;
+                        let mut sym = space.zero();
+                        if pauli & 1 != 0 {
+                            xor_into(&mut sym, &sx[q]);
+                        }
+                        if pauli & 2 != 0 {
+                            xor_into(&mut sym, &sz[q]);
+                        }
+                        let origin = Origin { instr: idx, name: "Pauli error", a: q as u32, b: None, pauli: (*pauli, 0) };
+                        b.add(*p, vec![sym], origin);
                     }
                 }
+                // The composite channels are split combination by combination,
+                // with Stim's basis order: Z then X for DEPOLARIZE1, X then Z for
+                // PAULI_CHANNEL_1, and Z_a, X_a, Z_b, X_b for DEPOLARIZE2.
                 Instr::Depolarize1 { p, qubits } => {
                     if *p > 0.75 {
                         return Err(format!("DEPOLARIZE1({p}) exceeds 3/4 (instruction {idx})"));
                     }
                     let q1 = depolarize1_component(*p);
                     for &q in qubits {
-                        for pauli in [1u8, 3, 2] {
+                        let qi = q as usize;
+                        let combos = channel_combinations(&space, &[sz[qi].clone(), sx[qi].clone()]);
+                        for (k, pieces) in combos.into_iter().enumerate() {
+                            let pauli = [2u8, 1, 3][k];
                             let origin = Origin { instr: idx, name: "DEPOLARIZE1", a: q, b: None, pauli: (pauli, 0) };
-                            b.add(q1, atoms_for(pauli, q as usize, &sx, &sz), origin);
+                            b.add(q1, pieces, origin);
                         }
                     }
                 }
@@ -362,9 +368,12 @@ impl Dem {
                     let (qx, qy, qz) =
                         pauli_channel_1_independent(*px, *py, *pz).map_err(|e| format!("{e} (instruction {idx})"))?;
                     for &q in qubits {
-                        for (pauli, prob) in [(1u8, qx), (3, qy), (2, qz)] {
+                        let qi = q as usize;
+                        let combos = channel_combinations(&space, &[sx[qi].clone(), sz[qi].clone()]);
+                        for (k, pieces) in combos.into_iter().enumerate() {
+                            let (pauli, prob) = [(1u8, qx), (2, qz), (3, qy)][k];
                             let origin = Origin { instr: idx, name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (pauli, 0) };
-                            b.add(prob, atoms_for(pauli, q as usize, &sx, &sz), origin);
+                            b.add(prob, pieces, origin);
                         }
                     }
                 }
@@ -374,17 +383,14 @@ impl Dem {
                     }
                     let q2 = depolarize2_component(*p);
                     for &(qa, qb) in pairs {
-                        for pa in 0..4u8 {
-                            for pb in 0..4u8 {
-                                if pa == 0 && pb == 0 {
-                                    continue;
-                                }
-                                let mut atoms = atoms_for(pa, qa as usize, &sx, &sz);
-                                atoms.extend(atoms_for(pb, qb as usize, &sx, &sz));
-                                let origin =
-                                    Origin { instr: idx, name: "DEPOLARIZE2", a: qa, b: Some(qb), pauli: (pa, pb) };
-                                b.add(q2, atoms, origin);
-                            }
+                        let (a, bq) = (qa as usize, qb as usize);
+                        let basis = [sz[a].clone(), sx[a].clone(), sz[bq].clone(), sx[bq].clone()];
+                        for (i, pieces) in channel_combinations(&space, &basis).into_iter().enumerate() {
+                            let k = i + 1;
+                            let pa = ((k >> 1) & 1) as u8 | (((k & 1) as u8) << 1);
+                            let pb = ((k >> 3) & 1) as u8 | ((((k >> 2) & 1) as u8) << 1);
+                            let origin = Origin { instr: idx, name: "DEPOLARIZE2", a: qa, b: Some(qb), pauli: (pa, pb) };
+                            b.add(q2, pieces, origin);
                         }
                     }
                 }
@@ -402,9 +408,6 @@ impl Dem {
             check_reset(&sx, &sz, q, Basis::Z, "the initial |0>")?;
         }
 
-        // Graph-like mechanisms, indexed by detector, for decomposition step 3.
-        let mut graphlike: HashSet<Vec<u64>> = HashSet::new();
-        let mut by_det: HashMap<u32, Vec<Vec<u64>>> = HashMap::new();
         for e in &b.entries {
             let (dets, obs) = space.split(&e.sym);
             if dets.is_empty() {
@@ -413,10 +416,19 @@ impl Dem {
                     e.origin.describe()
                 ));
             }
-            if dets.len() <= 2 {
-                graphlike.insert(e.sym.clone());
-                for d in dets {
-                    by_det.entry(d).or_default().push(e.sym.clone());
+        }
+
+        // The global pass, as Stim runs it when the circuit is done: every
+        // one- or two-detector piece is a known edge, and any fault still holding
+        // a wider piece is rewritten into known edges.
+        let mut known: HashMap<Vec<u32>, Vec<u64>> = HashMap::new();
+        for e in &b.entries {
+            for (pieces, _) in &e.variants {
+                for x in pieces {
+                    let (dets, _) = space.split(x);
+                    if (1..=2).contains(&dets.len()) {
+                        known.entry(dets).or_insert_with(|| x.clone());
+                    }
                 }
             }
         }
@@ -424,123 +436,291 @@ impl Dem {
         let mut mechanisms = Vec::with_capacity(b.entries.len());
         for e in &b.entries {
             let (detectors, observables) = space.split(&e.sym);
-            let pieces = decompose(&space, e, &graphlike, &by_det).ok_or_else(|| {
-                format!("cannot split {} into graph-like pieces: it fires detectors {:?}", e.origin.describe(), detectors)
-            })?;
-            mechanisms.push(Mechanism { p: e.p, detectors, observables, pieces });
+            let mut grouped: Vec<(Vec<Piece>, f64)> = Vec::new();
+            for (pieces, p) in &e.variants {
+                let graphlike = pieces.iter().all(|x| (1..=2).contains(&space.split(x).0.len()));
+                let rewritten: Vec<Vec<u64>> = if graphlike {
+                    pieces.clone()
+                } else {
+                    let mut out = Vec::new();
+                    for x in pieces {
+                        let found = brute_force_known(&space, x, &known).or_else(|| greedy_known(&space, x, &known));
+                        match found {
+                            Some(mut parts) => out.append(&mut parts),
+                            None => {
+                                return Err(format!(
+                                    "cannot split {} into graph-like pieces: it fires detectors {:?}",
+                                    e.origin.describe(),
+                                    detectors
+                                ))
+                            }
+                        }
+                    }
+                    out
+                };
+                let mut final_pieces = Vec::with_capacity(rewritten.len());
+                for x in &rewritten {
+                    let (dets, obs) = space.split(x);
+                    if dets.is_empty() || dets.len() > 2 {
+                        return Err(format!(
+                            "cannot split {} into graph-like pieces: a piece fires detectors {:?}",
+                            e.origin.describe(),
+                            dets
+                        ));
+                    }
+                    final_pieces.push(Piece { detectors: dets, observables: obs });
+                }
+                final_pieces.sort();
+                match grouped.iter_mut().find(|g| g.0 == final_pieces) {
+                    Some(g) => g.1 = xor_prob(g.1, *p),
+                    None => grouped.push((final_pieces, *p)),
+                }
+            }
+            for (pieces, p) in grouped {
+                mechanisms.push(Mechanism { p, detectors: detectors.clone(), observables, pieces });
+            }
         }
-        mechanisms.sort_by(|a, b| a.detectors.cmp(&b.detectors).then(a.observables.cmp(&b.observables)));
+        mechanisms.sort_by(|a, b| {
+            a.detectors.cmp(&b.detectors).then(a.observables.cmp(&b.observables)).then(a.pieces.cmp(&b.pieces))
+        });
 
         Ok(Dem { num_detectors: nd, num_observables: no, detector_coords: res.detector_coords, mechanisms })
     }
 }
 
 /* -- Decomposition --------------------------------------------------------- */
+//
+// Stim's decomposition, reproduced so that this engine's matching graph is the
+// one PyMatching builds from Stim's model, edge for edge. A first attempt split
+// each fault into its own X and Z halves; it disagreed with Stim on dozens of
+// edges, and that was not cosmetic. Kept whole, a Y fault on a boundary qubit is
+// an edge joining the X-check and Z-check graphs, and the matcher routes
+// through such bridges: two single faults of the d = 3 memory-X circuit under
+// SD6 decoded into logical errors, where PyMatching on Stim's model decoded
+// none.
 
-/// Parts to pieces, or None if any part is too wide or is a bare logical.
-fn to_pieces(space: &Space, parts: &[Vec<u64>]) -> Option<Vec<Piece>> {
-    let mut out = Vec::new();
-    for part in parts {
-        if is_zero(part) {
+/// Symptom with the observable bits cleared.
+fn det_mask(space: &Space, s: &[u64]) -> Vec<u64> {
+    let mut out = s.to_vec();
+    for (w, word) in out.iter_mut().enumerate() {
+        let lo = w * 64;
+        if lo >= space.nd {
+            *word = 0;
+        } else if lo + 64 > space.nd {
+            *word &= (1u64 << (space.nd - lo)) - 1;
+        }
+    }
+    out
+}
+
+fn popcount(s: &[u64]) -> u32 {
+    s.iter().map(|w| w.count_ones()).sum()
+}
+
+fn subset(a: &[u64], b: &[u64]) -> bool {
+    a.iter().zip(b).all(|(x, y)| x & !y == 0)
+}
+
+fn or(a: &[u64], b: &[u64]) -> Vec<u64> {
+    a.iter().zip(b).map(|(x, y)| x | y).collect()
+}
+
+fn and_not(a: &[u64], b: &[u64]) -> Vec<u64> {
+    a.iter().zip(b).map(|(x, y)| x & !y).collect()
+}
+
+/// Stim's `decompose_helper_add_error_combinations`. For a channel with basis
+/// errors b_0..b_{s-1} (their symptoms), returns the pieces of every
+/// combination k = 1..2^s, in order. A combination is split using only the
+/// channel's own single-detector combinations and its irreducible
+/// two-detector ones; one that cannot be is left whole for the global pass.
+fn channel_combinations(space: &Space, basis: &[Vec<u64>]) -> Vec<Vec<Vec<u64>>> {
+    let s = basis.len();
+    let n = 1usize << s;
+    let mut sym = vec![space.zero(); n];
+    for (k, v) in sym.iter_mut().enumerate().skip(1) {
+        for (i, b) in basis.iter().enumerate() {
+            if (k >> i) & 1 == 1 {
+                xor_into(v, b);
+            }
+        }
+    }
+    let mask: Vec<Vec<u64>> = sym.iter().map(|v| det_mask(space, v)).collect();
+    let count: Vec<u32> = mask.iter().map(|m| popcount(m)).collect();
+
+    let mut solved = vec![false; n];
+    let mut single_union = space.zero();
+    for k in 1..n {
+        if count[k] == 1 {
+            single_union = or(&single_union, &mask[k]);
+            solved[k] = true;
+        }
+    }
+    let mut irreducible = Vec::new();
+    for k in 1..n {
+        if count[k] == 2 && !subset(&mask[k], &single_union) {
+            irreducible.push(k);
+            solved[k] = true;
+        }
+    }
+
+    let mut out: Vec<Vec<Vec<u64>>> = Vec::with_capacity(n - 1);
+    for k in 1..n {
+        if count[k] == 0 || solved[k] {
+            out.push(vec![sym[k].clone()]);
             continue;
         }
-        let (detectors, observables) = space.split(part);
-        if detectors.is_empty() || detectors.len() > 2 {
-            return None;
+        let goal = &mask[k];
+        let mut pieces: Vec<Vec<u64>> = Vec::new();
+        let mut remnants;
+        if subset(goal, &single_union) {
+            remnants = goal.clone();
+        } else if let Some(&kp) = irreducible
+            .iter()
+            .find(|&&kp| subset(&mask[kp], goal) && subset(goal, &or(&single_union, &mask[kp])))
+        {
+            pieces.push(sym[kp].clone());
+            remnants = and_not(goal, &mask[kp]);
+        } else {
+            let mut found = None;
+            'pairs: for (i1, &k1) in irreducible.iter().enumerate() {
+                for &k2 in &irreducible[i1 + 1..] {
+                    let both = or(&mask[k1], &mask[k2]);
+                    let disjoint = mask[k1].iter().zip(&mask[k2]).all(|(a, b)| a & b == 0);
+                    if disjoint && subset(goal, &or(&single_union, &both)) {
+                        found = Some((k1, k2, both));
+                        break 'pairs;
+                    }
+                }
+            }
+            match found {
+                Some((k1, k2, both)) => {
+                    pieces.push(sym[k1].clone());
+                    pieces.push(sym[k2].clone());
+                    remnants = and_not(goal, &both);
+                }
+                None => {
+                    pieces.push(sym[k].clone());
+                    remnants = space.zero();
+                }
+            }
         }
-        out.push(Piece { detectors, observables });
+        for k2 in 1..n {
+            if is_zero(&remnants) {
+                break;
+            }
+            if count[k2] == 1 && subset(&mask[k2], &remnants) {
+                remnants = and_not(&remnants, &mask[k2]);
+                pieces.push(sym[k2].clone());
+            }
+        }
+        // Stim trusts this construction; check it. The pieces must XOR back to
+        // the combination, observables included, or the model would be wrong.
+        let mut check = space.zero();
+        for x in &pieces {
+            xor_into(&mut check, x);
+        }
+        if check != sym[k] {
+            pieces = vec![sym[k].clone()];
+        }
+        out.push(pieces);
     }
-    Some(out)
+    out
 }
 
-/// Two existing graph-like mechanisms whose symptoms XOR to `s`.
-fn split_existing(
-    space: &Space,
-    s: &[u64],
-    graphlike: &HashSet<Vec<u64>>,
-    by_det: &HashMap<u32, Vec<Vec<u64>>>,
-) -> Option<(Vec<u64>, Vec<u64>)> {
-    let (dets, _) = space.split(s);
-    if dets.is_empty() || dets.len() > 4 {
+/// Stim's `brute_force_decomposition_into_known_graphlike_errors`: partition a
+/// wide piece's detectors into known singles and pairs whose observables XOR to
+/// its own. The first unused detector is paired with each later one in turn,
+/// then tried alone, exactly in Stim's order.
+fn brute_force_known(space: &Space, x: &[u64], known: &HashMap<Vec<u32>, Vec<u64>>) -> Option<Vec<Vec<u64>>> {
+    let (dets, obs) = space.split(x);
+    fn go(
+        space: &Space,
+        dets: &[u32],
+        used: &mut [bool],
+        remaining: u64,
+        known: &HashMap<Vec<u32>, Vec<u64>>,
+        out: &mut Vec<Vec<u64>>,
+    ) -> bool {
+        let Some(start) = (0..dets.len()).find(|&i| !used[i]) else {
+            return remaining == 0;
+        };
+        used[start] = true;
+        for k in start + 1..=dets.len() {
+            let key = if k < dets.len() {
+                if used[k] {
+                    continue;
+                }
+                used[k] = true;
+                vec![dets[start], dets[k]]
+            } else {
+                vec![dets[start]]
+            };
+            if let Some(m) = known.get(&key) {
+                out.push(m.clone());
+                if go(space, dets, used, remaining ^ space.split(m).1, known, out) {
+                    return true;
+                }
+                out.pop();
+            }
+            if k < dets.len() {
+                used[k] = false;
+            }
+        }
+        used[start] = false;
+        false
+    }
+    let mut used = vec![false; dets.len()];
+    let mut out = Vec::new();
+    go(space, &dets, &mut used, obs, known, &mut out).then_some(out)
+}
+
+/// Stim's `decompose_and_append_component_to_tail`: greedily take known pairs,
+/// then known singles, and let whatever is left (at most two detectors) stand
+/// as an edge of its own.
+fn greedy_known(space: &Space, x: &[u64], known: &HashMap<Vec<u32>, Vec<u64>>) -> Option<Vec<Vec<u64>>> {
+    let (dets, _) = space.split(x);
+    if dets.len() <= 2 {
+        return Some(vec![x.to_vec()]);
+    }
+    let mut done = vec![false; dets.len()];
+    let mut rest = x.to_vec();
+    let mut out = Vec::new();
+    for k in 0..dets.len() {
+        if done[k] {
+            continue;
+        }
+        for k2 in k + 1..dets.len() {
+            if done[k2] {
+                continue;
+            }
+            if let Some(m) = known.get(&vec![dets[k], dets[k2]]) {
+                done[k] = true;
+                done[k2] = true;
+                xor_into(&mut rest, m);
+                out.push(m.clone());
+                break;
+            }
+        }
+    }
+    let mut missed = 0;
+    for k in 0..dets.len() {
+        if !done[k] {
+            if let Some(m) = known.get(&vec![dets[k]]) {
+                done[k] = true;
+                xor_into(&mut rest, m);
+                out.push(m.clone());
+            }
+        }
+        missed += !done[k] as usize;
+    }
+    if missed > 2 {
         return None;
     }
-    for g in by_det.get(&dets[0])? {
-        let mut h = s.to_vec();
-        xor_into(&mut h, g);
-        if graphlike.contains(&h) {
-            return Some((g.clone(), h));
-        }
+    if !is_zero(&rest) {
+        out.push(rest);
     }
-    None
-}
-
-/// Split a mechanism into graph-like pieces, most natural split first:
-/// 1. its X part and its Z part (propagation is linear, and a Y is X·Z);
-/// 2. atom by atom (a two-qubit Pauli gives up to four single-type atoms);
-/// 3. any part still too wide, into two graph-like mechanisms that exist.
-fn decompose(
-    space: &Space,
-    e: &Entry,
-    graphlike: &HashSet<Vec<u64>>,
-    by_det: &HashMap<u32, Vec<Vec<u64>>>,
-) -> Option<Vec<Piece>> {
-    let (dets, _) = space.split(&e.sym);
-    if dets.len() <= 2 {
-        return to_pieces(space, std::slice::from_ref(&e.sym));
-    }
-    for atoms in &e.atom_options {
-        let mut xpart = space.zero();
-        let mut zpart = space.zero();
-        let mut parts = Vec::new();
-        for a in atoms {
-            match a.kind {
-                1 => xor_into(&mut xpart, &a.sym),
-                2 => xor_into(&mut zpart, &a.sym),
-                _ => parts.push(a.sym.clone()),
-            }
-        }
-        parts.push(xpart);
-        parts.push(zpart);
-        if let Some(p) = to_pieces(space, &parts) {
-            return Some(p);
-        }
-
-        let mut singles: Vec<Vec<u64>> = Vec::new();
-        for a in atoms {
-            match singles.iter().position(|s| *s == a.sym) {
-                Some(i) => {
-                    singles.swap_remove(i);
-                }
-                None => singles.push(a.sym.clone()),
-            }
-        }
-        if let Some(p) = to_pieces(space, &singles) {
-            return Some(p);
-        }
-
-        let mut out = Vec::new();
-        let mut ok = true;
-        for s in &singles {
-            if is_zero(s) {
-                continue;
-            }
-            if let Some(mut p) = to_pieces(space, std::slice::from_ref(s)) {
-                out.append(&mut p);
-                continue;
-            }
-            match split_existing(space, s, graphlike, by_det).and_then(|(g, h)| to_pieces(space, &[g, h])) {
-                Some(mut p) => out.append(&mut p),
-                None => {
-                    ok = false;
-                    break;
-                }
-            }
-        }
-        if ok {
-            return Some(out);
-        }
-    }
-    split_existing(space, &e.sym, graphlike, by_det).and_then(|(g, h)| to_pieces(space, &[g, h]))
+    Some(out)
 }
 
 /* -- Stim's .dem text ------------------------------------------------------ */

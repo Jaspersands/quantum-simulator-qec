@@ -22,6 +22,7 @@ pub mod dem;
 pub mod dem_decoder;
 pub mod frame_sampler;
 pub mod shots;
+pub mod memory;
 #[cfg(test)]
 mod fixtures;
 
