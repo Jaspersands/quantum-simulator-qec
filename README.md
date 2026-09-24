@@ -2,7 +2,9 @@
 
 A Rust stabilizer circuit simulator and decoder for rotated surface codes and XZZX codes.
 Compiles to WebAssembly for an interactive browser explainer, and to PyO3 Python bindings
-(`stabilizer_qec`) for Monte Carlo threshold benchmarking.
+(`stabilizer_qec`) for Monte Carlo threshold benchmarking. It reads and writes Stim's circuit and
+error-model formats, and it agrees with Stim and PyMatching on every check in
+[Checked against Stim and PyMatching](#checked-against-stim-and-pymatching).
 
 The website walks through surface-code error correction in order: errors, syndromes, decoding,
 spacetime, threshold. Each interactive figure is driven by the real engine running locally, and
@@ -13,10 +15,15 @@ every number on the page is computed in the reader's browser on load.
 - **Stabilizer engine**: binary symplectic tableau simulator, $O(N^2)$ Pauli propagation,
   based on the Gottesman–Knill theorem.
 - **Codes**: rotated surface code ($d^2$ data qubits, $d^2-1$ ancillas) and XZZX surface code.
-- **Noise models**: pure data noise, phenomenological noise, circuit-level noise, $Z$-bias,
-  located erasure, spatial bursts, and slow temporal drift.
+- **Noise models**: pure data noise, phenomenological noise, circuit-level noise (the engine's
+  own model, and SD6, the standard one), $Z$-bias, located erasure, spatial bursts, and slow
+  temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
-  and a greedy nearest-neighbour baseline.
+  a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
+  error model.
+- **A general circuit path**: circuits and detector error models in Stim's text formats, a
+  detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
+  `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, every figure is driven by it, the threshold table is
   plotted as it is measured, and the bench streams its estimate.
@@ -30,6 +37,170 @@ The bias matters more than it might seem. At `d = 7, p = 0.3%` circuit-level, th
 reports **1.07% at η = 1 and 2.37% at η = 100**, while XZZX at the same two settings reports
 **1.08% and 0.25%**. Same p, and the ranking between the codes reverses. Shot counts are given
 where a number is close enough to the noise floor for it to matter.
+
+## Checked against Stim and PyMatching
+
+Stim and PyMatching are the tools the field uses to simulate and decode surface codes, and the
+first question anyone asks of a new simulator is whether it agrees with them. Until now this
+engine had only been checked against itself. It now has a general circuit path, and on that path
+it agrees with both tools on every check below, down to floating-point rounding.
+
+**The general path.**
+
+- `src/circuit.rs` reads and writes the part of Stim's circuit language the engine speaks: resets,
+  H, CX, CZ, measurements, the depolarizing and Pauli channels, detectors, observables,
+  coordinates, and REPEAT blocks.
+- `src/dem.rs` builds a detector error model from any such circuit by walking it backwards once.
+  For every qubit it carries the set of detectors an X or a Z error there would flip. That is how
+  Stim's error analyzer works, and it is fast enough to run in the browser at d = 7.
+- `src/dem_decoder.rs` is exact minimum-weight perfect matching over any error model. Edges are
+  weighted ln((1 − p)/p), and the decoder returns the logical observables it predicts flipped.
+- `src/frame_sampler.rs` samples a circuit with a Pauli frame. It never looks at the error model,
+  so the model and the sampler can disagree.
+- `src/memory.rs` writes the rotated and XZZX memory experiments as circuits, under two noise
+  models:
+  - the engine's own circuit-level model, transcribed gate for gate;
+  - SD6, the standard model published thresholds assume (Gidney, Newman, Fowler and Broughton,
+    2021): a two-qubit depolarizing channel after every CNOT, single-qubit depolarizing after every
+    single-qubit gate and on every idle qubit, and flips on every reset and measurement.
+
+The old per-code paths are untouched, and every other number in this file still comes from them.
+
+**1. The error models are identical.** The comparison covers 15 circuits: Stim's own generated
+rotated memory experiment, and ours for both codes under both noise models, each at d = 3, 5 and 7
+with p = 0.3%. For every one, this engine's model and Stim's list the same faults with the same
+probabilities. This engine parses Stim's circuits, and Stim parses ours.
+
+**1b. So are the matching graphs.** A decoder does not run on that list directly. A fault that trips
+more than two detectors must first be split into graph-like pieces, and how it is split sets the
+graph's edge weights. The decomposed models agree too: every fault is split the same way, and every
+edge has the same probability.
+
+| circuit | d | detectors | mechanisms, ours / Stim's | largest Δp/p | graph edges | graph |
+|---|---|---|---|---|---|---|
+| Stim's `rotated_memory_z` | 3 | 24 | 219 / 219 | 6.4e-16 | 78 | identical |
+| Stim's `rotated_memory_z` | 5 | 120 | 1,677 / 1,677 | 6.4e-16 | 502 | identical |
+| Stim's `rotated_memory_z` | 7 | 336 | 5,471 / 5,471 | 6.4e-16 | 1,558 | identical |
+| rotated, engine model | 3 | 36 | 223 / 223 | 0.0e+00 | 103 | identical |
+| rotated, engine model | 5 | 156 | 1,261 / 1,261 | 0.0e+00 | 581 | identical |
+| rotated, engine model | 7 | 408 | 3,739 / 3,739 | 0.0e+00 | 1,723 | identical |
+| rotated, SD6 | 3 | 24 | 219 / 219 | 1.1e-15 | 78 | identical |
+| rotated, SD6 | 5 | 120 | 1,677 / 1,677 | 1.1e-15 | 502 | identical |
+| rotated, SD6 | 7 | 336 | 5,471 / 5,471 | 1.1e-15 | 1,558 | identical |
+| XZZX, engine model | 3 | 36 | 223 / 223 | 0.0e+00 | 103 | identical |
+| XZZX, engine model | 5 | 156 | 1,261 / 1,261 | 0.0e+00 | 581 | identical |
+| XZZX, engine model | 7 | 408 | 3,739 / 3,739 | 0.0e+00 | 1,723 | identical |
+| XZZX, SD6 | 3 | 24 | 219 / 219 | 1.1e-15 | 78 | identical |
+| XZZX, SD6 | 5 | 120 | 1,677 / 1,677 | 1.1e-15 | 502 | identical |
+| XZZX, SD6 | 7 | 336 | 5,471 / 5,471 | 1.1e-15 | 1,558 | identical |
+
+Those two last columns did not match on the first attempt. What caught it was not a comparison with
+Stim at all; see *What the checks caught* below.
+
+**2. The decoders agree shot for shot.** At each point, Stim sampled 100,000 shots, and PyMatching and
+this engine decoded the same detection events. Two exact matchers can disagree only where two
+corrections tie in weight. There were 16 disagreements in 600,000 shots, and
+every one is a tie: the two matchings' weights differ by less than the discretisation noise measured
+on shots where the decoders agree (at most 2e-06).
+
+**3. The samplers agree.** The same circuits were also sampled by this engine's frame sampler and
+decoded by its own decoder, and compared with Stim's sampler decoded by PyMatching:
+
+- Per-detector firing rates agree, with χ² z-scores between −2.4 and +0.1 over 24 to 336 detectors.
+- The logical error rates lie within each other's intervals.
+- At 400,000 shots each, both decoded by PyMatching, the two samplers' rates differ by 0.4σ, 0.4σ
+  and 0.1σ at (d, p) = (3, 0.3%), (3, 0.6%) and (5, 0.6%).
+
+| d | p | PyMatching | ours, on Stim's graph | ours, on our graph | disagreements (not ties) | our sampler + decoder | χ² z | PyMatching | ours |
+|---|---|---|---|---|---|---|---|---|---|
+| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 3.6 µs |
+| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 7.7 µs |
+| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.7 µs | 55.0 µs |
+| 5 | 0.6% | 9.432% | 9.433% | 9.433% | 7 (0) | 9.493% | -0.90 | 3.9 µs | 161.0 µs |
+| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.072% | +0.06 | 5.6 µs | 516.3 µs |
+| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.682% | -2.35 | 15.1 µs | 2.05 ms |
+
+The last two columns are native decode time per shot.
+
+**4. Speed.** PyMatching's sparse blossom is 18 to 136 times faster than this engine's dense matcher,
+and the gap widens with the patch, as it should for a sparse algorithm. At d = 7, p = 0.6% this
+decoder takes 2 ms a shot, native, against PyMatching's 15 µs. That is the cost of an exact matcher
+that works from all-pairs shortest paths, and speed is the next sub-project.
+
+**5. The old path and the new one describe the same circuit.** `src/equivalence.rs` rebuilds the old
+path's error model from its own code:
+
+1. Push every fault the old per-code simulator enumerates through its Pauli frame.
+2. Name the detectors each fault trips by plaquette and round.
+3. Merge the faults into an error model.
+
+The result is identical to the new path's model of the same memory experiment under the engine's
+noise: the same 223, 1,261 and 3,739 mechanisms at d = 3, 5 and 7, for both codes and both bases.
+So the engine's circuit-level results and the general path describe the same circuit.
+
+They are not decoded the same way. The old decoder matches one Pauli type at a time, with unit edge
+weights. The new one weights every edge by the probability of the faults behind it. The table below
+uses the same circuit and the same noise, with 20,000 shots each; the old decoder's column counts the
+failures the memory-Z experiment would see.
+
+| d | p | old decoder (unit weights) | new decoder (probability weights) |
+|---|---|---|---|
+| 3 | 0.2% | 0.265% | 0.310% |
+| 3 | 0.3% | 0.760% | 0.495% |
+| 3 | 0.4% | 1.230% | 0.910% |
+| 5 | 0.2% | 0.195% | 0.100% |
+| 5 | 0.3% | 0.540% | 0.385% |
+| 5 | 0.4% | 1.395% | 0.865% |
+| 7 | 0.2% | 0.100% | 0.030% |
+| 7 | 0.3% | 0.410% | 0.170% |
+| 7 | 0.4% | 1.200% | 0.665% |
+
+Weighting by probability roughly halves the logical error rate at d = 5 and 7. At d = 3 and the
+lowest p the two are within noise. This is a finding about the decoder rather than the physics, and
+it suggests the circuit-level thresholds quoted below are partly a property of unit-weight matching.
+How much is a question for the next decoder work.
+
+**6. Every single fault is corrected.** The exhaustive check from section 7 below now runs on the new
+path too: every mechanism of every model, decoded alone, predicts its own logical flip. That covers
+the rotated and XZZX codes, both bases and both noise models:
+
+- 446, 2,522 and 7,478 mechanisms at d = 3, 5 and 7 under the engine's model;
+- 568, 3,888 and 12,152 under SD6;
+- no failures.
+
+**What the checks caught.** The first decomposition kept any fault with at most two detectors whole,
+and split wider ones into their X and Z halves. It passed every unit test and the error-model
+comparison, since that comparison is about faults, not pieces. Check 6 failed. Two single faults of
+the d = 3 memory-X circuit under SD6 decoded into logical errors, and one under XZZX did too.
+
+- **The circuit was sound.** Stim put its graph-like distance at 3, so the faults were correctable,
+  and PyMatching corrected them on Stim's decomposition.
+- **The graph was the difference.** A Y error on a boundary qubit trips one X-type check and one
+  Z-type check. Kept whole, it becomes an edge joining the two matching graphs, and the matcher
+  routed a correction through that bridge and across the logical operator.
+- **A first fix fell short.** Splitting every fault into its X and Z halves removed the bridges but
+  still disagreed with Stim on 66 of 221 symptoms. Stim splits a fault by what the rest of the same
+  noise channel can express, not by the fault's own halves, and it keeps faults that share a
+  symptom but split differently apart.
+
+The decomposition now reproduces Stim's error analyzer. Each composite channel's combinations are
+split using that channel's own single-detector and irreducible two-detector combinations, and
+anything left over goes through Stim's global pass. Check 1b is the result. None of this reached
+the site: the bug lived only in the new code, and the exhaustive single-fault check caught it on
+its first run.
+
+**Reproduce.**
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
+VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+.venv/bin/python tools/xcheck.py
+cargo test --release --no-default-features equivalence -- --include-ignored --nocapture
+cargo test --release --no-default-features every_single_fault -- --include-ignored
+```
+
+The recorded run is `data/xcheck/report.txt`. Figure 8 on the site repeats the error-model
+comparison live, in the reader's browser.
 
 ## Engine defects found and fixed
 
@@ -72,6 +243,24 @@ not by hand. Figures are the mean and spread of **four independent sweeps**:
 | XZZX | phenomenological | **3.25% ± 0.07** | 0.97 ± 0.06 | 2.56 | 2.94% |
 | rotated | circuit-level | **0.41% ± 0.03** | *not determined* | 4.31 | 0.37% |
 | XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
+| rotated | circuit-level, SD6 (per basis) | **0.48% ± 0.05** | *not determined* | 3.13 | 0.49% |
+| XZZX | circuit-level, SD6 (per basis) | **0.53% ± 0.07** | *not determined* | 2.25 | 0.45% |
+
+The two circuit-level models are different physics.
+
+- **The engine's own model** puts an independent error on each qubit of every CNOT, so a gate
+  fails about 2p of the time, and it never lets an idle qubit err.
+- **SD6** gives each CNOT one two-qubit depolarizing error of total probability p, and
+  depolarizes every idle qubit in every layer. It is the standard model, and the one published
+  thresholds assume.
+
+The SD6 rows come from the general path (see *Checked against Stim and PyMatching*) and its
+probability-weighted matcher, and they are scored the way experiments are, one logical basis at a
+time. That barely moves where the curves cross, but it roughly halves the rate below threshold.
+Stim's own generated circuit, which depolarizes idle data only once a round, crosses higher, near
+0.65–0.7% with PyMatching. SD6 costs the dense matcher about 0.1 s a shot across the window at
+d = 9, so these sweeps run 800 shots a point, and the spread shows it. The runs are in
+`data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/sweep.mjs 3 1`.
 
 **Confirmed against an independent implementation.** An L×L toric code written from scratch in
 JavaScript (periodic lattice, no boundaries, with its own noise, syndrome, graph and scoring, and
@@ -437,6 +626,16 @@ src/tableau.rs        symplectic tableau and Clifford operations
 src/surface_code.rs   rotated and XZZX lattices, noise models, error generation
 src/decoder.rs        Union-Find cluster growth and peeling
 src/circuit_model.rs  detector error model derived from the extraction circuit, CSS and non-CSS
+src/circuit.rs        circuits in Stim's text format: parse, emit, flatten, resolve records
+src/dem.rs            detector error models: built backwards from any circuit, decomposed as
+                      Stim decomposes, read and written in Stim's .dem format, compared
+src/dem_decoder.rs    probability-weighted exact matching over any detector error model
+src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the model
+src/shots.rs          Stim's 01 and b8 detection-event formats
+src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
+src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
+src/py_api.rs         PyO3 bindings for the cross-check
+src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -449,6 +648,12 @@ js/compute.js         worker RPC, Wilson intervals, threshold collapse fit
 js/lattice.js         canvas renderer for a code patch, 2D and spacetime
 js/plot.js            canvas plotting primitive
 js/sections/*.js      one module per section of the page
+js/sweep-config.js    what the threshold sweep measures, shared with tools/sweep.mjs
+js/xcheck-format.js   pure formatting for Figure 8
+
+tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
+tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
+data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
 
 run_benchmarks.py       phenomenological threshold benchmarks
 run_data_benchmarks.py  data-noise threshold benchmarks
@@ -496,11 +701,16 @@ it; installing a native `aarch64-apple-darwin` toolchain is the better long-term
 ### Python bindings & benchmarks
 
 ```bash
-pip install maturin
-maturin develop --release
-python3 run_benchmarks.py
-python3 run_data_benchmarks.py
+python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
+VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+.venv/bin/python run_benchmarks.py
+.venv/bin/python run_data_benchmarks.py
+.venv/bin/python tools/xcheck.py
 ```
+
+If an older `stabilizer_qec.so` sits at the repository root (git ignores it), delete it. Python looks
+in a script's own directory first, so for the two benchmark scripts it would shadow the fresh build.
+`tools/xcheck.py` refuses to run against a build that lacks the cross-check bindings.
 
 ## License
 
