@@ -17,6 +17,9 @@ pub mod blossom;
 pub mod decoder;
 pub mod surface_code;
 pub mod circuit_model;
+pub mod circuit;
+#[cfg(test)]
+mod fixtures;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
