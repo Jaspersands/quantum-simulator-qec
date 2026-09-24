@@ -169,9 +169,10 @@ bit-parallel.
 Read and write Stim's `01` and `b8` formats for detectors and observables. B reads Google's data
 with this. In A, it carries shots from Stim to our decoder in the cross-check.
 
-### 6. `surface_code.rs` — codes as circuits (additive)
+### 6. `src/memory.rs` — codes as circuits (additive)
 
-`to_circuit(&self, rounds, NoiseModel, Basis) -> Circuit` for the rotated and XZZX codes, with
+It lives in its own module rather than `surface_code.rs`, which is already 1,842 lines.
+`generate(CodeKind, d, rounds, NoiseModel, Basis) -> Circuit` covers the rotated and XZZX codes, with
 `NoiseModel::{ Current { p, eta }, Sd6 { p } }` and `Basis::{ Z, X }`.
 
 - **Schedules:** the CNOT schedules are exactly those in `round_program` and
@@ -267,7 +268,10 @@ page says so.
   `CircuitLayout::propagate` enumerates maps to a component of the new DEM with the same detector
   set. Detectors are matched through their (stabilizer, round) coordinates.
 - The merged probabilities agree.
-- As a statistical check, the old simulator's per-detector firing rates match the new sampler's.
+
+That is exact at the level of symptoms, which makes a statistical comparison of the two samplers'
+detector rates redundant. The new sampler is checked statistically anyway, against the DEM's
+exact marginals in a unit test and against Stim's sampler in check 3.
 
 The old and new decoders differ, since the old one is unit-weight and the new one is weighted by
 probability. So their logical rates are *reported side by side, not asserted equal*. If proper
@@ -294,8 +298,9 @@ noise models. It is the project's signature test, carried over to the new path.
 
 ### Section 10: "Checked against Stim", a new figure
 
-It lives in the figure vocabulary (caption line, un-boxed, ink on paper), placed after the engine
-and decoder entries and before the defect write-ups. Two small tables:
+It lives in the figure vocabulary (caption line, un-boxed, ink on paper). It sits directly after
+section 10's opening prose, which it is evidence for, and before the list of engine entries. A
+short paragraph introduces it. Two small tables:
 
 1. **The error model, derived live.** A row per circuit showing: circuit, detectors, mechanisms
    (ours / Stim's), largest relative Δp, and a verdict: *identical*, or the count that differ.
