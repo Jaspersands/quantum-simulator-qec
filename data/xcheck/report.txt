@@ -1,0 +1,25 @@
+Checks 1 and 1b: detector error models and matching graphs
+  ok  stim-rotated-memory-z-d3        24 detectors     219 / 219    mechanisms  max rel 6.4e-16  |  graph    78 edges, 0 one-sided, 0 splits differ, max rel 6.8e-16
+  ok  stim-rotated-memory-z-d5       120 detectors    1677 / 1677   mechanisms  max rel 6.4e-16  |  graph   502 edges, 0 one-sided, 0 splits differ, max rel 9.9e-16
+  ok  stim-rotated-memory-z-d7       336 detectors    5471 / 5471   mechanisms  max rel 6.4e-16  |  graph  1558 edges, 0 one-sided, 0 splits differ, max rel 9.9e-16
+  ok  rotated-current-d3              36 detectors     223 / 223    mechanisms  max rel 0.0e+00  |  graph   103 edges, 0 one-sided, 0 splits differ, max rel 2.2e-16
+  ok  rotated-current-d5             156 detectors    1261 / 1261   mechanisms  max rel 0.0e+00  |  graph   581 edges, 0 one-sided, 0 splits differ, max rel 2.2e-16
+  ok  rotated-current-d7             408 detectors    3739 / 3739   mechanisms  max rel 0.0e+00  |  graph  1723 edges, 0 one-sided, 0 splits differ, max rel 2.2e-16
+  ok  rotated-sd6-d3                  24 detectors     219 / 219    mechanisms  max rel 1.1e-15  |  graph    78 edges, 0 one-sided, 0 splits differ, max rel 5.9e-16
+  ok  rotated-sd6-d5                 120 detectors    1677 / 1677   mechanisms  max rel 1.1e-15  |  graph   502 edges, 0 one-sided, 0 splits differ, max rel 7.2e-16
+  ok  rotated-sd6-d7                 336 detectors    5471 / 5471   mechanisms  max rel 1.1e-15  |  graph  1558 edges, 0 one-sided, 0 splits differ, max rel 7.2e-16
+  ok  xzzx-current-d3                 36 detectors     223 / 223    mechanisms  max rel 0.0e+00  |  graph   103 edges, 0 one-sided, 0 splits differ, max rel 2.9e-16
+  ok  xzzx-current-d5                156 detectors    1261 / 1261   mechanisms  max rel 0.0e+00  |  graph   581 edges, 0 one-sided, 0 splits differ, max rel 2.9e-16
+  ok  xzzx-current-d7                408 detectors    3739 / 3739   mechanisms  max rel 0.0e+00  |  graph  1723 edges, 0 one-sided, 0 splits differ, max rel 2.9e-16
+  ok  xzzx-sd6-d3                     24 detectors     219 / 219    mechanisms  max rel 1.1e-15  |  graph    78 edges, 0 one-sided, 0 splits differ, max rel 5.9e-16
+  ok  xzzx-sd6-d5                    120 detectors    1677 / 1677   mechanisms  max rel 1.1e-15  |  graph   502 edges, 0 one-sided, 0 splits differ, max rel 6.3e-16
+  ok  xzzx-sd6-d7                    336 detectors    5471 / 5471   mechanisms  max rel 1.1e-15  |  graph  1558 edges, 0 one-sided, 0 splits differ, max rel 8.3e-16
+Checks 2-4: decoding, 100,000 shots per point
+  ok  d=3 p=0.003  PyMatching 2.2890%  ours 2.2890%  own-DEM 2.2890%  our sampler 2.2920%  disagree 0/0 (non-ties 0/0, weight noise 4.6e-07)  chi2 z -0.10  0.2 us vs 3.6 us
+  ok  d=3 p=0.006  PyMatching 7.6030%  ours 7.6030%  own-DEM 7.6030%  our sampler 7.6240%  disagree 0/0 (non-ties 0/0, weight noise 7.3e-07)  chi2 z -1.38  0.4 us vs 7.7 us
+  ok  d=5 p=0.003  PyMatching 1.6470%  ours 1.6490%  own-DEM 1.6490%  our sampler 1.6310%  disagree 2/2 (non-ties 0/0, weight noise 8.8e-07)  chi2 z -2.38  1.7 us vs 55.0 us
+  ok  d=5 p=0.006  PyMatching 9.4320%  ours 9.4330%  own-DEM 9.4330%  our sampler 9.4930%  disagree 7/7 (non-ties 0/0, weight noise 1.3e-06)  chi2 z -0.90  3.9 us vs 161.0 us
+  ok  d=7 p=0.003  PyMatching 1.1240%  ours 1.1240%  own-DEM 1.1240%  our sampler 1.0720%  disagree 0/0 (non-ties 0/0, weight noise 1.6e-06)  chi2 z +0.06  5.6 us vs 516.3 us
+  ok  d=7 p=0.006  PyMatching 10.6530%  ours 10.6520%  own-DEM 10.6520%  our sampler 10.6820%  disagree 7/7 (non-ties 0/0, weight noise 2.1e-06)  chi2 z -2.35  15.1 us vs 2050.3 us
+Wrote data/xcheck/ (18 files + reference.json)
+ALL CHECKS PASSED
