@@ -113,7 +113,22 @@ impl DemDecoder {
         self.decode(&defects)
     }
 
+    /// Decode a set of fired detectors. A detector listed twice has fired an
+    /// even number of times and cancels, as detection events XOR.
     pub fn decode(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        if !defects.windows(2).all(|w| w[0] < w[1]) {
+            let mut set: Vec<u32> = defects.to_vec();
+            set.sort_unstable();
+            let mut out: Vec<u32> = Vec::with_capacity(set.len());
+            for d in set {
+                if out.last() == Some(&d) {
+                    out.pop();
+                } else {
+                    out.push(d);
+                }
+            }
+            return self.decode(&out);
+        }
         let k = defects.len();
         if k == 0 {
             return Ok(Prediction { observables: 0, weight: 0.0 });
@@ -356,6 +371,13 @@ mod tests {
         assert_eq!(dec.decode(&[2]), Err(DecodeError::Unmatchable));
         assert_eq!(dec.decode(&[0]), Err(DecodeError::Unmatchable));
         assert!(dec.decode(&[0, 1]).is_ok());
+    }
+
+    #[test]
+    fn repeated_detectors_cancel() {
+        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1").unwrap()).unwrap();
+        assert_eq!(dec.decode(&[1, 0, 0]), dec.decode(&[1]));
+        assert_eq!(dec.decode(&[1, 1]).unwrap().observables, 0);
     }
 
     #[test]

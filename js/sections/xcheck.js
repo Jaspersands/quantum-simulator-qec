@@ -189,12 +189,12 @@ export function initXcheck(root, compute) {
         try {
           await runModels(later);
           status.textContent = 'd = 7 compared.';
-        } catch (error) {
-          status.textContent = `Failed: ${error.message}`;
-        } finally {
           more.hidden = true;
+        } catch (error) {
+          status.textContent = `Failed: ${error.message}. Try again.`;
+          more.disabled = false;
         }
-      }, { once: true });
+      });
     }
 
     try {

@@ -360,6 +360,9 @@ export function runBenchmark(instance, config) {
     rounds, c.runs, c.noiseMode, c.erasure, c.correlated,
   );
   const seconds = (performance.now() - t0) / 1000;
+  if (Number.isNaN(rate)) {
+    throw new Error(`the engine could not build noise mode ${c.noiseMode} at d = ${c.d}`);
+  }
   // SD6 runs on the general path, whose decoder refuses rather than falls back;
   // the count of refusals travels with the rate so the page can show it.
   const decodeErrors = c.noiseMode === NOISE.SD6 ? instance.exports.wasm_xc_decode_errors() : 0;
@@ -387,6 +390,9 @@ export function estimateChannel(instance, config) {
   const c = { ...DEFAULT_RUN, ...config };
   const rounds = c.noiseMode === NOISE.DATA ? 1 : c.rounds;
   const t0 = performance.now();
+  if (c.noiseMode === NOISE.SD6) {
+    throw new Error('the logical channel needs both bases at once, which the SD6 experiment does not measure');
+  }
   const ptr = instance.exports.wasm_estimate_logical_fidelity(
     c.d, c.codeType, c.decoder, c.p, c.bias,
     c.noiseMode, rounds, c.runs, c.erasure, c.correlated,

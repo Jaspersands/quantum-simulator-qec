@@ -86,7 +86,7 @@ export function initBench(root, compute) {
     } catch (error) {
       chanStatus.textContent = `Failed: ${error.message}`;
     } finally {
-      chanBtn.disabled = false;
+      chanBtn.disabled = Number(noiseSelect.value) === NOISE.SD6;
     }
   });
 
