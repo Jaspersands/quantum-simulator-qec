@@ -25,6 +25,8 @@ pub mod shots;
 pub mod memory;
 #[cfg(test)]
 mod fixtures;
+#[cfg(test)]
+mod equivalence;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
