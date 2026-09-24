@@ -19,6 +19,7 @@ pub mod surface_code;
 pub mod circuit_model;
 pub mod circuit;
 pub mod dem;
+pub mod dem_decoder;
 #[cfg(test)]
 mod fixtures;
 
