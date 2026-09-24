@@ -13,7 +13,10 @@
  * current chunk; it still ends with a normal 'done' carrying what it measured.
  */
 
-import { instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE } from './engine.js';
+import {
+  instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
+  xcGenerate, xcLoadCircuit, xcCompare, xcTiming,
+} from './engine.js';
 import { planChunks } from './stream.js';
 
 let enginePromise = null;
@@ -25,6 +28,17 @@ function engine() {
 
 /** T = d rounds of syndrome extraction is the standard convention. */
 const roundsFor = (config) => (config.noiseMode === NOISE.DATA ? 1 : config.rounds ?? config.d);
+
+async function fetchText(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return response.text();
+}
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 /** Ids of streaming jobs asked to stop; checked between chunks. */
 const cancelled = new Set();
@@ -81,18 +95,60 @@ const OPS = {
    */
   async stream(instance, config, report, control) {
     const total = config.runs;
-    let done = 0, failures = 0, seconds = 0, last = 0;
+    let done = 0, failures = 0, seconds = 0, last = 0, decodeErrors = 0;
     for (const n of planChunks(total)) {
       if (control.cancelled()) break;
       const r = runBenchmark(instance, { ...config, rounds: roundsFor(config), runs: n });
       done += n; failures += Math.round(r.rate * n); seconds += r.seconds; last = r.runsPerSecond;
-      report({ done, total, failures, seconds, chunkRunsPerSecond: last });
+      decodeErrors += r.decodeErrors ?? 0;
+      report({ done, total, failures, seconds, chunkRunsPerSecond: last, decodeErrors });
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     return {
-      runs: done, failures, rate: done ? failures / done : 0, seconds,
+      runs: done, failures, rate: done ? failures / done : 0, seconds, decodeErrors,
       runsPerSecond: seconds > 0 ? Math.round(done / seconds) : 0, cancelled: control.cancelled(),
     };
+  },
+
+  /**
+   * Section 10's comparison with Stim: for each row, fetch Stim's model, build
+   * ours for the same circuit, compare. A row whose reference cannot be
+   * fetched says so; nothing is ever filled in from anywhere else.
+   */
+  async xcheck(instance, { rows }, report) {
+    const out = [];
+    for (const row of rows) {
+      let result;
+      try {
+        let demText;
+        try {
+          demText = await fetchText(row.demUrl);
+        } catch (error) {
+          result = { ok: false, unavailable: true, error: error.message };
+        }
+        if (!result) {
+          let stale = false;
+          if (row.kind === 'stim') {
+            xcLoadCircuit(instance, await fetchText(row.circuitUrl));
+          } else {
+            const text = xcGenerate(instance, row.gen);
+            if (row.circuitSha256) stale = (await sha256Hex(text)) !== row.circuitSha256;
+          }
+          const t0 = performance.now();
+          result = { ...xcCompare(instance, demText), ms: performance.now() - t0, stale };
+        }
+      } catch (error) {
+        result = { ok: false, error: error.message };
+      }
+      out.push({ key: row.key, ...result });
+      report({ done: out.length, total: rows.length, row: { key: row.key, ...result } });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return { rows: out };
+  },
+
+  async xctiming(instance, { cfg, runs }) {
+    return xcTiming(instance, cfg, runs);
   },
 
   /**

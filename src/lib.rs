@@ -29,6 +29,8 @@ mod fixtures;
 mod equivalence;
 #[cfg(feature = "python")]
 mod py_api;
+#[cfg(not(feature = "python"))]
+mod wasm_xc;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -727,6 +729,12 @@ pub extern "C" fn wasm_run_benchmark(
     erasure_rate: f64,
     correlated_noise: usize,
 ) -> f64 {
+    // Noise mode 3 is SD6, which only the general path models.
+    #[cfg(not(feature = "python"))]
+    if noise_mode == 3 {
+        return wasm_xc::wasm_xc_run(code_type, d, num_rounds, 1, p, bias, num_runs, 1);
+    }
+
     let mut failures = 0;
 
     if code_type == 0 {
