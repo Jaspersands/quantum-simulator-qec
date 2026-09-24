@@ -27,6 +27,8 @@ pub mod memory;
 mod fixtures;
 #[cfg(test)]
 mod equivalence;
+#[cfg(feature = "python")]
+mod py_api;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -67,6 +69,7 @@ impl PyRotatedSurfaceCode {
 #[pymodule]
 fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRotatedSurfaceCode>()?;
+    py_api::register(m)?;
     Ok(())
 }
 
