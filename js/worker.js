@@ -46,6 +46,18 @@ async function fetchBytes(url) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+/**
+ * A text file of the extract, gzipped to a quarter of its size. Inflated here
+ * unless the server already did (some send .gz with Content-Encoding: gzip),
+ * which the gzip signature tells apart.
+ */
+async function fetchGzipText(url) {
+  const bytes = await fetchBytes(url);
+  if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return new TextDecoder().decode(bytes);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).text();
+}
+
 async function sha256Bytes(bytes) {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -182,8 +194,8 @@ const OPS = {
       const at = (name) => new URL(`${ex.dir}/${name}`, base);
       report({ d: ex.d, step: 'fetching' });
       const [ideal, noisy, dem, meas, sweeps, actualBytes, ...preds] = await Promise.all([
-        fetchText(at('circuit_ideal.stim')), fetchText(at('circuit_noisy_si1000.stim')),
-        fetchText(at('error_model_si1000.dem')), fetchBytes(at('measurements.b8')),
+        fetchGzipText(at('circuit_ideal.stim.gz')), fetchGzipText(at('circuit_noisy_si1000.stim.gz')),
+        fetchGzipText(at('error_model_si1000.dem.gz')), fetchBytes(at('measurements.b8')),
         fetchBytes(at('sweep_bits.b8')), fetchBytes(at('obs_flips_actual.b8')),
         ...ex.pathways.map((p) => fetchBytes(at(`pred_${p}.b8`))),
       ]);
