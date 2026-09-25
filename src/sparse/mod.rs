@@ -22,6 +22,7 @@
 //! `tracker` (the reminder queue), `flooder` (growth and the events it raises),
 //! `matcher` (the seven cases an event can be) and `extract` (the matching).
 
+mod correlated;
 mod extract;
 mod flooder;
 mod graph;
@@ -29,8 +30,11 @@ mod matcher;
 mod state;
 mod tracker;
 #[cfg(test)]
+mod correlated_tests;
+#[cfg(test)]
 mod tests;
 
+pub use correlated::Correlations;
 pub use graph::SparseGraph;
 pub use state::Scratch;
 

@@ -18,7 +18,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::blossom::{min_weight_perfect_matching, MAX_VERTICES};
 use crate::dem::{xor_prob, Dem};
-use crate::sparse::{Scratch, SparseGraph};
+use crate::sparse::{Correlations, Scratch, SparseGraph};
 
 /// Integer weight resolution: 2^20 per unit of ln((1 − p)/p). Fine enough that
 /// rounding cannot reorder paths that differ by more than a few parts in 10^6.
@@ -80,6 +80,8 @@ pub struct DemDecoder {
     /// distance three or more: a conflict is a weight-two logical operator.
     pub conflicts: usize,
     sparse: SparseGraph,
+    /// Correlated matching's rules (see `sparse::correlated`).
+    corr: Correlations,
     /// Workspace for `decode`. A decoder is used by one thread at a time;
     /// callers decoding in parallel share `graph()` and hold a `Scratch` each.
     scratch: std::cell::RefCell<Scratch>,
@@ -159,13 +161,19 @@ impl DemDecoder {
             adj[v as usize].push(Arc { to: u, w, wf, obs });
         }
         let sparse = SparseGraph::from_edges(nd, &edges);
+        let corr = Correlations::from_dem(dem, &sparse)?;
         let scratch = std::cell::RefCell::new(Scratch::new(&sparse));
-        Ok(DemDecoder { num_detectors: nd, adj, conflicts, sparse, scratch })
+        Ok(DemDecoder { num_detectors: nd, adj, conflicts, sparse, corr, scratch })
     }
 
     /// The detector graph the sparse matcher grows on.
     pub fn graph(&self) -> &SparseGraph {
         &self.sparse
+    }
+
+    /// The rules correlated matching reweights by.
+    pub fn correlations(&self) -> &Correlations {
+        &self.corr
     }
 
     pub fn decode_bools(&self, dets: &[bool]) -> Result<Prediction, DecodeError> {
