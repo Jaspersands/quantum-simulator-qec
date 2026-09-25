@@ -20,7 +20,7 @@ every number on the page is computed in the reader's browser on load.
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model.
+  error model by sparse blossom, within 2.3 to 2.9 times PyMatching's speed single-threaded.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
@@ -98,10 +98,11 @@ Those two last columns did not match on the first attempt. What caught it was no
 Stim at all; see *What the checks caught* below.
 
 **2. The decoders agree shot for shot.** At each point, Stim sampled 100,000 shots, and PyMatching and
-this engine decoded the same detection events. Two exact matchers can disagree only where two
-corrections tie in weight. There were 16 disagreements in 600,000 shots, and
-every one is a tie: the two matchings' weights differ by less than the discretisation noise measured
-on shots where the decoders agree (at most 2e-06).
+this engine's decoder (now the sparse matcher described in the next section) decoded the same
+detection events. Two exact matchers can disagree only where two corrections tie in weight. There
+were 13 disagreements in 600,000 shots, and every one is a tie: the two
+matchings' weights differ by less than the discretisation noise measured on shots where the decoders
+agree (at most 1e-05).
 
 **3. The samplers agree.** The same circuits were also sampled by this engine's frame sampler and
 decoded by its own decoder, and compared with Stim's sampler decoded by PyMatching:
@@ -113,19 +114,21 @@ decoded by its own decoder, and compared with Stim's sampler decoded by PyMatchi
 
 | d | p | PyMatching | ours, on Stim's graph | ours, on our graph | disagreements (not ties) | our sampler + decoder | χ² z | PyMatching | ours |
 |---|---|---|---|---|---|---|---|---|---|
-| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 3.6 µs |
-| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 7.7 µs |
-| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.7 µs | 55.0 µs |
-| 5 | 0.6% | 9.432% | 9.433% | 9.433% | 7 (0) | 9.493% | -0.90 | 3.9 µs | 161.0 µs |
-| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.072% | +0.06 | 5.6 µs | 516.3 µs |
-| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.682% | -2.35 | 15.1 µs | 2.05 ms |
+| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 0.6 µs |
+| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 1.3 µs |
+| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.8 µs | 4.7 µs |
+| 5 | 0.6% | 9.432% | 9.432% | 9.432% | 4 (0) | 9.493% | -0.90 | 5.1 µs | 11.5 µs |
+| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.073% | +0.06 | 6.1 µs | 15.6 µs |
+| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.686% | -2.35 | 16.0 µs | 40.8 µs |
 
 The last two columns are native decode time per shot.
 
-**4. Speed.** PyMatching's sparse blossom is 18 to 136 times faster than this engine's dense matcher,
-and the gap widens with the patch, as it should for a sparse algorithm. At d = 7, p = 0.6% this
-decoder takes 2 ms a shot, native, against PyMatching's 15 µs. That is the cost of an exact matcher
-that works from all-pairs shortest paths, and speed is the next sub-project.
+**4. Speed.** Single-threaded, this engine takes 2.3 to 2.9 times PyMatching's time per
+shot. At d = 7, p = 0.6% it takes 41 µs a shot, native, against PyMatching's
+16 µs. The first version of this check used the dense matcher, which was 18 to
+136 times slower and fell further behind as the patch grew. The sparse matcher closed that gap. It
+also decodes shots in parallel, one workspace per thread: across every core of the recording machine,
+d = 7, p = 0.6% runs at 5.6 µs a shot.
 
 **5. The old path and the new one describe the same circuit.** `src/equivalence.rs` rebuilds the old
 path's error model from its own code:
@@ -202,6 +205,74 @@ cargo test --release --no-default-features every_single_fault -- --include-ignor
 The recorded run is `data/xcheck/report.txt`. Figure 8 on the site repeats the error-model
 comparison live, in the reader's browser.
 
+## An exact sparse matcher
+
+The first general-path decoder was exact and simple:
+
+1. Run Dijkstra from every defect.
+2. Build the complete graph of defects.
+3. Run Edmonds' blossom algorithm on it, which costs O(n³).
+
+It stopped at 256 defects and, near that limit, took seconds per shot. Google's longest memory
+experiments have about 12,000 detectors and on the order of a thousand defects a shot.
+`src/sparse/` replaces it with **sparse blossom**, the algorithm of Higgott and Gidney
+(arXiv:2303.15933) that PyMatching 2 is built on.
+
+How it works:
+
+- **Regions grow on the detector graph itself.** Every defect grows a region, all at the same rate,
+  and a region's radius is its dual variable.
+- **Collisions come from the growth.** When two regions touch, Edmonds' alternating trees and
+  blossoms take over, but over regions rather than vertices. A collision is found by the growth
+  itself, not by a precomputed distance, so nothing is explored beyond where the regions reach.
+- **Even weights keep the events on integer times.** Edge weights are discretised to even
+  integers, so two regions growing toward each other always meet at an integer time.
+- **Only the next event is queued.** A queue of look-at reminders holds only the next event per
+  node or region.
+
+The dense matcher stays as `decode_dense`, and it is what the sparse one is checked against first.
+
+**Verification, in five layers.** The dense and sparse matchers minimise exactly the same integer
+weights, so their optimal weights must be *equal*, not merely close.
+
+1. **Brute force.** On 3,000 random small graphs, with and without boundaries, including odd
+   components that cannot be matched: every weight is optimal, and every prediction is one of the
+   optimal ones.
+2. **Against the dense matcher**, with equal integer weight on every shot either way:
+   - 20,000 random graphs of up to 43 nodes, with the dual's feasibility checked after every event:
+     no radius negative, no two regions overlapping across an edge, every node's recorded blossom
+     ancestry correct;
+   - 4,320 sampled surface-code shots (rotated and XZZX, both bases, both noise models, d = 3, 5, 7,
+     p up to 1.2%). Two of them break a tie differently.
+3. **Every single fault is corrected**, at d = 3, 5 and 7, in all 24 circuits.
+4. **Against PyMatching on identical shots:** 13 disagreements in 600,000 shots, every one a tie
+   (check 2 above).
+5. **Beyond the dense limit:** d = 7 run for 60 rounds, with more than 256 defects in a shot, decodes
+   without error.
+
+It passed every layer on its first complete run. The only change the tests forced was to a test's
+own floor on how many unmatchable cases the random generator must produce.
+
+**Speed.** Native, single-threaded, rotated code under SD6 with T = d, per shot:
+
+| d | p | dense | sparse | PyMatching |
+|---|---|---|---|---|
+| 3 | 0.3% | 6.0 µs | 1.0 µs | 0.2 µs |
+| 3 | 0.6% | 13.4 µs | 2.1 µs | 0.4 µs |
+| 5 | 0.3% | 75.5 µs | 7.6 µs | 1.8 µs |
+| 5 | 0.6% | 210 µs | 15.8 µs | 5.1 µs |
+| 7 | 0.3% | 656 µs | 23.0 µs | 6.1 µs |
+| 7 | 0.6% | 2.58 ms | 55.5 µs | 16.0 µs |
+| 9 | 0.3% | 4.42 ms | 53.4 µs | — |
+| 9 | 0.6% | 20.5 ms | 137 µs | — |
+
+The dense and sparse columns come from `cargo test --release --no-default-features sparse::tests::timing
+-- --ignored --nocapture`. PyMatching's column is from the cross-check's recorded run.
+
+The site uses the same matcher in WebAssembly. A whole SD6 sweep window, one shot at every point
+across d = 3, 5, 7 and 9, now costs about 1.7 ms instead of more than 100 ms. So the SD6 sweep went
+from 800 shots a point to 40,000, and Figure 8's live rates now run 50,000 to 100,000 shots.
+
 ## Engine defects found and fixed
 
 Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
@@ -243,8 +314,8 @@ not by hand. Figures are the mean and spread of **four independent sweeps**:
 | XZZX | phenomenological | **3.25% ± 0.07** | 0.97 ± 0.06 | 2.56 | 2.94% |
 | rotated | circuit-level | **0.41% ± 0.03** | *not determined* | 4.31 | 0.37% |
 | XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
-| rotated | circuit-level, SD6 (per basis) | **0.48% ± 0.05** | *not determined* | 3.13 | 0.49% |
-| XZZX | circuit-level, SD6 (per basis) | **0.53% ± 0.07** | *not determined* | 2.25 | 0.45% |
+| rotated | circuit-level, SD6 (per basis) | **0.54% ± 0.01** | 1.11 ± 0.05 † | 1.06 | 0.48% |
+| XZZX | circuit-level, SD6 (per basis) | **0.51% ± 0.01** | 1.22 ± 0.05 † | 2.19 | 0.47% |
 
 The two circuit-level models are different physics.
 
@@ -255,12 +326,25 @@ The two circuit-level models are different physics.
   thresholds assume.
 
 The SD6 rows come from the general path (see *Checked against Stim and PyMatching*) and its
-probability-weighted matcher, and they are scored the way experiments are, one logical basis at a
-time. That barely moves where the curves cross, but it roughly halves the rate below threshold.
-Stim's own generated circuit, which depolarizes idle data only once a round, crosses higher, near
-0.65–0.7% with PyMatching. SD6 costs the dense matcher about 0.1 s a shot across the window at
-d = 9, so these sweeps run 800 shots a point, and the spread shows it. The runs are in
-`data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/sweep.mjs 3 1`.
+probability-weighted sparse matcher, and they are scored the way experiments are, one logical basis
+at a time. That barely moves where the curves cross, but it roughly halves the rate below threshold.
+
+- **Stim's own generated circuit crosses higher**, near 0.65–0.7% with PyMatching, because it
+  depolarizes idle data only once a round.
+- **These sweeps run 40,000 shots a point**, affordable since the sparse matcher replaced the dense
+  one, which allowed 800. The same fit at 800 shots gave 0.48% ± 0.05 and 0.53% ± 0.07; the new
+  values sit inside those ranges, with the spread five times smaller.
+- **† ν is provisional.** At these shot counts the fit reports ν as determined for SD6, for the
+  first time at circuit level. But the synthetic-data check in section 9, which established which
+  sweeps can recover ν, was run at the old shot counts and has not been repeated at these.
+- **The correction term is loosely constrained under SD6.** Across these sweeps ω ranged from 0.5 to
+  3.0. In two of the four XZZX sweeps the corrected point estimate sits at or just outside its own
+  bootstrap interval, and a single run of the page's own rotated sweep gave 0.51% [0.50–0.54%],
+  just below the four sweeps' spread. The uncorrected fit is the steadier number, at 0.47–0.48% for
+  both codes. Read the corrected values as good to a few hundredths of a percent, not to the ±0.01
+  the four-sweep spread alone suggests.
+
+The runs are in `data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/sweep.mjs 3 1`.
 
 **Confirmed against an independent implementation.** An L×L toric code written from scratch in
 JavaScript (periodic lattice, no boundaries, with its own noise, syndrome, graph and scoring, and
@@ -634,6 +718,7 @@ src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the mo
 src/shots.rs          Stim's 01 and b8 detection-event formats
 src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
+src/sparse/           sparse blossom: exact matching by growing regions on the detector graph
 src/py_api.rs         PyO3 bindings for the cross-check
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/lib.rs            PyO3 module and the WASM C-ABI interface
