@@ -26,6 +26,9 @@ every number on the page is computed in the reader's browser on load.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
+- **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
+  million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
+  matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, every figure is driven by it, the threshold table is
   plotted as it is measured, and the bench streams its estimate.
@@ -337,6 +340,150 @@ It passed every layer on its first complete run. One thing did go wrong along th
 the algorithm. The Python module built with Rust 1.90's default release strip would not load on
 this Mac: the arm64 library's symbol string table came out unaligned, and the loader refused it.
 The module now builds with its own profile, `python` in `Cargo.toml`: release, unstripped.
+
+## Google's hardware data
+
+Everything above runs on simulated noise. Google publishes what its chips actually recorded, and
+this engine now decodes all of it:
+
+- **Willow**, 2024 ("Quantum error correction below the surface code threshold", Zenodo 13273331):
+  surface-code memories at d = 3, 5 and 7 (nine, four and one patch), X and Z bases, 1 to 250
+  rounds. That is 420 experiments of 50,000 shots, 21.0 million shots.
+- **Sycamore**, 2022 ("Suppressing quantum errors by scaling a surface code logical qubit", Zenodo
+  6804040): d = 3 (four patches) and d = 5, both bases, 1 to 25 rounds. That is 130 experiments,
+  6.5 million shots.
+
+Both datasets are CC BY 4.0, by Google Quantum AI. They stay in their zips in `data/google/`,
+gitignored, and are fetched by `data/google/fetch.sh`. What is committed is the results, in
+`data/google-results/`, and a 0.95 MB extract for the site, in `data/willow-extract/`.
+
+**Reading the chips' output.**
+
+- **Parser.** Google's circuits need two things the parser lacked:
+  - `CX sweep[k] q`, an X applied when the shot's sweep bit k is set, which is how each shot
+    prepares its data qubits in a different pattern;
+  - the Pauli gates `X`, `Y`, `Z` and `I`.
+
+  Neither changes which detectors a fault sets off, so the error-model builder and the sampler
+  ignore both.
+- **From raw measurements to detection events** (`src/m2d.rs`). A detector compares a parity of
+  measurements with what a noiseless run gives. One noiseless run of the ideal circuit on the
+  stabilizer tableau is the reference. Each sweep bit's effect on every detector is fixed, since
+  the circuit is Clifford, so one more run per bit finds it. Seven more references with other
+  random outcomes must agree, or a detector is refused as nondeterministic.
+
+  This is the tableau reading the circuit, independently of the backward walk the error models
+  come from. On synthetic circuits with random sweep bits it matches Stim's own `m2d` converter bit
+  for bit.
+
+**Checked against Google's own files** (`tools/google.py check`, all 550 experiments, 27.5 million
+shots):
+
+- Every circuit round-trips through the parser and printer, and Stim reads the result back as the
+  same circuit.
+- The detection events and observable flips rebuilt from the raw `measurements.b8` and sweep bits
+  equal Google's `detection_events.b8` and `obs_flips_actual` **bit for bit, on every shot of every
+  experiment**.
+- This engine's model of every noisy circuit is **identical to Stim's**, mechanism by mechanism and
+  edge by edge.
+- Against the models Google decoded with:
+  - Sycamore's `circuit_detector_error_model.dem` matches ours to 2.5 × 10⁻⁶.
+  - Willow's SI1000 prior has exactly our edges, but its probabilities are reweighted: a median
+    9.5% from ours, and up to 49%.
+
+  So on Willow our own model is a third prior, not a copy of theirs.
+
+**The run** (`tools/google.py run`) decodes every experiment with every prior, each with plain and
+with correlated matching:
+
+- Willow: Google's SI1000 prior, Google's RL-optimised prior, and our model of the noisy circuit.
+- Sycamore: the circuit's model; ours; and the data-fitted `pij` models, cross-fitted as Google
+  used them, each shot decoded by the model fitted on the other half.
+
+Google's own predictions are scored against the same truth. On ten cores the whole of it took 53
+minutes: 48 of decoding and the rest reading the zips.
+- The heaviest experiment, d = 7 at 250 rounds, has 12,000 detectors and 936 defects a shot on
+  average.
+- It decodes at 0.13 ms a shot plain and 0.28 ms correlated.
+
+**One fit for everything** (`js/lambda-fit.js`, run by `node tools/lambda.mjs`; the page runs the
+same module):
+
+- **Per patch and basis:** the logical fidelity 1 − 2 P_L is fitted as A (1 − 2ε)^r by weighted
+  least squares on ln F. Points within 3σ of zero are left out. The fit starts from round 10 for
+  Willow (its first round is not in steady state) and round 3 for Sycamore.
+- **Per distance:** ε is the mean over patches and bases.
+- **Λ:** from a line through ln ε against d.
+- **Intervals:** a parametric bootstrap, each experiment's failures redrawn and everything refitted.
+  Which points each fit uses, and how much it weighs them, stay as the observed data set them.
+  Letting a redrawn fidelity choose its own weight biased the draws about 0.2% low, which the
+  average over eighteen patches turned into visibly lopsided intervals. That was caught and fixed
+  before anything was quoted.
+
+**Validation.** Fitted this way, Google's own tensor-network predictions for Sycamore give
+**ε₃ = 3.028% and ε₅ = 2.914%, the published numbers exactly** (the paper's are 3.028% ± 0.023%
+and 2.914% ± 0.016%), starting from round 2 or 3. So the comparison below is made the way Google
+made theirs.
+
+**Willow** (ε per cycle, 95% bootstrap intervals in `data/google-results/lambda.txt`):
+
+| decoder | prior | ε, d = 3 | ε, d = 5 | ε, d = 7 | Λ |
+|---|---|---|---|---|---|
+| ours, plain | SI1000 | 1.032% | 0.684% | 0.435% | 1.54 |
+| ours, correlated | SI1000 | 0.888% | 0.449% | 0.234% | **1.95** [1.94, 1.95] |
+| ours, correlated | RL-optimised | 0.808% | 0.425% | 0.222% | 1.91 |
+| ours, correlated | our model | 0.884% | 0.468% | 0.241% | 1.91 |
+| Google, correlated matching | SI1000 | 0.836% | 0.443% | 0.229% | 1.91 |
+| Google, correlated matching | RL-optimised | 0.759% | 0.404% | 0.210% | 1.90 |
+| Google, Harmony (51 matchers) | RL-optimised | 0.729% | 0.387% | 0.206% | 1.88 |
+| Google, Libra | RL-optimised | 0.712% | 0.349% | 0.171% | 2.04 |
+| Google, neural network (published) | — | — | — | 0.143% | 2.14 |
+
+- **Correlated matching is most of the story.** With the same prior, it takes Λ from 1.54 to 1.95
+  and nearly halves ε at d = 7.
+- **Ours sits within a few per cent of Google's own correlated matcher on the same prior:** 0.234%
+  against 0.229% at d = 7. It is further behind at d = 3, 0.888% against 0.836%. Google describes
+  theirs as a variant of the two-step reweighting, and small patches evidently reward the variant.
+  That relative weakness at d = 3 is why our Λ comes out higher than theirs (1.95 against 1.91):
+  Λ rewards improving with size, not being good.
+- **Our own model of the noisy circuit**, built here from Google's circuit with no fitting to the
+  data, does about as well as their SI1000 prior (0.241% at d = 7).
+- **What the published 2.14 is, and isn't.** It is Google's neural-network decoder. Its predictions
+  are not in the dataset, so it cannot be refitted here. Libra, the best decoder whose predictions
+  are published, reaches 2.04 on this fit.
+
+**Sycamore:**
+
+| decoder | prior | ε, d = 3 | ε, d = 5 | Λ |
+|---|---|---|---|---|
+| ours, plain | circuit | 4.012% | 4.354% | 0.92 |
+| ours, correlated | circuit | 3.507% | 3.558% | 0.99 |
+| ours, correlated | pij, cross-fitted | 3.424% | 3.466% | 0.99 |
+| Google, PyMatching | circuit | 4.012% | 4.362% | 0.92 |
+| Google, correlated matching | circuit | 3.497% | 3.597% | 0.97 |
+| Google, belief matching | pij | 3.118% | 3.056% | 1.02 |
+| Google, tensor network | pij | 3.028% | 2.914% | 1.04 |
+
+- **Our plain matcher reproduces Google's recorded PyMatching:** 4.012% at d = 3, identical.
+- Where the two disagree, on 8,448 shots over the whole dataset, our matching weighs exactly the
+  optimum PyMatching 2.4 finds on every one: ties, broken differently by the older PyMatching
+  Google used.
+- Our correlated matcher lands beside Google's on the same prior.
+- Sycamore's Λ ≈ 1 was the point of that paper: it was the first time a larger surface code beat a
+  smaller one at all, and only with the best decoders. With matching, d = 5 does not yet beat d = 3.
+
+**On the site.** Section 11 shows two figures.
+
+- **Figure 9 fits** every decoder from these recorded counts, in the reader's tab, with the same
+  module.
+- **Figure 10 decodes live, from the raw readouts.** The data is 2,000 raw Willow shots each at
+  d = 3, 5 and 7 (Z basis, 30 rounds, the first shots of each, unmodified). The worker:
+  1. rebuilds their detection events and checks the SHA-256 against Google's;
+  2. builds two models, Google's SI1000 prior and ours from the noisy circuit;
+  3. decodes with both matchers, next to Google's five decoders on the same shots.
+
+  At d = 7 our correlated matcher on Google's prior fails 123 times in 2,000 shots, against
+  Google's correlated matcher's 122, and agrees with it on 97% of shots.
 
 ## Engine defects found and fixed
 
@@ -785,8 +932,10 @@ src/memory.rs         rotated and XZZX memory experiments as circuits, engine no
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
+src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
 src/py_api.rs         PyO3 bindings for the cross-check
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
+src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -801,10 +950,16 @@ js/plot.js            canvas plotting primitive
 js/sections/*.js      one module per section of the page
 js/sweep-config.js    what the threshold sweep measures, shared with tools/sweep.mjs
 js/xcheck-format.js   pure formatting for Figure 8
+js/lambda-fit.js      logical error per cycle and Λ, for the README and section 11
+js/hardware-format.js names and formats for section 11
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
 tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
 data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
+tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
+tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
+data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
+data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
 
 run_benchmarks.py       phenomenological threshold benchmarks
 run_data_benchmarks.py  data-noise threshold benchmarks
