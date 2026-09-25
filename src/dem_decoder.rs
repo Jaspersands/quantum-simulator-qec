@@ -203,6 +203,28 @@ impl DemDecoder {
         self.sparse.decode_to_edges(&mut self.scratch.borrow_mut(), defects)
     }
 
+    /// Correlated matching, as PyMatching's `enable_correlations=True`.
+    pub fn decode_correlated(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        if !defects.windows(2).all(|w| w[0] < w[1]) {
+            return self.decode_correlated(&cancel_repeats(defects));
+        }
+        self.sparse.decode_correlated(&self.corr, &mut self.scratch.borrow_mut(), defects)
+    }
+
+    /// Correlated matching's second pass alone, from edges given as endpoints
+    /// (`num_detectors` for the boundary), as PyMatching's
+    /// `decode_to_edges_array` returns them.
+    pub fn decode_pass2(&self, defects: &[u32], edges: &[(u32, u32)]) -> Result<Prediction, String> {
+        let defects = if defects.windows(2).all(|w| w[0] < w[1]) { defects.to_vec() } else { cancel_repeats(defects) };
+        let ids = edges
+            .iter()
+            .map(|&(u, v)| self.sparse.edge_id(u, v).ok_or_else(|| format!("({u}, {v}) is not an edge of the graph")))
+            .collect::<Result<Vec<u32>, String>>()?;
+        self.sparse
+            .decode_pass2(&self.corr, &mut self.scratch.borrow_mut(), &defects, &ids)
+            .map_err(|e| format!("{e:?}"))
+    }
+
     /// The dense matcher: Dijkstra from every defect, then Edmonds' blossom on
     /// the complete graph of defects. Exact, capped at 256 defects, and kept as
     /// the reference the sparse matcher is checked against.

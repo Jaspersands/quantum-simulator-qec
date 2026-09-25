@@ -3,7 +3,8 @@
 
 use crate::circuit::Basis;
 use crate::dem::Dem;
-use crate::dem_decoder::{edge_weight, DemDecoder};
+use super::*;
+use crate::dem_decoder::{edge_weight, DecodeError, DemDecoder};
 use crate::frame_sampler::FrameSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
 use crate::surface_code::Xorshift;
@@ -141,4 +142,119 @@ fn traced_edges_are_a_minimum_weight_correction() {
         }
     }
     assert_eq!(shots, 3600);
+}
+
+/// A model whose merged edges carry exactly the weights pass two matches on:
+/// each edge's own probability, raised to the largest a rule of a used edge
+/// implies. The weight falls as the probability rises, so the larger
+/// probability gives the smaller weight, as `reweight` keeps.
+fn reweighted_model(dem: &Dem, dec: &DemDecoder, used: &[(u32, u32)]) -> String {
+    let (edges, _) = crate::dem_decoder::merged_edges(dem).unwrap();
+    let g = dec.graph();
+    let nd = g.num_nodes as u32;
+    let mut prob: Vec<f64> = edges.iter().map(|e| e.2).collect();
+    for &(u, v) in used {
+        for (a, pa, _) in dec.correlations().rules_of(g.edge_id(u, v).unwrap()) {
+            prob[a as usize] = prob[a as usize].max(pa);
+        }
+    }
+    let mut text = format!("detector D{}\n", nd - 1);
+    for (&(u, v, _, o), &q) in edges.iter().zip(&prob) {
+        text.push_str(&format!("error({q:?}) D{u}"));
+        if v != nd {
+            text.push_str(&format!(" D{v}"));
+        }
+        for k in 0..64 {
+            if (o >> k) & 1 == 1 {
+                text.push_str(&format!(" L{k}"));
+            }
+        }
+        text.push('\n');
+    }
+    text
+}
+
+/// Layer 3. Pass two is exact: on the reweighted graph its integer weight is
+/// the dense matcher's.
+#[test]
+fn pass_two_is_exact_on_the_reweighted_graph() {
+    let mut rng = Xorshift::new(41);
+    let mut compared = 0;
+    for kind in [CodeKind::Rotated, CodeKind::Xzzx] {
+        for d in [3usize, 5, 7] {
+            for &p in &[0.003, 0.006] {
+                let c = generate(kind, d, d, NoiseModel::Sd6 { p }, Basis::Z).unwrap();
+                let dem = Dem::from_circuit(&c).unwrap();
+                let dec = DemDecoder::new(&dem).unwrap();
+                let sampler = FrameSampler::new(&c).unwrap();
+                for _ in 0..120 {
+                    let defects = defects_of(&sampler.sample(&mut rng).detectors);
+                    let used = dec.decode_to_edges(&defects).unwrap();
+                    let oracle = DemDecoder::new(&Dem::parse(&reweighted_model(&dem, &dec, &used)).unwrap()).unwrap();
+                    let dense = match oracle.decode_dense(&defects) {
+                        Ok(x) => x,
+                        Err(DecodeError::TooManyDefects(_)) => continue,
+                        Err(e) => panic!("{e:?}"),
+                    };
+                    let two = dec.decode_correlated(&defects).unwrap();
+                    assert_eq!(two.iweight, dense.iweight, "{kind:?} d = {d}, p = {p}: {defects:?}");
+                    compared += 1;
+                }
+            }
+        }
+    }
+    println!("pass two equal to the dense oracle on {compared} shots");
+    assert!(compared > 1400, "{compared}");
+}
+
+#[test]
+fn pass_two_from_given_edges_is_the_full_decode() {
+    let c = generate(CodeKind::Rotated, 5, 5, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+    let sampler = FrameSampler::new(&c).unwrap();
+    let mut rng = Xorshift::new(3);
+    for _ in 0..300 {
+        let defects = defects_of(&sampler.sample(&mut rng).detectors);
+        let used = dec.decode_to_edges(&defects).unwrap();
+        assert_eq!(dec.decode_pass2(&defects, &used).unwrap(), dec.decode_correlated(&defects).unwrap());
+    }
+    assert!(dec.decode_pass2(&[0, 1], &[(0, 999_999)]).is_err());
+}
+
+#[test]
+fn weights_are_restored_after_every_decode() {
+    let c = generate(CodeKind::Xzzx, 5, 5, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+    let sampler = FrameSampler::new(&c).unwrap();
+    let (g, corr) = (dec.graph(), dec.correlations());
+    let mut rng = Xorshift::new(11);
+    let mut scratch = Scratch::new(g);
+    for _ in 0..300 {
+        let defects = defects_of(&sampler.sample(&mut rng).detectors);
+        let two = g.decode_correlated(corr, &mut scratch, &defects).unwrap();
+        assert_eq!(scratch.w, g.w);
+        assert!(scratch.undo.is_empty());
+        assert_eq!(g.decode(&mut scratch, &defects).unwrap(), dec.decode(&defects).unwrap());
+        assert_eq!(two, g.decode_correlated(corr, &mut Scratch::new(g), &defects).unwrap());
+    }
+}
+
+/// Layer 5, in miniature: under SD6 a Y error lights both halves of the
+/// graph, and correlated matching should fail less often than plain matching.
+/// The cross-check measures the gain properly (check 5).
+#[test]
+fn correlated_matching_beats_plain_matching_under_sd6() {
+    let c = generate(CodeKind::Rotated, 5, 5, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+    let sampler = FrameSampler::new(&c).unwrap();
+    let mut rng = Xorshift::new(2026);
+    let (mut plain, mut corr) = (0, 0);
+    for _ in 0..5000 {
+        let shot = sampler.sample(&mut rng);
+        let defects = defects_of(&shot.detectors);
+        plain += ((dec.decode(&defects).unwrap().observables ^ shot.observables) & 1) as usize;
+        corr += ((dec.decode_correlated(&defects).unwrap().observables ^ shot.observables) & 1) as usize;
+    }
+    println!("d = 5, p = 0.6%, 5000 shots: plain {plain} failures, correlated {corr}");
+    assert!(corr < plain, "correlated {corr}, plain {plain}");
 }

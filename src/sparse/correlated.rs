@@ -26,9 +26,11 @@
 use std::collections::HashMap;
 
 use crate::dem::{xor_prob, Dem};
-use crate::dem_decoder::edge_weight;
+use crate::dem_decoder::{edge_weight, DecodeError, Prediction};
 
 use super::graph::SparseGraph;
+use super::state::NONE;
+use super::Solver;
 
 /// Every edge's rules, in compressed rows: for edge c, the edges it makes
 /// cheaper and the weights it implies for them.
@@ -120,5 +122,41 @@ impl Correlations {
 
     pub(crate) fn num_edges(&self) -> usize {
         self.start.len() - 1
+    }
+}
+
+impl<'a> Solver<'a> {
+    /// Lower every edge a rule of an edge in `s.edge_set` names, to the smaller
+    /// of its weight and the rule's, logging the old weights.
+    fn reweight(&mut self, corr: &Correlations) {
+        let g = self.g;
+        let s = &mut *self.s;
+        for &c in &s.edge_set {
+            for r in corr.rules(c) {
+                let (a, w) = (corr.affected[r], corr.weight[r]);
+                for &slot in &g.halves[a as usize] {
+                    if slot != NONE && w < s.w[slot as usize] {
+                        s.undo.push((slot, s.w[slot as usize]));
+                        s.w[slot as usize] = w;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Undo `reweight`, newest first, since an edge may have been lowered twice.
+    fn restore(&mut self) {
+        while let Some((slot, w)) = self.s.undo.pop() {
+            self.s.w[slot as usize] = w;
+        }
+    }
+
+    /// Reweight from `s.edge_set`, match again, and restore the weights.
+    pub(crate) fn pass_two(&mut self, corr: &Correlations, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        self.reweight(corr);
+        self.reset();
+        let result = self.run(defects, false).map(|()| self.extract());
+        self.restore();
+        result
     }
 }

@@ -252,6 +252,12 @@ fn timing() {
                 dec.graph().decode(&mut scratch, s).unwrap();
             }
             let sparse_us = t.elapsed().as_secs_f64() * 1e6 / shots.len() as f64;
+            let corr = dec.correlations();
+            let t = std::time::Instant::now();
+            for s in &shots {
+                dec.graph().decode_correlated(corr, &mut scratch, s).unwrap();
+            }
+            let correlated_us = t.elapsed().as_secs_f64() * 1e6 / shots.len() as f64;
             let t = std::time::Instant::now();
             let mut dense_n = 0;
             for s in shots.iter().take(300) {
@@ -260,7 +266,7 @@ fn timing() {
                 }
             }
             let dense_us = t.elapsed().as_secs_f64() * 1e6 / dense_n.max(1) as f64;
-            println!("d = {d}, p = {p}: sparse {sparse_us:.1} us/shot, dense {dense_us:.1} us/shot");
+            println!("d = {d}, p = {p}: sparse {sparse_us:.1} us/shot, correlated {correlated_us:.1} us/shot, dense {dense_us:.1} us/shot");
         }
     }
 }

@@ -67,6 +67,38 @@ impl SparseGraph {
         Ok(solver.s.edge_set.iter().map(|&id| self.ends[id as usize]).collect())
     }
 
+    /// Correlated matching (see `correlated`): match, lower the weights the
+    /// used edges' rules name, match again. `corr` must be this graph's.
+    pub fn decode_correlated(
+        &self,
+        corr: &Correlations,
+        scratch: &mut Scratch,
+        defects: &[u32],
+    ) -> Result<Prediction, DecodeError> {
+        self.check_scratch(scratch);
+        assert_eq!(corr.num_edges(), self.num_edges(), "Correlations serve the graph they were built for");
+        let mut solver = Solver { g: self, s: scratch };
+        solver.pass_one(defects)?;
+        solver.pass_two(corr, defects)
+    }
+
+    /// Pass two alone, from an edge set given by edge id: how PyMatching's own
+    /// first pass is fed into ours, to tell a tie in the traced paths from a bug.
+    pub fn decode_pass2(
+        &self,
+        corr: &Correlations,
+        scratch: &mut Scratch,
+        defects: &[u32],
+        edge_ids: &[u32],
+    ) -> Result<Prediction, DecodeError> {
+        self.check_scratch(scratch);
+        assert_eq!(corr.num_edges(), self.num_edges(), "Correlations serve the graph they were built for");
+        let mut solver = Solver { g: self, s: scratch };
+        solver.s.edge_set.clear();
+        solver.s.edge_set.extend_from_slice(edge_ids);
+        solver.pass_two(corr, defects)
+    }
+
     /// The same, checking the dual's feasibility after every event.
     #[cfg(test)]
     pub(crate) fn decode_checked(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Prediction, DecodeError> {
