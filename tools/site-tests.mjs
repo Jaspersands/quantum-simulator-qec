@@ -4,6 +4,8 @@ import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } fr
 import { planChunks } from '../js/stream.js';
 import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../js/sweep-config.js';
 import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megabytes } from '../js/xcheck-format.js';
+import { logTicks } from '../js/plot.js';
+import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -201,6 +203,27 @@ test('bootstrap intervals bracket the estimate and repeat with a seed', () => {
   assert.ok(a.lambda[1] - a.lambda[0] < 0.2, `${a.lambda}`);
   const [lo, hi] = a.eps.get(5);
   assert.ok(lo < 0.004 && 0.004 < hi);
+});
+
+test('logTicks: whole decades around the data, with 2x and 5x between', () => {
+  const t = logTicks(0.0014, 0.008);
+  assert.equal(t.lo, 0.001);
+  assert.equal(t.hi, 0.01);
+  assert.deepEqual(t.ticks.map((x) => x.v), [0.001, 0.002, 0.005, 0.01]);
+  assert.deepEqual(t.ticks.map((x) => x.major), [true, false, false, true]);
+  const one = logTicks(0.02, 0.02);
+  assert.ok(one.hi > one.lo);
+});
+
+test('hardware labels and formats', () => {
+  assert.equal(decoderLabel('ours/si1000/correlated'), "ours, correlated · Google's SI1000 prior");
+  assert.equal(decoderLabel('google/libra_decoder_with_rl_optimized_prior'), 'Google: Libra, RL-optimised prior');
+  assert.equal(decoderLabel('google/unknown'), 'Google: unknown');
+  assert.equal(pct(0.00143), '0.143%');
+  assert.equal(pct(NaN), '—');
+  assert.equal(percentRange([0.0014, 0.00146]), '0.140–0.146%');
+  assert.equal(ratio(2.1374, [2.11, 2.17]), '2.14 [2.11, 2.17]');
+  assert.equal(ratio(2.1374), '2.14');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
