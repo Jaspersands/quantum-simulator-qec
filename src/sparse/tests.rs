@@ -166,3 +166,101 @@ fn one_scratch_decodes_many_shots() {
         assert_eq!(a, b);
     }
 }
+
+#[test]
+fn agrees_with_the_dense_matcher_on_surface_code_shots() {
+    use crate::circuit::Basis;
+    use crate::frame_sampler::FrameSampler;
+    use crate::memory::{generate, CodeKind, NoiseModel};
+    let mut rng = Xorshift::new(99);
+    let (mut compared, mut obs_differ) = (0, 0);
+    for kind in [CodeKind::Rotated, CodeKind::Xzzx] {
+        for basis in [Basis::Z, Basis::X] {
+            for d in [3usize, 5, 7] {
+                for &p in &[0.002, 0.006, 0.012] {
+                    for noise in [NoiseModel::Sd6 { p }, NoiseModel::Current { p, eta: 0.5 }] {
+                        let c = generate(kind, d, d, noise, basis).unwrap();
+                        let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+                        let sampler = FrameSampler::new(&c).unwrap();
+                        let mut scratch = Scratch::new(dec.graph());
+                        for shot_i in 0..60 {
+                            let shot = sampler.sample(&mut rng);
+                            let defects: Vec<u32> =
+                                shot.detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
+                            let dense = match dec.decode_dense(&defects) {
+                                Ok(x) => x,
+                                Err(DecodeError::TooManyDefects(_)) => continue,
+                                Err(e) => panic!("{e:?}"),
+                            };
+                            let sparse = if shot_i < 5 && d <= 5 {
+                                dec.graph().decode_checked(&mut scratch, &defects)
+                            } else {
+                                dec.graph().decode(&mut scratch, &defects)
+                            }
+                            .unwrap();
+                            assert_eq!(sparse.iweight, dense.iweight, "{kind:?} {basis:?} {noise:?} d = {d}: {defects:?}");
+                            compared += 1;
+                            obs_differ += usize::from(sparse.observables != dense.observables);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("{compared} shots, equal weight on all; {obs_differ} tie-broken differently");
+    assert!(compared > 3000, "{compared}");
+}
+
+#[test]
+fn decodes_shots_far_beyond_the_dense_limit() {
+    use crate::circuit::Basis;
+    use crate::frame_sampler::FrameSampler;
+    use crate::memory::{generate, CodeKind, NoiseModel};
+    let c = generate(CodeKind::Rotated, 7, 60, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+    let sampler = FrameSampler::new(&c).unwrap();
+    let mut rng = Xorshift::new(7);
+    let (mut most, mut failures) = (0, 0);
+    for _ in 0..100 {
+        let shot = sampler.sample(&mut rng);
+        most = most.max(shot.detectors.iter().filter(|&&b| b).count());
+        let pred = dec.decode_bools(&shot.detectors).expect("the sparse matcher has no defect ceiling");
+        failures += ((pred.observables ^ shot.observables) & 1) as usize;
+    }
+    assert!(most > 256, "the test should exceed the dense limit; most was {most}");
+    assert!(failures < 100, "every shot failed");
+}
+
+#[test]
+#[ignore] // timing, for the README and the site
+fn timing() {
+    use crate::circuit::Basis;
+    use crate::frame_sampler::FrameSampler;
+    use crate::memory::{generate, CodeKind, NoiseModel};
+    for d in [3usize, 5, 7, 9] {
+        for &p in &[0.003, 0.006] {
+            let c = generate(CodeKind::Rotated, d, d, NoiseModel::Sd6 { p }, Basis::Z).unwrap();
+            let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+            let sampler = FrameSampler::new(&c).unwrap();
+            let mut rng = Xorshift::new(1);
+            let shots: Vec<Vec<u32>> = (0..2000)
+                .map(|_| sampler.sample(&mut rng).detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect())
+                .collect();
+            let mut scratch = Scratch::new(dec.graph());
+            let t = std::time::Instant::now();
+            for s in &shots {
+                dec.graph().decode(&mut scratch, s).unwrap();
+            }
+            let sparse_us = t.elapsed().as_secs_f64() * 1e6 / shots.len() as f64;
+            let t = std::time::Instant::now();
+            let mut dense_n = 0;
+            for s in shots.iter().take(300) {
+                if dec.decode_dense(s).is_ok() {
+                    dense_n += 1;
+                }
+            }
+            let dense_us = t.elapsed().as_secs_f64() * 1e6 / dense_n.max(1) as f64;
+            println!("d = {d}, p = {p}: sparse {sparse_us:.1} us/shot, dense {dense_us:.1} us/shot");
+        }
+    }
+}
