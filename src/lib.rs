@@ -33,6 +33,8 @@ mod equivalence;
 mod py_api;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
+#[cfg(not(feature = "python"))]
+mod wasm_hw;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;

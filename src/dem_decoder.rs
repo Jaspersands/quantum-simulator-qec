@@ -166,6 +166,10 @@ impl DemDecoder {
         Ok(DemDecoder { num_detectors: nd, adj, conflicts, sparse, corr, scratch })
     }
 
+    pub fn num_detectors(&self) -> usize {
+        self.num_detectors
+    }
+
     /// The detector graph the sparse matcher grows on.
     pub fn graph(&self) -> &SparseGraph {
         &self.sparse

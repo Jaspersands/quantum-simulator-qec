@@ -458,3 +458,50 @@ export function xcTiming(instance, cfg, runs) {
   const total = run(1);
   return { runs, sampleMicros: (sample * 1000) / runs, decodeMicros: (Math.max(0, total - sample) * 1000) / runs };
 }
+
+/* -- Google's hardware data (section 11) --------------------------------- */
+
+function writeBytes(instance, u8) {
+  const ptr = instance.exports.wasm_bytes_buf(u8.length);
+  new Uint8Array(instance.exports.memory.buffer, ptr, u8.length).set(u8);
+}
+
+function readBytes(instance, len) {
+  const ptr = instance.exports.wasm_bytes_ptr();
+  return new Uint8Array(instance.exports.memory.buffer, ptr, len).slice();
+}
+
+function replyOrThrow(instance, len) {
+  const out = JSON.parse(readText(instance, len));
+  if (!out.ok) throw new Error(out.error);
+  return out;
+}
+
+/**
+ * Raw measurement and sweep-bit rows (b8) to detection-event and observable
+ * rows (b8), for the ideal circuit given as Stim text.
+ */
+export function hwM2d(instance, circuitText, meas, sweeps, shots) {
+  const both = new Uint8Array(meas.length + sweeps.length);
+  both.set(meas);
+  both.set(sweeps, meas.length);
+  writeBytes(instance, both);
+  writeText(instance, circuitText);
+  const out = replyOrThrow(instance, instance.exports.wasm_hw_m2d(shots));
+  const all = readBytes(instance, out.detBytes + out.obsBytes);
+  return { ...out, dets: all.slice(0, out.detBytes), obs: all.slice(out.detBytes) };
+}
+
+/** Load decoder `slot` (0 or 1) from a detector error model's text, or from a noisy circuit. */
+export function hwModel(instance, slot, { circuit, dem }) {
+  writeText(instance, circuit ?? dem);
+  const fn = circuit != null ? instance.exports.wasm_hw_model_circuit : instance.exports.wasm_hw_model_dem;
+  return replyOrThrow(instance, fn(slot));
+}
+
+/** Decode detection-event rows: one byte per shot, observable 0's flip, or 255 where decoding failed. */
+export function hwDecode(instance, slot, dets, shots, correlated) {
+  writeBytes(instance, dets);
+  const out = replyOrThrow(instance, instance.exports.wasm_hw_decode(slot, shots, correlated ? 1 : 0));
+  return { ...out, predictions: readBytes(instance, shots) };
+}

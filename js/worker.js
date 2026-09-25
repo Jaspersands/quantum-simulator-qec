@@ -15,7 +15,7 @@
 
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
-  xcGenerate, xcLoadCircuit, xcCompare, xcTiming,
+  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode,
 } from './engine.js';
 import { planChunks } from './stream.js';
 
@@ -39,6 +39,20 @@ async function sha256Hex(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+async function fetchBytes(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+async function sha256Bytes(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The pathway whose predictions our correlated matcher is compared with shot by shot. */
+const GOOGLE_CORRELATED = 'correlated_matching_decoder_with_si1000_prior';
 
 /** Ids of streaming jobs asked to stop; checked between chunks. */
 const cancelled = new Set();
@@ -155,6 +169,68 @@ const OPS = {
    * Sweep a grid of (distance, physical error rate) points.
    * Emits a progress message per point so the caller can draw as it goes.
    */
+  /**
+   * Section 11's live panel. For each Willow experiment in the extract: raw
+   * measurements and sweep bits to detection events (checked against the
+   * SHA-256 of Google's own), two models (Google's SI1000 prior, and ours
+   * built from the noisy circuit), each decoded plainly and with correlated
+   * matching, and every result scored against the true observable flips.
+   */
+  async hardware(instance, { base, experiments }, report) {
+    const rows = [];
+    for (const ex of experiments) {
+      const at = (name) => new URL(`${ex.dir}/${name}`, base);
+      report({ d: ex.d, step: 'fetching' });
+      const [ideal, noisy, dem, meas, sweeps, actualBytes, ...preds] = await Promise.all([
+        fetchText(at('circuit_ideal.stim')), fetchText(at('circuit_noisy_si1000.stim')),
+        fetchText(at('error_model_si1000.dem')), fetchBytes(at('measurements.b8')),
+        fetchBytes(at('sweep_bits.b8')), fetchBytes(at('obs_flips_actual.b8')),
+        ...ex.pathways.map((p) => fetchBytes(at(`pred_${p}.b8`))),
+      ]);
+      const shots = ex.shots;
+      const actual = actualBytes.map((b) => b & 1);
+
+      report({ d: ex.d, step: 'converting' });
+      let t0 = performance.now();
+      const conv = hwM2d(instance, ideal, meas, sweeps, shots);
+      const m2dMs = performance.now() - t0;
+      const hashMatches = (await sha256Bytes(conv.dets)) === ex.detection_events_sha256;
+      let obsDiffer = 0;
+      for (let i = 0; i < shots; i++) obsDiffer += (conv.obs[i] & 1) !== actual[i] ? 1 : 0;
+
+      report({ d: ex.d, step: 'decoding' });
+      const google = {};
+      ex.pathways.forEach((p, k) => {
+        let f = 0;
+        for (let i = 0; i < shots; i++) f += (preds[k][i] & 1) !== actual[i] ? 1 : 0;
+        google[p] = { failures: f, predictions: preds[k] };
+      });
+      const reference = google[GOOGLE_CORRELATED]?.predictions;
+      const ours = {};
+      const models = [['si1000', { dem }], ['ours', { circuit: noisy }]];
+      for (const [slot, [prior, source]] of models.entries()) {
+        hwModel(instance, slot, source);
+        for (const correlated of [false, true]) {
+          t0 = performance.now();
+          const r = hwDecode(instance, slot, conv.dets, shots, correlated);
+          const micros = ((performance.now() - t0) * 1000) / shots;
+          let failures = 0, agree = 0;
+          for (let i = 0; i < shots; i++) {
+            const p = r.predictions[i];
+            failures += p === 255 || p !== actual[i] ? 1 : 0;
+            if (reference) agree += p === (reference[i] & 1) ? 1 : 0;
+          }
+          ours[`${prior}/${correlated ? 'correlated' : 'plain'}`] = { failures, errors: r.errors, micros, agree };
+        }
+      }
+      for (const g of Object.values(google)) delete g.predictions;
+      const row = { d: ex.d, patch: ex.patch, rounds: ex.rounds, shots, hashMatches, obsDiffer, m2dMs, ours, google };
+      rows.push(row);
+      report({ d: ex.d, step: 'done', row });
+    }
+    return rows;
+  },
+
   async sweep(instance, { distances, ps, base }, report) {
     const points = [];
     const total = distances.length * ps.length;

@@ -22,18 +22,18 @@ static mut DECODE_ERRORS: usize = 0;
 #[allow(clippy::type_complexity)]
 static mut CACHE: Option<((usize, usize, usize, usize, u64, u64), FrameSampler, DemDecoder)> = None;
 
-fn text() -> &'static mut Vec<u8> {
+pub(crate) fn text() -> &'static mut Vec<u8> {
     unsafe { &mut *std::ptr::addr_of_mut!(TEXT) }
 }
 
-fn reply(s: &str) -> usize {
+pub(crate) fn reply(s: &str) -> usize {
     let t = text();
     t.clear();
     t.extend_from_slice(s.as_bytes());
     t.len()
 }
 
-fn json_error(e: &str) -> usize {
+pub(crate) fn json_error(e: &str) -> usize {
     let escaped = e.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ");
     reply(&format!("{{\"ok\":false,\"error\":\"{escaped}\"}}"))
 }
