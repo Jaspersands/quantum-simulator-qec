@@ -399,6 +399,8 @@ impl Dem {
                 | Instr::QubitCoords { .. }
                 | Instr::ShiftCoords(_)
                 | Instr::Tick
+                | Instr::Pauli { .. }
+                | Instr::SweepX(_)
                 | Instr::Repeat { .. } => {}
             }
         }
@@ -1068,5 +1070,15 @@ mod tests {
         let c = compare(&a, &b, 1e-9);
         assert_eq!((c.ours, c.theirs, c.missing, c.extra, c.differing), (2, 3, 1, 0, 1));
         assert!((c.max_rel - 0.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn pauli_gates_and_sweep_bits_leave_the_model_alone() {
+        // They flip signs, never which detectors a fault sets off.
+        let base = Circuit::parse(crate::fixtures::REP3).unwrap();
+        let text = crate::fixtures::REP3.replacen("TICK\n", "TICK\nX 0 1\nY 2\nCX sweep[0] 1\nI 0\n", 1);
+        let with = Circuit::parse(&text).unwrap();
+        assert_ne!(with, base);
+        assert_eq!(Dem::from_circuit(&with).unwrap().to_stim(true), Dem::from_circuit(&base).unwrap().to_stim(true));
     }
 }
