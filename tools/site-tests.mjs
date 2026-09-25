@@ -4,6 +4,7 @@ import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } fr
 import { planChunks } from '../js/stream.js';
 import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../js/sweep-config.js';
 import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megabytes } from '../js/xcheck-format.js';
+import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log(`  ✓ ${name}`); } catch (e) { failed++; console.log(`  ✗ ${name}\n    ${e.message}`); } };
@@ -133,6 +134,73 @@ test('sweep config: every noise model has distances, an increasing window and a 
     assert.ok(ps.length >= 7 && ps.every((p, i) => i === 0 || p > ps[i - 1]), `mode ${mode}`);
     assert.ok(SWEEP_RUNS[mode] >= 500, `mode ${mode}`);
   }
+});
+
+// -- Section 11's fits (js/lambda-fit.js) -----------------------------------
+
+/** Records whose fidelity is exactly A (1 − 2ε)^r, failures left fractional. */
+function exactRecords(epsByD, { patches = ['a'], bases = ['X', 'Z'], A = 0.98, shots = 50000, key = 'k' } = {}) {
+  const rounds = [1, 10, 30, 50, 90, 130, 170, 210, 250];
+  const out = [];
+  for (const [d, eps] of Object.entries(epsByD)) {
+    for (const patch of patches) for (const basis of bases) for (const r of rounds) {
+      const F = A * (1 - 2 * eps) ** r;
+      out.push({ d: Number(d), patch, basis, rounds: r, shots, results: { [key]: { failures: shots * (1 - F) / 2 } } });
+    }
+  }
+  return out;
+}
+
+test('fitEpsilon recovers ε from exact fidelities, whatever the weights', () => {
+  const pts = exactRecords({ 5: 0.003 }).filter((r) => r.basis === 'X')
+    .map((r) => ({ rounds: r.rounds, failures: r.results.k.failures, shots: r.shots }));
+  const fit = fitEpsilon(pts, { minRounds: 10 });
+  assert.ok(fit.ok);
+  assert.ok(Math.abs(fit.eps - 0.003) < 1e-12, `${fit.eps}`);
+  assert.ok(Math.abs(fit.A - 0.98) < 1e-9, `${fit.A}`);
+  assert.equal(fit.n, 8);
+});
+
+test('fitEpsilon leaves out early rounds and fidelities lost in the noise', () => {
+  const pts = [
+    { rounds: 1, failures: 0, shots: 1000 },
+    { rounds: 10, failures: 100, shots: 1000 },
+    { rounds: 20, failures: 180, shots: 1000 },
+    { rounds: 400, failures: 495, shots: 1000 }, // F = 0.01, σ ≈ 0.03
+  ];
+  const fit = fitEpsilon(pts, { minRounds: 10 });
+  assert.equal(fit.n, 2);
+  assert.equal(fitEpsilon(pts.slice(0, 2), { minRounds: 10 }).ok, false);
+  const f = fidelity(0, 1000);
+  assert.ok(f.F === 1 && f.sigma > 0);
+});
+
+test('epsilonByDistance averages patches and bases; lambdaFit gives Λ exactly', () => {
+  const recs = exactRecords({ 3: 0.008, 5: 0.004, 7: 0.002 }, { patches: ['a', 'b'] });
+  const byD = epsilonByDistance(recs, 'k', { minRounds: 10 });
+  assert.deepEqual([...byD.keys()], [3, 5, 7]);
+  assert.equal(byD.get(3).fits.length, 4);
+  assert.ok(Math.abs(byD.get(5).eps - 0.004) < 1e-12);
+  const fit = lambdaFit(byD);
+  assert.ok(Math.abs(fit.lambda - 2) < 1e-9, `${fit.lambda}`);
+  assert.ok(fit.pairwise.every((p) => Math.abs(p.lambda - 2) < 1e-9));
+  // Two distances: Λ is exactly their ratio.
+  const two = lambdaFit(new Map([[3, { eps: 0.03 }], [5, { eps: 0.02 }]]));
+  assert.ok(Math.abs(two.lambda - 1.5) < 1e-12);
+  assert.deepEqual(decoderKeys(recs), ['k']);
+});
+
+test('bootstrap intervals bracket the estimate and repeat with a seed', () => {
+  const recs = exactRecords({ 3: 0.008, 5: 0.004, 7: 0.002 })
+    .map((r) => ({ ...r, results: { k: { failures: Math.round(r.results.k.failures) } } }));
+  const a = bootstrap(recs, 'k', { minRounds: 10 }, 200, seededRandom(7));
+  const b = bootstrap(recs, 'k', { minRounds: 10 }, 200, seededRandom(7));
+  assert.deepEqual(a.lambda, b.lambda);
+  const est = lambdaFit(epsilonByDistance(recs, 'k', { minRounds: 10 })).lambda;
+  assert.ok(a.lambda[0] < est && est < a.lambda[1], `${a.lambda} around ${est}`);
+  assert.ok(a.lambda[1] - a.lambda[0] < 0.2, `${a.lambda}`);
+  const [lo, hi] = a.eps.get(5);
+  assert.ok(lo < 0.004 && 0.004 < hi);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
