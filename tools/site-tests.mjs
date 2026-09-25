@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } from '../js/opener-math.js';
 import { planChunks } from '../js/stream.js';
+import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../js/sweep-config.js';
+import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megabytes } from '../js/xcheck-format.js';
 
 let passed = 0, failed = 0;
 const test = (name, fn) => { try { fn(); passed++; console.log(`  ✓ ${name}`); } catch (e) { failed++; console.log(`  ✗ ${name}\n    ${e.message}`); } };
@@ -91,6 +93,46 @@ test('planChunks covers the request exactly with no empty chunk', () => {
     assert.ok(chunks.length <= 61, `total ${total}: ${chunks.length} chunks`);
   }
   assert.deepEqual(planChunks(600), [250, 250, 100]);
+});
+
+test('verdict: identical, differing, unavailable, stale, engine error, pending', () => {
+  const base = { ok: true, missing: 0, extra: 0, differing: 0 };
+  assert.deepEqual(verdict(base), { text: 'identical', tone: 'ok' });
+  assert.deepEqual(verdict({ ...base, missing: 2, differing: 1 }), { text: '3 differ', tone: 'fail' });
+  assert.equal(verdict({ ok: false, unavailable: true, error: '404' }).text, 'reference unavailable');
+  assert.equal(verdict({ ...base, stale: true }).tone, 'fail');
+  assert.equal(verdict({ ok: false, error: 'boom' }).text, 'engine error: boom');
+  assert.equal(verdict({ pending: true }).text, 'deriving…');
+  assert.equal(verdict(null).text, 'queued');
+});
+
+test('formatRel writes powers of ten with superscripts', () => {
+  assert.equal(formatRel(0), '0');
+  assert.equal(formatRel(2.2e-16), '2.2 × 10⁻¹⁶');
+  assert.equal(formatRel(3e-10), '3.0 × 10⁻¹⁰');
+  assert.equal(formatRel(NaN), '—');
+});
+
+test('circuit labels, durations, disagreements, sizes', () => {
+  assert.equal(circuitLabel({ source: 'stim', d: 5 }), 'Stim’s own · d = 5');
+  assert.equal(circuitLabel({ source: 'ours', code: 'xzzx', noise: 'sd6', d: 3 }), 'XZZX · SD6 · d = 3');
+  assert.equal(circuitLabel({ source: 'ours', code: 'rotated', noise: 'current', d: 7 }), 'rotated · engine’s model · d = 7');
+  assert.equal(microseconds(3.14), '3.1 µs');
+  assert.equal(microseconds(42.4), '42 µs');
+  assert.equal(microseconds(1520), '1.5 ms');
+  assert.equal(disagreementText({ disagreements: 0, non_ties: 0 }), 'none');
+  assert.equal(disagreementText({ disagreements: 12, non_ties: 0 }), '12 · all ties');
+  assert.equal(disagreementText({ disagreements: 1200, non_ties: 2 }), '1,200 · 2 not ties');
+  assert.equal(megabytes(1_400_000), '1.4 MB');
+});
+
+test('sweep config: every noise model has distances, an increasing window and a shot count', () => {
+  for (const mode of [0, 1, 2, 3]) {
+    assert.ok(DISTANCES[mode].length >= 4, `mode ${mode}`);
+    const ps = SWEEP_PS[mode];
+    assert.ok(ps.length >= 7 && ps.every((p, i) => i === 0 || p > ps[i - 1]), `mode ${mode}`);
+    assert.ok(SWEEP_RUNS[mode] >= 500, `mode ${mode}`);
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

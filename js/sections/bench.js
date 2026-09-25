@@ -6,7 +6,7 @@
  * this is the instrument it was describing, exposed in full.
  */
 
-import { DECODER_NAME, NOISE_NAME } from '../engine.js';
+import { DECODER_NAME, NOISE, NOISE_NAME } from '../engine.js';
 import { ChannelView } from '../channel-view.js';
 import { Meter } from '../meter.js';
 import { wilson, percent, count } from '../compute.js';
@@ -41,14 +41,29 @@ export function initBench(root, compute) {
   const noiseSelect = $('[data-bench-noise]', root);
   if (!runBtn) return;
 
-  // Rounds are meaningless without faulty measurements.
-  const syncRounds = () => {
-    const dataOnly = Number(noiseSelect.value) === 0;
-    roundsField.disabled = dataOnly;
-    roundsField.closest('.field').classList.toggle('field--inert', dataOnly);
+  // Rounds are meaningless without faulty measurements. SD6 runs through the
+  // general path, which has one decoder and models none of the extras (bias,
+  // located loss, bursts, drift), and its memory experiment reads one logical
+  // basis, so the channel, which needs both at once, does not apply either.
+  const inert = (node, off) => {
+    if (!node) return;
+    node.disabled = off;
+    node.closest('.field')?.classList.toggle('field--inert', off);
   };
-  noiseSelect.addEventListener('change', syncRounds);
-  syncRounds();
+  const syncControls = () => {
+    const mode = Number(noiseSelect.value);
+    const sd6 = mode === NOISE.SD6;
+    inert(roundsField, mode === NOISE.DATA);
+    for (const key of ['decoder', 'bias', 'erasure', 'correlated']) inert($(`[data-bench-${key}]`, root), sd6);
+    if (chanBtn) chanBtn.disabled = sd6;
+    if (chanStatus) {
+      chanStatus.textContent = sd6
+        ? 'The logical channel needs both bases at once, which a per-basis experiment does not measure.'
+        : 'Uses the settings above.';
+    }
+  };
+  noiseSelect.addEventListener('change', syncControls);
+  syncControls();
 
   const channel = chanCanvas ? new ChannelView(chanCanvas) : null;
   channel?.draw();
@@ -71,7 +86,7 @@ export function initBench(root, compute) {
     } catch (error) {
       chanStatus.textContent = `Failed: ${error.message}`;
     } finally {
-      chanBtn.disabled = false;
+      chanBtn.disabled = Number(noiseSelect.value) === NOISE.SD6;
     }
   });
 
@@ -124,9 +139,11 @@ export function initBench(root, compute) {
       const result = await job;
       meanRate = result.runsPerSecond;
       paint({ done: result.runs, failures: result.failures, seconds: result.seconds }, true);
-      status.textContent = `${result.cancelled ? 'Stopped' : 'Done'} · ${DECODER_NAME[config.decoder]} · `
+      const decoderName = config.noiseMode === NOISE.SD6 ? 'Weighted MWPM' : DECODER_NAME[config.decoder];
+      status.textContent = `${result.cancelled ? 'Stopped' : 'Done'} · ${decoderName} · `
         + `${NOISE_NAME[config.noiseMode]} · d = ${config.d}`
-        + (result.cancelled ? ` · ${count(result.runs)} of ${count(config.runs)} shots` : '');
+        + (result.cancelled ? ` · ${count(result.runs)} of ${count(config.runs)} shots` : '')
+        + (result.decodeErrors ? ` · ${count(result.decodeErrors)} shots refused by the decoder` : '');
     } catch (error) {
       status.textContent = `Failed: ${error.message}`;
     } finally {

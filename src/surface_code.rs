@@ -60,7 +60,7 @@ pub fn seed_global_rng(seed: u64) {
 /// times larger than binomial. SplitMix64 is built for exactly this job —
 /// a counter plus a strong finalizer, giving seeds that decorrelate.
 #[cfg(not(feature = "python"))]
-fn next_shot_rng() -> Xorshift {
+pub(crate) fn next_shot_rng() -> Xorshift {
     unsafe {
         let slot = core::ptr::addr_of_mut!(RNG_STREAM);
         let counter = slot.read().wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -471,6 +471,16 @@ impl RotatedSurfaceCode {
         }
     }
 
+    /// X ancillas walk their plaquette column-major, Z ancillas row-major —
+    /// the two orders are transposes, which is what makes the extraction
+    /// circuits commute where plaquettes overlap. The pairing is not
+    /// arbitrary and not guessable: with the two orders swapped, every single
+    /// fault is still corrected at d = 5 and d = 7 but 44 of 600 fail at
+    /// d = 3. The exhaustive single-fault check settled which way round it
+    /// goes. `memory.rs` reads these same two arrays.
+    pub const X_ORDER: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+    pub const Z_ORDER: [(i32, i32); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
+
     /// The data qubit at a given diagonal offset from a stabilizer, if any.
     ///
     /// Syndrome extraction has to schedule its CNOTs by *direction*, not by
@@ -492,16 +502,6 @@ impl RotatedSurfaceCode {
     /// rather than being compressed into the first two.
     pub fn round_program(&self) -> Vec<crate::circuit_model::Op> {
         use crate::circuit_model::{Op, StabKind};
-
-        // X ancillas walk their plaquette column-major, Z ancillas row-major —
-        // the two orders are transposes, which is what makes the extraction
-        // circuits commute where plaquettes overlap. The pairing is not
-        // arbitrary and not guessable: with the two orders swapped, every single
-        // fault is still corrected at d = 5 and d = 7 but 44 of 600 fail at
-        // d = 3. The exhaustive single-fault check settled which way round it
-        // goes.
-        const X_ORDER: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
-        const Z_ORDER: [(i32, i32); 4] = [(-1, -1), (1, -1), (-1, 1), (1, 1)];
 
         let num_data = self.data_qubits.len();
         let num_x = self.x_stabilizers.len();
@@ -525,7 +525,7 @@ impl RotatedSurfaceCode {
         // Four interleaved CNOT layers.
         for step in 0..4 {
             for j in 0..num_x {
-                let (dx, dy) = X_ORDER[step];
+                let (dx, dy) = Self::X_ORDER[step];
                 if let Some(data) = self.neighbor_at(&self.x_stabilizers[j], dx, dy) {
                     ops.push(Op::Cnot(x_anc(j), data));
                     ops.push(Op::Noise(x_anc(j)));
@@ -533,7 +533,7 @@ impl RotatedSurfaceCode {
                 }
             }
             for k in 0..self.z_stabilizers.len() {
-                let (dx, dy) = Z_ORDER[step];
+                let (dx, dy) = Self::Z_ORDER[step];
                 if let Some(data) = self.neighbor_at(&self.z_stabilizers[k], dx, dy) {
                     ops.push(Op::Cnot(data, z_anc(k)));
                     ops.push(Op::Noise(data));

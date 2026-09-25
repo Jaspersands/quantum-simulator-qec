@@ -1,0 +1,5 @@
+sweep 1: p_th 0.524% [0.492%, 0.588%] nu n/d omega 6.00 chi2 0.76 window 36/36 uncorrected 0.501% crossings 3/5@0.465% 3/7@0.487% 3/9@0.490% 5/7@0.520% 5/9@0.523% 7/9@0.421% refused 0 · 111 s
+sweep 2: p_th 0.426% [0.286%, 0.554%] nu n/d omega 0.50 chi2 0.64 window 36/36 uncorrected 0.469% crossings 3/5@0.603% 3/7@0.382% 3/9@0.510% 5/7@0.364% 5/9@0.482% 7/9@0.286% refused 0 · 110 s
+sweep 3: p_th 0.448% [0.309%, 0.556%] nu n/d omega 4.00 chi2 0.79 window 36/36 uncorrected 0.485% crossings 3/5@0.519% 3/7@0.432% 3/9@0.440% 5/7@0.425% 5/9@0.425% 7/9@0.505% refused 0 · 113 s
+sweep 4: p_th 0.534% [0.388%, 0.612%] nu n/d omega 2.00 chi2 1.10 window 36/36 uncorrected 0.489% crossings 3/5@0.459% 3/7@0.467% 3/9@0.465% 5/7@0.445% 5/9@0.472% 7/9@0.390% refused 0 · 113 s
+mean of 4: p_th 0.48% ± 0.05  nu not determined  omega 3.13  uncorrected 0.49%

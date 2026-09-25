@@ -17,6 +17,20 @@ pub mod blossom;
 pub mod decoder;
 pub mod surface_code;
 pub mod circuit_model;
+pub mod circuit;
+pub mod dem;
+pub mod dem_decoder;
+pub mod frame_sampler;
+pub mod shots;
+pub mod memory;
+#[cfg(test)]
+mod fixtures;
+#[cfg(test)]
+mod equivalence;
+#[cfg(feature = "python")]
+mod py_api;
+#[cfg(not(feature = "python"))]
+mod wasm_xc;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -57,6 +71,7 @@ impl PyRotatedSurfaceCode {
 #[pymodule]
 fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRotatedSurfaceCode>()?;
+    py_api::register(m)?;
     Ok(())
 }
 
@@ -594,6 +609,16 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
     erasure_rate: f64,
     correlated_noise: usize,
 ) -> *const f64 {
+    // Only the per-code paths estimate a channel; any other mode is refused with
+    // NaN rather than counted as a run of perfect shots.
+    if noise_mode > 2 {
+        unsafe {
+            let out = std::ptr::addr_of_mut!(FIDELITY_RESULTS);
+            (*out) = [f64::NAN; 3];
+            return out as *const f64;
+        }
+    }
+
     // Counts of the logical Pauli class left behind: index 0 = I, 1 = X,
     // 2 = Z, 3 = Y, matching the bitmask the simulators return.
     let mut classes = [0usize; 4];
@@ -714,6 +739,16 @@ pub extern "C" fn wasm_run_benchmark(
     erasure_rate: f64,
     correlated_noise: usize,
 ) -> f64 {
+    // Noise mode 3 is SD6, which only the general path models.
+    #[cfg(not(feature = "python"))]
+    if noise_mode == 3 {
+        return wasm_xc::wasm_xc_run(code_type, d, num_rounds, 1, p, bias, num_runs, 1);
+    }
+    // An unknown mode is refused with NaN, never reported as zero failures.
+    if noise_mode > 3 {
+        return f64::NAN;
+    }
+
     let mut failures = 0;
 
     if code_type == 0 {

@@ -21,6 +21,7 @@ import { initVitals } from './sections/vitals.js';
 import { initResultsTable, initThresholdSweep } from './sections/threshold.js';
 import { initBias } from './sections/bias.js';
 import { initBench } from './sections/bench.js';
+import { initXcheck } from './sections/xcheck.js';
 
 /**
  * Show a boot failure. Each caller supplies its own diagnosis — the two failure
@@ -61,6 +62,7 @@ async function boot() {
     initThresholdSweep($('#threshold'), compute);
     initBias($('#bias'), compute);
     initBench($('#bench'), compute);
+    initXcheck($('#internals'), compute);
   }
 
   let instance;

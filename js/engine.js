@@ -22,13 +22,20 @@ export const DECODER_NAME = {
   2: 'Exact MWPM',
 };
 
-export const NOISE = { DATA: 0, PHENOM: 1, CIRCUIT: 2 };
+export const NOISE = { DATA: 0, PHENOM: 1, CIRCUIT: 2, SD6: 3 };
 
 export const NOISE_NAME = {
   0: 'Data noise only',
   1: 'Phenomenological',
   2: 'Circuit-level',
+  3: 'Circuit-level (SD6)',
 };
+
+/** wasm_xc_* noise argument: the engine's own circuit-level model, or SD6. */
+export const XC_NOISE = { CURRENT: 0, SD6: 1 };
+
+/** Memory-experiment basis. */
+export const BASIS = { Z: 0, X: 1 };
 
 /** wasm_toggle_error error_type argument. */
 export const ERROR = { X: 0, Z: 1 };
@@ -353,12 +360,19 @@ export function runBenchmark(instance, config) {
     rounds, c.runs, c.noiseMode, c.erasure, c.correlated,
   );
   const seconds = (performance.now() - t0) / 1000;
+  if (Number.isNaN(rate)) {
+    throw new Error(`the engine could not build noise mode ${c.noiseMode} at d = ${c.d}`);
+  }
+  // SD6 runs on the general path, whose decoder refuses rather than falls back;
+  // the count of refusals travels with the rate so the page can show it.
+  const decodeErrors = c.noiseMode === NOISE.SD6 ? instance.exports.wasm_xc_decode_errors() : 0;
 
   return {
     rate,
     runs: c.runs,
     seconds,
     runsPerSecond: seconds > 0 ? Math.round(c.runs / seconds) : 0,
+    decodeErrors,
   };
 }
 
@@ -376,10 +390,71 @@ export function estimateChannel(instance, config) {
   const c = { ...DEFAULT_RUN, ...config };
   const rounds = c.noiseMode === NOISE.DATA ? 1 : c.rounds;
   const t0 = performance.now();
+  if (c.noiseMode === NOISE.SD6) {
+    throw new Error('the logical channel needs both bases at once, which the SD6 experiment does not measure');
+  }
   const ptr = instance.exports.wasm_estimate_logical_fidelity(
     c.d, c.codeType, c.decoder, c.p, c.bias,
     c.noiseMode, rounds, c.runs, c.erasure, c.correlated,
   );
   const view = new Float64Array(instance.exports.memory.buffer, ptr, 3);
   return { x: view[0], y: view[1], z: view[2], seconds: (performance.now() - t0) / 1000 };
+}
+
+/* -- The general path ---------------------------------------------------- */
+
+function writeText(instance, text) {
+  const bytes = new TextEncoder().encode(text);
+  const ptr = instance.exports.wasm_text_buf(bytes.length);
+  new Uint8Array(instance.exports.memory.buffer, ptr, bytes.length).set(bytes);
+}
+
+function readText(instance, len) {
+  const ptr = instance.exports.wasm_text_ptr();
+  // Copy out before anything else can grow memory and detach the view.
+  return new TextDecoder().decode(new Uint8Array(instance.exports.memory.buffer, ptr, len).slice());
+}
+
+/**
+ * Generate a memory circuit, leave it loaded for xcCompare, and return its
+ * Stim text.
+ * @param {{codeType:number, d:number, rounds:number, noise:number, p:number, eta?:number, basis?:number}} cfg
+ */
+export function xcGenerate(instance, { codeType, d, rounds, noise, p, eta = 0.5, basis = BASIS.Z }) {
+  const len = instance.exports.wasm_xc_generate(codeType, d, rounds, noise, p, eta, basis);
+  const text = readText(instance, len);
+  if (text.startsWith('ERROR:')) throw new Error(text.slice(7));
+  return text;
+}
+
+/** Load a circuit from Stim text for xcCompare. */
+export function xcLoadCircuit(instance, text) {
+  writeText(instance, text);
+  const out = JSON.parse(readText(instance, instance.exports.wasm_xc_load_circuit()));
+  if (!out.ok) throw new Error(out.error);
+  return out;
+}
+
+/** Build our model of the loaded circuit and compare it with Stim's DEM text. */
+export function xcCompare(instance, demText) {
+  writeText(instance, demText);
+  return JSON.parse(readText(instance, instance.exports.wasm_xc_compare()));
+}
+
+/**
+ * Time the decoder alone: sample-only and sample-and-decode over the same
+ * number of shots, the difference being the decoding. The engine has no clock
+ * of its own, so the timing has to happen out here.
+ */
+export function xcTiming(instance, cfg, runs) {
+  const { codeType, d, rounds, noise, p, eta = 0.5 } = cfg;
+  const run = (decode) => {
+    const t0 = performance.now();
+    instance.exports.wasm_xc_run(codeType, d, rounds, noise, p, eta, runs, decode);
+    return performance.now() - t0;
+  };
+  run(0); // build and cache the model outside the timed calls
+  const sample = run(0);
+  const total = run(1);
+  return { runs, sampleMicros: (sample * 1000) / runs, decodeMicros: (Math.max(0, total - sample) * 1000) / runs };
 }
