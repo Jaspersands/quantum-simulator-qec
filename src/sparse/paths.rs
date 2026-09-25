@@ -39,7 +39,15 @@ impl<'a> Solver<'a> {
         self.s.edge_set.clear();
         for i in 0..self.s.pairs.len() {
             let (a, b) = self.s.pairs[i];
-            self.trace(a, b)?;
+            if let Err(e) = self.trace(a, b) {
+                // Leave no flag raised for the next shot.
+                let s = &mut *self.s;
+                for &id in &s.edge_set {
+                    s.flipped[id as usize] = false;
+                }
+                s.edge_set.clear();
+                return Err(e);
+            }
         }
         // Keep each edge that ended flipped, once, and lower every flag.
         let s = &mut *self.s;

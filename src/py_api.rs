@@ -182,8 +182,12 @@ impl Decoder {
 
     fn pass2(&self, defects: Vec<u32>, edges: Vec<(i64, i64)>) -> PyResult<(u64, f64)> {
         let nd = self.num_detectors;
-        let ends = |x: i64| if x < 0 { nd } else { x as u32 };
-        let edges: Vec<(u32, u32)> = edges.into_iter().map(|(u, v)| (ends(u), ends(v))).collect();
+        let end = |x: i64| match x {
+            -1 => Ok(nd),
+            x if x >= 0 && x < nd as i64 => Ok(x as u32),
+            x => Err(err(format!("{x} is neither a detector nor -1, the boundary"))),
+        };
+        let edges = edges.into_iter().map(|(u, v)| Ok((end(u)?, end(v)?))).collect::<PyResult<Vec<(u32, u32)>>>()?;
         let p: Prediction = self.inner.decode_pass2(&defects, &edges).map_err(err)?;
         Ok((p.observables, p.weight))
     }

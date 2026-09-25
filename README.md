@@ -20,8 +20,9 @@ every number on the page is computed in the reader's browser on load.
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model by sparse blossom, within 2.3 to 2.9 times PyMatching's speed single-threaded, plain or
-  correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties).
+  error model by sparse blossom: plain, at 2.3 to 2.9 times PyMatching's single-threaded time, and
+  correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
+  at 2.0 to 2.3 times.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
@@ -197,7 +198,7 @@ its first run.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
-CARGO_PROFILE_RELEASE_STRIP=false VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --profile python
 .venv/bin/python tools/xcheck.py
 cargo test --release --no-default-features equivalence -- --include-ignored --nocapture
 cargo test --release --no-default-features every_single_fault -- --include-ignored
@@ -335,7 +336,7 @@ p = 0.6%, 126 µs plain and 264 µs correlated.
 It passed every layer on its first complete run. One thing did go wrong along the way, outside
 the algorithm. The Python module built with Rust 1.90's default release strip would not load on
 this Mac: the arm64 library's symbol string table came out unaligned, and the loader refused it.
-The build command above now sets `CARGO_PROFILE_RELEASE_STRIP=false`.
+The module now builds with its own profile, `python` in `Cargo.toml`: release, unstripped.
 
 ## Engine defects found and fixed
 
@@ -852,7 +853,7 @@ it; installing a native `aarch64-apple-darwin` toolchain is the better long-term
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
-CARGO_PROFILE_RELEASE_STRIP=false VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --profile python
 .venv/bin/python run_benchmarks.py
 .venv/bin/python run_data_benchmarks.py
 .venv/bin/python tools/xcheck.py

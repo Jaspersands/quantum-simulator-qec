@@ -2,7 +2,7 @@
 
 Run from the repository root, with the engine built into the virtualenv:
 
-    CARGO_PROFILE_RELEASE_STRIP=false VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+    VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --profile python
     .venv/bin/python tools/xcheck.py              # full run; writes data/xcheck/
     .venv/bin/python tools/xcheck.py --quick      # a smoke test; writes nothing
 
@@ -37,7 +37,7 @@ import stabilizer_qec as sq
 
 if not hasattr(sq, "generate_circuit"):
     sys.exit(f"{sq.__file__} is an old build without the cross-check bindings; "
-             "run `maturin develop --release` into .venv, and run this from the repository root.")
+             "run `maturin develop --profile python` into .venv, and run this from the repository root.")
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "xcheck"
