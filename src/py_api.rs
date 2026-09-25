@@ -215,6 +215,28 @@ fn sample_b8<'py>(
     Ok((PyBytes::new_bound(py, &dets), PyBytes::new_bound(py, &obs)))
 }
 
+/// Raw measurements and sweep bits (b8) to detection events and observable
+/// flips (b8), as `stim m2d` gives them.
+#[pyfunction]
+fn m2d_b8<'py>(
+    py: Python<'py>,
+    circuit_text: &str,
+    meas: &[u8],
+    sweeps: &[u8],
+    num_shots: usize,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    let c = Circuit::parse(circuit_text).map_err(err)?;
+    let m = crate::m2d::M2d::new(&c).map_err(err)?;
+    let (d, o) = py.allow_threads(|| m.convert_b8(meas, sweeps, num_shots)).map_err(err)?;
+    Ok((PyBytes::new_bound(py, &d), PyBytes::new_bound(py, &o)))
+}
+
+/// A circuit through this engine's parser and printer.
+#[pyfunction]
+fn circuit_to_stim(text: &str) -> PyResult<String> {
+    Ok(Circuit::parse(text).map_err(err)?.to_stim())
+}
+
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
     Ok(write_01(&read_b8(packed, num_bits).map_err(err)?))
@@ -228,5 +250,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sample_b8, m)?)?;
     m.add_function(wrap_pyfunction!(b8_to_01, m)?)?;
     m.add_class::<Decoder>()?;
+    m.add_function(wrap_pyfunction!(m2d_b8, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_to_stim, m)?)?;
     Ok(())
 }

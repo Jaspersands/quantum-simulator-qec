@@ -21,6 +21,7 @@ pub mod circuit;
 pub mod dem;
 pub mod dem_decoder;
 pub mod sparse;
+pub mod m2d;
 pub mod frame_sampler;
 pub mod shots;
 pub mod memory;
