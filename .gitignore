@@ -3,3 +3,4 @@
 *.dylib
 .venv/
 /target-py
+/data/google/
