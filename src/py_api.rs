@@ -12,7 +12,7 @@ use pyo3::types::PyBytes;
 
 use crate::circuit::{Basis, Circuit};
 use crate::dem::Dem;
-use crate::dem_decoder::DemDecoder;
+use crate::dem_decoder::{DemDecoder, Prediction};
 use crate::frame_sampler::FrameSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
 use crate::shots::{pack_row, read_b8, write_01};
@@ -53,9 +53,17 @@ fn dem_from_circuit(circuit_text: &str, decompose: bool) -> PyResult<String> {
 
 type Decoded<'py> = (Bound<'py, PyBytes>, Bound<'py, PyBytes>, usize, f64);
 
-fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usize, threads: usize) -> PyResult<Decoded<'py>> {
+fn decode_packed<'py>(
+    py: Python<'py>,
+    dem: &Dem,
+    packed: &[u8],
+    num_shots: usize,
+    threads: usize,
+    correlated: bool,
+) -> PyResult<Decoded<'py>> {
     let decoder = DemDecoder::new(dem).map_err(err)?;
     let graph = decoder.graph();
+    let corr = decoder.correlations();
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
     if packed.len() != stride * num_shots {
@@ -85,7 +93,12 @@ fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usiz
                             // A failed shot is written as all-ones observables and a NaN
                             // weight, and counted by the NaN: all-ones is a real prediction
                             // when a model has 64 observables.
-                            out.push(match graph.decode(&mut scratch, &defects) {
+                            let result = if correlated {
+                                graph.decode_correlated(corr, &mut scratch, &defects)
+                            } else {
+                                graph.decode(&mut scratch, &defects)
+                            };
+                            out.push(match result {
                                 Ok(p) => (p.observables, p.weight),
                                 Err(_) => (u64::MAX, f64::NAN),
                             });
@@ -110,22 +123,70 @@ fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usiz
 }
 
 /// Decode with a model someone else wrote, pieces and all (Stim's decomposed
-/// DEM). `threads = 0` uses every core.
+/// DEM). `threads = 0` uses every core; `correlated` decodes as PyMatching's
+/// `enable_correlations=True` does.
 #[pyfunction]
-#[pyo3(signature = (dem_text, packed, num_shots, threads=1))]
-fn decode_b8<'py>(py: Python<'py>, dem_text: &str, packed: &[u8], num_shots: usize, threads: usize) -> PyResult<Decoded<'py>> {
+#[pyo3(signature = (dem_text, packed, num_shots, threads=1, correlated=false))]
+fn decode_b8<'py>(
+    py: Python<'py>,
+    dem_text: &str,
+    packed: &[u8],
+    num_shots: usize,
+    threads: usize,
+    correlated: bool,
+) -> PyResult<Decoded<'py>> {
     let dem = Dem::parse(dem_text).map_err(err)?;
-    decode_packed(py, &dem, packed, num_shots, threads)
+    decode_packed(py, &dem, packed, num_shots, threads, correlated)
 }
 
 /// Decode with this engine's own model of the circuit, and its own
 /// decomposition. `threads = 0` uses every core.
 #[pyfunction]
-#[pyo3(signature = (circuit_text, packed, num_shots, threads=1))]
-fn decode_b8_own<'py>(py: Python<'py>, circuit_text: &str, packed: &[u8], num_shots: usize, threads: usize) -> PyResult<Decoded<'py>> {
+#[pyo3(signature = (circuit_text, packed, num_shots, threads=1, correlated=false))]
+fn decode_b8_own<'py>(
+    py: Python<'py>,
+    circuit_text: &str,
+    packed: &[u8],
+    num_shots: usize,
+    threads: usize,
+    correlated: bool,
+) -> PyResult<Decoded<'py>> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
     let dem = Dem::from_circuit(&c).map_err(err)?;
-    decode_packed(py, &dem, packed, num_shots, threads)
+    decode_packed(py, &dem, packed, num_shots, threads, correlated)
+}
+
+/// One model's decoder, shot by shot, for looking inside correlated
+/// matching: our first pass's edges, and a second pass from edges given.
+/// Edges are `(u, v)` with `-1` for the boundary, as PyMatching gives them.
+#[pyclass(unsendable)]
+struct Decoder {
+    inner: DemDecoder,
+    num_detectors: u32,
+}
+
+#[pymethods]
+impl Decoder {
+    #[new]
+    fn new(dem_text: &str) -> PyResult<Self> {
+        let dem = Dem::parse(dem_text).map_err(err)?;
+        let inner = DemDecoder::new(&dem).map_err(err)?;
+        Ok(Decoder { inner, num_detectors: dem.num_detectors as u32 })
+    }
+
+    fn edges(&self, defects: Vec<u32>) -> PyResult<Vec<(i64, i64)>> {
+        let nd = self.num_detectors;
+        let edges = self.inner.decode_to_edges(&defects).map_err(|e| err(format!("{e:?}")))?;
+        Ok(edges.into_iter().map(|(u, v)| (u as i64, if v == nd { -1 } else { v as i64 })).collect())
+    }
+
+    fn pass2(&self, defects: Vec<u32>, edges: Vec<(i64, i64)>) -> PyResult<(u64, f64)> {
+        let nd = self.num_detectors;
+        let ends = |x: i64| if x < 0 { nd } else { x as u32 };
+        let edges: Vec<(u32, u32)> = edges.into_iter().map(|(u, v)| (ends(u), ends(v))).collect();
+        let p: Prediction = self.inner.decode_pass2(&defects, &edges).map_err(err)?;
+        Ok((p.observables, p.weight))
+    }
 }
 
 #[pyfunction]
@@ -162,5 +223,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decode_b8_own, m)?)?;
     m.add_function(wrap_pyfunction!(sample_b8, m)?)?;
     m.add_function(wrap_pyfunction!(b8_to_01, m)?)?;
+    m.add_class::<Decoder>()?;
     Ok(())
 }
