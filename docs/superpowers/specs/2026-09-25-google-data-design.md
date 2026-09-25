@@ -100,11 +100,13 @@ in `joint[c]`: `p_a = min(0.5, joint[c][a] / m)`, implied weight `w_a = int_weig
 
 | File | Responsibility |
 |---|---|
-| `src/sparse/correlated.rs` | `Correlations::from_dem(&Dem, &SparseGraph)`: the joint table and the rules, as a CSR from edge to `(affected half-edge pair, implied weight)`. The Dijkstra path search with early stop and touched-list reset. The two-pass decode. |
+| `src/sparse/correlated.rs` | `Correlations::from_dem(&Dem, &SparseGraph)`: the joint table and the rules, as a CSR from edge to `(affected edge, implied weight)`. Reweighting, restoring, and the two-pass decode. |
+| `src/sparse/paths.rs` | Pass 1's edge set: a Dijkstra shortest path per matched pair, with early stop and touched-list reset, XORed into one set. |
+| `src/sparse/graph.rs` | Edge ids: each undirected edge's index in the merged edges names both half-edges, and `edge_id(u, v)` finds it. |
 | `src/sparse/extract.rs` | Also returns the matched pairs, for pass 1. |
 | `src/sparse/state.rs` | `Scratch` gains its own copy of the edge weights, which the flooder reads, and an undo log. Reweighting never touches the shared graph, so threads stay independent. |
 | `src/dem_decoder.rs` | `DemDecoder::decode_correlated(defects)`, and `new` builds the rules. A model whose decomposition the rules cannot use is refused with PyMatching's reason. |
-| `src/py_api.rs` | `decode_b8(..., correlated=False)`, `decode_b8_own(..., correlated=False)`; `edges_b8`, our pass-1 edge set per shot; `decode_pass2_b8`, pass 2 from an edge set supplied from outside. |
+| `src/py_api.rs` | `decode_b8(..., correlated=False)`, `decode_b8_own(..., correlated=False)`; a `Decoder(dem_text)` class with `edges(defects)`, our pass-1 edge set, and `pass2(defects, edges)`, pass 2 from an edge set supplied from outside, per shot. |
 | `tools/xcheck.py` | Check 5, correlated matching against PyMatching, and the correlated timing column. |
 
 ## Verification
@@ -113,9 +115,10 @@ Five layers, each pass or fail.
 
 1. **Rule tables.** Hand-built models with the rules worked by hand: two-piece and three-piece
    decompositions, boundary pieces, repeated pieces, the 0.5 cap, and `p = 0`.
-2. **Paths.** On surface-code shots at d = 3–7: every traced path joins its pair, its integer weight
-   equals the pair's Dijkstra distance, and the XOR of every path's observables equals pass 1's
-   prediction.
+2. **Paths.** On surface-code shots at d = 3–7: the traced edge set has exactly the shot's defects
+   as its syndrome, and its integer weight equals pass 1's optimal weight, so it is a minimum-weight
+   correction. Its observables are not compared with pass 1's: two equally short paths can differ
+   by a logical operator (a defect midway between two boundaries), and either is a correct trace.
 3. **Pass 2 is exact.** On the reweighted graph, the sparse matcher's integer weight equals the dense
    oracle's, on thousands of shots.
 4. **Against PyMatching `enable_correlations`**, on identical shots of the SD6 circuits (rotated and
