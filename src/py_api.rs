@@ -82,6 +82,9 @@ fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usiz
                                     defects.push(i as u32);
                                 }
                             }
+                            // A failed shot is written as all-ones observables and a NaN
+                            // weight, and counted by the NaN: all-ones is a real prediction
+                            // when a model has 64 observables.
                             out.push(match graph.decode(&mut scratch, &defects) {
                                 Ok(p) => (p.observables, p.weight),
                                 Err(_) => (u64::MAX, f64::NAN),
@@ -99,7 +102,7 @@ fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usiz
     let mut weights = Vec::with_capacity(8 * num_shots);
     let mut errors = 0usize;
     for (o, w) in parts.into_iter().flatten() {
-        errors += usize::from(o == u64::MAX);
+        errors += usize::from(w.is_nan());
         preds.extend_from_slice(&o.to_le_bytes());
         weights.extend_from_slice(&w.to_le_bytes());
     }

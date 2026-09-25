@@ -34,6 +34,13 @@ pub fn int_weight(wf: f64) -> i64 {
     2 * (wf * HALF_SCALE).round() as i64
 }
 
+/// An edge of probability `p`: its weight ln((1 − p)/p), and that weight as
+/// `int_weight`. The one definition both matchers build their graphs from.
+pub fn edge_weight(p: f64) -> (f64, i64) {
+    let wf = ((1.0 - p) / p).ln();
+    (wf, int_weight(wf))
+}
+
 /// Cost of a pairing with no path. Dominates any real path, and stays far enough
 /// below the blossom's own infinity that sums of 512 of them cannot overflow.
 const UNREACHABLE: i64 = 1 << 44;
@@ -41,7 +48,9 @@ const UNREACHABLE: i64 = 1 << 44;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Prediction {
     pub observables: u64,
-    /// Total weight of the chosen matching, in the float weights.
+    /// Total weight of the chosen matching. The dense matcher sums the float
+    /// weights; the sparse matcher reports `iweight / SCALE`, which differs
+    /// from that sum by the rounding, at most a few parts in 10^6 per edge.
     pub weight: f64,
     /// The same, in the integer weights the matcher actually minimises.
     pub iweight: i64,
@@ -145,8 +154,7 @@ impl DemDecoder {
         let (edges, conflicts) = merged_edges(dem)?;
         let mut adj: Vec<Vec<Arc>> = (0..=nd).map(|_| Vec::new()).collect();
         for &(u, v, p, obs) in &edges {
-            let wf = ((1.0 - p) / p).ln();
-            let w = int_weight(wf);
+            let (wf, w) = edge_weight(p);
             adj[u as usize].push(Arc { to: v, w, wf, obs });
             adj[v as usize].push(Arc { to: u, w, wf, obs });
         }

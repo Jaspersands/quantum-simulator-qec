@@ -1,6 +1,6 @@
 //! The detector graph the regions grow on.
 
-use crate::dem_decoder::int_weight;
+use crate::dem_decoder::edge_weight;
 
 use super::state::BOUNDARY;
 
@@ -35,7 +35,7 @@ impl SparseGraph {
         let mut obs = vec![0u64; m];
         let mut fill: Vec<u32> = offsets[..num_nodes].to_vec();
         for &(u, v, p, o) in edges {
-            let iw = int_weight(((1.0 - p) / p).ln());
+            let (_, iw) = edge_weight(p);
             let boundary = (v as usize) >= num_nodes;
             let ends: &[(u32, u32)] = if boundary { &[(u, BOUNDARY)] } else { &[(u, v), (v, u)] };
             for &(a, b) in ends {

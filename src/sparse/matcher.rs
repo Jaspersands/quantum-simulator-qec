@@ -21,6 +21,13 @@ impl<'a> Solver<'a> {
         out
     }
 
+    fn root_of(&self, mut n: u32) -> u32 {
+        while self.s.alt[n as usize].parent != NONE {
+            n = self.s.alt[n as usize].parent;
+        }
+        n
+    }
+
     /// Index of the blossom child of `b` that holds `defect`.
     pub(crate) fn child_index(&self, b: u32, children: &[(u32, CEdge)], defect: u32) -> usize {
         let mut r = self.s.nodes[defect as usize].own;
@@ -45,7 +52,7 @@ impl<'a> Solver<'a> {
             } else {
                 self.grow_tree(n1, r2, e)
             }
-        } else if self.path_to_root(n1).last() == self.path_to_root(n2).last() {
+        } else if self.root_of(n1) == self.root_of(n2) {
             self.form_blossom(n1, n2, e)
         } else {
             self.augment(n1, n2, e)

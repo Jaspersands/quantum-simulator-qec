@@ -24,7 +24,7 @@ fn brute_force(edges: &[TestEdge], defects: &[u32]) -> Option<(i64, Vec<u64>)> {
                 if let Some(b) = e.1 {
                     syn ^= 1 << b;
                 }
-                w += crate::dem_decoder::int_weight(((1.0 - e.2) / e.2).ln());
+                w += crate::dem_decoder::edge_weight(e.2).1;
                 obs ^= e.3;
             }
         }

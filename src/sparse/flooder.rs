@@ -13,8 +13,12 @@ use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NONE, NO
 use super::tracker::Item;
 use super::Solver;
 
-/// Guard against a bug looping forever; far beyond any real shot.
-const EVENT_LIMIT: u64 = 1 << 34;
+/// Guard against a bug looping forever: events allowed per defect, and the
+/// floor for small shots. Real shots take about five events a defect (at most
+/// 5.7 measured, on SD6 memory circuits up to d = 11 with 2,247 defects), so
+/// this is thousands of times any real need, and a loop is caught in seconds.
+const EVENTS_PER_DEFECT: u64 = 1 << 16;
+const EVENT_FLOOR: u64 = 1 << 20;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum NodeEvent {
@@ -283,6 +287,8 @@ impl<'a> Solver<'a> {
     }
 
     pub(crate) fn run(&mut self, defects: &[u32], check: bool) -> Result<(), DecodeError> {
+        debug_assert!(defects.windows(2).all(|w| w[0] < w[1]), "defects must be sorted and distinct");
+        let limit = EVENT_FLOOR.max(EVENTS_PER_DEFECT * defects.len() as u64);
         for &d in defects {
             self.create_trivial(d);
         }
@@ -293,7 +299,7 @@ impl<'a> Solver<'a> {
             debug_assert!(t >= self.s.now, "time went backwards");
             self.s.now = t;
             self.s.events += 1;
-            if self.s.events > EVENT_LIMIT {
+            if self.s.events > limit {
                 return Err(DecodeError::MatcherDeclined);
             }
             match item {

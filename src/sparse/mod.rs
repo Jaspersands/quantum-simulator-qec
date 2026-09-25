@@ -43,8 +43,10 @@ pub(crate) struct Solver<'a> {
 }
 
 impl SparseGraph {
-    /// Decode one shot. `defects` must be sorted and distinct.
+    /// Decode one shot. `defects` must be sorted and distinct (checked in debug
+    /// builds), and `scratch` built for this graph.
     pub fn decode(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        assert_eq!(scratch.nodes.len(), self.num_nodes, "a Scratch serves the graph it was built for");
         let mut solver = Solver { g: self, s: scratch };
         solver.reset();
         solver.run(defects, false)?;
