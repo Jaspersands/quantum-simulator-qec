@@ -20,6 +20,7 @@ pub mod circuit_model;
 pub mod circuit;
 pub mod dem;
 pub mod dem_decoder;
+pub mod sparse;
 pub mod frame_sampler;
 pub mod shots;
 pub mod memory;

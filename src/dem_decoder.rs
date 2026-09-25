@@ -18,6 +18,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::blossom::{min_weight_perfect_matching, MAX_VERTICES};
 use crate::dem::{xor_prob, Dem};
+use crate::sparse::SparseGraph;
 
 /// Integer weight resolution: 2^20 per unit of ln((1 − p)/p). Fine enough that
 /// rounding cannot reorder paths that differ by more than a few parts in 10^6.
@@ -69,6 +70,7 @@ pub struct DemDecoder {
     /// Parallel edges whose observable masks disagreed. Zero for any code of
     /// distance three or more: a conflict is a weight-two logical operator.
     pub conflicts: usize,
+    sparse: SparseGraph,
 }
 
 /// The model's graph-like pieces as merged edges `(u, v, p, observables)`,
@@ -130,7 +132,13 @@ impl DemDecoder {
             adj[u as usize].push(Arc { to: v, w, wf, obs });
             adj[v as usize].push(Arc { to: u, w, wf, obs });
         }
-        Ok(DemDecoder { num_detectors: nd, adj, conflicts })
+        let sparse = SparseGraph::from_edges(nd, &edges);
+        Ok(DemDecoder { num_detectors: nd, adj, conflicts, sparse })
+    }
+
+    /// The detector graph the sparse matcher grows on.
+    pub fn graph(&self) -> &SparseGraph {
+        &self.sparse
     }
 
     pub fn decode_bools(&self, dets: &[bool]) -> Result<Prediction, DecodeError> {
