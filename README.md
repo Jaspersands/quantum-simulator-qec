@@ -20,7 +20,8 @@ every number on the page is computed in the reader's browser on load.
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model by sparse blossom, within 2.3 to 2.9 times PyMatching's speed single-threaded.
+  error model by sparse blossom, within 2.3 to 2.9 times PyMatching's speed single-threaded, plain or
+  correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties).
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
@@ -196,7 +197,7 @@ its first run.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
-VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+CARGO_PROFILE_RELEASE_STRIP=false VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
 .venv/bin/python tools/xcheck.py
 cargo test --release --no-default-features equivalence -- --include-ignored --nocapture
 cargo test --release --no-default-features every_single_fault -- --include-ignored
@@ -272,6 +273,69 @@ The dense and sparse columns come from `cargo test --release --no-default-featur
 The site uses the same matcher in WebAssembly. A whole SD6 sweep window, one shot at every point
 across d = 3, 5, 7 and 9, now costs about 1.7 ms instead of more than 100 ms. So the SD6 sweep went
 from 800 shots a point to 40,000, and Figure 8's live rates now run 50,000 to 100,000 shots.
+
+## Correlated matching
+
+One fault in a circuit can set off detectors in both halves of the detector graph. A Y error is an X
+error and a Z error at once, so it lights the X-type and the Z-type checks together. The error
+model knows this and writes such a fault as pieces, `error(p) D0 D1 ^ D7 D8`, one per half. Plain
+matching sees only the pieces, as independent edges, and forgets that they come together.
+Correlated matching remembers. `src/sparse/correlated.rs` follows PyMatching 2.4's
+`enable_correlations=True`, read from its source, so that PyMatching can serve as the oracle:
+
+1. **Pass one.** The sparse matcher, unchanged.
+2. **Trace.** A shortest path on the detector graph for each matched pair (`src/sparse/paths.rs`),
+   all XORed into one edge set, so an edge two paths share cancels.
+3. **Reweight.** From the model's decompositions, each edge c has rules. For every edge a it shares
+   an error with, the rule is `p_a = min(0.5, joint(c, a) / marginal(c))`: the probability that a
+   fired given that c did. Each edge the set uses lowers every edge its rules name to the smaller
+   of its own weight and ln((1 − p_a)/p_a).
+4. **Pass two.** The sparse matcher again, on the lowered weights. Its observables are the
+   prediction. The weights are then restored, so decoding threads never share mutable state.
+
+**Verification, in five layers.**
+
+1. **Rule tables by hand.** Two- and three-piece decompositions, a piece shared by several errors,
+   the cap at one half, errors of probability zero, and PyMatching's quirk of counting a piece
+   repeated within one error twice more toward its marginal.
+2. **The traced edges.** On 3,600 surface-code shots (rotated and XZZX, d = 3, 5, 7, SD6 at 0.3% and
+   0.6%), every traced edge set has exactly the shot's defects as its syndrome and weighs exactly the
+   optimum: each is a minimum-weight correction.
+3. **Pass two is exact.** On 1,440 shots, the second pass's integer weight equals the dense
+   matcher's on a model carrying exactly the reweighted weights.
+4. **Against PyMatching's correlated mode on identical shots**, 1.2 million of them (check 5 of the
+   cross-check): 696 disagreements, and not one bug among them. For every disagreement,
+   PyMatching's own first-pass edges (`decode_to_edges_array`) go into our second pass. In 682
+   cases that reproduces PyMatching's answer: the two first passes traced different, equally short
+   paths. The other 14 tie PyMatching's second-pass weight to within the discretisation noise
+   (below 1e-5).
+5. **It helps.** Pooled over all twelve points, correlated matching fails 53,030 times against plain
+   matching's 65,316, 19% fewer. At d = 7 it nearly halves the failure rate at p = 0.3%.
+
+| code | d | p | PyMatching correlated | ours correlated | ours plain | disagreements | PyMatching µs | ours µs |
+|---|---|---|---|---|---|---|---|---|
+| rotated | 3 | 0.3% | 2.061% | 2.061% | 2.332% | 0 | 0.6 | 1.3 |
+| rotated | 3 | 0.6% | 6.951% | 6.951% | 7.708% | 0 | 1.2 | 2.8 |
+| rotated | 5 | 0.3% | 1.133% | 1.131% | 1.645% | 8 | 4.8 | 9.6 |
+| rotated | 5 | 0.6% | 7.735% | 7.738% | 9.335% | 31 | 10.1 | 22.0 |
+| rotated | 7 | 0.3% | 0.555% | 0.558% | 1.037% | 29 | 15.2 | 32.1 |
+| rotated | 7 | 0.6% | 7.932% | 7.906% | 10.590% | 274 | 36.7 | 78.6 |
+| XZZX | 3 | 0.3% | 2.020% | 2.020% | 2.293% | 0 | 0.6 | 1.3 |
+| XZZX | 3 | 0.6% | 7.098% | 7.098% | 7.665% | 0 | 1.3 | 2.6 |
+| XZZX | 5 | 0.3% | 1.210% | 1.210% | 1.639% | 8 | 4.9 | 10.0 |
+| XZZX | 5 | 0.6% | 7.739% | 7.745% | 9.323% | 22 | 10.4 | 22.4 |
+| XZZX | 7 | 0.3% | 0.581% | 0.579% | 1.103% | 32 | 15.5 | 31.9 |
+| XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 37.0 | 78.5 |
+
+100,000 shots per row, sampled by Stim, SD6 noise, T = d. The timing columns are single-threaded,
+correlated mode for both: ours takes 2.0 to 2.3 times as long as PyMatching's. Natively,
+from `sparse::tests::timing`, the second pass roughly doubles the cost of a shot: at d = 9 and
+p = 0.6%, 126 µs plain and 264 µs correlated.
+
+It passed every layer on its first complete run. One thing did go wrong along the way, outside
+the algorithm. The Python module built with Rust 1.90's default release strip would not load on
+this Mac: the arm64 library's symbol string table came out unaligned, and the loader refused it.
+The build command above now sets `CARGO_PROFILE_RELEASE_STRIP=false`.
 
 ## Engine defects found and fixed
 
@@ -718,7 +782,8 @@ src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the mo
 src/shots.rs          Stim's 01 and b8 detection-event formats
 src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
-src/sparse/           sparse blossom: exact matching by growing regions on the detector graph
+src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
+                      and correlated matching's two passes on top of it
 src/py_api.rs         PyO3 bindings for the cross-check
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/lib.rs            PyO3 module and the WASM C-ABI interface
@@ -787,7 +852,7 @@ it; installing a native `aarch64-apple-darwin` toolchain is the better long-term
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
-VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+CARGO_PROFILE_RELEASE_STRIP=false VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
 .venv/bin/python run_benchmarks.py
 .venv/bin/python run_data_benchmarks.py
 .venv/bin/python tools/xcheck.py
