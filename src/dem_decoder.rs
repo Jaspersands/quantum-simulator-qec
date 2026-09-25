@@ -22,6 +22,16 @@ use crate::dem::{xor_prob, Dem};
 /// Integer weight resolution: 2^20 per unit of ln((1 − p)/p). Fine enough that
 /// rounding cannot reorder paths that differ by more than a few parts in 10^6.
 pub const SCALE: f64 = 1_048_576.0;
+pub const HALF_SCALE: f64 = SCALE / 2.0;
+
+/// An edge's integer weight: ln((1 − p)/p) at `SCALE`, rounded to an even
+/// integer. Even, because the sparse matcher's regions grow toward each other
+/// from both ends of an edge and must meet at an integer time. Shared, so the
+/// dense and sparse matchers solve exactly the same integer problem, and their
+/// optimal weights can be required to be equal rather than merely close.
+pub fn int_weight(wf: f64) -> i64 {
+    2 * (wf * HALF_SCALE).round() as i64
+}
 
 /// Cost of a pairing with no path. Dominates any real path, and stays far enough
 /// below the blossom's own infinity that sums of 512 of them cannot overflow.
@@ -32,6 +42,8 @@ pub struct Prediction {
     pub observables: u64,
     /// Total weight of the chosen matching, in the float weights.
     pub weight: f64,
+    /// The same, in the integer weights the matcher actually minimises.
+    pub iweight: i64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -59,49 +71,62 @@ pub struct DemDecoder {
     pub conflicts: usize,
 }
 
-impl DemDecoder {
-    pub fn new(dem: &Dem) -> Result<DemDecoder, String> {
-        let nd = dem.num_detectors;
-        let boundary = nd as u32;
-        let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
-        let mut conflicts = 0usize;
-        for m in &dem.mechanisms {
-            if m.pieces.is_empty() {
-                return Err(format!(
-                    "mechanism on detectors {:?} fires more than two detectors and has no decomposition",
-                    m.detectors
-                ));
-            }
-            for piece in &m.pieces {
-                let key = match piece.detectors.as_slice() {
-                    [a] => (*a, boundary),
-                    [a, b] => (*a.min(b), *a.max(b)),
-                    other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
-                };
-                match edges.get_mut(&key) {
-                    None => {
-                        edges.insert(key, (m.p, piece.observables));
-                    }
-                    Some(e) if e.1 == piece.observables => e.0 = xor_prob(e.0, m.p),
-                    Some(e) => {
-                        conflicts += 1;
-                        if m.p > e.0 {
-                            *e = (m.p, piece.observables);
-                        }
+/// The model's graph-like pieces as merged edges `(u, v, p, observables)`,
+/// sorted, with `v == num_detectors` standing for the boundary, and the number
+/// of conflicting parallel edges. Parallel edges with the same observables
+/// combine as independent events, which is what PyMatching 2.4 does. With
+/// different observables the more probable one is kept and the conflict is
+/// counted: for any code of distance three or more that count is zero, since a
+/// conflict is a weight-two logical operator.
+pub(crate) fn merged_edges(dem: &Dem) -> Result<(Vec<(u32, u32, f64, u64)>, usize), String> {
+    let boundary = dem.num_detectors as u32;
+    let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
+    let mut conflicts = 0usize;
+    for m in &dem.mechanisms {
+        if m.pieces.is_empty() {
+            return Err(format!(
+                "mechanism on detectors {:?} fires more than two detectors and has no decomposition",
+                m.detectors
+            ));
+        }
+        for piece in &m.pieces {
+            let key = match piece.detectors.as_slice() {
+                [a] => (*a, boundary),
+                [a, b] => (*a.min(b), *a.max(b)),
+                other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
+            };
+            match edges.get_mut(&key) {
+                None => {
+                    edges.insert(key, (m.p, piece.observables));
+                }
+                Some(e) if e.1 == piece.observables => e.0 = xor_prob(e.0, m.p),
+                Some(e) => {
+                    conflicts += 1;
+                    if m.p > e.0 {
+                        *e = (m.p, piece.observables);
                     }
                 }
             }
         }
-        let mut keys: Vec<(u32, u32)> = edges.keys().copied().collect();
-        keys.sort_unstable();
+    }
+    let mut out: Vec<(u32, u32, f64, u64)> = edges.into_iter().map(|((u, v), (p, o))| (u, v, p, o)).collect();
+    out.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    for &(u, v, p, _) in &out {
+        if !(p > 0.0 && p <= 0.5) {
+            return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
+        }
+    }
+    Ok((out, conflicts))
+}
+
+impl DemDecoder {
+    pub fn new(dem: &Dem) -> Result<DemDecoder, String> {
+        let nd = dem.num_detectors;
+        let (edges, conflicts) = merged_edges(dem)?;
         let mut adj: Vec<Vec<Arc>> = (0..=nd).map(|_| Vec::new()).collect();
-        for (u, v) in keys {
-            let (p, obs) = edges[&(u, v)];
-            if !(p > 0.0 && p <= 0.5) {
-                return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
-            }
+        for &(u, v, p, obs) in &edges {
             let wf = ((1.0 - p) / p).ln();
-            let w = (wf * SCALE).round() as i64;
+            let w = int_weight(wf);
             adj[u as usize].push(Arc { to: v, w, wf, obs });
             adj[v as usize].push(Arc { to: u, w, wf, obs });
         }
@@ -116,6 +141,13 @@ impl DemDecoder {
     /// Decode a set of fired detectors. A detector listed twice has fired an
     /// even number of times and cancels, as detection events XOR.
     pub fn decode(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        self.decode_dense(defects)
+    }
+
+    /// The dense matcher: Dijkstra from every defect, then Edmonds' blossom on
+    /// the complete graph of defects. Exact, capped at 256 defects, and kept as
+    /// the reference the sparse matcher is checked against.
+    pub fn decode_dense(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
         if !defects.windows(2).all(|w| w[0] < w[1]) {
             let mut set: Vec<u32> = defects.to_vec();
             set.sort_unstable();
@@ -127,11 +159,11 @@ impl DemDecoder {
                     out.push(d);
                 }
             }
-            return self.decode(&out);
+            return self.decode_dense(&out);
         }
         let k = defects.len();
         if k == 0 {
-            return Ok(Prediction { observables: 0, weight: 0.0 });
+            return Ok(Prediction { observables: 0, weight: 0.0, iweight: 0 });
         }
         if 2 * k > MAX_VERTICES {
             return Err(DecodeError::TooManyDefects(k));
@@ -225,7 +257,7 @@ impl DemDecoder {
         }
         let mate = min_weight_perfect_matching(n, &cost).ok_or(DecodeError::MatcherDeclined)?;
 
-        let mut prediction = Prediction { observables: 0, weight: 0.0 };
+        let mut prediction = Prediction { observables: 0, weight: 0.0, iweight: 0 };
         for i in 0..k {
             let j = mate[i];
             let (d, o, w) = if j >= k {
@@ -240,6 +272,7 @@ impl DemDecoder {
             }
             prediction.observables ^= o;
             prediction.weight += w;
+            prediction.iweight += d;
         }
         Ok(prediction)
     }
@@ -378,6 +411,16 @@ mod tests {
         let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1").unwrap()).unwrap();
         assert_eq!(dec.decode(&[1, 0, 0]), dec.decode(&[1]));
         assert_eq!(dec.decode(&[1, 1]).unwrap().observables, 0);
+    }
+
+    #[test]
+    fn integer_weights_are_even_and_reported() {
+        assert_eq!(int_weight(1.0) % 2, 0);
+        assert_eq!(int_weight(0.0), 0);
+        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D1").unwrap()).unwrap();
+        let pred = dec.decode_dense(&[0, 1]).unwrap();
+        assert_eq!(pred.iweight, int_weight((0.9f64 / 0.1).ln()));
+        assert_eq!(pred.iweight % 2, 0);
     }
 
     #[test]
