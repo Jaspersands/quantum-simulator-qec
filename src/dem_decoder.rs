@@ -193,6 +193,16 @@ impl DemDecoder {
         self.sparse.decode(&mut self.scratch.borrow_mut(), defects)
     }
 
+    /// The edges the matching uses, as PyMatching's `decode_to_edges_array`
+    /// gives them: one shortest path per matched pair, XORed together, each
+    /// edge as its endpoints with `num_detectors` for the boundary.
+    pub fn decode_to_edges(&self, defects: &[u32]) -> Result<Vec<(u32, u32)>, DecodeError> {
+        if !defects.windows(2).all(|w| w[0] < w[1]) {
+            return self.decode_to_edges(&cancel_repeats(defects));
+        }
+        self.sparse.decode_to_edges(&mut self.scratch.borrow_mut(), defects)
+    }
+
     /// The dense matcher: Dijkstra from every defect, then Edmonds' blossom on
     /// the complete graph of defects. Exact, capped at 256 defects, and kept as
     /// the reference the sparse matcher is checked against.

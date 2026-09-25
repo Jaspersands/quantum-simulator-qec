@@ -27,6 +27,7 @@ mod extract;
 mod flooder;
 mod graph;
 mod matcher;
+mod paths;
 mod state;
 mod tracker;
 #[cfg(test)]
@@ -55,6 +56,15 @@ impl SparseGraph {
         solver.reset();
         solver.run(defects, false)?;
         Ok(solver.extract())
+    }
+
+    /// The edges one shot's matching uses (see `paths`), as endpoints with
+    /// `num_nodes` standing for the boundary.
+    pub fn decode_to_edges(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Vec<(u32, u32)>, DecodeError> {
+        self.check_scratch(scratch);
+        let mut solver = Solver { g: self, s: scratch };
+        solver.pass_one(defects)?;
+        Ok(solver.s.edge_set.iter().map(|&id| self.ends[id as usize]).collect())
     }
 
     /// The same, checking the dual's feasibility after every event.

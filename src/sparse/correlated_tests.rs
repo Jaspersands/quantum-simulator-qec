@@ -4,7 +4,9 @@
 use crate::circuit::Basis;
 use crate::dem::Dem;
 use crate::dem_decoder::{edge_weight, DemDecoder};
+use crate::frame_sampler::FrameSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
+use crate::surface_code::Xorshift;
 
 fn decoder(text: &str) -> DemDecoder {
     DemDecoder::new(&Dem::parse(text).unwrap()).unwrap()
@@ -80,4 +82,63 @@ fn circuit_models_have_rules() {
     let c = generate(CodeKind::Rotated, 3, 3, NoiseModel::Sd6 { p: 0.003 }, Basis::Z).unwrap();
     let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
     assert!(dec.correlations().num_rules() > 0);
+}
+
+fn defects_of(dets: &[bool]) -> Vec<u32> {
+    dets.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect()
+}
+
+#[test]
+fn traces_paths_through_empty_nodes_and_to_the_boundary() {
+    let dec = decoder("error(0.1) D0 D1\nerror(0.1) D1 D2\nerror(0.1) D2 D3\nerror(0.01) D3\n");
+    let mut e = dec.decode_to_edges(&[0, 2]).unwrap();
+    e.sort();
+    assert_eq!(e, vec![(0, 1), (1, 2)]);
+    // One defect, and the only boundary edge is at D3 (4 is the boundary).
+    let mut e = dec.decode_to_edges(&[1]).unwrap();
+    e.sort();
+    assert_eq!(e, vec![(1, 2), (2, 3), (3, 4)]);
+    assert_eq!(dec.decode_to_edges(&[]).unwrap(), vec![]);
+}
+
+/// Layer 2. The traced edges have the shot's defects as their syndrome, and
+/// weigh exactly the optimum: they are a minimum-weight correction. Their
+/// observables are not compared with pass one's, since two equally short paths
+/// may differ by a logical operator.
+#[test]
+fn traced_edges_are_a_minimum_weight_correction() {
+    let mut rng = Xorshift::new(7);
+    let mut shots = 0;
+    for kind in [CodeKind::Rotated, CodeKind::Xzzx] {
+        for d in [3usize, 5, 7] {
+            for &p in &[0.003, 0.006] {
+                let c = generate(kind, d, d, NoiseModel::Sd6 { p }, Basis::Z).unwrap();
+                let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+                let sampler = FrameSampler::new(&c).unwrap();
+                let g = dec.graph();
+                let nd = g.num_nodes as u32;
+                for _ in 0..300 {
+                    let defects = defects_of(&sampler.sample(&mut rng).detectors);
+                    let plain = dec.decode(&defects).unwrap();
+                    let edges = dec.decode_to_edges(&defects).unwrap();
+                    let mut ids: Vec<u32> = edges.iter().map(|&(u, v)| g.edge_id(u, v).unwrap()).collect();
+                    ids.sort_unstable();
+                    ids.dedup();
+                    assert_eq!(ids.len(), edges.len(), "an edge listed twice");
+                    let mut syndrome = vec![false; nd as usize];
+                    for &(u, v) in &edges {
+                        syndrome[u as usize] ^= true;
+                        if v != nd {
+                            syndrome[v as usize] ^= true;
+                        }
+                    }
+                    let weight: i64 = ids.iter().map(|&e| g.weight_of(e)).sum();
+                    assert_eq!(defects_of(&syndrome), defects, "{kind:?} d = {d}, p = {p}");
+                    assert_eq!(weight, plain.iweight, "{kind:?} d = {d}, p = {p}: {defects:?}");
+                    shots += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(shots, 3600);
 }

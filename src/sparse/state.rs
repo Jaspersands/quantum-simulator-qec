@@ -1,5 +1,8 @@
 //! The state of one decode: regions, alternating-tree nodes, detector nodes.
 
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+
 use super::graph::SparseGraph;
 use super::tracker::Tracker;
 
@@ -109,6 +112,18 @@ pub struct Scratch {
     /// the old values until they are restored.
     pub(crate) w: Vec<i64>,
     pub(crate) undo: Vec<(u32, i64)>,
+    /// The last decode's matched pairs: two defects, or a defect and BOUNDARY.
+    pub(crate) pairs: Vec<(u32, u32)>,
+    /// Shortest-path search: per node the distance (NO_TIME when unreached)
+    /// and the (node, edge) it was reached by; the nodes reached; the queue.
+    pub(crate) dist: Vec<i64>,
+    pub(crate) pred: Vec<(u32, u32)>,
+    pub(crate) seen: Vec<u32>,
+    pub(crate) heap: BinaryHeap<Reverse<(i64, u32)>>,
+    /// The edge set being built: a flag per edge, and every edge whose flag
+    /// was raised at some point.
+    pub(crate) flipped: Vec<bool>,
+    pub(crate) edge_set: Vec<u32>,
 }
 
 impl Scratch {
@@ -123,6 +138,13 @@ impl Scratch {
             events: 0,
             w: graph.w.clone(),
             undo: Vec::new(),
+            pairs: Vec::new(),
+            dist: vec![NO_TIME; graph.num_nodes],
+            pred: vec![(NONE, NONE); graph.num_nodes],
+            seen: Vec::new(),
+            heap: BinaryHeap::new(),
+            flipped: vec![false; graph.num_edges()],
+            edge_set: Vec::new(),
         }
     }
 }
