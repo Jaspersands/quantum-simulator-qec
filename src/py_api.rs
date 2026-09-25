@@ -16,6 +16,7 @@ use crate::dem_decoder::DemDecoder;
 use crate::frame_sampler::FrameSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
 use crate::shots::{pack_row, read_b8, write_01};
+use crate::sparse::Scratch;
 use crate::surface_code::Xorshift;
 
 fn err(e: String) -> PyErr {
@@ -52,55 +53,76 @@ fn dem_from_circuit(circuit_text: &str, decompose: bool) -> PyResult<String> {
 
 type Decoded<'py> = (Bound<'py, PyBytes>, Bound<'py, PyBytes>, usize, f64);
 
-fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usize) -> PyResult<Decoded<'py>> {
+fn decode_packed<'py>(py: Python<'py>, dem: &Dem, packed: &[u8], num_shots: usize, threads: usize) -> PyResult<Decoded<'py>> {
     let decoder = DemDecoder::new(dem).map_err(err)?;
+    let graph = decoder.graph();
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
     if packed.len() != stride * num_shots {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
+    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
+        .clamp(1, num_shots.max(1));
+    let chunk = num_shots.div_ceil(threads);
+    let start = Instant::now();
+    let parts: Vec<Vec<(u64, f64)>> = py.allow_threads(|| {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads)
+                .map(|t| {
+                    let (lo, hi) = (t * chunk, ((t + 1) * chunk).min(num_shots));
+                    scope.spawn(move || {
+                        let mut scratch = Scratch::new(graph);
+                        let mut defects = Vec::new();
+                        let mut out = Vec::with_capacity(hi.saturating_sub(lo));
+                        for s in lo..hi {
+                            defects.clear();
+                            let row = &packed[s * stride..(s + 1) * stride];
+                            for i in 0..nd {
+                                if (row[i / 8] >> (i % 8)) & 1 == 1 {
+                                    defects.push(i as u32);
+                                }
+                            }
+                            out.push(match graph.decode(&mut scratch, &defects) {
+                                Ok(p) => (p.observables, p.weight),
+                                Err(_) => (u64::MAX, f64::NAN),
+                            });
+                        }
+                        out
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("decoder thread panicked")).collect()
+        })
+    });
+    let seconds = start.elapsed().as_secs_f64();
     let mut preds = Vec::with_capacity(8 * num_shots);
     let mut weights = Vec::with_capacity(8 * num_shots);
     let mut errors = 0usize;
-    let mut defects = Vec::new();
-    let start = Instant::now();
-    for s in 0..num_shots {
-        defects.clear();
-        let row = &packed[s * stride..(s + 1) * stride];
-        for i in 0..nd {
-            if (row[i / 8] >> (i % 8)) & 1 == 1 {
-                defects.push(i as u32);
-            }
-        }
-        match decoder.decode(&defects) {
-            Ok(pred) => {
-                preds.extend_from_slice(&pred.observables.to_le_bytes());
-                weights.extend_from_slice(&pred.weight.to_le_bytes());
-            }
-            Err(_) => {
-                errors += 1;
-                preds.extend_from_slice(&u64::MAX.to_le_bytes());
-                weights.extend_from_slice(&f64::NAN.to_le_bytes());
-            }
-        }
+    for (o, w) in parts.into_iter().flatten() {
+        errors += usize::from(o == u64::MAX);
+        preds.extend_from_slice(&o.to_le_bytes());
+        weights.extend_from_slice(&w.to_le_bytes());
     }
-    let seconds = start.elapsed().as_secs_f64();
     Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), errors, seconds))
 }
 
-/// Decode with a model someone else wrote, pieces and all (Stim's decomposed DEM).
+/// Decode with a model someone else wrote, pieces and all (Stim's decomposed
+/// DEM). `threads = 0` uses every core.
 #[pyfunction]
-fn decode_b8<'py>(py: Python<'py>, dem_text: &str, packed: &[u8], num_shots: usize) -> PyResult<Decoded<'py>> {
+#[pyo3(signature = (dem_text, packed, num_shots, threads=1))]
+fn decode_b8<'py>(py: Python<'py>, dem_text: &str, packed: &[u8], num_shots: usize, threads: usize) -> PyResult<Decoded<'py>> {
     let dem = Dem::parse(dem_text).map_err(err)?;
-    decode_packed(py, &dem, packed, num_shots)
+    decode_packed(py, &dem, packed, num_shots, threads)
 }
 
-/// Decode with this engine's own model of the circuit, and its own decomposition.
+/// Decode with this engine's own model of the circuit, and its own
+/// decomposition. `threads = 0` uses every core.
 #[pyfunction]
-fn decode_b8_own<'py>(py: Python<'py>, circuit_text: &str, packed: &[u8], num_shots: usize) -> PyResult<Decoded<'py>> {
+#[pyo3(signature = (circuit_text, packed, num_shots, threads=1))]
+fn decode_b8_own<'py>(py: Python<'py>, circuit_text: &str, packed: &[u8], num_shots: usize, threads: usize) -> PyResult<Decoded<'py>> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
     let dem = Dem::from_circuit(&c).map_err(err)?;
-    decode_packed(py, &dem, packed, num_shots)
+    decode_packed(py, &dem, packed, num_shots, threads)
 }
 
 #[pyfunction]
