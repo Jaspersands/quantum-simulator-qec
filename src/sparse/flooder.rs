@@ -138,7 +138,7 @@ impl<'a> Solver<'a> {
         };
         for e in self.g.edges(v) {
             let u = self.g.to[e];
-            let w = self.g.w[e];
+            let w = self.s.w[e];
             if u == BOUNDARY {
                 if v_owned && sv > 0 {
                     offer(now + (w - lv).max(0), NodeEvent::Boundary { v, e });
@@ -365,7 +365,7 @@ impl<'a> Solver<'a> {
             let lv = self.local_radius(v);
             assert!(lv >= 0, "node {v}: local radius {lv}");
             for e in self.g.edges(v) {
-                let (u, w) = (self.g.to[e], self.g.w[e]);
+                let (u, w) = (self.g.to[e], self.s.w[e]);
                 if u == BOUNDARY {
                     assert!(lv <= w, "node {v} overlaps the boundary");
                     continue;

@@ -104,6 +104,11 @@ pub struct Scratch {
     pub(crate) queue: Tracker,
     pub(crate) now: i64,
     pub(crate) events: u64,
+    /// This decode's edge weights, per half-edge. They are the graph's, except
+    /// while correlated matching's second pass has lowered some; `undo` holds
+    /// the old values until they are restored.
+    pub(crate) w: Vec<i64>,
+    pub(crate) undo: Vec<(u32, i64)>,
 }
 
 impl Scratch {
@@ -116,6 +121,8 @@ impl Scratch {
             queue: Tracker::default(),
             now: 0,
             events: 0,
+            w: graph.w.clone(),
+            undo: Vec::new(),
         }
     }
 }

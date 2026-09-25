@@ -264,3 +264,32 @@ fn timing() {
         }
     }
 }
+
+#[test]
+fn edge_ids_name_both_halves() {
+    use super::state::NONE;
+    let dec = decoder("error(0.1) D0 D1 L0\nerror(0.2) D1 D2\nerror(0.3) D2\n");
+    let g = dec.graph();
+    assert_eq!(g.num_edges(), 3);
+    let e01 = g.edge_id(0, 1).unwrap();
+    assert_eq!(g.edge_id(1, 0), Some(e01));
+    assert_eq!(g.edge_ends(e01), (0, 1));
+    // 3 == num_nodes stands for the boundary, in either place.
+    let eb = g.edge_id(2, 3).unwrap();
+    assert_eq!(g.edge_id(3, 2), Some(eb));
+    assert_eq!(g.edge_ends(eb), (2, 3));
+    assert_eq!(g.edge_id(0, 2), None);
+    assert_eq!(g.edge_id(7, 0), None);
+    for id in 0..3u32 {
+        let [a, b] = g.halves[id as usize];
+        assert_eq!(g.edge_of[a as usize], id);
+        if b != NONE {
+            assert_eq!(g.edge_of[b as usize], id);
+            assert_eq!(g.w[a as usize], g.w[b as usize]);
+        }
+    }
+    assert_eq!(g.halves[eb as usize][1], NONE);
+    assert_eq!(g.weight_of(e01), crate::dem_decoder::edge_weight(0.1).1);
+    let scratch = Scratch::new(g);
+    assert_eq!(scratch.w, g.w);
+}
