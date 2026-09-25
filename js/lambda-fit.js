@@ -27,19 +27,24 @@ export function fidelity(failures, shots) {
  * ε for one patch and basis: a weighted least-squares line through (r, ln F),
  * each point weighted by (F / σ_F)², the inverse variance of ln F. Points
  * before `minRounds`, and points within three standard errors of F = 0 (where
- * the logarithm is noise), are left out.
+ * the logarithm is noise), are left out. A point may carry `keep` and
+ * `weight`, both fixed once from the observed data, which then stand in for
+ * the 3σ test and for (F / σ_F)²: the bootstrap redraws the counts, not which
+ * points the fit uses or how much it trusts each. Letting a redrawn fidelity
+ * set its own weight biases the fit, since a point that comes out low also
+ * counts for less.
  *
- * @param {Array<{rounds:number, failures:number, shots:number}>} points
+ * @param {Array<{rounds:number, failures:number, shots:number, keep?:boolean, weight?:number}>} points
  */
 export function fitEpsilon(points, { minRounds = 1 } = {}) {
   const use = points
     .filter((p) => p.rounds >= minRounds)
-    .map((p) => ({ r: p.rounds, ...fidelity(p.failures, p.shots) }))
-    .filter((p) => p.F > 3 * p.sigma);
+    .map((p) => ({ r: p.rounds, keep: p.keep, weight: p.weight, ...fidelity(p.failures, p.shots) }))
+    .filter((p) => (p.keep ?? p.F > 3 * p.sigma) && p.F > 0);
   if (use.length < 2) return { ok: false, n: use.length };
   let S = 0, Sx = 0, Sy = 0, Sxx = 0, Sxy = 0;
   for (const p of use) {
-    const w = (p.F / p.sigma) ** 2;
+    const w = p.weight ?? (p.F / p.sigma) ** 2;
     const y = Math.log(p.F);
     S += w; Sx += w * p.r; Sy += w * y; Sxx += w * p.r * p.r; Sxy += w * p.r * y;
   }
@@ -61,14 +66,19 @@ export function decoderKeys(records) {
  * ε at each distance: fitted per patch and basis, then averaged over them.
  * @returns {Map<number, {eps:number, fits:Array<{patch:string, basis:string, eps:number}>}>}
  */
-export function epsilonByDistance(records, key, { minRounds = 1, failuresOf = (r) => r.results[key]?.failures } = {}) {
+export function epsilonByDistance(records, key, {
+  minRounds = 1,
+  failuresOf = (r) => r.results[key]?.failures,
+  keepOf = () => undefined,
+  weightOf = () => undefined,
+} = {}) {
   const groups = new Map();
   for (const r of records) {
     const failures = failuresOf(r);
     if (failures == null) continue;
     const id = `${r.d}|${r.patch}|${r.basis}`;
     if (!groups.has(id)) groups.set(id, { d: r.d, patch: r.patch, basis: r.basis, points: [] });
-    groups.get(id).points.push({ rounds: r.rounds, failures, shots: r.shots });
+    groups.get(id).points.push({ rounds: r.rounds, failures, shots: r.shots, keep: keepOf(r), weight: weightOf(r) });
   }
   const byD = new Map();
   for (const g of groups.values()) {
@@ -118,9 +128,21 @@ function percentile(sorted, q) {
  * A parametric bootstrap: each experiment's failures redrawn from the binomial
  * its own rate implies (by the normal approximation, which at 50,000 shots is
  * exact to far better than the interval's own noise), everything refitted, and
- * the central 95% of the refits kept.
+ * the central 95% of the refits kept. Which points each fit uses is decided
+ * once, from the observed counts, as the estimate itself decided it; letting
+ * every draw re-decide makes points near F = 0 drop in and out, and letting it
+ * reweigh them biases the draws low (see fitEpsilon).
  */
 export function bootstrap(records, key, { minRounds = 1 } = {}, B = 400, rng = Math.random) {
+  const kept = new Map();
+  const weights = new Map();
+  for (const r of records) {
+    const f = r.results[key]?.failures;
+    if (f == null) continue;
+    const { F, sigma } = fidelity(f, r.shots);
+    kept.set(r, F > 3 * sigma);
+    weights.set(r, (F / sigma) ** 2);
+  }
   const epsDraws = new Map();
   const lambdaDraws = [];
   const pairDraws = [];
@@ -133,7 +155,9 @@ export function bootstrap(records, key, { minRounds = 1 } = {}, B = 400, rng = M
       const x = Math.round(r.shots * p + Math.sqrt(r.shots * p * (1 - p)) * gaussian(rng));
       drawn.set(r, Math.min(r.shots, Math.max(0, x)));
     }
-    const byD = epsilonByDistance(records, key, { minRounds, failuresOf: (r) => drawn.get(r) });
+    const byD = epsilonByDistance(records, key, {
+      minRounds, failuresOf: (r) => drawn.get(r), keepOf: (r) => kept.get(r), weightOf: (r) => weights.get(r),
+    });
     for (const [d, v] of byD) {
       if (!epsDraws.has(d)) epsDraws.set(d, []);
       epsDraws.get(d).push(v.eps);

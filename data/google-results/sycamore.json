@@ -1,0 +1,7811 @@
+{
+ "experiments": {
+  "sycamore/surface_code_bX_d3_r01_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.5388,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 794,
+     "errors": 0,
+     "seconds": 0.002188459
+    },
+    "ours/circuit/correlated": {
+     "failures": 794,
+     "errors": 0,
+     "seconds": 0.003848
+    },
+    "ours/ours/plain": {
+     "failures": 794,
+     "errors": 0,
+     "seconds": 0.001986667
+    },
+    "ours/ours/correlated": {
+     "failures": 794,
+     "errors": 0,
+     "seconds": 0.003845167
+    },
+    "ours/pij/plain": {
+     "failures": 825,
+     "errors": 0,
+     "seconds": 0.0023779170000000002
+    },
+    "ours/pij/correlated": {
+     "failures": 825,
+     "errors": 0,
+     "seconds": 0.004266417
+    },
+    "google/pymatching": {
+     "failures": 794
+    },
+    "google/correlated_matching": {
+     "failures": 792
+    },
+    "google/belief_matching": {
+     "failures": 811
+    },
+    "google/tensor_network_contraction": {
+     "failures": 804
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.8646492243590274e-06
+   },
+   "wall_seconds": 0.03422695900371764
+  },
+  "sycamore/surface_code_bX_d3_r03_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.97332,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4528,
+     "errors": 0,
+     "seconds": 0.012471375
+    },
+    "ours/circuit/correlated": {
+     "failures": 4288,
+     "errors": 0,
+     "seconds": 0.024559875
+    },
+    "ours/ours/plain": {
+     "failures": 4528,
+     "errors": 0,
+     "seconds": 0.012131375
+    },
+    "ours/ours/correlated": {
+     "failures": 4288,
+     "errors": 0,
+     "seconds": 0.025475167
+    },
+    "ours/pij/plain": {
+     "failures": 4493,
+     "errors": 0,
+     "seconds": 0.013429
+    },
+    "ours/pij/correlated": {
+     "failures": 4131,
+     "errors": 0,
+     "seconds": 0.027920959000000002
+    },
+    "google/pymatching": {
+     "failures": 4528
+    },
+    "google/correlated_matching": {
+     "failures": 4266
+    },
+    "google/belief_matching": {
+     "failures": 3998
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3815
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.6824719121520957e-06
+   },
+   "wall_seconds": 0.13127899999381043
+  },
+  "sycamore/surface_code_bX_d3_r05_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 5.1619,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7825,
+     "errors": 0,
+     "seconds": 0.023445041
+    },
+    "ours/circuit/correlated": {
+     "failures": 7263,
+     "errors": 0,
+     "seconds": 0.0452955
+    },
+    "ours/ours/plain": {
+     "failures": 7825,
+     "errors": 0,
+     "seconds": 0.024499042
+    },
+    "ours/ours/correlated": {
+     "failures": 7263,
+     "errors": 0,
+     "seconds": 0.047768
+    },
+    "ours/pij/plain": {
+     "failures": 7711,
+     "errors": 0,
+     "seconds": 0.026910875
+    },
+    "ours/pij/correlated": {
+     "failures": 6997,
+     "errors": 0,
+     "seconds": 0.055116792
+    },
+    "google/pymatching": {
+     "failures": 7825
+    },
+    "google/correlated_matching": {
+     "failures": 7284
+    },
+    "google/belief_matching": {
+     "failures": 6520
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6389
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.0790719129925037e-06
+   },
+   "wall_seconds": 0.2417327919974923
+  },
+  "sycamore/surface_code_bX_d3_r07_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.66928,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10697,
+     "errors": 0,
+     "seconds": 0.035823542
+    },
+    "ours/circuit/correlated": {
+     "failures": 9880,
+     "errors": 0,
+     "seconds": 0.07201275
+    },
+    "ours/ours/plain": {
+     "failures": 10697,
+     "errors": 0,
+     "seconds": 0.034870875
+    },
+    "ours/ours/correlated": {
+     "failures": 9880,
+     "errors": 0,
+     "seconds": 0.070804417
+    },
+    "ours/pij/plain": {
+     "failures": 10462,
+     "errors": 0,
+     "seconds": 0.041010958
+    },
+    "ours/pij/correlated": {
+     "failures": 9639,
+     "errors": 0,
+     "seconds": 0.084250958
+    },
+    "google/pymatching": {
+     "failures": 10697
+    },
+    "google/correlated_matching": {
+     "failures": 9900
+    },
+    "google/belief_matching": {
+     "failures": 8991
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8712
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.755888504348604e-06
+   },
+   "wall_seconds": 0.3623517920059385
+  },
+  "sycamore/surface_code_bX_d3_r09_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 10.06614,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12974,
+     "errors": 0,
+     "seconds": 0.04712
+    },
+    "ours/circuit/correlated": {
+     "failures": 12047,
+     "errors": 0,
+     "seconds": 0.091855458
+    },
+    "ours/ours/plain": {
+     "failures": 12974,
+     "errors": 0,
+     "seconds": 0.045685708
+    },
+    "ours/ours/correlated": {
+     "failures": 12047,
+     "errors": 0,
+     "seconds": 0.096067667
+    },
+    "ours/pij/plain": {
+     "failures": 12761,
+     "errors": 0,
+     "seconds": 0.055594084
+    },
+    "ours/pij/correlated": {
+     "failures": 11670,
+     "errors": 0,
+     "seconds": 0.116363208
+    },
+    "google/pymatching": {
+     "failures": 12974
+    },
+    "google/correlated_matching": {
+     "failures": 12087
+    },
+    "google/belief_matching": {
+     "failures": 10820
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10579
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.727679431937304e-06
+   },
+   "wall_seconds": 0.4818939999968279
+  },
+  "sycamore/surface_code_bX_d3_r11_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 12.63584,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14785,
+     "errors": 0,
+     "seconds": 0.058833291
+    },
+    "ours/circuit/correlated": {
+     "failures": 13954,
+     "errors": 0,
+     "seconds": 0.132485834
+    },
+    "ours/ours/plain": {
+     "failures": 14785,
+     "errors": 0,
+     "seconds": 0.060592792
+    },
+    "ours/ours/correlated": {
+     "failures": 13954,
+     "errors": 0,
+     "seconds": 0.118045917
+    },
+    "ours/pij/plain": {
+     "failures": 14532,
+     "errors": 0,
+     "seconds": 0.067237584
+    },
+    "ours/pij/correlated": {
+     "failures": 13532,
+     "errors": 0,
+     "seconds": 0.14425295700000001
+    },
+    "google/pymatching": {
+     "failures": 14785
+    },
+    "google/correlated_matching": {
+     "failures": 14031
+    },
+    "google/belief_matching": {
+     "failures": 12836
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12537
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.179280535116959e-06
+   },
+   "wall_seconds": 0.6154041249974398
+  },
+  "sycamore/surface_code_bX_d3_r13_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 15.06646,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16355,
+     "errors": 0,
+     "seconds": 0.070943541
+    },
+    "ours/circuit/correlated": {
+     "failures": 15411,
+     "errors": 0,
+     "seconds": 0.152823
+    },
+    "ours/ours/plain": {
+     "failures": 16355,
+     "errors": 0,
+     "seconds": 0.067763625
+    },
+    "ours/ours/correlated": {
+     "failures": 15411,
+     "errors": 0,
+     "seconds": 0.148687291
+    },
+    "ours/pij/plain": {
+     "failures": 16044,
+     "errors": 0,
+     "seconds": 0.079140583
+    },
+    "ours/pij/correlated": {
+     "failures": 15081,
+     "errors": 0,
+     "seconds": 0.181017292
+    },
+    "google/pymatching": {
+     "failures": 16355
+    },
+    "google/correlated_matching": {
+     "failures": 15351
+    },
+    "google/belief_matching": {
+     "failures": 14170
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13969
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.86359058271546e-06
+   },
+   "wall_seconds": 0.7379907499998808
+  },
+  "sycamore/surface_code_bX_d3_r15_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 17.79734,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17907,
+     "errors": 0,
+     "seconds": 0.091475042
+    },
+    "ours/circuit/correlated": {
+     "failures": 17004,
+     "errors": 0,
+     "seconds": 0.169679708
+    },
+    "ours/ours/plain": {
+     "failures": 17907,
+     "errors": 0,
+     "seconds": 0.085553
+    },
+    "ours/ours/correlated": {
+     "failures": 17004,
+     "errors": 0,
+     "seconds": 0.1641835
+    },
+    "ours/pij/plain": {
+     "failures": 17556,
+     "errors": 0,
+     "seconds": 0.096081583
+    },
+    "ours/pij/correlated": {
+     "failures": 16679,
+     "errors": 0,
+     "seconds": 0.204919001
+    },
+    "google/pymatching": {
+     "failures": 17907
+    },
+    "google/correlated_matching": {
+     "failures": 16978
+    },
+    "google/belief_matching": {
+     "failures": 15816
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15537
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.12259421473027e-06
+   },
+   "wall_seconds": 0.856019707993255
+  },
+  "sycamore/surface_code_bX_d3_r17_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 20.16804,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18888,
+     "errors": 0,
+     "seconds": 0.091654875
+    },
+    "ours/circuit/correlated": {
+     "failures": 18169,
+     "errors": 0,
+     "seconds": 0.234397667
+    },
+    "ours/ours/plain": {
+     "failures": 18888,
+     "errors": 0,
+     "seconds": 0.091170208
+    },
+    "ours/ours/correlated": {
+     "failures": 18169,
+     "errors": 0,
+     "seconds": 0.195443542
+    },
+    "ours/pij/plain": {
+     "failures": 18605,
+     "errors": 0,
+     "seconds": 0.111939958
+    },
+    "ours/pij/correlated": {
+     "failures": 17880,
+     "errors": 0,
+     "seconds": 0.228767375
+    },
+    "google/pymatching": {
+     "failures": 18889
+    },
+    "google/correlated_matching": {
+     "failures": 18009
+    },
+    "google/belief_matching": {
+     "failures": 16845
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16626
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.87112495004294e-06
+   },
+   "wall_seconds": 1.0010072909935843
+  },
+  "sycamore/surface_code_bX_d3_r19_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 22.72992,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19793,
+     "errors": 0,
+     "seconds": 0.106606666
+    },
+    "ours/circuit/correlated": {
+     "failures": 19063,
+     "errors": 0,
+     "seconds": 0.217668833
+    },
+    "ours/ours/plain": {
+     "failures": 19793,
+     "errors": 0,
+     "seconds": 0.101642417
+    },
+    "ours/ours/correlated": {
+     "failures": 19063,
+     "errors": 0,
+     "seconds": 0.214522041
+    },
+    "ours/pij/plain": {
+     "failures": 19575,
+     "errors": 0,
+     "seconds": 0.12797425
+    },
+    "ours/pij/correlated": {
+     "failures": 18825,
+     "errors": 0,
+     "seconds": 0.26452904099999996
+    },
+    "google/pymatching": {
+     "failures": 19792
+    },
+    "google/correlated_matching": {
+     "failures": 19169
+    },
+    "google/belief_matching": {
+     "failures": 17674
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17584
+    }
+   },
+   "pymatching_check": {
+    "disagree": 7,
+    "ours_optimal": 7,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.691506991453934e-06
+   },
+   "wall_seconds": 1.0860737499897368
+  },
+  "sycamore/surface_code_bX_d3_r21_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 24.88686,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20546,
+     "errors": 0,
+     "seconds": 0.113646541
+    },
+    "ours/circuit/correlated": {
+     "failures": 19707,
+     "errors": 0,
+     "seconds": 0.241944542
+    },
+    "ours/ours/plain": {
+     "failures": 20546,
+     "errors": 0,
+     "seconds": 0.120410125
+    },
+    "ours/ours/correlated": {
+     "failures": 19707,
+     "errors": 0,
+     "seconds": 0.24817875
+    },
+    "ours/pij/plain": {
+     "failures": 20367,
+     "errors": 0,
+     "seconds": 0.133968042
+    },
+    "ours/pij/correlated": {
+     "failures": 19607,
+     "errors": 0,
+     "seconds": 0.268793291
+    },
+    "google/pymatching": {
+     "failures": 20549
+    },
+    "google/correlated_matching": {
+     "failures": 19704
+    },
+    "google/belief_matching": {
+     "failures": 18676
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18509
+    }
+   },
+   "pymatching_check": {
+    "disagree": 9,
+    "ours_optimal": 9,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.481358932499461e-06
+   },
+   "wall_seconds": 1.1858317500009434
+  },
+  "sycamore/surface_code_bX_d3_r23_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 27.29434,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21192,
+     "errors": 0,
+     "seconds": 0.134672333
+    },
+    "ours/circuit/correlated": {
+     "failures": 20410,
+     "errors": 0,
+     "seconds": 0.262138958
+    },
+    "ours/ours/plain": {
+     "failures": 21192,
+     "errors": 0,
+     "seconds": 0.122535
+    },
+    "ours/ours/correlated": {
+     "failures": 20410,
+     "errors": 0,
+     "seconds": 0.263482208
+    },
+    "ours/pij/plain": {
+     "failures": 21148,
+     "errors": 0,
+     "seconds": 0.151389833
+    },
+    "ours/pij/correlated": {
+     "failures": 20339,
+     "errors": 0,
+     "seconds": 0.30497504200000003
+    },
+    "google/pymatching": {
+     "failures": 21196
+    },
+    "google/correlated_matching": {
+     "failures": 20431
+    },
+    "google/belief_matching": {
+     "failures": 19358
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19231
+    }
+   },
+   "pymatching_check": {
+    "disagree": 30,
+    "ours_optimal": 30,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.956879287007723e-06
+   },
+   "wall_seconds": 1.3024866249907063
+  },
+  "sycamore/surface_code_bX_d3_r25_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 29.83942,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21703,
+     "errors": 0,
+     "seconds": 0.13399525
+    },
+    "ours/circuit/correlated": {
+     "failures": 21099,
+     "errors": 0,
+     "seconds": 0.292556333
+    },
+    "ours/ours/plain": {
+     "failures": 21703,
+     "errors": 0,
+     "seconds": 0.140244541
+    },
+    "ours/ours/correlated": {
+     "failures": 21099,
+     "errors": 0,
+     "seconds": 0.277207791
+    },
+    "ours/pij/plain": {
+     "failures": 21826,
+     "errors": 0,
+     "seconds": 0.161652333
+    },
+    "ours/pij/correlated": {
+     "failures": 21287,
+     "errors": 0,
+     "seconds": 0.327941125
+    },
+    "google/pymatching": {
+     "failures": 21708
+    },
+    "google/correlated_matching": {
+     "failures": 20971
+    },
+    "google/belief_matching": {
+     "failures": 20125
+    },
+    "google/tensor_network_contraction": {
+     "failures": 20114
+    }
+   },
+   "pymatching_check": {
+    "disagree": 57,
+    "ours_optimal": 57,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.182257556972218e-06
+   },
+   "wall_seconds": 1.4016504580067704
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.5755,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 819,
+     "errors": 0,
+     "seconds": 0.002524833
+    },
+    "ours/circuit/correlated": {
+     "failures": 819,
+     "errors": 0,
+     "seconds": 0.004072791
+    },
+    "ours/ours/plain": {
+     "failures": 819,
+     "errors": 0,
+     "seconds": 0.002362833
+    },
+    "ours/ours/correlated": {
+     "failures": 819,
+     "errors": 0,
+     "seconds": 0.004454583
+    },
+    "ours/pij/plain": {
+     "failures": 821,
+     "errors": 0,
+     "seconds": 0.002864167
+    },
+    "ours/pij/correlated": {
+     "failures": 821,
+     "errors": 0,
+     "seconds": 0.004472208
+    },
+    "google/pymatching": {
+     "failures": 819
+    },
+    "google/correlated_matching": {
+     "failures": 819
+    },
+    "google/belief_matching": {
+     "failures": 821
+    },
+    "google/tensor_network_contraction": {
+     "failures": 819
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.164372428696936e-06
+   },
+   "wall_seconds": 0.029896083011408336
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.89812,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4583,
+     "errors": 0,
+     "seconds": 0.013954541
+    },
+    "ours/circuit/correlated": {
+     "failures": 4236,
+     "errors": 0,
+     "seconds": 0.024988917
+    },
+    "ours/ours/plain": {
+     "failures": 4583,
+     "errors": 0,
+     "seconds": 0.012552208
+    },
+    "ours/ours/correlated": {
+     "failures": 4236,
+     "errors": 0,
+     "seconds": 0.025012
+    },
+    "ours/pij/plain": {
+     "failures": 4489,
+     "errors": 0,
+     "seconds": 0.014359
+    },
+    "ours/pij/correlated": {
+     "failures": 4119,
+     "errors": 0,
+     "seconds": 0.027282292
+    },
+    "google/pymatching": {
+     "failures": 4583
+    },
+    "google/correlated_matching": {
+     "failures": 4328
+    },
+    "google/belief_matching": {
+     "failures": 3927
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3843
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.7156570158458635e-06
+   },
+   "wall_seconds": 0.1315516249887878
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 5.1499,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7572,
+     "errors": 0,
+     "seconds": 0.023614875
+    },
+    "ours/circuit/correlated": {
+     "failures": 6859,
+     "errors": 0,
+     "seconds": 0.04865825
+    },
+    "ours/ours/plain": {
+     "failures": 7572,
+     "errors": 0,
+     "seconds": 0.023919792
+    },
+    "ours/ours/correlated": {
+     "failures": 6859,
+     "errors": 0,
+     "seconds": 0.046421792
+    },
+    "ours/pij/plain": {
+     "failures": 7424,
+     "errors": 0,
+     "seconds": 0.026001874
+    },
+    "ours/pij/correlated": {
+     "failures": 6915,
+     "errors": 0,
+     "seconds": 0.0509545
+    },
+    "google/pymatching": {
+     "failures": 7572
+    },
+    "google/correlated_matching": {
+     "failures": 7022
+    },
+    "google/belief_matching": {
+     "failures": 6333
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6244
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.138448278150463e-06
+   },
+   "wall_seconds": 0.23857354199572
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.8834,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10948,
+     "errors": 0,
+     "seconds": 0.038393166
+    },
+    "ours/circuit/correlated": {
+     "failures": 9937,
+     "errors": 0,
+     "seconds": 0.075155041
+    },
+    "ours/ours/plain": {
+     "failures": 10948,
+     "errors": 0,
+     "seconds": 0.035543583
+    },
+    "ours/ours/correlated": {
+     "failures": 9937,
+     "errors": 0,
+     "seconds": 0.080139041
+    },
+    "ours/pij/plain": {
+     "failures": 10778,
+     "errors": 0,
+     "seconds": 0.049734792
+    },
+    "ours/pij/correlated": {
+     "failures": 9798,
+     "errors": 0,
+     "seconds": 0.09370125
+    },
+    "google/pymatching": {
+     "failures": 10948
+    },
+    "google/correlated_matching": {
+     "failures": 9966
+    },
+    "google/belief_matching": {
+     "failures": 9257
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8974
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.6408954144917516e-06
+   },
+   "wall_seconds": 0.39665520800917875
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 10.06178,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12875,
+     "errors": 0,
+     "seconds": 0.044679875
+    },
+    "ours/circuit/correlated": {
+     "failures": 11773,
+     "errors": 0,
+     "seconds": 0.097662583
+    },
+    "ours/ours/plain": {
+     "failures": 12875,
+     "errors": 0,
+     "seconds": 0.047318833
+    },
+    "ours/ours/correlated": {
+     "failures": 11773,
+     "errors": 0,
+     "seconds": 0.093715916
+    },
+    "ours/pij/plain": {
+     "failures": 12608,
+     "errors": 0,
+     "seconds": 0.054988124
+    },
+    "ours/pij/correlated": {
+     "failures": 11800,
+     "errors": 0,
+     "seconds": 0.117965458
+    },
+    "google/pymatching": {
+     "failures": 12875
+    },
+    "google/correlated_matching": {
+     "failures": 11874
+    },
+    "google/belief_matching": {
+     "failures": 10958
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10804
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.7026646459992207e-06
+   },
+   "wall_seconds": 0.4853972089913441
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 13.02374,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14882,
+     "errors": 0,
+     "seconds": 0.059577042
+    },
+    "ours/circuit/correlated": {
+     "failures": 13688,
+     "errors": 0,
+     "seconds": 0.124309541
+    },
+    "ours/ours/plain": {
+     "failures": 14882,
+     "errors": 0,
+     "seconds": 0.058127917
+    },
+    "ours/ours/correlated": {
+     "failures": 13688,
+     "errors": 0,
+     "seconds": 0.130116375
+    },
+    "ours/pij/plain": {
+     "failures": 14594,
+     "errors": 0,
+     "seconds": 0.07021745900000001
+    },
+    "ours/pij/correlated": {
+     "failures": 13726,
+     "errors": 0,
+     "seconds": 0.156807584
+    },
+    "google/pymatching": {
+     "failures": 14882
+    },
+    "google/correlated_matching": {
+     "failures": 13645
+    },
+    "google/belief_matching": {
+     "failures": 12816
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12668
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.079086363934948e-06
+   },
+   "wall_seconds": 0.6330955000012182
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 15.02548,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16461,
+     "errors": 0,
+     "seconds": 0.07300875
+    },
+    "ours/circuit/correlated": {
+     "failures": 15237,
+     "errors": 0,
+     "seconds": 0.14455875
+    },
+    "ours/ours/plain": {
+     "failures": 16461,
+     "errors": 0,
+     "seconds": 0.074170958
+    },
+    "ours/ours/correlated": {
+     "failures": 15237,
+     "errors": 0,
+     "seconds": 0.140939208
+    },
+    "ours/pij/plain": {
+     "failures": 16297,
+     "errors": 0,
+     "seconds": 0.085727166
+    },
+    "ours/pij/correlated": {
+     "failures": 15159,
+     "errors": 0,
+     "seconds": 0.172158
+    },
+    "google/pymatching": {
+     "failures": 16461
+    },
+    "google/correlated_matching": {
+     "failures": 15142
+    },
+    "google/belief_matching": {
+     "failures": 14212
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14148
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.137165835833457e-06
+   },
+   "wall_seconds": 0.7284254589903867
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 17.53422,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17674,
+     "errors": 0,
+     "seconds": 0.07794675
+    },
+    "ours/circuit/correlated": {
+     "failures": 16658,
+     "errors": 0,
+     "seconds": 0.167101708
+    },
+    "ours/ours/plain": {
+     "failures": 17674,
+     "errors": 0,
+     "seconds": 0.077744083
+    },
+    "ours/ours/correlated": {
+     "failures": 16658,
+     "errors": 0,
+     "seconds": 0.16679425
+    },
+    "ours/pij/plain": {
+     "failures": 17525,
+     "errors": 0,
+     "seconds": 0.099402375
+    },
+    "ours/pij/correlated": {
+     "failures": 16659,
+     "errors": 0,
+     "seconds": 0.200604042
+    },
+    "google/pymatching": {
+     "failures": 17674
+    },
+    "google/correlated_matching": {
+     "failures": 16615
+    },
+    "google/belief_matching": {
+     "failures": 15631
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15554
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.367971062739343e-06
+   },
+   "wall_seconds": 0.8322001659980742
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 20.45216,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19237,
+     "errors": 0,
+     "seconds": 0.094669625
+    },
+    "ours/circuit/correlated": {
+     "failures": 18098,
+     "errors": 0,
+     "seconds": 0.192232625
+    },
+    "ours/ours/plain": {
+     "failures": 19237,
+     "errors": 0,
+     "seconds": 0.0981985
+    },
+    "ours/ours/correlated": {
+     "failures": 18098,
+     "errors": 0,
+     "seconds": 0.191769584
+    },
+    "ours/pij/plain": {
+     "failures": 18906,
+     "errors": 0,
+     "seconds": 0.117545541
+    },
+    "ours/pij/correlated": {
+     "failures": 17894,
+     "errors": 0,
+     "seconds": 0.235750041
+    },
+    "google/pymatching": {
+     "failures": 19238
+    },
+    "google/correlated_matching": {
+     "failures": 18035
+    },
+    "google/belief_matching": {
+     "failures": 17171
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16996
+    }
+   },
+   "pymatching_check": {
+    "disagree": 5,
+    "ours_optimal": 5,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.25248763444597e-06
+   },
+   "wall_seconds": 0.9791882919962518
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 22.60096,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19577,
+     "errors": 0,
+     "seconds": 0.10840975
+    },
+    "ours/circuit/correlated": {
+     "failures": 18613,
+     "errors": 0,
+     "seconds": 0.224886416
+    },
+    "ours/ours/plain": {
+     "failures": 19577,
+     "errors": 0,
+     "seconds": 0.106226958
+    },
+    "ours/ours/correlated": {
+     "failures": 18613,
+     "errors": 0,
+     "seconds": 0.223534833
+    },
+    "ours/pij/plain": {
+     "failures": 19423,
+     "errors": 0,
+     "seconds": 0.11609641700000001
+    },
+    "ours/pij/correlated": {
+     "failures": 18694,
+     "errors": 0,
+     "seconds": 0.268612583
+    },
+    "google/pymatching": {
+     "failures": 19572
+    },
+    "google/correlated_matching": {
+     "failures": 18562
+    },
+    "google/belief_matching": {
+     "failures": 17675
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17719
+    }
+   },
+   "pymatching_check": {
+    "disagree": 13,
+    "ours_optimal": 13,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.116210696267444e-06
+   },
+   "wall_seconds": 1.101144333006232
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 25.36282,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20823,
+     "errors": 0,
+     "seconds": 0.121996458
+    },
+    "ours/circuit/correlated": {
+     "failures": 19575,
+     "errors": 0,
+     "seconds": 0.237352875
+    },
+    "ours/ours/plain": {
+     "failures": 20823,
+     "errors": 0,
+     "seconds": 0.122031792
+    },
+    "ours/ours/correlated": {
+     "failures": 19575,
+     "errors": 0,
+     "seconds": 0.267023167
+    },
+    "ours/pij/plain": {
+     "failures": 20607,
+     "errors": 0,
+     "seconds": 0.13941325
+    },
+    "ours/pij/correlated": {
+     "failures": 19646,
+     "errors": 0,
+     "seconds": 0.2848935
+    },
+    "google/pymatching": {
+     "failures": 20817
+    },
+    "google/correlated_matching": {
+     "failures": 19675
+    },
+    "google/belief_matching": {
+     "failures": 18915
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18902
+    }
+   },
+   "pymatching_check": {
+    "disagree": 34,
+    "ours_optimal": 34,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.4897863981959745e-06
+   },
+   "wall_seconds": 1.231566375005059
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 26.9634,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21081,
+     "errors": 0,
+     "seconds": 0.129903083
+    },
+    "ours/circuit/correlated": {
+     "failures": 19924,
+     "errors": 0,
+     "seconds": 0.264594542
+    },
+    "ours/ours/plain": {
+     "failures": 21081,
+     "errors": 0,
+     "seconds": 0.136219708
+    },
+    "ours/ours/correlated": {
+     "failures": 19924,
+     "errors": 0,
+     "seconds": 0.255099
+    },
+    "ours/pij/plain": {
+     "failures": 21099,
+     "errors": 0,
+     "seconds": 0.139474957
+    },
+    "ours/pij/correlated": {
+     "failures": 20234,
+     "errors": 0,
+     "seconds": 0.300059042
+    },
+    "google/pymatching": {
+     "failures": 21082
+    },
+    "google/correlated_matching": {
+     "failures": 20136
+    },
+    "google/belief_matching": {
+     "failures": 19219
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19447
+    }
+   },
+   "pymatching_check": {
+    "disagree": 61,
+    "ours_optimal": 61,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.083840984023482e-06
+   },
+   "wall_seconds": 1.2920423330069752
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 30.17,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21639,
+     "errors": 0,
+     "seconds": 0.140984959
+    },
+    "ours/circuit/correlated": {
+     "failures": 21116,
+     "errors": 0,
+     "seconds": 0.301853
+    },
+    "ours/ours/plain": {
+     "failures": 21639,
+     "errors": 0,
+     "seconds": 0.1471125
+    },
+    "ours/ours/correlated": {
+     "failures": 21116,
+     "errors": 0,
+     "seconds": 0.291440625
+    },
+    "ours/pij/plain": {
+     "failures": 21463,
+     "errors": 0,
+     "seconds": 0.16572725
+    },
+    "ours/pij/correlated": {
+     "failures": 21015,
+     "errors": 0,
+     "seconds": 0.3344865
+    },
+    "google/pymatching": {
+     "failures": 21639
+    },
+    "google/correlated_matching": {
+     "failures": 21069
+    },
+    "google/belief_matching": {
+     "failures": 20187
+    },
+    "google/tensor_network_contraction": {
+     "failures": 20422
+    }
+   },
+   "pymatching_check": {
+    "disagree": 104,
+    "ours_optimal": 104,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.73507877688462e-06
+   },
+   "wall_seconds": 1.4511484999966342
+  },
+  "sycamore/surface_code_bX_d3_r01_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.56078,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 920,
+     "errors": 0,
+     "seconds": 0.002377917
+    },
+    "ours/circuit/correlated": {
+     "failures": 920,
+     "errors": 0,
+     "seconds": 0.005128541
+    },
+    "ours/ours/plain": {
+     "failures": 920,
+     "errors": 0,
+     "seconds": 0.002754833
+    },
+    "ours/ours/correlated": {
+     "failures": 920,
+     "errors": 0,
+     "seconds": 0.004908584
+    },
+    "ours/pij/plain": {
+     "failures": 906,
+     "errors": 0,
+     "seconds": 0.0026675830000000003
+    },
+    "ours/pij/correlated": {
+     "failures": 906,
+     "errors": 0,
+     "seconds": 0.0049952090000000005
+    },
+    "google/pymatching": {
+     "failures": 920
+    },
+    "google/correlated_matching": {
+     "failures": 920
+    },
+    "google/belief_matching": {
+     "failures": 952
+    },
+    "google/tensor_network_contraction": {
+     "failures": 887
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.3924774613371937e-06
+   },
+   "wall_seconds": 0.0317512499896111
+  },
+  "sycamore/surface_code_bX_d3_r03_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.83126,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4559,
+     "errors": 0,
+     "seconds": 0.013192792
+    },
+    "ours/circuit/correlated": {
+     "failures": 4214,
+     "errors": 0,
+     "seconds": 0.024741541
+    },
+    "ours/ours/plain": {
+     "failures": 4559,
+     "errors": 0,
+     "seconds": 0.01302125
+    },
+    "ours/ours/correlated": {
+     "failures": 4214,
+     "errors": 0,
+     "seconds": 0.027064958
+    },
+    "ours/pij/plain": {
+     "failures": 4389,
+     "errors": 0,
+     "seconds": 0.013361333
+    },
+    "ours/pij/correlated": {
+     "failures": 4042,
+     "errors": 0,
+     "seconds": 0.026750126
+    },
+    "google/pymatching": {
+     "failures": 4559
+    },
+    "google/correlated_matching": {
+     "failures": 4191
+    },
+    "google/belief_matching": {
+     "failures": 3971
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3790
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.589154012217932e-06
+   },
+   "wall_seconds": 0.13244412500353064
+  },
+  "sycamore/surface_code_bX_d3_r05_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 5.17358,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 8153,
+     "errors": 0,
+     "seconds": 0.023784167
+    },
+    "ours/circuit/correlated": {
+     "failures": 7490,
+     "errors": 0,
+     "seconds": 0.046716083
+    },
+    "ours/ours/plain": {
+     "failures": 8153,
+     "errors": 0,
+     "seconds": 0.024483416
+    },
+    "ours/ours/correlated": {
+     "failures": 7490,
+     "errors": 0,
+     "seconds": 0.048391
+    },
+    "ours/pij/plain": {
+     "failures": 7925,
+     "errors": 0,
+     "seconds": 0.025745292
+    },
+    "ours/pij/correlated": {
+     "failures": 7146,
+     "errors": 0,
+     "seconds": 0.0529385
+    },
+    "google/pymatching": {
+     "failures": 8153
+    },
+    "google/correlated_matching": {
+     "failures": 7363
+    },
+    "google/belief_matching": {
+     "failures": 6918
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6639
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.86609059685361e-06
+   },
+   "wall_seconds": 0.24101125000743195
+  },
+  "sycamore/surface_code_bX_d3_r07_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.56958,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10847,
+     "errors": 0,
+     "seconds": 0.041082709
+    },
+    "ours/circuit/correlated": {
+     "failures": 10042,
+     "errors": 0,
+     "seconds": 0.07039
+    },
+    "ours/ours/plain": {
+     "failures": 10847,
+     "errors": 0,
+     "seconds": 0.0402565
+    },
+    "ours/ours/correlated": {
+     "failures": 10042,
+     "errors": 0,
+     "seconds": 0.083517084
+    },
+    "ours/pij/plain": {
+     "failures": 10486,
+     "errors": 0,
+     "seconds": 0.038798
+    },
+    "ours/pij/correlated": {
+     "failures": 9499,
+     "errors": 0,
+     "seconds": 0.078795375
+    },
+    "google/pymatching": {
+     "failures": 10847
+    },
+    "google/correlated_matching": {
+     "failures": 9925
+    },
+    "google/belief_matching": {
+     "failures": 9205
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8848
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.3699405044274044e-06
+   },
+   "wall_seconds": 0.37702637499023695
+  },
+  "sycamore/surface_code_bX_d3_r09_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.87158,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12936,
+     "errors": 0,
+     "seconds": 0.045396792
+    },
+    "ours/circuit/correlated": {
+     "failures": 12076,
+     "errors": 0,
+     "seconds": 0.093238
+    },
+    "ours/ours/plain": {
+     "failures": 12936,
+     "errors": 0,
+     "seconds": 0.046878167
+    },
+    "ours/ours/correlated": {
+     "failures": 12076,
+     "errors": 0,
+     "seconds": 0.093268875
+    },
+    "ours/pij/plain": {
+     "failures": 12623,
+     "errors": 0,
+     "seconds": 0.053832667
+    },
+    "ours/pij/correlated": {
+     "failures": 11549,
+     "errors": 0,
+     "seconds": 0.100412959
+    },
+    "google/pymatching": {
+     "failures": 12936
+    },
+    "google/correlated_matching": {
+     "failures": 11838
+    },
+    "google/belief_matching": {
+     "failures": 11175
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10776
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.417032975823076e-06
+   },
+   "wall_seconds": 0.4608161669893889
+  },
+  "sycamore/surface_code_bX_d3_r11_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 12.2723,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14942,
+     "errors": 0,
+     "seconds": 0.055342875
+    },
+    "ours/circuit/correlated": {
+     "failures": 13923,
+     "errors": 0,
+     "seconds": 0.116194834
+    },
+    "ours/ours/plain": {
+     "failures": 14942,
+     "errors": 0,
+     "seconds": 0.061397917
+    },
+    "ours/ours/correlated": {
+     "failures": 13923,
+     "errors": 0,
+     "seconds": 0.123970166
+    },
+    "ours/pij/plain": {
+     "failures": 14528,
+     "errors": 0,
+     "seconds": 0.06866762400000001
+    },
+    "ours/pij/correlated": {
+     "failures": 13377,
+     "errors": 0,
+     "seconds": 0.127249667
+    },
+    "google/pymatching": {
+     "failures": 14942
+    },
+    "google/correlated_matching": {
+     "failures": 13809
+    },
+    "google/belief_matching": {
+     "failures": 12816
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12460
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.0976632596521085e-06
+   },
+   "wall_seconds": 0.5879259159992216
+  },
+  "sycamore/surface_code_bX_d3_r13_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 14.58968,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16404,
+     "errors": 0,
+     "seconds": 0.067431083
+    },
+    "ours/circuit/correlated": {
+     "failures": 15470,
+     "errors": 0,
+     "seconds": 0.136002125
+    },
+    "ours/ours/plain": {
+     "failures": 16404,
+     "errors": 0,
+     "seconds": 0.070473584
+    },
+    "ours/ours/correlated": {
+     "failures": 15470,
+     "errors": 0,
+     "seconds": 0.140054667
+    },
+    "ours/pij/plain": {
+     "failures": 16247,
+     "errors": 0,
+     "seconds": 0.073678875
+    },
+    "ours/pij/correlated": {
+     "failures": 14830,
+     "errors": 0,
+     "seconds": 0.150003708
+    },
+    "google/pymatching": {
+     "failures": 16404
+    },
+    "google/correlated_matching": {
+     "failures": 15286
+    },
+    "google/belief_matching": {
+     "failures": 14456
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14079
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.053360813496056e-06
+   },
+   "wall_seconds": 0.6766531670000404
+  },
+  "sycamore/surface_code_bX_d3_r15_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 17.0939,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18043,
+     "errors": 0,
+     "seconds": 0.075971958
+    },
+    "ours/circuit/correlated": {
+     "failures": 17135,
+     "errors": 0,
+     "seconds": 0.159336375
+    },
+    "ours/ours/plain": {
+     "failures": 18043,
+     "errors": 0,
+     "seconds": 0.074253833
+    },
+    "ours/ours/correlated": {
+     "failures": 17135,
+     "errors": 0,
+     "seconds": 0.161509083
+    },
+    "ours/pij/plain": {
+     "failures": 17579,
+     "errors": 0,
+     "seconds": 0.092595501
+    },
+    "ours/pij/correlated": {
+     "failures": 16363,
+     "errors": 0,
+     "seconds": 0.178559584
+    },
+    "google/pymatching": {
+     "failures": 18043
+    },
+    "google/correlated_matching": {
+     "failures": 16928
+    },
+    "google/belief_matching": {
+     "failures": 15910
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15679
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.826885725923603e-06
+   },
+   "wall_seconds": 0.784543333997135
+  },
+  "sycamore/surface_code_bX_d3_r17_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 19.42772,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19368,
+     "errors": 0,
+     "seconds": 0.091445333
+    },
+    "ours/circuit/correlated": {
+     "failures": 18209,
+     "errors": 0,
+     "seconds": 0.184248375
+    },
+    "ours/ours/plain": {
+     "failures": 19368,
+     "errors": 0,
+     "seconds": 0.090337583
+    },
+    "ours/ours/correlated": {
+     "failures": 18209,
+     "errors": 0,
+     "seconds": 0.18442775
+    },
+    "ours/pij/plain": {
+     "failures": 18962,
+     "errors": 0,
+     "seconds": 0.101691542
+    },
+    "ours/pij/correlated": {
+     "failures": 17457,
+     "errors": 0,
+     "seconds": 0.212633667
+    },
+    "google/pymatching": {
+     "failures": 19370
+    },
+    "google/correlated_matching": {
+     "failures": 18195
+    },
+    "google/belief_matching": {
+     "failures": 17003
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16798
+    }
+   },
+   "pymatching_check": {
+    "disagree": 2,
+    "ours_optimal": 2,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.090880608018324e-06
+   },
+   "wall_seconds": 0.9121676670038141
+  },
+  "sycamore/surface_code_bX_d3_r19_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 21.82352,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20143,
+     "errors": 0,
+     "seconds": 0.100636167
+    },
+    "ours/circuit/correlated": {
+     "failures": 19322,
+     "errors": 0,
+     "seconds": 0.209968416
+    },
+    "ours/ours/plain": {
+     "failures": 20143,
+     "errors": 0,
+     "seconds": 0.102142791
+    },
+    "ours/ours/correlated": {
+     "failures": 19322,
+     "errors": 0,
+     "seconds": 0.201800667
+    },
+    "ours/pij/plain": {
+     "failures": 20014,
+     "errors": 0,
+     "seconds": 0.128763291
+    },
+    "ours/pij/correlated": {
+     "failures": 18813,
+     "errors": 0,
+     "seconds": 0.24973299999999998
+    },
+    "google/pymatching": {
+     "failures": 20142
+    },
+    "google/correlated_matching": {
+     "failures": 19188
+    },
+    "google/belief_matching": {
+     "failures": 18275
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17994
+    }
+   },
+   "pymatching_check": {
+    "disagree": 5,
+    "ours_optimal": 5,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.316229940101948e-06
+   },
+   "wall_seconds": 1.0454664999997476
+  },
+  "sycamore/surface_code_bX_d3_r21_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 23.97926,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20665,
+     "errors": 0,
+     "seconds": 0.110401417
+    },
+    "ours/circuit/correlated": {
+     "failures": 19742,
+     "errors": 0,
+     "seconds": 0.23298675
+    },
+    "ours/ours/plain": {
+     "failures": 20665,
+     "errors": 0,
+     "seconds": 0.111774209
+    },
+    "ours/ours/correlated": {
+     "failures": 19742,
+     "errors": 0,
+     "seconds": 0.23199775
+    },
+    "ours/pij/plain": {
+     "failures": 20345,
+     "errors": 0,
+     "seconds": 0.129941417
+    },
+    "ours/pij/correlated": {
+     "failures": 19199,
+     "errors": 0,
+     "seconds": 0.258132542
+    },
+    "google/pymatching": {
+     "failures": 20669
+    },
+    "google/correlated_matching": {
+     "failures": 19593
+    },
+    "google/belief_matching": {
+     "failures": 18667
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18578
+    }
+   },
+   "pymatching_check": {
+    "disagree": 8,
+    "ours_optimal": 8,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.033346037133015e-06
+   },
+   "wall_seconds": 1.132773167002597
+  },
+  "sycamore/surface_code_bX_d3_r23_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 26.81636,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21783,
+     "errors": 0,
+     "seconds": 0.127328
+    },
+    "ours/circuit/correlated": {
+     "failures": 20934,
+     "errors": 0,
+     "seconds": 0.265278291
+    },
+    "ours/ours/plain": {
+     "failures": 21783,
+     "errors": 0,
+     "seconds": 0.155540333
+    },
+    "ours/ours/correlated": {
+     "failures": 20934,
+     "errors": 0,
+     "seconds": 0.248474834
+    },
+    "ours/pij/plain": {
+     "failures": 21613,
+     "errors": 0,
+     "seconds": 0.144506251
+    },
+    "ours/pij/correlated": {
+     "failures": 20416,
+     "errors": 0,
+     "seconds": 0.306096834
+    },
+    "google/pymatching": {
+     "failures": 21782
+    },
+    "google/correlated_matching": {
+     "failures": 20796
+    },
+    "google/belief_matching": {
+     "failures": 19963
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19784
+    }
+   },
+   "pymatching_check": {
+    "disagree": 29,
+    "ours_optimal": 29,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.4952488969538535e-06
+   },
+   "wall_seconds": 1.3121091250068275
+  },
+  "sycamore/surface_code_bX_d3_r25_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 29.1112,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 22156,
+     "errors": 0,
+     "seconds": 0.132486542
+    },
+    "ours/circuit/correlated": {
+     "failures": 21446,
+     "errors": 0,
+     "seconds": 0.304277084
+    },
+    "ours/ours/plain": {
+     "failures": 22156,
+     "errors": 0,
+     "seconds": 0.135606209
+    },
+    "ours/ours/correlated": {
+     "failures": 21446,
+     "errors": 0,
+     "seconds": 0.289483833
+    },
+    "ours/pij/plain": {
+     "failures": 22052,
+     "errors": 0,
+     "seconds": 0.159666792
+    },
+    "ours/pij/correlated": {
+     "failures": 21223,
+     "errors": 0,
+     "seconds": 0.318919375
+    },
+    "google/pymatching": {
+     "failures": 22159
+    },
+    "google/correlated_matching": {
+     "failures": 21259
+    },
+    "google/belief_matching": {
+     "failures": 20796
+    },
+    "google/tensor_network_contraction": {
+     "failures": 20652
+    }
+   },
+   "pymatching_check": {
+    "disagree": 55,
+    "ours_optimal": 55,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.6758470325112285e-06
+   },
+   "wall_seconds": 1.4093095419957535
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.58602,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.002635209
+    },
+    "ours/circuit/correlated": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.005210042
+    },
+    "ours/ours/plain": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.00231475
+    },
+    "ours/ours/correlated": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.004610291
+    },
+    "ours/pij/plain": {
+     "failures": 815,
+     "errors": 0,
+     "seconds": 0.002508791
+    },
+    "ours/pij/correlated": {
+     "failures": 815,
+     "errors": 0,
+     "seconds": 0.004967875
+    },
+    "google/pymatching": {
+     "failures": 852
+    },
+    "google/correlated_matching": {
+     "failures": 852
+    },
+    "google/belief_matching": {
+     "failures": 860
+    },
+    "google/tensor_network_contraction": {
+     "failures": 810
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.6997803253815391e-06
+   },
+   "wall_seconds": 0.031038166998769157
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.89234,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4491,
+     "errors": 0,
+     "seconds": 0.01373325
+    },
+    "ours/circuit/correlated": {
+     "failures": 4147,
+     "errors": 0,
+     "seconds": 0.026578209
+    },
+    "ours/ours/plain": {
+     "failures": 4491,
+     "errors": 0,
+     "seconds": 0.012528833
+    },
+    "ours/ours/correlated": {
+     "failures": 4147,
+     "errors": 0,
+     "seconds": 0.022747292
+    },
+    "ours/pij/plain": {
+     "failures": 4320,
+     "errors": 0,
+     "seconds": 0.012825083000000001
+    },
+    "ours/pij/correlated": {
+     "failures": 4014,
+     "errors": 0,
+     "seconds": 0.026239040999999998
+    },
+    "google/pymatching": {
+     "failures": 4491
+    },
+    "google/correlated_matching": {
+     "failures": 4271
+    },
+    "google/belief_matching": {
+     "failures": 3940
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3752
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.6471583627341033e-06
+   },
+   "wall_seconds": 0.12946816599287558
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 5.24814,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7662,
+     "errors": 0,
+     "seconds": 0.024030667
+    },
+    "ours/circuit/correlated": {
+     "failures": 6923,
+     "errors": 0,
+     "seconds": 0.053592459
+    },
+    "ours/ours/plain": {
+     "failures": 7662,
+     "errors": 0,
+     "seconds": 0.021705583
+    },
+    "ours/ours/correlated": {
+     "failures": 6923,
+     "errors": 0,
+     "seconds": 0.048873375
+    },
+    "ours/pij/plain": {
+     "failures": 7441,
+     "errors": 0,
+     "seconds": 0.025713334
+    },
+    "ours/pij/correlated": {
+     "failures": 6852,
+     "errors": 0,
+     "seconds": 0.055078167
+    },
+    "google/pymatching": {
+     "failures": 7662
+    },
+    "google/correlated_matching": {
+     "failures": 7061
+    },
+    "google/belief_matching": {
+     "failures": 6629
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6460
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.294058957299285e-06
+   },
+   "wall_seconds": 0.24745729099959135
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.6474,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10335,
+     "errors": 0,
+     "seconds": 0.034542916
+    },
+    "ours/circuit/correlated": {
+     "failures": 9327,
+     "errors": 0,
+     "seconds": 0.07416425
+    },
+    "ours/ours/plain": {
+     "failures": 10335,
+     "errors": 0,
+     "seconds": 0.03802
+    },
+    "ours/ours/correlated": {
+     "failures": 9327,
+     "errors": 0,
+     "seconds": 0.072696167
+    },
+    "ours/pij/plain": {
+     "failures": 10137,
+     "errors": 0,
+     "seconds": 0.039172792
+    },
+    "ours/pij/correlated": {
+     "failures": 9291,
+     "errors": 0,
+     "seconds": 0.08213125099999999
+    },
+    "google/pymatching": {
+     "failures": 10335
+    },
+    "google/correlated_matching": {
+     "failures": 9378
+    },
+    "google/belief_matching": {
+     "failures": 8742
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8442
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.0111839279811647e-06
+   },
+   "wall_seconds": 0.3641103750123875
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 10.0072,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12552,
+     "errors": 0,
+     "seconds": 0.043679042
+    },
+    "ours/circuit/correlated": {
+     "failures": 11425,
+     "errors": 0,
+     "seconds": 0.098613417
+    },
+    "ours/ours/plain": {
+     "failures": 12552,
+     "errors": 0,
+     "seconds": 0.04939175
+    },
+    "ours/ours/correlated": {
+     "failures": 11425,
+     "errors": 0,
+     "seconds": 0.095229041
+    },
+    "ours/pij/plain": {
+     "failures": 12287,
+     "errors": 0,
+     "seconds": 0.049118666000000005
+    },
+    "ours/pij/correlated": {
+     "failures": 11345,
+     "errors": 0,
+     "seconds": 0.102750458
+    },
+    "google/pymatching": {
+     "failures": 12552
+    },
+    "google/correlated_matching": {
+     "failures": 11436
+    },
+    "google/belief_matching": {
+     "failures": 10797
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10311
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.855158046268571e-06
+   },
+   "wall_seconds": 0.46956479200161994
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 12.48044,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14216,
+     "errors": 0,
+     "seconds": 0.055487375
+    },
+    "ours/circuit/correlated": {
+     "failures": 12985,
+     "errors": 0,
+     "seconds": 0.114245709
+    },
+    "ours/ours/plain": {
+     "failures": 14216,
+     "errors": 0,
+     "seconds": 0.057591333
+    },
+    "ours/ours/correlated": {
+     "failures": 12985,
+     "errors": 0,
+     "seconds": 0.114729083
+    },
+    "ours/pij/plain": {
+     "failures": 13985,
+     "errors": 0,
+     "seconds": 0.067809875
+    },
+    "ours/pij/correlated": {
+     "failures": 12943,
+     "errors": 0,
+     "seconds": 0.133690458
+    },
+    "google/pymatching": {
+     "failures": 14216
+    },
+    "google/correlated_matching": {
+     "failures": 13012
+    },
+    "google/belief_matching": {
+     "failures": 12332
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11880
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.091208211320918e-06
+   },
+   "wall_seconds": 0.5770517500059213
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 14.72644,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16259,
+     "errors": 0,
+     "seconds": 0.065038458
+    },
+    "ours/circuit/correlated": {
+     "failures": 14794,
+     "errors": 0,
+     "seconds": 0.145215459
+    },
+    "ours/ours/plain": {
+     "failures": 16259,
+     "errors": 0,
+     "seconds": 0.067253916
+    },
+    "ours/ours/correlated": {
+     "failures": 14794,
+     "errors": 0,
+     "seconds": 0.139696209
+    },
+    "ours/pij/plain": {
+     "failures": 15860,
+     "errors": 0,
+     "seconds": 0.077903624
+    },
+    "ours/pij/correlated": {
+     "failures": 14664,
+     "errors": 0,
+     "seconds": 0.156458708
+    },
+    "google/pymatching": {
+     "failures": 16259
+    },
+    "google/correlated_matching": {
+     "failures": 14925
+    },
+    "google/belief_matching": {
+     "failures": 14184
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13482
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.781228163608375e-06
+   },
+   "wall_seconds": 0.6898756669979775
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 17.08078,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17566,
+     "errors": 0,
+     "seconds": 0.085886708
+    },
+    "ours/circuit/correlated": {
+     "failures": 16187,
+     "errors": 0,
+     "seconds": 0.186111708
+    },
+    "ours/ours/plain": {
+     "failures": 17566,
+     "errors": 0,
+     "seconds": 0.07817
+    },
+    "ours/ours/correlated": {
+     "failures": 16187,
+     "errors": 0,
+     "seconds": 0.155157875
+    },
+    "ours/pij/plain": {
+     "failures": 17233,
+     "errors": 0,
+     "seconds": 0.088867708
+    },
+    "ours/pij/correlated": {
+     "failures": 16167,
+     "errors": 0,
+     "seconds": 0.192225792
+    },
+    "google/pymatching": {
+     "failures": 17567
+    },
+    "google/correlated_matching": {
+     "failures": 16147
+    },
+    "google/belief_matching": {
+     "failures": 15519
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14874
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.6035130882037265e-06
+   },
+   "wall_seconds": 0.8300926249939948
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 19.48404,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18529,
+     "errors": 0,
+     "seconds": 0.088797291
+    },
+    "ours/circuit/correlated": {
+     "failures": 17322,
+     "errors": 0,
+     "seconds": 0.22929775
+    },
+    "ours/ours/plain": {
+     "failures": 18529,
+     "errors": 0,
+     "seconds": 0.086765917
+    },
+    "ours/ours/correlated": {
+     "failures": 17322,
+     "errors": 0,
+     "seconds": 0.18188175
+    },
+    "ours/pij/plain": {
+     "failures": 18184,
+     "errors": 0,
+     "seconds": 0.103209
+    },
+    "ours/pij/correlated": {
+     "failures": 17186,
+     "errors": 0,
+     "seconds": 0.217759209
+    },
+    "google/pymatching": {
+     "failures": 18528
+    },
+    "google/correlated_matching": {
+     "failures": 17254
+    },
+    "google/belief_matching": {
+     "failures": 16493
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15965
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.105953836765821e-06
+   },
+   "wall_seconds": 0.9548792499990668
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 21.66156,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19281,
+     "errors": 0,
+     "seconds": 0.105156084
+    },
+    "ours/circuit/correlated": {
+     "failures": 17935,
+     "errors": 0,
+     "seconds": 0.21029275
+    },
+    "ours/ours/plain": {
+     "failures": 19281,
+     "errors": 0,
+     "seconds": 0.093598042
+    },
+    "ours/ours/correlated": {
+     "failures": 17935,
+     "errors": 0,
+     "seconds": 0.218766458
+    },
+    "ours/pij/plain": {
+     "failures": 18989,
+     "errors": 0,
+     "seconds": 0.115381209
+    },
+    "ours/pij/correlated": {
+     "failures": 17888,
+     "errors": 0,
+     "seconds": 0.244728709
+    },
+    "google/pymatching": {
+     "failures": 19281
+    },
+    "google/correlated_matching": {
+     "failures": 17952
+    },
+    "google/belief_matching": {
+     "failures": 17279
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16673
+    }
+   },
+   "pymatching_check": {
+    "disagree": 8,
+    "ours_optimal": 8,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.991431649476908e-06
+   },
+   "wall_seconds": 1.0420135839958675
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 24.52388,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20413,
+     "errors": 0,
+     "seconds": 0.110550917
+    },
+    "ours/circuit/correlated": {
+     "failures": 19135,
+     "errors": 0,
+     "seconds": 0.235154458
+    },
+    "ours/ours/plain": {
+     "failures": 20413,
+     "errors": 0,
+     "seconds": 0.111296833
+    },
+    "ours/ours/correlated": {
+     "failures": 19135,
+     "errors": 0,
+     "seconds": 0.234440542
+    },
+    "ours/pij/plain": {
+     "failures": 20121,
+     "errors": 0,
+     "seconds": 0.123696708
+    },
+    "ours/pij/correlated": {
+     "failures": 19069,
+     "errors": 0,
+     "seconds": 0.266293875
+    },
+    "google/pymatching": {
+     "failures": 20411
+    },
+    "google/correlated_matching": {
+     "failures": 19204
+    },
+    "google/belief_matching": {
+     "failures": 18740
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18208
+    }
+   },
+   "pymatching_check": {
+    "disagree": 10,
+    "ours_optimal": 10,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.946831635128547e-06
+   },
+   "wall_seconds": 1.1402407080022385
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 26.8566,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21137,
+     "errors": 0,
+     "seconds": 0.126614666
+    },
+    "ours/circuit/correlated": {
+     "failures": 19870,
+     "errors": 0,
+     "seconds": 0.248736458
+    },
+    "ours/ours/plain": {
+     "failures": 21137,
+     "errors": 0,
+     "seconds": 0.122831334
+    },
+    "ours/ours/correlated": {
+     "failures": 19870,
+     "errors": 0,
+     "seconds": 0.258074833
+    },
+    "ours/pij/plain": {
+     "failures": 20713,
+     "errors": 0,
+     "seconds": 0.143234542
+    },
+    "ours/pij/correlated": {
+     "failures": 19879,
+     "errors": 0,
+     "seconds": 0.29193295799999996
+    },
+    "google/pymatching": {
+     "failures": 21141
+    },
+    "google/correlated_matching": {
+     "failures": 19976
+    },
+    "google/belief_matching": {
+     "failures": 19015
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18375
+    }
+   },
+   "pymatching_check": {
+    "disagree": 22,
+    "ours_optimal": 22,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.844161194090702e-06
+   },
+   "wall_seconds": 1.2534994589950657
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 29.15926,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21719,
+     "errors": 0,
+     "seconds": 0.131253291
+    },
+    "ours/circuit/correlated": {
+     "failures": 20557,
+     "errors": 0,
+     "seconds": 0.285054667
+    },
+    "ours/ours/plain": {
+     "failures": 21719,
+     "errors": 0,
+     "seconds": 0.129735792
+    },
+    "ours/ours/correlated": {
+     "failures": 20557,
+     "errors": 0,
+     "seconds": 0.2728495
+    },
+    "ours/pij/plain": {
+     "failures": 21259,
+     "errors": 0,
+     "seconds": 0.159778376
+    },
+    "ours/pij/correlated": {
+     "failures": 20415,
+     "errors": 0,
+     "seconds": 0.345504708
+    },
+    "google/pymatching": {
+     "failures": 21721
+    },
+    "google/correlated_matching": {
+     "failures": 20440
+    },
+    "google/belief_matching": {
+     "failures": 19732
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19437
+    }
+   },
+   "pymatching_check": {
+    "disagree": 52,
+    "ours_optimal": 52,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.80191315641332e-06
+   },
+   "wall_seconds": 1.3922187080024742
+  },
+  "sycamore/surface_code_bX_d3_r01_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.5249,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 823,
+     "errors": 0,
+     "seconds": 0.002476667
+    },
+    "ours/circuit/correlated": {
+     "failures": 823,
+     "errors": 0,
+     "seconds": 0.004039333
+    },
+    "ours/ours/plain": {
+     "failures": 823,
+     "errors": 0,
+     "seconds": 0.00246675
+    },
+    "ours/ours/correlated": {
+     "failures": 823,
+     "errors": 0,
+     "seconds": 0.003781417
+    },
+    "ours/pij/plain": {
+     "failures": 815,
+     "errors": 0,
+     "seconds": 0.002635
+    },
+    "ours/pij/correlated": {
+     "failures": 815,
+     "errors": 0,
+     "seconds": 0.004274625000000001
+    },
+    "google/pymatching": {
+     "failures": 823
+    },
+    "google/correlated_matching": {
+     "failures": 825
+    },
+    "google/belief_matching": {
+     "failures": 818
+    },
+    "google/tensor_network_contraction": {
+     "failures": 814
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.5536934760973509e-06
+   },
+   "wall_seconds": 0.028002374994684942
+  },
+  "sycamore/surface_code_bX_d3_r03_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.696,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4314,
+     "errors": 0,
+     "seconds": 0.013386792
+    },
+    "ours/circuit/correlated": {
+     "failures": 4071,
+     "errors": 0,
+     "seconds": 0.021855708
+    },
+    "ours/ours/plain": {
+     "failures": 4314,
+     "errors": 0,
+     "seconds": 0.010703917
+    },
+    "ours/ours/correlated": {
+     "failures": 4071,
+     "errors": 0,
+     "seconds": 0.024722125
+    },
+    "ours/pij/plain": {
+     "failures": 4088,
+     "errors": 0,
+     "seconds": 0.011776125
+    },
+    "ours/pij/correlated": {
+     "failures": 3827,
+     "errors": 0,
+     "seconds": 0.02505925
+    },
+    "google/pymatching": {
+     "failures": 4314
+    },
+    "google/correlated_matching": {
+     "failures": 4071
+    },
+    "google/belief_matching": {
+     "failures": 3640
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3472
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.3116979203384744e-06
+   },
+   "wall_seconds": 0.1220036659942707
+  },
+  "sycamore/surface_code_bX_d3_r05_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 4.8309,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7369,
+     "errors": 0,
+     "seconds": 0.021607833
+    },
+    "ours/circuit/correlated": {
+     "failures": 6739,
+     "errors": 0,
+     "seconds": 0.046205958
+    },
+    "ours/ours/plain": {
+     "failures": 7369,
+     "errors": 0,
+     "seconds": 0.020441625
+    },
+    "ours/ours/correlated": {
+     "failures": 6739,
+     "errors": 0,
+     "seconds": 0.041867042
+    },
+    "ours/pij/plain": {
+     "failures": 7013,
+     "errors": 0,
+     "seconds": 0.022566624
+    },
+    "ours/pij/correlated": {
+     "failures": 6440,
+     "errors": 0,
+     "seconds": 0.048682040999999995
+    },
+    "google/pymatching": {
+     "failures": 7369
+    },
+    "google/correlated_matching": {
+     "failures": 6674
+    },
+    "google/belief_matching": {
+     "failures": 6019
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5753
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.2405179304362264e-06
+   },
+   "wall_seconds": 0.2198179590050131
+  },
+  "sycamore/surface_code_bX_d3_r07_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 6.99564,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 9722,
+     "errors": 0,
+     "seconds": 0.030414042
+    },
+    "ours/circuit/correlated": {
+     "failures": 9005,
+     "errors": 0,
+     "seconds": 0.067125833
+    },
+    "ours/ours/plain": {
+     "failures": 9722,
+     "errors": 0,
+     "seconds": 0.029224666
+    },
+    "ours/ours/correlated": {
+     "failures": 9005,
+     "errors": 0,
+     "seconds": 0.063083542
+    },
+    "ours/pij/plain": {
+     "failures": 9325,
+     "errors": 0,
+     "seconds": 0.033746376
+    },
+    "ours/pij/correlated": {
+     "failures": 8566,
+     "errors": 0,
+     "seconds": 0.0745635
+    },
+    "google/pymatching": {
+     "failures": 9722
+    },
+    "google/correlated_matching": {
+     "failures": 8916
+    },
+    "google/belief_matching": {
+     "failures": 7899
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7514
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.428079499518844e-06
+   },
+   "wall_seconds": 0.3213912920036819
+  },
+  "sycamore/surface_code_bX_d3_r09_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.1979,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12062,
+     "errors": 0,
+     "seconds": 0.042932792
+    },
+    "ours/circuit/correlated": {
+     "failures": 11115,
+     "errors": 0,
+     "seconds": 0.090923
+    },
+    "ours/ours/plain": {
+     "failures": 12062,
+     "errors": 0,
+     "seconds": 0.041696167
+    },
+    "ours/ours/correlated": {
+     "failures": 11115,
+     "errors": 0,
+     "seconds": 0.080773375
+    },
+    "ours/pij/plain": {
+     "failures": 11381,
+     "errors": 0,
+     "seconds": 0.042810625000000005
+    },
+    "ours/pij/correlated": {
+     "failures": 10507,
+     "errors": 0,
+     "seconds": 0.098713583
+    },
+    "google/pymatching": {
+     "failures": 12062
+    },
+    "google/correlated_matching": {
+     "failures": 10980
+    },
+    "google/belief_matching": {
+     "failures": 9794
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9302
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.795221943965089e-06
+   },
+   "wall_seconds": 0.4277297500084387
+  },
+  "sycamore/surface_code_bX_d3_r11_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 11.5184,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14006,
+     "errors": 0,
+     "seconds": 0.050523958
+    },
+    "ours/circuit/correlated": {
+     "failures": 12971,
+     "errors": 0,
+     "seconds": 0.103340625
+    },
+    "ours/ours/plain": {
+     "failures": 14006,
+     "errors": 0,
+     "seconds": 0.053931375
+    },
+    "ours/ours/correlated": {
+     "failures": 12971,
+     "errors": 0,
+     "seconds": 0.104796042
+    },
+    "ours/pij/plain": {
+     "failures": 13519,
+     "errors": 0,
+     "seconds": 0.058364833000000005
+    },
+    "ours/pij/correlated": {
+     "failures": 12673,
+     "errors": 0,
+     "seconds": 0.11526549999999999
+    },
+    "google/pymatching": {
+     "failures": 14006
+    },
+    "google/correlated_matching": {
+     "failures": 12857
+    },
+    "google/belief_matching": {
+     "failures": 11727
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11133
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.345790756119186e-06
+   },
+   "wall_seconds": 0.5205371670017485
+  },
+  "sycamore/surface_code_bX_d3_r13_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 13.80746,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 15739,
+     "errors": 0,
+     "seconds": 0.056955875
+    },
+    "ours/circuit/correlated": {
+     "failures": 14823,
+     "errors": 0,
+     "seconds": 0.123991291
+    },
+    "ours/ours/plain": {
+     "failures": 15739,
+     "errors": 0,
+     "seconds": 0.057684875
+    },
+    "ours/ours/correlated": {
+     "failures": 14823,
+     "errors": 0,
+     "seconds": 0.1263515
+    },
+    "ours/pij/plain": {
+     "failures": 15405,
+     "errors": 0,
+     "seconds": 0.066497292
+    },
+    "ours/pij/correlated": {
+     "failures": 14441,
+     "errors": 0,
+     "seconds": 0.13502616699999997
+    },
+    "google/pymatching": {
+     "failures": 15739
+    },
+    "google/correlated_matching": {
+     "failures": 14726
+    },
+    "google/belief_matching": {
+     "failures": 13386
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12907
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.900111401364484e-06
+   },
+   "wall_seconds": 0.6033625839918386
+  },
+  "sycamore/surface_code_bX_d3_r15_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 16.49784,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17594,
+     "errors": 0,
+     "seconds": 0.070668417
+    },
+    "ours/circuit/correlated": {
+     "failures": 16607,
+     "errors": 0,
+     "seconds": 0.153450334
+    },
+    "ours/ours/plain": {
+     "failures": 17594,
+     "errors": 0,
+     "seconds": 0.071532875
+    },
+    "ours/ours/correlated": {
+     "failures": 16607,
+     "errors": 0,
+     "seconds": 0.145891625
+    },
+    "ours/pij/plain": {
+     "failures": 17149,
+     "errors": 0,
+     "seconds": 0.080276959
+    },
+    "ours/pij/correlated": {
+     "failures": 16102,
+     "errors": 0,
+     "seconds": 0.161239959
+    },
+    "google/pymatching": {
+     "failures": 17594
+    },
+    "google/correlated_matching": {
+     "failures": 16488
+    },
+    "google/belief_matching": {
+     "failures": 15023
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14409
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.954758449888686e-06
+   },
+   "wall_seconds": 0.7258988750108983
+  },
+  "sycamore/surface_code_bX_d3_r17_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 19.02456,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18968,
+     "errors": 0,
+     "seconds": 0.08264025
+    },
+    "ours/circuit/correlated": {
+     "failures": 17815,
+     "errors": 0,
+     "seconds": 0.167507833
+    },
+    "ours/ours/plain": {
+     "failures": 18968,
+     "errors": 0,
+     "seconds": 0.087185042
+    },
+    "ours/ours/correlated": {
+     "failures": 17815,
+     "errors": 0,
+     "seconds": 0.178446
+    },
+    "ours/pij/plain": {
+     "failures": 18588,
+     "errors": 0,
+     "seconds": 0.091121
+    },
+    "ours/pij/correlated": {
+     "failures": 17416,
+     "errors": 0,
+     "seconds": 0.198908834
+    },
+    "google/pymatching": {
+     "failures": 18968
+    },
+    "google/correlated_matching": {
+     "failures": 17651
+    },
+    "google/belief_matching": {
+     "failures": 16358
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15675
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.619421987849819e-06
+   },
+   "wall_seconds": 0.852579207989038
+  },
+  "sycamore/surface_code_bX_d3_r19_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 20.44946,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19254,
+     "errors": 0,
+     "seconds": 0.088715208
+    },
+    "ours/circuit/correlated": {
+     "failures": 18258,
+     "errors": 0,
+     "seconds": 0.178251584
+    },
+    "ours/ours/plain": {
+     "failures": 19254,
+     "errors": 0,
+     "seconds": 0.087676917
+    },
+    "ours/ours/correlated": {
+     "failures": 18258,
+     "errors": 0,
+     "seconds": 0.180860917
+    },
+    "ours/pij/plain": {
+     "failures": 18859,
+     "errors": 0,
+     "seconds": 0.100634042
+    },
+    "ours/pij/correlated": {
+     "failures": 17791,
+     "errors": 0,
+     "seconds": 0.19639720700000002
+    },
+    "google/pymatching": {
+     "failures": 19255
+    },
+    "google/correlated_matching": {
+     "failures": 18069
+    },
+    "google/belief_matching": {
+     "failures": 16990
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16435
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.873336087982352e-06
+   },
+   "wall_seconds": 0.884194790996844
+  },
+  "sycamore/surface_code_bX_d3_r21_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 23.76576,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20512,
+     "errors": 0,
+     "seconds": 0.097583916
+    },
+    "ours/circuit/correlated": {
+     "failures": 19640,
+     "errors": 0,
+     "seconds": 0.211898709
+    },
+    "ours/ours/plain": {
+     "failures": 20512,
+     "errors": 0,
+     "seconds": 0.102403833
+    },
+    "ours/ours/correlated": {
+     "failures": 19640,
+     "errors": 0,
+     "seconds": 0.2183405
+    },
+    "ours/pij/plain": {
+     "failures": 20226,
+     "errors": 0,
+     "seconds": 0.11990299900000001
+    },
+    "ours/pij/correlated": {
+     "failures": 19408,
+     "errors": 0,
+     "seconds": 0.23465608300000002
+    },
+    "google/pymatching": {
+     "failures": 20512
+    },
+    "google/correlated_matching": {
+     "failures": 19488
+    },
+    "google/belief_matching": {
+     "failures": 18351
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17889
+    }
+   },
+   "pymatching_check": {
+    "disagree": 6,
+    "ours_optimal": 6,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.691541270560265e-06
+   },
+   "wall_seconds": 1.0401922919991193
+  },
+  "sycamore/surface_code_bX_d3_r23_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 24.96474,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21056,
+     "errors": 0,
+     "seconds": 0.108865875
+    },
+    "ours/circuit/correlated": {
+     "failures": 20056,
+     "errors": 0,
+     "seconds": 0.22703525
+    },
+    "ours/ours/plain": {
+     "failures": 21056,
+     "errors": 0,
+     "seconds": 0.103355875
+    },
+    "ours/ours/correlated": {
+     "failures": 20056,
+     "errors": 0,
+     "seconds": 0.222182667
+    },
+    "ours/pij/plain": {
+     "failures": 20764,
+     "errors": 0,
+     "seconds": 0.121989417
+    },
+    "ours/pij/correlated": {
+     "failures": 19790,
+     "errors": 0,
+     "seconds": 0.254753583
+    },
+    "google/pymatching": {
+     "failures": 21058
+    },
+    "google/correlated_matching": {
+     "failures": 19931
+    },
+    "google/belief_matching": {
+     "failures": 18868
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18479
+    }
+   },
+   "pymatching_check": {
+    "disagree": 4,
+    "ours_optimal": 4,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.5506831791471996e-06
+   },
+   "wall_seconds": 1.1011874170071678
+  },
+  "sycamore/surface_code_bX_d3_r25_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 27.42074,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21535,
+     "errors": 0,
+     "seconds": 0.111331417
+    },
+    "ours/circuit/correlated": {
+     "failures": 20868,
+     "errors": 0,
+     "seconds": 0.247374833
+    },
+    "ours/ours/plain": {
+     "failures": 21535,
+     "errors": 0,
+     "seconds": 0.126018375
+    },
+    "ours/ours/correlated": {
+     "failures": 20868,
+     "errors": 0,
+     "seconds": 0.247108916
+    },
+    "ours/pij/plain": {
+     "failures": 21236,
+     "errors": 0,
+     "seconds": 0.133032083
+    },
+    "ours/pij/correlated": {
+     "failures": 20358,
+     "errors": 0,
+     "seconds": 0.282745041
+    },
+    "google/pymatching": {
+     "failures": 21532
+    },
+    "google/correlated_matching": {
+     "failures": 20912
+    },
+    "google/belief_matching": {
+     "failures": 19598
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19196
+    }
+   },
+   "pymatching_check": {
+    "disagree": 9,
+    "ours_optimal": 9,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.054111659470891e-05
+   },
+   "wall_seconds": 1.2130057500035036
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.53506,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.002093833
+    },
+    "ours/circuit/correlated": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.004045041
+    },
+    "ours/ours/plain": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.00243875
+    },
+    "ours/ours/correlated": {
+     "failures": 852,
+     "errors": 0,
+     "seconds": 0.003766375
+    },
+    "ours/pij/plain": {
+     "failures": 804,
+     "errors": 0,
+     "seconds": 0.002319251
+    },
+    "ours/pij/correlated": {
+     "failures": 804,
+     "errors": 0,
+     "seconds": 0.004209457999999999
+    },
+    "google/pymatching": {
+     "failures": 852
+    },
+    "google/correlated_matching": {
+     "failures": 849
+    },
+    "google/belief_matching": {
+     "failures": 829
+    },
+    "google/tensor_network_contraction": {
+     "failures": 825
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.477450769726829e-06
+   },
+   "wall_seconds": 0.028698540991172194
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.75654,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4713,
+     "errors": 0,
+     "seconds": 0.011068584
+    },
+    "ours/circuit/correlated": {
+     "failures": 4268,
+     "errors": 0,
+     "seconds": 0.024039208
+    },
+    "ours/ours/plain": {
+     "failures": 4713,
+     "errors": 0,
+     "seconds": 0.010766333
+    },
+    "ours/ours/correlated": {
+     "failures": 4268,
+     "errors": 0,
+     "seconds": 0.022830208
+    },
+    "ours/pij/plain": {
+     "failures": 4628,
+     "errors": 0,
+     "seconds": 0.011747834
+    },
+    "ours/pij/correlated": {
+     "failures": 4107,
+     "errors": 0,
+     "seconds": 0.025050584
+    },
+    "google/pymatching": {
+     "failures": 4713
+    },
+    "google/correlated_matching": {
+     "failures": 4309
+    },
+    "google/belief_matching": {
+     "failures": 4051
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3908
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.3404983338082275e-06
+   },
+   "wall_seconds": 0.1201545000076294
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 4.9241,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7678,
+     "errors": 0,
+     "seconds": 0.021158959
+    },
+    "ours/circuit/correlated": {
+     "failures": 6740,
+     "errors": 0,
+     "seconds": 0.043896083
+    },
+    "ours/ours/plain": {
+     "failures": 7678,
+     "errors": 0,
+     "seconds": 0.021013084
+    },
+    "ours/ours/correlated": {
+     "failures": 6740,
+     "errors": 0,
+     "seconds": 0.0434985
+    },
+    "ours/pij/plain": {
+     "failures": 7439,
+     "errors": 0,
+     "seconds": 0.023160332999999998
+    },
+    "ours/pij/correlated": {
+     "failures": 6508,
+     "errors": 0,
+     "seconds": 0.04716175
+    },
+    "google/pymatching": {
+     "failures": 7678
+    },
+    "google/correlated_matching": {
+     "failures": 6860
+    },
+    "google/belief_matching": {
+     "failures": 6231
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5952
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.1545818011124993e-06
+   },
+   "wall_seconds": 0.21840654200059362
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.05296,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10335,
+     "errors": 0,
+     "seconds": 0.031522875
+    },
+    "ours/circuit/correlated": {
+     "failures": 8968,
+     "errors": 0,
+     "seconds": 0.062473583
+    },
+    "ours/ours/plain": {
+     "failures": 10335,
+     "errors": 0,
+     "seconds": 0.033826958
+    },
+    "ours/ours/correlated": {
+     "failures": 8968,
+     "errors": 0,
+     "seconds": 0.060789917
+    },
+    "ours/pij/plain": {
+     "failures": 10190,
+     "errors": 0,
+     "seconds": 0.034658208999999995
+    },
+    "ours/pij/correlated": {
+     "failures": 8853,
+     "errors": 0,
+     "seconds": 0.06900420700000001
+    },
+    "google/pymatching": {
+     "failures": 10335
+    },
+    "google/correlated_matching": {
+     "failures": 9130
+    },
+    "google/belief_matching": {
+     "failures": 8337
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8123
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.66692149917003e-06
+   },
+   "wall_seconds": 0.3146792909974465
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.2239,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12473,
+     "errors": 0,
+     "seconds": 0.04055725
+    },
+    "ours/circuit/correlated": {
+     "failures": 10969,
+     "errors": 0,
+     "seconds": 0.081622917
+    },
+    "ours/ours/plain": {
+     "failures": 12473,
+     "errors": 0,
+     "seconds": 0.040331417
+    },
+    "ours/ours/correlated": {
+     "failures": 10969,
+     "errors": 0,
+     "seconds": 0.079582458
+    },
+    "ours/pij/plain": {
+     "failures": 12287,
+     "errors": 0,
+     "seconds": 0.045047416
+    },
+    "ours/pij/correlated": {
+     "failures": 10764,
+     "errors": 0,
+     "seconds": 0.090798583
+    },
+    "google/pymatching": {
+     "failures": 12473
+    },
+    "google/correlated_matching": {
+     "failures": 11149
+    },
+    "google/belief_matching": {
+     "failures": 10301
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9969
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.413134570948387e-06
+   },
+   "wall_seconds": 0.4094444160000421
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 11.46218,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14553,
+     "errors": 0,
+     "seconds": 0.053169791
+    },
+    "ours/circuit/correlated": {
+     "failures": 12950,
+     "errors": 0,
+     "seconds": 0.103773709
+    },
+    "ours/ours/plain": {
+     "failures": 14553,
+     "errors": 0,
+     "seconds": 0.055010666
+    },
+    "ours/ours/correlated": {
+     "failures": 12950,
+     "errors": 0,
+     "seconds": 0.120366625
+    },
+    "ours/pij/plain": {
+     "failures": 14345,
+     "errors": 0,
+     "seconds": 0.053912042
+    },
+    "ours/pij/correlated": {
+     "failures": 12711,
+     "errors": 0,
+     "seconds": 0.11499604199999999
+    },
+    "google/pymatching": {
+     "failures": 14553
+    },
+    "google/correlated_matching": {
+     "failures": 13021
+    },
+    "google/belief_matching": {
+     "failures": 12127
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11870
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.7619183415624775e-06
+   },
+   "wall_seconds": 0.5348700410104357
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 14.10982,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16333,
+     "errors": 0,
+     "seconds": 0.058091917
+    },
+    "ours/circuit/correlated": {
+     "failures": 14646,
+     "errors": 0,
+     "seconds": 0.14083675
+    },
+    "ours/ours/plain": {
+     "failures": 16333,
+     "errors": 0,
+     "seconds": 0.057714625
+    },
+    "ours/ours/correlated": {
+     "failures": 14646,
+     "errors": 0,
+     "seconds": 0.128580084
+    },
+    "ours/pij/plain": {
+     "failures": 16002,
+     "errors": 0,
+     "seconds": 0.067825624
+    },
+    "ours/pij/correlated": {
+     "failures": 14583,
+     "errors": 0,
+     "seconds": 0.14356012499999998
+    },
+    "google/pymatching": {
+     "failures": 16333
+    },
+    "google/correlated_matching": {
+     "failures": 14817
+    },
+    "google/belief_matching": {
+     "failures": 13732
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13346
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.861178846406801e-06
+   },
+   "wall_seconds": 0.6360290000011446
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 16.50536,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17720,
+     "errors": 0,
+     "seconds": 0.071919833
+    },
+    "ours/circuit/correlated": {
+     "failures": 16076,
+     "errors": 0,
+     "seconds": 0.161674
+    },
+    "ours/ours/plain": {
+     "failures": 17720,
+     "errors": 0,
+     "seconds": 0.071523667
+    },
+    "ours/ours/correlated": {
+     "failures": 16076,
+     "errors": 0,
+     "seconds": 0.137719375
+    },
+    "ours/pij/plain": {
+     "failures": 17609,
+     "errors": 0,
+     "seconds": 0.087926999
+    },
+    "ours/pij/correlated": {
+     "failures": 15969,
+     "errors": 0,
+     "seconds": 0.167477834
+    },
+    "google/pymatching": {
+     "failures": 17721
+    },
+    "google/correlated_matching": {
+     "failures": 16231
+    },
+    "google/belief_matching": {
+     "failures": 15312
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14886
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.794380595920302e-06
+   },
+   "wall_seconds": 0.741280000002007
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 19.30098,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19574,
+     "errors": 0,
+     "seconds": 0.083690833
+    },
+    "ours/circuit/correlated": {
+     "failures": 18029,
+     "errors": 0,
+     "seconds": 0.173879917
+    },
+    "ours/ours/plain": {
+     "failures": 19574,
+     "errors": 0,
+     "seconds": 0.081049625
+    },
+    "ours/ours/correlated": {
+     "failures": 18029,
+     "errors": 0,
+     "seconds": 0.181761166
+    },
+    "ours/pij/plain": {
+     "failures": 19432,
+     "errors": 0,
+     "seconds": 0.08764466700000001
+    },
+    "ours/pij/correlated": {
+     "failures": 17794,
+     "errors": 0,
+     "seconds": 0.200971666
+    },
+    "google/pymatching": {
+     "failures": 19575
+    },
+    "google/correlated_matching": {
+     "failures": 18179
+    },
+    "google/belief_matching": {
+     "failures": 17072
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16673
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.58768328523729e-06
+   },
+   "wall_seconds": 0.8569674589962233
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 20.45508,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19495,
+     "errors": 0,
+     "seconds": 0.087522708
+    },
+    "ours/circuit/correlated": {
+     "failures": 17771,
+     "errors": 0,
+     "seconds": 0.190526333
+    },
+    "ours/ours/plain": {
+     "failures": 19495,
+     "errors": 0,
+     "seconds": 0.086353417
+    },
+    "ours/ours/correlated": {
+     "failures": 17771,
+     "errors": 0,
+     "seconds": 0.186049375
+    },
+    "ours/pij/plain": {
+     "failures": 19172,
+     "errors": 0,
+     "seconds": 0.107672625
+    },
+    "ours/pij/correlated": {
+     "failures": 17668,
+     "errors": 0,
+     "seconds": 0.21386249899999998
+    },
+    "google/pymatching": {
+     "failures": 19496
+    },
+    "google/correlated_matching": {
+     "failures": 17955
+    },
+    "google/belief_matching": {
+     "failures": 16858
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16520
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.73981335097551e-06
+   },
+   "wall_seconds": 0.9252730830048677
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 23.3779,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20933,
+     "errors": 0,
+     "seconds": 0.094122208
+    },
+    "ours/circuit/correlated": {
+     "failures": 19317,
+     "errors": 0,
+     "seconds": 0.199037458
+    },
+    "ours/ours/plain": {
+     "failures": 20933,
+     "errors": 0,
+     "seconds": 0.10383675
+    },
+    "ours/ours/correlated": {
+     "failures": 19317,
+     "errors": 0,
+     "seconds": 0.2117335
+    },
+    "ours/pij/plain": {
+     "failures": 20893,
+     "errors": 0,
+     "seconds": 0.11595825
+    },
+    "ours/pij/correlated": {
+     "failures": 19459,
+     "errors": 0,
+     "seconds": 0.23652829199999997
+    },
+    "google/pymatching": {
+     "failures": 20933
+    },
+    "google/correlated_matching": {
+     "failures": 19573
+    },
+    "google/belief_matching": {
+     "failures": 18653
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18434
+    }
+   },
+   "pymatching_check": {
+    "disagree": 2,
+    "ours_optimal": 2,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.503523676177792e-06
+   },
+   "wall_seconds": 1.0183015420043375
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 24.73746,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20922,
+     "errors": 0,
+     "seconds": 0.102804209
+    },
+    "ours/circuit/correlated": {
+     "failures": 19515,
+     "errors": 0,
+     "seconds": 0.250319
+    },
+    "ours/ours/plain": {
+     "failures": 20922,
+     "errors": 0,
+     "seconds": 0.109861667
+    },
+    "ours/ours/correlated": {
+     "failures": 19515,
+     "errors": 0,
+     "seconds": 0.211987084
+    },
+    "ours/pij/plain": {
+     "failures": 20579,
+     "errors": 0,
+     "seconds": 0.119274291
+    },
+    "ours/pij/correlated": {
+     "failures": 19132,
+     "errors": 0,
+     "seconds": 0.246587124
+    },
+    "google/pymatching": {
+     "failures": 20925
+    },
+    "google/correlated_matching": {
+     "failures": 19511
+    },
+    "google/belief_matching": {
+     "failures": 18405
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18064
+    }
+   },
+   "pymatching_check": {
+    "disagree": 11,
+    "ours_optimal": 11,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.15272268539502e-06
+   },
+   "wall_seconds": 1.1024327920022188
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 27.07922,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21506,
+     "errors": 0,
+     "seconds": 0.118972125
+    },
+    "ours/circuit/correlated": {
+     "failures": 20090,
+     "errors": 0,
+     "seconds": 0.230424
+    },
+    "ours/ours/plain": {
+     "failures": 21506,
+     "errors": 0,
+     "seconds": 0.115532541
+    },
+    "ours/ours/correlated": {
+     "failures": 20090,
+     "errors": 0,
+     "seconds": 0.273281042
+    },
+    "ours/pij/plain": {
+     "failures": 21096,
+     "errors": 0,
+     "seconds": 0.150012292
+    },
+    "ours/pij/correlated": {
+     "failures": 19778,
+     "errors": 0,
+     "seconds": 0.267997667
+    },
+    "google/pymatching": {
+     "failures": 21508
+    },
+    "google/correlated_matching": {
+     "failures": 20110
+    },
+    "google/belief_matching": {
+     "failures": 19027
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18733
+    }
+   },
+   "pymatching_check": {
+    "disagree": 12,
+    "ours_optimal": 12,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.345173012320629e-06
+   },
+   "wall_seconds": 1.2221921250020387
+  },
+  "sycamore/surface_code_bX_d3_r01_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.52138,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 851,
+     "errors": 0,
+     "seconds": 0.002339708
+    },
+    "ours/circuit/correlated": {
+     "failures": 851,
+     "errors": 0,
+     "seconds": 0.004707208
+    },
+    "ours/ours/plain": {
+     "failures": 851,
+     "errors": 0,
+     "seconds": 0.002312583
+    },
+    "ours/ours/correlated": {
+     "failures": 851,
+     "errors": 0,
+     "seconds": 0.00429825
+    },
+    "ours/pij/plain": {
+     "failures": 846,
+     "errors": 0,
+     "seconds": 0.002113541
+    },
+    "ours/pij/correlated": {
+     "failures": 846,
+     "errors": 0,
+     "seconds": 0.0040276240000000005
+    },
+    "google/pymatching": {
+     "failures": 851
+    },
+    "google/correlated_matching": {
+     "failures": 851
+    },
+    "google/belief_matching": {
+     "failures": 851
+    },
+    "google/tensor_network_contraction": {
+     "failures": 819
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.0995667302514676e-06
+   },
+   "wall_seconds": 0.02793783300148789
+  },
+  "sycamore/surface_code_bX_d3_r03_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.65544,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4593,
+     "errors": 0,
+     "seconds": 0.011525625
+    },
+    "ours/circuit/correlated": {
+     "failures": 4200,
+     "errors": 0,
+     "seconds": 0.021790333
+    },
+    "ours/ours/plain": {
+     "failures": 4593,
+     "errors": 0,
+     "seconds": 0.010597333
+    },
+    "ours/ours/correlated": {
+     "failures": 4200,
+     "errors": 0,
+     "seconds": 0.022584625
+    },
+    "ours/pij/plain": {
+     "failures": 4431,
+     "errors": 0,
+     "seconds": 0.011903583
+    },
+    "ours/pij/correlated": {
+     "failures": 4065,
+     "errors": 0,
+     "seconds": 0.024694874
+    },
+    "google/pymatching": {
+     "failures": 4593
+    },
+    "google/correlated_matching": {
+     "failures": 4223
+    },
+    "google/belief_matching": {
+     "failures": 3917
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3820
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.9470896993899487e-06
+   },
+   "wall_seconds": 0.11691895801050123
+  },
+  "sycamore/surface_code_bX_d3_r05_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 4.91386,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7845,
+     "errors": 0,
+     "seconds": 0.021035209
+    },
+    "ours/circuit/correlated": {
+     "failures": 7272,
+     "errors": 0,
+     "seconds": 0.047438542
+    },
+    "ours/ours/plain": {
+     "failures": 7845,
+     "errors": 0,
+     "seconds": 0.021295292
+    },
+    "ours/ours/correlated": {
+     "failures": 7272,
+     "errors": 0,
+     "seconds": 0.046209542
+    },
+    "ours/pij/plain": {
+     "failures": 7394,
+     "errors": 0,
+     "seconds": 0.022442
+    },
+    "ours/pij/correlated": {
+     "failures": 7029,
+     "errors": 0,
+     "seconds": 0.048429665999999996
+    },
+    "google/pymatching": {
+     "failures": 7845
+    },
+    "google/correlated_matching": {
+     "failures": 7174
+    },
+    "google/belief_matching": {
+     "failures": 6599
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6387
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.091042356435537e-06
+   },
+   "wall_seconds": 0.22613058300339617
+  },
+  "sycamore/surface_code_bX_d3_r07_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.0559,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10717,
+     "errors": 0,
+     "seconds": 0.030725375
+    },
+    "ours/circuit/correlated": {
+     "failures": 9773,
+     "errors": 0,
+     "seconds": 0.061680541
+    },
+    "ours/ours/plain": {
+     "failures": 10717,
+     "errors": 0,
+     "seconds": 0.03391725
+    },
+    "ours/ours/correlated": {
+     "failures": 9773,
+     "errors": 0,
+     "seconds": 0.064229333
+    },
+    "ours/pij/plain": {
+     "failures": 10192,
+     "errors": 0,
+     "seconds": 0.035567958999999996
+    },
+    "ours/pij/correlated": {
+     "failures": 9537,
+     "errors": 0,
+     "seconds": 0.071336625
+    },
+    "google/pymatching": {
+     "failures": 10717
+    },
+    "google/correlated_matching": {
+     "failures": 9873
+    },
+    "google/belief_matching": {
+     "failures": 9106
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8880
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.981685999576712e-06
+   },
+   "wall_seconds": 0.3207334170001559
+  },
+  "sycamore/surface_code_bX_d3_r09_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.12042,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12636,
+     "errors": 0,
+     "seconds": 0.039430667
+    },
+    "ours/circuit/correlated": {
+     "failures": 11661,
+     "errors": 0,
+     "seconds": 0.080898167
+    },
+    "ours/ours/plain": {
+     "failures": 12636,
+     "errors": 0,
+     "seconds": 0.038966417
+    },
+    "ours/ours/correlated": {
+     "failures": 11661,
+     "errors": 0,
+     "seconds": 0.087001708
+    },
+    "ours/pij/plain": {
+     "failures": 12117,
+     "errors": 0,
+     "seconds": 0.044229375
+    },
+    "ours/pij/correlated": {
+     "failures": 11255,
+     "errors": 0,
+     "seconds": 0.09576204199999999
+    },
+    "google/pymatching": {
+     "failures": 12636
+    },
+    "google/correlated_matching": {
+     "failures": 11492
+    },
+    "google/belief_matching": {
+     "failures": 10704
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10490
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.410006969379765e-06
+   },
+   "wall_seconds": 0.41517033299896866
+  },
+  "sycamore/surface_code_bX_d3_r11_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 11.3104,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14451,
+     "errors": 0,
+     "seconds": 0.054785417
+    },
+    "ours/circuit/correlated": {
+     "failures": 13355,
+     "errors": 0,
+     "seconds": 0.101562084
+    },
+    "ours/ours/plain": {
+     "failures": 14451,
+     "errors": 0,
+     "seconds": 0.048229209
+    },
+    "ours/ours/correlated": {
+     "failures": 13355,
+     "errors": 0,
+     "seconds": 0.095702
+    },
+    "ours/pij/plain": {
+     "failures": 13863,
+     "errors": 0,
+     "seconds": 0.054688874
+    },
+    "ours/pij/correlated": {
+     "failures": 12925,
+     "errors": 0,
+     "seconds": 0.11459391699999999
+    },
+    "google/pymatching": {
+     "failures": 14451
+    },
+    "google/correlated_matching": {
+     "failures": 13249
+    },
+    "google/belief_matching": {
+     "failures": 12401
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12242
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.194357652589133e-06
+   },
+   "wall_seconds": 0.5027649170078803
+  },
+  "sycamore/surface_code_bX_d3_r13_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 13.74706,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16120,
+     "errors": 0,
+     "seconds": 0.061769166
+    },
+    "ours/circuit/correlated": {
+     "failures": 15059,
+     "errors": 0,
+     "seconds": 0.127434209
+    },
+    "ours/ours/plain": {
+     "failures": 16120,
+     "errors": 0,
+     "seconds": 0.062978875
+    },
+    "ours/ours/correlated": {
+     "failures": 15059,
+     "errors": 0,
+     "seconds": 0.131094083
+    },
+    "ours/pij/plain": {
+     "failures": 15553,
+     "errors": 0,
+     "seconds": 0.067824875
+    },
+    "ours/pij/correlated": {
+     "failures": 14728,
+     "errors": 0,
+     "seconds": 0.140557459
+    },
+    "google/pymatching": {
+     "failures": 16120
+    },
+    "google/correlated_matching": {
+     "failures": 15096
+    },
+    "google/belief_matching": {
+     "failures": 13781
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13566
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.597735375952652e-06
+   },
+   "wall_seconds": 0.6300261670112377
+  },
+  "sycamore/surface_code_bX_d3_r15_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 15.39016,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17056,
+     "errors": 0,
+     "seconds": 0.067717167
+    },
+    "ours/circuit/correlated": {
+     "failures": 15860,
+     "errors": 0,
+     "seconds": 0.1409915
+    },
+    "ours/ours/plain": {
+     "failures": 17056,
+     "errors": 0,
+     "seconds": 0.067616792
+    },
+    "ours/ours/correlated": {
+     "failures": 15860,
+     "errors": 0,
+     "seconds": 0.138774708
+    },
+    "ours/pij/plain": {
+     "failures": 16191,
+     "errors": 0,
+     "seconds": 0.07709833299999999
+    },
+    "ours/pij/correlated": {
+     "failures": 15400,
+     "errors": 0,
+     "seconds": 0.160112792
+    },
+    "google/pymatching": {
+     "failures": 17056
+    },
+    "google/correlated_matching": {
+     "failures": 15830
+    },
+    "google/belief_matching": {
+     "failures": 14581
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14341
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.2088262851034415e-06
+   },
+   "wall_seconds": 0.6948200000042561
+  },
+  "sycamore/surface_code_bX_d3_r17_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 18.02552,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18322,
+     "errors": 0,
+     "seconds": 0.08185275
+    },
+    "ours/circuit/correlated": {
+     "failures": 17280,
+     "errors": 0,
+     "seconds": 0.167300792
+    },
+    "ours/ours/plain": {
+     "failures": 18322,
+     "errors": 0,
+     "seconds": 0.080520875
+    },
+    "ours/ours/correlated": {
+     "failures": 17280,
+     "errors": 0,
+     "seconds": 0.1651825
+    },
+    "ours/pij/plain": {
+     "failures": 17820,
+     "errors": 0,
+     "seconds": 0.087901167
+    },
+    "ours/pij/correlated": {
+     "failures": 16893,
+     "errors": 0,
+     "seconds": 0.21114470800000001
+    },
+    "google/pymatching": {
+     "failures": 18322
+    },
+    "google/correlated_matching": {
+     "failures": 17176
+    },
+    "google/belief_matching": {
+     "failures": 16110
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15887
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.104216341564552e-06
+   },
+   "wall_seconds": 0.8424198330030777
+  },
+  "sycamore/surface_code_bX_d3_r19_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 20.5786,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19436,
+     "errors": 0,
+     "seconds": 0.090488792
+    },
+    "ours/circuit/correlated": {
+     "failures": 18534,
+     "errors": 0,
+     "seconds": 0.187938541
+    },
+    "ours/ours/plain": {
+     "failures": 19436,
+     "errors": 0,
+     "seconds": 0.095409583
+    },
+    "ours/ours/correlated": {
+     "failures": 18534,
+     "errors": 0,
+     "seconds": 0.197092167
+    },
+    "ours/pij/plain": {
+     "failures": 18859,
+     "errors": 0,
+     "seconds": 0.098885959
+    },
+    "ours/pij/correlated": {
+     "failures": 17894,
+     "errors": 0,
+     "seconds": 0.21533941699999998
+    },
+    "google/pymatching": {
+     "failures": 19436
+    },
+    "google/correlated_matching": {
+     "failures": 18450
+    },
+    "google/belief_matching": {
+     "failures": 17282
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17063
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.411678725257389e-06
+   },
+   "wall_seconds": 0.9395650830119848
+  },
+  "sycamore/surface_code_bX_d3_r21_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 22.7407,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20187,
+     "errors": 0,
+     "seconds": 0.098220375
+    },
+    "ours/circuit/correlated": {
+     "failures": 19300,
+     "errors": 0,
+     "seconds": 0.203921
+    },
+    "ours/ours/plain": {
+     "failures": 20187,
+     "errors": 0,
+     "seconds": 0.101089459
+    },
+    "ours/ours/correlated": {
+     "failures": 19300,
+     "errors": 0,
+     "seconds": 0.20921375
+    },
+    "ours/pij/plain": {
+     "failures": 19808,
+     "errors": 0,
+     "seconds": 0.108853875
+    },
+    "ours/pij/correlated": {
+     "failures": 18975,
+     "errors": 0,
+     "seconds": 0.232296708
+    },
+    "google/pymatching": {
+     "failures": 20183
+    },
+    "google/correlated_matching": {
+     "failures": 19210
+    },
+    "google/belief_matching": {
+     "failures": 18078
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17864
+    }
+   },
+   "pymatching_check": {
+    "disagree": 4,
+    "ours_optimal": 4,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.682573027523176e-06
+   },
+   "wall_seconds": 1.0110595419973833
+  },
+  "sycamore/surface_code_bX_d3_r23_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 24.95654,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20874,
+     "errors": 0,
+     "seconds": 0.10880725
+    },
+    "ours/circuit/correlated": {
+     "failures": 20101,
+     "errors": 0,
+     "seconds": 0.224381125
+    },
+    "ours/ours/plain": {
+     "failures": 20874,
+     "errors": 0,
+     "seconds": 0.110754709
+    },
+    "ours/ours/correlated": {
+     "failures": 20101,
+     "errors": 0,
+     "seconds": 0.229520584
+    },
+    "ours/pij/plain": {
+     "failures": 20433,
+     "errors": 0,
+     "seconds": 0.120909666
+    },
+    "ours/pij/correlated": {
+     "failures": 19583,
+     "errors": 0,
+     "seconds": 0.256336416
+    },
+    "google/pymatching": {
+     "failures": 20867
+    },
+    "google/correlated_matching": {
+     "failures": 19957
+    },
+    "google/belief_matching": {
+     "failures": 18843
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18824
+    }
+   },
+   "pymatching_check": {
+    "disagree": 15,
+    "ours_optimal": 15,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.0132622364267263e-05
+   },
+   "wall_seconds": 1.1126645829936024
+  },
+  "sycamore/surface_code_bX_d3_r25_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 26.97224,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21499,
+     "errors": 0,
+     "seconds": 0.121265083
+    },
+    "ours/circuit/correlated": {
+     "failures": 20728,
+     "errors": 0,
+     "seconds": 0.253834292
+    },
+    "ours/ours/plain": {
+     "failures": 21499,
+     "errors": 0,
+     "seconds": 0.114851166
+    },
+    "ours/ours/correlated": {
+     "failures": 20728,
+     "errors": 0,
+     "seconds": 0.29682975
+    },
+    "ours/pij/plain": {
+     "failures": 20967,
+     "errors": 0,
+     "seconds": 0.128479125
+    },
+    "ours/pij/correlated": {
+     "failures": 20125,
+     "errors": 0,
+     "seconds": 0.26787812499999997
+    },
+    "google/pymatching": {
+     "failures": 21497
+    },
+    "google/correlated_matching": {
+     "failures": 20648
+    },
+    "google/belief_matching": {
+     "failures": 19418
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19436
+    }
+   },
+   "pymatching_check": {
+    "disagree": 18,
+    "ours_optimal": 18,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.1266556683153794e-05
+   },
+   "wall_seconds": 1.2505167499912204
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 8,
+   "mean_defects": 0.55398,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 943,
+     "errors": 0,
+     "seconds": 0.002416041
+    },
+    "ours/circuit/correlated": {
+     "failures": 943,
+     "errors": 0,
+     "seconds": 0.004472375
+    },
+    "ours/ours/plain": {
+     "failures": 943,
+     "errors": 0,
+     "seconds": 0.002527125
+    },
+    "ours/ours/correlated": {
+     "failures": 943,
+     "errors": 0,
+     "seconds": 0.004269125
+    },
+    "ours/pij/plain": {
+     "failures": 951,
+     "errors": 0,
+     "seconds": 0.002458167
+    },
+    "ours/pij/correlated": {
+     "failures": 951,
+     "errors": 0,
+     "seconds": 0.004450582999999999
+    },
+    "google/pymatching": {
+     "failures": 943
+    },
+    "google/correlated_matching": {
+     "failures": 943
+    },
+    "google/belief_matching": {
+     "failures": 952
+    },
+    "google/tensor_network_contraction": {
+     "failures": 910
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.1754193014468228e-06
+   },
+   "wall_seconds": 0.029579040987300687
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 2.67996,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4007,
+     "errors": 0,
+     "seconds": 0.011230666
+    },
+    "ours/circuit/correlated": {
+     "failures": 3613,
+     "errors": 0,
+     "seconds": 0.022931708
+    },
+    "ours/ours/plain": {
+     "failures": 4007,
+     "errors": 0,
+     "seconds": 0.010835709
+    },
+    "ours/ours/correlated": {
+     "failures": 3613,
+     "errors": 0,
+     "seconds": 0.023934084
+    },
+    "ours/pij/plain": {
+     "failures": 3997,
+     "errors": 0,
+     "seconds": 0.012056708
+    },
+    "ours/pij/correlated": {
+     "failures": 3645,
+     "errors": 0,
+     "seconds": 0.023767917
+    },
+    "google/pymatching": {
+     "failures": 4007
+    },
+    "google/correlated_matching": {
+     "failures": 3690
+    },
+    "google/belief_matching": {
+     "failures": 3462
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3395
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.5199350623950068e-06
+   },
+   "wall_seconds": 0.1199983330006944
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 40,
+   "mean_defects": 4.96788,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7888,
+     "errors": 0,
+     "seconds": 0.023391792
+    },
+    "ours/circuit/correlated": {
+     "failures": 6819,
+     "errors": 0,
+     "seconds": 0.046419459
+    },
+    "ours/ours/plain": {
+     "failures": 7888,
+     "errors": 0,
+     "seconds": 0.023586083
+    },
+    "ours/ours/correlated": {
+     "failures": 6819,
+     "errors": 0,
+     "seconds": 0.042947334
+    },
+    "ours/pij/plain": {
+     "failures": 7813,
+     "errors": 0,
+     "seconds": 0.023260541
+    },
+    "ours/pij/correlated": {
+     "failures": 6863,
+     "errors": 0,
+     "seconds": 0.049508459000000005
+    },
+    "google/pymatching": {
+     "failures": 7888
+    },
+    "google/correlated_matching": {
+     "failures": 7038
+    },
+    "google/belief_matching": {
+     "failures": 6569
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6241
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.805848033915481e-06
+   },
+   "wall_seconds": 0.2287750419927761
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 56,
+   "mean_defects": 7.09408,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 9509,
+     "errors": 0,
+     "seconds": 0.032803792
+    },
+    "ours/circuit/correlated": {
+     "failures": 8554,
+     "errors": 0,
+     "seconds": 0.07040375
+    },
+    "ours/ours/plain": {
+     "failures": 9509,
+     "errors": 0,
+     "seconds": 0.032099958
+    },
+    "ours/ours/correlated": {
+     "failures": 8554,
+     "errors": 0,
+     "seconds": 0.065564708
+    },
+    "ours/pij/plain": {
+     "failures": 9460,
+     "errors": 0,
+     "seconds": 0.034167541999999995
+    },
+    "ours/pij/correlated": {
+     "failures": 8506,
+     "errors": 0,
+     "seconds": 0.072813875
+    },
+    "google/pymatching": {
+     "failures": 9509
+    },
+    "google/correlated_matching": {
+     "failures": 8703
+    },
+    "google/belief_matching": {
+     "failures": 7905
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7593
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 3.9240680536067885e-06
+   },
+   "wall_seconds": 0.3320190829981584
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.31902,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 11553,
+     "errors": 0,
+     "seconds": 0.042087375
+    },
+    "ours/circuit/correlated": {
+     "failures": 10540,
+     "errors": 0,
+     "seconds": 0.089021208
+    },
+    "ours/ours/plain": {
+     "failures": 11553,
+     "errors": 0,
+     "seconds": 0.04347225
+    },
+    "ours/ours/correlated": {
+     "failures": 10540,
+     "errors": 0,
+     "seconds": 0.084633
+    },
+    "ours/pij/plain": {
+     "failures": 11490,
+     "errors": 0,
+     "seconds": 0.048479668000000004
+    },
+    "ours/pij/correlated": {
+     "failures": 10437,
+     "errors": 0,
+     "seconds": 0.097217751
+    },
+    "google/pymatching": {
+     "failures": 11553
+    },
+    "google/correlated_matching": {
+     "failures": 10672
+    },
+    "google/belief_matching": {
+     "failures": 9876
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9474
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.885098018547751e-06
+   },
+   "wall_seconds": 0.43223079199378844
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 88,
+   "mean_defects": 11.37786,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12899,
+     "errors": 0,
+     "seconds": 0.052014833
+    },
+    "ours/circuit/correlated": {
+     "failures": 11826,
+     "errors": 0,
+     "seconds": 0.10479825
+    },
+    "ours/ours/plain": {
+     "failures": 12899,
+     "errors": 0,
+     "seconds": 0.049753917
+    },
+    "ours/ours/correlated": {
+     "failures": 11826,
+     "errors": 0,
+     "seconds": 0.102675
+    },
+    "ours/pij/plain": {
+     "failures": 12855,
+     "errors": 0,
+     "seconds": 0.057948584
+    },
+    "ours/pij/correlated": {
+     "failures": 11839,
+     "errors": 0,
+     "seconds": 0.115590791
+    },
+    "google/pymatching": {
+     "failures": 12899
+    },
+    "google/correlated_matching": {
+     "failures": 11971
+    },
+    "google/belief_matching": {
+     "failures": 11174
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10726
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.0237673363540125e-06
+   },
+   "wall_seconds": 0.5151017079915619
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 104,
+   "mean_defects": 13.81148,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 15732,
+     "errors": 0,
+     "seconds": 0.059225542
+    },
+    "ours/circuit/correlated": {
+     "failures": 14200,
+     "errors": 0,
+     "seconds": 0.152654583
+    },
+    "ours/ours/plain": {
+     "failures": 15732,
+     "errors": 0,
+     "seconds": 0.058438292
+    },
+    "ours/ours/correlated": {
+     "failures": 14200,
+     "errors": 0,
+     "seconds": 0.128300458
+    },
+    "ours/pij/plain": {
+     "failures": 15669,
+     "errors": 0,
+     "seconds": 0.07197737500000001
+    },
+    "ours/pij/correlated": {
+     "failures": 14155,
+     "errors": 0,
+     "seconds": 0.148170291
+    },
+    "google/pymatching": {
+     "failures": 15732
+    },
+    "google/correlated_matching": {
+     "failures": 14411
+    },
+    "google/belief_matching": {
+     "failures": 13535
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13137
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 5.753591004520331e-06
+   },
+   "wall_seconds": 0.6568070000066655
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 15.64522,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16577,
+     "errors": 0,
+     "seconds": 0.069136458
+    },
+    "ours/circuit/correlated": {
+     "failures": 14937,
+     "errors": 0,
+     "seconds": 0.145162625
+    },
+    "ours/ours/plain": {
+     "failures": 16577,
+     "errors": 0,
+     "seconds": 0.066713833
+    },
+    "ours/ours/correlated": {
+     "failures": 14937,
+     "errors": 0,
+     "seconds": 0.144975916
+    },
+    "ours/pij/plain": {
+     "failures": 16566,
+     "errors": 0,
+     "seconds": 0.082483375
+    },
+    "ours/pij/correlated": {
+     "failures": 15077,
+     "errors": 0,
+     "seconds": 0.16025062499999998
+    },
+    "google/pymatching": {
+     "failures": 16577
+    },
+    "google/correlated_matching": {
+     "failures": 15201
+    },
+    "google/belief_matching": {
+     "failures": 14327
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14123
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.761975285485278e-06
+   },
+   "wall_seconds": 0.7120349160104524
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 136,
+   "mean_defects": 17.89624,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17902,
+     "errors": 0,
+     "seconds": 0.080091708
+    },
+    "ours/circuit/correlated": {
+     "failures": 16296,
+     "errors": 0,
+     "seconds": 0.171073708
+    },
+    "ours/ours/plain": {
+     "failures": 17902,
+     "errors": 0,
+     "seconds": 0.077795292
+    },
+    "ours/ours/correlated": {
+     "failures": 16296,
+     "errors": 0,
+     "seconds": 0.1614565
+    },
+    "ours/pij/plain": {
+     "failures": 17907,
+     "errors": 0,
+     "seconds": 0.094025209
+    },
+    "ours/pij/correlated": {
+     "failures": 16400,
+     "errors": 0,
+     "seconds": 0.187431416
+    },
+    "google/pymatching": {
+     "failures": 17901
+    },
+    "google/correlated_matching": {
+     "failures": 16505
+    },
+    "google/belief_matching": {
+     "failures": 15713
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15328
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.76175927796885e-06
+   },
+   "wall_seconds": 0.8190497920004418
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 152,
+   "mean_defects": 20.89094,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19623,
+     "errors": 0,
+     "seconds": 0.09244075
+    },
+    "ours/circuit/correlated": {
+     "failures": 18246,
+     "errors": 0,
+     "seconds": 0.193832375
+    },
+    "ours/ours/plain": {
+     "failures": 19623,
+     "errors": 0,
+     "seconds": 0.090303542
+    },
+    "ours/ours/correlated": {
+     "failures": 18246,
+     "errors": 0,
+     "seconds": 0.197797208
+    },
+    "ours/pij/plain": {
+     "failures": 19506,
+     "errors": 0,
+     "seconds": 0.108675332
+    },
+    "ours/pij/correlated": {
+     "failures": 18219,
+     "errors": 0,
+     "seconds": 0.223834292
+    },
+    "google/pymatching": {
+     "failures": 19621
+    },
+    "google/correlated_matching": {
+     "failures": 18368
+    },
+    "google/belief_matching": {
+     "failures": 17614
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17226
+    }
+   },
+   "pymatching_check": {
+    "disagree": 4,
+    "ours_optimal": 4,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.279160851998313e-06
+   },
+   "wall_seconds": 0.958916291987407
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 23.0709,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20418,
+     "errors": 0,
+     "seconds": 0.10061675
+    },
+    "ours/circuit/correlated": {
+     "failures": 18944,
+     "errors": 0,
+     "seconds": 0.217324
+    },
+    "ours/ours/plain": {
+     "failures": 20418,
+     "errors": 0,
+     "seconds": 0.112609
+    },
+    "ours/ours/correlated": {
+     "failures": 18944,
+     "errors": 0,
+     "seconds": 0.214007167
+    },
+    "ours/pij/plain": {
+     "failures": 20324,
+     "errors": 0,
+     "seconds": 0.113979917
+    },
+    "ours/pij/correlated": {
+     "failures": 19019,
+     "errors": 0,
+     "seconds": 0.232338125
+    },
+    "google/pymatching": {
+     "failures": 20416
+    },
+    "google/correlated_matching": {
+     "failures": 19253
+    },
+    "google/belief_matching": {
+     "failures": 18289
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18080
+    }
+   },
+   "pymatching_check": {
+    "disagree": 10,
+    "ours_optimal": 10,
+    "ours_not_optimal": 0,
+    "weight_noise": 7.485699946130353e-06
+   },
+   "wall_seconds": 1.0472042910114396
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 184,
+   "mean_defects": 25.01506,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20808,
+     "errors": 0,
+     "seconds": 0.106883542
+    },
+    "ours/circuit/correlated": {
+     "failures": 19375,
+     "errors": 0,
+     "seconds": 0.23476475
+    },
+    "ours/ours/plain": {
+     "failures": 20808,
+     "errors": 0,
+     "seconds": 0.113120958
+    },
+    "ours/ours/correlated": {
+     "failures": 19375,
+     "errors": 0,
+     "seconds": 0.232377125
+    },
+    "ours/pij/plain": {
+     "failures": 20765,
+     "errors": 0,
+     "seconds": 0.125772292
+    },
+    "ours/pij/correlated": {
+     "failures": 19592,
+     "errors": 0,
+     "seconds": 0.24610654199999998
+    },
+    "google/pymatching": {
+     "failures": 20803
+    },
+    "google/correlated_matching": {
+     "failures": 19555
+    },
+    "google/belief_matching": {
+     "failures": 18803
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18616
+    }
+   },
+   "pymatching_check": {
+    "disagree": 21,
+    "ours_optimal": 21,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.0407665911316144e-05
+   },
+   "wall_seconds": 1.1218197919952217
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 200,
+   "mean_defects": 27.1755,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21360,
+     "errors": 0,
+     "seconds": 0.119897833
+    },
+    "ours/circuit/correlated": {
+     "failures": 19922,
+     "errors": 0,
+     "seconds": 0.253065083
+    },
+    "ours/ours/plain": {
+     "failures": 21360,
+     "errors": 0,
+     "seconds": 0.119864084
+    },
+    "ours/ours/correlated": {
+     "failures": 19922,
+     "errors": 0,
+     "seconds": 0.246164125
+    },
+    "ours/pij/plain": {
+     "failures": 21297,
+     "errors": 0,
+     "seconds": 0.14088645900000002
+    },
+    "ours/pij/correlated": {
+     "failures": 20114,
+     "errors": 0,
+     "seconds": 0.29683375
+    },
+    "google/pymatching": {
+     "failures": 21363
+    },
+    "google/correlated_matching": {
+     "failures": 20211
+    },
+    "google/belief_matching": {
+     "failures": 19390
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19003
+    }
+   },
+   "pymatching_check": {
+    "disagree": 21,
+    "ours_optimal": 21,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.0938545386807164e-05
+   },
+   "wall_seconds": 1.2437917079951148
+  },
+  "sycamore/surface_code_bX_d5_r01_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 1.80824,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 449,
+     "errors": 0,
+     "seconds": 0.008406083
+    },
+    "ours/circuit/correlated": {
+     "failures": 447,
+     "errors": 0,
+     "seconds": 0.01777525
+    },
+    "ours/ours/plain": {
+     "failures": 449,
+     "errors": 0,
+     "seconds": 0.008727083
+    },
+    "ours/ours/correlated": {
+     "failures": 447,
+     "errors": 0,
+     "seconds": 0.016376292
+    },
+    "ours/pij/plain": {
+     "failures": 451,
+     "errors": 0,
+     "seconds": 0.008446917
+    },
+    "ours/pij/correlated": {
+     "failures": 451,
+     "errors": 0,
+     "seconds": 0.016120166999999998
+    },
+    "google/pymatching": {
+     "failures": 449
+    },
+    "google/correlated_matching": {
+     "failures": 447
+    },
+    "google/belief_matching": {
+     "failures": 447
+    },
+    "google/tensor_network_contraction": {
+     "failures": 426
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.978419717829638e-06
+   },
+   "wall_seconds": 0.08694833300251048
+  },
+  "sycamore/surface_code_bX_d5_r03_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.31252,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 4082,
+     "errors": 0,
+     "seconds": 0.048066083
+    },
+    "ours/circuit/correlated": {
+     "failures": 3411,
+     "errors": 0,
+     "seconds": 0.104188375
+    },
+    "ours/ours/plain": {
+     "failures": 4082,
+     "errors": 0,
+     "seconds": 0.050503041
+    },
+    "ours/ours/correlated": {
+     "failures": 3411,
+     "errors": 0,
+     "seconds": 0.11319675
+    },
+    "ours/pij/plain": {
+     "failures": 3905,
+     "errors": 0,
+     "seconds": 0.055285041
+    },
+    "ours/pij/correlated": {
+     "failures": 3305,
+     "errors": 0,
+     "seconds": 0.114120166
+    },
+    "google/pymatching": {
+     "failures": 4082
+    },
+    "google/correlated_matching": {
+     "failures": 3527
+    },
+    "google/belief_matching": {
+     "failures": 3066
+    },
+    "google/tensor_network_contraction": {
+     "failures": 2794
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.3113221792623335e-06
+   },
+   "wall_seconds": 0.5133044579997659
+  },
+  "sycamore/surface_code_bX_d5_r05_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 16.80612,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7412,
+     "errors": 0,
+     "seconds": 0.097946958
+    },
+    "ours/circuit/correlated": {
+     "failures": 6387,
+     "errors": 0,
+     "seconds": 0.206158208
+    },
+    "ours/ours/plain": {
+     "failures": 7412,
+     "errors": 0,
+     "seconds": 0.094906375
+    },
+    "ours/ours/correlated": {
+     "failures": 6387,
+     "errors": 0,
+     "seconds": 0.203464958
+    },
+    "ours/pij/plain": {
+     "failures": 7270,
+     "errors": 0,
+     "seconds": 0.10200783399999999
+    },
+    "ours/pij/correlated": {
+     "failures": 6263,
+     "errors": 0,
+     "seconds": 0.230699709
+    },
+    "google/pymatching": {
+     "failures": 7412
+    },
+    "google/correlated_matching": {
+     "failures": 6504
+    },
+    "google/belief_matching": {
+     "failures": 5652
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5392
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.323123884044435e-06
+   },
+   "wall_seconds": 0.979527124989545
+  },
+  "sycamore/surface_code_bX_d5_r07_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 24.49852,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 10642,
+     "errors": 0,
+     "seconds": 0.14426625
+    },
+    "ours/circuit/correlated": {
+     "failures": 9088,
+     "errors": 0,
+     "seconds": 0.309809666
+    },
+    "ours/ours/plain": {
+     "failures": 10642,
+     "errors": 0,
+     "seconds": 0.138515833
+    },
+    "ours/ours/correlated": {
+     "failures": 9088,
+     "errors": 0,
+     "seconds": 0.361368709
+    },
+    "ours/pij/plain": {
+     "failures": 10591,
+     "errors": 0,
+     "seconds": 0.160041458
+    },
+    "ours/pij/correlated": {
+     "failures": 8890,
+     "errors": 0,
+     "seconds": 0.334169916
+    },
+    "google/pymatching": {
+     "failures": 10643
+    },
+    "google/correlated_matching": {
+     "failures": 9252
+    },
+    "google/belief_matching": {
+     "failures": 8036
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7695
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.135376856761468e-06
+   },
+   "wall_seconds": 1.5078049169969745
+  },
+  "sycamore/surface_code_bX_d5_r09_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 216,
+   "mean_defects": 32.20446,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 13022,
+     "errors": 0,
+     "seconds": 0.191473917
+    },
+    "ours/circuit/correlated": {
+     "failures": 11189,
+     "errors": 0,
+     "seconds": 0.410306834
+    },
+    "ours/ours/plain": {
+     "failures": 13022,
+     "errors": 0,
+     "seconds": 0.196189125
+    },
+    "ours/ours/correlated": {
+     "failures": 11189,
+     "errors": 0,
+     "seconds": 0.403198167
+    },
+    "ours/pij/plain": {
+     "failures": 12830,
+     "errors": 0,
+     "seconds": 0.211184125
+    },
+    "ours/pij/correlated": {
+     "failures": 10994,
+     "errors": 0,
+     "seconds": 0.46868483400000005
+    },
+    "google/pymatching": {
+     "failures": 13021
+    },
+    "google/correlated_matching": {
+     "failures": 11304
+    },
+    "google/belief_matching": {
+     "failures": 10159
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9604
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 8.801482849207787e-06
+   },
+   "wall_seconds": 1.9581691659986973
+  },
+  "sycamore/surface_code_bX_d5_r11_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 264,
+   "mean_defects": 40.43096,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 15254,
+     "errors": 0,
+     "seconds": 0.24743775
+    },
+    "ours/circuit/correlated": {
+     "failures": 13354,
+     "errors": 0,
+     "seconds": 0.523474083
+    },
+    "ours/ours/plain": {
+     "failures": 15254,
+     "errors": 0,
+     "seconds": 0.261579333
+    },
+    "ours/ours/correlated": {
+     "failures": 13354,
+     "errors": 0,
+     "seconds": 0.514221542
+    },
+    "ours/pij/plain": {
+     "failures": 15117,
+     "errors": 0,
+     "seconds": 0.275534333
+    },
+    "ours/pij/correlated": {
+     "failures": 13209,
+     "errors": 0,
+     "seconds": 0.588067916
+    },
+    "google/pymatching": {
+     "failures": 15256
+    },
+    "google/correlated_matching": {
+     "failures": 13399
+    },
+    "google/belief_matching": {
+     "failures": 12125
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11619
+    }
+   },
+   "pymatching_check": {
+    "disagree": 8,
+    "ours_optimal": 8,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.549975132472355e-06
+   },
+   "wall_seconds": 2.5034972080029547
+  },
+  "sycamore/surface_code_bX_d5_r13_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 312,
+   "mean_defects": 47.66662,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16440,
+     "errors": 0,
+     "seconds": 0.301212167
+    },
+    "ours/circuit/correlated": {
+     "failures": 14745,
+     "errors": 0,
+     "seconds": 0.649884166
+    },
+    "ours/ours/plain": {
+     "failures": 16440,
+     "errors": 0,
+     "seconds": 0.288353541
+    },
+    "ours/ours/correlated": {
+     "failures": 14745,
+     "errors": 0,
+     "seconds": 0.680546458
+    },
+    "ours/pij/plain": {
+     "failures": 16388,
+     "errors": 0,
+     "seconds": 0.332830042
+    },
+    "ours/pij/correlated": {
+     "failures": 14475,
+     "errors": 0,
+     "seconds": 0.712828333
+    },
+    "google/pymatching": {
+     "failures": 16447
+    },
+    "google/correlated_matching": {
+     "failures": 14797
+    },
+    "google/belief_matching": {
+     "failures": 13182
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12593
+    }
+   },
+   "pymatching_check": {
+    "disagree": 39,
+    "ours_optimal": 39,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.1385194085278272e-05
+   },
+   "wall_seconds": 3.075823541992577
+  },
+  "sycamore/surface_code_bX_d5_r15_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 360,
+   "mean_defects": 55.87722,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18123,
+     "errors": 0,
+     "seconds": 0.346059834
+    },
+    "ours/circuit/correlated": {
+     "failures": 16421,
+     "errors": 0,
+     "seconds": 0.734067083
+    },
+    "ours/ours/plain": {
+     "failures": 18123,
+     "errors": 0,
+     "seconds": 0.3455635
+    },
+    "ours/ours/correlated": {
+     "failures": 16421,
+     "errors": 0,
+     "seconds": 0.73381425
+    },
+    "ours/pij/plain": {
+     "failures": 18049,
+     "errors": 0,
+     "seconds": 0.380615125
+    },
+    "ours/pij/correlated": {
+     "failures": 15938,
+     "errors": 0,
+     "seconds": 0.804891501
+    },
+    "google/pymatching": {
+     "failures": 18146
+    },
+    "google/correlated_matching": {
+     "failures": 16517
+    },
+    "google/belief_matching": {
+     "failures": 14864
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14452
+    }
+   },
+   "pymatching_check": {
+    "disagree": 97,
+    "ours_optimal": 97,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.4140158071995756e-05
+   },
+   "wall_seconds": 3.474802582990378
+  },
+  "sycamore/surface_code_bX_d5_r17_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 408,
+   "mean_defects": 64.10248,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19179,
+     "errors": 0,
+     "seconds": 0.405554375
+    },
+    "ours/circuit/correlated": {
+     "failures": 17360,
+     "errors": 0,
+     "seconds": 0.846584292
+    },
+    "ours/ours/plain": {
+     "failures": 19179,
+     "errors": 0,
+     "seconds": 0.398575709
+    },
+    "ours/ours/correlated": {
+     "failures": 17360,
+     "errors": 0,
+     "seconds": 0.850373833
+    },
+    "ours/pij/plain": {
+     "failures": 19304,
+     "errors": 0,
+     "seconds": 0.448987541
+    },
+    "ours/pij/correlated": {
+     "failures": 17167,
+     "errors": 0,
+     "seconds": 0.92637825
+    },
+    "google/pymatching": {
+     "failures": 19207
+    },
+    "google/correlated_matching": {
+     "failures": 17557
+    },
+    "google/belief_matching": {
+     "failures": 16057
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15554
+    }
+   },
+   "pymatching_check": {
+    "disagree": 220,
+    "ours_optimal": 220,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.3381581027260836e-05
+   },
+   "wall_seconds": 4.027711250004359
+  },
+  "sycamore/surface_code_bX_d5_r19_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 456,
+   "mean_defects": 71.85566,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20493,
+     "errors": 0,
+     "seconds": 0.489191417
+    },
+    "ours/circuit/correlated": {
+     "failures": 18831,
+     "errors": 0,
+     "seconds": 0.964080625
+    },
+    "ours/ours/plain": {
+     "failures": 20493,
+     "errors": 0,
+     "seconds": 0.450567833
+    },
+    "ours/ours/correlated": {
+     "failures": 18831,
+     "errors": 0,
+     "seconds": 0.946864334
+    },
+    "ours/pij/plain": {
+     "failures": 20502,
+     "errors": 0,
+     "seconds": 0.496411416
+    },
+    "ours/pij/correlated": {
+     "failures": 18808,
+     "errors": 0,
+     "seconds": 1.0770515
+    },
+    "google/pymatching": {
+     "failures": 20512
+    },
+    "google/correlated_matching": {
+     "failures": 19041
+    },
+    "google/belief_matching": {
+     "failures": 17516
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17147
+    }
+   },
+   "pymatching_check": {
+    "disagree": 355,
+    "ours_optimal": 355,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.6504747208045956e-05
+   },
+   "wall_seconds": 4.5959489999950165
+  },
+  "sycamore/surface_code_bX_d5_r21_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 504,
+   "mean_defects": 80.18812,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20956,
+     "errors": 0,
+     "seconds": 0.498402125
+    },
+    "ours/circuit/correlated": {
+     "failures": 19388,
+     "errors": 0,
+     "seconds": 1.0747155
+    },
+    "ours/ours/plain": {
+     "failures": 20956,
+     "errors": 0,
+     "seconds": 0.503264083
+    },
+    "ours/ours/correlated": {
+     "failures": 19388,
+     "errors": 0,
+     "seconds": 1.081736125
+    },
+    "ours/pij/plain": {
+     "failures": 20959,
+     "errors": 0,
+     "seconds": 0.5596867919999999
+    },
+    "ours/pij/correlated": {
+     "failures": 19292,
+     "errors": 0,
+     "seconds": 1.143593125
+    },
+    "google/pymatching": {
+     "failures": 20998
+    },
+    "google/correlated_matching": {
+     "failures": 19523
+    },
+    "google/belief_matching": {
+     "failures": 18169
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17576
+    }
+   },
+   "pymatching_check": {
+    "disagree": 664,
+    "ours_optimal": 664,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.7318671780230943e-05
+   },
+   "wall_seconds": 5.065732457995182
+  },
+  "sycamore/surface_code_bX_d5_r23_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 552,
+   "mean_defects": 87.42004,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21975,
+     "errors": 0,
+     "seconds": 0.540691875
+    },
+    "ours/circuit/correlated": {
+     "failures": 20353,
+     "errors": 0,
+     "seconds": 1.155258875
+    },
+    "ours/ours/plain": {
+     "failures": 21975,
+     "errors": 0,
+     "seconds": 0.563111958
+    },
+    "ours/ours/correlated": {
+     "failures": 20353,
+     "errors": 0,
+     "seconds": 1.1456125
+    },
+    "ours/pij/plain": {
+     "failures": 21982,
+     "errors": 0,
+     "seconds": 0.625252708
+    },
+    "ours/pij/correlated": {
+     "failures": 20225,
+     "errors": 0,
+     "seconds": 1.262070584
+    },
+    "google/pymatching": {
+     "failures": 21944
+    },
+    "google/correlated_matching": {
+     "failures": 20563
+    },
+    "google/belief_matching": {
+     "failures": 19192
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18690
+    }
+   },
+   "pymatching_check": {
+    "disagree": 977,
+    "ours_optimal": 977,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.7948739042594752e-05
+   },
+   "wall_seconds": 5.529120334002073
+  },
+  "sycamore/surface_code_bX_d5_r25_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 600,
+   "mean_defects": 95.5949,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 22487,
+     "errors": 0,
+     "seconds": 0.599398583
+    },
+    "ours/circuit/correlated": {
+     "failures": 21057,
+     "errors": 0,
+     "seconds": 1.2830672920000001
+    },
+    "ours/ours/plain": {
+     "failures": 22487,
+     "errors": 0,
+     "seconds": 0.598819208
+    },
+    "ours/ours/correlated": {
+     "failures": 21057,
+     "errors": 0,
+     "seconds": 1.317273084
+    },
+    "ours/pij/plain": {
+     "failures": 22620,
+     "errors": 0,
+     "seconds": 0.676487584
+    },
+    "ours/pij/correlated": {
+     "failures": 21124,
+     "errors": 0,
+     "seconds": 1.4281148739999998
+    },
+    "google/pymatching": {
+     "failures": 22551
+    },
+    "google/correlated_matching": {
+     "failures": 21283
+    },
+    "google/belief_matching": {
+     "failures": 20074
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19775
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1564,
+    "ours_optimal": 1564,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.7726053954447707e-05
+   },
+   "wall_seconds": 6.188781292003114
+  },
+  "sycamore/surface_code_bZ_d5_r01_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "detectors": 24,
+   "mean_defects": 1.87494,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 408,
+     "errors": 0,
+     "seconds": 0.009100833
+    },
+    "ours/circuit/correlated": {
+     "failures": 408,
+     "errors": 0,
+     "seconds": 0.016626167
+    },
+    "ours/ours/plain": {
+     "failures": 408,
+     "errors": 0,
+     "seconds": 0.00894475
+    },
+    "ours/ours/correlated": {
+     "failures": 408,
+     "errors": 0,
+     "seconds": 0.016935292
+    },
+    "ours/pij/plain": {
+     "failures": 392,
+     "errors": 0,
+     "seconds": 0.009074667
+    },
+    "ours/pij/correlated": {
+     "failures": 392,
+     "errors": 0,
+     "seconds": 0.018008584
+    },
+    "google/pymatching": {
+     "failures": 408
+    },
+    "google/correlated_matching": {
+     "failures": 408
+    },
+    "google/belief_matching": {
+     "failures": 399
+    },
+    "google/tensor_network_contraction": {
+     "failures": 385
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.3281388958906746e-06
+   },
+   "wall_seconds": 0.09107283299090341
+  },
+  "sycamore/surface_code_bZ_d5_r03_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "detectors": 72,
+   "mean_defects": 9.297,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 3644,
+     "errors": 0,
+     "seconds": 0.048174541
+    },
+    "ours/circuit/correlated": {
+     "failures": 3183,
+     "errors": 0,
+     "seconds": 0.096813584
+    },
+    "ours/ours/plain": {
+     "failures": 3644,
+     "errors": 0,
+     "seconds": 0.049930833
+    },
+    "ours/ours/correlated": {
+     "failures": 3183,
+     "errors": 0,
+     "seconds": 0.114134667
+    },
+    "ours/pij/plain": {
+     "failures": 3549,
+     "errors": 0,
+     "seconds": 0.057656165999999995
+    },
+    "ours/pij/correlated": {
+     "failures": 3104,
+     "errors": 0,
+     "seconds": 0.113540958
+    },
+    "google/pymatching": {
+     "failures": 3644
+    },
+    "google/correlated_matching": {
+     "failures": 3259
+    },
+    "google/belief_matching": {
+     "failures": 2780
+    },
+    "google/tensor_network_contraction": {
+     "failures": 2639
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 4.271390011467702e-06
+   },
+   "wall_seconds": 0.5077473749988712
+  },
+  "sycamore/surface_code_bZ_d5_r05_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "detectors": 120,
+   "mean_defects": 17.11146,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 7188,
+     "errors": 0,
+     "seconds": 0.103154292
+    },
+    "ours/circuit/correlated": {
+     "failures": 6086,
+     "errors": 0,
+     "seconds": 0.2048545
+    },
+    "ours/ours/plain": {
+     "failures": 7188,
+     "errors": 0,
+     "seconds": 0.099072042
+    },
+    "ours/ours/correlated": {
+     "failures": 6086,
+     "errors": 0,
+     "seconds": 0.198932208
+    },
+    "ours/pij/plain": {
+     "failures": 7079,
+     "errors": 0,
+     "seconds": 0.109019666
+    },
+    "ours/pij/correlated": {
+     "failures": 5924,
+     "errors": 0,
+     "seconds": 0.23742454200000002
+    },
+    "google/pymatching": {
+     "failures": 7188
+    },
+    "google/correlated_matching": {
+     "failures": 6258
+    },
+    "google/belief_matching": {
+     "failures": 5362
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5108
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 6.441942105084308e-06
+   },
+   "wall_seconds": 0.9972923340101261
+  },
+  "sycamore/surface_code_bZ_d5_r07_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "detectors": 168,
+   "mean_defects": 24.62146,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 9957,
+     "errors": 0,
+     "seconds": 0.141689875
+    },
+    "ours/circuit/correlated": {
+     "failures": 8562,
+     "errors": 0,
+     "seconds": 0.304434709
+    },
+    "ours/ours/plain": {
+     "failures": 9957,
+     "errors": 0,
+     "seconds": 0.1553985
+    },
+    "ours/ours/correlated": {
+     "failures": 8562,
+     "errors": 0,
+     "seconds": 0.302343958
+    },
+    "ours/pij/plain": {
+     "failures": 9848,
+     "errors": 0,
+     "seconds": 0.160521792
+    },
+    "ours/pij/correlated": {
+     "failures": 8317,
+     "errors": 0,
+     "seconds": 0.344013291
+    },
+    "google/pymatching": {
+     "failures": 9957
+    },
+    "google/correlated_matching": {
+     "failures": 8712
+    },
+    "google/belief_matching": {
+     "failures": 7692
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7190
+    }
+   },
+   "pymatching_check": {
+    "disagree": 0,
+    "ours_optimal": 0,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.488130572776754e-06
+   },
+   "wall_seconds": 1.4688987919944339
+  },
+  "sycamore/surface_code_bZ_d5_r09_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "detectors": 216,
+   "mean_defects": 32.31362,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 12215,
+     "errors": 0,
+     "seconds": 0.204583666
+    },
+    "ours/circuit/correlated": {
+     "failures": 10484,
+     "errors": 0,
+     "seconds": 0.410818125
+    },
+    "ours/ours/plain": {
+     "failures": 12215,
+     "errors": 0,
+     "seconds": 0.196202917
+    },
+    "ours/ours/correlated": {
+     "failures": 10484,
+     "errors": 0,
+     "seconds": 0.412371792
+    },
+    "ours/pij/plain": {
+     "failures": 11949,
+     "errors": 0,
+     "seconds": 0.215958375
+    },
+    "ours/pij/correlated": {
+     "failures": 10205,
+     "errors": 0,
+     "seconds": 0.46659170800000005
+    },
+    "google/pymatching": {
+     "failures": 12216
+    },
+    "google/correlated_matching": {
+     "failures": 10634
+    },
+    "google/belief_matching": {
+     "failures": 9236
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8919
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1,
+    "ours_optimal": 1,
+    "ours_not_optimal": 0,
+    "weight_noise": 9.601958296912017e-06
+   },
+   "wall_seconds": 1.9830579999979818
+  },
+  "sycamore/surface_code_bZ_d5_r11_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "detectors": 264,
+   "mean_defects": 40.53414,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 14417,
+     "errors": 0,
+     "seconds": 0.237180459
+    },
+    "ours/circuit/correlated": {
+     "failures": 12557,
+     "errors": 0,
+     "seconds": 0.524981833
+    },
+    "ours/ours/plain": {
+     "failures": 14417,
+     "errors": 0,
+     "seconds": 0.243019875
+    },
+    "ours/ours/correlated": {
+     "failures": 12557,
+     "errors": 0,
+     "seconds": 0.518037791
+    },
+    "ours/pij/plain": {
+     "failures": 14221,
+     "errors": 0,
+     "seconds": 0.318219001
+    },
+    "ours/pij/correlated": {
+     "failures": 12133,
+     "errors": 0,
+     "seconds": 0.5806775829999999
+    },
+    "google/pymatching": {
+     "failures": 14415
+    },
+    "google/correlated_matching": {
+     "failures": 12630
+    },
+    "google/belief_matching": {
+     "failures": 11218
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10864
+    }
+   },
+   "pymatching_check": {
+    "disagree": 10,
+    "ours_optimal": 10,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.3677983162097007e-05
+   },
+   "wall_seconds": 2.515450165999937
+  },
+  "sycamore/surface_code_bZ_d5_r13_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "detectors": 312,
+   "mean_defects": 48.24122,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 16328,
+     "errors": 0,
+     "seconds": 0.311803083
+    },
+    "ours/circuit/correlated": {
+     "failures": 14264,
+     "errors": 0,
+     "seconds": 0.625004292
+    },
+    "ours/ours/plain": {
+     "failures": 16328,
+     "errors": 0,
+     "seconds": 0.289286625
+    },
+    "ours/ours/correlated": {
+     "failures": 14264,
+     "errors": 0,
+     "seconds": 0.612939208
+    },
+    "ours/pij/plain": {
+     "failures": 16071,
+     "errors": 0,
+     "seconds": 0.321215041
+    },
+    "ours/pij/correlated": {
+     "failures": 13912,
+     "errors": 0,
+     "seconds": 0.6957376239999999
+    },
+    "google/pymatching": {
+     "failures": 16333
+    },
+    "google/correlated_matching": {
+     "failures": 14431
+    },
+    "google/belief_matching": {
+     "failures": 12903
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12358
+    }
+   },
+   "pymatching_check": {
+    "disagree": 47,
+    "ours_optimal": 47,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.2015672609777539e-05
+   },
+   "wall_seconds": 2.9673819159943378
+  },
+  "sycamore/surface_code_bZ_d5_r15_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "detectors": 360,
+   "mean_defects": 56.11498,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 17807,
+     "errors": 0,
+     "seconds": 0.34010075
+    },
+    "ours/circuit/correlated": {
+     "failures": 15756,
+     "errors": 0,
+     "seconds": 0.742939583
+    },
+    "ours/ours/plain": {
+     "failures": 17807,
+     "errors": 0,
+     "seconds": 0.345668291
+    },
+    "ours/ours/correlated": {
+     "failures": 15756,
+     "errors": 0,
+     "seconds": 0.732526959
+    },
+    "ours/pij/plain": {
+     "failures": 17658,
+     "errors": 0,
+     "seconds": 0.404428
+    },
+    "ours/pij/correlated": {
+     "failures": 15322,
+     "errors": 0,
+     "seconds": 0.8149095829999999
+    },
+    "google/pymatching": {
+     "failures": 17811
+    },
+    "google/correlated_matching": {
+     "failures": 15903
+    },
+    "google/belief_matching": {
+     "failures": 14234
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13712
+    }
+   },
+   "pymatching_check": {
+    "disagree": 114,
+    "ours_optimal": 114,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.791395970940357e-05
+   },
+   "wall_seconds": 3.5169475830043666
+  },
+  "sycamore/surface_code_bZ_d5_r17_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "detectors": 408,
+   "mean_defects": 64.52218,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 18973,
+     "errors": 0,
+     "seconds": 0.427175875
+    },
+    "ours/circuit/correlated": {
+     "failures": 17169,
+     "errors": 0,
+     "seconds": 0.847464291
+    },
+    "ours/ours/plain": {
+     "failures": 18973,
+     "errors": 0,
+     "seconds": 0.400565209
+    },
+    "ours/ours/correlated": {
+     "failures": 17169,
+     "errors": 0,
+     "seconds": 0.854270791
+    },
+    "ours/pij/plain": {
+     "failures": 18749,
+     "errors": 0,
+     "seconds": 0.442582958
+    },
+    "ours/pij/correlated": {
+     "failures": 16855,
+     "errors": 0,
+     "seconds": 0.9337119570000001
+    },
+    "google/pymatching": {
+     "failures": 18950
+    },
+    "google/correlated_matching": {
+     "failures": 17379
+    },
+    "google/belief_matching": {
+     "failures": 15602
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15014
+    }
+   },
+   "pymatching_check": {
+    "disagree": 197,
+    "ours_optimal": 197,
+    "ours_not_optimal": 0,
+    "weight_noise": 1.4553279328310964e-05
+   },
+   "wall_seconds": 4.054978666012175
+  },
+  "sycamore/surface_code_bZ_d5_r19_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "detectors": 456,
+   "mean_defects": 72.44202,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 19824,
+     "errors": 0,
+     "seconds": 0.448440292
+    },
+    "ours/circuit/correlated": {
+     "failures": 18122,
+     "errors": 0,
+     "seconds": 0.971843708
+    },
+    "ours/ours/plain": {
+     "failures": 19824,
+     "errors": 0,
+     "seconds": 0.456791792
+    },
+    "ours/ours/correlated": {
+     "failures": 18122,
+     "errors": 0,
+     "seconds": 0.958505459
+    },
+    "ours/pij/plain": {
+     "failures": 19668,
+     "errors": 0,
+     "seconds": 0.514562584
+    },
+    "ours/pij/correlated": {
+     "failures": 17848,
+     "errors": 0,
+     "seconds": 1.0671618330000001
+    },
+    "google/pymatching": {
+     "failures": 19860
+    },
+    "google/correlated_matching": {
+     "failures": 18168
+    },
+    "google/belief_matching": {
+     "failures": 16736
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16286
+    }
+   },
+   "pymatching_check": {
+    "disagree": 398,
+    "ours_optimal": 398,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.086858842176298e-05
+   },
+   "wall_seconds": 4.590559625008609
+  },
+  "sycamore/surface_code_bZ_d5_r21_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "detectors": 504,
+   "mean_defects": 80.79766,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 20745,
+     "errors": 0,
+     "seconds": 0.535641292
+    },
+    "ours/circuit/correlated": {
+     "failures": 19105,
+     "errors": 0,
+     "seconds": 1.066823708
+    },
+    "ours/ours/plain": {
+     "failures": 20745,
+     "errors": 0,
+     "seconds": 0.501508958
+    },
+    "ours/ours/correlated": {
+     "failures": 19105,
+     "errors": 0,
+     "seconds": 1.116508834
+    },
+    "ours/pij/plain": {
+     "failures": 20534,
+     "errors": 0,
+     "seconds": 0.5413007910000001
+    },
+    "ours/pij/correlated": {
+     "failures": 18952,
+     "errors": 0,
+     "seconds": 1.1499337920000001
+    },
+    "google/pymatching": {
+     "failures": 20767
+    },
+    "google/correlated_matching": {
+     "failures": 19143
+    },
+    "google/belief_matching": {
+     "failures": 17662
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17323
+    }
+   },
+   "pymatching_check": {
+    "disagree": 706,
+    "ours_optimal": 706,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.1875289633044304e-05
+   },
+   "wall_seconds": 5.116820874987752
+  },
+  "sycamore/surface_code_bZ_d5_r23_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "detectors": 552,
+   "mean_defects": 87.71902,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21474,
+     "errors": 0,
+     "seconds": 0.566978792
+    },
+    "ours/circuit/correlated": {
+     "failures": 19840,
+     "errors": 0,
+     "seconds": 1.180780417
+    },
+    "ours/ours/plain": {
+     "failures": 21474,
+     "errors": 0,
+     "seconds": 0.546619417
+    },
+    "ours/ours/correlated": {
+     "failures": 19841,
+     "errors": 0,
+     "seconds": 1.135095666
+    },
+    "ours/pij/plain": {
+     "failures": 21455,
+     "errors": 0,
+     "seconds": 0.629728459
+    },
+    "ours/pij/correlated": {
+     "failures": 19519,
+     "errors": 0,
+     "seconds": 1.277874459
+    },
+    "google/pymatching": {
+     "failures": 21492
+    },
+    "google/correlated_matching": {
+     "failures": 19907
+    },
+    "google/belief_matching": {
+     "failures": 18407
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18049
+    }
+   },
+   "pymatching_check": {
+    "disagree": 934,
+    "ours_optimal": 934,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.035128514421558e-05
+   },
+   "wall_seconds": 5.5729101250035455
+  },
+  "sycamore/surface_code_bZ_d5_r25_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "detectors": 600,
+   "mean_defects": 95.99332,
+   "results": {
+    "ours/circuit/plain": {
+     "failures": 21902,
+     "errors": 0,
+     "seconds": 0.619610583
+    },
+    "ours/circuit/correlated": {
+     "failures": 20501,
+     "errors": 0,
+     "seconds": 1.297441375
+    },
+    "ours/ours/plain": {
+     "failures": 21902,
+     "errors": 0,
+     "seconds": 0.606608875
+    },
+    "ours/ours/correlated": {
+     "failures": 20501,
+     "errors": 0,
+     "seconds": 1.249997375
+    },
+    "ours/pij/plain": {
+     "failures": 21752,
+     "errors": 0,
+     "seconds": 0.741333125
+    },
+    "ours/pij/correlated": {
+     "failures": 20299,
+     "errors": 0,
+     "seconds": 1.4263969159999998
+    },
+    "google/pymatching": {
+     "failures": 21929
+    },
+    "google/correlated_matching": {
+     "failures": 20512
+    },
+    "google/belief_matching": {
+     "failures": 19225
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18847
+    }
+   },
+   "pymatching_check": {
+    "disagree": 1459,
+    "ours_optimal": 1459,
+    "ours_not_optimal": 0,
+    "weight_noise": 2.1488651270828996e-05
+   },
+   "wall_seconds": 6.226031165992026
+  }
+ },
+ "engine_commit": "acada5a",
+ "machine": {
+  "cpus": 10
+ },
+ "stim": "1.16.0",
+ "pymatching": "2.4.0",
+ "generated": "2026-09-25"
+}
