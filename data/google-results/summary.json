@@ -1,0 +1,11 @@
+{
+ "experiments": 550,
+ "shots": 27500000,
+ "m2d_exact": 550,
+ "models_same_as_stim": 550,
+ "sycamore_pymatching": {
+  "disagree": 8448,
+  "not_optimal": 0
+ },
+ "problems": 0
+}

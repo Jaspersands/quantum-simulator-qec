@@ -379,6 +379,17 @@ def cmd_summary(args):
         print(f"{dataset}: {len(doc['experiments'])} experiments, {shots:,} shots, "
               f"{seconds / 60:.1f} min of decoding over every configuration")
     print(f"{len(checks)} experiments checked; {problems} problems")
+    # The few totals section 11's footnote quotes, so the page need not fetch checks.json.
+    recs = list(checks.values())
+    pm = [r["pymatching_check"] for r in load_json(OUT / "sycamore.json", dict(experiments={}))["experiments"].values()
+          if "pymatching_check" in r]
+    write_json(OUT / "summary.json", dict(
+        experiments=len(recs), shots=sum(r["shots"] for r in recs),
+        m2d_exact=sum(r["m2d_detector_shots_differ"] == 0 and r["m2d_observable_shots_differ"] == 0 for r in recs),
+        models_same_as_stim=sum(model_matches_stim(r["model_vs_stim"]) for r in recs),
+        sycamore_pymatching=dict(disagree=sum(c["disagree"] for c in pm),
+                                 not_optimal=sum(c["ours_not_optimal"] for c in pm)),
+        problems=problems))
     return 1 if problems else 0
 
 

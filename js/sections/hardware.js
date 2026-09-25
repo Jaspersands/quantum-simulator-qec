@@ -17,7 +17,6 @@
 
 import { $, fill, el } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
-import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../lambda-fit.js';
 import { decoderLabel, isOurs, percent, percentRange, ratio } from '../hardware-format.js';
 
 const RESULTS = new URL('../../data/google-results/', import.meta.url);
@@ -25,7 +24,8 @@ const EXTRACT = new URL('../../data/willow-extract/', import.meta.url);
 
 /** Fit windows: Willow from round 10 (its first round differs from the steady state), Sycamore from 3. */
 const MIN_ROUNDS = { willow: 10, sycamore: 3 };
-const DRAWS = 200;
+/** As tools/lambda.mjs draws, with the same seed, so the intervals match the README's exactly. */
+const DRAWS = 400;
 
 /** The lines drawn in the chart; every decoder is in the tables. */
 const CHART = [
@@ -40,27 +40,21 @@ const PUBLISHED = {
   sycamore: { label: 'Google: published', eps: { 3: '3.028% ± 0.023%', 5: '2.914% ± 0.016%' }, lambda: '1.04' },
 };
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-async function loadRecords(name) {
-  const response = await fetch(new URL(`${name}.json`, RESULTS));
-  if (!response.ok) throw new Error(`${name}.json: ${response.status} ${response.statusText}`);
+async function loadJson(name) {
+  const response = await fetch(new URL(name, RESULTS));
+  if (!response.ok) throw new Error(`${name}: ${response.status} ${response.statusText}`);
   return response.json();
 }
 
-/** Every decoder's fit, with its bootstrap interval, yielding between decoders. */
-async function fitAll(records, minRounds, onProgress) {
-  const out = new Map();
-  const keys = decoderKeys(records).sort((a, b) => Number(isOurs(b)) - Number(isOurs(a)));
-  for (const [i, key] of keys.entries()) {
-    const byD = epsilonByDistance(records, key, { minRounds });
-    const fit = lambdaFit(byD);
-    const boot = bootstrap(records, key, { minRounds }, DRAWS, seededRandom(11));
-    out.set(key, { byD, fit, boot });
-    onProgress?.(i + 1, keys.length);
-    await tick();
-  }
-  return out;
+/** The worker's fits as a Map from decoder key to {byD, fit, boot}, ours first. */
+function asFits(result) {
+  const entries = result.fits.map(({ key, eps, lambda, interval }) => [key, {
+    byD: new Map(eps.map((e) => [e.d, { eps: e.eps }])),
+    fit: { lambda },
+    boot: { eps: new Map(eps.map((e) => [e.d, e.interval])), lambda: interval },
+  }]);
+  entries.sort((a, b) => Number(isOurs(b[0])) - Number(isOurs(a[0])));
+  return new Map(entries);
 }
 
 function fitRows(fits, ds, published) {
@@ -111,24 +105,14 @@ function logRange(series) {
   return [lo, Number(hi.toPrecision(3))];
 }
 
-function checkLine(checks, docs) {
-  const recs = Object.values(checks.experiments);
-  const shots = recs.reduce((s, r) => s + r.shots, 0);
-  const exact = recs.filter((r) => r.m2d_detector_shots_differ === 0 && r.m2d_observable_shots_differ === 0).length;
-  const stimSame = recs.filter((r) => {
-    const m = r.model_vs_stim;
-    return m.missing === 0 && m.extra === 0 && m.differing === 0 && m.edges_one_sided === 0 && m.splits_differ === 0;
-  }).length;
-  const pm = Object.values(docs.sycamore.experiments).map((r) => r.pymatching_check).filter(Boolean);
-  const differ = pm.reduce((s, c) => s + c.disagree, 0);
-  const notOptimal = pm.reduce((s, c) => s + c.ours_not_optimal, 0);
+function checkLine(s) {
   return `When the counts were recorded, the detection events this engine rebuilt from the chips' raw `
-    + `measurements matched Google's bit for bit in ${exact} of ${recs.length} experiments `
-    + `(${shots.toLocaleString('en-US')} shots), and its model `
-    + `of each noisy circuit matched Stim's in ${stimSame} of ${recs.length}. On Sycamore our plain matcher `
-    + `disagreed with Google's recorded PyMatching on ${differ.toLocaleString('en-US')} shots; on `
-    + `${notOptimal === 0 ? 'every one' : `all but ${notOptimal}`} of them our matching weighs exactly the `
-    + 'optimum PyMatching 2.4 finds, so each is a tie.';
+    + `measurements matched Google's bit for bit in ${s.m2d_exact} of ${s.experiments} experiments `
+    + `(${s.shots.toLocaleString('en-US')} shots), and its model of each noisy circuit matched Stim's in `
+    + `${s.models_same_as_stim} of ${s.experiments}. On Sycamore our plain matcher disagreed with Google's `
+    + `recorded PyMatching on ${s.sycamore_pymatching.disagree.toLocaleString('en-US')} shots; on `
+    + `${s.sycamore_pymatching.not_optimal === 0 ? 'every one' : `all but ${s.sycamore_pymatching.not_optimal}`} `
+    + 'of them our matching weighs exactly the optimum PyMatching 2.4 finds, so each is a tie.';
 }
 
 export function initHardware(root, compute) {
@@ -139,23 +123,20 @@ export function initHardware(root, compute) {
   async function runFits() {
     const status = $('[data-hw-fit-status]', fitFig);
     status.textContent = 'Loading the recorded counts…';
-    let docs, checks;
+    let willow, sycamore, summary;
     try {
-      const [willow, sycamore, c] = await Promise.all(['willow', 'sycamore', 'checks'].map(loadRecords));
-      docs = { willow, sycamore };
-      checks = c;
+      summary = await loadJson('summary.json');
+      const fitsOf = (name, label) => compute.call('hwfits', {
+        url: new URL(`${name}.json`, RESULTS).href, minRounds: MIN_ROUNDS[name], draws: DRAWS,
+      }, (p) => { status.textContent = `Fitting ${label}: ${p.done} of ${p.total} decoders`; });
+      willow = await fitsOf('willow', 'Willow');
+      sycamore = await fitsOf('sycamore', 'Sycamore');
     } catch (error) {
       status.textContent = `Recorded counts unavailable (${error.message}).`;
       return;
     }
-    const willow = Object.values(docs.willow.experiments);
-    const sycamore = Object.values(docs.sycamore.experiments);
-    const wFits = await fitAll(willow, MIN_ROUNDS.willow, (i, n) => {
-      status.textContent = `Fitting Willow: ${i} of ${n} decoders`;
-    });
-    const sFits = await fitAll(sycamore, MIN_ROUNDS.sycamore, (i, n) => {
-      status.textContent = `Fitting Sycamore: ${i} of ${n} decoders`;
-    });
+    const wFits = asFits(willow);
+    const sFits = asFits(sycamore);
 
     fill($('[data-hw-willow]', fitFig), fitRows(wFits, [3, 5, 7], PUBLISHED.willow));
     fill($('[data-hw-sycamore]', fitFig), fitRows(sFits, [3, 5], PUBLISHED.sycamore));
@@ -177,15 +158,14 @@ export function initHardware(root, compute) {
     plot.render({ series, xRange: [2.5, 7.5], yRange: logRange(series) });
     $('[data-hw-legend]', fitFig).innerHTML = plotLegend(series);
 
-    const draws = `${DRAWS} bootstrap draws`;
     $('[data-hw-fit-foot]', fitFig).textContent = `† Google's decoders' predictions come with the data; `
       + 'every row is fitted here the same way, ours and theirs. For each patch and basis, the logical '
       + 'fidelity 1 − 2 P_L is fitted as A (1 − 2ε)^r over the rounds from '
       + `${MIN_ROUNDS.willow} on (Willow) or ${MIN_ROUNDS.sycamore} on (Sycamore); ε at each distance is the `
       + 'mean over patches and bases, and Λ comes from a line through ln ε against d. Under each ε, the '
-      + `95% interval from ${draws}, each redrawing every experiment's failures from the binomial. `
-      + `Counts recorded on ${docs.willow.generated} by tools/google.py (engine ${docs.willow.engine_commit}). `
-      + checkLine(checks, docs)
+      + `95% interval from ${DRAWS} bootstrap draws, each redrawing every experiment's failures from the `
+      + `binomial. Counts recorded on ${willow.generated} by tools/google.py (engine ${willow.engine}). `
+      + checkLine(summary)
       + ' Data: Google Quantum AI, Zenodo records 13273331 (Willow) and 6804040 (Sycamore), CC BY 4.0.';
     status.textContent = 'Fitted.';
   }

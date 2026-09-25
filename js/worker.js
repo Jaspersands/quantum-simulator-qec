@@ -18,6 +18,7 @@ import {
   xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode,
 } from './engine.js';
 import { planChunks } from './stream.js';
+import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
 
 let enginePromise = null;
 
@@ -54,6 +55,10 @@ async function fetchBytes(url) {
 async function fetchGzipText(url) {
   const bytes = await fetchBytes(url);
   if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return new TextDecoder().decode(bytes);
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('this browser cannot inflate the gzipped extract (DecompressionStream is missing; '
+      + 'it arrived in Safari 16.4 and Firefox 113)');
+  }
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Response(stream).text();
 }
@@ -241,6 +246,34 @@ const OPS = {
       report({ d: ex.d, step: 'done', row });
     }
     return rows;
+  },
+
+  /**
+   * Section 11's Figure 9: every decoder's ε and Λ from the recorded counts,
+   * with the same fit, draws and seed as tools/lambda.mjs, so the intervals on
+   * the page are the README's to the last digit. Here rather than on the main
+   * thread because the bootstrap refits every decoder hundreds of times.
+   */
+  async hwfits(instance, { url, minRounds, draws }, report) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const doc = await response.json();
+    const records = Object.values(doc.experiments);
+    const keys = decoderKeys(records);
+    const fits = [];
+    for (const [i, key] of keys.entries()) {
+      const byD = epsilonByDistance(records, key, { minRounds });
+      const fit = lambdaFit(byD);
+      const boot = bootstrap(records, key, { minRounds }, draws, seededRandom(11));
+      fits.push({
+        key,
+        eps: [...byD].map(([d, v]) => ({ d, eps: v.eps, interval: boot.eps.get(d) })),
+        lambda: fit.lambda,
+        interval: boot.lambda,
+      });
+      report({ done: i + 1, total: keys.length });
+    }
+    return { generated: doc.generated, engine: doc.engine_commit, fits };
   },
 
   async sweep(instance, { distances, ps, base }, report) {

@@ -169,8 +169,17 @@ impl M2d {
         })
     }
 
-    /// One shot's detection events and observable flips.
+    /// One shot's detection events and observable flips. `meas` holds every
+    /// measurement and `sweeps` every sweep bit of the circuit.
     pub fn convert(&self, meas: &[bool], sweeps: &[bool]) -> (Vec<bool>, u64) {
+        assert!(
+            meas.len() == self.num_measurements && sweeps.len() == self.num_sweep_bits,
+            "a shot of {} measurements and {} sweep bits, for a circuit of {} and {}",
+            meas.len(),
+            sweeps.len(),
+            self.num_measurements,
+            self.num_sweep_bits
+        );
         let (mut det, mut obs) = evaluate(&self.detectors, &self.observables, meas);
         for (d, &r) in det.iter_mut().zip(&self.ref_det) {
             *d ^= r;

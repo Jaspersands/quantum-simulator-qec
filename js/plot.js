@@ -138,6 +138,15 @@ export class Plot {
     const log = this.options.yLog;
     let yRange;
     let yTicks;
+    if (log && !ys.some((v) => v > 0) && !data.yRange) {
+      ctx.fillStyle = this.colors.ink3;
+      ctx.font = '400 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(data.empty ?? 'Nothing above zero to plot', width / 2, height / 2);
+      this.canvas.setAttribute('aria-label', data.empty ?? 'Chart with nothing above zero to plot.');
+      return;
+    }
     if (log) {
       const positive = ys.filter((v) => v > 0);
       const auto = logTicks(Math.min(...positive), Math.max(...positive));
