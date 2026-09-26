@@ -19,7 +19,8 @@ abstract: |
   3. **Google's hardware.** On Google's own recordings ({{g.experiments}} experiments,
      {{g.shots}} shots) it rebuilds the detection events bit for bit. Its correlated matcher,
      using Google's SI1000 prior on Willow, reaches Λ = {{w.corr.lambda}}. Google's own correlated
-     matcher on the same prior reaches {{w.gcorr.l}}.
+     matcher on the same prior reaches {{w.gcorr.l}}. Its belief-matching reproduces `ldpc`'s posteriors
+     bit for bit, and makes Sycamore's d = 5 beat d = 3 as Google's does (Λ = {{bs.ours.lambda}}).
   4. **Throughput.** Its bit-parallel sampler takes {{speed.batch_d7}} a shot at d = 7, against
      Stim's {{speed.stim_d7}}.
   5. **Real time.** Parallel windows decode Willow's recorded d = 5 syndromes with correlated
@@ -289,6 +290,56 @@ finds ({{g.syc_not_optimal}} are not optimal): these are ties, broken differentl
 PyMatching that Google used. Sycamore's Λ ≈ 1 was that paper's point, the first time a larger
 surface code beat a smaller one at all, and only with the best decoders.
 
+## Belief-matching
+
+Matching weighs every graph edge by its prior alone. **Belief-matching** (Higgott, Bohdanowicz,
+Kubica, Flammia and Campbell, PRX 13, 031007, 2023) works in three steps:
+
+1. **Belief propagation** runs over the whole error model: every fault a variable, every detector
+   a check, nothing split into pieces.
+2. **The graph is re-weighted.** Each edge gets $-\ln p$, where $p$ is the sum of the posteriors of
+   the faults whose decomposition contains it.
+3. **The sparse matcher decodes** on those weights. Where BP converges by itself, its own correction
+   is the answer.
+
+The implementation is written to reproduce the authors' package, `beliefmatching`, and the BP
+library it runs on, `ldpc`, step for step. Both are checked exactly:
+
+- **BP.** Over {{bp.cases}} syndromes in {{bp.configs}} configurations, the largest difference
+  between our posterior log-likelihood ratios and `ldpc`'s is {{bp.max_diff}}. The configurations
+  cover random matrices and a surface code's hypergraph, product-sum and min-sum, and 1 to 20
+  iterations. {{bp.bad}} hard decisions, convergence flags or iteration counts differ.
+- **Belief-matching.** Over {{bm.shots}} shots of SD6 memories at d = 3, 5 and 7, it disagrees with
+  `beliefmatching` on {{bm.disagree}} shots, and BP's convergence differs on {{bm.conv_differ}}.
+  Single-threaded at d = 7 it takes {{bm.speed}} a shot; the reference rebuilds a matching graph for
+  every shot.
+
+**Sycamore**, every shot, with the data-fitted priors cross-fitted as Google used them, against
+Google's own recorded belief-matching:
+
+{{table:belief_sycamore}}
+
+- **d = 5 beats d = 3.** Ours gives Λ = {{bs.ours.lambda}}, Google's {{bs.google.lambda}}.
+- **Close, but not the same.** Ours agrees with Google's predictions on {{bs.agree}} of
+  {{bs.shots}} shots and fails {{bs.more}} more often. Google's BP settings are not in the dataset,
+  and more iterations do not close the gap.
+
+**Willow**, on the first {{bw.shots}} shots of each of {{bw.experiments}} experiments. BP on
+Willow's longest experiments costs about 25 ms a shot even on ten cores, so there are fewer shots.
+Every decoder in this table is scored on the same shots:
+
+{{table:belief_willow}}
+
+- **Belief-matching wins small and loses large.** At d = 3 it beats every matcher in the table
+  ({{bw.belief.e3}}, against {{bw.corr.e3}} for our correlated matcher and {{bw.gcorr.e3}} for
+  Google's). At d = 7 it is worse ({{bw.belief.e7}} against {{bw.corr.e7}}), so its Λ,
+  {{bw.belief.lambda}}, falls below correlated matching's {{bw.corr.lambda}}.
+- **Longer BP does not change it.** On the same shots at d = 7, {{bi.d7.rounds}} rounds,
+  belief-matching fails {{bi.d7.b20}} times with 20 iterations and {{bi.d7.b100}} with 100, against
+  correlated matching's {{bi.d7.corr}}. BP settles alone on {{bw.converged}} of Willow's shots.
+- **On Sycamore it is among the best.** Those experiments run at most 25 rounds with priors fitted to
+  the data, and belief-matching is one of the two best decoders there, Google's and ours alike.
+
 ## Throughput
 
 Sampling speed per shot, single-threaded, rotated SD6 with T = d. Stim is timed through its Python
@@ -370,8 +421,7 @@ each. Every one was decoded globally and by sliding and parallel windows, fitted
   natively on one machine. They leave out the transport of syndromes from a quantum computer to
   the decoder, and they are not a claim about any particular control system.
 - **The next decoders.** The next pieces of work, in order:
-  - belief propagation and belief-matching on the Willow data;
-  - the IBM "gross" bivariate-bicycle code with BP+OSD;
+  - the IBM "gross" bivariate-bicycle code with BP+OSD, reusing this belief propagation;
   - lattice surgery between patches;
   - a resource estimator driven by the Λ measured here.
 

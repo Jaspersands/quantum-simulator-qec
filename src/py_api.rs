@@ -477,6 +477,109 @@ fn stream_decode<'py>(
     Ok((failures, batches * 64, unexplained, PyBytes::new_bound(py, &bytes), info, seconds))
 }
 
+fn bp_method(method: &str, ms_scale: f64) -> PyResult<crate::bp::Method> {
+    match method {
+        "product_sum" => Ok(crate::bp::Method::ProductSum),
+        "minimum_sum" => Ok(crate::bp::Method::MinSum { scale: ms_scale }),
+        other => Err(err(format!("BP method '{other}' is neither product_sum nor minimum_sum"))),
+    }
+}
+
+/// Belief propagation on a parity-check matrix given by its columns (the
+/// checks each variable touches), flooding schedule, as `ldpc` runs it.
+/// Returns (hard decision, posterior log-likelihood ratios, converged,
+/// iterations).
+#[pyfunction]
+#[pyo3(signature = (num_checks, columns, priors, syndrome, max_iter=20, method="product_sum", ms_scale=1.0))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn bp_decode(
+    num_checks: usize,
+    columns: Vec<Vec<u32>>,
+    priors: Vec<f64>,
+    syndrome: Vec<u8>,
+    max_iter: usize,
+    method: &str,
+    ms_scale: f64,
+) -> PyResult<(Vec<u8>, Vec<f64>, bool, usize)> {
+    let bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
+    if syndrome.len() != num_checks {
+        return Err(err(format!("{} syndrome bits for {num_checks} checks", syndrome.len())));
+    }
+    let mut w = bp.work();
+    let out = bp.decode(&syndrome, bp_method(method, ms_scale)?, max_iter, &mut w);
+    Ok((w.hard, w.llr, out.converged, out.iterations))
+}
+
+/// Belief-matching of b8 shots on a decomposed model, as `beliefmatching`
+/// decodes: BP on the hypergraph, its own correction where it converges, and
+/// otherwise matching on weights −ln p from its posteriors. Returns
+/// (predictions as u64 per shot, u64::MAX where decoding failed; the matching's
+/// weight per shot as f64, NaN where BP converged; one byte per shot, 1 where
+/// BP converged; shots that failed; seconds).
+#[pyfunction]
+#[pyo3(signature = (dem_text, packed, num_shots, max_iter=20, method="product_sum", ms_scale=1.0, threads=0))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn decode_b8_belief<'py>(
+    py: Python<'py>,
+    dem_text: &str,
+    packed: &[u8],
+    num_shots: usize,
+    max_iter: usize,
+    method: &str,
+    ms_scale: f64,
+    threads: usize,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, usize, f64)> {
+    use crate::belief::BeliefMatching;
+    let dem = Dem::parse(dem_text).map_err(err)?;
+    let bm = BeliefMatching::from_dem(&dem, bp_method(method, ms_scale)?, max_iter).map_err(err)?;
+    let nd = dem.num_detectors;
+    let stride = nd.div_ceil(8);
+    if packed.len() != stride * num_shots {
+        return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
+    }
+    let threads = resolve_threads(threads, num_shots);
+    let chunk = num_shots.div_ceil(threads);
+    let start = Instant::now();
+    let parts: Vec<Vec<(u64, f64, u8)>> = py.allow_threads(|| {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads)
+                .map(|t| {
+                    let bm = &bm;
+                    scope.spawn(move || {
+                        let mut work = bm.work();
+                        let mut defects = Vec::new();
+                        let mut out = Vec::new();
+                        for s in (t * chunk)..((t + 1) * chunk).min(num_shots) {
+                            defects.clear();
+                            let row = &packed[s * stride..(s + 1) * stride];
+                            for i in 0..nd {
+                                if (row[i / 8] >> (i % 8)) & 1 == 1 {
+                                    defects.push(i as u32);
+                                }
+                            }
+                            out.push(match bm.decode(&defects, &mut work) {
+                                Ok(o) => (o.observables, o.weight, u8::from(o.converged)),
+                                Err(_) => (u64::MAX, f64::NAN, 2),
+                            });
+                        }
+                        out
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("belief-matching thread panicked")).collect()
+        })
+    });
+    let seconds = start.elapsed().as_secs_f64();
+    let (mut preds, mut weights, mut conv, mut errors) = (Vec::new(), Vec::new(), Vec::new(), 0usize);
+    for (o, w, c) in parts.into_iter().flatten() {
+        preds.extend_from_slice(&o.to_le_bytes());
+        weights.extend_from_slice(&w.to_le_bytes());
+        conv.push(u8::from(c == 1));
+        errors += usize::from(c == 2);
+    }
+    Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), PyBytes::new_bound(py, &conv), errors, seconds))
+}
+
 /// b8 rows of `num_bits` bits as Stim's 01 text.
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
@@ -496,5 +599,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sample_b8_batch, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_window, m)?)?;
     m.add_function(wrap_pyfunction!(stream_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
     Ok(())
 }

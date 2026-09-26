@@ -1,0 +1,4823 @@
+{
+ "experiments": {
+  "sycamore/surface_code_bX_d3_r01_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 880,
+     "converged": 49539,
+     "errors": 0,
+     "seconds": 0.0046496260000000005
+    },
+    "ours/circuit/belief": {
+     "failures": 822,
+     "converged": 49580,
+     "errors": 0,
+     "seconds": 0.003727833
+    },
+    "google/pymatching": {
+     "failures": 794
+    },
+    "google/correlated_matching": {
+     "failures": 792
+    },
+    "google/belief_matching": {
+     "failures": 811
+    },
+    "google/tensor_network_contraction": {
+     "failures": 804
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49879,
+    "ours/circuit/belief": 49871
+   }
+  },
+  "sycamore/surface_code_bX_d3_r03_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 4027,
+     "converged": 36043,
+     "errors": 0,
+     "seconds": 0.336329125
+    },
+    "ours/circuit/belief": {
+     "failures": 4093,
+     "converged": 38140,
+     "errors": 0,
+     "seconds": 0.370951333
+    },
+    "google/pymatching": {
+     "failures": 4528
+    },
+    "google/correlated_matching": {
+     "failures": 4266
+    },
+    "google/belief_matching": {
+     "failures": 3998
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3815
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49833,
+    "ours/circuit/belief": 48993
+   }
+  },
+  "sycamore/surface_code_bX_d3_r05_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6562,
+     "converged": 25839,
+     "errors": 0,
+     "seconds": 1.0528562080000001
+    },
+    "ours/circuit/belief": {
+     "failures": 6910,
+     "converged": 28921,
+     "errors": 0,
+     "seconds": 1.122312083
+    },
+    "google/pymatching": {
+     "failures": 7825
+    },
+    "google/correlated_matching": {
+     "failures": 7284
+    },
+    "google/belief_matching": {
+     "failures": 6520
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6389
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49626,
+    "ours/circuit/belief": 47746
+   }
+  },
+  "sycamore/surface_code_bX_d3_r07_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 9019,
+     "converged": 17283,
+     "errors": 0,
+     "seconds": 2.146724292
+    },
+    "ours/circuit/belief": {
+     "failures": 9355,
+     "converged": 21055,
+     "errors": 0,
+     "seconds": 2.076682167
+    },
+    "google/pymatching": {
+     "failures": 10697
+    },
+    "google/correlated_matching": {
+     "failures": 9900
+    },
+    "google/belief_matching": {
+     "failures": 8991
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8712
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49460,
+    "ours/circuit/belief": 46884
+   }
+  },
+  "sycamore/surface_code_bX_d3_r09_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 10937,
+     "converged": 11966,
+     "errors": 0,
+     "seconds": 3.232480292
+    },
+    "ours/circuit/belief": {
+     "failures": 11437,
+     "converged": 15888,
+     "errors": 0,
+     "seconds": 3.125438083
+    },
+    "google/pymatching": {
+     "failures": 12974
+    },
+    "google/correlated_matching": {
+     "failures": 12087
+    },
+    "google/belief_matching": {
+     "failures": 10820
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10579
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49201,
+    "ours/circuit/belief": 45685
+   }
+  },
+  "sycamore/surface_code_bX_d3_r11_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12897,
+     "converged": 7994,
+     "errors": 0,
+     "seconds": 4.454650417
+    },
+    "ours/circuit/belief": {
+     "failures": 13207,
+     "converged": 11648,
+     "errors": 0,
+     "seconds": 4.444737417
+    },
+    "google/pymatching": {
+     "failures": 14785
+    },
+    "google/correlated_matching": {
+     "failures": 14031
+    },
+    "google/belief_matching": {
+     "failures": 12836
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12537
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48933,
+    "ours/circuit/belief": 44745
+   }
+  },
+  "sycamore/surface_code_bX_d3_r13_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14243,
+     "converged": 5128,
+     "errors": 0,
+     "seconds": 5.8713099589999995
+    },
+    "ours/circuit/belief": {
+     "failures": 14703,
+     "converged": 8446,
+     "errors": 0,
+     "seconds": 5.469439209
+    },
+    "google/pymatching": {
+     "failures": 16355
+    },
+    "google/correlated_matching": {
+     "failures": 15351
+    },
+    "google/belief_matching": {
+     "failures": 14170
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13969
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48861,
+    "ours/circuit/belief": 43721
+   }
+  },
+  "sycamore/surface_code_bX_d3_r15_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15850,
+     "converged": 3298,
+     "errors": 0,
+     "seconds": 6.78729575
+    },
+    "ours/circuit/belief": {
+     "failures": 16333,
+     "converged": 5996,
+     "errors": 0,
+     "seconds": 6.799088708
+    },
+    "google/pymatching": {
+     "failures": 17907
+    },
+    "google/correlated_matching": {
+     "failures": 16978
+    },
+    "google/belief_matching": {
+     "failures": 15816
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15537
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48498,
+    "ours/circuit/belief": 42153
+   }
+  },
+  "sycamore/surface_code_bX_d3_r17_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16956,
+     "converged": 2336,
+     "errors": 0,
+     "seconds": 7.804410375
+    },
+    "ours/circuit/belief": {
+     "failures": 17482,
+     "converged": 4529,
+     "errors": 0,
+     "seconds": 8.000435583
+    },
+    "google/pymatching": {
+     "failures": 18889
+    },
+    "google/correlated_matching": {
+     "failures": 18009
+    },
+    "google/belief_matching": {
+     "failures": 16845
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16626
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48337,
+    "ours/circuit/belief": 41715
+   }
+  },
+  "sycamore/surface_code_bX_d3_r19_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17790,
+     "converged": 1621,
+     "errors": 0,
+     "seconds": 8.987543709
+    },
+    "ours/circuit/belief": {
+     "failures": 18212,
+     "converged": 3330,
+     "errors": 0,
+     "seconds": 9.477455042
+    },
+    "google/pymatching": {
+     "failures": 19792
+    },
+    "google/correlated_matching": {
+     "failures": 19169
+    },
+    "google/belief_matching": {
+     "failures": 17674
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17584
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48100,
+    "ours/circuit/belief": 40668
+   }
+  },
+  "sycamore/surface_code_bX_d3_r21_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18791,
+     "converged": 1132,
+     "errors": 0,
+     "seconds": 10.102172834000001
+    },
+    "ours/circuit/belief": {
+     "failures": 18998,
+     "converged": 2579,
+     "errors": 0,
+     "seconds": 10.331831
+    },
+    "google/pymatching": {
+     "failures": 20549
+    },
+    "google/correlated_matching": {
+     "failures": 19704
+    },
+    "google/belief_matching": {
+     "failures": 18676
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18509
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48039,
+    "ours/circuit/belief": 40294
+   }
+  },
+  "sycamore/surface_code_bX_d3_r23_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19398,
+     "converged": 781,
+     "errors": 0,
+     "seconds": 11.956473751
+    },
+    "ours/circuit/belief": {
+     "failures": 19850,
+     "converged": 1922,
+     "errors": 0,
+     "seconds": 12.368975916
+    },
+    "google/pymatching": {
+     "failures": 21196
+    },
+    "google/correlated_matching": {
+     "failures": 20431
+    },
+    "google/belief_matching": {
+     "failures": 19358
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19231
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47658,
+    "ours/circuit/belief": 39598
+   }
+  },
+  "sycamore/surface_code_bX_d3_r25_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 20135,
+     "converged": 523,
+     "errors": 0,
+     "seconds": 13.319906583
+    },
+    "ours/circuit/belief": {
+     "failures": 20453,
+     "converged": 1349,
+     "errors": 0,
+     "seconds": 13.647590792
+    },
+    "google/pymatching": {
+     "failures": 21708
+    },
+    "google/correlated_matching": {
+     "failures": 20971
+    },
+    "google/belief_matching": {
+     "failures": 20125
+    },
+    "google/tensor_network_contraction": {
+     "failures": 20114
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47534,
+    "ours/circuit/belief": 38918
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 821,
+     "converged": 49716,
+     "errors": 0,
+     "seconds": 0.0041468749999999995
+    },
+    "ours/circuit/belief": {
+     "failures": 827,
+     "converged": 49685,
+     "errors": 0,
+     "seconds": 0.004229167
+    },
+    "google/pymatching": {
+     "failures": 819
+    },
+    "google/correlated_matching": {
+     "failures": 819
+    },
+    "google/belief_matching": {
+     "failures": 821
+    },
+    "google/tensor_network_contraction": {
+     "failures": 819
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 50000,
+    "ours/circuit/belief": 49984
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3949,
+     "converged": 36590,
+     "errors": 0,
+     "seconds": 0.336175208
+    },
+    "ours/circuit/belief": {
+     "failures": 4133,
+     "converged": 38020,
+     "errors": 0,
+     "seconds": 0.341452042
+    },
+    "google/pymatching": {
+     "failures": 4583
+    },
+    "google/correlated_matching": {
+     "failures": 4328
+    },
+    "google/belief_matching": {
+     "failures": 3927
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3843
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49862,
+    "ours/circuit/belief": 48962
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6370,
+     "converged": 25623,
+     "errors": 0,
+     "seconds": 1.1308490409999998
+    },
+    "ours/circuit/belief": {
+     "failures": 6642,
+     "converged": 29094,
+     "errors": 0,
+     "seconds": 1.071732709
+    },
+    "google/pymatching": {
+     "failures": 7572
+    },
+    "google/correlated_matching": {
+     "failures": 7022
+    },
+    "google/belief_matching": {
+     "failures": 6333
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6244
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49653,
+    "ours/circuit/belief": 48023
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 9376,
+     "converged": 16640,
+     "errors": 0,
+     "seconds": 2.119597959
+    },
+    "ours/circuit/belief": {
+     "failures": 9620,
+     "converged": 20266,
+     "errors": 0,
+     "seconds": 2.107964625
+    },
+    "google/pymatching": {
+     "failures": 10948
+    },
+    "google/correlated_matching": {
+     "failures": 9966
+    },
+    "google/belief_matching": {
+     "failures": 9257
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8974
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49433,
+    "ours/circuit/belief": 47005
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 11043,
+     "converged": 11998,
+     "errors": 0,
+     "seconds": 3.152349625
+    },
+    "ours/circuit/belief": {
+     "failures": 11255,
+     "converged": 15783,
+     "errors": 0,
+     "seconds": 3.188876791
+    },
+    "google/pymatching": {
+     "failures": 12875
+    },
+    "google/correlated_matching": {
+     "failures": 11874
+    },
+    "google/belief_matching": {
+     "failures": 10958
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10804
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49271,
+    "ours/circuit/belief": 45801
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12944,
+     "converged": 7841,
+     "errors": 0,
+     "seconds": 4.385500292
+    },
+    "ours/circuit/belief": {
+     "failures": 13200,
+     "converged": 11157,
+     "errors": 0,
+     "seconds": 4.517683125
+    },
+    "google/pymatching": {
+     "failures": 14882
+    },
+    "google/correlated_matching": {
+     "failures": 13645
+    },
+    "google/belief_matching": {
+     "failures": 12816
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12668
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49050,
+    "ours/circuit/belief": 44690
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14326,
+     "converged": 5535,
+     "errors": 0,
+     "seconds": 5.656263249
+    },
+    "ours/circuit/belief": {
+     "failures": 14666,
+     "converged": 8512,
+     "errors": 0,
+     "seconds": 5.634997334
+    },
+    "google/pymatching": {
+     "failures": 16461
+    },
+    "google/correlated_matching": {
+     "failures": 15142
+    },
+    "google/belief_matching": {
+     "failures": 14212
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14148
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48780,
+    "ours/circuit/belief": 43976
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15670,
+     "converged": 3702,
+     "errors": 0,
+     "seconds": 7.334020542
+    },
+    "ours/circuit/belief": {
+     "failures": 15983,
+     "converged": 6170,
+     "errors": 0,
+     "seconds": 7.273635667
+    },
+    "google/pymatching": {
+     "failures": 17674
+    },
+    "google/correlated_matching": {
+     "failures": 16615
+    },
+    "google/belief_matching": {
+     "failures": 15631
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15554
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48547,
+    "ours/circuit/belief": 42846
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17315,
+     "converged": 2209,
+     "errors": 0,
+     "seconds": 8.45487
+    },
+    "ours/circuit/belief": {
+     "failures": 17611,
+     "converged": 4201,
+     "errors": 0,
+     "seconds": 8.694267375
+    },
+    "google/pymatching": {
+     "failures": 19238
+    },
+    "google/correlated_matching": {
+     "failures": 18035
+    },
+    "google/belief_matching": {
+     "failures": 17171
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16996
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48416,
+    "ours/circuit/belief": 42118
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17729,
+     "converged": 1627,
+     "errors": 0,
+     "seconds": 15.309816584
+    },
+    "ours/circuit/belief": {
+     "failures": 17999,
+     "converged": 3228,
+     "errors": 0,
+     "seconds": 12.098537958
+    },
+    "google/pymatching": {
+     "failures": 19572
+    },
+    "google/correlated_matching": {
+     "failures": 18562
+    },
+    "google/belief_matching": {
+     "failures": 17675
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17719
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48312,
+    "ours/circuit/belief": 41222
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19018,
+     "converged": 924,
+     "errors": 0,
+     "seconds": 13.025794583
+    },
+    "ours/circuit/belief": {
+     "failures": 19120,
+     "converged": 2268,
+     "errors": 0,
+     "seconds": 12.989889583
+    },
+    "google/pymatching": {
+     "failures": 20817
+    },
+    "google/correlated_matching": {
+     "failures": 19675
+    },
+    "google/belief_matching": {
+     "failures": 18915
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18902
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48043,
+    "ours/circuit/belief": 40537
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19343,
+     "converged": 810,
+     "errors": 0,
+     "seconds": 13.001001791
+    },
+    "ours/circuit/belief": {
+     "failures": 19446,
+     "converged": 2028,
+     "errors": 0,
+     "seconds": 13.109828417
+    },
+    "google/pymatching": {
+     "failures": 21082
+    },
+    "google/correlated_matching": {
+     "failures": 20136
+    },
+    "google/belief_matching": {
+     "failures": 19219
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19447
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47938,
+    "ours/circuit/belief": 40385
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_3_5": {
+   "d": 3,
+   "patch": "center_3_5",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 20325,
+     "converged": 483,
+     "errors": 0,
+     "seconds": 13.597034833
+    },
+    "ours/circuit/belief": {
+     "failures": 20708,
+     "converged": 1314,
+     "errors": 0,
+     "seconds": 14.073394291
+    },
+    "google/pymatching": {
+     "failures": 21639
+    },
+    "google/correlated_matching": {
+     "failures": 21069
+    },
+    "google/belief_matching": {
+     "failures": 20187
+    },
+    "google/tensor_network_contraction": {
+     "failures": 20422
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47666,
+    "ours/circuit/belief": 39235
+   }
+  },
+  "sycamore/surface_code_bX_d3_r01_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 953,
+     "converged": 49595,
+     "errors": 0,
+     "seconds": 0.003986584
+    },
+    "ours/circuit/belief": {
+     "failures": 921,
+     "converged": 49474,
+     "errors": 0,
+     "seconds": 0.004671333
+    },
+    "google/pymatching": {
+     "failures": 920
+    },
+    "google/correlated_matching": {
+     "failures": 920
+    },
+    "google/belief_matching": {
+     "failures": 952
+    },
+    "google/tensor_network_contraction": {
+     "failures": 887
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49973,
+    "ours/circuit/belief": 49679
+   }
+  },
+  "sycamore/surface_code_bX_d3_r03_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3999,
+     "converged": 37776,
+     "errors": 0,
+     "seconds": 0.307962583
+    },
+    "ours/circuit/belief": {
+     "failures": 4124,
+     "converged": 38472,
+     "errors": 0,
+     "seconds": 0.316667667
+    },
+    "google/pymatching": {
+     "failures": 4559
+    },
+    "google/correlated_matching": {
+     "failures": 4191
+    },
+    "google/belief_matching": {
+     "failures": 3971
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3790
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49858,
+    "ours/circuit/belief": 48989
+   }
+  },
+  "sycamore/surface_code_bX_d3_r05_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6951,
+     "converged": 26769,
+     "errors": 0,
+     "seconds": 1.090013542
+    },
+    "ours/circuit/belief": {
+     "failures": 7264,
+     "converged": 28350,
+     "errors": 0,
+     "seconds": 1.063917625
+    },
+    "google/pymatching": {
+     "failures": 8153
+    },
+    "google/correlated_matching": {
+     "failures": 7363
+    },
+    "google/belief_matching": {
+     "failures": 6918
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6639
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49691,
+    "ours/circuit/belief": 47912
+   }
+  },
+  "sycamore/surface_code_bX_d3_r07_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 9239,
+     "converged": 18976,
+     "errors": 0,
+     "seconds": 1.942019124
+    },
+    "ours/circuit/belief": {
+     "failures": 9553,
+     "converged": 20971,
+     "errors": 0,
+     "seconds": 2.078635291
+    },
+    "google/pymatching": {
+     "failures": 10847
+    },
+    "google/correlated_matching": {
+     "failures": 9925
+    },
+    "google/belief_matching": {
+     "failures": 9205
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8848
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49514,
+    "ours/circuit/belief": 47014
+   }
+  },
+  "sycamore/surface_code_bX_d3_r09_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 11274,
+     "converged": 13696,
+     "errors": 0,
+     "seconds": 3.154265416
+    },
+    "ours/circuit/belief": {
+     "failures": 11548,
+     "converged": 15631,
+     "errors": 0,
+     "seconds": 3.209802291
+    },
+    "google/pymatching": {
+     "failures": 12936
+    },
+    "google/correlated_matching": {
+     "failures": 11838
+    },
+    "google/belief_matching": {
+     "failures": 11175
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10776
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49287,
+    "ours/circuit/belief": 46097
+   }
+  },
+  "sycamore/surface_code_bX_d3_r11_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12920,
+     "converged": 9133,
+     "errors": 0,
+     "seconds": 4.326628499
+    },
+    "ours/circuit/belief": {
+     "failures": 13332,
+     "converged": 11406,
+     "errors": 0,
+     "seconds": 4.286627208
+    },
+    "google/pymatching": {
+     "failures": 14942
+    },
+    "google/correlated_matching": {
+     "failures": 13809
+    },
+    "google/belief_matching": {
+     "failures": 12816
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12460
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49074,
+    "ours/circuit/belief": 44818
+   }
+  },
+  "sycamore/surface_code_bX_d3_r13_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14595,
+     "converged": 6832,
+     "errors": 0,
+     "seconds": 5.367538875
+    },
+    "ours/circuit/belief": {
+     "failures": 14913,
+     "converged": 8546,
+     "errors": 0,
+     "seconds": 5.660710875
+    },
+    "google/pymatching": {
+     "failures": 16404
+    },
+    "google/correlated_matching": {
+     "failures": 15286
+    },
+    "google/belief_matching": {
+     "failures": 14456
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14079
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48865,
+    "ours/circuit/belief": 44295
+   }
+  },
+  "sycamore/surface_code_bX_d3_r15_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15999,
+     "converged": 4602,
+     "errors": 0,
+     "seconds": 6.659217541
+    },
+    "ours/circuit/belief": {
+     "failures": 16467,
+     "converged": 6062,
+     "errors": 0,
+     "seconds": 6.893211375
+    },
+    "google/pymatching": {
+     "failures": 18043
+    },
+    "google/correlated_matching": {
+     "failures": 16928
+    },
+    "google/belief_matching": {
+     "failures": 15910
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15679
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48645,
+    "ours/circuit/belief": 42927
+   }
+  },
+  "sycamore/surface_code_bX_d3_r17_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17059,
+     "converged": 3104,
+     "errors": 0,
+     "seconds": 7.589969125
+    },
+    "ours/circuit/belief": {
+     "failures": 17647,
+     "converged": 4314,
+     "errors": 0,
+     "seconds": 8.009046125
+    },
+    "google/pymatching": {
+     "failures": 19370
+    },
+    "google/correlated_matching": {
+     "failures": 18195
+    },
+    "google/belief_matching": {
+     "failures": 17003
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16798
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48550,
+    "ours/circuit/belief": 41968
+   }
+  },
+  "sycamore/surface_code_bX_d3_r19_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18316,
+     "converged": 2214,
+     "errors": 0,
+     "seconds": 8.966427291
+    },
+    "ours/circuit/belief": {
+     "failures": 18715,
+     "converged": 3233,
+     "errors": 0,
+     "seconds": 9.3836785
+    },
+    "google/pymatching": {
+     "failures": 20142
+    },
+    "google/correlated_matching": {
+     "failures": 19188
+    },
+    "google/belief_matching": {
+     "failures": 18275
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17994
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48431,
+    "ours/circuit/belief": 41022
+   }
+  },
+  "sycamore/surface_code_bX_d3_r21_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18747,
+     "converged": 1580,
+     "errors": 0,
+     "seconds": 9.94584825
+    },
+    "ours/circuit/belief": {
+     "failures": 19195,
+     "converged": 2330,
+     "errors": 0,
+     "seconds": 10.455008083
+    },
+    "google/pymatching": {
+     "failures": 20669
+    },
+    "google/correlated_matching": {
+     "failures": 19593
+    },
+    "google/belief_matching": {
+     "failures": 18667
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18578
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48134,
+    "ours/circuit/belief": 40908
+   }
+  },
+  "sycamore/surface_code_bX_d3_r23_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 20098,
+     "converged": 953,
+     "errors": 0,
+     "seconds": 11.099869167
+    },
+    "ours/circuit/belief": {
+     "failures": 20458,
+     "converged": 1622,
+     "errors": 0,
+     "seconds": 11.53837525
+    },
+    "google/pymatching": {
+     "failures": 21782
+    },
+    "google/correlated_matching": {
+     "failures": 20796
+    },
+    "google/belief_matching": {
+     "failures": 19963
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19784
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48115,
+    "ours/circuit/belief": 39327
+   }
+  },
+  "sycamore/surface_code_bX_d3_r25_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 20807,
+     "converged": 692,
+     "errors": 0,
+     "seconds": 12.396563292
+    },
+    "ours/circuit/belief": {
+     "failures": 21005,
+     "converged": 1235,
+     "errors": 0,
+     "seconds": 12.58302425
+    },
+    "google/pymatching": {
+     "failures": 22159
+    },
+    "google/correlated_matching": {
+     "failures": 21259
+    },
+    "google/belief_matching": {
+     "failures": 20796
+    },
+    "google/tensor_network_contraction": {
+     "failures": 20652
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47617,
+    "ours/circuit/belief": 38345
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 849,
+     "converged": 49638,
+     "errors": 0,
+     "seconds": 0.0039165829999999995
+    },
+    "ours/circuit/belief": {
+     "failures": 849,
+     "converged": 49656,
+     "errors": 0,
+     "seconds": 0.003970459
+    },
+    "google/pymatching": {
+     "failures": 852
+    },
+    "google/correlated_matching": {
+     "failures": 852
+    },
+    "google/belief_matching": {
+     "failures": 860
+    },
+    "google/tensor_network_contraction": {
+     "failures": 810
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49975,
+    "ours/circuit/belief": 49835
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3967,
+     "converged": 37200,
+     "errors": 0,
+     "seconds": 0.311904625
+    },
+    "ours/circuit/belief": {
+     "failures": 4071,
+     "converged": 37938,
+     "errors": 0,
+     "seconds": 0.324609083
+    },
+    "google/pymatching": {
+     "failures": 4491
+    },
+    "google/correlated_matching": {
+     "failures": 4271
+    },
+    "google/belief_matching": {
+     "failures": 3940
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3752
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49883,
+    "ours/circuit/belief": 49199
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6698,
+     "converged": 26319,
+     "errors": 0,
+     "seconds": 1.073468
+    },
+    "ours/circuit/belief": {
+     "failures": 6767,
+     "converged": 27734,
+     "errors": 0,
+     "seconds": 1.067255583
+    },
+    "google/pymatching": {
+     "failures": 7662
+    },
+    "google/correlated_matching": {
+     "failures": 7061
+    },
+    "google/belief_matching": {
+     "failures": 6629
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6460
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49745,
+    "ours/circuit/belief": 48568
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 8823,
+     "converged": 18353,
+     "errors": 0,
+     "seconds": 2.1131203330000004
+    },
+    "ours/circuit/belief": {
+     "failures": 8910,
+     "converged": 20645,
+     "errors": 0,
+     "seconds": 2.0762105
+    },
+    "google/pymatching": {
+     "failures": 10335
+    },
+    "google/correlated_matching": {
+     "failures": 9378
+    },
+    "google/belief_matching": {
+     "failures": 8742
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8442
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49535,
+    "ours/circuit/belief": 47820
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 10898,
+     "converged": 13188,
+     "errors": 0,
+     "seconds": 3.126014041
+    },
+    "ours/circuit/belief": {
+     "failures": 11021,
+     "converged": 15265,
+     "errors": 0,
+     "seconds": 3.147592125
+    },
+    "google/pymatching": {
+     "failures": 12552
+    },
+    "google/correlated_matching": {
+     "failures": 11436
+    },
+    "google/belief_matching": {
+     "failures": 10797
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10311
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49379,
+    "ours/circuit/belief": 47260
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12418,
+     "converged": 9003,
+     "errors": 0,
+     "seconds": 4.186053625
+    },
+    "ours/circuit/belief": {
+     "failures": 12568,
+     "converged": 11050,
+     "errors": 0,
+     "seconds": 4.679079791
+    },
+    "google/pymatching": {
+     "failures": 14216
+    },
+    "google/correlated_matching": {
+     "failures": 13012
+    },
+    "google/belief_matching": {
+     "failures": 12332
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11880
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49176,
+    "ours/circuit/belief": 46448
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14241,
+     "converged": 6667,
+     "errors": 0,
+     "seconds": 5.482224999
+    },
+    "ours/circuit/belief": {
+     "failures": 14358,
+     "converged": 8150,
+     "errors": 0,
+     "seconds": 5.678814708
+    },
+    "google/pymatching": {
+     "failures": 16259
+    },
+    "google/correlated_matching": {
+     "failures": 14925
+    },
+    "google/belief_matching": {
+     "failures": 14184
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13482
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48989,
+    "ours/circuit/belief": 45958
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15636,
+     "converged": 4492,
+     "errors": 0,
+     "seconds": 6.531318833
+    },
+    "ours/circuit/belief": {
+     "failures": 15703,
+     "converged": 5967,
+     "errors": 0,
+     "seconds": 6.817504416
+    },
+    "google/pymatching": {
+     "failures": 17567
+    },
+    "google/correlated_matching": {
+     "failures": 16147
+    },
+    "google/belief_matching": {
+     "failures": 15519
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14874
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48813,
+    "ours/circuit/belief": 45416
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16564,
+     "converged": 3244,
+     "errors": 0,
+     "seconds": 7.709685334
+    },
+    "ours/circuit/belief": {
+     "failures": 16816,
+     "converged": 4391,
+     "errors": 0,
+     "seconds": 7.9689457919999995
+    },
+    "google/pymatching": {
+     "failures": 18528
+    },
+    "google/correlated_matching": {
+     "failures": 17254
+    },
+    "google/belief_matching": {
+     "failures": 16493
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15965
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48581,
+    "ours/circuit/belief": 44919
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17385,
+     "converged": 2320,
+     "errors": 0,
+     "seconds": 8.765321417
+    },
+    "ours/circuit/belief": {
+     "failures": 17472,
+     "converged": 3293,
+     "errors": 0,
+     "seconds": 9.040156834
+    },
+    "google/pymatching": {
+     "failures": 19281
+    },
+    "google/correlated_matching": {
+     "failures": 17952
+    },
+    "google/belief_matching": {
+     "failures": 17279
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16673
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48574,
+    "ours/circuit/belief": 44473
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18812,
+     "converged": 1348,
+     "errors": 0,
+     "seconds": 9.810177416
+    },
+    "ours/circuit/belief": {
+     "failures": 18885,
+     "converged": 2161,
+     "errors": 0,
+     "seconds": 10.145313458
+    },
+    "google/pymatching": {
+     "failures": 20411
+    },
+    "google/correlated_matching": {
+     "failures": 19204
+    },
+    "google/belief_matching": {
+     "failures": 18740
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18208
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48224,
+    "ours/circuit/belief": 43403
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19034,
+     "converged": 932,
+     "errors": 0,
+     "seconds": 10.933696831999999
+    },
+    "ours/circuit/belief": {
+     "failures": 19297,
+     "converged": 1588,
+     "errors": 0,
+     "seconds": 11.574000166
+    },
+    "google/pymatching": {
+     "failures": 21141
+    },
+    "google/correlated_matching": {
+     "failures": 19976
+    },
+    "google/belief_matching": {
+     "failures": 19015
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18375
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48159,
+    "ours/circuit/belief": 43258
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_5_3": {
+   "d": 3,
+   "patch": "center_5_3",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19835,
+     "converged": 663,
+     "errors": 0,
+     "seconds": 12.501578666
+    },
+    "ours/circuit/belief": {
+     "failures": 19939,
+     "converged": 1218,
+     "errors": 0,
+     "seconds": 13.763794917
+    },
+    "google/pymatching": {
+     "failures": 21721
+    },
+    "google/correlated_matching": {
+     "failures": 20440
+    },
+    "google/belief_matching": {
+     "failures": 19732
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19437
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47923,
+    "ours/circuit/belief": 42103
+   }
+  },
+  "sycamore/surface_code_bX_d3_r01_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 828,
+     "converged": 49510,
+     "errors": 0,
+     "seconds": 0.004317709
+    },
+    "ours/circuit/belief": {
+     "failures": 850,
+     "converged": 49551,
+     "errors": 0,
+     "seconds": 0.004118083
+    },
+    "google/pymatching": {
+     "failures": 823
+    },
+    "google/correlated_matching": {
+     "failures": 825
+    },
+    "google/belief_matching": {
+     "failures": 818
+    },
+    "google/tensor_network_contraction": {
+     "failures": 814
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49956,
+    "ours/circuit/belief": 49834
+   }
+  },
+  "sycamore/surface_code_bX_d3_r03_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3659,
+     "converged": 38708,
+     "errors": 0,
+     "seconds": 0.31100779199999995
+    },
+    "ours/circuit/belief": {
+     "failures": 3803,
+     "converged": 39985,
+     "errors": 0,
+     "seconds": 0.297454417
+    },
+    "google/pymatching": {
+     "failures": 4314
+    },
+    "google/correlated_matching": {
+     "failures": 4071
+    },
+    "google/belief_matching": {
+     "failures": 3640
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3472
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49847,
+    "ours/circuit/belief": 49161
+   }
+  },
+  "sycamore/surface_code_bX_d3_r05_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6068,
+     "converged": 29161,
+     "errors": 0,
+     "seconds": 0.989063542
+    },
+    "ours/circuit/belief": {
+     "failures": 6320,
+     "converged": 31732,
+     "errors": 0,
+     "seconds": 1.012338042
+    },
+    "google/pymatching": {
+     "failures": 7369
+    },
+    "google/correlated_matching": {
+     "failures": 6674
+    },
+    "google/belief_matching": {
+     "failures": 6019
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5753
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49689,
+    "ours/circuit/belief": 48339
+   }
+  },
+  "sycamore/surface_code_bX_d3_r07_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 7943,
+     "converged": 21701,
+     "errors": 0,
+     "seconds": 1.976146917
+    },
+    "ours/circuit/belief": {
+     "failures": 8320,
+     "converged": 25049,
+     "errors": 0,
+     "seconds": 1.928727083
+    },
+    "google/pymatching": {
+     "failures": 9722
+    },
+    "google/correlated_matching": {
+     "failures": 8916
+    },
+    "google/belief_matching": {
+     "failures": 7899
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7514
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49460,
+    "ours/circuit/belief": 47801
+   }
+  },
+  "sycamore/surface_code_bX_d3_r09_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 9830,
+     "converged": 16193,
+     "errors": 0,
+     "seconds": 3.0015933329999998
+    },
+    "ours/circuit/belief": {
+     "failures": 10247,
+     "converged": 19543,
+     "errors": 0,
+     "seconds": 3.0644285
+    },
+    "google/pymatching": {
+     "failures": 12062
+    },
+    "google/correlated_matching": {
+     "failures": 10980
+    },
+    "google/belief_matching": {
+     "failures": 9794
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9302
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49240,
+    "ours/circuit/belief": 47011
+   }
+  },
+  "sycamore/surface_code_bX_d3_r11_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 11830,
+     "converged": 11382,
+     "errors": 0,
+     "seconds": 4.248959709
+    },
+    "ours/circuit/belief": {
+     "failures": 12085,
+     "converged": 14774,
+     "errors": 0,
+     "seconds": 4.278586417
+    },
+    "google/pymatching": {
+     "failures": 14006
+    },
+    "google/correlated_matching": {
+     "failures": 12857
+    },
+    "google/belief_matching": {
+     "failures": 11727
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11133
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49017,
+    "ours/circuit/belief": 46084
+   }
+  },
+  "sycamore/surface_code_bX_d3_r13_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 13498,
+     "converged": 8650,
+     "errors": 0,
+     "seconds": 5.491669583
+    },
+    "ours/circuit/belief": {
+     "failures": 13797,
+     "converged": 11229,
+     "errors": 0,
+     "seconds": 5.7031712500000005
+    },
+    "google/pymatching": {
+     "failures": 15739
+    },
+    "google/correlated_matching": {
+     "failures": 14726
+    },
+    "google/belief_matching": {
+     "failures": 13386
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12907
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48874,
+    "ours/circuit/belief": 45619
+   }
+  },
+  "sycamore/surface_code_bX_d3_r15_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15110,
+     "converged": 5927,
+     "errors": 0,
+     "seconds": 6.722851417
+    },
+    "ours/circuit/belief": {
+     "failures": 15615,
+     "converged": 8235,
+     "errors": 0,
+     "seconds": 6.560222541
+    },
+    "google/pymatching": {
+     "failures": 17594
+    },
+    "google/correlated_matching": {
+     "failures": 16488
+    },
+    "google/belief_matching": {
+     "failures": 15023
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14409
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48751,
+    "ours/circuit/belief": 44270
+   }
+  },
+  "sycamore/surface_code_bX_d3_r17_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16370,
+     "converged": 3825,
+     "errors": 0,
+     "seconds": 7.307653999999999
+    },
+    "ours/circuit/belief": {
+     "failures": 16957,
+     "converged": 5792,
+     "errors": 0,
+     "seconds": 7.726183667
+    },
+    "google/pymatching": {
+     "failures": 18968
+    },
+    "google/correlated_matching": {
+     "failures": 17651
+    },
+    "google/belief_matching": {
+     "failures": 16358
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15675
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48500,
+    "ours/circuit/belief": 43263
+   }
+  },
+  "sycamore/surface_code_bX_d3_r19_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16955,
+     "converged": 3156,
+     "errors": 0,
+     "seconds": 8.704638542
+    },
+    "ours/circuit/belief": {
+     "failures": 17197,
+     "converged": 5279,
+     "errors": 0,
+     "seconds": 9.480499458
+    },
+    "google/pymatching": {
+     "failures": 19255
+    },
+    "google/correlated_matching": {
+     "failures": 18069
+    },
+    "google/belief_matching": {
+     "failures": 16990
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16435
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48071,
+    "ours/circuit/belief": 43335
+   }
+  },
+  "sycamore/surface_code_bX_d3_r21_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18457,
+     "converged": 1876,
+     "errors": 0,
+     "seconds": 11.552529667
+    },
+    "ours/circuit/belief": {
+     "failures": 18763,
+     "converged": 3234,
+     "errors": 0,
+     "seconds": 12.061908083
+    },
+    "google/pymatching": {
+     "failures": 20512
+    },
+    "google/correlated_matching": {
+     "failures": 19488
+    },
+    "google/belief_matching": {
+     "failures": 18351
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17889
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48086,
+    "ours/circuit/belief": 42538
+   }
+  },
+  "sycamore/surface_code_bX_d3_r23_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18971,
+     "converged": 1561,
+     "errors": 0,
+     "seconds": 12.030449958
+    },
+    "ours/circuit/belief": {
+     "failures": 19331,
+     "converged": 2960,
+     "errors": 0,
+     "seconds": 12.070919667
+    },
+    "google/pymatching": {
+     "failures": 21058
+    },
+    "google/correlated_matching": {
+     "failures": 19931
+    },
+    "google/belief_matching": {
+     "failures": 18868
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18479
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47621,
+    "ours/circuit/belief": 42321
+   }
+  },
+  "sycamore/surface_code_bX_d3_r25_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19657,
+     "converged": 1046,
+     "errors": 0,
+     "seconds": 16.896075917
+    },
+    "ours/circuit/belief": {
+     "failures": 20076,
+     "converged": 2173,
+     "errors": 0,
+     "seconds": 13.344726084
+    },
+    "google/pymatching": {
+     "failures": 21532
+    },
+    "google/correlated_matching": {
+     "failures": 20912
+    },
+    "google/belief_matching": {
+     "failures": 19598
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19196
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47241,
+    "ours/circuit/belief": 41178
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 860,
+     "converged": 49557,
+     "errors": 0,
+     "seconds": 0.0040207920000000005
+    },
+    "ours/circuit/belief": {
+     "failures": 855,
+     "converged": 49564,
+     "errors": 0,
+     "seconds": 0.003759375
+    },
+    "google/pymatching": {
+     "failures": 852
+    },
+    "google/correlated_matching": {
+     "failures": 849
+    },
+    "google/belief_matching": {
+     "failures": 829
+    },
+    "google/tensor_network_contraction": {
+     "failures": 825
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49945,
+    "ours/circuit/belief": 49840
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 4096,
+     "converged": 38551,
+     "errors": 0,
+     "seconds": 0.283346291
+    },
+    "ours/circuit/belief": {
+     "failures": 4128,
+     "converged": 38860,
+     "errors": 0,
+     "seconds": 0.297570416
+    },
+    "google/pymatching": {
+     "failures": 4713
+    },
+    "google/correlated_matching": {
+     "failures": 4309
+    },
+    "google/belief_matching": {
+     "failures": 4051
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3908
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49821,
+    "ours/circuit/belief": 49039
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6351,
+     "converged": 28722,
+     "errors": 0,
+     "seconds": 1.001097749
+    },
+    "ours/circuit/belief": {
+     "failures": 6467,
+     "converged": 31011,
+     "errors": 0,
+     "seconds": 0.984921458
+    },
+    "google/pymatching": {
+     "failures": 7678
+    },
+    "google/correlated_matching": {
+     "failures": 6860
+    },
+    "google/belief_matching": {
+     "failures": 6231
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5952
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49594,
+    "ours/circuit/belief": 48356
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 8523,
+     "converged": 21568,
+     "errors": 0,
+     "seconds": 1.822054959
+    },
+    "ours/circuit/belief": {
+     "failures": 8619,
+     "converged": 24533,
+     "errors": 0,
+     "seconds": 1.834808416
+    },
+    "google/pymatching": {
+     "failures": 10335
+    },
+    "google/correlated_matching": {
+     "failures": 9130
+    },
+    "google/belief_matching": {
+     "failures": 8337
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8123
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49344,
+    "ours/circuit/belief": 47712
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 10501,
+     "converged": 15872,
+     "errors": 0,
+     "seconds": 2.930351292
+    },
+    "ours/circuit/belief": {
+     "failures": 10560,
+     "converged": 19232,
+     "errors": 0,
+     "seconds": 2.8555332079999998
+    },
+    "google/pymatching": {
+     "failures": 12473
+    },
+    "google/correlated_matching": {
+     "failures": 11149
+    },
+    "google/belief_matching": {
+     "failures": 10301
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9969
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49062,
+    "ours/circuit/belief": 46809
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12327,
+     "converged": 11403,
+     "errors": 0,
+     "seconds": 4.032683958
+    },
+    "ours/circuit/belief": {
+     "failures": 12478,
+     "converged": 14782,
+     "errors": 0,
+     "seconds": 4.133867667
+    },
+    "google/pymatching": {
+     "failures": 14553
+    },
+    "google/correlated_matching": {
+     "failures": 13021
+    },
+    "google/belief_matching": {
+     "failures": 12127
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11870
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48866,
+    "ours/circuit/belief": 45795
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 13863,
+     "converged": 7899,
+     "errors": 0,
+     "seconds": 5.341154375
+    },
+    "ours/circuit/belief": {
+     "failures": 14013,
+     "converged": 10723,
+     "errors": 0,
+     "seconds": 5.360568958
+    },
+    "google/pymatching": {
+     "failures": 16333
+    },
+    "google/correlated_matching": {
+     "failures": 14817
+    },
+    "google/belief_matching": {
+     "failures": 13732
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13346
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48577,
+    "ours/circuit/belief": 44981
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15504,
+     "converged": 5734,
+     "errors": 0,
+     "seconds": 6.545238458
+    },
+    "ours/circuit/belief": {
+     "failures": 15665,
+     "converged": 8219,
+     "errors": 0,
+     "seconds": 6.51036475
+    },
+    "google/pymatching": {
+     "failures": 17721
+    },
+    "google/correlated_matching": {
+     "failures": 16231
+    },
+    "google/belief_matching": {
+     "failures": 15312
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14886
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48308,
+    "ours/circuit/belief": 44185
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17271,
+     "converged": 3511,
+     "errors": 0,
+     "seconds": 7.697327874000001
+    },
+    "ours/circuit/belief": {
+     "failures": 17633,
+     "converged": 5561,
+     "errors": 0,
+     "seconds": 7.982943166
+    },
+    "google/pymatching": {
+     "failures": 19575
+    },
+    "google/correlated_matching": {
+     "failures": 18179
+    },
+    "google/belief_matching": {
+     "failures": 17072
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16673
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48137,
+    "ours/circuit/belief": 42811
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17074,
+     "converged": 3042,
+     "errors": 0,
+     "seconds": 8.777584999999998
+    },
+    "ours/circuit/belief": {
+     "failures": 17192,
+     "converged": 5100,
+     "errors": 0,
+     "seconds": 9.01692375
+    },
+    "google/pymatching": {
+     "failures": 19496
+    },
+    "google/correlated_matching": {
+     "failures": 17955
+    },
+    "google/belief_matching": {
+     "failures": 16858
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16520
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47960,
+    "ours/circuit/belief": 43300
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18787,
+     "converged": 1924,
+     "errors": 0,
+     "seconds": 9.996048167000001
+    },
+    "ours/circuit/belief": {
+     "failures": 19065,
+     "converged": 3455,
+     "errors": 0,
+     "seconds": 10.183326
+    },
+    "google/pymatching": {
+     "failures": 20933
+    },
+    "google/correlated_matching": {
+     "failures": 19573
+    },
+    "google/belief_matching": {
+     "failures": 18653
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18434
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47554,
+    "ours/circuit/belief": 41610
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18580,
+     "converged": 1712,
+     "errors": 0,
+     "seconds": 11.931695833
+    },
+    "ours/circuit/belief": {
+     "failures": 18695,
+     "converged": 3023,
+     "errors": 0,
+     "seconds": 12.254201334
+    },
+    "google/pymatching": {
+     "failures": 20925
+    },
+    "google/correlated_matching": {
+     "failures": 19511
+    },
+    "google/belief_matching": {
+     "failures": 18405
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18064
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47365,
+    "ours/circuit/belief": 42018
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_5_7": {
+   "d": 3,
+   "patch": "center_5_7",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19268,
+     "converged": 1178,
+     "errors": 0,
+     "seconds": 12.941887958
+    },
+    "ours/circuit/belief": {
+     "failures": 19398,
+     "converged": 2279,
+     "errors": 0,
+     "seconds": 13.424472458
+    },
+    "google/pymatching": {
+     "failures": 21508
+    },
+    "google/correlated_matching": {
+     "failures": 20110
+    },
+    "google/belief_matching": {
+     "failures": 19027
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18733
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47183,
+    "ours/circuit/belief": 41193
+   }
+  },
+  "sycamore/surface_code_bX_d3_r01_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 857,
+     "converged": 49580,
+     "errors": 0,
+     "seconds": 0.004633957
+    },
+    "ours/circuit/belief": {
+     "failures": 851,
+     "converged": 49527,
+     "errors": 0,
+     "seconds": 0.004504875
+    },
+    "google/pymatching": {
+     "failures": 851
+    },
+    "google/correlated_matching": {
+     "failures": 851
+    },
+    "google/belief_matching": {
+     "failures": 851
+    },
+    "google/tensor_network_contraction": {
+     "failures": 819
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49968,
+    "ours/circuit/belief": 49882
+   }
+  },
+  "sycamore/surface_code_bX_d3_r03_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3949,
+     "converged": 39250,
+     "errors": 0,
+     "seconds": 0.312718958
+    },
+    "ours/circuit/belief": {
+     "failures": 4064,
+     "converged": 39748,
+     "errors": 0,
+     "seconds": 0.297803375
+    },
+    "google/pymatching": {
+     "failures": 4593
+    },
+    "google/correlated_matching": {
+     "failures": 4223
+    },
+    "google/belief_matching": {
+     "failures": 3917
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3820
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49852,
+    "ours/circuit/belief": 49179
+   }
+  },
+  "sycamore/surface_code_bX_d3_r05_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6609,
+     "converged": 28840,
+     "errors": 0,
+     "seconds": 0.96922675
+    },
+    "ours/circuit/belief": {
+     "failures": 6743,
+     "converged": 30632,
+     "errors": 0,
+     "seconds": 1.023878792
+    },
+    "google/pymatching": {
+     "failures": 7845
+    },
+    "google/correlated_matching": {
+     "failures": 7174
+    },
+    "google/belief_matching": {
+     "failures": 6599
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6387
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49582,
+    "ours/circuit/belief": 48308
+   }
+  },
+  "sycamore/surface_code_bX_d3_r07_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 9178,
+     "converged": 22038,
+     "errors": 0,
+     "seconds": 1.938988583
+    },
+    "ours/circuit/belief": {
+     "failures": 9292,
+     "converged": 23981,
+     "errors": 0,
+     "seconds": 1.996825625
+    },
+    "google/pymatching": {
+     "failures": 10717
+    },
+    "google/correlated_matching": {
+     "failures": 9873
+    },
+    "google/belief_matching": {
+     "failures": 9106
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8880
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49352,
+    "ours/circuit/belief": 47428
+   }
+  },
+  "sycamore/surface_code_bX_d3_r09_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 10783,
+     "converged": 16721,
+     "errors": 0,
+     "seconds": 3.080841584
+    },
+    "ours/circuit/belief": {
+     "failures": 10987,
+     "converged": 18950,
+     "errors": 0,
+     "seconds": 2.952958208
+    },
+    "google/pymatching": {
+     "failures": 12636
+    },
+    "google/correlated_matching": {
+     "failures": 11492
+    },
+    "google/belief_matching": {
+     "failures": 10704
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10490
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49163,
+    "ours/circuit/belief": 46439
+   }
+  },
+  "sycamore/surface_code_bX_d3_r11_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12430,
+     "converged": 12092,
+     "errors": 0,
+     "seconds": 3.981924875
+    },
+    "ours/circuit/belief": {
+     "failures": 12640,
+     "converged": 14741,
+     "errors": 0,
+     "seconds": 4.053843292
+    },
+    "google/pymatching": {
+     "failures": 14451
+    },
+    "google/correlated_matching": {
+     "failures": 13249
+    },
+    "google/belief_matching": {
+     "failures": 12401
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12242
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48943,
+    "ours/circuit/belief": 45477
+   }
+  },
+  "sycamore/surface_code_bX_d3_r13_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 13854,
+     "converged": 8468,
+     "errors": 0,
+     "seconds": 5.262352542
+    },
+    "ours/circuit/belief": {
+     "failures": 14184,
+     "converged": 10968,
+     "errors": 0,
+     "seconds": 5.755072541
+    },
+    "google/pymatching": {
+     "failures": 16120
+    },
+    "google/correlated_matching": {
+     "failures": 15096
+    },
+    "google/belief_matching": {
+     "failures": 13781
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13566
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48635,
+    "ours/circuit/belief": 44627
+   }
+  },
+  "sycamore/surface_code_bX_d3_r15_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14596,
+     "converged": 6791,
+     "errors": 0,
+     "seconds": 7.174476792
+    },
+    "ours/circuit/belief": {
+     "failures": 14930,
+     "converged": 9361,
+     "errors": 0,
+     "seconds": 6.730294291
+    },
+    "google/pymatching": {
+     "failures": 17056
+    },
+    "google/correlated_matching": {
+     "failures": 15830
+    },
+    "google/belief_matching": {
+     "failures": 14581
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14341
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48467,
+    "ours/circuit/belief": 43575
+   }
+  },
+  "sycamore/surface_code_bX_d3_r17_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16135,
+     "converged": 4858,
+     "errors": 0,
+     "seconds": 7.556334125
+    },
+    "ours/circuit/belief": {
+     "failures": 16517,
+     "converged": 6770,
+     "errors": 0,
+     "seconds": 7.778293375
+    },
+    "google/pymatching": {
+     "failures": 18322
+    },
+    "google/correlated_matching": {
+     "failures": 17176
+    },
+    "google/belief_matching": {
+     "failures": 16110
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15887
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48321,
+    "ours/circuit/belief": 43065
+   }
+  },
+  "sycamore/surface_code_bX_d3_r19_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17296,
+     "converged": 3242,
+     "errors": 0,
+     "seconds": 8.804762625
+    },
+    "ours/circuit/belief": {
+     "failures": 17649,
+     "converged": 4762,
+     "errors": 0,
+     "seconds": 14.299904333
+    },
+    "google/pymatching": {
+     "failures": 19436
+    },
+    "google/correlated_matching": {
+     "failures": 18450
+    },
+    "google/belief_matching": {
+     "failures": 17282
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17063
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48166,
+    "ours/circuit/belief": 41943
+   }
+  },
+  "sycamore/surface_code_bX_d3_r21_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18166,
+     "converged": 2217,
+     "errors": 0,
+     "seconds": 12.416320542000001
+    },
+    "ours/circuit/belief": {
+     "failures": 18463,
+     "converged": 3630,
+     "errors": 0,
+     "seconds": 11.020764334
+    },
+    "google/pymatching": {
+     "failures": 20183
+    },
+    "google/correlated_matching": {
+     "failures": 19210
+    },
+    "google/belief_matching": {
+     "failures": 18078
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17864
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47838,
+    "ours/circuit/belief": 41231
+   }
+  },
+  "sycamore/surface_code_bX_d3_r23_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18931,
+     "converged": 1663,
+     "errors": 0,
+     "seconds": 11.847070917
+    },
+    "ours/circuit/belief": {
+     "failures": 19324,
+     "converged": 2871,
+     "errors": 0,
+     "seconds": 12.244094167
+    },
+    "google/pymatching": {
+     "failures": 20867
+    },
+    "google/correlated_matching": {
+     "failures": 19957
+    },
+    "google/belief_matching": {
+     "failures": 18843
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18824
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47724,
+    "ours/circuit/belief": 40535
+   }
+  },
+  "sycamore/surface_code_bX_d3_r25_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19501,
+     "converged": 1345,
+     "errors": 0,
+     "seconds": 12.903800457
+    },
+    "ours/circuit/belief": {
+     "failures": 19747,
+     "converged": 2273,
+     "errors": 0,
+     "seconds": 12.813541083
+    },
+    "google/pymatching": {
+     "failures": 21497
+    },
+    "google/correlated_matching": {
+     "failures": 20648
+    },
+    "google/belief_matching": {
+     "failures": 19418
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19436
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47487,
+    "ours/circuit/belief": 39967
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r01_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 994,
+     "converged": 49579,
+     "errors": 0,
+     "seconds": 0.004446291999999999
+    },
+    "ours/circuit/belief": {
+     "failures": 951,
+     "converged": 49637,
+     "errors": 0,
+     "seconds": 0.004322084
+    },
+    "google/pymatching": {
+     "failures": 943
+    },
+    "google/correlated_matching": {
+     "failures": 943
+    },
+    "google/belief_matching": {
+     "failures": 952
+    },
+    "google/tensor_network_contraction": {
+     "failures": 910
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49944,
+    "ours/circuit/belief": 49917
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r03_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3518,
+     "converged": 39207,
+     "errors": 0,
+     "seconds": 0.26881020899999997
+    },
+    "ours/circuit/belief": {
+     "failures": 3499,
+     "converged": 39949,
+     "errors": 0,
+     "seconds": 0.281062083
+    },
+    "google/pymatching": {
+     "failures": 4007
+    },
+    "google/correlated_matching": {
+     "failures": 3690
+    },
+    "google/belief_matching": {
+     "failures": 3462
+    },
+    "google/tensor_network_contraction": {
+     "failures": 3395
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49830,
+    "ours/circuit/belief": 49379
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r05_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 6624,
+     "converged": 28628,
+     "errors": 0,
+     "seconds": 1.000747959
+    },
+    "ours/circuit/belief": {
+     "failures": 6631,
+     "converged": 30511,
+     "errors": 0,
+     "seconds": 0.990077584
+    },
+    "google/pymatching": {
+     "failures": 7888
+    },
+    "google/correlated_matching": {
+     "failures": 7038
+    },
+    "google/belief_matching": {
+     "failures": 6569
+    },
+    "google/tensor_network_contraction": {
+     "failures": 6241
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49625,
+    "ours/circuit/belief": 48548
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r07_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 7987,
+     "converged": 21220,
+     "errors": 0,
+     "seconds": 1.87219475
+    },
+    "ours/circuit/belief": {
+     "failures": 8120,
+     "converged": 23771,
+     "errors": 0,
+     "seconds": 2.016764875
+    },
+    "google/pymatching": {
+     "failures": 9509
+    },
+    "google/correlated_matching": {
+     "failures": 8703
+    },
+    "google/belief_matching": {
+     "failures": 7905
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7593
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49480,
+    "ours/circuit/belief": 47803
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r09_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 10013,
+     "converged": 15685,
+     "errors": 0,
+     "seconds": 3.066365583
+    },
+    "ours/circuit/belief": {
+     "failures": 10103,
+     "converged": 18549,
+     "errors": 0,
+     "seconds": 2.92001875
+    },
+    "google/pymatching": {
+     "failures": 11553
+    },
+    "google/correlated_matching": {
+     "failures": 10672
+    },
+    "google/belief_matching": {
+     "failures": 9876
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9474
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49213,
+    "ours/circuit/belief": 47031
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r11_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 11344,
+     "converged": 12161,
+     "errors": 0,
+     "seconds": 3.93290275
+    },
+    "ours/circuit/belief": {
+     "failures": 11303,
+     "converged": 14638,
+     "errors": 0,
+     "seconds": 4.115789709
+    },
+    "google/pymatching": {
+     "failures": 12899
+    },
+    "google/correlated_matching": {
+     "failures": 11971
+    },
+    "google/belief_matching": {
+     "failures": 11174
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10726
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49034,
+    "ours/circuit/belief": 46779
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r13_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 13684,
+     "converged": 8412,
+     "errors": 0,
+     "seconds": 5.271207792
+    },
+    "ours/circuit/belief": {
+     "failures": 13708,
+     "converged": 11059,
+     "errors": 0,
+     "seconds": 5.273649791
+    },
+    "google/pymatching": {
+     "failures": 15732
+    },
+    "google/correlated_matching": {
+     "failures": 14411
+    },
+    "google/belief_matching": {
+     "failures": 13535
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13137
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48667,
+    "ours/circuit/belief": 45875
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r15_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14511,
+     "converged": 6666,
+     "errors": 0,
+     "seconds": 6.388743584
+    },
+    "ours/circuit/belief": {
+     "failures": 14582,
+     "converged": 8973,
+     "errors": 0,
+     "seconds": 6.543648417
+    },
+    "google/pymatching": {
+     "failures": 16577
+    },
+    "google/correlated_matching": {
+     "failures": 15201
+    },
+    "google/belief_matching": {
+     "failures": 14327
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14123
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48468,
+    "ours/circuit/belief": 45211
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r17_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15872,
+     "converged": 4782,
+     "errors": 0,
+     "seconds": 7.537391208
+    },
+    "ours/circuit/belief": {
+     "failures": 15918,
+     "converged": 6858,
+     "errors": 0,
+     "seconds": 7.7064548330000004
+    },
+    "google/pymatching": {
+     "failures": 17901
+    },
+    "google/correlated_matching": {
+     "failures": 16505
+    },
+    "google/belief_matching": {
+     "failures": 15713
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15328
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48279,
+    "ours/circuit/belief": 44843
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r19_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17687,
+     "converged": 3007,
+     "errors": 0,
+     "seconds": 11.951969041
+    },
+    "ours/circuit/belief": {
+     "failures": 17757,
+     "converged": 4517,
+     "errors": 0,
+     "seconds": 14.589749042
+    },
+    "google/pymatching": {
+     "failures": 19621
+    },
+    "google/correlated_matching": {
+     "failures": 18368
+    },
+    "google/belief_matching": {
+     "failures": 17614
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17226
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48199,
+    "ours/circuit/belief": 43901
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r21_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18442,
+     "converged": 2195,
+     "errors": 0,
+     "seconds": 18.600273834
+    },
+    "ours/circuit/belief": {
+     "failures": 18509,
+     "converged": 3478,
+     "errors": 0,
+     "seconds": 17.133494125
+    },
+    "google/pymatching": {
+     "failures": 20416
+    },
+    "google/correlated_matching": {
+     "failures": 19253
+    },
+    "google/belief_matching": {
+     "failures": 18289
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18080
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47917,
+    "ours/circuit/belief": 43290
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r23_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18942,
+     "converged": 1734,
+     "errors": 0,
+     "seconds": 12.363236542
+    },
+    "ours/circuit/belief": {
+     "failures": 18923,
+     "converged": 2788,
+     "errors": 0,
+     "seconds": 11.473460292
+    },
+    "google/pymatching": {
+     "failures": 20803
+    },
+    "google/correlated_matching": {
+     "failures": 19555
+    },
+    "google/belief_matching": {
+     "failures": 18803
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18616
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47763,
+    "ours/circuit/belief": 42464
+   }
+  },
+  "sycamore/surface_code_bZ_d3_r25_center_7_5": {
+   "d": 3,
+   "patch": "center_7_5",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19510,
+     "converged": 1249,
+     "errors": 0,
+     "seconds": 11.728647667
+    },
+    "ours/circuit/belief": {
+     "failures": 19622,
+     "converged": 2106,
+     "errors": 0,
+     "seconds": 12.674065791
+    },
+    "google/pymatching": {
+     "failures": 21363
+    },
+    "google/correlated_matching": {
+     "failures": 20211
+    },
+    "google/belief_matching": {
+     "failures": 19390
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19003
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47472,
+    "ours/circuit/belief": 41892
+   }
+  },
+  "sycamore/surface_code_bX_d5_r01_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 449,
+     "converged": 48018,
+     "errors": 0,
+     "seconds": 0.037480292
+    },
+    "ours/circuit/belief": {
+     "failures": 447,
+     "converged": 48005,
+     "errors": 0,
+     "seconds": 0.037917708
+    },
+    "google/pymatching": {
+     "failures": 449
+    },
+    "google/correlated_matching": {
+     "failures": 447
+    },
+    "google/belief_matching": {
+     "failures": 447
+    },
+    "google/tensor_network_contraction": {
+     "failures": 426
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49982,
+    "ours/circuit/belief": 49932
+   }
+  },
+  "sycamore/surface_code_bX_d5_r03_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 3085,
+     "converged": 18914,
+     "errors": 0,
+     "seconds": 4.99449775
+    },
+    "ours/circuit/belief": {
+     "failures": 3150,
+     "converged": 20608,
+     "errors": 0,
+     "seconds": 5.420053834
+    },
+    "google/pymatching": {
+     "failures": 4082
+    },
+    "google/correlated_matching": {
+     "failures": 3527
+    },
+    "google/belief_matching": {
+     "failures": 3066
+    },
+    "google/tensor_network_contraction": {
+     "failures": 2794
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49761,
+    "ours/circuit/belief": 49000
+   }
+  },
+  "sycamore/surface_code_bX_d5_r05_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 5755,
+     "converged": 7647,
+     "errors": 0,
+     "seconds": 13.022070334
+    },
+    "ours/circuit/belief": {
+     "failures": 5875,
+     "converged": 9476,
+     "errors": 0,
+     "seconds": 14.332039875
+    },
+    "google/pymatching": {
+     "failures": 7412
+    },
+    "google/correlated_matching": {
+     "failures": 6504
+    },
+    "google/belief_matching": {
+     "failures": 5652
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5392
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49313,
+    "ours/circuit/belief": 47849
+   }
+  },
+  "sycamore/surface_code_bX_d5_r07_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 8194,
+     "converged": 3171,
+     "errors": 0,
+     "seconds": 21.619330709000003
+    },
+    "ours/circuit/belief": {
+     "failures": 8390,
+     "converged": 4339,
+     "errors": 0,
+     "seconds": 23.701319625
+    },
+    "google/pymatching": {
+     "failures": 10643
+    },
+    "google/correlated_matching": {
+     "failures": 9252
+    },
+    "google/belief_matching": {
+     "failures": 8036
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7695
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48938,
+    "ours/circuit/belief": 46802
+   }
+  },
+  "sycamore/surface_code_bX_d5_r09_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 10203,
+     "converged": 1300,
+     "errors": 0,
+     "seconds": 31.173289042
+    },
+    "ours/circuit/belief": {
+     "failures": 10458,
+     "converged": 2066,
+     "errors": 0,
+     "seconds": 32.910345291
+    },
+    "google/pymatching": {
+     "failures": 13021
+    },
+    "google/correlated_matching": {
+     "failures": 11304
+    },
+    "google/belief_matching": {
+     "failures": 10159
+    },
+    "google/tensor_network_contraction": {
+     "failures": 9604
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48554,
+    "ours/circuit/belief": 45689
+   }
+  },
+  "sycamore/surface_code_bX_d5_r11_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 12317,
+     "converged": 481,
+     "errors": 0,
+     "seconds": 38.845131166
+    },
+    "ours/circuit/belief": {
+     "failures": 12397,
+     "converged": 908,
+     "errors": 0,
+     "seconds": 38.343029125
+    },
+    "google/pymatching": {
+     "failures": 15256
+    },
+    "google/correlated_matching": {
+     "failures": 13399
+    },
+    "google/belief_matching": {
+     "failures": 12125
+    },
+    "google/tensor_network_contraction": {
+     "failures": 11619
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48230,
+    "ours/circuit/belief": 44368
+   }
+  },
+  "sycamore/surface_code_bX_d5_r13_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 13312,
+     "converged": 244,
+     "errors": 0,
+     "seconds": 33.037170667
+    },
+    "ours/circuit/belief": {
+     "failures": 13611,
+     "converged": 492,
+     "errors": 0,
+     "seconds": 50.165766542
+    },
+    "google/pymatching": {
+     "failures": 16447
+    },
+    "google/correlated_matching": {
+     "failures": 14797
+    },
+    "google/belief_matching": {
+     "failures": 13182
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12593
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47762,
+    "ours/circuit/belief": 43651
+   }
+  },
+  "sycamore/surface_code_bX_d5_r15_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14948,
+     "converged": 101,
+     "errors": 0,
+     "seconds": 54.162156708
+    },
+    "ours/circuit/belief": {
+     "failures": 15249,
+     "converged": 189,
+     "errors": 0,
+     "seconds": 58.821182917
+    },
+    "google/pymatching": {
+     "failures": 18146
+    },
+    "google/correlated_matching": {
+     "failures": 16517
+    },
+    "google/belief_matching": {
+     "failures": 14864
+    },
+    "google/tensor_network_contraction": {
+     "failures": 14452
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47460,
+    "ours/circuit/belief": 42273
+   }
+  },
+  "sycamore/surface_code_bX_d5_r17_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16128,
+     "converged": 26,
+     "errors": 0,
+     "seconds": 58.807935333
+    },
+    "ours/circuit/belief": {
+     "failures": 16338,
+     "converged": 60,
+     "errors": 0,
+     "seconds": 51.939309792
+    },
+    "google/pymatching": {
+     "failures": 19207
+    },
+    "google/correlated_matching": {
+     "failures": 17557
+    },
+    "google/belief_matching": {
+     "failures": 16057
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15554
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47033,
+    "ours/circuit/belief": 41675
+   }
+  },
+  "sycamore/surface_code_bX_d5_r19_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17668,
+     "converged": 9,
+     "errors": 0,
+     "seconds": 47.370443124000005
+    },
+    "ours/circuit/belief": {
+     "failures": 17960,
+     "converged": 40,
+     "errors": 0,
+     "seconds": 38.9003525
+    },
+    "google/pymatching": {
+     "failures": 20512
+    },
+    "google/correlated_matching": {
+     "failures": 19041
+    },
+    "google/belief_matching": {
+     "failures": 17516
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17147
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 46472,
+    "ours/circuit/belief": 40486
+   }
+  },
+  "sycamore/surface_code_bX_d5_r21_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18270,
+     "converged": 9,
+     "errors": 0,
+     "seconds": 42.12744075
+    },
+    "ours/circuit/belief": {
+     "failures": 18376,
+     "converged": 25,
+     "errors": 0,
+     "seconds": 43.893621166
+    },
+    "google/pymatching": {
+     "failures": 20998
+    },
+    "google/correlated_matching": {
+     "failures": 19523
+    },
+    "google/belief_matching": {
+     "failures": 18169
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17576
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 46369,
+    "ours/circuit/belief": 39995
+   }
+  },
+  "sycamore/surface_code_bX_d5_r23_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19343,
+     "converged": 3,
+     "errors": 0,
+     "seconds": 48.718529668
+    },
+    "ours/circuit/belief": {
+     "failures": 19521,
+     "converged": 12,
+     "errors": 0,
+     "seconds": 48.817429375
+    },
+    "google/pymatching": {
+     "failures": 21944
+    },
+    "google/correlated_matching": {
+     "failures": 20563
+    },
+    "google/belief_matching": {
+     "failures": 19192
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18690
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 45805,
+    "ours/circuit/belief": 39035
+   }
+  },
+  "sycamore/surface_code_bX_d5_r25_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "X",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 20137,
+     "converged": 1,
+     "errors": 0,
+     "seconds": 49.745518458999996
+    },
+    "ours/circuit/belief": {
+     "failures": 20267,
+     "converged": 5,
+     "errors": 0,
+     "seconds": 52.048078334
+    },
+    "google/pymatching": {
+     "failures": 22551
+    },
+    "google/correlated_matching": {
+     "failures": 21283
+    },
+    "google/belief_matching": {
+     "failures": 20074
+    },
+    "google/tensor_network_contraction": {
+     "failures": 19775
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 45471,
+    "ours/circuit/belief": 38085
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r01_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 1,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 401,
+     "converged": 47959,
+     "errors": 0,
+     "seconds": 0.037268583
+    },
+    "ours/circuit/belief": {
+     "failures": 405,
+     "converged": 47992,
+     "errors": 0,
+     "seconds": 0.034520125
+    },
+    "google/pymatching": {
+     "failures": 408
+    },
+    "google/correlated_matching": {
+     "failures": 408
+    },
+    "google/belief_matching": {
+     "failures": 399
+    },
+    "google/tensor_network_contraction": {
+     "failures": 385
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49994,
+    "ours/circuit/belief": 49944
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r03_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 3,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 2801,
+     "converged": 19263,
+     "errors": 0,
+     "seconds": 2.602139124
+    },
+    "ours/circuit/belief": {
+     "failures": 2811,
+     "converged": 21096,
+     "errors": 0,
+     "seconds": 2.839355791
+    },
+    "google/pymatching": {
+     "failures": 3644
+    },
+    "google/correlated_matching": {
+     "failures": 3259
+    },
+    "google/belief_matching": {
+     "failures": 2780
+    },
+    "google/tensor_network_contraction": {
+     "failures": 2639
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49781,
+    "ours/circuit/belief": 49113
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r05_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 5,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 5448,
+     "converged": 7308,
+     "errors": 0,
+     "seconds": 7.133928084
+    },
+    "ours/circuit/belief": {
+     "failures": 5539,
+     "converged": 9279,
+     "errors": 0,
+     "seconds": 7.476327333
+    },
+    "google/pymatching": {
+     "failures": 7188
+    },
+    "google/correlated_matching": {
+     "failures": 6258
+    },
+    "google/belief_matching": {
+     "failures": 5362
+    },
+    "google/tensor_network_contraction": {
+     "failures": 5108
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 49384,
+    "ours/circuit/belief": 47963
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r07_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 7,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 7822,
+     "converged": 3168,
+     "errors": 0,
+     "seconds": 11.45915875
+    },
+    "ours/circuit/belief": {
+     "failures": 7889,
+     "converged": 4208,
+     "errors": 0,
+     "seconds": 12.922631542
+    },
+    "google/pymatching": {
+     "failures": 9957
+    },
+    "google/correlated_matching": {
+     "failures": 8712
+    },
+    "google/belief_matching": {
+     "failures": 7692
+    },
+    "google/tensor_network_contraction": {
+     "failures": 7190
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48968,
+    "ours/circuit/belief": 47019
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r09_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 9,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 9376,
+     "converged": 1301,
+     "errors": 0,
+     "seconds": 17.155203333
+    },
+    "ours/circuit/belief": {
+     "failures": 9594,
+     "converged": 2059,
+     "errors": 0,
+     "seconds": 18.23476625
+    },
+    "google/pymatching": {
+     "failures": 12216
+    },
+    "google/correlated_matching": {
+     "failures": 10634
+    },
+    "google/belief_matching": {
+     "failures": 9236
+    },
+    "google/tensor_network_contraction": {
+     "failures": 8919
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48716,
+    "ours/circuit/belief": 46244
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r11_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 11,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 11412,
+     "converged": 487,
+     "errors": 0,
+     "seconds": 21.260511251
+    },
+    "ours/circuit/belief": {
+     "failures": 11598,
+     "converged": 839,
+     "errors": 0,
+     "seconds": 22.535863667
+    },
+    "google/pymatching": {
+     "failures": 14415
+    },
+    "google/correlated_matching": {
+     "failures": 12630
+    },
+    "google/belief_matching": {
+     "failures": 11218
+    },
+    "google/tensor_network_contraction": {
+     "failures": 10864
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 48274,
+    "ours/circuit/belief": 45196
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r13_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 13,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 13046,
+     "converged": 217,
+     "errors": 0,
+     "seconds": 24.405983583999998
+    },
+    "ours/circuit/belief": {
+     "failures": 13365,
+     "converged": 440,
+     "errors": 0,
+     "seconds": 56.66420975
+    },
+    "google/pymatching": {
+     "failures": 16333
+    },
+    "google/correlated_matching": {
+     "failures": 14431
+    },
+    "google/belief_matching": {
+     "failures": 12903
+    },
+    "google/tensor_network_contraction": {
+     "failures": 12358
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47811,
+    "ours/circuit/belief": 44162
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r15_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 15,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 14418,
+     "converged": 90,
+     "errors": 0,
+     "seconds": 28.297863584
+    },
+    "ours/circuit/belief": {
+     "failures": 14627,
+     "converged": 214,
+     "errors": 0,
+     "seconds": 30.347059333
+    },
+    "google/pymatching": {
+     "failures": 17811
+    },
+    "google/correlated_matching": {
+     "failures": 15903
+    },
+    "google/belief_matching": {
+     "failures": 14234
+    },
+    "google/tensor_network_contraction": {
+     "failures": 13712
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47440,
+    "ours/circuit/belief": 43235
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r17_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 17,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 15756,
+     "converged": 43,
+     "errors": 0,
+     "seconds": 32.673827292
+    },
+    "ours/circuit/belief": {
+     "failures": 16152,
+     "converged": 85,
+     "errors": 0,
+     "seconds": 34.724818125
+    },
+    "google/pymatching": {
+     "failures": 18950
+    },
+    "google/correlated_matching": {
+     "failures": 17379
+    },
+    "google/belief_matching": {
+     "failures": 15602
+    },
+    "google/tensor_network_contraction": {
+     "failures": 15014
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 47074,
+    "ours/circuit/belief": 42064
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r19_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 19,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 16824,
+     "converged": 13,
+     "errors": 0,
+     "seconds": 36.907590874
+    },
+    "ours/circuit/belief": {
+     "failures": 17120,
+     "converged": 48,
+     "errors": 0,
+     "seconds": 38.794859542
+    },
+    "google/pymatching": {
+     "failures": 19860
+    },
+    "google/correlated_matching": {
+     "failures": 18168
+    },
+    "google/belief_matching": {
+     "failures": 16736
+    },
+    "google/tensor_network_contraction": {
+     "failures": 16286
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 46830,
+    "ours/circuit/belief": 41406
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r21_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 21,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 17766,
+     "converged": 5,
+     "errors": 0,
+     "seconds": 40.990481958000004
+    },
+    "ours/circuit/belief": {
+     "failures": 18082,
+     "converged": 14,
+     "errors": 0,
+     "seconds": 43.036840208
+    },
+    "google/pymatching": {
+     "failures": 20767
+    },
+    "google/correlated_matching": {
+     "failures": 19143
+    },
+    "google/belief_matching": {
+     "failures": 17662
+    },
+    "google/tensor_network_contraction": {
+     "failures": 17323
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 46364,
+    "ours/circuit/belief": 40752
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r23_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 23,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 18568,
+     "converged": 2,
+     "errors": 0,
+     "seconds": 46.191048001
+    },
+    "ours/circuit/belief": {
+     "failures": 18775,
+     "converged": 9,
+     "errors": 0,
+     "seconds": 47.396068708
+    },
+    "google/pymatching": {
+     "failures": 21492
+    },
+    "google/correlated_matching": {
+     "failures": 19907
+    },
+    "google/belief_matching": {
+     "failures": 18407
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18049
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 46053,
+    "ours/circuit/belief": 40126
+   }
+  },
+  "sycamore/surface_code_bZ_d5_r25_center_5_5": {
+   "d": 5,
+   "patch": "center_5_5",
+   "basis": "Z",
+   "rounds": 25,
+   "shots": 50000,
+   "results": {
+    "ours/pij/belief": {
+     "failures": 19461,
+     "converged": 0,
+     "errors": 0,
+     "seconds": 49.111011875
+    },
+    "ours/circuit/belief": {
+     "failures": 19591,
+     "converged": 1,
+     "errors": 0,
+     "seconds": 52.40052325
+    },
+    "google/pymatching": {
+     "failures": 21929
+    },
+    "google/correlated_matching": {
+     "failures": 20512
+    },
+    "google/belief_matching": {
+     "failures": 19225
+    },
+    "google/tensor_network_contraction": {
+     "failures": 18847
+    }
+   },
+   "agree": {
+    "ours/pij/belief": 45834,
+    "ours/circuit/belief": 39348
+   }
+  }
+ },
+ "engine_commit": "67653a3",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "max_iter": 20,
+ "bp_method": "product_sum",
+ "note": "every experiment, all shots; pij priors cross-fitted",
+ "generated": "2026-09-26"
+}

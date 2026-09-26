@@ -20,6 +20,7 @@ import { Plot, plotLegend } from '../plot.js';
 import { decoderLabel, isOurs, percent, percentRange, ratio } from '../hardware-format.js';
 
 const RESULTS = new URL('../../data/google-results/', import.meta.url);
+const BELIEF = new URL('../../data/belief/', import.meta.url);
 const EXTRACT = new URL('../../data/willow-extract/', import.meta.url);
 
 /** Fit windows: Willow from round 10 (its first round differs from the steady state), Sycamore from 3. */
@@ -57,7 +58,7 @@ function asFits(result) {
   return new Map(entries);
 }
 
-function fitRows(fits, ds, published) {
+function fitRows(fits, ds, published = null) {
   const rows = [];
   for (const [key, { byD, fit, boot }] of fits) {
     if (byD.size < ds.length) continue;
@@ -71,11 +72,13 @@ function fitRows(fits, ds, published) {
       el('td', { class: 'num', text: ratio(fit.lambda, boot.lambda) }),
     ]));
   }
-  rows.push(el('tr', { class: 'hw__google hw__published' }, [
-    el('th', { scope: 'row', text: published.label }),
-    ...ds.map((d) => el('td', { class: 'num', text: published.eps[d] ?? '—' })),
-    el('td', { class: 'num', text: published.lambda }),
-  ]));
+  if (published) {
+    rows.push(el('tr', { class: 'hw__google hw__published' }, [
+      el('th', { scope: 'row', text: published.label }),
+      ...ds.map((d) => el('td', { class: 'num', text: published.eps[d] ?? '—' })),
+      el('td', { class: 'num', text: published.lambda }),
+    ]));
+  }
   return rows;
 }
 
@@ -115,6 +118,29 @@ function checkLine(s) {
     + 'of them our matching weighs exactly the optimum PyMatching 2.4 finds, so each is a tie.';
 }
 
+/** How often our belief-matching (pij priors) and Google's agree, shot by shot, over all of Sycamore. */
+async function beliefAgreement() {
+  const response = await fetch(new URL('sycamore.json', BELIEF));
+  if (!response.ok) throw new Error(`belief results: ${response.status}`);
+  const doc = await response.json();
+  let agree = 0, shots = 0;
+  for (const e of Object.values(doc.experiments)) {
+    if (e.agree?.['ours/pij/belief'] == null) continue;
+    agree += e.agree['ours/pij/belief'];
+    shots += e.shots;
+  }
+  return { agree, shots, maxIter: doc.max_iter };
+}
+
+function beliefLine(a) {
+  return 'Belief-matching runs belief propagation over each whole error model '
+    + `(${a.maxIter} iterations of product-sum BP) and matches on weights from its posteriors, exactly as the `
+    + 'authors\' package does. It is costly on Willow\'s long experiments, so there it decoded the first '
+    + '10,000 shots of each, with every other decoder in its table scored on the same shots. On Sycamore it '
+    + `decoded every shot, with the pij priors cross-fitted as Google used them, and agrees with Google's own `
+    + `belief-matching on ${(a.agree / a.shots * 100).toFixed(1)}% of ${a.shots.toLocaleString('en-US')} shots.`;
+}
+
 export function initHardware(root, compute) {
   const fitFig = $('[data-hw-fit]', root);
   const liveFig = $('[data-hw-live]', root);
@@ -123,22 +149,36 @@ export function initHardware(root, compute) {
   async function runFits() {
     const status = $('[data-hw-fit-status]', fitFig);
     status.textContent = 'Loading the recorded counts…';
-    let willow, sycamore, summary;
+    let willow, sycamore, summary, bWillow, bSycamore, agreement;
+    const fitsOf = (base, name, label) => compute.call('hwfits', {
+      url: new URL(`${name}.json`, base).href, minRounds: MIN_ROUNDS[name], draws: DRAWS,
+    }, (p) => { status.textContent = `Fitting ${label}: ${p.done} of ${p.total} decoders`; });
     try {
       summary = await loadJson('summary.json');
-      const fitsOf = (name, label) => compute.call('hwfits', {
-        url: new URL(`${name}.json`, RESULTS).href, minRounds: MIN_ROUNDS[name], draws: DRAWS,
-      }, (p) => { status.textContent = `Fitting ${label}: ${p.done} of ${p.total} decoders`; });
-      [willow, sycamore] = await Promise.all([fitsOf('willow', 'Willow'), fitsOf('sycamore', 'Sycamore')]);
+      [willow, sycamore] = await Promise.all([
+        fitsOf(RESULTS, 'willow', 'Willow'), fitsOf(RESULTS, 'sycamore', 'Sycamore'),
+      ]);
     } catch (error) {
       status.textContent = `Recorded counts unavailable (${error.message}).`;
       return;
+    }
+    // Belief-matching's counts are a separate run; the tables above stand without them.
+    try {
+      [bWillow, bSycamore, agreement] = await Promise.all([
+        fitsOf(BELIEF, 'willow', 'belief-matching on Willow'), fitsOf(BELIEF, 'sycamore', 'belief-matching on Sycamore'),
+        beliefAgreement(),
+      ]);
+    } catch {
+      bWillow = bSycamore = agreement = null;
     }
     const wFits = asFits(willow);
     const sFits = asFits(sycamore);
 
     fill($('[data-hw-willow]', fitFig), fitRows(wFits, [3, 5, 7], PUBLISHED.willow));
     fill($('[data-hw-sycamore]', fitFig), fitRows(sFits, [3, 5], PUBLISHED.sycamore));
+    const unavailable = (cols) => [el('tr', {}, [el('td', { colspan: String(cols), text: 'Belief-matching counts unavailable.' })])];
+    fill($('[data-hw-belief-willow]', fitFig), bWillow ? fitRows(asFits(bWillow), [3, 5, 7]) : unavailable(5));
+    fill($('[data-hw-belief-sycamore]', fitFig), bSycamore ? fitRows(asFits(bSycamore), [3, 5]) : unavailable(4));
 
     const series = chartSeries(wFits);
     series.push({
@@ -164,7 +204,7 @@ export function initHardware(root, compute) {
       + 'mean over patches and bases, and Λ comes from a line through ln ε against d. Under each ε, the '
       + `95% interval from ${DRAWS} bootstrap draws, each redrawing every experiment's failures from the `
       + `binomial. Counts recorded on ${willow.generated} by tools/google.py (engine ${willow.engine}). `
-      + checkLine(summary)
+      + checkLine(summary) + (agreement ? ` ${beliefLine(agreement)}` : '')
       + ' Data: Google Quantum AI, Zenodo records 13273331 (Willow) and 6804040 (Sycamore), CC BY 4.0.';
     status.textContent = 'Fitted.';
   }
@@ -195,9 +235,12 @@ export function initHardware(root, compute) {
       row('si1000/correlated', decoderLabel('ours/si1000/correlated')),
       row('ours/plain', decoderLabel('ours/ours/plain')),
       row('ours/correlated', decoderLabel('ours/ours/correlated')),
+      row('belief', decoderLabel('ours/si1000/belief')),
       ...pathways.map((p) => row(`google/${p}`, `${decoderLabel(`google/${p}`)} †`, { google: true })),
       row('agree', 'Same prediction as Google\'s correlated matcher'),
       row('time', 'Decode time, ours correlated, per shot'),
+      row('belief-conv', 'Belief-matching: shots BP explained alone'),
+      row('belief-time', 'Decode time, belief-matching, per shot'),
     ]);
     const put = (id, d, content) => {
       const td = cells.get(id)?.[ds.indexOf(d)];
@@ -212,6 +255,18 @@ export function initHardware(root, compute) {
       // One distance per worker, at once.
       const jobs = manifest.experiments.map((ex) => ({ base: EXTRACT.href, experiments: [ex] }));
       await compute.map('hardware', jobs, (_, p) => {
+        if (p.step === 'belief') {
+          put('belief', p.d, `${p.done.toLocaleString('en-US')} of ${p.total.toLocaleString('en-US')}…`);
+          status.textContent = `Belief-matching, d = ${p.d}: ${p.done} of ${p.total} shots`;
+          return;
+        }
+        if (p.step === 'belief-done') {
+          const b = p.row.belief;
+          put('belief', p.d, failures(b.failures, p.row.shots));
+          put('belief-conv', p.d, `${b.converged.toLocaleString('en-US')} of ${p.row.shots.toLocaleString('en-US')}`);
+          put('belief-time', p.d, `${b.micros >= 10000 ? (b.micros / 1000).toFixed(0) : (b.micros / 1000).toFixed(1)} ms`);
+          return;
+        }
         if (p.step !== 'done') {
           status.textContent = `d = ${p.d}: ${p.step}…`;
           return;
@@ -237,8 +292,9 @@ export function initHardware(root, compute) {
       + `${manifest.shots.toLocaleString('en-US')} shots of each, as the chip recorded them, fetched as raw `
       + 'measurements and sweep bits (the per-shot pattern the data qubits were prepared in). Everything '
       + 'else happens in this tab: the detection events, whose SHA-256 is checked against Google\'s; the '
-      + 'error models, Google\'s SI1000 prior as published and ours built from the noisy circuit; and both '
-      + 'matchers. † Google\'s rows are its decoders\' predictions for the same shots, published with the '
+      + 'error models, Google\'s SI1000 prior as published and ours built from the noisy circuit; plain and '
+      + 'correlated matching; and belief-matching, which runs belief propagation over the whole error model '
+      + '(20 iterations) and matches on its posteriors, last because it is the slow one. † Google\'s rows are its decoders\' predictions for the same shots, published with the '
       + 'data. About 120 failures, as at d = 7, carry about ±10% of counting noise: enough to see the '
       + 'decoders\' order roughly, not to pin down Λ. Figure 9 does that from all 50,000 shots of every '
       + 'experiment.';

@@ -21,7 +21,7 @@ jobs:
     name: Rust tests, WebAssembly and site
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -30,7 +30,7 @@ jobs:
         run: cargo test --release --no-default-features
       - name: Build the WebAssembly engine
         run: cargo build --release --target wasm32-unknown-unknown --no-default-features
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: Site tests
@@ -50,8 +50,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
@@ -71,3 +71,8 @@ jobs:
       - name: Quick cross-check against Stim and PyMatching
         if: matrix.os == 'ubuntu-latest'
         run: python tools/xcheck.py --quick
+      - name: BP and belief-matching against ldpc and beliefmatching, exactly
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install ldpc beliefmatching
+          python tools/bp_check.py --quick

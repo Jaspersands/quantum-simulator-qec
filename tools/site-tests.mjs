@@ -222,6 +222,7 @@ test('hardware labels and formats', () => {
   assert.equal(decoderLabel('ours/si1000/correlated'), "ours, correlated · Google's SI1000 prior");
   assert.equal(decoderLabel('google/libra_decoder_with_rl_optimized_prior'), 'Google: Libra, RL-optimised prior');
   assert.equal(decoderLabel('google/unknown'), 'Google: unknown');
+  assert.equal(decoderLabel('ours/pij/belief'), 'ours, belief-matching · the data-fitted pij models');
   assert.equal(pct(0.00143), '0.143%');
   assert.equal(pct(NaN), '—');
   assert.equal(percentRange([0.0014, 0.00146]), '0.140–0.146%');
