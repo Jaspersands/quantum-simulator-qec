@@ -87,8 +87,6 @@ def check_model(name, cycles, p):
     theirs = mechanisms(circuit.detector_error_model(decompose_errors=False))
     same_keys = set(ours) == set(theirs)
     worst = max((abs(ours[k] - theirs[k]) / theirs[k] for k in theirs if k in ours), default=0.0)
-    ref = circuit.reference_sample()
-    dets_zero = not circuit.compile_detector_sampler().sample(1)[0].any() if p == 0 else None
     noiseless = stim.Circuit(sq.bb_memory_circuit(name, cycles, 0.0))
     deterministic = not noiseless.compile_detector_sampler(seed=1).sample(64).any()
     ok = same_keys and worst < 1e-9 and deterministic

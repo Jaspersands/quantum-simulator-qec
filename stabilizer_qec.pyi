@@ -194,6 +194,18 @@ def decode_b8_bposd(
     column, its prior the model's). Returns (predicted observables as u64 per
     shot; one byte per shot, 1 where BP converged; seconds)."""
 
+def surgery_circuit(
+    d: int, merged: int, p: float, basis: Literal["z", "x"] = "z", pre: int | None = None, post: int | None = None
+) -> str:
+    """Lattice surgery as a circuit (Stim text): two rotated distance-``d``
+    patches, ``pre`` rounds apart (default d), the seam prepared in |+> and
+    ``merged`` rounds of the merged patch, the seam read out in X, ``post``
+    rounds apart (default d), then the data read out; SD6 noise ``p``. Basis
+    "z": both patches in |0>; L0 is the merge outcome Z1Z2, L1 and L2 each
+    patch's Z. Basis "x": both in |+>; L0 is X1X2, which the Z1Z2 measurement
+    keeps. One merged round leaves the outcome unprotected; the error-model
+    builder then refuses the circuit."""
+
 class Decoder:
     """One model's matcher, shot by shot, for looking inside correlated
     matching. Edges are ``(u, v)`` detector pairs with ``-1`` for the

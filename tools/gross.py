@@ -93,9 +93,10 @@ def surface_point(d, p, shot_cap, time_cap, seed):
     while True:
         dets, obs, _ = sq.sample_b8_batch(text, 16_384, seed * 7919 + batch, 0)
         truth = np.frombuffer(obs, np.uint8) & 1
-        raw, _, errors, _ = sq.decode_b8_own(text, dets, 16_384, 0, True)
-        pred = (np.frombuffer(raw, "<u8") & np.uint64(1)).astype(np.uint8)
-        failures += int((pred != truth).sum()) + int(errors)
+        raw = np.frombuffer(sq.decode_b8_own(text, dets, 16_384, 0, True)[0], "<u8")
+        pred = (raw & np.uint64(1)).astype(np.uint8)
+        # A refused shot (u64::MAX) is a failure, counted once.
+        failures += int(((pred != truth) | (raw == np.uint64(2**64 - 1))).sum())
         shots += 16_384
         batch += 1
         if failures >= TARGET_FAILURES or shots >= shot_cap or time.perf_counter() - t0 >= time_cap:

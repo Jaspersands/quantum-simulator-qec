@@ -56,6 +56,16 @@ pub struct BpOsdOutcome {
 
 impl BpOsd {
     pub fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: &[f64], method: Method, max_iter: usize, osd: OsdMethod) -> Result<BpOsd, String> {
+        // One matrix for BP and OSD alike: each column's checks sorted and
+        // distinct, as Bp keeps them.
+        let columns: Vec<Vec<u32>> = columns
+            .into_iter()
+            .map(|mut c| {
+                c.sort_unstable();
+                c.dedup();
+                c
+            })
+            .collect();
         let bp = Bp::new(num_checks, &columns, priors)?;
         let weight = priors.iter().map(|&p| (1.0 / p).ln()).collect();
         Ok(BpOsd { bp, columns, weight, method, max_iter, osd })
@@ -145,32 +155,19 @@ impl BpOsd {
         let weight_of = |pos: usize| self.weight[w.order[pos] as usize];
 
         // A candidate: the non-pivot positions flipped. Its pivot bits are the
-        // reduced syndrome XOR the reduced columns of the flips.
-        let evaluate = |flips: &[usize], rows: &[u64]| -> (f64, Vec<bool>) {
-            let mut x = vec![false; rank];
-            let mut total = 0.0;
-            for i in 0..rank {
-                let mut bit = get(rows, i, n);
-                for &f in flips {
-                    bit ^= get(rows, i, f);
-                }
-                x[i] = bit;
-                if bit {
-                    total += weight_of(pivots[i]);
-                }
-            }
-            for &f in flips {
-                total += weight_of(f);
-            }
-            (total, x)
+        // reduced syndrome XOR the reduced columns of the flips; only its
+        // weight is needed until it wins.
+        let pivot_bit = |flips: &[usize], rows: &[u64], i: usize| flips.iter().fold(get(rows, i, n), |b, &f| b ^ get(rows, i, f));
+        let weigh = |flips: &[usize], rows: &[u64]| -> f64 {
+            let pivots_weight: f64 = (0..rank).filter(|&i| pivot_bit(flips, rows, i)).map(|i| weight_of(pivots[i])).sum();
+            pivots_weight + flips.iter().map(|&f| weight_of(f)).sum::<f64>()
         };
-        let (mut best_w, mut best_x) = evaluate(&[], &w.rows);
+        let mut best_w = weigh(&[], &w.rows);
         let mut best_flips: Vec<usize> = Vec::new();
         let mut consider = |flips: Vec<usize>| {
-            let (wt, x) = evaluate(&flips, &w.rows);
+            let wt = weigh(&flips, &w.rows);
             if wt < best_w {
                 best_w = wt;
-                best_x = x;
                 best_flips = flips;
             }
         };
@@ -194,6 +191,7 @@ impl BpOsd {
                 }
             }
         }
+        let best_x: Vec<bool> = (0..rank).map(|i| pivot_bit(&best_flips, &w.rows, i)).collect();
         w.correction.fill(0);
         for (i, &p) in pivots.iter().enumerate() {
             if best_x[i] {

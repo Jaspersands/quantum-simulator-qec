@@ -47,7 +47,8 @@ def wilson(k, n, z=1.96):
 
 def cmd_check(args):
     ok = True
-    for d, merged, basis in [(3, 3, "z"), (3, 2, "x"), (5, 5, "z"), (5, 3, "x")]:
+    cases = [(3, 3, "z"), (3, 2, "x")] if args.quick else [(3, 3, "z"), (3, 2, "x"), (5, 5, "z"), (5, 3, "x")]
+    for d, merged, basis in cases:
         text = sq.surgery_circuit(d, merged, 0.003, basis)
         circuit = stim.Circuit(text)
         a = mechanisms(stim.DetectorErrorModel(sq.dem_from_circuit(text, False)))
@@ -58,7 +59,7 @@ def cmd_check(args):
         splits_differ = sum(1 for k in set(sa) | set(sb) if set(sa.get(k, {})) != set(sb.get(k, {})))
         good = set(a) == set(b) and worst < 1e-9 and set(ea) == set(eb) and splits_differ == 0
         # Matching on Stim's shots: ours against PyMatching, every disagreement a tie.
-        shots = 20_000
+        shots = 4_000 if args.quick else 20_000
         dem = circuit.detector_error_model(decompose_errors=True)
         dets, obs = circuit.compile_detector_sampler(seed=d * 100 + merged).sample(shots, separate_observables=True)
         truth = sum(obs[:, i].astype(np.uint64) << np.uint64(i) for i in range(obs.shape[1]))
@@ -86,10 +87,11 @@ def run_point(d, merged, p, correlated, shot_cap, time_cap):
     while True:
         dets, obs, _ = sq.sample_b8_batch(text, BATCH, 1_000_003 * d + 10_007 * merged + batch + int(p * 1e5), 0)
         truth = np.frombuffer(obs, np.uint8).reshape(BATCH, -1)[:, 0].astype(np.uint64)
-        raw, _, errors, _ = sq.decode_b8_own(text, dets, BATCH, 0, correlated)
+        raw, _, _, _ = sq.decode_b8_own(text, dets, BATCH, 0, correlated)
         pred = np.frombuffer(raw, "<u8")
+        # A refused shot is predicted u64::MAX, so it is wrong on every observable: counted once.
         wrong = (pred ^ truth) & np.uint64(0b111)
-        counts["any"] += int((wrong != 0).sum() + errors)
+        counts["any"] += int((wrong != 0).sum())
         counts["outcome"] += int(((wrong & np.uint64(1)) != 0).sum())
         counts["patches"] += int(((wrong & np.uint64(0b110)) != 0).sum())
         shots += BATCH
@@ -128,7 +130,8 @@ def cmd_run(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("command", choices=["check", "run"])
-    ap.add_argument("--ps", type=float, nargs="+", default=[0.003, 0.001])
+    ap.add_argument("--ps", type=float, nargs="+", default=[0.003, 0.002])
+    ap.add_argument("--quick", action="store_true", help="check: two small cases, fewer shots")
     ap.add_argument("--shot-cap", type=int, default=2_000_000)
     ap.add_argument("--time-cap", type=float, default=300.0)
     args = ap.parse_args()

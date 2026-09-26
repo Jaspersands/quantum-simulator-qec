@@ -50,7 +50,7 @@ The surgery succeeds when all three are decoded right. Noise is SD6, as for ever
 | Question | Decision |
 |---|---|
 | Which parity | **Z⊗Z** by a vertical seam. X⊗X is the same by symmetry: a horizontal seam, or Hadamard-rotated patches. |
-| Rounds | R₀ = R₁ = d; **T swept from 1 to 2d** (biggest), at d = 3, 5, 7. |
+| Rounds | R₀ = R₁ = d; **T swept from 2 to 2d** (biggest), at d = 3, 5, 7. T = 1 cannot be measured, because the error model refuses it (a single fault flips the outcome unseen), and that refusal is itself a checked result. |
 | Decoder | The sparse matcher, **plain and correlated**, on this engine's error model of the whole experiment. The model is graph-like, as for memories. |
 | A second check of the physics | **Also the X-basis version** (both patches in \|+⟩_L). There the merge outcome is random, but X₁X₂ must survive it, so X₁X₂ is the observable. |
 
