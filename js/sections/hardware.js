@@ -20,6 +20,7 @@ import { Plot, plotLegend } from '../plot.js';
 import { decoderLabel, isOurs, percent, percentRange, ratio } from '../hardware-format.js';
 
 const RESULTS = new URL('../../data/google-results/', import.meta.url);
+const BELIEF = new URL('../../data/belief/', import.meta.url);
 const EXTRACT = new URL('../../data/willow-extract/', import.meta.url);
 
 /** Fit windows: Willow from round 10 (its first round differs from the steady state), Sycamore from 3. */
@@ -57,7 +58,7 @@ function asFits(result) {
   return new Map(entries);
 }
 
-function fitRows(fits, ds, published) {
+function fitRows(fits, ds, published = null) {
   const rows = [];
   for (const [key, { byD, fit, boot }] of fits) {
     if (byD.size < ds.length) continue;
@@ -71,11 +72,13 @@ function fitRows(fits, ds, published) {
       el('td', { class: 'num', text: ratio(fit.lambda, boot.lambda) }),
     ]));
   }
-  rows.push(el('tr', { class: 'hw__google hw__published' }, [
-    el('th', { scope: 'row', text: published.label }),
-    ...ds.map((d) => el('td', { class: 'num', text: published.eps[d] ?? '—' })),
-    el('td', { class: 'num', text: published.lambda }),
-  ]));
+  if (published) {
+    rows.push(el('tr', { class: 'hw__google hw__published' }, [
+      el('th', { scope: 'row', text: published.label }),
+      ...ds.map((d) => el('td', { class: 'num', text: published.eps[d] ?? '—' })),
+      el('td', { class: 'num', text: published.lambda }),
+    ]));
+  }
   return rows;
 }
 
@@ -115,6 +118,29 @@ function checkLine(s) {
     + 'of them our matching weighs exactly the optimum PyMatching 2.4 finds, so each is a tie.';
 }
 
+/** How often our belief-matching (pij priors) and Google's agree, shot by shot, over all of Sycamore. */
+async function beliefAgreement() {
+  const response = await fetch(new URL('sycamore.json', BELIEF));
+  if (!response.ok) throw new Error(`belief results: ${response.status}`);
+  const doc = await response.json();
+  let agree = 0, shots = 0;
+  for (const e of Object.values(doc.experiments)) {
+    if (e.agree?.['ours/pij/belief'] == null) continue;
+    agree += e.agree['ours/pij/belief'];
+    shots += e.shots;
+  }
+  return { agree, shots, maxIter: doc.max_iter };
+}
+
+function beliefLine(a) {
+  return 'Belief-matching runs belief propagation over each whole error model '
+    + `(${a.maxIter} iterations of product-sum BP) and matches on weights from its posteriors, exactly as the `
+    + 'authors\' package does. It is costly on Willow\'s long experiments, so there it decoded the first '
+    + '10,000 shots of each, with every other decoder in its table scored on the same shots. On Sycamore it '
+    + `decoded every shot, with the pij priors cross-fitted as Google used them, and agrees with Google's own `
+    + `belief-matching on ${(a.agree / a.shots * 100).toFixed(1)}% of ${a.shots.toLocaleString('en-US')} shots.`;
+}
+
 export function initHardware(root, compute) {
   const fitFig = $('[data-hw-fit]', root);
   const liveFig = $('[data-hw-live]', root);
@@ -123,22 +149,35 @@ export function initHardware(root, compute) {
   async function runFits() {
     const status = $('[data-hw-fit-status]', fitFig);
     status.textContent = 'Loading the recorded counts…';
-    let willow, sycamore, summary;
+    let willow, sycamore, summary, bWillow, bSycamore, agreement;
+    const fitsOf = (base, name, label) => compute.call('hwfits', {
+      url: new URL(`${name}.json`, base).href, minRounds: MIN_ROUNDS[name], draws: DRAWS,
+    }, (p) => { status.textContent = `Fitting ${label}: ${p.done} of ${p.total} decoders`; });
     try {
       summary = await loadJson('summary.json');
-      const fitsOf = (name, label) => compute.call('hwfits', {
-        url: new URL(`${name}.json`, RESULTS).href, minRounds: MIN_ROUNDS[name], draws: DRAWS,
-      }, (p) => { status.textContent = `Fitting ${label}: ${p.done} of ${p.total} decoders`; });
-      [willow, sycamore] = await Promise.all([fitsOf('willow', 'Willow'), fitsOf('sycamore', 'Sycamore')]);
+      [willow, sycamore] = await Promise.all([
+        fitsOf(RESULTS, 'willow', 'Willow'), fitsOf(RESULTS, 'sycamore', 'Sycamore'),
+      ]);
     } catch (error) {
       status.textContent = `Recorded counts unavailable (${error.message}).`;
       return;
+    }
+    // Belief-matching's counts are a separate run; the tables above stand without them.
+    try {
+      [bWillow, bSycamore, agreement] = await Promise.all([
+        fitsOf(BELIEF, 'willow', 'belief-matching on Willow'), fitsOf(BELIEF, 'sycamore', 'belief-matching on Sycamore'),
+        beliefAgreement(),
+      ]);
+    } catch {
+      bWillow = bSycamore = agreement = null;
     }
     const wFits = asFits(willow);
     const sFits = asFits(sycamore);
 
     fill($('[data-hw-willow]', fitFig), fitRows(wFits, [3, 5, 7], PUBLISHED.willow));
     fill($('[data-hw-sycamore]', fitFig), fitRows(sFits, [3, 5], PUBLISHED.sycamore));
+    if (bWillow) fill($('[data-hw-belief-willow]', fitFig), fitRows(asFits(bWillow), [3, 5, 7]));
+    if (bSycamore) fill($('[data-hw-belief-sycamore]', fitFig), fitRows(asFits(bSycamore), [3, 5]));
 
     const series = chartSeries(wFits);
     series.push({
@@ -164,7 +203,7 @@ export function initHardware(root, compute) {
       + 'mean over patches and bases, and Λ comes from a line through ln ε against d. Under each ε, the '
       + `95% interval from ${DRAWS} bootstrap draws, each redrawing every experiment's failures from the `
       + `binomial. Counts recorded on ${willow.generated} by tools/google.py (engine ${willow.engine}). `
-      + checkLine(summary)
+      + checkLine(summary) + (agreement ? ` ${beliefLine(agreement)}` : '')
       + ' Data: Google Quantum AI, Zenodo records 13273331 (Willow) and 6804040 (Sycamore), CC BY 4.0.';
     status.textContent = 'Fitted.';
   }
