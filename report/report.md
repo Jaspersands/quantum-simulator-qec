@@ -412,6 +412,76 @@ each. Every one was decoded globally and by sliding and parallel windows, fitted
   global decoder's on the same shots.
 - **No defect was left unexplained** ({{win.unexplained}} over every Willow run).
 
+## Beyond the surface code: the gross code
+
+IBM's bivariate bicycle codes (Bravyi et al., *Nature* 627, 778, 2024) keep many logical qubits in
+one block. The **gross code**, $[[144, 12, 12]]$, stores 12 at distance 12 on 144 data and 144 check
+qubits. Its checks have weight six, and a single fault sets off several at once, so it cannot be
+matched. It is decoded by **BP+OSD**: belief propagation, and where BP fails to settle, ordered-
+statistics decoding, which solves the syndrome equation on the faults BP trusts least.
+
+The engine builds the code and its logical operators over GF(2), and the paper's Z-basis memory
+from the depth-8 syndrome cycle in the paper's own simulation code. Each piece is checked
+against something independent:
+
+- **The check matrices** equal ones built as Bravyi et al.'s code builds them, and $k = 12$.
+- **Without noise every detector is deterministic.** This is what shows that the reconstructed
+  schedule measures the stabilizers.
+- **The error model equals Stim's** for {{g.model_mechanisms}} faults at 12 cycles.
+- **BP+OSD equals `ldpc`'s.** Over {{g.osd_shots}} shots, {{g.osd_same}} corrections equal those of
+  `ldpc`'s `BpOsdDecoder`, for OSD-0 and OSD-CS of order 7, with its adaptive min-sum scaling. Making
+  that exact meant ordering tied posteriors the way `ldpc` does. Min-sum run long enough repeats
+  values, and one tied pair in 300 shots changed which columns OSD-CS paired up.
+
+The Z memory runs 12 cycles for the gross code and 6 for $[[72, 12, 6]]$. A shot fails if any
+logical qubit does, and the decoder is the paper's: BP+OSD-CS of order 7, with up to 10,000 BP
+iterations.
+
+{{table:gross}}
+
+![Logical error per syndrome cycle of the gross code and [[72, 12, 6]] against physical error, BP+OSD-CS (solid) and BP+OSD-0 (dashed), beside 12 unprotected qubits.](figures/gross.svg){width=82%}
+
+**Beside the surface code.** Twelve rotated $d = 11$ surface-code patches hold the same 12 logical
+qubits on 2,892 qubits, ten times as many. The comparison measures them the same way: a Z memory
+of 12 rounds at the same p, decoded by correlated matching.
+
+{{table:gross_vs_surface}}
+
+With a tenth of the qubits the gross code fails {{g.ratio_range}} times less often, at every p
+measured. SD6 also puts noise on the surface code's Hadamards, which the bivariate bicycle circuit
+does not use, so the comparison slightly favours the gross code.
+
+## Lattice surgery
+
+Two patches interact by **lattice surgery**:
+
+1. **Merge.** The checks across the seam between the patches are measured for T rounds.
+2. **Read the product.** The product of the new checks along the seam is the joint parity, here
+   $Z_1 Z_2$.
+3. **Split.** The patches are split again.
+
+The engine writes the whole experiment as one circuit: prepare, merge, split, read out. One rule
+places its detectors, even where checks change shape at the merge and the split. Without noise
+every detector and observable is deterministic. The error model equals Stim's fault for fault, and
+split for split, and every disagreement with PyMatching is a tie.
+
+With one merged round, the error-model builder refuses the circuit, because a single measurement
+error on a seam check flips the outcome with nothing after it to notice. With three, every single
+fault is corrected.
+
+**The timing law.** Here is how often the merge outcome is wrong, against the number of merged
+rounds T:
+
+{{table:surgery}}
+
+![How often the merge outcome is wrong against merged rounds T, correlated matching, SD6 at p = 0.3% (solid) and 0.2% (dashed).](figures/surgery.svg){width=82%}
+
+- **T = 2 is a trap that grows with the code.** A pair of measurement errors on one seam check
+  flips the outcome unseen, and a bigger code has more seam checks.
+- **By T = d the curve has flattened.** The merge outcome then fails about as often as a single
+  patch of the same size. This is the textbook "d rounds per lattice surgery", measured, and it is
+  the clock the resource estimate below uses.
+
 # Limits and next steps
 
 - **The matcher.** It is exact but not the fastest: it runs at {{xc.plain_ratio}} times
@@ -420,10 +490,11 @@ each. Every one was decoded globally and by sliding and parallel windows, fitted
 - **Latency is scheduled, not served.** The latency figures schedule decode times measured
   natively on one machine. They leave out the transport of syndromes from a quantum computer to
   the decoder, and they are not a claim about any particular control system.
-- **The next decoders.** The next pieces of work, in order:
-  - the IBM "gross" bivariate-bicycle code with BP+OSD, reusing this belief propagation;
-  - lattice surgery between patches;
-  - a resource estimator driven by the Λ measured here.
+- **Memories and one operation.** The gross code is simulated as a memory, and lattice surgery as a
+  single Z⊗Z measurement between two patches. Logical operations on the gross code, and sequences
+  of surgeries, are the next step up.
+- **Next:** a resource estimator driven by the Λ, the real-time decoding cost and the lattice-surgery
+  timing measured here.
 
 # Reproducing everything
 
