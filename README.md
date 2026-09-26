@@ -1447,12 +1447,20 @@ src/equivalence.rs    test: the old per-code circuit and the general one are the
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
+src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's arithmetic
+src/belief.rs         belief-matching, as the authors' beliefmatching package does it
+src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows
+src/bb.rs             bivariate bicycle codes (the gross code), their logicals, the depth-8 memory
+src/osd.rs            BP+OSD: OSD-0, OSD-E and OSD-CS on BP's posteriors
+src/surgery.rs        lattice surgery: two patches merged across a seam to measure Z⊗Z
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
 src/stream.rs         streams too long to model, decoded window by window from a template
 src/py_api.rs         PyO3 bindings: sampling, decoding, windows and streams
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
+src/wasm_bb.rs        WASM exports for Figure 15: the [[72, 12, 6]] memory decoded by BP+OSD
+src/wasm_ls.rs        WASM exports for Figure 18: lattice surgery sampled and matched
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -1470,6 +1478,10 @@ js/sweep-config.js    what the threshold sweep measures, shared with tools/sweep
 js/xcheck-format.js   pure formatting for Figure 8
 js/lambda-fit.js      logical error per cycle and Λ, for the README and section 11
 js/hardware-format.js names and formats for section 11
+js/realtime-format.js names and formats for section 12
+js/bb-geometry.js     the gross code's torus, for section 13's drawing
+js/surgery-geometry.js lattice surgery's layout, for section 14's drawing
+js/estimator.js       the resource estimate's model and its inputs, for section 15
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
 tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
@@ -1477,6 +1489,15 @@ data/xcheck/            Stim's circuits and models, the recorded reference, and 
 tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
 tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
 tools/realtime.py       window decoders' accuracy, latency, and the million-round stream
+tools/bp_check.py       BP and belief-matching against ldpc and beliefmatching, exactly
+tools/belief.py         belief-matching on all of Sycamore and Willow; BP iterations
+tools/bb_check.py       the bivariate bicycle codes and BP+OSD against Bravyi et al., Stim and ldpc
+tools/gross.py          the gross code's logical error per cycle, and the surface code beside it
+tools/surgery.py        lattice surgery against Stim and PyMatching, and its timing law
+tools/estimate.mjs      the resource estimate from the committed data
+data/belief/            belief-matching's results and the oracle check
+data/gross/             the gross code's results and checks
+data/surgery/           lattice surgery's timing law
 data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
