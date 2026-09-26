@@ -207,7 +207,10 @@ impl Bp {
                 }
                 Method::MinSum { scale } => {
                     let mut total_sign = u32::from(syndrome[c] != 0);
-                    let mut temp = f64::INFINITY;
+                    // The minimum over no messages is the largest finite
+                    // double, as ldpc starts it: a check on one variable sends
+                    // it ±f64::MAX, not ±∞.
+                    let mut temp = f64::MAX;
                     for &e in row {
                         let e = e as usize;
                         w.c2b[e] = temp;
@@ -216,7 +219,7 @@ impl Bp {
                         }
                         temp = temp.min(w.b2c[e].abs());
                     }
-                    temp = f64::INFINITY;
+                    temp = f64::MAX;
                     for &e in row.iter().rev() {
                         let e = e as usize;
                         let mut sign = total_sign;
@@ -336,6 +339,17 @@ mod tests {
             assert!(out.converged, "{method:?}");
             assert_eq!(w.hard, vec![0, 0, 1, 0], "{method:?}");
         }
+    }
+
+    /// A check on a single variable sends it the largest finite double,
+    /// scaled and signed, as ldpc does (not infinity, which would differ from
+    /// ldpc's posterior by an infinite amount).
+    #[test]
+    fn a_lone_check_sends_the_largest_finite_message() {
+        let bp = Bp::new(2, &[vec![0, 1], vec![1]], &[0.1, 0.2]).unwrap();
+        let mut w = bp.work();
+        bp.iterate(&[1, 0], Method::MinSum { scale: 1.0 }, 1, false, &mut w);
+        assert!(w.llr[0].is_finite() && w.llr[0] < -1e300, "{}", w.llr[0]);
     }
 
     /// Min-sum's messages are min-sum's: on a single check, a variable hears
