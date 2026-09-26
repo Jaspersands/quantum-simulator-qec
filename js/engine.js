@@ -531,6 +531,18 @@ export function hwBeliefDecode(instance, dets, shots) {
   return { ...out, predictions: readBytes(instance, shots) };
 }
 
+/* -- Bivariate bicycle codes (section 13) -------------------------------- */
+
+/** Build a bivariate bicycle memory (code 0: [[72,12,6]]; 1: the gross code) and its BP+OSD decoder. */
+export function bbSetup(instance, { code, cycles, p, maxIter = 10000 }) {
+  return replyOrThrow(instance, instance.exports.wasm_bb_setup(code, cycles, p, maxIter));
+}
+
+/** Sample 64 shots and decode them with BP+OSD: failures, and how often BP alone converged. */
+export function bbRun(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_bb_run());
+}
+
 /* -- Real-time decoding (section 12) ------------------------------------- */
 
 /** Build a rotated SD6 memory stream's window decoder, sampler and global decoder. */

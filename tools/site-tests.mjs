@@ -9,6 +9,7 @@ import { cores, keepUpText, microseconds as rtUs, windowLabel } from '../js/real
 import { splitRuns, mergeStream, mergeStreamResults } from '../js/pool-merge.js';
 import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
+import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -259,6 +260,27 @@ test('real-time labels: cores to keep up, latencies, window names', () => {
   assert.equal(windowLabel('window/parallel/Bd/correlated'), 'parallel windows, correlated');
   assert.equal(windowLabel('window/sliding/Bhalf/plain'), 'sliding windows, buffer d/2, plain');
   assert.equal(windowLabel('global/plain'), 'global, plain');
+});
+
+test('bivariate bicycle geometry: the gross code as src/bb.rs builds it, commuting checks, weight six', () => {
+  // X check 0 of the gross code: A = x³ + y + y² on the left, B = y³ + x + x² on the right.
+  assert.deepEqual(bbNeighbours(GROSS, 0, 'X').map((q) => dataIndex(GROSS, q)), [18, 1, 2, 72 + 3, 72 + 6, 72 + 12]);
+  for (const code of [GROSS, BB72]) {
+    const cells = code.l * code.m;
+    const rows = (type) => Array.from({ length: cells }, (_, c) => bbNeighbours(code, c, type).map((q) => dataIndex(code, q)));
+    const hx = rows('X'), hz = rows('Z');
+    for (const r of [...hx, ...hz]) assert.equal(new Set(r).size, 6);
+    // H_X H_Zᵀ = 0: every X check and Z check overlap on an even number of qubits.
+    for (const x of hx) for (const z of hz) assert.equal(x.filter((q) => z.includes(q)).length % 2, 0);
+    // Every data qubit sits in three X checks and three Z checks.
+    const count = new Array(2 * cells).fill(0);
+    for (const r of hx) for (const q of r) count[q]++;
+    assert.ok(count.every((n) => n === 3));
+  }
+  assert.deepEqual(bbPosition(GROSS, 'Z', 7), { col: 3, row: 3 });
+  assert.equal(torusDelta(1, 23, 24), -2);
+  assert.equal(torusDelta(23, 1, 24), 2);
+  assert.equal(torusDelta(0, 12, 24), 12);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

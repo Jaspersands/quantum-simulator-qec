@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-09-26b">
+<link rel="stylesheet" href="css/styles.css?v=2026-09-27">
 </head>
 <body>
 
@@ -36,6 +36,7 @@
     <li><a class="toc__link" href="#internals"><span class="toc__num">10</span><span>Under the hood</span></a></li>
     <li><a class="toc__link" href="#hardware"><span class="toc__num">11</span><span>Real hardware</span></a></li>
     <li><a class="toc__link" href="#realtime"><span class="toc__num">12</span><span>Real time</span></a></li>
+    <li><a class="toc__link" href="#gross"><span class="toc__num">13</span><span>Beyond the surface code</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -1525,6 +1526,112 @@
     </div>
   </figure>
 
+</section>
+
+<section class="section" id="gross">
+  <div class="section__head">
+    <span class="section__num">13</span>
+    <h2 class="section__title">Beyond the surface code</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every code above protects one logical qubit per patch, at about <span class="mono">2d²</span>
+      physical qubits. IBM's bivariate bicycle codes (Bravyi et al., <em>Nature</em>, 2024) keep many
+      at once. The <strong>gross code</strong>, <span class="mono">[[144, 12, 12]]</span>, stores twelve
+      logical qubits at distance 12 on 144 data qubits and 144 check qubits; twelve distance-12
+      surface codes would need about 3,450. It lives on a 12 × 6 torus. Each check touches six data
+      qubits, three on each side of its cell, reached through two polynomials in the torus's shifts,
+      <span class="mono">A = x³ + y + y²</span> and <span class="mono">B = y³ + x + x²</span>.
+    </p>
+    <p>
+      The price is decoding. A single fault sets off several checks at once, so there is no matching
+      graph. The decoder is <strong>BP+OSD</strong>. Belief propagation runs first, and where it fails
+      to settle, ordered-statistics decoding solves for the lightest correction consistent with the
+      syndrome among the faults BP trusts least. This engine builds the paper's depth-8 syndrome
+      cycle as a circuit, derives its error model by the same backward walk as every model above
+      (identical to Stim's), and decodes it with BP+OSD that reproduces the <span class="mono">ldpc</span>
+      library's corrections exactly.
+    </p>
+  </div>
+
+  <figure class="figure" data-bb-torus>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 13</span>
+      <span class="figure__title">the gross code on its torus</span>
+      <span class="figure__meta">[[144, 12, 12]], 288 qubits</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-bb-canvas></canvas>
+      <div class="legend">
+        <span class="legend__item"><span class="legend__key legend__key--x"></span>X check</span>
+        <span class="legend__item"><span class="legend__key legend__key--z"></span>Z check</span>
+        <span class="legend__item"><span class="legend__key legend__key--round legend__key--solid"></span>data, left</span>
+        <span class="legend__item"><span class="legend__key legend__key--round legend__key--clean"></span>data, right</span>
+      </div>
+      <p class="note" data-bb-note>Hover over or tap a check to see its six data qubits. The dashed box wraps
+        around: leaving one edge, a check's edge comes back in at the opposite one.</p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-bb-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 14</span>
+      <span class="figure__title">twelve logical qubits, decoded by BP+OSD</span>
+      <span class="figure__meta">† measured natively</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-bb-plot data-aspect="0.55"></canvas>
+      <div class="legend" data-bb-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Logical error per syndrome cycle of the gross code and [[72, 12, 6]] against physical error</caption>
+          <thead>
+            <tr>
+              <th scope="col">Z memory</th>
+              <th scope="col" class="num">p</th>
+              <th scope="col" class="num">Shots</th>
+              <th scope="col" class="num">Failures, BP+OSD-CS</th>
+              <th scope="col" class="num">Per cycle, BP+OSD-CS</th>
+              <th scope="col" class="num">Per cycle, BP+OSD-0</th>
+              <th scope="col" class="num">BP alone</th>
+            </tr>
+          </thead>
+          <tbody data-bb-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-bb-fit-status>Loads when you scroll here.</p>
+      <p class="note" data-bb-fit-foot></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-bb-live>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 15</span>
+      <span class="figure__title">BP+OSD, here</span>
+      <span class="figure__meta">[[72, 12, 6]], 6 cycles, p = 0.5%</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">The [[72, 12, 6]] code's memory sampled and decoded by BP+OSD in this tab</caption>
+          <tbody>
+            <tr><th scope="row">Error model</th><td class="num" data-bb-live-model>—</td></tr>
+            <tr><th scope="row">Shots, sampled here</th><td class="num" data-bb-live-shots>—</td></tr>
+            <tr><th scope="row">Shots with any logical qubit wrong</th><td class="num" data-bb-live-failures>—</td></tr>
+            <tr><th scope="row">Logical error per cycle, 95%</th><td class="num" data-bb-live-rate>—</td></tr>
+            <tr><th scope="row">Shots BP settled without OSD</th><td class="num" data-bb-live-bp>—</td></tr>
+            <tr><th scope="row">Sampling and decoding, per shot, one core</th><td class="num" data-bb-live-time>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-bb-live-status>Runs when you scroll here.</p>
+      <p class="note">Every worker builds the circuit, its error model (faults with the same symptom merged) and a
+        BP+OSD-CS decoder of order 7, then samples batches of 64 shots with the bit-parallel sampler and decodes
+        each. Figure 14's [[72, 12, 6]] points at the same p are the native measurement of the same experiment.</p>
+    </div>
+  </figure>
+
   <footer class="foot">
     <span>Built with Rust, WebAssembly, and no dependencies.</span>
     <a href="report/report.html">Technical report</a>
@@ -1535,6 +1642,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-09-26b"></script>
+<script type="module" src="js/main.js?v=2026-09-27"></script>
 </body>
 </html>

@@ -16,7 +16,7 @@
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
   xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode, hwBeliefModel, hwBeliefDecode,
-  rtSetup, rtWindows, rtGlobal,
+  rtSetup, rtWindows, rtGlobal, bbSetup, bbRun,
 } from './engine.js';
 import { planChunks } from './stream.js';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
@@ -334,6 +334,25 @@ const OPS = {
       windowMicrosPerRound: (windowSeconds * 1e6) / rounds,
       roundsPerSecond: rounds / windowSeconds,
     };
+  },
+
+  /**
+   * Section 13's live panel: batches of 64 shots of a bivariate bicycle
+   * memory, sampled and decoded by BP+OSD here, timed from here.
+   */
+  async bbrun(instance, { config, batches }, report) {
+    const setup = bbSetup(instance, config);
+    let shots = 0, failures = 0, converged = 0, seconds = 0;
+    for (let b = 0; b < batches; b++) {
+      const t0 = performance.now();
+      const r = bbRun(instance);
+      seconds += (performance.now() - t0) / 1000;
+      shots += r.shots;
+      failures += r.failures;
+      converged += r.converged;
+      report({ shots, failures, done: b + 1, total: batches });
+    }
+    return { ...config, detectors: setup.detectors, faults: setup.faults, shots, failures, converged, seconds };
   },
 
   async sweep(instance, { distances, ps, base }, report) {

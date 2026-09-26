@@ -266,7 +266,9 @@ export class Plot {
       ctx.strokeStyle = s.color;
       ctx.lineWidth = 1.8;
       ctx.globalAlpha = 0.85;
+      if (s.dashed) ctx.setLineDash([5, 4]);
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
 
@@ -321,7 +323,7 @@ export class Plot {
 export function plotLegend(series) {
   return series.map((s) => {
     const token = /^var\(--([\w-]+)\)$/.exec(String(s.color).trim())?.[1];
-    const mod = token ? ` legend__key--${token}` : '';
+    const mod = (token ? ` legend__key--${token}` : '') + (s.dashed ? ' legend__key--dashed' : '');
     return `<span class="legend__item">`
       + `<span class="legend__key legend__key--line${mod}"></span>${s.label}</span>`;
   }).join('');
