@@ -634,7 +634,28 @@ It is checked four ways:
 **Accuracy.** Windowed decoding of every Willow experiment, fitted like section 11 (see
 `data/realtime/willow-windows.json`):
 
-WILLOW_WINDOW_TABLE
+| decoder | ε₃ | ε₅ | ε₇ | Λ [95%] |
+|---|---|---|---|---|
+| global, plain | 1.032% | 0.684% | 0.435% | 1.54 [1.54, 1.55] |
+| sliding windows, plain | 1.034% | 0.685% | 0.436% | 1.54 [1.53, 1.54] |
+| parallel windows, plain | 1.033% | 0.685% | 0.436% | 1.54 [1.53, 1.54] |
+| global, correlated | 0.888% | 0.449% | 0.234% | **1.95** [1.94, 1.95] |
+| sliding windows, correlated | 0.892% | 0.454% | 0.236% | **1.94** [1.94, 1.95] |
+| parallel windows, correlated | 0.892% | 0.452% | 0.235% | **1.95** [1.94, 1.95] |
+
+- **Windows cost nothing in Λ.** On 392 experiments (every Willow experiment but the 28 single-round
+  ones, which have nothing to window), 50,000 shots each, parallel windows with correlated matching
+  give the same Λ as global correlated matching. ε rises by under 1% of itself.
+- **The buffer matters, and d is enough.** At d = 5 the study also ran buffers of d/2 and 2d. A buffer
+  of 3 rounds raises ε₅ to 0.694% plain and 0.460% correlated, about 2.5% worse. A buffer of 10 gives
+  0.684% and 0.451%, the same as d = 5.
+- **Simulated SD6 agrees.** At p = 0.3% and 0.5%, d = 3, 5, 7, 50 rounds and 20,000 shots, every
+  windowed decoder's failures are within 1.6% of the global decoder's on the same shots
+  (`data/realtime/sd6-windows.json`).
+- **Nothing is left unexplained.** Across all of it, every window decoder explained every defect.
+
+Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
+`node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
 
 ## Engine defects found and fixed
 

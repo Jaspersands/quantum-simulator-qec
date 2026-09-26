@@ -1,0 +1,190 @@
+{
+ "generated": "2026-09-26",
+ "engine_commit": "e7229fa",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "points": [
+  {
+   "d": 3,
+   "p": 0.003,
+   "rounds": 50,
+   "shots": 20000,
+   "results": {
+    "global/plain": {
+     "failures": 6030
+    },
+    "window/sliding/Bd/plain": {
+     "failures": 6029,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/plain": {
+     "failures": 6027,
+     "unexplained": 0
+    },
+    "global/correlated": {
+     "failures": 5612
+    },
+    "window/sliding/Bd/correlated": {
+     "failures": 5613,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/correlated": {
+     "failures": 5631,
+     "unexplained": 0
+    }
+   }
+  },
+  {
+   "d": 3,
+   "p": 0.005,
+   "rounds": 50,
+   "shots": 20000,
+   "results": {
+    "global/plain": {
+     "failures": 8992
+    },
+    "window/sliding/Bd/plain": {
+     "failures": 9006,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/plain": {
+     "failures": 9003,
+     "unexplained": 0
+    },
+    "global/correlated": {
+     "failures": 8612
+    },
+    "window/sliding/Bd/correlated": {
+     "failures": 8606,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/correlated": {
+     "failures": 8581,
+     "unexplained": 0
+    }
+   }
+  },
+  {
+   "d": 5,
+   "p": 0.003,
+   "rounds": 50,
+   "shots": 20000,
+   "results": {
+    "global/plain": {
+     "failures": 3398
+    },
+    "window/sliding/Bd/plain": {
+     "failures": 3399,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/plain": {
+     "failures": 3398,
+     "unexplained": 0
+    },
+    "global/correlated": {
+     "failures": 2352
+    },
+    "window/sliding/Bd/correlated": {
+     "failures": 2383,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/correlated": {
+     "failures": 2356,
+     "unexplained": 0
+    }
+   }
+  },
+  {
+   "d": 5,
+   "p": 0.005,
+   "rounds": 50,
+   "shots": 20000,
+   "results": {
+    "global/plain": {
+     "failures": 8099
+    },
+    "window/sliding/Bd/plain": {
+     "failures": 8099,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/plain": {
+     "failures": 8093,
+     "unexplained": 0
+    },
+    "global/correlated": {
+     "failures": 6958
+    },
+    "window/sliding/Bd/correlated": {
+     "failures": 6981,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/correlated": {
+     "failures": 6976,
+     "unexplained": 0
+    }
+   }
+  },
+  {
+   "d": 7,
+   "p": 0.003,
+   "rounds": 50,
+   "shots": 20000,
+   "results": {
+    "global/plain": {
+     "failures": 1742
+    },
+    "window/sliding/Bd/plain": {
+     "failures": 1742,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/plain": {
+     "failures": 1744,
+     "unexplained": 0
+    },
+    "global/correlated": {
+     "failures": 871
+    },
+    "window/sliding/Bd/correlated": {
+     "failures": 885,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/correlated": {
+     "failures": 872,
+     "unexplained": 0
+    }
+   }
+  },
+  {
+   "d": 7,
+   "p": 0.005,
+   "rounds": 50,
+   "shots": 20000,
+   "results": {
+    "global/plain": {
+     "failures": 6869
+    },
+    "window/sliding/Bd/plain": {
+     "failures": 6876,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/plain": {
+     "failures": 6880,
+     "unexplained": 0
+    },
+    "global/correlated": {
+     "failures": 5100
+    },
+    "window/sliding/Bd/correlated": {
+     "failures": 5096,
+     "unexplained": 0
+    },
+    "window/parallel/Bd/correlated": {
+     "failures": 5108,
+     "unexplained": 0
+    }
+   }
+  }
+ ]
+}

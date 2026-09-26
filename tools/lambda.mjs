@@ -6,25 +6,33 @@
 import { readFile } from 'node:fs/promises';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 import { decoderLabel, percent, percentRange, ratio } from '../js/hardware-format.js';
+import { windowLabel } from '../js/realtime-format.js';
 
 const B = Number(process.argv[2] ?? 400);
 const files = process.argv.slice(3);
 const load = async (name) => Object.values(JSON.parse(await readFile(new URL(`../data/google-results/${name}.json`, import.meta.url), 'utf8')).experiments);
 
-function table(title, records, minRounds, alternatives) {
+function table(title, records, minRounds, alternatives, label = decoderLabel) {
   const ds = [...new Set(records.map((r) => r.d))].sort((a, b) => a - b);
   console.log(`\n${title}: ${records.length} experiments, fits from round ${minRounds}, ${B} bootstrap draws`);
   console.log(`  ${'decoder'.padEnd(62)} ${ds.map((d) => `eps_${d}`.padEnd(22)).join(' ')} ${ds.slice(1).map((d, i) => `L${ds[i]}/${d}`.padEnd(8)).join(' ')} Lambda [95%]`);
   const out = {};
   for (const key of decoderKeys(records)) {
     const byD = epsilonByDistance(records, key, { minRounds });
-    if (byD.size < ds.length) continue;
+    if (byD.size < ds.length) {
+      // Measured at some distances only (the buffer study is at d = 5): ε there, no Λ.
+      const boot = bootstrap(records, key, { minRounds }, B, seededRandom(11));
+      const eps = ds.map((d) => (byD.has(d) ? `${percent(byD.get(d).eps)} (${percentRange(boot.eps.get(d))})` : '—').padEnd(22)).join(' ');
+      console.log(`  ${label(key).padEnd(62)} ${eps}`);
+      out[key] = { eps: Object.fromEntries([...byD].map(([d, e]) => [d, e.eps])) };
+      continue;
+    }
     const fit = lambdaFit(byD);
     const boot = bootstrap(records, key, { minRounds }, B, seededRandom(11));
     const eps = ds.map((d) => `${percent(byD.get(d).eps)} (${percentRange(boot.eps.get(d))})`.padEnd(22)).join(' ');
     const pairs = fit.pairwise.map((p) => p.lambda.toFixed(3).padEnd(8)).join(' ');
     const alt = alternatives.map((m) => `from ${m}: ${lambdaFit(epsilonByDistance(records, key, { minRounds: m })).lambda.toFixed(3)}`).join(', ');
-    console.log(`  ${decoderLabel(key).padEnd(62)} ${eps} ${pairs} ${ratio(fit.lambda, boot.lambda)}   (${alt})`);
+    console.log(`  ${label(key).padEnd(62)} ${eps} ${pairs} ${ratio(fit.lambda, boot.lambda)}   (${alt})`);
     out[key] = { eps: Object.fromEntries(ds.map((d) => [d, byD.get(d).eps])), lambda: fit.lambda, interval: boot.lambda };
   }
   return out;
@@ -33,7 +41,7 @@ function table(title, records, minRounds, alternatives) {
 if (files.length) {
   for (const f of files) {
     const recs = Object.values(JSON.parse(await readFile(f, 'utf8')).experiments);
-    table(f, recs, 10, [30]);
+    table(f, recs, 10, [30], (k) => (/^(global|window)\//.test(k) ? windowLabel(k) : decoderLabel(k)));
   }
   process.exit(0);
 }
