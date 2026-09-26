@@ -149,6 +149,51 @@ def decode_b8_belief(
     f64, NaN where BP converged; one byte per shot, 1 where BP converged;
     shots that failed; seconds)."""
 
+def bb_matrices(code: Literal["gross", "72"]) -> tuple[list[list[int]], list[list[int]], list[list[int]], list[list[int]]]:
+    """A bivariate bicycle code's (H_X, H_Z, logical X, logical Z), each a list
+    of rows, a row the data qubits it acts on (left data 0..lm-1, then right).
+    The logicals are computed over GF(2) and paired: X_i anticommutes with Z_i
+    alone. "gross" is [[144, 12, 12]]; "72" is [[72, 12, 6]]."""
+
+def bb_memory_circuit(code: Literal["gross", "72"], cycles: int, p: float) -> str:
+    """Bravyi et al.'s Z-basis memory on a bivariate bicycle code, as Stim
+    text: data and Z checks prepared in |0>, ``cycles`` rounds of the paper's
+    depth-8 syndrome cycle, the data measured. One noise parameter ``p``:
+    DEPOLARIZE2 after every CNOT, DEPOLARIZE1 on idle data, preparation and
+    measurement flips. Detectors compare Z checks round to round and with the
+    final readout; the 12 observables are the logical Z operators."""
+
+def bposd_decode(
+    num_checks: int,
+    columns: list[list[int]],
+    priors: list[float],
+    syndrome: list[int],
+    max_iter: int = 20,
+    method: Literal["product_sum", "minimum_sum"] = "minimum_sum",
+    ms_scale: float = 0.0,
+    osd: Literal["osd_0", "osd_e", "osd_cs"] = "osd_cs",
+    osd_order: int = 7,
+) -> tuple[list[int], bool, int]:
+    """BP+OSD on a parity-check matrix given by its columns, as ``ldpc``'s
+    BpOsdDecoder decodes (its corrections are reproduced exactly).
+    ``ms_scale = 0`` is ``ldpc``'s adaptive min-sum scaling. Returns
+    (correction, BP converged, iterations)."""
+
+def decode_b8_bposd(
+    dem_text: str,
+    packed: bytes,
+    num_shots: int,
+    max_iter: int = 10_000,
+    method: Literal["product_sum", "minimum_sum"] = "minimum_sum",
+    ms_scale: float = 0.0,
+    osd: Literal["osd_0", "osd_e", "osd_cs"] = "osd_cs",
+    osd_order: int = 7,
+    threads: int = 0,
+) -> tuple[bytes, bytes, float]:
+    """BP+OSD of b8 shots on an undecomposed error model (each fault a
+    column, its prior the model's). Returns (predicted observables as u64 per
+    shot; one byte per shot, 1 where BP converged; seconds)."""
+
 class Decoder:
     """One model's matcher, shot by shot, for looking inside correlated
     matching. Edges are ``(u, v)`` detector pairs with ``-1`` for the
