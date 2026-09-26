@@ -1,0 +1,203 @@
+{
+ "generated": "2026-09-26",
+ "engine_commit": "a07b71c",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "cycle_us": 1.1,
+ "d": 5,
+ "rounds": 1000000,
+ "p": 0.0031265257503083634,
+ "willow_detection_fraction": 0.07540097337703919,
+ "runs": [
+  {
+   "matcher": "plain",
+   "mode": "sliding",
+   "streams": 64,
+   "windows": 200000,
+   "unexplained": 0,
+   "failures": 29,
+   "wall_seconds": 171.504208083,
+   "rounds_per_second_one_thread": 373168.6861527444,
+   "window_us": {
+    "mean": 12.434862074955703,
+    "p50": 11.332999989122072,
+    "p99": 31.625000019630534,
+    "max": 256.58299999964385
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 695965.7946609601,
+     "p99_us": 1373596.4418307906,
+     "max_us": 1386982.3149911405,
+     "final_us": 1386982.3149911405,
+     "growth": 2.3261652900054783,
+     "keeps_up": false
+    }
+   }
+  },
+  {
+   "matcher": "plain",
+   "mode": "parallel",
+   "streams": 64,
+   "windows": 133334,
+   "unexplained": 0,
+   "failures": 32,
+   "wall_seconds": 144.816419042,
+   "rounds_per_second_one_thread": 441938.838312516,
+   "window_us": {
+    "mean": 16.17899310753523,
+    "p50": 14.709000000223682,
+    "p99": 40.16700000875062,
+    "max": 16913.58299999024
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 579059.8165322109,
+     "p99_us": 1166782.2550299922,
+     "max_us": 1171700.179000178,
+     "final_us": 1057221.5170001024,
+     "growth": 1.7393913836930446,
+     "keeps_up": false
+    },
+    "2": {
+     "mean_us": 1048.8240703288652,
+     "p99_us": 12459.193690590155,
+     "max_us": 22945.342000184166,
+     "final_us": 5664.643999149898,
+     "growth": 46.67388781483634,
+     "keeps_up": false
+    },
+    "4": {
+     "mean_us": 32.092077062126585,
+     "p99_us": 72.3749999919665,
+     "max_us": 16933.915999984394,
+     "final_us": 41.73299998067037,
+     "growth": 1.0473564063806071,
+     "keeps_up": true
+    },
+    "8": {
+     "mean_us": 32.07840271799892,
+     "p99_us": 72.3330000002785,
+     "max_us": 16933.915999984394,
+     "final_us": 41.73299998067037,
+     "growth": 1.046453124995792,
+     "keeps_up": true
+    },
+    "16": {
+     "mean_us": 32.07840271799892,
+     "p99_us": 72.3330000002785,
+     "max_us": 16933.915999984394,
+     "final_us": 41.73299998067037,
+     "growth": 1.046453124995792,
+     "keeps_up": true
+    }
+   }
+  },
+  {
+   "matcher": "correlated",
+   "mode": "sliding",
+   "streams": 64,
+   "windows": 200000,
+   "unexplained": 0,
+   "failures": 30,
+   "wall_seconds": 336.167928458,
+   "rounds_per_second_one_thread": 190381.04049237404,
+   "window_us": {
+    "mean": 25.18636719504786,
+    "p50": 22.999999998774,
+    "p99": 63.75000000247155,
+    "max": 191.91699999510092
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 1970682.608914886,
+     "p99_us": 3897822.1039296123,
+     "max_us": 3937283.339009573,
+     "final_us": 3937283.339009573,
+     "growth": 2.3335723470427974,
+     "keeps_up": false
+    }
+   }
+  },
+  {
+   "matcher": "correlated",
+   "mode": "parallel",
+   "streams": 64,
+   "windows": 133334,
+   "unexplained": 0,
+   "failures": 33,
+   "wall_seconds": 284.803342583,
+   "rounds_per_second_one_thread": 224716.46371688397,
+   "window_us": {
+    "mean": 32.65756381723628,
+    "p50": 30.000000002416982,
+    "p99": 81.62499998817907,
+    "max": 199.45799999732117
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 1804263.8116736256,
+     "p99_us": 3243969.751008005,
+     "max_us": 3254374.0720074014,
+     "final_us": 3254373.5140073826,
+     "growth": 1.4103372840563733,
+     "keeps_up": false
+    },
+    "2": {
+     "mean_us": 592886.7102326369,
+     "p99_us": 1184047.7180047918,
+     "max_us": 1188677.5220046388,
+     "final_us": 1077156.5670028983,
+     "growth": 1.7159005530817335,
+     "keeps_up": false
+    },
+    "4": {
+     "mean_us": 216.43634394398248,
+     "p99_us": 812.6020096655019,
+     "max_us": 1447.7829996085711,
+     "final_us": 70.275000012332,
+     "growth": 1.0820732686107686,
+     "keeps_up": true
+    },
+    "8": {
+     "mean_us": 59.94836539074155,
+     "p99_us": 138.0274699871195,
+     "max_us": 280.83300000447673,
+     "final_us": 68.56699999113758,
+     "growth": 0.999095623465638,
+     "keeps_up": true
+    },
+    "16": {
+     "mean_us": 59.94805036231627,
+     "p99_us": 138.0274699871195,
+     "max_us": 280.83300000447673,
+     "final_us": 68.56699999113758,
+     "growth": 0.9991109706298901,
+     "keeps_up": true
+    }
+   }
+  }
+ ],
+ "throughput": [
+  {
+   "matcher": "plain",
+   "streams": 640,
+   "rounds": 100000,
+   "cores": 10,
+   "unexplained": 0,
+   "wall_seconds": 20.364556709,
+   "rounds_per_second": 3142715.106178352
+  },
+  {
+   "matcher": "correlated",
+   "streams": 640,
+   "rounds": 100000,
+   "cores": 10,
+   "unexplained": 0,
+   "wall_seconds": 39.361295583,
+   "rounds_per_second": 1625962.7395913606
+  }
+ ]
+}
