@@ -15,7 +15,8 @@
 
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
-  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode, rtSetup, rtWindows, rtGlobal,
+  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode, hwBeliefModel, hwBeliefDecode,
+  rtSetup, rtWindows, rtGlobal,
 } from './engine.js';
 import { planChunks } from './stream.js';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
@@ -194,6 +195,7 @@ const OPS = {
    * matching, and every result scored against the true observable flips.
    */
   async hardware(instance, { base, experiments }, report) {
+    const BELIEF_CHUNK = 100;
     const rows = [];
     for (const ex of experiments) {
       const at = (name) => new URL(`${ex.dir}/${name}`, base);
@@ -244,6 +246,29 @@ const OPS = {
       const row = { d: ex.d, patch: ex.patch, rounds: ex.rounds, shots, hashMatches, obsDiffer, m2dMs, ours, google };
       rows.push(row);
       report({ d: ex.d, step: 'done', row });
+
+      // Belief-matching on Google's SI1000 prior, last and in chunks: BP runs
+      // 20 iterations over the whole hypergraph, so it is the slow one, and
+      // the rest of the table should not wait for it.
+      hwBeliefModel(instance, dem);
+      const stride = conv.dets.length / shots;
+      const belief = { failures: 0, converged: 0, errors: 0, agree: 0, micros: 0 };
+      t0 = performance.now();
+      for (let s = 0; s < shots; s += BELIEF_CHUNK) {
+        const n = Math.min(BELIEF_CHUNK, shots - s);
+        const r = hwBeliefDecode(instance, conv.dets.subarray(s * stride, (s + n) * stride), n);
+        belief.converged += r.converged;
+        belief.errors += r.errors;
+        for (let i = 0; i < n; i++) {
+          const p = r.predictions[i];
+          belief.failures += p === 255 || p !== actual[s + i] ? 1 : 0;
+          if (reference) belief.agree += p === (reference[s + i] & 1) ? 1 : 0;
+        }
+        report({ d: ex.d, step: 'belief', done: s + n, total: shots, failures: belief.failures });
+      }
+      belief.micros = ((performance.now() - t0) * 1000) / shots;
+      row.belief = belief;
+      report({ d: ex.d, step: 'belief-done', row });
     }
     return rows;
   },

@@ -58,6 +58,24 @@ impl SparseGraph {
         Ok(solver.extract())
     }
 
+    /// Decode one shot on weights given for this shot alone, `edge_w[id]` for
+    /// each edge (even integers, as `int_weight` makes them). The scratch's
+    /// weights are the graph's again afterwards.
+    pub fn decode_with_weights(&self, scratch: &mut Scratch, defects: &[u32], edge_w: &[i64]) -> Result<Prediction, DecodeError> {
+        self.check_scratch(scratch);
+        assert_eq!(edge_w.len(), self.num_edges(), "one weight per edge");
+        for (halves, &wt) in self.halves.iter().zip(edge_w) {
+            for &slot in halves.iter().filter(|&&h| h != state::NONE) {
+                scratch.w[slot as usize] = wt;
+            }
+        }
+        let mut solver = Solver { g: self, s: scratch };
+        solver.reset();
+        let result = solver.run(defects, false).map(|()| solver.extract());
+        scratch.w.copy_from_slice(&self.w);
+        result
+    }
+
     /// The edges one shot's matching uses (see `paths`), as endpoints with
     /// `num_nodes` standing for the boundary.
     pub fn decode_to_edges(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Vec<(u32, u32)>, DecodeError> {

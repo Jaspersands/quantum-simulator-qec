@@ -29,9 +29,9 @@ built once, here, for both.
 | Schedule | Parallel (flooding): every check updates, then every variable. Serial schedules are left out; the oracles below use flooding. |
 | Iterations | **20** by default, as the `beliefmatching` package uses. Stop early when the hard decision reproduces the syndrome. |
 | On convergence | If BP converges, its own correction is the answer, as in `beliefmatching`. Otherwise its posteriors re-weight the matching graph and the sparse matcher decides. |
-| From posteriors to edge weights | Each graph edge's probability is the XOR-combination of the posteriors of the faults whose decomposition contains it, $p_e = \tfrac12\bigl(1 - \prod_i (1 - 2p_i)\bigr)$. Its weight is $\ln((1-p_e)/p_e)$. |
-| Posteriors above ½ | **Negative weights, handled exactly** (biggest). An edge with $p_e > ½$ is assumed fired: its endpoints' detection events and its observables are flipped, and it is matched with weight $\lvert w\rvert$. This is how PyMatching handles them. Clamping at ½ would be simpler, but it is not the algorithm. |
-| Per-shot weights | The matcher already keeps per-scratch weights for correlated matching. Belief-matching sets all of them per shot, on the model's fixed discretisation scale, and saturates weights beyond the scale's range. |
+| From posteriors to edge weights | **As the `beliefmatching` package does** (revised after reading its source, since it is the oracle). Each graph edge's probability is the *sum* of the posteriors of the faults whose first decomposition contains it, clipped to [1e-14, 1 − 1e-14], and its weight is $-\ln p_e$. This spec first proposed the XOR combination and $\ln((1-p)/p)$. Both are defensible, but they are not the algorithm the paper's authors ship, and agreeing with that shot for shot is worth more. |
+| Posteriors above ½ | Not needed. With weights $-\ln p_e$ and $p_e < 1$, no weight is negative. (The first draft planned PyMatching's edge-flipping for negative weights, but the reference weighting makes it unnecessary.) |
+| Per-shot weights | The matcher already keeps per-scratch weights for correlated matching. Belief-matching sets all of them per shot, on the model's fixed discretisation scale ($2^{20}$ per unit), and restores them afterwards. |
 | Where BP runs | On the undecomposed hypergraph. A fault whose symptoms are written in pieces (`^`) counts as one variable with the XOR of its pieces as its symptom, and faults with identical symptoms merge. |
 
 ## Verification

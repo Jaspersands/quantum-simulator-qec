@@ -117,6 +117,38 @@ def stream_decode(
     lane 0's window decode times in seconds as f64, one per window per batch,
     the windows, wall seconds)."""
 
+def bp_decode(
+    num_checks: int,
+    columns: list[list[int]],
+    priors: list[float],
+    syndrome: list[int],
+    max_iter: int = 20,
+    method: Literal["product_sum", "minimum_sum"] = "product_sum",
+    ms_scale: float = 1.0,
+) -> tuple[list[int], list[float], bool, int]:
+    """Belief propagation on a parity-check matrix given by its columns (the
+    checks each variable touches), flooding schedule, reproducing the ``ldpc``
+    library's arithmetic exactly. Returns (hard decision, posterior
+    log-likelihood ratios ln(P(0)/P(1)), converged, iterations). A zero
+    syndrome converges at once without iterating."""
+
+def decode_b8_belief(
+    dem_text: str,
+    packed: bytes,
+    num_shots: int,
+    max_iter: int = 20,
+    method: Literal["product_sum", "minimum_sum"] = "product_sum",
+    ms_scale: float = 1.0,
+    threads: int = 0,
+) -> tuple[bytes, bytes, bytes, int, float]:
+    """Belief-matching (Higgott et al., PRX 13, 031007) of b8 shots on a
+    decomposed error model, as the ``beliefmatching`` package decodes: BP on
+    the whole hypergraph; BP's own correction where it converges; otherwise
+    matching on weights -ln p from the posteriors. Returns (predictions as u64
+    per shot, u64 max where decoding failed; the matching's weight per shot as
+    f64, NaN where BP converged; one byte per shot, 1 where BP converged;
+    shots that failed; seconds)."""
+
 class Decoder:
     """One model's matcher, shot by shot, for looking inside correlated
     matching. Edges are ``(u, v)`` detector pairs with ``-1`` for the

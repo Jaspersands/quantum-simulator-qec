@@ -4,8 +4,11 @@
 //! Text (circuits, error models, JSON replies) crosses through `wasm_xc`'s text
 //! buffer. Binary rows (measurements, sweep bits, detection events,
 //! predictions) cross through a second buffer here, in Stim's b8 layout. Two
-//! decoder slots hold the two priors decoded side by side.
+//! decoder slots hold the two priors decoded side by side, and one more holds
+//! a belief-matching decoder, run in chunks so the page can report progress.
 
+use crate::belief::{BeliefMatching, BeliefWork};
+use crate::bp::Method;
 use crate::circuit::Circuit;
 use crate::dem::Dem;
 use crate::dem_decoder::DemDecoder;
@@ -14,6 +17,7 @@ use crate::wasm_xc::{json_error, reply, text};
 
 static mut BYTES: Vec<u8> = Vec::new();
 static mut DECODERS: [Option<DemDecoder>; 2] = [None, None];
+static mut BELIEF: Option<(BeliefMatching, BeliefWork)> = None;
 
 fn bytes() -> &'static mut Vec<u8> {
     unsafe { &mut *std::ptr::addr_of_mut!(BYTES) }
@@ -145,6 +149,64 @@ pub extern "C" fn wasm_hw_decode(slot: usize, num_shots: usize, correlated: u32)
     reply(&format!("{{\"ok\":true,\"errors\":{errors}}}"))
 }
 
+/// A belief-matching decoder (20 iterations of product-sum BP) from the
+/// detector error model text in the text buffer.
+#[no_mangle]
+pub extern "C" fn wasm_hw_belief_model() -> usize {
+    let built = Dem::parse(&text_string()).and_then(|dem| BeliefMatching::from_dem(&dem, Method::ProductSum, 20));
+    match built {
+        Ok(bm) => {
+            let reply_text = format!(
+                "{{\"ok\":true,\"hyperedges\":{},\"edges\":{},\"tanner\":{}}}",
+                bm.bp.num_vars,
+                bm.graph.num_edges(),
+                bm.bp.num_edges()
+            );
+            let work = bm.work();
+            unsafe { *std::ptr::addr_of_mut!(BELIEF) = Some((bm, work)) };
+            reply(&reply_text)
+        }
+        Err(e) => json_error(&e),
+    }
+}
+
+/// Belief-match the detection-event rows in the byte buffer. The byte buffer
+/// then holds one byte per shot, as for `wasm_hw_decode`, and the reply counts
+/// the shots on which BP converged by itself.
+#[no_mangle]
+pub extern "C" fn wasm_hw_belief_decode(num_shots: usize) -> usize {
+    let Some((bm, work)) = (unsafe { (*std::ptr::addr_of_mut!(BELIEF)).as_mut() }) else {
+        return json_error("no belief-matching model");
+    };
+    let nd = bm.bp.num_checks;
+    let stride = nd.div_ceil(8);
+    let b = bytes();
+    if b.len() != stride * num_shots {
+        return json_error(&format!("{} bytes is not {num_shots} shots of {nd} detectors", b.len()));
+    }
+    let mut out = Vec::with_capacity(num_shots);
+    let mut defects = Vec::new();
+    let (mut errors, mut converged) = (0usize, 0usize);
+    for s in 0..num_shots {
+        let row = &b[s * stride..(s + 1) * stride];
+        defects.clear();
+        defects.extend((0..nd).filter(|&i| (row[i / 8] >> (i % 8)) & 1 == 1).map(|i| i as u32));
+        out.push(match bm.decode(&defects, work) {
+            Ok(o) => {
+                converged += usize::from(o.converged);
+                (o.observables & 1) as u8
+            }
+            Err(_) => {
+                errors += 1;
+                255
+            }
+        });
+    }
+    b.clear();
+    b.extend_from_slice(&out);
+    reply(&format!("{{\"ok\":true,\"errors\":{errors},\"converged\":{converged}}}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +251,14 @@ mod tests {
         set_bytes(&[0]);
         assert!(reply_text(wasm_hw_decode(0, 2, 1)).contains("\"ok\":false"));
         assert!(reply_text(wasm_hw_decode(1, 1, 0)).contains("no model"));
+
+        // Belief-matching: D0 alone is most likely the fault that also flips L0.
+        set_text("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1\n");
+        let r = reply_text(wasm_hw_belief_model());
+        assert!(r.contains("\"ok\":true") && r.contains("\"hyperedges\":3"), "{r}");
+        set_bytes(&[0b01, 0b00, 0b11]);
+        let r = reply_text(wasm_hw_belief_decode(3));
+        assert!(r.contains("\"errors\":0"), "{r}");
+        assert_eq!(bytes().as_slice(), &[1, 0, 0]);
     }
 }

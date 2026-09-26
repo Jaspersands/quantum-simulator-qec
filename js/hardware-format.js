@@ -26,7 +26,7 @@ const GOOGLE = {
 /** "ours/si1000/correlated" → "ours, correlated · Google's SI1000 prior"; "google/x" → "Google: …". */
 export function decoderLabel(key) {
   const [who, a, b] = key.split('/');
-  if (who === 'ours') return `ours, ${b} · ${PRIOR[a] ?? a}`;
+  if (who === 'ours') return `ours, ${b === 'belief' ? 'belief-matching' : b} · ${PRIOR[a] ?? a}`;
   return `Google: ${GOOGLE[a] ?? a}`;
 }
 

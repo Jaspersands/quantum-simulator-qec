@@ -518,6 +518,19 @@ export function hwDecode(instance, slot, dets, shots, correlated) {
   return { ...out, predictions: readBytes(instance, shots) };
 }
 
+/** Build the belief-matching decoder (20 iterations of product-sum BP) from a detector error model. */
+export function hwBeliefModel(instance, dem) {
+  writeText(instance, dem);
+  return replyOrThrow(instance, instance.exports.wasm_hw_belief_model());
+}
+
+/** Belief-match detection-event rows: one byte per shot, as `hwDecode`, and how often BP alone converged. */
+export function hwBeliefDecode(instance, dets, shots) {
+  writeBytes(instance, dets);
+  const out = replyOrThrow(instance, instance.exports.wasm_hw_belief_decode(shots));
+  return { ...out, predictions: readBytes(instance, shots) };
+}
+
 /* -- Real-time decoding (section 12) ------------------------------------- */
 
 /** Build a rotated SD6 memory stream's window decoder, sampler and global decoder. */

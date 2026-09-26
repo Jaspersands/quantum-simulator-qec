@@ -195,9 +195,12 @@ export function initHardware(root, compute) {
       row('si1000/correlated', decoderLabel('ours/si1000/correlated')),
       row('ours/plain', decoderLabel('ours/ours/plain')),
       row('ours/correlated', decoderLabel('ours/ours/correlated')),
+      row('belief', decoderLabel('ours/si1000/belief')),
       ...pathways.map((p) => row(`google/${p}`, `${decoderLabel(`google/${p}`)} †`, { google: true })),
       row('agree', 'Same prediction as Google\'s correlated matcher'),
       row('time', 'Decode time, ours correlated, per shot'),
+      row('belief-conv', 'Belief-matching: shots BP explained alone'),
+      row('belief-time', 'Decode time, belief-matching, per shot'),
     ]);
     const put = (id, d, content) => {
       const td = cells.get(id)?.[ds.indexOf(d)];
@@ -212,6 +215,18 @@ export function initHardware(root, compute) {
       // One distance per worker, at once.
       const jobs = manifest.experiments.map((ex) => ({ base: EXTRACT.href, experiments: [ex] }));
       await compute.map('hardware', jobs, (_, p) => {
+        if (p.step === 'belief') {
+          put('belief', p.d, `${p.done.toLocaleString('en-US')} of ${p.total.toLocaleString('en-US')}…`);
+          status.textContent = `Belief-matching, d = ${p.d}: ${p.done} of ${p.total} shots`;
+          return;
+        }
+        if (p.step === 'belief-done') {
+          const b = p.row.belief;
+          put('belief', p.d, failures(b.failures, p.row.shots));
+          put('belief-conv', p.d, `${b.converged.toLocaleString('en-US')} of ${p.row.shots.toLocaleString('en-US')}`);
+          put('belief-time', p.d, `${b.micros >= 10000 ? (b.micros / 1000).toFixed(0) : (b.micros / 1000).toFixed(1)} ms`);
+          return;
+        }
         if (p.step !== 'done') {
           status.textContent = `d = ${p.d}: ${p.step}…`;
           return;
@@ -237,8 +252,9 @@ export function initHardware(root, compute) {
       + `${manifest.shots.toLocaleString('en-US')} shots of each, as the chip recorded them, fetched as raw `
       + 'measurements and sweep bits (the per-shot pattern the data qubits were prepared in). Everything '
       + 'else happens in this tab: the detection events, whose SHA-256 is checked against Google\'s; the '
-      + 'error models, Google\'s SI1000 prior as published and ours built from the noisy circuit; and both '
-      + 'matchers. † Google\'s rows are its decoders\' predictions for the same shots, published with the '
+      + 'error models, Google\'s SI1000 prior as published and ours built from the noisy circuit; plain and '
+      + 'correlated matching; and belief-matching, which runs belief propagation over the whole error model '
+      + '(20 iterations) and matches on its posteriors, last because it is the slow one. † Google\'s rows are its decoders\' predictions for the same shots, published with the '
       + 'data. About 120 failures, as at d = 7, carry about ±10% of counting noise: enough to see the '
       + 'decoders\' order roughly, not to pin down Λ. Figure 9 does that from all 50,000 shots of every '
       + 'experiment.';
