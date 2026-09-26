@@ -38,6 +38,9 @@ body {
 
 @media (max-width: 700px) {
   .paper { margin: 0; padding: 24px 16px 40px; border: 0; box-shadow: none; }
+  /* Wide tables scroll inside themselves rather than widening the page. */
+  table { display: block; overflow-x: auto; }
+  td, th { white-space: nowrap; }
 }
 
 a { color: var(--accent); }
