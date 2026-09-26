@@ -11,6 +11,7 @@ import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { surgeryLayout } from '../js/surgery-geometry.js';
+import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration } from '../js/estimator.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -301,6 +302,39 @@ test('lattice surgery geometry: the counts src/surgery.rs asserts, and Z1Z2 as t
     }
     assert.equal([...count.values()].filter((n) => n % 2 === 1).length, 2 * d);
   }
+});
+
+test('estimator: the model reproduces what it is given, and moves the right way', () => {
+  const model = { eps0: 0.00234, d0: 7, lambda: 1.95 };
+  // At the measured distance, the measured ε exactly; two distances on, Λ times smaller.
+  assert.equal(epsilonAt(7, model), 0.00234);
+  assert.ok(Math.abs(epsilonAt(9, model) - 0.00234 / 1.95) < 1e-15);
+  const algo = { qubits: 100, operations: 1e6 };
+  const d = distanceFor(algo, model, 0.01);
+  assert.ok(d % 2 === 1 && d >= 3);
+  assert.ok(failureAt(d, algo, model) <= 0.01 && failureAt(d - 2, algo, model) > 0.01, 'the smallest distance that meets the budget');
+  // Bigger algorithms need larger distances, and more qubits.
+  const bigger = distanceFor({ qubits: 100, operations: 1e9 }, model, 0.01);
+  assert.ok(bigger > d);
+  assert.ok(physicalQubits(bigger, algo) > physicalQubits(d, algo));
+  assert.equal(physicalQubits(3, { qubits: 1 }, 1), 17);
+  assert.ok(Math.abs(runtimeSeconds(5, { operations: 2 }, 1e-6) - 1e-5) < 1e-18);
+  // No suppression, no distance.
+  assert.equal(distanceFor(algo, { ...model, lambda: 1 }, 0.01), null);
+  // Cores: measured distances read back; beyond them, a power law through the last two.
+  const cores = { 3: 2, 5: 4, 7: 8 };
+  assert.equal(decodingCores(5, { qubits: 1 }, cores), 4);
+  assert.equal(decodingCores(4, { qubits: 1 }, cores), 4);
+  // Through (5, 4) and (7, 8) the law is 8 · (d / 7)^(ln 2 / ln 1.4): 13.4 at d = 9, so 14 cores.
+  assert.equal(decodingCores(9, { qubits: 1 }, cores), Math.ceil(8 * (9 / 7) ** (Math.log(2) / Math.log(1.4))));
+  assert.equal(decodingCores(9, { qubits: 1 }, cores), 14);
+  assert.equal(estimate(algo, model, { budget: 0.01 }).d, d);
+  assert.equal(bigNumber(3.2e7), '32 million');
+  assert.equal(bigNumber(12345), '12,345');
+  assert.equal(bigNumber(6.7e8), '670 million');
+  assert.equal(bigNumber(4.1e12), '4,100 billion');
+  assert.equal(duration(90), '90 s');
+  assert.equal(duration(7200 * 3), '6.0 h');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
