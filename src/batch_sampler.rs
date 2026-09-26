@@ -81,8 +81,10 @@ enum Op {
     Depolarize1 { noise: Noise, qubits: Vec<u32> },
     Depolarize2 { noise: Noise, pairs: Vec<(u32, u32)> },
     PauliChannel1 { any: Noise, px: f64, pxy: f64, total: f64, qubits: Vec<u32> },
-    /// Lookbacks: 1 is the latest measurement.
-    Detector(Vec<u32>),
+    /// Lookbacks (1 is the latest measurement), and the detector's last
+    /// coordinate as written, with its index: its time, before shifts.
+    Detector(Vec<u32>, Option<(usize, f64)>),
+    ShiftCoords(Vec<f64>),
     Observable(u32, Vec<u32>),
     Repeat(u64, Vec<Op>),
 }
@@ -107,13 +109,16 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
                 let total = px + py + pz;
                 Op::PauliChannel1 { any: Noise::new(total), px: *px, pxy: px + py, total, qubits: qubits.clone() }
             }
-            Instr::Detector { recs, .. } => Op::Detector(recs.clone()),
+            Instr::Detector { recs, coords } => {
+                Op::Detector(recs.clone(), coords.last().map(|&t| (coords.len() - 1, t)))
+            }
+            Instr::ShiftCoords(shift) => Op::ShiftCoords(shift.clone()),
             Instr::Observable { index, recs } => Op::Observable(*index, recs.clone()),
             Instr::Repeat { count, body } => Op::Repeat(*count, compile(body)),
             // Pauli gates and sweep-controlled X only flip signs, which a frame
             // relative to the noiseless run does not carry; annotations and
             // ticks do nothing.
-            Instr::Pauli { .. } | Instr::SweepX(_) | Instr::QubitCoords { .. } | Instr::ShiftCoords(_) | Instr::Tick => {
+            Instr::Pauli { .. } | Instr::SweepX(_) | Instr::QubitCoords { .. } | Instr::Tick => {
                 continue
             }
         });
@@ -152,7 +157,8 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 qubits.iter().for_each(|&q| touch(s, q));
                 s.measurements += qubits.len() as u64;
             }
-            Op::Detector(recs) | Op::Observable(_, recs) => {
+            Op::ShiftCoords(_) => {}
+            Op::Detector(recs, _) | Op::Observable(_, recs) => {
                 for &k in recs {
                     if k == 0 || u64::from(k) > s.measurements {
                         return Err(format!("rec[-{k}] reaches before the first measurement"));
@@ -160,7 +166,7 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                     s.lookback = s.lookback.max(k);
                 }
                 match op {
-                    Op::Detector(_) => s.detectors += 1,
+                    Op::Detector(..) => s.detectors += 1,
                     Op::Observable(i, _) => {
                         if *i >= 64 {
                             return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
@@ -257,6 +263,7 @@ struct State {
     m: usize,
     det: usize,
     obs: Vec<u64>,
+    shift: Vec<f64>,
 }
 
 impl State {
@@ -285,7 +292,7 @@ impl State {
     }
 }
 
-fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usize, u64)) {
+fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usize, f64, u64)) {
     for op in ops {
         match op {
             Op::Reset { basis, qubits } => {
@@ -382,13 +389,22 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     }
                 }
             }
-            Op::Detector(recs) => {
+            Op::Detector(recs, time) => {
                 let mut w = 0u64;
                 for &k in recs {
                     w ^= st.ring[(st.m - k as usize) & st.mask];
                 }
-                sink(st.det, w);
+                let t = time.map_or(f64::NAN, |(i, t)| t + st.shift.get(i).copied().unwrap_or(0.0));
+                sink(st.det, t, w);
                 st.det += 1;
+            }
+            Op::ShiftCoords(shift) => {
+                if st.shift.len() < shift.len() {
+                    st.shift.resize(shift.len(), 0.0);
+                }
+                for (a, b) in st.shift.iter_mut().zip(shift) {
+                    *a += b;
+                }
             }
             Op::Observable(i, recs) => {
                 for &k in recs {
@@ -423,6 +439,13 @@ impl BatchSampler {
     /// Run 64 shots, handing each detector's word to `sink(index, word)` as it
     /// is evaluated; returns the observables' words.
     pub fn run(&self, rng: &mut Xorshift, sink: &mut dyn FnMut(usize, u64)) -> Vec<u64> {
+        self.run_timed(rng, &mut |d, _, w| sink(d, w))
+    }
+
+    /// The same, with each detector's time coordinate (its last coordinate,
+    /// shifts applied; NaN if it has none): how a stream is cut into rounds as
+    /// it is made.
+    pub fn run_timed(&self, rng: &mut Xorshift, sink: &mut dyn FnMut(usize, f64, u64)) -> Vec<u64> {
         let mut st = State {
             x: vec![0; self.num_qubits],
             // Every qubit starts in |0>, to which Z is invisible.
@@ -432,6 +455,7 @@ impl BatchSampler {
             m: 0,
             det: 0,
             obs: vec![0; self.num_observables],
+            shift: Vec::new(),
         };
         exec(&self.ops, &mut st, rng, sink);
         st.obs

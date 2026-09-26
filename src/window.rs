@@ -153,7 +153,62 @@ pub enum Mode {
     Parallel,
 }
 
-/// A window, its commit region (layers), and when it may run.
+/// Where one window sits: layers `[a, b)`, its commit region, which virtual
+/// boundaries it has, and its phase (windows of one phase are independent;
+/// phases run in order).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Spec {
+    pub a: u32,
+    pub b: u32,
+    pub commit: (u32, u32),
+    pub past: bool,
+    pub future: bool,
+    pub phase: usize,
+}
+
+/// The windows of a schedule over `total` layers, in the order they are
+/// planned (sliding: in time; parallel: layer A in time, then layer B).
+pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Vec<Spec> {
+    assert!(commit > 0, "a window must commit at least one layer");
+    let (c, b) = (commit as u32, buffer as u32);
+    let mut out = Vec::new();
+    match mode {
+        Mode::Sliding => {
+            let mut s = 0u32;
+            while s < total {
+                let last = s + c + b >= total;
+                let end = if last { total } else { s + c + b };
+                let commit = if last { (s, total) } else { (s, s + c) };
+                out.push(Spec { a: s, b: end, commit, past: false, future: !last, phase: out.len() });
+                s = commit.1;
+            }
+        }
+        Mode::Parallel => {
+            // Layer B lives in the gaps between A's commit regions, 2B layers
+            // wide. With no buffer there are no gaps, and a correction an A
+            // window reaches back into its neighbour with would have nowhere to
+            // be resolved.
+            assert!(buffer >= 1, "parallel windows need a buffer of at least one layer");
+            let mut starts = Vec::new();
+            let mut s = 0u32;
+            while s < total {
+                let (a, e) = (s.saturating_sub(b), (s + c + b).min(total));
+                out.push(Spec { a, b: e, commit: (s, (s + c).min(total)), past: a > 0, future: e < total, phase: 0 });
+                starts.push(s);
+                s += c + 2 * b;
+            }
+            for (i, &s) in starts.iter().enumerate() {
+                let gap = ((s + c).min(total), starts.get(i + 1).copied().unwrap_or(total));
+                if gap.0 < gap.1 {
+                    out.push(Spec { a: gap.0, b: gap.1, commit: gap, past: false, future: false, phase: 1 });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A window's graph and its commit region.
 pub struct Planned {
     pub window: Window,
     pub commit: (u32, u32),
@@ -162,6 +217,7 @@ pub struct Planned {
 /// A model cut into windows for one schedule.
 pub struct WindowDecoder {
     pub model: Model,
+    pub specs: Vec<Spec>,
     pub windows: Vec<Planned>,
     /// Windows in each phase: within a phase they are independent; phases run
     /// in order. Sliding has one window per phase.
@@ -179,54 +235,14 @@ pub struct Outcome {
 
 impl WindowDecoder {
     pub fn new(model: Model, commit: usize, buffer: usize, mode: Mode) -> WindowDecoder {
-        assert!(commit > 0, "a window must commit at least one layer");
-        let total = model.layers.count() as u32;
-        let (c, b) = (commit as u32, buffer as u32);
-        let mut windows = Vec::new();
-        let mut phases = Vec::new();
-        match mode {
-            Mode::Sliding => {
-                let mut s = 0u32;
-                while s < total {
-                    let last = s + c + b >= total;
-                    let end = if last { total } else { s + c + b };
-                    let commit = if last { (s, total) } else { (s, s + c) };
-                    windows.push(Planned { window: model.window(s, end, false, !last), commit });
-                    phases.push(vec![windows.len() - 1]);
-                    s = commit.1;
-                }
-            }
-            Mode::Parallel => {
-                // Layer B lives in the gaps between A's commit regions, 2B
-                // layers wide. With no buffer there are no gaps, and a
-                // correction an A window reaches back into its neighbour with
-                // would have nowhere to be resolved.
-                assert!(buffer >= 1, "parallel windows need a buffer of at least one layer");
-                let mut a_phase = Vec::new();
-                let mut starts = Vec::new();
-                let mut s = 0u32;
-                while s < total {
-                    let (a, e) = (s.saturating_sub(b), (s + c + b).min(total));
-                    windows.push(Planned { window: model.window(a, e, a > 0, e < total), commit: (s, (s + c).min(total)) });
-                    a_phase.push(windows.len() - 1);
-                    starts.push(s);
-                    s += c + 2 * b;
-                }
-                let mut b_phase = Vec::new();
-                for (i, &s) in starts.iter().enumerate() {
-                    let gap = ((s + c).min(total), starts.get(i + 1).copied().unwrap_or(total));
-                    if gap.0 < gap.1 {
-                        windows.push(Planned { window: model.window(gap.0, gap.1, false, false), commit: gap });
-                        b_phase.push(windows.len() - 1);
-                    }
-                }
-                phases.push(a_phase);
-                if !b_phase.is_empty() {
-                    phases.push(b_phase);
-                }
-            }
+        let specs = plan(model.layers.count() as u32, commit, buffer, mode);
+        let windows =
+            specs.iter().map(|s| Planned { window: model.window(s.a, s.b, s.past, s.future), commit: s.commit }).collect();
+        let mut phases: Vec<Vec<usize>> = vec![Vec::new(); specs.iter().map(|s| s.phase + 1).max().unwrap_or(0)];
+        for (i, s) in specs.iter().enumerate() {
+            phases[s.phase].push(i);
         }
-        WindowDecoder { model, windows, phases, mode }
+        WindowDecoder { model, specs, windows, phases, mode }
     }
 
     /// One scratch per window, sized for its graph.

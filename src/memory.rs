@@ -247,8 +247,19 @@ pub fn generate(kind: CodeKind, d: usize, rounds: usize, noise: NoiseModel, basi
 pub fn memory_circuit(patch: &Patch, rounds: usize, noise: NoiseModel) -> Circuit {
     match noise {
         NoiseModel::Current { p, eta } => current_circuit(patch, rounds, p, eta),
-        NoiseModel::Sd6 { p } => sd6_circuit(patch, rounds, p),
+        NoiseModel::Sd6 { p } => sd6_circuit(patch, rounds, p, false),
     }
+}
+
+/// The SD6 memory experiment with rounds 2 to `rounds` written once, as a
+/// `REPEAT` block whose detectors move forward in time by `SHIFT_COORDS`.
+/// Flattened, it is `generate`'s circuit exactly; unflattened, a million rounds
+/// cost one round of instructions, which is how the batch sampler streams them.
+pub fn generate_repeat(kind: CodeKind, d: usize, rounds: usize, p: f64, basis: Basis) -> Result<Circuit, String> {
+    if rounds == 0 {
+        return Err("a memory experiment needs at least one round".into());
+    }
+    Ok(sd6_circuit(&patch_for(kind, d, basis)?, rounds, p, true))
 }
 
 /* -- Shared pieces --------------------------------------------------------- */
@@ -378,7 +389,11 @@ fn current_circuit(patch: &Patch, rounds: usize, p: f64, eta: f64) -> Circuit {
 
 /* -- SD6: the standard model ----------------------------------------------- */
 
-fn sd6_circuit(patch: &Patch, rounds: usize, p: f64) -> Circuit {
+fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
+    // Folded, rounds 2..rounds are one loop body: every round after the first
+    // reads the same relative records, so writing round 2 once and repeating it
+    // is exact. Its detectors sit at t = 2, moved on by SHIFT_COORDS each time.
+    let fold = fold && rounds >= 2;
     let na = patch.layers.ancillas.len();
     let nq = patch.num_qubits;
     let data: Vec<u32> = (0..patch.num_data as u32).collect();
@@ -404,11 +419,13 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64) -> Circuit {
         depol1(c, idle(&patch.layers.hadamard));
     };
 
-    let mut c = Vec::new();
-    coords_header(patch, &mut c);
+    let mut head = Vec::new();
+    coords_header(patch, &mut head);
+    let mut body = Vec::new();
     let mut m = 0usize;
     let mut prev: Option<Vec<usize>> = None;
-    for r in 1..=rounds {
+    for r in 1..=(if fold { 2 } else { rounds }) {
+        let c = if fold && r == 2 { &mut body } else { &mut head };
         // Reset: ancillas every round, data in the first; idle data otherwise.
         c.push(Instr::Tick);
         c.push(Instr::Reset { basis: Basis::Z, qubits: anc.clone() });
@@ -416,12 +433,12 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64) -> Circuit {
             c.push(Instr::PauliError { pauli: 1, p, qubits: anc.clone() });
         }
         if r == 1 {
-            reset_data(patch, &mut c, p);
+            reset_data(patch, c, p);
         } else {
-            depol1(&mut c, data.clone());
+            depol1(c, data.clone());
         }
 
-        hadamard_layer(&mut c);
+        hadamard_layer(c);
 
         for step in &patch.layers.steps {
             c.push(Instr::Tick);
@@ -450,10 +467,10 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64) -> Circuit {
                 c.push(Instr::Depolarize2 { p, pairs: pairs.clone() });
             }
             let busy: Vec<u32> = pairs.iter().flat_map(|&(a, b)| [a, b]).collect();
-            depol1(&mut c, idle(&busy));
+            depol1(c, idle(&busy));
         }
 
-        hadamard_layer(&mut c);
+        hadamard_layer(c);
 
         // Measure the ancillas; the data idle meanwhile.
         c.push(Instr::Tick);
@@ -463,7 +480,7 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64) -> Circuit {
         c.push(Instr::Measure { basis: Basis::Z, reset: false, flip: 0.0, qubits: anc.clone() });
         let this: Vec<usize> = (0..na).map(|a| m + a).collect();
         m += na;
-        depol1(&mut c, data.clone());
+        depol1(c, data.clone());
 
         let coords = |a: usize| {
             let (x, y) = patch.qubit_coords[patch.layers.ancillas[a] as usize];
@@ -486,8 +503,18 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64) -> Circuit {
         }
         prev = Some(this);
     }
-    let last = prev.expect("at least one round");
-    final_readout(patch, &mut c, &mut m, &last, (rounds + 1) as f64, p);
+    let mut c = head;
+    let (last, t_final) = if fold {
+        body.push(Instr::ShiftCoords(vec![0.0, 0.0, 1.0]));
+        c.push(Instr::Repeat { count: (rounds - 1) as u64, body });
+        // Every round measured; the final readout's detectors are written at
+        // t = 2, which the rounds - 1 shifts carry to rounds + 1.
+        m = na * rounds;
+        ((m - na..m).collect::<Vec<usize>>(), 2.0)
+    } else {
+        (prev.expect("at least one round"), (rounds + 1) as f64)
+    };
+    final_readout(patch, &mut c, &mut m, &last, t_final, p);
     Circuit { instrs: c }
 }
 
@@ -699,6 +726,24 @@ pub(crate) mod tests {
             let (tested, failed) = single_fault_failures(&c);
             println!("{name}: {tested} mechanisms, {failed} fail");
             assert_eq!(failed, 0, "{name}");
+        }
+    }
+
+    #[test]
+    fn the_folded_circuit_is_the_flat_one() {
+        for kind in [CodeKind::Rotated, CodeKind::Xzzx] {
+            for basis in [Basis::Z, Basis::X] {
+                for d in [3usize, 5] {
+                    for rounds in [1usize, 2, 3, 7] {
+                        let folded = generate_repeat(kind, d, rounds, 0.004, basis).unwrap();
+                        let flat = generate(kind, d, rounds, NoiseModel::Sd6 { p: 0.004 }, basis).unwrap();
+                        assert_eq!(folded.flattened(), flat, "{kind:?} {basis:?} d = {d}, {rounds} rounds");
+                        if rounds >= 3 {
+                            assert!(folded.instrs.len() < flat.instrs.len());
+                        }
+                    }
+                }
+            }
         }
     }
 }
