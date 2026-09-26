@@ -425,6 +425,8 @@ def figures(F):
         "grid.color": PALETTE["rule"], "grid.linewidth": 0.6, "legend.frameon": False, "figure.dpi": 100,
         "svg.hashsalt": "report",
     })
+    # No build date in the SVGs: a rebuild changes only the figures whose data changed.
+    STABLE = {"Date": None}
     FIGS.mkdir(parents=True, exist_ok=True)
     ref = load("data/xcheck/reference.json")
 
@@ -451,7 +453,7 @@ def figures(F):
     ax.set_ylabel("logical error per cycle, ε")
     ax.legend(fontsize=8, loc="lower left")
     fig.tight_layout()
-    fig.savefig(FIGS / "willow-lambda.svg")
+    fig.savefig(FIGS / "willow-lambda.svg", metadata=STABLE)
     plt.close(fig)
 
     # Figure 2: agreement with PyMatching.
@@ -479,7 +481,7 @@ def figures(F):
     ax.set_ylabel("ours, on the same shots")
     ax.legend(fontsize=8, loc="upper left")
     fig.tight_layout()
-    fig.savefig(FIGS / "pymatching-agreement.svg")
+    fig.savefig(FIGS / "pymatching-agreement.svg", metadata=STABLE)
     plt.close(fig)
 
     # Figure 3: speed.
@@ -507,7 +509,7 @@ def figures(F):
     a2.set_ylabel("sampling, µs per shot")
     a2.legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(FIGS / "speed.svg")
+    fig.savefig(FIGS / "speed.svg", metadata=STABLE)
     plt.close(fig)
 
     # The gross code: error per cycle against p.
@@ -526,7 +528,7 @@ def figures(F):
     ax.set_ylabel("logical error per syndrome cycle")
     ax.legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(FIGS / "gross.svg")
+    fig.savefig(FIGS / "gross.svg", metadata=STABLE)
     plt.close(fig)
 
     # Lattice surgery: the merge outcome against merged rounds.
@@ -543,7 +545,7 @@ def figures(F):
     ax.set_ylabel("merge outcome wrong, per shot")
     ax.legend(fontsize=7, ncol=2)
     fig.tight_layout()
-    fig.savefig(FIGS / "surgery.svg")
+    fig.savefig(FIGS / "surgery.svg", metadata=STABLE)
     plt.close(fig)
 
     # Figure 4: latency against cores.
@@ -568,7 +570,7 @@ def figures(F):
     ax.set_ylabel("latency, µs (mean; bar to p99)")
     ax.legend(fontsize=7.5, loc="upper right", ncol=2)
     fig.tight_layout()
-    fig.savefig(FIGS / "latency.svg")
+    fig.savefig(FIGS / "latency.svg", metadata=STABLE)
     plt.close(fig)
 
 

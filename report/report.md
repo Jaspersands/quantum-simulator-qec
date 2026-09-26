@@ -1,6 +1,6 @@
 ---
 title: "A surface-code simulator and decoder, checked against Stim, PyMatching and Google's hardware"
-subtitle: "Exact and correlated matching, Google's Willow and Sycamore data, and window decoding at Willow's cycle"
+subtitle: "Exact, correlated and belief matching on Google's Willow and Sycamore data, window decoding at Willow's cycle, the gross code by BP+OSD, and lattice surgery"
 author: Jasper Sands
 date: "{{date}}"
 version: "{{version}}"
