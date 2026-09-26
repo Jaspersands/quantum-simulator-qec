@@ -23,6 +23,7 @@ pub mod dem_decoder;
 pub mod sparse;
 pub mod m2d;
 pub mod frame_sampler;
+pub mod batch_sampler;
 pub mod shots;
 pub mod memory;
 #[cfg(test)]
