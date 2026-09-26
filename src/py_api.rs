@@ -284,6 +284,106 @@ fn sample_b8_batch<'py>(
     Ok((PyBytes::new_bound(py, &dets), PyBytes::new_bound(py, &obs), seconds))
 }
 
+/// Window decoding of b8 shots. Returns the predictions (u64 per shot,
+/// u64::MAX where a window failed to decode), the number of defects left
+/// unexplained over all shots (zero unless something is wrong), each window's
+/// decode time per shot in seconds (f64, shots × windows, when `timings`), and
+/// the windows as (first layer, end layer, commit start, commit end, phase).
+#[pyfunction]
+#[pyo3(signature = (dem_text, packed, num_shots, commit, buffer, mode, correlated=false, threads=0, timings=false))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn decode_b8_window<'py>(
+    py: Python<'py>,
+    dem_text: &str,
+    packed: &[u8],
+    num_shots: usize,
+    commit: usize,
+    buffer: usize,
+    mode: &str,
+    correlated: bool,
+    threads: usize,
+    timings: bool,
+) -> PyResult<(Bound<'py, PyBytes>, usize, Bound<'py, PyBytes>, Vec<(u32, u32, u32, u32, usize)>)> {
+    use crate::window::{Mode, Model, WindowDecoder};
+    let dem = Dem::parse(dem_text).map_err(err)?;
+    let mode = match mode {
+        "sliding" => Mode::Sliding,
+        "parallel" => Mode::Parallel,
+        other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
+    };
+    if mode == Mode::Parallel && buffer == 0 {
+        return Err(err("parallel windows need a buffer of at least one layer".into()));
+    }
+    let wd = WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode);
+    let nd = dem.num_detectors;
+    let stride = nd.div_ceil(8);
+    if packed.len() != stride * num_shots {
+        return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
+    }
+    let nw = wd.windows.len();
+    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
+        .clamp(1, num_shots.max(1));
+    let chunk = num_shots.div_ceil(threads);
+    let parts: Vec<(Vec<u64>, usize, Vec<f64>)> = py.allow_threads(|| {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads)
+                .map(|t| {
+                    let wd = &wd;
+                    scope.spawn(move || {
+                        let mut scratches = wd.scratches();
+                        let (mut preds, mut unexplained, mut times) = (Vec::new(), 0usize, Vec::new());
+                        let mut live = vec![false; nd];
+                        for s in (t * chunk)..((t + 1) * chunk).min(num_shots) {
+                            let row = &packed[s * stride..(s + 1) * stride];
+                            for (i, l) in live.iter_mut().enumerate() {
+                                *l = (row[i / 8] >> (i % 8)) & 1 == 1;
+                            }
+                            let mut obs = 0u64;
+                            let mut failed = false;
+                            let mut shot_times = vec![0.0; if timings { nw } else { 0 }];
+                            for phase in &wd.phases {
+                                for &wi in phase {
+                                    let start = Instant::now();
+                                    if wd.decode_window(wi, &mut live, &mut obs, correlated, &mut scratches[wi]).is_err() {
+                                        failed = true;
+                                    }
+                                    if timings {
+                                        shot_times[wi] = start.elapsed().as_secs_f64();
+                                    }
+                                }
+                            }
+                            unexplained += live.iter().filter(|&&b| b).count();
+                            preds.push(if failed { u64::MAX } else { obs });
+                            times.extend(shot_times);
+                        }
+                        (preds, unexplained, times)
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("window thread panicked")).collect()
+        })
+    });
+    let (mut preds, mut unexplained, mut times) = (Vec::new(), 0usize, Vec::new());
+    for (p, u, t) in parts {
+        preds.extend(p.iter().flat_map(|x| x.to_le_bytes()));
+        unexplained += u;
+        times.extend(t.iter().flat_map(|x| x.to_le_bytes()));
+    }
+    let mut phase_of = vec![0usize; nw];
+    for (k, phase) in wd.phases.iter().enumerate() {
+        for &wi in phase {
+            phase_of[wi] = k;
+        }
+    }
+    let info = wd
+        .windows
+        .iter()
+        .enumerate()
+        .map(|(i, w)| (w.window.layers.0, w.window.layers.1, w.commit.0, w.commit.1, phase_of[i]))
+        .collect();
+    Ok((PyBytes::new_bound(py, &preds), unexplained, PyBytes::new_bound(py, &times), info))
+}
+
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
     Ok(write_01(&read_b8(packed, num_bits).map_err(err)?))
@@ -300,5 +400,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(m2d_b8, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_to_stim, m)?)?;
     m.add_function(wrap_pyfunction!(sample_b8_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_b8_window, m)?)?;
     Ok(())
 }
