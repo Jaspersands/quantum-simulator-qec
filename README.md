@@ -31,6 +31,9 @@ every number on the page is computed in the reader's browser on load.
 - **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
   million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
+- **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
+  against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
+  a million-round stream that keeps up on 4 cores at d = 5.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, every figure is driven by it, the threshold table is
   plotted as it is measured, and the bench streams its estimate.
@@ -551,6 +554,88 @@ shots):
   workers on this machine include efficiency cores. The times are polled once a second.
   `?workers=N` sets the pool's size, for measuring exactly that.
 
+## Real time
+
+Every decoder above waits for an experiment to end. A quantum computer cannot: Willow runs a round
+every 1.1 µs, and a computation waiting on a logical measurement stalls until the decoder catches
+up. A decoder slower than the chip falls further behind with every round and never recovers.
+Google decoded a distance-5 memory in real time over a million rounds with a 63 µs average latency
+(arXiv:2408.13687).
+
+**Window decoders** (`src/window.rs`).
+- **The idea.** A real-time decoder matches a few rounds at a time. It decodes a window of
+  commit + buffer rounds and commits the edges of its correction that touch the commit region. It
+  toggles their far ends, so a correction reaching past the region leaves a defect for the next
+  window.
+- **Windows are cut from any model by its time coordinates.** An edge leaving a window becomes a
+  boundary half-edge of its own, kept apart from the real boundary. That lets a defect near the
+  window's end wait for a partner not yet seen.
+- **Sliding windows** run one after another, so a stream uses one core.
+- **Parallel windows** (Skoric et al., arXiv:2209.08552; Tan et al., arXiv:2209.09219) come in two
+  layers:
+  - layer A's windows are spaced apart, with buffers and virtual boundaries on both sides;
+  - layer B's windows fill the gaps once A has committed.
+
+  Each layer decodes independently, so a stream can use as many cores as it needs.
+- **Correlated matching works inside a window.** The second pass's matching is traced on the
+  lowered weights before they are restored, and the correlation rules are restricted to the
+  window's edges.
+
+It is checked four ways:
+1. **One window is global decoding.** With a commit region as long as the stream, the window's
+   correction is the global decoder's traced correction exactly, plain and correlated, on rotated
+   and XZZX circuits.
+2. **Every defect is explained.** On every shot, for every commit size from 1 to 3 and buffer from 0
+   (sliding) or 1 (parallel) to 3, in both schedules and with both matchers, the committed edges
+   explain the shot's defects exactly. This caught a real hole: parallel windows with no buffer
+   have no gaps for layer B, and leave corrections nowhere to land. They are now refused.
+3. **Accuracy on Google's data.** Every Willow experiment is decoded with C = B = d, beside the
+   global decoder (see the table below).
+4. **A template is the full model.** The million-round stream never builds a million-round model.
+   Each window takes the graph of the window in the same position in a short template: the ends
+   from the template's ends, the bulk from its middle. On a 60-round stream this decodes all 64
+   streams exactly as windows cut from the full 60-round model, and deep bulk windows are identical
+   graphs, edge for edge.
+
+**Latency.**
+- **Method.** Every window's decode time is measured natively, one core at a time. The times are
+  then scheduled with rounds arriving every 1.1 µs: a window starts once its last round has arrived
+  and, for layer B, both its layer-A neighbours are done.
+- **Latency** is the time from a window's last round arriving to its commit. A stream "keeps up" if
+  its latency does not grow along it.
+- **Streams:**
+  - Google's recorded Willow syndromes (2,000 shots of d = 3, 5, 7 at 250 rounds, SI1000 prior);
+  - a simulated d = 5 memory **a million rounds long**, 64 streams of rotated SD6 at p = 0.313%,
+    the noise at which its detectors fire as often as Willow's (7.5%).
+
+  Commit and buffer are both d rounds, on an Apple M2 Pro:
+
+| stream | decoder | window decode | keeps up on | mean latency | p99 |
+|---|---|---|---|---|---|
+| Willow d = 3 | sliding, plain | 2.1 µs | 1 core | 4 µs | 27 µs |
+| Willow d = 3 | parallel, correlated | 5.2 µs | 2 cores | 12 µs | 42 µs |
+| Willow d = 5 | parallel, plain | 17 µs | 4 cores | 33 µs | 86 µs |
+| Willow d = 5 | parallel, correlated | 34 µs | 4 cores | 73 µs | 192 µs |
+| Willow d = 7 | parallel, plain | 62 µs | 8 cores | 111 µs | 235 µs |
+| Willow d = 7 | parallel, correlated | 133 µs | 8 cores | 242 µs | 511 µs |
+| SD6 d = 5, 10⁶ rounds | parallel, plain | 16 µs | 4 cores | 32 µs | 72 µs |
+| SD6 d = 5, 10⁶ rounds | parallel, correlated | 33 µs | 4 cores (8 for 60 µs) | 216 µs (60 µs on 8) | 813 µs (138 µs on 8) |
+
+- **Sliding windows** keep up only at d = 3 with plain matching. Everywhere else one core is too
+  slow, which is exactly why parallel windows exist.
+- **At d = 5, correlated matching on 8 cores holds a 60 µs mean latency over a million rounds**,
+  beside Google's 63 µs for its own real-time decoder. That is on its hardware with its definition
+  of latency, so it is context, not a like-for-like comparison.
+- **Throughput.** On all 10 cores, independent streams decode at 3.1 million rounds a second plain
+  and 1.6 million correlated. Willow's cycle demands 0.91 million per stream.
+- **In the browser** (Figure 12), WebAssembly runs window decoding at 1.0, 5.3 and 12.1 µs per
+  round of one stream at d = 3, 5, 7, so about 1, 5 and 11 cores would keep up.
+
+**Accuracy.** Windowed decoding of every Willow experiment, fitted like section 11 (see
+`data/realtime/willow-windows.json`):
+
+WILLOW_WINDOW_TABLE
+
 ## Engine defects found and fixed
 
 Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
@@ -1003,6 +1088,7 @@ src/m2d.rs            raw measurements and sweep bits to detection events, by no
 src/py_api.rs         PyO3 bindings for the cross-check
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
+src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -1026,6 +1112,8 @@ tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quote
 data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
 tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
 tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
+tools/realtime.py       window decoders' accuracy, latency, and the million-round stream
+data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
 

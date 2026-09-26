@@ -1,11 +1,14 @@
 // Logical error per cycle and Λ for every decoder in data/google-results/,
 // with the same fit the page uses (js/lambda-fit.js).
-// Run: node tools/lambda.mjs [bootstrap draws = 400]
+// Run: node tools/lambda.mjs [bootstrap draws = 400] [results.json ...]
+// With files, fits each (Willow-shaped records, from round 10) instead of
+// data/google-results/{willow,sycamore}.json.
 import { readFile } from 'node:fs/promises';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 import { decoderLabel, percent, percentRange, ratio } from '../js/hardware-format.js';
 
 const B = Number(process.argv[2] ?? 400);
+const files = process.argv.slice(3);
 const load = async (name) => Object.values(JSON.parse(await readFile(new URL(`../data/google-results/${name}.json`, import.meta.url), 'utf8')).experiments);
 
 function table(title, records, minRounds, alternatives) {
@@ -27,6 +30,13 @@ function table(title, records, minRounds, alternatives) {
   return out;
 }
 
+if (files.length) {
+  for (const f of files) {
+    const recs = Object.values(JSON.parse(await readFile(f, 'utf8')).experiments);
+    table(f, recs, 10, [30]);
+  }
+  process.exit(0);
+}
 const willow = await load('willow').catch(() => []);
 const sycamore = await load('sycamore').catch(() => []);
 if (willow.length) table('Willow', willow, 10, [30]);
