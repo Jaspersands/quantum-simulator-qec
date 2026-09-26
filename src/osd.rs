@@ -89,9 +89,12 @@ impl BpOsd {
         let n = self.bp.num_vars;
         let m = self.bp.num_checks;
         let words = w.words;
-        // Most likely flipped first: ascending posterior LLR, ties by index.
+        // Most likely flipped first: ascending posterior LLR. Ties go to the
+        // higher column first, which is how ldpc's sort leaves them: min-sum
+        // run long enough (its adaptive scale reaches exactly 1) repeats
+        // values, and the tie order picks OSD-CS's candidates.
         let llr = &w.bp.llr;
-        w.order.sort_by(|&a, &b| llr[a as usize].total_cmp(&llr[b as usize]).then(a.cmp(&b)));
+        w.order.sort_by(|&a, &b| llr[a as usize].total_cmp(&llr[b as usize]).then(b.cmp(&a)));
         // [H | s] with H's columns in that order; the syndrome is column n.
         w.rows.fill(0);
         for (pos, &v) in w.order.iter().enumerate() {
