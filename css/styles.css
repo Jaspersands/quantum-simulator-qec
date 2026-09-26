@@ -698,8 +698,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    quoted rather than fitted, are italic. */
 .hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
 .hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
-[data-hw-canvas] { width: 100%; }
-[data-hw-canvas] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-hw-canvas], [data-rt-canvas] { width: 100%; }
+[data-hw-canvas] + .legend, [data-rt-canvas] + .legend { margin: var(--s3) 0 var(--s5); }
 /* The column heads carry ε and d, which the site's uppercase heads would turn
    into E and D. */
 .hw thead th.num { text-transform: none; }

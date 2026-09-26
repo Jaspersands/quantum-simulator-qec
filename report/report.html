@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</title>
+<meta name="description" content="Technical report on stabilizer-qec: a Rust surface-code simulator and decoder, verified against Stim and PyMatching, run on Google’s Willow and Sycamore data, and decoded in real time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+<main class="paper">
+<header class="masthead">
+  <p class="kicker">Technical report · stabilizer-qec 0.2.0</p>
+  <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
+  <p class="subtitle">Exact and correlated matching, Google’s Willow and Sycamore data, and window decoding at Willow’s cycle</p>
+  <p class="byline">Jasper Sands · 26 September 2026 · commit <code>4e3a9a4</code></p>
+  <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
+</header>
+<section class="abstract">
+<h2 class="abstract__title">Summary</h2>
+<p><code>stabilizer-qec</code> is a surface-code simulator and decoder written in Rust. It runs natively, from Python, and in a web browser. Its results come in five parts.</p>
+<ol type="1">
+<li><strong>Error models.</strong> It builds error models identical to Stim’s, fault by fault, on 15 circuits (the largest relative difference is 1.1e-15).</li>
+<li><strong>Matching.</strong> Its exact matcher agrees with PyMatching on every shot but ties: 13 disagreements in 600,000 shots, 0 of them not ties. Its correlated matcher agrees with PyMatching 2.4’s correlated mode just as closely, and fails 19% less often than plain matching.</li>
+<li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91.</li>
+<li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.84 µs a shot at d = 7, against Stim’s 1.31 µs.</li>
+<li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 59 µs mean latency on 8 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
+</ol>
+</section>
+<nav class="toc" aria-label="Contents">
+<h2 class="toc__title">Contents</h2>
+<ul>
+<li><a href="#introduction"><span class="toc-section-number">1</span> Introduction</a></li>
+<li><a href="#the-engine"><span class="toc-section-number">2</span> The engine</a>
+<ul>
+<li><a href="#circuits-and-error-models"><span class="toc-section-number">2.1</span> Circuits and error models</a></li>
+<li><a href="#sampling"><span class="toc-section-number">2.2</span> Sampling</a></li>
+<li><a href="#matching"><span class="toc-section-number">2.3</span> Matching</a></li>
+<li><a href="#window-decoding"><span class="toc-section-number">2.4</span> Window decoding</a></li>
+<li><a href="#where-it-runs"><span class="toc-section-number">2.5</span> Where it runs</a></li>
+</ul></li>
+<li><a href="#how-it-is-checked"><span class="toc-section-number">3</span> How it is checked</a></li>
+<li><a href="#results"><span class="toc-section-number">4</span> Results</a>
+<ul>
+<li><a href="#thresholds"><span class="toc-section-number">4.1</span> Thresholds</a></li>
+<li><a href="#agreement-with-stim-and-pymatching"><span class="toc-section-number">4.2</span> Agreement with Stim and PyMatching</a></li>
+<li><a href="#googles-hardware"><span class="toc-section-number">4.3</span> Google’s hardware</a></li>
+<li><a href="#throughput"><span class="toc-section-number">4.4</span> Throughput</a></li>
+<li><a href="#real-time"><span class="toc-section-number">4.5</span> Real time</a></li>
+</ul></li>
+<li><a href="#limits-and-next-steps"><span class="toc-section-number">5</span> Limits and next steps</a></li>
+<li><a href="#reproducing-everything"><span class="toc-section-number">6</span> Reproducing everything</a></li>
+</ul>
+</nav>
+<h1 data-number="1" id="introduction"><span class="header-section-number">1</span> Introduction</h1>
+<p>A surface code protects a logical qubit by measuring checks on many physical qubits, round after round, and handing the outcomes to a decoder. The decoder infers which errors most likely occurred and whether they flipped the logical qubit. Two questions decide whether it is any good:</p>
+<ul>
+<li><strong>Is it correct?</strong> Is its error model the circuit’s, and is its matching exact?</li>
+<li><strong>Is it fast enough?</strong> A quantum computer produces a round every microsecond or so, and a decoder that falls behind never catches up.</li>
+</ul>
+<p>This report describes an engine built to answer both. It covers how the engine works, how it is checked, and what it measures. Every number below is read from a file committed with the source, and the build fails if one is missing. The same engine drives an interactive explainer that runs it in the reader’s browser, at <a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a>.</p>
+<p>The work is organised around three references the field already trusts:</p>
+<ul>
+<li><strong>Stim</strong> (Gidney, 2021) for circuits, error models and sampling;</li>
+<li><strong>PyMatching 2</strong> (Higgott and Gidney, 2023) for matching;</li>
+<li><strong>Google’s published recordings</strong> from Willow (2024) and Sycamore (2022) for real hardware.</li>
+</ul>
+<p>Where this engine and a reference can be made to compute the same thing, they are compared exactly. Where they cannot, the comparison is statistical, with its uncertainty stated.</p>
+<h1 data-number="2" id="the-engine"><span class="header-section-number">2</span> The engine</h1>
+<h2 data-number="2.1" id="circuits-and-error-models"><span class="header-section-number">2.1</span> Circuits and error models</h2>
+<p>The engine reads and writes the part of Stim’s circuit language that memory experiments use:</p>
+<ul>
+<li>resets, <code>H</code>, <code>CX</code> and <code>CZ</code>, and measurements;</li>
+<li>depolarizing and Pauli channels;</li>
+<li>detectors and observables with their coordinates, <code>SHIFT_COORDS</code>, and <code>REPEAT</code> blocks;</li>
+<li>for Google’s circuits, sweep-controlled <code>CX</code> and the Pauli gates.</li>
+</ul>
+<p>Two generators write rotated and XZZX memory experiments. One uses the engine’s own circuit-level noise; the other uses SD6, the standard model in which published thresholds are quoted.</p>
+<p>A <strong>detector error model</strong> lists every independent fault and the detectors and observables it flips. The engine builds one by walking the circuit backwards once. For each qubit it carries the set of detectors that an X or a Z error there would flip, as Stim’s error analyzer does. Matching needs graph-like faults, so a fault that sets off more than two detectors is split into pieces. The engine splits them the way Stim does: by what the rest of the same noise channel can express, then by Stim’s global pass. The first, simpler split looked right and was not (section 3).</p>
+<h2 data-number="2.2" id="sampling"><span class="header-section-number">2.2</span> Sampling</h2>
+<p>There are two samplers:</p>
+<ul>
+<li><strong>The frame sampler</strong> propagates a Pauli frame through the circuit one shot at a time. It never looks at the error model, so the model and the sampler can disagree, and the checks can see it.</li>
+<li><strong>The batch sampler</strong> keeps 64 shots in each machine word: two words per qubit, one for X and one for Z. It draws noise as whole words by geometric skipping, so a location at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>3</mn></mrow></msup></mrow><annotation encoding="application/x-tex">p = 10^{-3}</annotation></semantics></math> costs about one random number, not 64. It runs <code>REPEAT</code> blocks without flattening them, with measurement records in a ring buffer sized by the longest lookback. A million-round memory costs one round’s instructions, and its detection events stream out as they are made.</li>
+</ul>
+<h2 data-number="2.3" id="matching"><span class="header-section-number">2.3</span> Matching</h2>
+<p>Each graph edge is weighted <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>ln</mo><mo stretchy="false" form="prefix">(</mo><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mi>p</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\ln((1-p)/p)</annotation></semantics></math>, discretised to even integers, and decoded by <strong>sparse blossom</strong>, the algorithm PyMatching 2 is built on (Higgott and Gidney, arXiv:2303.15933):</p>
+<ul>
+<li>Every defect grows a region on the detector graph at the same rate, and a region’s radius is its dual variable.</li>
+<li>Collisions between regions are found by the growth itself.</li>
+<li>Edmonds’ alternating trees and blossoms act on regions rather than on vertices.</li>
+</ul>
+<p>The earlier dense matcher (Dijkstra from every defect, then blossom on the complete graph) stays in the code as the sparse one’s first oracle.</p>
+<p><strong>Correlated matching</strong> follows PyMatching 2.4’s <code>enable_correlations=True</code>, read from its source, so that PyMatching can serve as the oracle. A Y error sets off checks in both halves of the detector graph, and the error model records it as two pieces that fire together. Plain matching forgets that; correlated matching uses it in two passes:</p>
+<ol type="1">
+<li><strong>Match once.</strong> Trace a shortest path for each matched pair into one edge set.</li>
+<li><strong>Lower the weights.</strong> For every edge in that set, lower the weight of each edge it shares a fault with to <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>ln</mo><mo stretchy="false" form="prefix">(</mo><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>−</mo><msub><mi>p</mi><mi>a</mi></msub><mo stretchy="false" form="postfix">)</mo><mi>/</mi><msub><mi>p</mi><mi>a</mi></msub><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\ln((1-p_a)/p_a)</annotation></semantics></math>. Here <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>p</mi><mi>a</mi></msub><mo>=</mo><mo>min</mo><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mi>/</mi><mn>2</mn><mo>,</mo><mspace width="0.222em"></mspace><mstyle mathvariant="normal"><mi>j</mi><mi>o</mi><mi>i</mi><mi>n</mi><mi>t</mi></mstyle><mo stretchy="false" form="prefix">(</mo><mi>c</mi><mo>,</mo><mi>a</mi><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mstyle mathvariant="normal"><mi>m</mi><mi>a</mi><mi>r</mi><mi>g</mi><mi>i</mi><mi>n</mi><mi>a</mi><mi>l</mi></mstyle><mo stretchy="false" form="prefix">(</mo><mi>c</mi><mo stretchy="false" form="postfix">)</mo><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">p_a = \min(1/2,\ \mathrm{joint}(c, a)/\mathrm{marginal}(c))</annotation></semantics></math> is the probability that edge <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>a</mi><annotation encoding="application/x-tex">a</annotation></semantics></math> fired, given that edge <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>c</mi><annotation encoding="application/x-tex">c</annotation></semantics></math> did.</li>
+<li><strong>Match again</strong> on the lowered weights, and read off the prediction.</li>
+</ol>
+<h2 data-number="2.4" id="window-decoding"><span class="header-section-number">2.4</span> Window decoding</h2>
+<p>A global decoder waits for the experiment to end. A <strong>window decoder</strong> matches a few rounds at a time:</p>
+<ul>
+<li>It decodes a window of <em>commit</em> + <em>buffer</em> rounds and keeps the edges of its correction that touch the commit region.</li>
+<li>It toggles their far ends, so a correction reaching past the region leaves a defect for the next window.</li>
+<li>An edge leaving the window becomes a boundary half-edge of its own, kept apart from the real boundary. A defect near the window’s end can then wait for a partner not yet seen.</li>
+</ul>
+<p>There are two schedules:</p>
+<ul>
+<li><strong>Sliding</strong> windows run one after another, so each stream uses one core.</li>
+<li><strong>Parallel</strong> windows (Skoric et al., arXiv:2209.08552; Tan et al., arXiv:2209.09219) come in two layers. Layer A’s windows are spaced apart, with virtual boundaries on both sides. Layer B’s fill the gaps once A has committed. Each layer’s windows are independent, so one stream can use many cores.</li>
+</ul>
+<p>Correlated matching works inside a window: the second pass is traced on the lowered weights, and the correlation rules are restricted to the window’s edges.</p>
+<p><strong>Streaming.</strong> A million-round experiment has no error model that fits in memory, and none is needed: a memory circuit repeats. The stream decoder builds the model of a short <em>template</em> once, and gives each window of the stream the graph of the template window in the same position. The first and last windows come from the template’s ends, the bulk from its middle. Rounds are pushed in as the batch sampler makes them, and a window is decoded as soon as its last round has arrived and the windows it depends on are done. Once no window still needs a round, the round is dropped, and any defect left in it is counted as unexplained.</p>
+<h2 data-number="2.5" id="where-it-runs"><span class="header-section-number">2.5</span> Where it runs</h2>
+<p>The same Rust runs natively, from Python (a PyO3 module, <code>pip</code>-installable as one abi3 wheel for Python 3.9 on), and as WebAssembly in the browser. The page has no build step. It runs the engine in a pool of web workers, one per core but one, at most eight. The engine is compiled once and shared by every worker.</p>
+<h1 data-number="3" id="how-it-is-checked"><span class="header-section-number">3</span> How it is checked</h1>
+<p>The checks come in three layers, strictest first:</p>
+<ul>
+<li><strong>Exact oracles.</strong> Where an answer is unique, it is checked exactly:
+<ul>
+<li>The sparse matcher’s optimal weight must <em>equal</em> the dense matcher’s and a brute-force search’s, on random graphs and on sampled surface-code shots.</li>
+<li>Every single fault of every circuit, decoded alone, must predict its own logical flip.</li>
+<li>One window as long as the stream must reproduce the global decoder’s traced correction.</li>
+<li>The batch sampler must reproduce the frame sampler’s shots when every channel is made deterministic.</li>
+</ul></li>
+<li><strong>References.</strong> Stim’s error models must equal ours, and PyMatching’s matchings must tie ours. Google’s detection events must equal those we rebuild from their raw measurements.</li>
+<li><strong>Statistics.</strong> Where only a rate can be compared, the comparison states its interval: per-detector χ² between samplers, Wilson intervals on logical error rates, and parametric bootstrap intervals on Λ.</li>
+</ul>
+<p>The layers have caught real defects. They are listed in full in the repository’s README, and four of them show what each layer is for:</p>
+<ul>
+<li><strong>A decomposition that passed every unit test.</strong> It split wide faults into their X and Z halves. It agreed with Stim fault for fault, because that comparison is about faults, not pieces. But the exhaustive single-fault check found faults at d = 3 that it decoded into logical errors: a Y error on a boundary qubit, kept whole, became an edge bridging the two matching graphs. The fix reproduces Stim’s decomposition exactly, and the matching graphs in section 4.2 are the result.</li>
+<li><strong>Refitting that biased the intervals.</strong> A bootstrap that let each redrawn data set re-choose its own points and weights biased the redrawn fidelities about 0.2% low. Averaged over eighteen patches, that made the intervals lopsided. It was caught before anything was quoted: the intervals had come out asymmetric where they should not have.</li>
+<li><strong>Parallel windows with no buffer.</strong> They were found to leave corrections nowhere to land. The every-defect-explained check found them, and they are now refused.</li>
+<li><strong>A stream count that could not fail.</strong> Code review found that the stream decoder dropped rounds without counting the defects left in them, so its “unexplained” count was zero by construction. It now counts them. A test that skips a window shows the leftover defect counted (and fails on the old code), and the million-round run below was repeated with the working count.</li>
+</ul>
+<h1 data-number="4" id="results"><span class="header-section-number">4</span> Results</h1>
+<h2 data-number="4.1" id="thresholds"><span class="header-section-number">4.1</span> Thresholds</h2>
+<p>SD6 thresholds from repeated sweeps over d = 3 to 9, each fitted by finite-size scaling. The fit includes the leading correction to scaling, over the widest window the scaling form describes, chosen by reduced χ² (4 independent sweeps per code; <code>data/sweeps/</code>):</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">code</th>
+<th style="text-align: right;">p_th (mean ± spread)</th>
+<th style="text-align: right;">ν</th>
+<th style="text-align: right;">uncorrected crossing</th>
+<th style="text-align: right;">sweeps</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">0.54% ± 0.01</td>
+<td style="text-align: right;">1.11</td>
+<td style="text-align: right;">0.48%</td>
+<td style="text-align: right;">4</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">0.51% ± 0.01</td>
+<td style="text-align: right;">1.22</td>
+<td style="text-align: right;">0.47%</td>
+<td style="text-align: right;">4</td>
+</tr>
+</tbody>
+</table>
+<p>The “uncorrected crossing” is where the curves cross without the correction term, which small patches pull low; the corrected fit is the threshold.</p>
+<h2 data-number="4.2" id="agreement-with-stim-and-pymatching"><span class="header-section-number">4.2</span> Agreement with Stim and PyMatching</h2>
+<p><strong>Error models.</strong> The comparison covers Stim’s own generated rotated memory, and ours for both codes under both noise models, at d = 3, 5 and 7 with <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.3</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.3\%</annotation></semantics></math>. For all of them, both models list the same faults with the same probabilities, and the decomposed matching graphs are identical edge for edge:</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">circuit</th>
+<th style="text-align: right;">detectors, d = 3 / 5 / 7</th>
+<th style="text-align: right;">mechanisms</th>
+<th style="text-align: right;">graph edges</th>
+<th style="text-align: right;">largest Δp/p</th>
+<th style="text-align: left;">vs Stim</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Stim’s rotated_memory_z</td>
+<td style="text-align: right;">24 / 120 / 336</td>
+<td style="text-align: right;">219 / 1,677 / 5,471</td>
+<td style="text-align: right;">78 / 502 / 1,558</td>
+<td style="text-align: right;">9.9e-16</td>
+<td style="text-align: left;">identical</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">rotated, engine model</td>
+<td style="text-align: right;">36 / 156 / 408</td>
+<td style="text-align: right;">223 / 1,261 / 3,739</td>
+<td style="text-align: right;">103 / 581 / 1,723</td>
+<td style="text-align: right;">2.2e-16</td>
+<td style="text-align: left;">identical</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">rotated, SD6</td>
+<td style="text-align: right;">24 / 120 / 336</td>
+<td style="text-align: right;">219 / 1,677 / 5,471</td>
+<td style="text-align: right;">78 / 502 / 1,558</td>
+<td style="text-align: right;">1.1e-15</td>
+<td style="text-align: left;">identical</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">XZZX, engine model</td>
+<td style="text-align: right;">36 / 156 / 408</td>
+<td style="text-align: right;">223 / 1,261 / 3,739</td>
+<td style="text-align: right;">103 / 581 / 1,723</td>
+<td style="text-align: right;">2.9e-16</td>
+<td style="text-align: left;">identical</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">XZZX, SD6</td>
+<td style="text-align: right;">24 / 120 / 336</td>
+<td style="text-align: right;">219 / 1,677 / 5,471</td>
+<td style="text-align: right;">78 / 502 / 1,558</td>
+<td style="text-align: right;">1.1e-15</td>
+<td style="text-align: left;">identical</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Plain matching.</strong> Stim sampled 100,000 shots at each point, and both decoders decoded the same detection events. Two exact matchers can disagree only where two corrections tie in weight. There were 13 disagreements in 600,000 shots, and every one is a tie: the two matchings’ weights are equal to within the discretisation noise.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">d</th>
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">PyMatching</th>
+<th style="text-align: right;">ours</th>
+<th style="text-align: right;">ours, own model</th>
+<th style="text-align: right;">disagreements</th>
+<th style="text-align: right;">non-ties</th>
+<th style="text-align: right;">PyMatching µs</th>
+<th style="text-align: right;">ours µs</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">3</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">2.289%</td>
+<td style="text-align: right;">2.289%</td>
+<td style="text-align: right;">2.289%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">0.6</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">3</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">7.603%</td>
+<td style="text-align: right;">7.603%</td>
+<td style="text-align: right;">7.603%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.4</td>
+<td style="text-align: right;">1.2</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">5</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">1.647%</td>
+<td style="text-align: right;">1.649%</td>
+<td style="text-align: right;">1.649%</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1.6</td>
+<td style="text-align: right;">4.3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">5</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">9.432%</td>
+<td style="text-align: right;">9.432%</td>
+<td style="text-align: right;">9.432%</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">4.0</td>
+<td style="text-align: right;">9.8</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">7</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">1.124%</td>
+<td style="text-align: right;">1.124%</td>
+<td style="text-align: right;">1.124%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">5.7</td>
+<td style="text-align: right;">15.1</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">7</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">10.653%</td>
+<td style="text-align: right;">10.652%</td>
+<td style="text-align: right;">10.652%</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">14.2</td>
+<td style="text-align: right;">36.3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Correlated matching</strong>, on 1,200,000 shots: 696 disagreements, and none of them a bug. For each, PyMatching’s own first-pass edges went into our second pass:</p>
+<ul>
+<li>in 682 cases this reproduces PyMatching’s answer, because the two first passes traced different, equally short paths;</li>
+<li>the other 14 tie PyMatching’s second-pass weight;</li>
+<li>0 are neither.</li>
+</ul>
+<p>Correlated matching fails 53,030 times against plain matching’s 65,316, 19% fewer.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">code</th>
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">PyMatching</th>
+<th style="text-align: right;">ours</th>
+<th style="text-align: right;">ours, plain</th>
+<th style="text-align: right;">disagreements</th>
+<th style="text-align: right;">path ties</th>
+<th style="text-align: right;">weight ties</th>
+<th style="text-align: right;">non-ties</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">2.061%</td>
+<td style="text-align: right;">2.061%</td>
+<td style="text-align: right;">2.332%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">6.951%</td>
+<td style="text-align: right;">6.951%</td>
+<td style="text-align: right;">7.708%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">1.133%</td>
+<td style="text-align: right;">1.131%</td>
+<td style="text-align: right;">1.645%</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">7.735%</td>
+<td style="text-align: right;">7.738%</td>
+<td style="text-align: right;">9.335%</td>
+<td style="text-align: right;">31</td>
+<td style="text-align: right;">27</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">0.555%</td>
+<td style="text-align: right;">0.558%</td>
+<td style="text-align: right;">1.037%</td>
+<td style="text-align: right;">29</td>
+<td style="text-align: right;">29</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">rotated</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">7.932%</td>
+<td style="text-align: right;">7.906%</td>
+<td style="text-align: right;">10.590%</td>
+<td style="text-align: right;">274</td>
+<td style="text-align: right;">270</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">2.020%</td>
+<td style="text-align: right;">2.020%</td>
+<td style="text-align: right;">2.293%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">7.098%</td>
+<td style="text-align: right;">7.098%</td>
+<td style="text-align: right;">7.665%</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">1.210%</td>
+<td style="text-align: right;">1.210%</td>
+<td style="text-align: right;">1.639%</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">7.739%</td>
+<td style="text-align: right;">7.745%</td>
+<td style="text-align: right;">9.323%</td>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">0.581%</td>
+<td style="text-align: right;">0.579%</td>
+<td style="text-align: right;">1.103%</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">XZZX</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">8.027%</td>
+<td style="text-align: right;">8.033%</td>
+<td style="text-align: right;">10.646%</td>
+<td style="text-align: right;">292</td>
+<td style="text-align: right;">287</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="figures/pymatching-agreement.svg" style="width:62.0%" alt="Our logical error rate against PyMatching’s on the same shots: plain matching at six points and correlated matching at twelve, SD6, 100,000 shots each. Every point lies on the diagonal." /><figcaption aria-hidden="true">Our logical error rate against PyMatching’s on the same shots: plain matching at six points and correlated matching at twelve, SD6, 100,000 shots each. Every point lies on the diagonal.</figcaption>
+</figure>
+<p><strong>Speed.</strong> Single-threaded, our plain matcher takes 2.5 to 2.9 times PyMatching’s time per shot, and our correlated matcher 2.0 to 2.2 times PyMatching’s correlated mode. PyMatching’s C++ has had years of tuning that this matcher has not. The gap is a roughly constant factor that does not grow with d, as the figure below shows.</p>
+<h2 data-number="4.3" id="googles-hardware"><span class="header-section-number">4.3</span> Google’s hardware</h2>
+<p>Google has published everything its chips recorded in two surface-code memory experiments:</p>
+<ul>
+<li><strong>Willow</strong> (2024): d = 3, 5 and 7, 1 to 250 rounds;</li>
+<li><strong>Sycamore</strong> (2022): d = 3 and 5, 1 to 25 rounds.</li>
+</ul>
+<p>The data comes as raw measurements, sweep bits, circuits, error models and each of Google’s decoders’ predictions. Both datasets are CC BY 4.0, from Zenodo records 13273331 and 6804040.</p>
+<p><strong>Reading the chips’ output.</strong> A detector compares a parity of measurements with what a noiseless run gives. The engine runs the ideal circuit once on its stabilizer tableau to get that reference, and once more per sweep bit to get each bit’s effect. This is independent of the backward walk that builds error models. Over all 550 experiments and 27.5 million shots:</p>
+<ul>
+<li>the detection events and observable flips rebuilt from raw measurements equal Google’s <strong>bit for bit</strong> (550 of 550 experiments);</li>
+<li>our model of every noisy circuit is identical to Stim’s (550 of 550).</li>
+</ul>
+<p><strong>One fit, Google’s.</strong> Λ is fitted the way Google fits it:</p>
+<ol type="1">
+<li><strong>Per patch and basis,</strong> the logical fidelity <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>1</mn><mo>−</mo><mn>2</mn><msub><mi>P</mi><mi>L</mi></msub></mrow><annotation encoding="application/x-tex">1 - 2P_L</annotation></semantics></math> is fitted as <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>A</mi><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>−</mo><mn>2</mn><mi>ε</mi><msup><mo stretchy="false" form="postfix">)</mo><mi>r</mi></msup></mrow><annotation encoding="application/x-tex">A(1-2\varepsilon)^r</annotation></semantics></math> by weighted least squares on its logarithm, from round 10 for Willow and round 3 for Sycamore.</li>
+<li><strong>Per distance,</strong> ε is the mean over patches and bases.</li>
+<li><strong>Λ</strong> is <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>exp</mo><mo stretchy="false" form="prefix">(</mo><mo>−</mo><mn>2</mn><mspace width="0.167em"></mspace><mstyle mathvariant="normal"><mi>s</mi><mi>l</mi><mi>o</mi><mi>p</mi><mi>e</mi></mstyle><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\exp(-2\,\mathrm{slope})</annotation></semantics></math> of a line through <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>ln</mo><mi>ε</mi></mrow><annotation encoding="application/x-tex">\ln \varepsilon</annotation></semantics></math> against <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>d</mi><annotation encoding="application/x-tex">d</annotation></semantics></math>.</li>
+<li><strong>Intervals</strong> come from a parametric bootstrap with 400 draws.</li>
+</ol>
+<p>As validation, Google’s own tensor-network predictions for Sycamore, fitted this way, give ε₃ = 3.028% and ε₅ = 2.914%. The published values are 3.028% and 2.914%: the same, to the digits published.</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">decoder</th>
+<th style="text-align: left;">prior</th>
+<th style="text-align: right;">ε, d = 3</th>
+<th style="text-align: right;">ε, d = 5</th>
+<th style="text-align: right;">ε, d = 7</th>
+<th style="text-align: right;">Λ [95%]</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">ours, plain</td>
+<td style="text-align: left;">SI1000</td>
+<td style="text-align: right;">1.032%</td>
+<td style="text-align: right;">0.684%</td>
+<td style="text-align: right;">0.435%</td>
+<td style="text-align: right;">1.54 [1.53, 1.55]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ours, correlated</td>
+<td style="text-align: left;">SI1000</td>
+<td style="text-align: right;">0.888%</td>
+<td style="text-align: right;">0.449%</td>
+<td style="text-align: right;">0.234%</td>
+<td style="text-align: right;">1.95 [1.94, 1.95]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ours, correlated</td>
+<td style="text-align: left;">RL-optimised</td>
+<td style="text-align: right;">0.808%</td>
+<td style="text-align: right;">0.425%</td>
+<td style="text-align: right;">0.222%</td>
+<td style="text-align: right;">1.91 [1.90, 1.92]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ours, correlated</td>
+<td style="text-align: left;">ours, from the circuit</td>
+<td style="text-align: right;">0.884%</td>
+<td style="text-align: right;">0.468%</td>
+<td style="text-align: right;">0.241%</td>
+<td style="text-align: right;">1.91 [1.91, 1.92]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, correlated matching</td>
+<td style="text-align: left;">SI1000</td>
+<td style="text-align: right;">0.836%</td>
+<td style="text-align: right;">0.443%</td>
+<td style="text-align: right;">0.229%</td>
+<td style="text-align: right;">1.91 [1.90, 1.92]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Google, correlated matching</td>
+<td style="text-align: left;">RL-optimised</td>
+<td style="text-align: right;">0.759%</td>
+<td style="text-align: right;">0.404%</td>
+<td style="text-align: right;">0.210%</td>
+<td style="text-align: right;">1.90 [1.90, 1.91]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, Harmony</td>
+<td style="text-align: left;">RL-optimised</td>
+<td style="text-align: right;">0.729%</td>
+<td style="text-align: right;">0.387%</td>
+<td style="text-align: right;">0.206%</td>
+<td style="text-align: right;">1.88 [1.88, 1.89]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Google, Libra</td>
+<td style="text-align: left;">RL-optimised</td>
+<td style="text-align: right;">0.712%</td>
+<td style="text-align: right;">0.349%</td>
+<td style="text-align: right;">0.171%</td>
+<td style="text-align: right;">2.04 [2.03, 2.05]</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="figures/willow-lambda.svg" style="width:82.0%" alt="Willow’s logical error per cycle against code distance, from every experiment’s recorded shots, fitted as Google fits them. Bars are 95% bootstrap intervals." /><figcaption aria-hidden="true">Willow’s logical error per cycle against code distance, from every experiment’s recorded shots, fitted as Google fits them. Bars are 95% bootstrap intervals.</figcaption>
+</figure>
+<ul>
+<li><strong>Correlated matching is most of the story.</strong> With the same prior, it takes Λ from 1.54 to 1.95, and ε at d = 7 from 0.435% to 0.234%.</li>
+<li><strong>Ours sits beside Google’s own correlated matcher</strong> on the same prior, 0.234% against 0.229% at d = 7. It is further behind at d = 3 (0.888% against 0.836%), which is why its Λ comes out higher: Λ rewards improving with size, not being good.</li>
+<li><strong>Our own model of the noisy circuit</strong>, built from Google’s circuit with no fitting to the data, does about as well as Google’s fitted SI1000 prior (0.241% at d = 7).</li>
+<li><strong>Google’s best decoders are better still.</strong> Libra reaches Λ = 2.04 and ε₇ = 0.171%. The published neural-network decoder’s 2.14 cannot be refitted here: its predictions are not in the dataset.</li>
+</ul>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">decoder</th>
+<th style="text-align: left;">prior</th>
+<th style="text-align: right;">ε, d = 3</th>
+<th style="text-align: right;">ε, d = 5</th>
+<th style="text-align: right;">Λ [95%]</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">ours, plain</td>
+<td style="text-align: left;">circuit</td>
+<td style="text-align: right;">4.012%</td>
+<td style="text-align: right;">4.354%</td>
+<td style="text-align: right;">0.92 [0.91, 0.93]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ours, correlated</td>
+<td style="text-align: left;">circuit</td>
+<td style="text-align: right;">3.507%</td>
+<td style="text-align: right;">3.558%</td>
+<td style="text-align: right;">0.99 [0.98, 0.99]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ours, correlated</td>
+<td style="text-align: left;">pij, cross-fitted</td>
+<td style="text-align: right;">3.424%</td>
+<td style="text-align: right;">3.466%</td>
+<td style="text-align: right;">0.99 [0.98, 1.00]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Google, PyMatching</td>
+<td style="text-align: left;">circuit</td>
+<td style="text-align: right;">4.012%</td>
+<td style="text-align: right;">4.362%</td>
+<td style="text-align: right;">0.92 [0.91, 0.93]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, correlated matching</td>
+<td style="text-align: left;">circuit</td>
+<td style="text-align: right;">3.497%</td>
+<td style="text-align: right;">3.597%</td>
+<td style="text-align: right;">0.97 [0.96, 0.98]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Google, belief matching</td>
+<td style="text-align: left;">pij</td>
+<td style="text-align: right;">3.118%</td>
+<td style="text-align: right;">3.056%</td>
+<td style="text-align: right;">1.02 [1.01, 1.03]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, tensor network</td>
+<td style="text-align: left;">pij</td>
+<td style="text-align: right;">3.028%</td>
+<td style="text-align: right;">2.914%</td>
+<td style="text-align: right;">1.04 [1.03, 1.05]</td>
+</tr>
+</tbody>
+</table>
+<p>On Sycamore, our plain matcher reproduces the PyMatching predictions Google recorded (4.012% against 4.012% at d = 3). The two disagree on 8,448 shots over the whole dataset. On every one of them, our matching’s weight equals the optimum PyMatching 2.4 finds (0 are not optimal): these are ties, broken differently by the older PyMatching that Google used. Sycamore’s Λ ≈ 1 was that paper’s point, the first time a larger surface code beat a smaller one at all, and only with the best decoders.</p>
+<h2 data-number="4.4" id="throughput"><span class="header-section-number">4.4</span> Throughput</h2>
+<p>Sampling speed per shot, single-threaded, rotated SD6 with T = d. Stim is timed through its Python API, compiled beforehand and writing packed bits; ours includes transposing batches into Stim’s b8 layout:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">d</th>
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">Stim</th>
+<th style="text-align: right;">frame sampler</th>
+<th style="text-align: right;">batch sampler</th>
+<th style="text-align: right;">Stim ÷ batch</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">3</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">0.12 µs</td>
+<td style="text-align: right;">1.23 µs</td>
+<td style="text-align: right;">0.07 µs</td>
+<td style="text-align: right;">1.6×</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">3</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">0.19 µs</td>
+<td style="text-align: right;">1.27 µs</td>
+<td style="text-align: right;">0.09 µs</td>
+<td style="text-align: right;">2.1×</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">5</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">0.49 µs</td>
+<td style="text-align: right;">6.0 µs</td>
+<td style="text-align: right;">0.32 µs</td>
+<td style="text-align: right;">1.5×</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">5</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">0.89 µs</td>
+<td style="text-align: right;">6.2 µs</td>
+<td style="text-align: right;">0.40 µs</td>
+<td style="text-align: right;">2.2×</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">7</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">1.31 µs</td>
+<td style="text-align: right;">17.0 µs</td>
+<td style="text-align: right;">0.84 µs</td>
+<td style="text-align: right;">1.5×</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">7</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">2.3 µs</td>
+<td style="text-align: right;">17.5 µs</td>
+<td style="text-align: right;">1.06 µs</td>
+<td style="text-align: right;">2.1×</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="figures/speed.svg" alt="Decoding (left) and sampling (right) per shot against distance, single-threaded, SD6 at p = 0.3%." /><figcaption aria-hidden="true">Decoding (left) and sampling (right) per shot against distance, single-threaded, SD6 at p = 0.3%.</figcaption>
+</figure>
+<p>The batch sampler is 14 to 20 times as fast as the frame sampler, and faster than Stim’s as called from Python. Decoding, not sampling, is now almost all of a shot’s cost.</p>
+<p>On the page, work is split across a pool of workers. On the development machine the site’s section 7 threshold sweep ran 2.5 to 4.4 times faster with the pool than with one worker; the spread comes from whether workers land on performance or efficiency cores.</p>
+<h2 data-number="4.5" id="real-time"><span class="header-section-number">4.5</span> Real time</h2>
+<p>Willow runs a round of error correction every 1.1 µs. Google has decoded a d = 5 memory in real time over a million rounds with a 63 µs mean latency (arXiv:2408.13687), on its own hardware and with its own definition of latency. Here, every window’s decode time is measured natively on Apple M2 Pro, one core at a time. Those times are then scheduled with rounds arriving every 1.1 µs:</p>
+<ul>
+<li>A window starts once its last round has arrived and, for layer B, both its layer-A neighbours are done.</li>
+<li><strong>Latency</strong> is the time from the arrival of a window’s last round to its commit.</li>
+<li>A stream <strong>keeps up</strong> if its latency does not grow along it.</li>
+</ul>
+<p>The windows commit d rounds with a buffer of d. The streams are Willow’s recorded syndromes, 2,000 shots at each of d = 3, 5 and 7, at 250 rounds, decoded with Google’s SI1000 prior:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">stream</th>
+<th style="text-align: left;">windows</th>
+<th style="text-align: left;">matcher</th>
+<th style="text-align: right;">window decode</th>
+<th style="text-align: left;">keeps up on</th>
+<th style="text-align: right;">mean latency</th>
+<th style="text-align: right;">p99</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">d = 3</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">2.1 µs</td>
+<td style="text-align: left;">1 core</td>
+<td style="text-align: right;">4.4 µs</td>
+<td style="text-align: right;">27 µs</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 3</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">2.5 µs</td>
+<td style="text-align: left;">1 core</td>
+<td style="text-align: right;">7.9 µs</td>
+<td style="text-align: right;">28 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">d = 3</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">4.0 µs</td>
+<td style="text-align: left;">no (one core by design)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 3</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">5.2 µs</td>
+<td style="text-align: left;">2 cores</td>
+<td style="text-align: right;">12.2 µs</td>
+<td style="text-align: right;">42 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">13.9 µs</td>
+<td style="text-align: left;">no (one core by design)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">16.9 µs</td>
+<td style="text-align: left;">4 cores</td>
+<td style="text-align: right;">33 µs</td>
+<td style="text-align: right;">86 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">27 µs</td>
+<td style="text-align: left;">no (one core by design)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">34 µs</td>
+<td style="text-align: left;">4 cores</td>
+<td style="text-align: right;">73 µs</td>
+<td style="text-align: right;">192 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">d = 7</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">50 µs</td>
+<td style="text-align: left;">no (one core by design)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 7</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">62 µs</td>
+<td style="text-align: left;">8 cores</td>
+<td style="text-align: right;">111 µs</td>
+<td style="text-align: right;">235 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">d = 7</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">106 µs</td>
+<td style="text-align: left;">no (one core by design)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 7</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">133 µs</td>
+<td style="text-align: left;">8 cores</td>
+<td style="text-align: right;">242 µs</td>
+<td style="text-align: right;">511 µs</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="figures/latency.svg" style="width:82.0%" alt="Mean window latency (points; bars reach the 99th percentile) against the cores given to one stream, parallel windows with correlated matching on Willow’s recorded 250-round syndromes." /><figcaption aria-hidden="true">Mean window latency (points; bars reach the 99th percentile) against the cores given to one stream, parallel windows with correlated matching on Willow’s recorded 250-round syndromes.</figcaption>
+</figure>
+<ul>
+<li><strong>Sliding windows</strong> keep up only at d = 3 with plain matching. Everywhere else one core is too slow, which is why parallel windows exist.</li>
+<li><strong>At d = 5, parallel windows with correlated matching keep up on 4 cores</strong> with a 73 µs mean latency. At d = 7 they need 8.</li>
+</ul>
+<p><strong>A million rounds.</strong> The stream is a rotated d = 5 memory under SD6 at <em>p</em> = 0.313%, the noise at which its detectors fire as often as Willow’s do (7.5% of detectors a round). There are 64 streams of 1,000,000 rounds each, sampled round by round and decoded as they arrive:</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">windows</th>
+<th style="text-align: left;">matcher</th>
+<th style="text-align: right;">streams</th>
+<th style="text-align: right;">windows each</th>
+<th style="text-align: right;">unexplained</th>
+<th style="text-align: right;">window decode</th>
+<th style="text-align: right;">cores</th>
+<th style="text-align: right;">mean latency</th>
+<th style="text-align: right;">p99</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">64</td>
+<td style="text-align: right;">200,000</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">12.1 µs</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">64</td>
+<td style="text-align: right;">133,334</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">15.5 µs</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">52 µs</td>
+<td style="text-align: right;">193 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">64</td>
+<td style="text-align: right;">200,000</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">25 µs</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">64</td>
+<td style="text-align: right;">133,334</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">32 µs</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">117 µs</td>
+<td style="text-align: right;">421 µs</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Every defect of every stream is explained</strong> (0 left, counted as rounds are dropped).</li>
+<li><strong>Correlated matching on 8 cores holds a 59 µs mean latency</strong> (137 µs at the 99th percentile) over a million rounds.</li>
+<li><strong>Throughput.</strong> On all 10 cores, independent streams decode at 3.2 million rounds a second with plain matching and 1.6 million with correlated. Willow’s cycle demands 0.91 million a second per stream.</li>
+</ul>
+<p><strong>Accuracy.</strong> Windowing costs nothing in Λ. The run covers 392 Willow experiments (all but the single-round ones, which have nothing to window), 50,000 shots each. Every one was decoded globally and by sliding and parallel windows, fitted as above:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">decoder</th>
+<th style="text-align: left;">matcher</th>
+<th style="text-align: left;">buffer</th>
+<th style="text-align: right;">ε, d = 3</th>
+<th style="text-align: right;">ε, d = 5</th>
+<th style="text-align: right;">ε, d = 7</th>
+<th style="text-align: right;">Λ [95%]</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">global</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: left;">—</td>
+<td style="text-align: right;">1.032%</td>
+<td style="text-align: right;">0.684%</td>
+<td style="text-align: right;">0.435%</td>
+<td style="text-align: right;">1.54 [1.54, 1.55]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: left;">d</td>
+<td style="text-align: right;">1.034%</td>
+<td style="text-align: right;">0.685%</td>
+<td style="text-align: right;">0.436%</td>
+<td style="text-align: right;">1.54 [1.53, 1.54]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: left;">d</td>
+<td style="text-align: right;">1.033%</td>
+<td style="text-align: right;">0.685%</td>
+<td style="text-align: right;">0.436%</td>
+<td style="text-align: right;">1.54 [1.53, 1.54]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: left;">d/2 (d = 5 only)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.694%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: left;">2d (d = 5 only)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.684%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">global</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: left;">—</td>
+<td style="text-align: right;">0.888%</td>
+<td style="text-align: right;">0.449%</td>
+<td style="text-align: right;">0.234%</td>
+<td style="text-align: right;">1.95 [1.94, 1.95]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: left;">d</td>
+<td style="text-align: right;">0.892%</td>
+<td style="text-align: right;">0.454%</td>
+<td style="text-align: right;">0.236%</td>
+<td style="text-align: right;">1.94 [1.94, 1.95]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: left;">d</td>
+<td style="text-align: right;">0.892%</td>
+<td style="text-align: right;">0.452%</td>
+<td style="text-align: right;">0.235%</td>
+<td style="text-align: right;">1.95 [1.94, 1.95]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: left;">d/2 (d = 5 only)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.460%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: left;">2d (d = 5 only)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.451%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Correlated matching gives the same Λ either way:</strong> 1.95 [1.94, 1.95] for parallel windows, 1.95 [1.94, 1.95] globally.</li>
+<li><strong>A buffer of d/2 is too short.</strong> It raises ε₅ by 1.8%, while a buffer of 2d gains nothing over d.</li>
+<li><strong>Simulated SD6 agrees.</strong> At d = 3, 5 and 7, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.3</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.3\%</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0.5</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">0.5\%</annotation></semantics></math>, 50 rounds and 20,000 shots, every window decoder’s failures are within 1.6% of the global decoder’s on the same shots.</li>
+<li><strong>No defect was left unexplained</strong> (0 over every Willow run).</li>
+</ul>
+<h1 data-number="5" id="limits-and-next-steps"><span class="header-section-number">5</span> Limits and next steps</h1>
+<ul>
+<li><strong>The matcher.</strong> It is exact but not the fastest: it runs at 2.5 to 2.9 times PyMatching’s single-threaded time. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
+<li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
+<li><strong>The next decoders.</strong> The next pieces of work, in order:
+<ul>
+<li>belief propagation and belief-matching on the Willow data;</li>
+<li>the IBM “gross” bivariate-bicycle code with BP+OSD;</li>
+<li>lattice surgery between patches;</li>
+<li>a resource estimator driven by the Λ measured here.</li>
+</ul></li>
+</ul>
+<h1 data-number="6" id="reproducing-everything"><span class="header-section-number">6</span> Reproducing everything</h1>
+<p>Every number in this report is filled in by <code>tools/report.py</code> from these committed files:</p>
+<ul>
+<li><code>data/xcheck/reference.json</code>: the cross-check;</li>
+<li><code>data/sweeps/</code>: thresholds;</li>
+<li><code>data/google-results/</code>: Google’s data, decoded;</li>
+<li><code>data/realtime/</code>: latency, the million-round stream, and windowed accuracy.</li>
+</ul>
+<p>The report fails to build if a value it quotes is missing. To regenerate the data:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv <span class="kw">&amp;&amp;</span> <span class="ex">.venv/bin/pip</span> install stim pymatching numpy maturin</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="va">VIRTUAL_ENV</span><span class="op">=</span><span class="va">$PWD</span>/.venv <span class="va">CARGO_TARGET_DIR</span><span class="op">=</span>target-py <span class="ex">.venv/bin/maturin</span> develop <span class="at">--profile</span> python</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/xcheck.py                       <span class="co"># Stim and PyMatching</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/google.py run                   <span class="co"># Google&#39;s data (fetch it first)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/realtime.py latency             <span class="co"># window latency on Willow</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/realtime.py million             <span class="co"># a million rounds</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/realtime.py accuracy            <span class="co"># windowed against global</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> tools/lambda.mjs                                  <span class="co"># every fit</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
+<p>The package installs with <code>pip install stabilizer-qec</code> once published, or from a wheel built by <code>maturin build</code>. Software: Stim 1.16.0, PyMatching 2.4.0. Google’s datasets are CC BY 4.0 (Google Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.</p>
+</main>
+</body>
+</html>

@@ -169,6 +169,7 @@ mod tests {
     /// readouts to detection events, a model, and predictions.
     #[test]
     fn readouts_to_predictions() {
+        let _turn = crate::wasm_xc::TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         set_text("R 0 1\nCX sweep[0] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1] rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-2]\n");
         // Shots: meas (1, 0) with the sweep bit set; meas (1, 1) with it clear.
         set_bytes(&[0b01, 0b11, 1, 0]);

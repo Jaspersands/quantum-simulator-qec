@@ -1,0 +1,191 @@
+{
+ "generated": "2026-09-26",
+ "engine_commit": "4e3a9a4",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "cycle_us": 1.1,
+ "d": 5,
+ "rounds": 1000000,
+ "p": 0.0031265257503083634,
+ "willow_detection_fraction": 0.07540097337703919,
+ "runs": [
+  {
+   "matcher": "plain",
+   "mode": "sliding",
+   "streams": 64,
+   "windows": 200000,
+   "unexplained": 0,
+   "failures": 29,
+   "wall_seconds": 163.813602792,
+   "rounds_per_second_one_thread": 390687.94598982774,
+   "window_us": {
+    "mean": 12.102711434993285,
+    "p50": 11.00000000064938,
+    "p99": 31.124999992471203,
+    "max": 149.00000000750424
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 662210.5460863287,
+     "p99_us": 1307569.028418769,
+     "max_us": 1320552.1869986567,
+     "growth": 2.3276479610163743,
+     "keeps_up": false
+    }
+   }
+  },
+  {
+   "matcher": "plain",
+   "mode": "parallel",
+   "streams": 64,
+   "windows": 133334,
+   "unexplained": 0,
+   "failures": 32,
+   "wall_seconds": 137.399437542,
+   "rounds_per_second_one_thread": 465795.2109915778,
+   "window_us": {
+    "mean": 15.496658069209174,
+    "p50": 14.167000000231411,
+    "p99": 39.25000000037926,
+    "max": 163.24999999994816
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 531602.1248092513,
+     "p99_us": 1080712.298029891,
+     "max_us": 1086365.536999831,
+     "growth": 1.7524616283269743,
+     "keeps_up": false
+    },
+    "2": {
+     "mean_us": 51.58837384207539,
+     "p99_us": 192.98966998979475,
+     "max_us": 485.66399994298683,
+     "growth": 1.053751265762012,
+     "keeps_up": true
+    },
+    "4": {
+     "mean_us": 30.796030787343128,
+     "p99_us": 70.81879999455138,
+     "max_us": 191.0410000001278,
+     "growth": 0.9980214117116628,
+     "keeps_up": true
+    },
+    "8": {
+     "mean_us": 30.78950388497621,
+     "p99_us": 70.7909999982198,
+     "max_us": 191.0410000001278,
+     "growth": 0.9980379032089545,
+     "keeps_up": true
+    },
+    "16": {
+     "mean_us": 30.78950388497621,
+     "p99_us": 70.7909999982198,
+     "max_us": 191.0410000001278,
+     "growth": 0.9980379032089545,
+     "keeps_up": true
+    }
+   }
+  },
+  {
+   "matcher": "correlated",
+   "mode": "sliding",
+   "streams": 64,
+   "windows": 200000,
+   "unexplained": 0,
+   "failures": 30,
+   "wall_seconds": 335.835276625,
+   "rounds_per_second_one_thread": 190569.61687638194,
+   "window_us": {
+    "mean": 25.43585513499564,
+    "p50": 23.042000009354524,
+    "p99": 65.33300000910458,
+    "max": 2599.6660000089378
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 1997910.7423727403,
+     "p99_us": 3948407.2137502837,
+     "max_us": 3987180.9269991284,
+     "growth": 2.3269288011283082,
+     "keeps_up": false
+    }
+   }
+  },
+  {
+   "matcher": "correlated",
+   "mode": "parallel",
+   "streams": 64,
+   "windows": 133334,
+   "unexplained": 0,
+   "failures": 33,
+   "wall_seconds": 276.609743083,
+   "rounds_per_second_one_thread": 231372.90569260984,
+   "window_us": {
+    "mean": 32.041429252791524,
+    "p50": 29.374999996889528,
+    "p99": 80.69446999627469,
+    "max": 208.41700001028585
+   },
+   "by_workers": {
+    "1": {
+     "mean_us": 1760708.9991111094,
+     "p99_us": 3162173.486932077,
+     "max_us": 3172226.5109917,
+     "growth": 1.4103797114142809,
+     "keeps_up": false
+    },
+    "2": {
+     "mean_us": 571779.6137666826,
+     "p99_us": 1147421.2154657836,
+     "max_us": 1152294.1169990005,
+     "growth": 1.7196685756844705,
+     "keeps_up": false
+    },
+    "4": {
+     "mean_us": 116.6410100111078,
+     "p99_us": 420.57968007675186,
+     "max_us": 680.4899999815206,
+     "growth": 0.9046649048053939,
+     "keeps_up": true
+    },
+    "8": {
+     "mean_us": 58.890329968266286,
+     "p99_us": 136.65247000981205,
+     "max_us": 250.8329999948433,
+     "growth": 0.9919890457529718,
+     "keeps_up": true
+    },
+    "16": {
+     "mean_us": 58.88931592083685,
+     "p99_us": 136.65247000981205,
+     "max_us": 250.8329999948433,
+     "growth": 0.9920101605906687,
+     "keeps_up": true
+    }
+   }
+  }
+ ],
+ "throughput": [
+  {
+   "matcher": "plain",
+   "streams": 640,
+   "rounds": 100000,
+   "cores": 10,
+   "unexplained": 0,
+   "wall_seconds": 19.993333083,
+   "rounds_per_second": 3201067.0624208297
+  },
+  {
+   "matcher": "correlated",
+   "streams": 640,
+   "rounds": 100000,
+   "cores": 10,
+   "unexplained": 0,
+   "wall_seconds": 39.110680541,
+   "rounds_per_second": 1636381.6511172275
+  }
+ ]
+}

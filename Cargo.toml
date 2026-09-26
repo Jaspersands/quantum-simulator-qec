@@ -1,7 +1,12 @@
 [package]
 name = "stabilizer_qec"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Surface-code simulation and decoding: Stim-format circuits and error models, exact sparse-blossom and correlated matching, a bit-parallel sampler, and window decoders."
+license = "MIT"
+repository = "https://github.com/Jaspersands/quantum-simulator-qec"
+homepage = "https://qcompiler.jaspersands.com"
+include = ["/src", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/pyproject.toml", "/python/README.md", "/stabilizer_qec.pyi"]
 
 [lib]
 name = "stabilizer_qec"
@@ -12,7 +17,7 @@ rand = { version = "0.8", optional = true }
 
 [dependencies.pyo3]
 version = "0.22"
-features = ["extension-module"]
+features = ["extension-module", "abi3-py39"]
 optional = true
 
 [features]

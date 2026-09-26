@@ -163,12 +163,12 @@ export function initResultsTable(root, compute) {
 
   paint();
 
-  compute.call('table', { cells, base: {
+  compute.table(cells, {
     codeType: CODE.ROTATED,
     decoder: DECODER.UNION_FIND,
     bias: 0.5,
     runs: TABLE_RUNS,
-  } }, ({ done, total, cell }) => {
+  }, ({ done, total, cell }) => {
     results.set(key(cell), { pL: cell.pL, runs: cell.runs });
     status.textContent = `Measuring… ${done} / ${total} cells`;
     paint();
@@ -374,8 +374,8 @@ export function initThresholdSweep(root, compute) {
     points = [];
     drawPlot(null);
     fill(results, el('p', { class: 'muted fit-note', text: 'Sweeping…' }));
-    // The worker runs one job at a time, so this may sit behind the load-time
-    // table. Say so rather than leaving a stale line on screen.
+    // Each worker in the pool runs one job at a time, so this may sit behind
+    // the load-time table. Say so rather than leaving a stale line on screen.
     status.textContent = 'Queued…';
 
     const noiseMode = Number(noiseSelect.value);
@@ -391,7 +391,7 @@ export function initThresholdSweep(root, compute) {
     };
 
     try {
-      await compute.call('sweep', { distances, ps, base }, (progress) => {
+      await compute.sweep(distances, ps, base, (progress) => {
         points.push({ d: progress.d, p: progress.p, pL: progress.pL, runs: progress.runs });
         status.textContent = `d = ${progress.d}, p = ${percent(progress.p, 1)} · ${progress.done}/${progress.total}`;
         meter.style.width = `${(progress.done / progress.total) * 100}%`;

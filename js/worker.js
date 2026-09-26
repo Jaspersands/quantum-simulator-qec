@@ -15,7 +15,7 @@
 
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
-  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode,
+  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode, rtSetup, rtWindows, rtGlobal,
 } from './engine.js';
 import { planChunks } from './stream.js';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
@@ -276,6 +276,41 @@ const OPS = {
     return { generated: doc.generated, engine: doc.engine_commit, fits };
   },
 
+  /**
+   * Section 12's live panel: batches of 64 simulated memory streams, each
+   * window-decoded as it streams and then globally, both timed from here (the
+   * engine has no clock). Reports after each batch.
+   */
+  async realtime(instance, { config, batches }, report) {
+    const setup = rtSetup(instance, config);
+    let streams = 0, windowFailures = 0, globalFailures = 0, agree = 0, unexplained = 0;
+    let windowSeconds = 0, globalSeconds = 0;
+    for (let b = 0; b < batches; b++) {
+      let t0 = performance.now();
+      const w = rtWindows(instance);
+      windowSeconds += (performance.now() - t0) / 1000;
+      t0 = performance.now();
+      const g = rtGlobal(instance);
+      globalSeconds += (performance.now() - t0) / 1000;
+      streams += 64;
+      windowFailures += w.failures;
+      globalFailures += g.failures;
+      agree += g.agree;
+      unexplained += w.unexplained;
+      report({ d: config.d, streams, done: b + 1, total: batches });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const rounds = streams * config.rounds;
+    return {
+      ...config, windows: setup.windows, template: setup.template, streams, rounds,
+      windowFailures, globalFailures, agree, unexplained, windowSeconds, globalSeconds,
+      // Per stream: the window decoding's cost of one round, and what that
+      // means against Willow's cycle.
+      windowMicrosPerRound: (windowSeconds * 1e6) / rounds,
+      roundsPerSecond: rounds / windowSeconds,
+    };
+  },
+
   async sweep(instance, { distances, ps, base }, report) {
     const points = [];
     const total = distances.length * ps.length;
@@ -316,6 +351,18 @@ self.onmessage = async (event) => {
   if (op === 'cancel') { cancelled.add(id); return; }
   const report = (progress) => self.postMessage({ id, type: 'progress', ...progress });
   const control = { cancelled: () => cancelled.has(id) };
+
+  // The pool hands every worker the page's compiled module first, so the
+  // engine is downloaded once rather than once per worker.
+  if (op === 'module') {
+    enginePromise = instantiate(payload.module);
+    enginePromise.then(() => self.postMessage({ id, type: 'done', result: true }), (error) => {
+      // Fall back to fetching the engine at the next job rather than failing every one.
+      enginePromise = null;
+      self.postMessage({ id, type: 'error', message: error?.message ?? String(error) });
+    });
+    return;
+  }
 
   try {
     const handler = OPS[op];

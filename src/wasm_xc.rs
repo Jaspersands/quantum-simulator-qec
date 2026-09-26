@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 use crate::circuit::{Basis, Circuit};
 use crate::dem::{compare, Dem};
 use crate::dem_decoder::DemDecoder;
-use crate::frame_sampler::FrameSampler;
+use crate::batch_sampler::BatchSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
 
 static mut TEXT: Vec<u8> = Vec::new();
@@ -20,7 +20,11 @@ static mut SLOT: Option<Circuit> = None;
 static mut DECODE_ERRORS: usize = 0;
 /// (code, d, rounds, noise, p bits, eta bits) and the compiled sampler and decoder.
 #[allow(clippy::type_complexity)]
-static mut CACHE: Option<((usize, usize, usize, usize, u64, u64), FrameSampler, DemDecoder)> = None;
+static mut CACHE: Option<((usize, usize, usize, usize, u64, u64), BatchSampler, DemDecoder)> = None;
+
+/// Tests that drive the exports share one text buffer, so they take turns.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub(crate) fn text() -> &'static mut Vec<u8> {
     unsafe { &mut *std::ptr::addr_of_mut!(TEXT) }
@@ -120,7 +124,8 @@ pub extern "C" fn wasm_xc_compare() -> usize {
     reply(&s)
 }
 
-/// Sample `runs` shots of a memory-Z experiment on the general path and decode
+/// Sample `runs` shots of a memory-Z experiment on the general path, 64 at a
+/// time with the bit-parallel sampler, and decode
 /// them (or only sample, when `decode` is 0, so JS can time the two apart).
 /// Returns the failure rate; a shot that fails to decode counts as a failure
 /// and is also counted in `wasm_xc_decode_errors`.
@@ -140,7 +145,7 @@ pub extern "C" fn wasm_xc_run(
     if cache.as_ref().map(|c| c.0) != Some(key) {
         let built = generate(code_kind(code), d, rounds, noise_model(noise, p, eta), Basis::Z).and_then(|c| {
             let dem = Dem::from_circuit(&c)?;
-            Ok((key, FrameSampler::new(&c)?, DemDecoder::new(&dem)?))
+            Ok((key, BatchSampler::new(&c)?, DemDecoder::new(&dem)?))
         });
         match built {
             Ok(b) => *cache = Some(b),
@@ -153,16 +158,23 @@ pub extern "C" fn wasm_xc_run(
     let (_, sampler, decoder) = cache.as_ref().unwrap();
     let mut rng = crate::surface_code::next_shot_rng();
     let (mut failures, mut errors) = (0usize, 0usize);
-    for _ in 0..runs {
-        let shot = sampler.sample(&mut rng);
+    // 64 shots a batch, the last one partial; only the lanes asked for are decoded.
+    let mut done = 0usize;
+    while done < runs {
+        let batch = sampler.sample(&mut rng);
+        let lanes = (runs - done).min(64);
+        done += lanes;
         if decode == 0 {
             continue;
         }
-        match decoder.decode_bools(&shot.detectors) {
-            Ok(pred) => failures += ((pred.observables ^ shot.observables) & 1) as usize,
-            Err(_) => {
-                errors += 1;
-                failures += 1;
+        let defects = batch.all_defects();
+        for (lane, shot) in defects.iter().enumerate().take(lanes) {
+            match decoder.decode(shot) {
+                Ok(pred) => failures += ((pred.observables ^ batch.lane_observables(lane)) & 1) as usize,
+                Err(_) => {
+                    errors += 1;
+                    failures += 1;
+                }
             }
         }
     }

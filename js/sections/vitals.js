@@ -29,7 +29,9 @@ export function initVitals(root, compute) {
     });
   }
 
-  compute.call('vitals').then((result) => {
+  // The measurement has the machine to itself, so it times one worker, not one
+  // worker competing with the rest of the pool.
+  (compute.callAlone ? compute.callAlone('vitals') : compute.call('vitals')).then((result) => {
     fill(dataRate, [
       document.createTextNode(count(result.dataRunsPerSecond)),
       el('span', { class: 'vital__unit', text: ' runs/s' }),
@@ -40,7 +42,8 @@ export function initVitals(root, compute) {
     ]);
     if (note) {
       note.textContent = `Timed on this device just now, best of several samples over `
-        + `${count(result.sampleRuns)} decoded shots at d = 5. A throttled or busy machine will read lower.`;
+        + `${count(result.sampleRuns)} decoded shots at d = 5, on one worker; the Monte Carlo below runs on `
+        + `${compute.size ?? 1} at once. A throttled or busy machine will read lower.`;
     }
   }).catch((error) => {
     dataRate.innerHTML = '<span class="muted">unavailable</span>';

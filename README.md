@@ -1,5 +1,7 @@
 # Quantum Error Correction (QEC) Simulator
 
+[![CI](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml/badge.svg)](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml)
+
 A Rust stabilizer circuit simulator and decoder for rotated surface codes and XZZX codes.
 Compiles to WebAssembly for an interactive browser explainer, and to PyO3 Python bindings
 (`stabilizer_qec`) for Monte Carlo threshold benchmarking. It reads and writes Stim's circuit and
@@ -9,6 +11,60 @@ error-model formats, and it agrees with Stim and PyMatching on every check in
 The website walks through surface-code error correction in order: errors, syndromes, decoding,
 spacetime, threshold. Each interactive figure is driven by the real engine running locally, and
 every number on the page is computed in the reader's browser on load.
+
+**The technical report** ([web](https://qcompiler.jaspersands.com/report/report.html),
+[PDF](report/report.pdf)) covers the engine, how it is checked, and what it measures, in about
+ten pages. Every number in it is filled in from the committed data (see
+[Technical report](#technical-report)).
+
+## Install
+
+The Python package is one abi3 wheel for every CPython from 3.9 on:
+
+```bash
+pip install maturin
+maturin build --out dist
+pip install dist/stabilizer_qec-*.whl
+```
+
+```python
+import numpy as np, stabilizer_qec as sq
+
+text = sq.generate_circuit("rotated", 5, 5, "sd6", 0.004)                 # a Stim circuit
+dets, obs, _ = sq.sample_b8_batch(text, 100_000, seed=1)                   # b8 rows
+pred, _, errors, seconds = sq.decode_b8_own(text, dets, 100_000, threads=0, correlated=True)
+failures = ((np.frombuffer(pred, "<u8") & 1) != (np.frombuffer(obs, np.uint8) & 1)).sum()
+```
+
+- **Types.** The whole API is typed and documented in `stabilizer_qec.pyi`, which the wheel carries.
+- **Checks.** `python tools/smoke.py`, run from outside the repository, checks an installed wheel
+  against Stim and PyMatching end to end: the error model, raw measurements to detection events
+  bit for bit, the sampler, plain and correlated matching, windows, and a stream.
+- **Where it has been checked.** Wheels built here install and pass from fresh virtualenvs on
+  Python 3.13 and 3.9, arm64 and x86_64 (a universal2 build), and from the source distribution.
+
+**Publishing to PyPI is prepared, not performed.** `.github/workflows/wheels.yml` builds wheels for
+Linux (x86_64 and aarch64, manylinux), macOS (universal2) and Windows, and an sdist, on any `v*`
+tag. It publishes them by PyPI's trusted publishing, which needs three steps from the account
+owner:
+1. Register `stabilizer-qec` on PyPI.
+2. Add this repository as its trusted publisher: workflow `wheels.yml`, environment `pypi`.
+3. Create the `pypi` environment in the repository's settings.
+
+Then `git tag v0.2.0 && git push --tags` publishes. Until then the publish job fails and nothing
+leaves the repository.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+- the Rust tests;
+- the WebAssembly engine, built fresh and driven in Node through the page's own wrappers
+  (`tools/wasm-smoke.mjs`: Willow's raw measurements must hash to Google's detection events, then
+  decode, and a stream must window-decode). The committed engine, the one the site serves, runs
+  the same check.
+- the site's tests and the palette's contrast check;
+- the Python package built, installed and smoke-tested against Stim and PyMatching on Linux, macOS
+  and Windows, with the quick cross-check on Linux.
 
 ## Key Features
 
@@ -23,16 +79,22 @@ every number on the page is computed in the reader's browser on load.
   error model by sparse blossom: plain, at 2.3 to 2.9 times PyMatching's single-threaded time, and
   correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
   at 2.0 to 2.3 times.
+- **Throughput**: a bit-parallel sampler (64 shots a word, `REPEAT` without flattening) at 15–20×
+  the reference sampler's speed, and a pool of workers that puts every core on the page to work.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
 - **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
   million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
+- **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
+  against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
+  a million-round stream that keeps up on 4 cores at d = 5.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, every figure is driven by it, the threshold table is
   plotted as it is measured, and the bench streams its estimate.
-- **Python extension** (`stabilizer_qec.so`): PyO3 bindings for offline threshold benchmarking.
+- **Python package** (`stabilizer-qec`, one abi3 wheel, typed): circuits, error models, sampling,
+  plain and correlated matching, window decoding and streams, from Python (see [Install](#install)).
 
 ## A note on quoted figures
 
@@ -485,6 +547,193 @@ made theirs.
   At d = 7 our correlated matcher on Google's prior fails 123 times in 2,000 shots, against
   Google's correlated matcher's 122, and agrees with it on 97% of shots.
 
+## Throughput
+
+Two changes make the engine produce and decode shots many times faster, natively and in the page.
+
+**A bit-parallel sampler** (`src/batch_sampler.rs`).
+- **The frame.** It keeps the Pauli frames of 64 shots in two machine words per qubit, one for X
+  and one for Z, so a gate is a couple of word operations for all 64.
+- **Noise words.** Noise comes as whole words of Bernoulli bits, drawn by geometric skipping: the
+  gap to the next error is `floor(ln U / ln(1 − p))`. A location at p = 10⁻³ costs about one
+  random number, not 64.
+- **`REPEAT` without flattening.** Measurement records live in a ring buffer sized by the longest
+  lookback, and detectors are evaluated from their lookbacks as they are reached. So a
+  `REPEAT 1000000` block costs its body's memory, and detection events stream out as they are made.
+- **The reference stays.** `FrameSampler`, one shot at a time, is kept as the reference. The two
+  share their semantics exactly: disjoint channels, Pauli numbering, and the randomisation that
+  makes a nondeterministic detector show itself as a coin flip.
+
+It is checked five ways:
+1. **Exactly `FrameSampler`'s shots on deterministic noise.** On rotated and XZZX circuits, both
+   bases, d = 3 and 5, every noise channel is made deterministic (a Pauli at p = 0 or 1), 20
+   rewrites each. Every lane of every batch equals `FrameSampler`'s shot, detector for detector.
+2. **`REPEAT` without flattening** gives words identical to the flattened circuit's from the same
+   seed, on Stim's circuits and on nested loops.
+3. **Marginals.** Every detector's rate over 200,000 shots is within 5σ of the error model's exact
+   prediction.
+4. **Against Stim.** The cross-check's check 3 now holds it to Stim's per-detector rates (every
+   χ² z-score under 1.2) and to PyMatching's logical error rate, at d = 3, 5, 7 over 100,000 shots
+   a point.
+5. **A million rounds** of a one-qubit loop sample in constant memory, at the right rate.
+
+**Speed**, single-threaded, per shot, rotated SD6 with T = d (check 4 of the cross-check, 100,000
+shots):
+
+| d | p | Stim | `FrameSampler` | batch sampler |
+|---|---|---|---|---|
+| 3 | 0.3% | 0.12 µs | 1.23 µs | 0.07 µs |
+| 5 | 0.3% | 0.49 µs | 5.97 µs | 0.32 µs |
+| 7 | 0.3% | 1.31 µs | 17.0 µs | 0.84 µs |
+| 7 | 0.6% | 2.27 µs | 17.5 µs | 1.06 µs |
+
+- Stim is timed through its Python API, compiled beforehand and writing packed bits.
+- Ours includes transposing batches into Stim's b8 rows.
+- On these circuits the batch sampler is 15 to 20 times `FrameSampler`'s speed (15 to 16 in the Rust
+  benchmark, 17 to 20 here), and a little
+  faster than Stim's sampler as called from Python.
+- Decoding, not sampling, is now almost all of a shot's cost.
+
+**A worker pool on the page** (`js/pool.js`).
+- **Why a pool.** WebAssembly threads need SharedArrayBuffer, and SharedArrayBuffer needs
+  cross-origin isolation headers that GitHub Pages cannot send. So the page's parallelism is a pool
+  of ordinary workers instead: one per core but one, at most eight.
+- **One download.** The engine is compiled once on the page, and the same module is handed to every
+  worker, so the reader downloads it once.
+- **How the work is split.** The sweep, the results table, the bias comparison, the bench, Figure
+  8's decoding rows and Figure 10's distances split their work across the pool. Every result is a
+  sum over independent shots, so splitting changes the wall time and nothing else.
+- **Scheduling.** Jobs wait in the pool, not in a worker's queue, so a worker that finishes early
+  takes the next one. The sweep hands out its largest distances first.
+- **The measured gain.** On an M2 Pro (6 performance and 4 efficiency cores), the section 7 sweep
+  (216,000 shots over 36 points) takes 6.6 to 11.2 s over three runs, against 27.8 to 29.6 s with
+  one worker: 2.5 to 4.4 times faster. The spread is which cores the workers land on; eight
+  workers on this machine include efficiency cores. The times are polled once a second.
+  `?workers=N` sets the pool's size, for measuring exactly that.
+
+## Real time
+
+Every decoder above waits for an experiment to end. A quantum computer cannot: Willow runs a round
+every 1.1 µs, and a computation waiting on a logical measurement stalls until the decoder catches
+up. A decoder slower than the chip falls further behind with every round and never recovers.
+Google decoded a distance-5 memory in real time over a million rounds with a 63 µs average latency
+(arXiv:2408.13687).
+
+**Window decoders** (`src/window.rs`).
+- **The idea.** A real-time decoder matches a few rounds at a time. It decodes a window of
+  commit + buffer rounds and commits the edges of its correction that touch the commit region. It
+  toggles their far ends, so a correction reaching past the region leaves a defect for the next
+  window.
+- **Windows are cut from any model by its time coordinates.** An edge leaving a window becomes a
+  boundary half-edge of its own, kept apart from the real boundary. That lets a defect near the
+  window's end wait for a partner not yet seen.
+- **Sliding windows** run one after another, so a stream uses one core.
+- **Parallel windows** (Skoric et al., arXiv:2209.08552; Tan et al., arXiv:2209.09219) come in two
+  layers:
+  - layer A's windows are spaced apart, with buffers and virtual boundaries on both sides;
+  - layer B's windows fill the gaps once A has committed.
+
+  Each layer decodes independently, so a stream can use as many cores as it needs.
+- **Correlated matching works inside a window.** The second pass's matching is traced on the
+  lowered weights before they are restored, and the correlation rules are restricted to the
+  window's edges.
+
+It is checked four ways:
+1. **One window is global decoding.** With a commit region as long as the stream, the window's
+   correction is the global decoder's traced correction exactly, plain and correlated, on rotated
+   and XZZX circuits.
+2. **Every defect is explained.** On every shot, for every commit size from 1 to 3 and buffer from 0
+   (sliding) or 1 (parallel) to 3, in both schedules and with both matchers, the committed edges
+   explain the shot's defects exactly. This caught a real hole: parallel windows with no buffer
+   have no gaps for layer B, and leave corrections nowhere to land. They are now refused.
+3. **Accuracy on Google's data.** Every Willow experiment is decoded with C = B = d, beside the
+   global decoder (see the table below).
+4. **A template is the full model.** The million-round stream never builds a million-round model.
+   Each window takes the graph of the window in the same position in a short template: the ends
+   from the template's ends, the bulk from its middle. On a 60-round stream this decodes all 64
+   streams exactly as windows cut from the full 60-round model, and deep bulk windows are identical
+   graphs, edge for edge.
+
+**Latency.**
+- **Method.** Every window's decode time is measured natively, one core at a time. The times are
+  then scheduled with rounds arriving every 1.1 µs: a window starts once its last round has arrived
+  and, for layer B, both its layer-A neighbours are done.
+- **Latency** is the time from a window's last round arriving to its commit. A stream "keeps up" if
+  its latency does not grow along it.
+- **Streams:**
+  - Google's recorded Willow syndromes (2,000 shots of d = 3, 5, 7 at 250 rounds, SI1000 prior);
+  - a simulated d = 5 memory **a million rounds long**, 64 streams of rotated SD6 at p = 0.313%,
+    the noise at which its detectors fire as often as Willow's (7.5%).
+
+  Commit and buffer are both d rounds, on an Apple M2 Pro:
+
+| stream | decoder | window decode | keeps up on | mean latency | p99 |
+|---|---|---|---|---|---|
+| Willow d = 3 | sliding, plain | 2.1 µs | 1 core | 4 µs | 27 µs |
+| Willow d = 3 | parallel, correlated | 5.2 µs | 2 cores | 12 µs | 42 µs |
+| Willow d = 5 | parallel, plain | 17 µs | 4 cores | 33 µs | 86 µs |
+| Willow d = 5 | parallel, correlated | 34 µs | 4 cores | 73 µs | 192 µs |
+| Willow d = 7 | parallel, plain | 62 µs | 8 cores | 111 µs | 235 µs |
+| Willow d = 7 | parallel, correlated | 133 µs | 8 cores | 242 µs | 511 µs |
+| SD6 d = 5, 10⁶ rounds | parallel, plain | 16 µs | 2 cores (4 for 31 µs) | 52 µs (31 µs on 4) | 193 µs (71 µs on 4) |
+| SD6 d = 5, 10⁶ rounds | parallel, correlated | 32 µs | 4 cores (8 for 59 µs) | 117 µs (59 µs on 8) | 421 µs (137 µs on 8) |
+
+- **Sliding windows** keep up only at d = 3 with plain matching. Everywhere else one core is too
+  slow, which is exactly why parallel windows exist.
+- **Every defect of every stream is explained**, all 64 × 10⁶ rounds of each run. The count is made
+  as rounds are let go. An earlier version let rounds go without counting what was left in them,
+  so its zero could not have been anything else; review caught it, and these runs are the repeat
+  with the count working.
+- **At d = 5, correlated matching on 8 cores holds a 59 µs mean latency over a million rounds**,
+  beside Google's 63 µs for its own real-time decoder. That is on its hardware with its definition
+  of latency, so it is context, not a like-for-like comparison.
+- **Throughput.** On all 10 cores, independent streams decode at 3.2 million rounds a second plain
+  and 1.6 million correlated. Willow's cycle demands 0.91 million per stream.
+- **In the browser** (Figure 12), WebAssembly runs window decoding at 1.06 to 1.34, 4.3 to 4.4 and
+  10.5 µs per round of one stream at d = 3, 5 and 7 (three runs in headless Chrome). About 1 to 2,
+  4 to 5 and 10 cores would keep up. The timed call is window decoding alone: the streams are
+  sampled as they are decoded, as a real stream would arrive, and the copy kept for global
+  decoding is drawn outside it.
+
+**Accuracy.** Windowed decoding of every Willow experiment, fitted like section 11 (see
+`data/realtime/willow-windows.json`):
+
+| decoder | ε₃ | ε₅ | ε₇ | Λ [95%] |
+|---|---|---|---|---|
+| global, plain | 1.032% | 0.684% | 0.435% | 1.54 [1.54, 1.55] |
+| sliding windows, plain | 1.034% | 0.685% | 0.436% | 1.54 [1.53, 1.54] |
+| parallel windows, plain | 1.033% | 0.685% | 0.436% | 1.54 [1.53, 1.54] |
+| global, correlated | 0.888% | 0.449% | 0.234% | **1.95** [1.94, 1.95] |
+| sliding windows, correlated | 0.892% | 0.454% | 0.236% | **1.94** [1.94, 1.95] |
+| parallel windows, correlated | 0.892% | 0.452% | 0.235% | **1.95** [1.94, 1.95] |
+
+- **Windows cost nothing in Λ.** On 392 experiments (every Willow experiment but the 28 single-round
+  ones, which have nothing to window), 50,000 shots each, parallel windows with correlated matching
+  give the same Λ as global correlated matching. ε rises by under 1% of itself.
+- **The buffer matters, and d is enough.** At d = 5 the study also ran buffers of d/2 and 2d. A buffer
+  of 3 rounds raises ε₅ to 0.694% plain and 0.460% correlated, about 2.5% worse. A buffer of 10 gives
+  0.684% and 0.451%, the same as d = 5.
+- **Simulated SD6 agrees.** At p = 0.3% and 0.5%, d = 3, 5, 7, 50 rounds and 20,000 shots, every
+  windowed decoder's failures are within 1.6% of the global decoder's on the same shots
+  (`data/realtime/sd6-windows.json`).
+- **Nothing is left unexplained.** Across all of it, every window decoder explained every defect.
+
+Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
+`node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
+
+## Technical report
+
+`report/report.md` is the source. `python3 tools/report.py` builds `report/report.html`, which
+is served with the site, and `report/report.pdf`, printed from it by headless Chrome. It needs
+Node, pandoc, matplotlib and Chrome.
+
+- **Numbers.** None is typed by hand. `{{name}}` is a value computed from a file in `data/`, or from
+  the fits `tools/lambda.mjs --json` makes of them. `{{table:name}}` is a whole table built the same
+  way. `{{readme:…}}` quotes a phrase the README must contain word for word, for the few figures
+  only the README records.
+- **Failure.** The build stops on a value it cannot fill or one that is not finite.
+- **Figures** are drawn from the same data into `report/figures/`.
+
 ## Engine defects found and fixed
 
 Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
@@ -927,15 +1176,19 @@ src/dem.rs            detector error models: built backwards from any circuit, d
                       Stim decomposes, read and written in Stim's .dem format, compared
 src/dem_decoder.rs    probability-weighted exact matching over any detector error model
 src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the model
+src/batch_sampler.rs  the same, 64 shots per word, REPEAT without flattening
 src/shots.rs          Stim's 01 and b8 detection-event formats
 src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
-src/py_api.rs         PyO3 bindings for the cross-check
+src/window.rs         window decoders: models cut by time, sliding and parallel schedules
+src/stream.rs         streams too long to model, decoded window by window from a template
+src/py_api.rs         PyO3 bindings: sampling, decoding, windows and streams
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
+src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -944,6 +1197,7 @@ js/engine.js          typed wrapper over the WASM exports
 js/channel.js         the noise channel, shared by the figures and the engine
 js/channel-view.js    the logical channel drawn as the Bloch sphere's image
 js/worker.js          Monte Carlo worker (own engine instance)
+js/pool.js            a pool of workers, one per core but one; js/pool-merge.js combines their parts
 js/compute.js         worker RPC, Wilson intervals, threshold collapse fit
 js/lattice.js         canvas renderer for a code patch, 2D and spacetime
 js/plot.js            canvas plotting primitive
@@ -958,8 +1212,18 @@ tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quote
 data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
 tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
 tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
+tools/realtime.py       window decoders' accuracy, latency, and the million-round stream
+data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
+
+tools/smoke.py          an installed wheel checked end to end against Stim and PyMatching
+tools/wasm-smoke.mjs    the WASM engine driven in Node through the page's wrappers
+tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
+report/                 the report's source, template, figures, and the built HTML and PDF
+pyproject.toml          the Python package (maturin; one abi3 wheel)
+stabilizer_qec.pyi      the Python API, typed and documented
+.github/workflows/      CI on every push; wheels and PyPI publishing on a tag
 
 run_benchmarks.py       phenomenological threshold benchmarks
 run_data_benchmarks.py  data-noise threshold benchmarks

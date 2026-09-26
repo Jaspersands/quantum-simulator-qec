@@ -129,8 +129,7 @@ export function initHardware(root, compute) {
       const fitsOf = (name, label) => compute.call('hwfits', {
         url: new URL(`${name}.json`, RESULTS).href, minRounds: MIN_ROUNDS[name], draws: DRAWS,
       }, (p) => { status.textContent = `Fitting ${label}: ${p.done} of ${p.total} decoders`; });
-      willow = await fitsOf('willow', 'Willow');
-      sycamore = await fitsOf('sycamore', 'Sycamore');
+      [willow, sycamore] = await Promise.all([fitsOf('willow', 'Willow'), fitsOf('sycamore', 'Sycamore')]);
     } catch (error) {
       status.textContent = `Recorded counts unavailable (${error.message}).`;
       return;
@@ -210,7 +209,9 @@ export function initHardware(root, compute) {
     ];
 
     try {
-      await compute.call('hardware', { base: EXTRACT.href, experiments: manifest.experiments }, (p) => {
+      // One distance per worker, at once.
+      const jobs = manifest.experiments.map((ex) => ({ base: EXTRACT.href, experiments: [ex] }));
+      await compute.map('hardware', jobs, (_, p) => {
         if (p.step !== 'done') {
           status.textContent = `d = ${p.d}: ${p.step}…`;
           return;

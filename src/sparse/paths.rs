@@ -36,6 +36,13 @@ impl<'a> Solver<'a> {
         self.reset();
         self.run(defects, false)?;
         let prediction = self.extract();
+        self.trace_pairs()?;
+        Ok(prediction)
+    }
+
+    /// One shortest path per matched pair of the last extraction, on the
+    /// current weights, XORed into `s.edge_set`.
+    pub(crate) fn trace_pairs(&mut self) -> Result<(), DecodeError> {
         self.s.edge_set.clear();
         for i in 0..self.s.pairs.len() {
             let (a, b) = self.s.pairs[i];
@@ -53,7 +60,7 @@ impl<'a> Solver<'a> {
         let s = &mut *self.s;
         let flipped = &mut s.flipped;
         s.edge_set.retain(|&e| std::mem::replace(&mut flipped[e as usize], false));
-        Ok(prediction)
+        Ok(())
     }
 
     /// Flip the edges of one shortest path from defect `a` to `b`, a defect or

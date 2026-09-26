@@ -129,7 +129,7 @@ export function initBench(root, compute) {
     };
 
     try {
-      job = compute.call('stream', config, (p) => {
+      job = compute.stream(config, (p) => {
         const rate = p.failures / p.done;
         const ci = wilson(rate, p.done);
         samples.push({ done: p.done, rate, lo: ci.lo, hi: ci.hi });

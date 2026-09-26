@@ -22,7 +22,10 @@ pub mod dem;
 pub mod dem_decoder;
 pub mod sparse;
 pub mod m2d;
+pub mod window;
+pub mod stream;
 pub mod frame_sampler;
+pub mod batch_sampler;
 pub mod shots;
 pub mod memory;
 #[cfg(test)]
@@ -35,6 +38,8 @@ mod py_api;
 mod wasm_xc;
 #[cfg(not(feature = "python"))]
 mod wasm_hw;
+#[cfg(not(feature = "python"))]
+mod wasm_rt;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;

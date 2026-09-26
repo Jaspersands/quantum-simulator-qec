@@ -1,5 +1,6 @@
 use crate::decoder::{Edge, SyndromeGraph};
 
+#[derive(Clone)]
 pub struct Xorshift {
     state: u64,
 }

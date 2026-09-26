@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-09-26">
+<link rel="stylesheet" href="css/styles.css?v=2026-09-26b">
 </head>
 <body>
 
@@ -35,6 +35,7 @@
     <li><a class="toc__link" href="#bench"><span class="toc__num">09</span><span>The bench</span></a></li>
     <li><a class="toc__link" href="#internals"><span class="toc__num">10</span><span>Under the hood</span></a></li>
     <li><a class="toc__link" href="#hardware"><span class="toc__num">11</span><span>Real hardware</span></a></li>
+    <li><a class="toc__link" href="#realtime"><span class="toc__num">12</span><span>Real time</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -54,6 +55,8 @@
     A qubit cannot be copied and cannot be looked at, so both of the things that make classical
     error correction easy are off the table. <strong>Quantum error correction is the workaround.</strong>
     Everything below is a real stabilizer simulator running in your browser, not a recording of one.
+    How the engine works, how it is checked, and what it measures on Google's hardware data are in the
+    <a href="report/report.html">technical report</a> (<a href="report/report.pdf">PDF</a>).
   </p>
 
   <div class="vitals pad-top">
@@ -1260,10 +1263,14 @@
     </div>
     <div>
       <dt>Threading</dt>
-      <dd>Two engine instances, seeded independently. The main thread keeps one for the
-      interactive figures so clicks answer immediately; a worker holds a second for Monte Carlo, so
-      a long sweep never blocks the page. All sampling happens inside Rust; the browser only says
-      how many shots to run.</dd>
+      <dd>One engine instance on the main thread, for the interactive figures, so clicks answer
+      immediately; and a pool of workers for Monte Carlo, one per core but one (at most eight), each
+      with its own instance, seeded independently, so a long sweep never blocks the page and uses
+      every core. The sweep, the tables, the bench and the live decoding split their shots across
+      the pool; every result is a sum over independent shots, so splitting changes the wall-clock
+      time and nothing else. WebAssembly's own threads would need cross-origin isolation headers,
+      which GitHub Pages cannot send. All sampling happens inside Rust, 64 shots to a machine word;
+      the browser only says how many to run.</dd>
     </div>
     <div>
       <dt>Statistics</dt>
@@ -1390,8 +1397,108 @@
     </div>
   </figure>
 
+</section>
+
+
+<!-- 12 ================================================================== -->
+<section class="section" id="realtime">
+  <div class="section__head">
+    <span class="section__num">12</span>
+    <h2 class="section__title">Real time</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every decoder above waits for the experiment to end and then matches everything at once. A
+      quantum computer cannot wait. Willow runs one round of error correction every
+      <span class="mono">1.1 µs</span>, and a computation that needs a logical measurement's outcome
+      stalls until the decoder has caught up; a decoder slower than the chip falls further behind
+      with every round and never catches up. Google decoded a distance-5 memory in real time over a
+      million rounds, with an average latency of <span class="mono">63 µs</span>.
+    </p>
+    <p>
+      A real-time decoder matches a few rounds at a time. It decodes a window of rounds, keeps the
+      corrections touching the window's first part, and carries the rest forward; a buffer at the
+      window's end lets a defect wait for a partner not yet seen. Sliding windows run one after
+      another, on one core. Parallel windows come in two layers that each decode independently, so
+      a stream can use as many cores as it needs. Figure 11 measures both on Google's own recorded
+      syndromes; Figure 12 runs them here.
+    </p>
+  </div>
+
+  <figure class="figure" data-rt-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 11</span>
+      <span class="figure__title">keeping up with Willow</span>
+      <span class="figure__meta">† measured natively, on an M2 Pro</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-rt-canvas data-aspect="0.5"></canvas>
+      <div class="legend" data-rt-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Cores needed to keep up with Willow's 1.1 µs cycle, and the latency then</caption>
+          <thead>
+            <tr>
+              <th scope="col">Willow's recorded syndromes, 250 rounds</th>
+              <th scope="col" class="num">Window decode</th>
+              <th scope="col" class="num">Cores to keep up</th>
+              <th scope="col" class="num">Latency, mean</th>
+              <th scope="col" class="num">Latency, p99</th>
+            </tr>
+          </thead>
+          <tbody data-rt-keep></tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Window decoding's accuracy against global decoding on Willow's data</caption>
+          <thead>
+            <tr>
+              <th scope="col">Willow, every experiment</th>
+              <th scope="col" class="num">ε, d = 3</th>
+              <th scope="col" class="num">ε, d = 5</th>
+              <th scope="col" class="num">ε, d = 7</th>
+              <th scope="col" class="num">Λ, 95%</th>
+            </tr>
+          </thead>
+          <tbody data-rt-accuracy></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-rt-fit-status>Loads when you scroll here.</p>
+      <p class="note" data-rt-fit-foot></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-rt-live>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 12</span>
+      <span class="figure__title">window decoding, here</span>
+      <span class="figure__meta">rotated SD6 at Willow's detection rate, 100 rounds</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Window decoding of simulated memory streams in this tab</caption>
+          <thead>
+            <tr>
+              <th scope="col">Parallel windows, correlated</th>
+              <th scope="col" class="num">d = 3</th>
+              <th scope="col" class="num">d = 5</th>
+              <th scope="col" class="num">d = 7</th>
+            </tr>
+          </thead>
+          <tbody data-rt-live-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-rt-live-status>Runs when you scroll here.</p>
+      <p class="note" data-rt-live-foot></p>
+    </div>
+  </figure>
+
   <footer class="foot">
     <span>Built with Rust, WebAssembly, and no dependencies.</span>
+    <a href="report/report.html">Technical report</a>
     <a href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank" rel="noopener">Jaspersands/quantum-simulator-qec</a>
   </footer>
 </section>
@@ -1399,6 +1506,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-09-26"></script>
+<script type="module" src="js/main.js?v=2026-09-26b"></script>
 </body>
 </html>

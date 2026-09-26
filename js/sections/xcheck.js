@@ -112,15 +112,17 @@ export function initXcheck(root, compute) {
   }
 
   async function runDecoding(records) {
-    for (const [i, rec] of records.entries()) {
-      const { ours, oursTime } = rec.cells;
-      status.textContent = `Decoding: d = ${rec.d}, p = ${percent(rec.p, 1)} (${i + 1} of ${records.length})`;
+    // The rates run on every worker at once; the timings then run one at a
+    // time, so no two timed decoders share the machine.
+    let finished = 0;
+    status.textContent = `Decoding ${records.length} rows on ${compute.size ?? 1} workers…`;
+    await Promise.all(records.map(async (rec) => {
       const runs = LIVE_RUNS[rec.d] ?? 1000;
       const r = await compute.call('benchmark', {
         noiseMode: NOISE.SD6, codeType: CODE.ROTATED, d: rec.d, rounds: rec.d, p: rec.p, runs,
       });
       const ci = wilson(r.rate, r.runs);
-      fill(ours, [
+      fill(rec.cells.ours, [
         document.createTextNode(percent(r.rate)),
         el('span', {
           class: 'ci',
@@ -128,11 +130,16 @@ export function initXcheck(root, compute) {
             + (r.decodeErrors ? ` · ${r.decodeErrors} refused` : ''),
         }),
       ]);
+      finished += 1;
+      status.textContent = `Decoding: ${finished} of ${records.length} rows`;
+    }));
+    for (const [i, rec] of records.entries()) {
+      status.textContent = `Timing the decoder: d = ${rec.d}, p = ${percent(rec.p, 1)} (${i + 1} of ${records.length})`;
       const t = await compute.call('xctiming', {
         cfg: { codeType: CODE.ROTATED, d: rec.d, rounds: rec.d, noise: XC_NOISE.SD6, p: rec.p },
         runs: TIMING_RUNS[rec.d] ?? 200,
       });
-      oursTime.textContent = microseconds(t.decodeMicros);
+      rec.cells.oursTime.textContent = microseconds(t.decodeMicros);
     }
   }
 

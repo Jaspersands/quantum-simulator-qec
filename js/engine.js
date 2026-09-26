@@ -63,10 +63,12 @@ export function engineSize() {
 }
 
 /**
- * Fetch and instantiate the engine.
- * @returns {Promise<WebAssembly.Instance>}
+ * Fetch and compile the engine once. The page's own instance and every worker
+ * in the pool instantiate the same compiled module, so the reader downloads it
+ * once, not once per core.
+ * @returns {Promise<WebAssembly.Module>}
  */
-export async function instantiate(url = WASM_URL) {
+export async function compileEngine(url = WASM_URL) {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`could not fetch engine (${response.status} ${response.statusText})`);
@@ -75,14 +77,24 @@ export async function instantiate(url = WASM_URL) {
   // The page states the engine's size; take it from the module actually loaded
   // rather than from a literal that goes stale the next time it is rebuilt.
   announceSize(bytes.byteLength);
-  const { instance } = await WebAssembly.instantiate(bytes, {});
+  return WebAssembly.compile(bytes);
+}
+
+/**
+ * Fetch and instantiate the engine, or instantiate an already compiled module.
+ * @param {string|URL|WebAssembly.Module} [source]
+ * @returns {Promise<WebAssembly.Instance>}
+ */
+export async function instantiate(source = WASM_URL) {
+  const module = source instanceof WebAssembly.Module ? source : await compileEngine(source);
+  const instance = await WebAssembly.instantiate(module, {});
 
   // The engine's generator starts from a fixed constant, so without this every
   // page load would produce byte-identical "measurements". Seed it from the
   // platform CSPRNG so a reload genuinely re-samples.
   if (typeof instance.exports.wasm_seed === 'function') {
     const seed = new Uint32Array(2);
-    (self.crypto ?? globalThis.crypto).getRandomValues(seed);
+    globalThis.crypto.getRandomValues(seed);
     instance.exports.wasm_seed(seed[0], seed[1]);
   }
   return instance;
@@ -504,4 +516,21 @@ export function hwDecode(instance, slot, dets, shots, correlated) {
   writeBytes(instance, dets);
   const out = replyOrThrow(instance, instance.exports.wasm_hw_decode(slot, shots, correlated ? 1 : 0));
   return { ...out, predictions: readBytes(instance, shots) };
+}
+
+/* -- Real-time decoding (section 12) ------------------------------------- */
+
+/** Build a rotated SD6 memory stream's window decoder, sampler and global decoder. */
+export function rtSetup(instance, { d, rounds, p, commit, buffer, parallel = true, correlated = true }) {
+  return replyOrThrow(instance, instance.exports.wasm_rt_setup(d, rounds, p, commit, buffer, parallel ? 1 : 0, correlated ? 1 : 0));
+}
+
+/** Sample 64 streams and window-decode them as they stream. */
+export function rtWindows(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_rt_windows());
+}
+
+/** Decode the last 64 streams globally, for comparison. */
+export function rtGlobal(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_rt_global());
 }

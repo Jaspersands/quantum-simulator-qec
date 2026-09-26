@@ -67,6 +67,30 @@ impl SparseGraph {
         Ok(solver.s.edge_set.iter().map(|&id| self.ends[id as usize]).collect())
     }
 
+    /// Pass one's edge set, as edge ids: what a window decoder commits from.
+    pub fn decode_edge_ids(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Vec<u32>, DecodeError> {
+        self.check_scratch(scratch);
+        let mut solver = Solver { g: self, s: scratch };
+        solver.pass_one(defects)?;
+        Ok(solver.s.edge_set.clone())
+    }
+
+    /// Correlated matching's edge set, as edge ids: pass two's matching traced
+    /// on the lowered weights.
+    pub fn decode_correlated_edge_ids(
+        &self,
+        corr: &Correlations,
+        scratch: &mut Scratch,
+        defects: &[u32],
+    ) -> Result<Vec<u32>, DecodeError> {
+        self.check_scratch(scratch);
+        assert_eq!(corr.num_edges(), self.num_edges(), "Correlations serve the graph they were built for");
+        let mut solver = Solver { g: self, s: scratch };
+        solver.pass_one(defects)?;
+        solver.pass_two_edges(corr, defects)?;
+        Ok(solver.s.edge_set.clone())
+    }
+
     /// Correlated matching (see `correlated`): match, lower the weights the
     /// used edges' rules name, match again. `corr` must be this graph's.
     pub fn decode_correlated(

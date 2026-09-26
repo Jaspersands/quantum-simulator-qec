@@ -6,3 +6,6 @@
 /data/google/
 __pycache__/
 .DS_Store
+/target-wheel
+/dist
+/report/build
