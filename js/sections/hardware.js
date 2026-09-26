@@ -176,8 +176,9 @@ export function initHardware(root, compute) {
 
     fill($('[data-hw-willow]', fitFig), fitRows(wFits, [3, 5, 7], PUBLISHED.willow));
     fill($('[data-hw-sycamore]', fitFig), fitRows(sFits, [3, 5], PUBLISHED.sycamore));
-    if (bWillow) fill($('[data-hw-belief-willow]', fitFig), fitRows(asFits(bWillow), [3, 5, 7]));
-    if (bSycamore) fill($('[data-hw-belief-sycamore]', fitFig), fitRows(asFits(bSycamore), [3, 5]));
+    const unavailable = (cols) => [el('tr', {}, [el('td', { colspan: String(cols), text: 'Belief-matching counts unavailable.' })])];
+    fill($('[data-hw-belief-willow]', fitFig), bWillow ? fitRows(asFits(bWillow), [3, 5, 7]) : unavailable(5));
+    fill($('[data-hw-belief-sycamore]', fitFig), bSycamore ? fitRows(asFits(bSycamore), [3, 5]) : unavailable(4));
 
     const series = chartSeries(wFits);
     series.push({

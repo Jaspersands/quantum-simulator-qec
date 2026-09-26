@@ -120,6 +120,7 @@ def main():
             continue
         t = time.perf_counter()
         rec = sycamore_one(e) if args.dataset == "sycamore" else willow_one(e)
+        rec["engine_commit"] = engine_commit()
         doc["experiments"][e.name] = rec
         doc["generated"] = datetime.date.today().isoformat()
         write_json(out_path, doc)

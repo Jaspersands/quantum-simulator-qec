@@ -68,6 +68,12 @@ pub struct BeliefOutcome {
 }
 
 impl BeliefMatching {
+    /// The model's order matters, as in `beliefmatching`: where several
+    /// faults share a symptom, the first one's pieces are the decomposition
+    /// and the last one's observables stand. A model parsed from text keeps
+    /// the text's order; `Dem::from_circuit` sorts its mechanisms, so belief-
+    /// matching on this engine's own model of a circuit can split a shared
+    /// symptom differently from `beliefmatching` on Stim's model of it.
     pub fn from_dem(dem: &Dem, method: Method, max_iter: usize) -> Result<BeliefMatching, String> {
         let (edges, _) = merged_edges(dem)?;
         let graph = SparseGraph::from_edges(dem.num_detectors, &edges);
@@ -132,6 +138,12 @@ impl BeliefMatching {
         w.edge_p.fill(0.0);
         for h in 0..self.bp.num_vars {
             let p = 1.0 / (1.0 + w.bp.llr[h].exp());
+            // Infinite messages meeting (a certain fault said both to have and
+            // not to have happened) leave no posterior to weigh an edge by: the
+            // shot is refused, not matched on a made-up weight.
+            if p.is_nan() {
+                return Err(DecodeError::MatcherDeclined);
+            }
             for &e in &self.hyper_edges[self.hyper_start[h] as usize..self.hyper_start[h + 1] as usize] {
                 w.edge_p[e as usize] += p;
             }

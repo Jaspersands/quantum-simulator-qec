@@ -575,7 +575,7 @@ fn decode_b8_belief<'py>(
     for (o, w, c) in parts.into_iter().flatten() {
         preds.extend_from_slice(&o.to_le_bytes());
         weights.extend_from_slice(&w.to_le_bytes());
-        conv.push(c.min(1));
+        conv.push(u8::from(c == 1));
         errors += usize::from(c == 2);
     }
     Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), PyBytes::new_bound(py, &conv), errors, seconds))
