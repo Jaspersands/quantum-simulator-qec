@@ -23,6 +23,8 @@ every number on the page is computed in the reader's browser on load.
   error model by sparse blossom: plain, at 2.3 to 2.9 times PyMatching's single-threaded time, and
   correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
   at 2.0 to 2.3 times.
+- **Throughput**: a bit-parallel sampler (64 shots a word, `REPEAT` without flattening) at 15–20×
+  the reference sampler's speed, and a pool of workers that puts every core on the page to work.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
@@ -485,6 +487,68 @@ made theirs.
   At d = 7 our correlated matcher on Google's prior fails 123 times in 2,000 shots, against
   Google's correlated matcher's 122, and agrees with it on 97% of shots.
 
+## Throughput
+
+Two changes make the engine produce and decode shots many times faster, natively and in the page.
+
+**A bit-parallel sampler** (`src/batch_sampler.rs`).
+- **The frame.** It keeps the Pauli frames of 64 shots in two machine words per qubit, one for X
+  and one for Z, so a gate is a couple of word operations for all 64.
+- **Noise words.** Noise comes as whole words of Bernoulli bits, drawn by geometric skipping: the
+  gap to the next error is `floor(ln U / ln(1 − p))`. A location at p = 10⁻³ costs about one
+  random number, not 64.
+- **`REPEAT` without flattening.** Measurement records live in a ring buffer sized by the longest
+  lookback, and detectors are evaluated from their lookbacks as they are reached. So a
+  `REPEAT 1000000` block costs its body's memory, and detection events stream out as they are made.
+- **The reference stays.** `FrameSampler`, one shot at a time, is kept as the reference. The two
+  share their semantics exactly: disjoint channels, Pauli numbering, and the randomisation that
+  makes a nondeterministic detector show itself as a coin flip.
+
+It is checked five ways:
+1. **Exactly `FrameSampler`'s shots on deterministic noise.** On rotated and XZZX circuits, both
+   bases, d = 3 and 5, every noise channel is made deterministic (a Pauli at p = 0 or 1), 20
+   rewrites each. Every lane of every batch equals `FrameSampler`'s shot, detector for detector.
+2. **`REPEAT` without flattening** gives words identical to the flattened circuit's from the same
+   seed, on Stim's circuits and on nested loops.
+3. **Marginals.** Every detector's rate over 200,000 shots is within 5σ of the error model's exact
+   prediction.
+4. **Against Stim.** The cross-check's check 3 now holds it to Stim's per-detector rates (every
+   χ² z-score under 1.2) and to PyMatching's logical error rate, at d = 3, 5, 7 over 100,000 shots
+   a point.
+5. **A million rounds** of a one-qubit loop sample in constant memory, at the right rate.
+
+**Speed**, single-threaded, per shot, rotated SD6 with T = d (check 4 of the cross-check, 100,000
+shots):
+
+| d | p | Stim | `FrameSampler` | batch sampler |
+|---|---|---|---|---|
+| 3 | 0.3% | 0.12 µs | 1.23 µs | 0.07 µs |
+| 5 | 0.3% | 0.49 µs | 5.97 µs | 0.32 µs |
+| 7 | 0.3% | 1.31 µs | 17.0 µs | 0.84 µs |
+| 7 | 0.6% | 2.27 µs | 17.5 µs | 1.06 µs |
+
+- Stim is timed through its Python API, compiled beforehand and writing packed bits.
+- Ours includes transposing batches into Stim's b8 rows.
+- On these circuits the batch sampler is 15 to 20 times `FrameSampler`'s speed (15 to 16 in the Rust
+  benchmark, 17 to 20 here), and a little
+  faster than Stim's sampler as called from Python.
+- Decoding, not sampling, is now almost all of a shot's cost.
+
+**A worker pool on the page** (`js/pool.js`).
+- **Why a pool.** WebAssembly threads need SharedArrayBuffer, and SharedArrayBuffer needs
+  cross-origin isolation headers that GitHub Pages cannot send. So the page's parallelism is a pool
+  of ordinary workers instead: one per core but one, at most eight.
+- **One download.** The engine is compiled once on the page, and the same module is handed to every
+  worker, so the reader downloads it once.
+- **How the work is split.** The sweep, the results table, the bias comparison, the bench, Figure
+  8's decoding rows and Figure 10's distances split their work across the pool. Every result is a
+  sum over independent shots, so splitting changes the wall time and nothing else.
+- **Scheduling.** Jobs wait in the pool, not in a worker's queue, so a worker that finishes early
+  takes the next one. The sweep hands out its largest distances first.
+- **The measured gain.** On an M2 Pro (6 performance and 4 efficiency cores), the section 7 sweep
+  (216,000 shots over 36 points) takes 6.6 s against 27.8 s with one worker, 4.2 times faster.
+  `?workers=N` sets the pool's size, for measuring exactly that.
+
 ## Engine defects found and fixed
 
 Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
@@ -927,6 +991,7 @@ src/dem.rs            detector error models: built backwards from any circuit, d
                       Stim decomposes, read and written in Stim's .dem format, compared
 src/dem_decoder.rs    probability-weighted exact matching over any detector error model
 src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the model
+src/batch_sampler.rs  the same, 64 shots per word, REPEAT without flattening
 src/shots.rs          Stim's 01 and b8 detection-event formats
 src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
@@ -944,6 +1009,7 @@ js/engine.js          typed wrapper over the WASM exports
 js/channel.js         the noise channel, shared by the figures and the engine
 js/channel-view.js    the logical channel drawn as the Bloch sphere's image
 js/worker.js          Monte Carlo worker (own engine instance)
+js/pool.js            a pool of workers, one per core but one; js/pool-merge.js combines their parts
 js/compute.js         worker RPC, Wilson intervals, threshold collapse fit
 js/lattice.js         canvas renderer for a code patch, 2D and spacetime
 js/plot.js            canvas plotting primitive
