@@ -1,0 +1,28 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "stabilizer-qec"
+dynamic = ["version"]
+description = "A surface-code simulator and decoder in Rust: circuits and error models in Stim's formats, exact sparse-blossom and correlated matching, a bit-parallel sampler, and window decoders for real time."
+readme = "python/README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [{ name = "Jasper Sands" }]
+keywords = ["quantum error correction", "surface code", "decoder", "matching", "stim"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+Homepage = "https://qcompiler.jaspersands.com"
+Repository = "https://github.com/Jaspersands/quantum-simulator-qec"
+
+[tool.maturin]
+features = ["python"]
+profile = "python"
+module-name = "stabilizer_qec"

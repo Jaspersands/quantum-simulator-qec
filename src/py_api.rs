@@ -23,6 +23,9 @@ fn err(e: String) -> PyErr {
     PyValueError::new_err(e)
 }
 
+/// A memory experiment as a Stim circuit: a distance-`d` patch (`"rotated"`
+/// or `"xzzx"`) held for `rounds` rounds, under `"sd6"` noise at `p` or the
+/// biased `"current"` model with bias `eta`, in basis `"z"` or `"x"`.
 #[pyfunction]
 #[pyo3(signature = (code, d, rounds, noise, p, eta=0.5, basis="z"))]
 fn generate_circuit(code: &str, d: usize, rounds: usize, noise: &str, p: f64, eta: f64, basis: &str) -> PyResult<String> {
@@ -44,6 +47,8 @@ fn generate_circuit(code: &str, d: usize, rounds: usize, noise: &str, p: f64, et
     Ok(generate(kind, d, rounds, noise, basis).map_err(err)?.to_stim())
 }
 
+/// The circuit's detector error model, built by walking it backwards, as
+/// Stim's DEM text; `decompose` splits hyperedges into graphlike pieces.
 #[pyfunction]
 #[pyo3(signature = (circuit_text, decompose=false))]
 fn dem_from_circuit(circuit_text: &str, decompose: bool) -> PyResult<String> {
@@ -193,6 +198,8 @@ impl Decoder {
     }
 }
 
+/// `num_shots` shots from the frame sampler, one at a time, as b8 rows of
+/// detectors and of observables.
 #[pyfunction]
 fn sample_b8<'py>(
     py: Python<'py>,
@@ -465,6 +472,7 @@ fn stream_decode<'py>(
     Ok((failures, batches * 64, unexplained, PyBytes::new_bound(py, &bytes), info, seconds))
 }
 
+/// b8 rows of `num_bits` bits as Stim's 01 text.
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
     Ok(write_01(&read_b8(packed, num_bits).map_err(err)?))
