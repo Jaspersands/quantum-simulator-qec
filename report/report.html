@@ -16,7 +16,7 @@
   <p class="kicker">Technical report · stabilizer-qec 0.2.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact and correlated matching, Google’s Willow and Sycamore data, and window decoding at Willow’s cycle</p>
-  <p class="byline">Jasper Sands · 26 September 2026 · commit <code>4e3a9a4</code></p>
+  <p class="byline">Jasper Sands · 27 September 2026 · commit <code>3df0872</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -25,7 +25,7 @@
 <ol type="1">
 <li><strong>Error models.</strong> It builds error models identical to Stim’s, fault by fault, on 15 circuits (the largest relative difference is 1.1e-15).</li>
 <li><strong>Matching.</strong> Its exact matcher agrees with PyMatching on every shot but ties: 13 disagreements in 600,000 shots, 0 of them not ties. Its correlated matcher agrees with PyMatching 2.4’s correlated mode just as closely, and fails 19% less often than plain matching.</li>
-<li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91.</li>
+<li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91. Its belief-matching reproduces <code>ldpc</code>’s posteriors bit for bit, and makes Sycamore’s d = 5 beat d = 3 as Google’s does (Λ = 1.016 [1.01, 1.02]).</li>
 <li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.84 µs a shot at d = 7, against Stim’s 1.31 µs.</li>
 <li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 59 µs mean latency on 8 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
 </ol>
@@ -48,8 +48,9 @@
 <li><a href="#thresholds"><span class="toc-section-number">4.1</span> Thresholds</a></li>
 <li><a href="#agreement-with-stim-and-pymatching"><span class="toc-section-number">4.2</span> Agreement with Stim and PyMatching</a></li>
 <li><a href="#googles-hardware"><span class="toc-section-number">4.3</span> Google’s hardware</a></li>
-<li><a href="#throughput"><span class="toc-section-number">4.4</span> Throughput</a></li>
-<li><a href="#real-time"><span class="toc-section-number">4.5</span> Real time</a></li>
+<li><a href="#belief-matching"><span class="toc-section-number">4.4</span> Belief-matching</a></li>
+<li><a href="#throughput"><span class="toc-section-number">4.5</span> Throughput</a></li>
+<li><a href="#real-time"><span class="toc-section-number">4.6</span> Real time</a></li>
 </ul></li>
 <li><a href="#limits-and-next-steps"><span class="toc-section-number">5</span> Limits and next steps</a></li>
 <li><a href="#reproducing-everything"><span class="toc-section-number">6</span> Reproducing everything</a></li>
@@ -666,7 +667,126 @@
 </tbody>
 </table>
 <p>On Sycamore, our plain matcher reproduces the PyMatching predictions Google recorded (4.012% against 4.012% at d = 3). The two disagree on 8,448 shots over the whole dataset. On every one of them, our matching’s weight equals the optimum PyMatching 2.4 finds (0 are not optimal): these are ties, broken differently by the older PyMatching that Google used. Sycamore’s Λ ≈ 1 was that paper’s point, the first time a larger surface code beat a smaller one at all, and only with the best decoders.</p>
-<h2 data-number="4.4" id="throughput"><span class="header-section-number">4.4</span> Throughput</h2>
+<h2 data-number="4.4" id="belief-matching"><span class="header-section-number">4.4</span> Belief-matching</h2>
+<p>Matching weighs every graph edge by its prior alone. <strong>Belief-matching</strong> (Higgott, Bohdanowicz, Kubica, Flammia and Campbell, PRX 13, 031007, 2023) works in three steps:</p>
+<ol type="1">
+<li><strong>Belief propagation</strong> runs over the whole error model: every fault a variable, every detector a check, nothing split into pieces.</li>
+<li><strong>The graph is re-weighted.</strong> Each edge gets <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>−</mo><mo>ln</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">-\ln p</annotation></semantics></math>, where <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>p</mi><annotation encoding="application/x-tex">p</annotation></semantics></math> is the sum of the posteriors of the faults whose decomposition contains it.</li>
+<li><strong>The sparse matcher decodes</strong> on those weights. Where BP converges by itself, its own correction is the answer.</li>
+</ol>
+<p>The implementation is written to reproduce the authors’ package, <code>beliefmatching</code>, and the BP library it runs on, <code>ldpc</code>, step for step. Both are checked exactly:</p>
+<ul>
+<li><strong>BP.</strong> Over 4,040 syndromes in 56 configurations, the largest difference between our posterior log-likelihood ratios and <code>ldpc</code>’s is 0.0. The configurations cover random matrices and a surface code’s hypergraph, product-sum and min-sum, and 1 to 20 iterations. 0 hard decisions, convergence flags or iteration counts differ.</li>
+<li><strong>Belief-matching.</strong> Over 20,000 shots of SD6 memories at d = 3, 5 and 7, it disagrees with <code>beliefmatching</code> on 0 shots, and BP’s convergence differs on 0. Single-threaded at d = 7 it takes 5.6 ms against 11.6 ms a shot; the reference rebuilds a matching graph for every shot.</li>
+</ul>
+<p><strong>Sycamore</strong>, every shot, with the data-fitted priors cross-fitted as Google used them, against Google’s own recorded belief-matching:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">decoder</th>
+<th style="text-align: left;">prior</th>
+<th style="text-align: right;">ε, d = 3</th>
+<th style="text-align: right;">ε, d = 5</th>
+<th style="text-align: right;">Λ [95%]</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">ours, belief-matching</td>
+<td style="text-align: left;">pij, cross-fitted</td>
+<td style="text-align: right;">3.154%</td>
+<td style="text-align: right;">3.104%</td>
+<td style="text-align: right;">1.02 [1.01, 1.02]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ours, belief-matching</td>
+<td style="text-align: left;">circuit</td>
+<td style="text-align: right;">3.249%</td>
+<td style="text-align: right;">3.190%</td>
+<td style="text-align: right;">1.02 [1.01, 1.03]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, belief matching</td>
+<td style="text-align: left;">pij</td>
+<td style="text-align: right;">3.118%</td>
+<td style="text-align: right;">3.056%</td>
+<td style="text-align: right;">1.02 [1.01, 1.03]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Google, tensor network</td>
+<td style="text-align: left;">pij</td>
+<td style="text-align: right;">3.028%</td>
+<td style="text-align: right;">2.914%</td>
+<td style="text-align: right;">1.04 [1.03, 1.05]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, correlated matching</td>
+<td style="text-align: left;">circuit</td>
+<td style="text-align: right;">3.497%</td>
+<td style="text-align: right;">3.597%</td>
+<td style="text-align: right;">0.97 [0.96, 0.98]</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>d = 5 beats d = 3.</strong> Ours gives Λ = 1.016 [1.01, 1.02], Google’s 1.020 [1.01, 1.03].</li>
+<li><strong>Close, but not the same.</strong> Ours agrees with Google’s predictions on 97.2% of 6.5 million shots and fails 0.7% more often. Google’s BP settings are not in the dataset, and more iterations do not close the gap.</li>
+</ul>
+<p><strong>Willow</strong>, on the first 10,000 shots of each of 420 experiments. BP on Willow’s longest experiments costs about 25 ms a shot even on ten cores, so there are fewer shots. Every decoder in this table is scored on the same shots:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">decoder, same shots</th>
+<th style="text-align: right;">ε, d = 3</th>
+<th style="text-align: right;">ε, d = 5</th>
+<th style="text-align: right;">ε, d = 7</th>
+<th style="text-align: right;">Λ [95%]</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">ours, belief-matching</td>
+<td style="text-align: right;">0.824%</td>
+<td style="text-align: right;">0.452%</td>
+<td style="text-align: right;">0.251%</td>
+<td style="text-align: right;">1.81 [1.80, 1.83]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ours, correlated matching</td>
+<td style="text-align: right;">0.888%</td>
+<td style="text-align: right;">0.448%</td>
+<td style="text-align: right;">0.231%</td>
+<td style="text-align: right;">1.96 [1.95, 1.98]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ours, plain matching</td>
+<td style="text-align: right;">1.028%</td>
+<td style="text-align: right;">0.675%</td>
+<td style="text-align: right;">0.429%</td>
+<td style="text-align: right;">1.55 [1.54, 1.56]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Google, correlated matching</td>
+<td style="text-align: right;">0.835%</td>
+<td style="text-align: right;">0.442%</td>
+<td style="text-align: right;">0.229%</td>
+<td style="text-align: right;">1.91 [1.90, 1.92]</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Google, Libra (RL prior)</td>
+<td style="text-align: right;">0.713%</td>
+<td style="text-align: right;">0.350%</td>
+<td style="text-align: right;">0.170%</td>
+<td style="text-align: right;">2.05 [2.03, 2.06]</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Belief-matching wins small and loses large.</strong> At d = 3 it beats every matcher in the table (0.824%, against 0.888% for our correlated matcher and 0.835% for Google’s). At d = 7 it is worse (0.251% against 0.231%), so its Λ, 1.81 [1.80, 1.83], falls below correlated matching’s 1.96 [1.95, 1.98].</li>
+<li><strong>Longer BP does not change it.</strong> On the same shots at d = 7, 50 rounds, belief-matching fails 960 times with 20 iterations and 959 with 100, against correlated matching’s 902. BP settles alone on 16% of Willow’s shots.</li>
+<li><strong>On Sycamore it is among the best.</strong> Those experiments run at most 25 rounds with priors fitted to the data, and belief-matching is one of the two best decoders there, Google’s and ours alike.</li>
+</ul>
+<h2 data-number="4.5" id="throughput"><span class="header-section-number">4.5</span> Throughput</h2>
 <p>Sampling speed per shot, single-threaded, rotated SD6 with T = d. Stim is timed through its Python API, compiled beforehand and writing packed bits; ours includes transposing batches into Stim’s b8 layout:</p>
 <table>
 <thead>
@@ -735,7 +855,7 @@
 </figure>
 <p>The batch sampler is 14 to 20 times as fast as the frame sampler, and faster than Stim’s as called from Python. Decoding, not sampling, is now almost all of a shot’s cost.</p>
 <p>On the page, work is split across a pool of workers. On the development machine the site’s section 7 threshold sweep ran 2.5 to 4.4 times faster with the pool than with one worker; the spread comes from whether workers land on performance or efficiency cores.</p>
-<h2 data-number="4.5" id="real-time"><span class="header-section-number">4.5</span> Real time</h2>
+<h2 data-number="4.6" id="real-time"><span class="header-section-number">4.6</span> Real time</h2>
 <p>Willow runs a round of error correction every 1.1 µs. Google has decoded a d = 5 memory in real time over a million rounds with a 63 µs mean latency (arXiv:2408.13687), on its own hardware and with its own definition of latency. Here, every window’s decode time is measured natively on Apple M2 Pro, one core at a time. Those times are then scheduled with rounds arriving every 1.1 µs:</p>
 <ul>
 <li>A window starts once its last round has arrived and, for layer B, both its layer-A neighbours are done.</li>
@@ -1069,8 +1189,7 @@
 <li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
 <li><strong>The next decoders.</strong> The next pieces of work, in order:
 <ul>
-<li>belief propagation and belief-matching on the Willow data;</li>
-<li>the IBM “gross” bivariate-bicycle code with BP+OSD;</li>
+<li>the IBM “gross” bivariate-bicycle code with BP+OSD, reusing this belief propagation;</li>
 <li>lattice surgery between patches;</li>
 <li>a resource estimator driven by the Λ measured here.</li>
 </ul></li>

@@ -87,6 +87,9 @@ leaves the repository.
 - **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
   million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
+- **Belief propagation and belief-matching**: BP whose posteriors equal the `ldpc` library's bit for
+  bit, and belief-matching that equals the authors' own package shot for shot. Run on all of
+  Google's Sycamore and Willow data, where it makes Sycamore's d = 5 beat d = 3 as Google's does.
 - **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
   against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
   a million-round stream that keeps up on 4 cores at d = 5.
@@ -606,7 +609,37 @@ model:
   95.3% agreement), nor by dropping the cross-fitting (94.0%). The circuit's own model agrees on
   only 77.8%.
 
-WILLOW_BELIEF_TABLE
+**Willow**, on the first 10,000 shots of each of the 420 experiments, with Google's SI1000 prior.
+BP costs about 25 ms a shot on ten cores at d = 7 and 250 rounds, so the full 50,000 would take
+some 18 hours. Every decoder below is scored on the same shots:
+
+| decoder, same 10,000 shots each | ε, d = 3 | ε, d = 5 | ε, d = 7 | Λ [95%] |
+|---|---|---|---|---|
+| ours, belief-matching | 0.824% | 0.452% | 0.251% | 1.81 [1.80, 1.83] |
+| ours, correlated matching | 0.888% | 0.448% | 0.231% | 1.96 [1.95, 1.98] |
+| ours, plain matching | 1.028% | 0.675% | 0.429% | 1.55 [1.54, 1.56] |
+| Google, correlated matching | 0.835% | 0.442% | 0.229% | 1.91 [1.90, 1.92] |
+| Google, Harmony (RL prior) | 0.731% | 0.387% | 0.204% | 1.89 [1.88, 1.91] |
+| Google, Libra (RL prior) | 0.713% | 0.350% | 0.170% | 2.05 [2.03, 2.06] |
+
+- **Belief-matching wins small and loses large.** At d = 3 it beats every matcher here, correlated
+  ones included (0.824% against 0.888% for ours and 0.835% for Google's). At d = 5 it ties
+  correlated matching; at d = 7 it is worse (0.251% against 0.231%). So its Λ, 1.81, is lower than
+  correlated matching's 1.96.
+- **BP rarely settles on these models.** It converges alone on 16% of Willow's shots. Elsewhere its
+  posteriors come from a hypergraph full of short loops, where BP is only approximate. These results
+  suggest the posteriors help the matcher less as the patch grows; they do not show why.
+- **On Sycamore it is among the best.** Those experiments run at most 25 rounds, with priors fitted to
+  the data, and belief-matching is one of the two best decoders there, Google's and ours alike.
+
+**Longer BP does not change it** (`tools/belief.py iterations`). On the same shots, 100 iterations
+instead of 20 move the failures by at most 4:
+
+| experiment, same 10,000 shots | correlated matching | belief-matching, 20 iterations | 100 iterations | BP alone |
+|---|---|---|---|---|
+| d = 3, 110 rounds | 4,546 | 4,398 | 4,402 | 9 |
+| d = 7, 50 rounds | 902 | 960 | 959 | 0 |
+| d = 7, 110 rounds | 1,969 | 2,038 | 2,035 | 0 |
 
 **On the site**, Figure 9 fits both tables from `data/belief/`, and Figure 10 belief-matches its
 2,000 raw Willow shots at each distance, in WebAssembly, after the other decoders. At 30 rounds it

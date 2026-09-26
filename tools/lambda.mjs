@@ -51,7 +51,9 @@ function table(title, records, minRounds, alternatives, label = decoderLabel) {
 const all = { draws: B, files: {} };
 for (const f of files) {
   const recs = Object.values(JSON.parse(await readFile(f, 'utf8')).experiments);
-  all.files[f] = table(f, recs, 10, [30], (k) => (/^(global|window)\//.test(k) ? windowLabel(k) : decoderLabel(k)));
+  // Sycamore's experiments run 1 to 25 rounds and are fitted from round 3; Willow's, from 10.
+  const sycamore = /sycamore/.test(f);
+  all.files[f] = table(f, recs, sycamore ? 3 : 10, sycamore ? [1, 5] : [30], (k) => (/^(global|window)\//.test(k) ? windowLabel(k) : decoderLabel(k)));
 }
 if (files.length && !jsonOut) process.exit(0);
 const willow = await load('willow').catch(() => []);

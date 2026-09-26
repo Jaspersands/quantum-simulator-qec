@@ -102,11 +102,41 @@ def willow_one(e):
     return rec
 
 
+ITERATION_EXPERIMENTS = ["willow/d3_at_q6_7/Z/r110", "willow/d7_at_q6_7/Z/r50", "willow/d7_at_q6_7/Z/r110"]
+
+
+def iterations():
+    """Does BP just need longer? The same 10,000 shots of three Willow
+    experiments, belief-matched with 20 and 100 iterations, beside correlated
+    matching."""
+    exps = {e.name: e for e in G.experiments("willow")}
+    out = dict(generated=datetime.date.today().isoformat(), engine_commit=engine_commit(), machine=machine(), experiments={})
+    for name in ITERATION_EXPERIMENTS:
+        e = exps[name]
+        n = min(WILLOW_SHOTS, e.shots)
+        dets = G.read(e, "dets")
+        dets = dets[: (len(dets) // e.shots) * n]
+        truth = G.bits(e, "obs")[:n]
+        dem = G.text(e, "dem:correlated_matching_decoder_with_si1000_prior")
+        rec = dict(d=e.d, rounds=e.rounds, shots=n, results={})
+        _, corr = score(np.frombuffer(sq.decode_b8(dem, dets, n, 0, True)[0], "<u8"), truth)
+        rec["results"]["correlated"] = dict(failures=corr)
+        for it in (20, 100):
+            raw, _, conv, errors, seconds = sq.decode_b8_belief(dem, dets, n, it, "product_sum", 1.0, 0)
+            _, f = score(np.frombuffer(raw, "<u8"), truth)
+            rec["results"][f"belief/{it}"] = dict(failures=f, converged=int(np.frombuffer(conv, np.uint8).sum()), seconds=seconds)
+        out["experiments"][name] = rec
+        write_json(OUT / "iterations.json", out)
+        print(name, rec["results"], flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("dataset", choices=["sycamore", "willow"])
+    ap.add_argument("dataset", choices=["sycamore", "willow", "iterations"])
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
+    if args.dataset == "iterations":
+        return iterations()
     out_path = OUT / f"{args.dataset}.json"
     doc = load_json(out_path, dict(experiments={}))
     doc.update(engine_commit=engine_commit(), machine=machine(), max_iter=MAX_ITER, bp_method="product_sum",
