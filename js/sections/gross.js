@@ -32,6 +32,12 @@ function sci(x) {
   return `${(x / 10 ** e).toFixed(1)}×10${String(e).replace('-', '⁻').replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d])}`;
 }
 
+/** 0.001 → "10⁻³". */
+function power(v) {
+  const e = Math.round(Math.log10(v));
+  return e === 0 ? '1' : `10${String(e).replace('-', '⁻').replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d])}`;
+}
+
 /** Wilson interval for k of n, 95%. */
 function wilson(k, n) {
   if (!n) return [0, 1];
@@ -184,7 +190,8 @@ async function runRecorded(fig) {
     yLog: true,
     xTickValues: ps,
     formatX: (v) => `${(v * 100).toFixed(1)}%`,
-    formatY: (v) => (v >= 0.01 ? `${(v * 100).toFixed(0)}%` : sci(v)),
+    // Decades only, as powers of ten: the axis spans five of them.
+    formatY: (v) => (Math.abs(Math.log10(v) - Math.round(Math.log10(v))) < 1e-9 ? power(v) : ''),
   });
   plot.render({ series, xRange: [ps[0] - 0.0004, ps[ps.length - 1] + 0.0004] });
   $('[data-bb-legend]', fig).innerHTML = plotLegend(series);
