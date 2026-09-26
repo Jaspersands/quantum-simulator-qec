@@ -8,7 +8,7 @@ commit: "{{commit}}"
 description: "Technical report on stabilizer-qec: a Rust surface-code simulator and decoder, verified against Stim and PyMatching, run on Google's Willow and Sycamore data, and decoded in real time."
 abstract: |
   `stabilizer-qec` is a surface-code simulator and decoder written in Rust. It runs natively, from
-  Python, and in a web browser. Its results come in five parts.
+  Python, and in a web browser. Its results come in eight parts.
 
   1. **Error models.** It builds error models identical to Stim's, fault by fault, on
      {{xc.circuits}} circuits (the largest relative difference is {{xc.max_rel}}).
