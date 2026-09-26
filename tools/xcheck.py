@@ -11,8 +11,10 @@ Checks, strictest first (spec: docs/superpowers/specs/2026-09-24-stim-foundation
      1b. So are the matching graphs: every symptom decomposed the same way, every
          edge with the same probability, against Stim's decomposed model.
   2. Decoders agree shot for shot on Stim's samples; every disagreement is a tie.
-  3. Samplers agree: per-detector firing rates, and logical error rates.
-  4. Speed, reported as measured.
+  3. Samplers agree: per-detector firing rates, and logical error rates, for
+     both of ours (the reference frame sampler and the bit-parallel one).
+  4. Speed, reported as measured: decoding against PyMatching, and sampling
+     against Stim (Stim / our frame sampler / our batch sampler, per shot).
   5. Correlated matching agrees with PyMatching's (enable_correlations=True)
      shot for shot, and every disagreement is a tie: PyMatching's own
      first-pass edges, fed to our second pass, give its answer or tie it.
@@ -199,17 +201,35 @@ def check_decoding(code, d, p, shots, seed):
     disagreements, non_ties, noise = ties(ours, our_w, failed)
     own_disagreements, own_non_ties, _ = ties(own, own_w, own_failed)
 
-    # Check 3: our sampler on the same circuit text, decoded by our decoder.
+    # Check 3: our samplers on the same circuit text, decoded by our decoder.
+    # Both: the reference FrameSampler, and the bit-parallel batch sampler.
+    def sampler_check(dets_b, obs_b):
+        od = unpack(dets_b, shots, circuit.num_detectors)
+        oo = unpack(obs_b, shots, 1)[:, 0].astype(np.uint64)
+        a, b = dets.sum(axis=0).astype(float), od.sum(axis=0).astype(float)
+        mask = (a + b) > 0
+        chi2 = float(((a - b) ** 2 / np.where(mask, a + b, 1))[mask].sum())
+        dof = int(mask.sum())
+        z = (chi2 - dof) / math.sqrt(2 * dof) if dof else 0.0
+        pred_b, _, errors, _ = sq.decode_b8_own(text, np.packbits(od, axis=1, bitorder="little").tobytes(), shots)
+        raw = np.frombuffer(pred_b, dtype="<u8")
+        return dict(chi2=chi2, dof=dof, z=z,
+                    our_failures=int(np.count_nonzero(((raw & ONE) != oo) | (raw == FAILED))),
+                    our_decode_errors=int(errors))
+
+    # Check 4's sampling speed, single-threaded: Stim, FrameSampler, the batch sampler.
+    # Stim compiled beforehand and writing packed bits, as ours writes b8, so
+    # the comparison is sampling against sampling.
+    stim_sampler = circuit.compile_detector_sampler(seed=seed + 3)
+    t = time.perf_counter()
+    stim_sampler.sample(shots, separate_observables=True, bit_packed=True)
+    stim_sample_seconds = time.perf_counter() - t
+    t = time.perf_counter()
     od_b, oo_b = sq.sample_b8(text, shots, seed + 1)
-    od = unpack(od_b, shots, circuit.num_detectors)
-    oo = unpack(oo_b, shots, 1)[:, 0].astype(np.uint64)
-    a, b = dets.sum(axis=0).astype(float), od.sum(axis=0).astype(float)
-    mask = (a + b) > 0
-    chi2 = float(((a - b) ** 2 / np.where(mask, a + b, 1))[mask].sum())
-    dof = int(mask.sum())
-    z = (chi2 - dof) / math.sqrt(2 * dof) if dof else 0.0
-    s_pred_b, _, s_errors, _ = sq.decode_b8_own(text, np.packbits(od, axis=1, bitorder="little").tobytes(), shots)
-    s_raw = np.frombuffer(s_pred_b, dtype="<u8")
+    frame_seconds = time.perf_counter() - t
+    bd_b, bo_b, batch_seconds = sq.sample_b8_batch(text, shots, seed + 2, 1)
+    sampler = sampler_check(od_b, oo_b)
+    batch = sampler_check(bd_b, bo_b)
 
     return dict(
         code=code, noise="sd6", d=d, p=p, shots=shots,
@@ -220,9 +240,9 @@ def check_decoding(code, d, p, shots, seed):
         own_disagreements=own_disagreements, own_non_ties=own_non_ties,
         decode_errors=int(errors), own_decode_errors=int(own_errors),
         pymatching_us=pm_seconds / shots * 1e6, ours_us=our_seconds / shots * 1e6,
-        sampler=dict(chi2=chi2, dof=dof, z=z,
-                     our_failures=int(np.count_nonzero(((s_raw & ONE) != oo) | (s_raw == FAILED))),
-                     our_decode_errors=int(s_errors)))
+        sampler=sampler, batch_sampler=batch,
+        sample_us=dict(stim=stim_sample_seconds / shots * 1e6, frame=frame_seconds / shots * 1e6,
+                       batch=batch_seconds / shots * 1e6))
 
 
 def check_correlated(code, d, p, shots, seed):
@@ -327,19 +347,22 @@ def main():
             r = check_decoding("rotated", d, p, shots, seed=1000 * d + int(p * 1e4))
             decoding.append(r)
             ci_pm = wilson(r["pymatching_failures"], shots)
-            ci_us = wilson(r["sampler"]["our_failures"], shots)
-            overlap = ci_pm[0] <= ci_us[1] and ci_us[0] <= ci_pm[1]
+            def sampler_good(s):
+                ci_us = wilson(s["our_failures"], shots)
+                overlap = ci_pm[0] <= ci_us[1] and ci_us[0] <= ci_pm[1]
+                return s["our_decode_errors"] == 0 and abs(s["z"]) < 4 and overlap
             good = (r["non_ties"] == 0 and r["own_non_ties"] == 0 and r["decode_errors"] == 0
-                    and r["own_decode_errors"] == 0 and r["sampler"]["our_decode_errors"] == 0
-                    and abs(r["sampler"]["z"]) < 4 and overlap)
+                    and r["own_decode_errors"] == 0 and sampler_good(r["sampler"]) and sampler_good(r["batch_sampler"]))
             ok &= good
             print(f"  {'ok ' if good else 'BAD'} d={d} p={p:.3f}  PyMatching {r['pymatching_failures'] / shots:.4%}  "
                   f"ours {r['ours_failures'] / shots:.4%}  own-DEM {r['ours_own_dem_failures'] / shots:.4%}  "
                   f"our sampler {r['sampler']['our_failures'] / shots:.4%}  "
                   f"disagree {r['disagreements']}/{r['own_disagreements']} "
                   f"(non-ties {r['non_ties']}/{r['own_non_ties']}, weight noise {r['weight_noise']:.1e})  "
-                  f"chi2 z {r['sampler']['z']:+.2f}  "
-                  f"{r['pymatching_us']:.1f} us vs {r['ours_us']:.1f} us")
+                  f"batch sampler {r['batch_sampler']['our_failures'] / shots:.4%}  "
+                  f"chi2 z {r['sampler']['z']:+.2f}/{r['batch_sampler']['z']:+.2f}  "
+                  f"decode {r['pymatching_us']:.1f} us vs {r['ours_us']:.1f} us  "
+                  f"sample {r['sample_us']['stim']:.2f} / {r['sample_us']['frame']:.2f} / {r['sample_us']['batch']:.2f} us")
 
     print(f"Check 5: correlated matching against PyMatching's, {shots:,} shots per point")
     correlated = []

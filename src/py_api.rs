@@ -237,6 +237,74 @@ fn circuit_to_stim(text: &str) -> PyResult<String> {
     Ok(Circuit::parse(text).map_err(err)?.to_stim())
 }
 
+/// `num_shots` shots from the bit-parallel sampler, 64 at a time, as b8 rows
+/// of detectors and of observables, and the seconds it took. `threads = 0`
+/// uses every core; each thread samples whole batches from its own stream.
+#[pyfunction]
+#[pyo3(signature = (circuit_text, num_shots, seed, threads=1))]
+fn sample_b8_batch<'py>(
+    py: Python<'py>,
+    circuit_text: &str,
+    num_shots: usize,
+    seed: u64,
+    threads: usize,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, f64)> {
+    let c = Circuit::parse(circuit_text).map_err(err)?;
+    let sampler = crate::batch_sampler::BatchSampler::new(&c).map_err(err)?;
+    let (ds, os) = (sampler.num_detectors.div_ceil(8), sampler.num_observables.div_ceil(8));
+    let batches = num_shots.div_ceil(64);
+    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
+        .clamp(1, batches.max(1));
+    let per = batches.div_ceil(threads);
+    let start = Instant::now();
+    let parts: Vec<(Vec<u8>, Vec<u8>)> = py.allow_threads(|| {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads)
+                .map(|t| {
+                    let sampler = &sampler;
+                    scope.spawn(move || {
+                        let mut rng = Xorshift::new(seed ^ (t as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                        let (mut dets, mut obs) = (Vec::new(), Vec::new());
+                        for b in (t * per)..((t + 1) * per).min(batches) {
+                            let lanes = (num_shots - b * 64).min(64);
+                            let batch = sampler.sample(&mut rng);
+                            let (d0, o0) = (dets.len(), obs.len());
+                            dets.resize(d0 + lanes * ds, 0);
+                            obs.resize(o0 + lanes * os, 0);
+                            for (d, &w) in batch.detectors.iter().enumerate() {
+                                let mut w = w;
+                                while w != 0 {
+                                    let lane = w.trailing_zeros() as usize;
+                                    w &= w - 1;
+                                    if lane < lanes {
+                                        dets[d0 + lane * ds + d / 8] |= 1 << (d % 8);
+                                    }
+                                }
+                            }
+                            for (k, &w) in batch.observables.iter().enumerate() {
+                                for lane in 0..lanes {
+                                    if (w >> lane) & 1 == 1 {
+                                        obs[o0 + lane * os + k / 8] |= 1 << (k % 8);
+                                    }
+                                }
+                            }
+                        }
+                        (dets, obs)
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("sampler thread panicked")).collect()
+        })
+    });
+    let seconds = start.elapsed().as_secs_f64();
+    let (mut dets, mut obs) = (Vec::new(), Vec::new());
+    for (d, o) in parts {
+        dets.extend(d);
+        obs.extend(o);
+    }
+    Ok((PyBytes::new_bound(py, &dets), PyBytes::new_bound(py, &obs), seconds))
+}
+
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
     Ok(write_01(&read_b8(packed, num_bits).map_err(err)?))
@@ -252,5 +320,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Decoder>()?;
     m.add_function(wrap_pyfunction!(m2d_b8, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_to_stim, m)?)?;
+    m.add_function(wrap_pyfunction!(sample_b8_batch, m)?)?;
     Ok(())
 }
