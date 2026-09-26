@@ -25,6 +25,7 @@ import { initXcheck } from './sections/xcheck.js';
 import { initHardware } from './sections/hardware.js';
 import { initRealtime } from './sections/realtime.js';
 import { initGross } from './sections/gross.js';
+import { initSurgery } from './sections/surgery.js';
 
 /**
  * Show a boot failure. Each caller supplies its own diagnosis — the two failure
@@ -75,6 +76,7 @@ async function boot() {
     initHardware($('#hardware'), compute);
     initRealtime($('#realtime'), compute);
     initGross($('#gross'), compute);
+    initSurgery($('#surgery'), compute);
   }
 
   let instance;

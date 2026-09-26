@@ -712,6 +712,23 @@ fn decode_b8_bposd<'py>(
     Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &conv), seconds))
 }
 
+/// Lattice surgery as a circuit (Stim text): two rotated distance-`d` patches,
+/// `pre` rounds apart, the seam prepared in |+> and `merged` rounds of the
+/// merged patch, the split, `post` rounds apart, and the readout, SD6 noise
+/// `p`. `basis` "z": both patches in |0>, observables L0 = the merge outcome
+/// Z1Z2, L1 = Z1, L2 = Z2. "x": both in |+>, L0 = X1X2.
+#[pyfunction]
+#[pyo3(signature = (d, merged, p, basis="z", pre=None, post=None))]
+fn surgery_circuit(d: usize, merged: usize, p: f64, basis: &str, pre: Option<usize>, post: Option<usize>) -> PyResult<String> {
+    let basis = match basis {
+        "z" => Basis::Z,
+        "x" => Basis::X,
+        other => return Err(err(format!("unknown basis '{other}'"))),
+    };
+    let s = crate::surgery::Surgery { d, pre: pre.unwrap_or(d), merged, post: post.unwrap_or(d), basis, p };
+    Ok(s.circuit().map_err(err)?.to_stim())
+}
+
 /// b8 rows of `num_bits` bits as Stim's 01 text.
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
@@ -737,5 +754,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bb_memory_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bposd_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_bposd, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_circuit, m)?)?;
     Ok(())
 }

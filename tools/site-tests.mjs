@@ -10,6 +10,7 @@ import { splitRuns, mergeStream, mergeStreamResults } from '../js/pool-merge.js'
 import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
+import { surgeryLayout } from '../js/surgery-geometry.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -281,6 +282,25 @@ test('bivariate bicycle geometry: the gross code as src/bb.rs builds it, commuti
   assert.equal(torusDelta(1, 23, 24), -2);
   assert.equal(torusDelta(23, 1, 24), 2);
   assert.equal(torusDelta(0, 12, 24), 12);
+});
+
+test('lattice surgery geometry: the counts src/surgery.rs asserts, and Z1Z2 as the new seam checks', () => {
+  for (const d of [3, 5, 7]) {
+    const g = surgeryLayout(d);
+    assert.equal(g.patches.length, 2 * (d * d - 1));
+    assert.equal(g.merged.length, d * (2 * d + 1) - 1);
+    // The new Z checks sit in the two columns beside the seam; their supports
+    // cover each seam qubit twice and patch 1's last and patch 2's first
+    // columns once: their product is Z on those two columns, Z1 Z2.
+    const count = new Map();
+    for (const c of g.newZ) for (const [x, y] of c.support) count.set(`${x},${y}`, (count.get(`${x},${y}`) ?? 0) + 1);
+    for (const [k, n] of count) {
+      const x = Number(k.split(',')[0]);
+      assert.equal(n % 2, x === g.seam ? 0 : 1, `qubit ${k}`);
+      assert.ok([g.p1[1], g.seam, g.p2[0]].includes(x));
+    }
+    assert.equal([...count.values()].filter((n) => n % 2 === 1).length, 2 * d);
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

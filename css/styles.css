@@ -698,8 +698,9 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    quoted rather than fitted, are italic. */
 .hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
 .hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
-[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot] { width: 100%; }
-[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot] { width: 100%; }
+[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-ls-phases] { margin-bottom: var(--s4); }
 [data-bb-canvas] { touch-action: none; cursor: crosshair; }
 /* The column heads carry ε and d, which the site's uppercase heads would turn
    into E and D. */

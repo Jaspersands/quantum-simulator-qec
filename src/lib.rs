@@ -48,6 +48,8 @@ mod wasm_hw;
 mod wasm_rt;
 #[cfg(not(feature = "python"))]
 mod wasm_bb;
+#[cfg(not(feature = "python"))]
+mod wasm_ls;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;

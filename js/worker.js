@@ -16,7 +16,7 @@
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
   xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode, hwBeliefModel, hwBeliefDecode,
-  rtSetup, rtWindows, rtGlobal, bbSetup, bbRun,
+  rtSetup, rtWindows, rtGlobal, bbSetup, bbRun, lsSetup, lsRun,
 } from './engine.js';
 import { planChunks } from './stream.js';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
@@ -352,6 +352,26 @@ const OPS = {
       report({ shots, failures, done: b + 1, total: batches });
     }
     return { ...config, detectors: setup.detectors, faults: setup.faults, shots, failures, converged, seconds };
+  },
+
+  /**
+   * Section 14's live panel: batches of 64 shots of lattice surgery, sampled
+   * and matched here.
+   */
+  async surgery(instance, { config, batches }, report) {
+    const setup = lsSetup(instance, config);
+    let shots = 0, any = 0, outcome = 0, patches = 0, seconds = 0;
+    for (let b = 0; b < batches; b++) {
+      const t0 = performance.now();
+      const r = lsRun(instance);
+      seconds += (performance.now() - t0) / 1000;
+      shots += r.shots;
+      any += r.any;
+      outcome += r.outcome;
+      patches += r.patches;
+      report({ shots, outcome, done: b + 1, total: batches });
+    }
+    return { ...config, detectors: setup.detectors, shots, any, outcome, patches, seconds };
   },
 
   async sweep(instance, { distances, ps, base }, report) {

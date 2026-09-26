@@ -37,6 +37,7 @@
     <li><a class="toc__link" href="#hardware"><span class="toc__num">11</span><span>Real hardware</span></a></li>
     <li><a class="toc__link" href="#realtime"><span class="toc__num">12</span><span>Real time</span></a></li>
     <li><a class="toc__link" href="#gross"><span class="toc__num">13</span><span>Beyond the surface code</span></a></li>
+    <li><a class="toc__link" href="#surgery"><span class="toc__num">14</span><span>Lattice surgery</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -1629,6 +1630,106 @@
       <p class="note">Every worker builds the circuit, its error model (faults with the same symptom merged) and a
         BP+OSD-CS decoder of order 7, then samples batches of 64 shots with the bit-parallel sampler and decodes
         each. Figure 14's [[72, 12, 6]] points at the same p are the native measurement of the same experiment.</p>
+    </div>
+  </figure>
+
+</section>
+
+<section class="section" id="surgery">
+  <div class="section__head">
+    <span class="section__num">14</span>
+    <h2 class="section__title">Lattice surgery</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every experiment above holds logical qubits still. A computer needs them to interact, and on a planar chip the
+      standard way is <strong>lattice surgery</strong>. Two patches are merged across the seam between them by
+      measuring the merged patch's checks for some rounds; the product of the new checks along the seam is the joint
+      parity of the two logical qubits, here <span class="mono">Z₁Z₂</span>; then the patches are split again. How many
+      merged rounds one such measurement needs sets the clock of every resource estimate.
+    </p>
+    <p>
+      This engine writes the whole experiment as one circuit: prepare, merge, split, read out. Its detectors follow a
+      single rule, even where checks change shape at the merge and the split, and without noise every one of them is
+      deterministic. Its error model equals Stim's fault for fault, and the matchers agree with PyMatching.
+    </p>
+  </div>
+
+  <figure class="figure" data-ls-diagram>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 16</span>
+      <span class="figure__title">measuring Z₁Z₂ by merging</span>
+      <span class="figure__meta">two d = 5 patches and their seam</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="segmented" role="radiogroup" aria-label="Phase" data-ls-phases></div>
+      <canvas data-ls-canvas></canvas>
+      <div class="legend">
+        <span class="legend__item"><span class="legend__key legend__key--xplaq"></span>X check</span>
+        <span class="legend__item"><span class="legend__key legend__key--zplaq"></span>Z check</span>
+        <span class="legend__item"><span class="legend__key legend__key--round legend__key--defect"></span>seam</span>
+        <span class="legend__item"><span class="legend__key legend__key--line legend__key--dashed legend__key--z"></span>each patch's logical Z</span>
+      </div>
+      <p class="note" data-ls-note></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-ls-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 17</span>
+      <span class="figure__title">what the merged rounds buy</span>
+      <span class="figure__meta">† measured natively</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-ls-plot data-aspect="0.5"></canvas>
+      <div class="legend" data-ls-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">How often the merge outcome is wrong, against merged rounds, correlated matching</caption>
+          <thead>
+            <tr>
+              <th scope="col">Merge outcome wrong</th>
+              <th scope="col" class="num">T = 2</th>
+              <th scope="col" class="num">T = d</th>
+              <th scope="col" class="num">T = 2d</th>
+              <th scope="col" class="num">T = d, plain</th>
+              <th scope="col" class="num">Either patch, T = d</th>
+            </tr>
+          </thead>
+          <tbody data-ls-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-ls-fit-status>Loads when you scroll here.</p>
+      <p class="note" data-ls-fit-foot></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-ls-live>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 18</span>
+      <span class="figure__title">lattice surgery, here</span>
+      <span class="figure__meta">SD6, p = 0.3%, correlated matching</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Lattice surgery sampled and matched in this tab</caption>
+          <thead>
+            <tr>
+              <th scope="col">Experiment</th>
+              <th scope="col" class="num">Shots</th>
+              <th scope="col" class="num">Merge outcome wrong</th>
+              <th scope="col" class="num">Per shot, one core</th>
+            </tr>
+          </thead>
+          <tbody data-ls-live-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-ls-live-status>Runs when you scroll here.</p>
+      <p class="note">Each row on its own worker: batches of 64 shots of the whole experiment, sampled by the
+        bit-parallel sampler and matched with correlated matching. Two merged rounds leave the outcome exposed to a
+        pair of measurement errors on one seam check; d rounds make that as unlikely as any other failure.</p>
     </div>
   </figure>
 

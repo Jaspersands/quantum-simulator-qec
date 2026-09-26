@@ -543,6 +543,18 @@ export function bbRun(instance) {
   return replyOrThrow(instance, instance.exports.wasm_bb_run());
 }
 
+/* -- Lattice surgery (section 14) ---------------------------------------- */
+
+/** Build Z-basis lattice surgery (d rounds either side, `merged` merged) and its matcher. */
+export function lsSetup(instance, { d, merged, p, correlated = true }) {
+  return replyOrThrow(instance, instance.exports.wasm_ls_setup(d, merged, p, correlated ? 1 : 0));
+}
+
+/** Sample 64 shots and decode them: failures at all, on the merge outcome, on the patches. */
+export function lsRun(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_ls_run());
+}
+
 /* -- Real-time decoding (section 12) ------------------------------------- */
 
 /** Build a rotated SD6 memory stream's window decoder, sampler and global decoder. */
