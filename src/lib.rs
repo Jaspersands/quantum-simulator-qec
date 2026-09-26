@@ -22,6 +22,7 @@ pub mod dem;
 pub mod dem_decoder;
 pub mod sparse;
 pub mod m2d;
+pub mod window;
 pub mod frame_sampler;
 pub mod batch_sampler;
 pub mod shots;

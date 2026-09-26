@@ -123,6 +123,38 @@ impl Correlations {
     pub(crate) fn num_edges(&self) -> usize {
         self.start.len() - 1
     }
+
+    /// The rules among a subset of the edges: `map[global]` is an edge's id in
+    /// the subset, or NONE if it is not in it. A rule naming an edge outside is
+    /// dropped.
+    pub(crate) fn restrict(&self, map: &[u32], num_local: usize) -> Correlations {
+        let mut rules: Vec<(u32, u32, i64, f64)> = Vec::new();
+        for (c, &lc) in map.iter().enumerate() {
+            if lc == NONE {
+                continue;
+            }
+            for r in self.rules(c as u32) {
+                let la = map[self.affected[r] as usize];
+                if la != NONE {
+                    rules.push((lc, la, self.weight[r], self.prob[r]));
+                }
+            }
+        }
+        rules.sort_unstable_by(|x, y| (x.0, x.1).cmp(&(y.0, y.1)));
+        let mut start = vec![0u32; num_local + 1];
+        for &(c, ..) in &rules {
+            start[c as usize + 1] += 1;
+        }
+        for i in 0..num_local {
+            start[i + 1] += start[i];
+        }
+        Correlations {
+            start,
+            affected: rules.iter().map(|r| r.1).collect(),
+            weight: rules.iter().map(|r| r.2).collect(),
+            prob: rules.iter().map(|r| r.3).collect(),
+        }
+    }
 }
 
 impl<'a> Solver<'a> {
@@ -156,6 +188,18 @@ impl<'a> Solver<'a> {
         self.reweight(corr);
         self.reset();
         let result = self.run(defects, false).map(|()| self.extract());
+        self.restore();
+        result
+    }
+
+    /// Pass two, then its matching's edges traced on the lowered weights into
+    /// `s.edge_set`, before the weights are restored: the correction a window
+    /// decoder commits from.
+    pub(crate) fn pass_two_edges(&mut self, corr: &Correlations, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        self.reweight(corr);
+        self.reset();
+        let result = self.run(defects, false).map(|()| self.extract());
+        let result = result.and_then(|p| self.trace_pairs().map(|()| p));
         self.restore();
         result
     }
