@@ -30,7 +30,8 @@
 pub enum Method {
     /// The exact rule on a tree: tanh products.
     ProductSum,
-    /// The min-sum approximation, scaled.
+    /// The min-sum approximation, scaled; a scale of zero means `ldpc`'s
+    /// adaptive scaling, 1 − 2⁻ⁱ at iteration i.
     MinSum { scale: f64 },
 }
 
@@ -152,7 +153,7 @@ impl Bp {
             }
         }
         for it in 1..=max_iter {
-            self.check_update(syndrome, method, w);
+            self.check_update(syndrome, method, it, w);
             // Posteriors and the hard decision, with each edge's outgoing
             // message primed by the prefix sum down its column.
             for v in 0..self.num_vars {
@@ -184,7 +185,7 @@ impl Bp {
         BpOutcome { converged: false, iterations: max_iter }
     }
 
-    fn check_update(&self, syndrome: &[u8], method: Method, w: &mut BpWork) {
+    fn check_update(&self, syndrome: &[u8], method: Method, it: usize, w: &mut BpWork) {
         for c in 0..self.num_checks {
             let row = &self.chk_edges[self.chk_start[c] as usize..self.chk_start[c + 1] as usize];
             match method {
@@ -206,6 +207,7 @@ impl Bp {
                     }
                 }
                 Method::MinSum { scale } => {
+                    let scale = if scale == 0.0 { 1.0 - 2f64.powi(-(it as i32)) } else { scale };
                     let mut total_sign = u32::from(syndrome[c] != 0);
                     let mut temp = f64::INFINITY;
                     for &e in row {
