@@ -63,10 +63,12 @@ export function engineSize() {
 }
 
 /**
- * Fetch and instantiate the engine.
- * @returns {Promise<WebAssembly.Instance>}
+ * Fetch and compile the engine once. The page's own instance and every worker
+ * in the pool instantiate the same compiled module, so the reader downloads it
+ * once, not once per core.
+ * @returns {Promise<WebAssembly.Module>}
  */
-export async function instantiate(url = WASM_URL) {
+export async function compileEngine(url = WASM_URL) {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`could not fetch engine (${response.status} ${response.statusText})`);
@@ -75,7 +77,17 @@ export async function instantiate(url = WASM_URL) {
   // The page states the engine's size; take it from the module actually loaded
   // rather than from a literal that goes stale the next time it is rebuilt.
   announceSize(bytes.byteLength);
-  const { instance } = await WebAssembly.instantiate(bytes, {});
+  return WebAssembly.compile(bytes);
+}
+
+/**
+ * Fetch and instantiate the engine, or instantiate an already compiled module.
+ * @param {string|URL|WebAssembly.Module} [source]
+ * @returns {Promise<WebAssembly.Instance>}
+ */
+export async function instantiate(source = WASM_URL) {
+  const module = source instanceof WebAssembly.Module ? source : await compileEngine(source);
+  const instance = await WebAssembly.instantiate(module, {});
 
   // The engine's generator starts from a fixed constant, so without this every
   // page load would produce byte-identical "measurements". Seed it from the

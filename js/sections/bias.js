@@ -115,8 +115,8 @@ export function initBias(root, compute) {
     running = true;
     runBtn.disabled = true;
     fill(summary, el('p', { class: 'muted fit-note', text: 'Sweeping…' }));
-    // The worker runs one job at a time and may still be filling the section 7
-    // table, so say that rather than leaving a stale line on screen.
+    // Each worker in the pool runs one job at a time, and they may all still be
+    // filling the section 7 table, so say that rather than leave a stale line.
     status.textContent = 'Queued…';
 
     const cells = [];
@@ -128,16 +128,13 @@ export function initBias(root, compute) {
     const collected = [];
 
     try {
-      await compute.call('table', {
-        cells,
-        base: {
-          d: Number(dSelect.value),
-          decoder: DECODER.UNION_FIND,
-          noiseMode: NOISE.DATA,
-          rounds: 1,
-          p: Number(pInput.value) || 0.06,
-          runs,
-        },
+      await compute.table(cells, {
+        d: Number(dSelect.value),
+        decoder: DECODER.UNION_FIND,
+        noiseMode: NOISE.DATA,
+        rounds: 1,
+        p: Number(pInput.value) || 0.06,
+        runs,
       }, ({ done, total, cell }) => {
         collected.push(cell);
         status.textContent = `η = ${cell.bias} · ${done}/${total}`;

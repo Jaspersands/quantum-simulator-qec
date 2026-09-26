@@ -317,6 +317,15 @@ self.onmessage = async (event) => {
   const report = (progress) => self.postMessage({ id, type: 'progress', ...progress });
   const control = { cancelled: () => cancelled.has(id) };
 
+  // The pool hands every worker the page's compiled module first, so the
+  // engine is downloaded once rather than once per worker.
+  if (op === 'module') {
+    enginePromise = instantiate(payload.module);
+    enginePromise.then(() => self.postMessage({ id, type: 'done', result: true }),
+      (error) => self.postMessage({ id, type: 'error', message: error?.message ?? String(error) }));
+    return;
+  }
+
   try {
     const handler = OPS[op];
     if (!handler) throw new Error(`unknown operation "${op}"`);

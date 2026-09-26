@@ -5,6 +5,8 @@ import { planChunks } from '../js/stream.js';
 import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../js/sweep-config.js';
 import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megabytes } from '../js/xcheck-format.js';
 import { logTicks } from '../js/plot.js';
+import { splitRuns, mergeStream, mergeStreamResults } from '../js/pool-merge.js';
+import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
@@ -224,6 +226,23 @@ test('hardware labels and formats', () => {
   assert.equal(percentRange([0.0014, 0.00146]), '0.140–0.146%');
   assert.equal(ratio(2.1374, [2.11, 2.17]), '2.14 [2.11, 2.17]');
   assert.equal(ratio(2.1374), '2.14');
+});
+
+test('the pool splits runs without losing any, and combines progress and results', () => {
+  for (const [total, n] of [[40000, 7], [5, 8], [1, 3], [64, 8]]) {
+    const parts = splitRuns(total, n);
+    assert.equal(parts.reduce((s, x) => s + x, 0), total);
+    assert.ok(parts.every((x) => x > 0) && parts.length === Math.min(n, total));
+    assert.ok(Math.max(...parts) - Math.min(...parts) <= 1);
+  }
+  const p = mergeStream([{ done: 100, failures: 3, seconds: 0.5 }, null, { done: 50, failures: 2, seconds: 0.8, decodeErrors: 1 }], 300);
+  assert.deepEqual(p, { done: 150, total: 300, failures: 5, decodeErrors: 1, seconds: 0.8 });
+  const r = mergeStreamResults([
+    { runs: 100, failures: 3, seconds: 0.5, cancelled: false },
+    { runs: 100, failures: 5, seconds: 1.0, cancelled: true, decodeErrors: 2 },
+  ]);
+  assert.deepEqual(r, { runs: 200, failures: 8, rate: 0.04, seconds: 1, decodeErrors: 2, runsPerSecond: 200, cancelled: true });
+  assert.ok(poolSize() >= 1 && poolSize() <= 8);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

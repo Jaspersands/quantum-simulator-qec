@@ -6,8 +6,8 @@
  * worker holds its own for Monte Carlo, so a long sweep never blocks a click.
  */
 
-import { instantiate } from './engine.js';
-import { Compute } from './compute.js';
+import { instantiate, compileEngine } from './engine.js';
+import { Pool } from './pool.js';
 import { initNav } from './nav.js';
 import { $ } from './dom.js';
 
@@ -47,9 +47,15 @@ async function boot() {
   const parityRoot = $('#parity');
   if (parityRoot) initParity(parityRoot);
 
+  // One download and one compile, shared by the page's instance and the pool.
+  const module = compileEngine();
+  module.catch(() => {});
+
   let compute = null;
   try {
-    compute = new Compute();
+    // ?workers=N sets the pool's size, for measuring what the pool buys.
+    const asked = Number(new URLSearchParams(location.search).get('workers'));
+    compute = new Pool(asked > 0 ? Math.min(asked, 16) : undefined, module);
   } catch (error) {
     fail(`Could not start the simulation worker (${error.message}). `
       + 'The Monte Carlo sections (the results table, the threshold sweep, the bias comparison, '
@@ -69,7 +75,7 @@ async function boot() {
 
   let instance;
   try {
-    instance = await instantiate();
+    instance = await instantiate(await module);
   } catch (error) {
     fail(`Could not load the simulation engine (${error.message}). ${SERVE_HINT}`);
     return;

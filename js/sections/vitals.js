@@ -40,7 +40,8 @@ export function initVitals(root, compute) {
     ]);
     if (note) {
       note.textContent = `Timed on this device just now, best of several samples over `
-        + `${count(result.sampleRuns)} decoded shots at d = 5. A throttled or busy machine will read lower.`;
+        + `${count(result.sampleRuns)} decoded shots at d = 5, on one worker; the Monte Carlo below runs on `
+        + `${compute.size ?? 1} at once. A throttled or busy machine will read lower.`;
     }
   }).catch((error) => {
     dataRate.innerHTML = '<span class="muted">unavailable</span>';

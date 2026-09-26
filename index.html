@@ -1260,10 +1260,14 @@
     </div>
     <div>
       <dt>Threading</dt>
-      <dd>Two engine instances, seeded independently. The main thread keeps one for the
-      interactive figures so clicks answer immediately; a worker holds a second for Monte Carlo, so
-      a long sweep never blocks the page. All sampling happens inside Rust; the browser only says
-      how many shots to run.</dd>
+      <dd>One engine instance on the main thread, for the interactive figures, so clicks answer
+      immediately; and a pool of workers for Monte Carlo, one per core but one (at most eight), each
+      with its own instance, seeded independently, so a long sweep never blocks the page and uses
+      every core. The sweep, the tables, the bench and the live decoding split their shots across
+      the pool; every result is a sum over independent shots, so splitting changes the wall-clock
+      time and nothing else. WebAssembly's own threads would need cross-origin isolation headers,
+      which GitHub Pages cannot send. All sampling happens inside Rust, 64 shots to a machine word;
+      the browser only says how many to run.</dd>
     </div>
     <div>
       <dt>Statistics</dt>
