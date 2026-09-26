@@ -19,6 +19,8 @@ function palette() {
 }
 
 const MARGIN = { top: 22, right: 18, bottom: 44, left: 56 };
+/** Closest two y labels may sit, in CSS pixels. */
+const MIN_LABEL_GAP = 13;
 
 /**
  * Canvas has no idea what `var(--d3)` means, but the legend markup does. Series
@@ -187,8 +189,19 @@ export class Plot {
       ctx.lineWidth = i === 0 ? 1 : 0.6;
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.fillText(this.options.formatY(v), MARGIN.left - 8, y);
     });
+    // Every major tick is labelled; a minor one only where it has room, so a
+    // short log axis spanning several decades stays legible.
+    const labelled = [];
+    for (const pass of [true, false]) {
+      for (const { v, major } of yTicks) {
+        if (major !== pass) continue;
+        const y = sy(v);
+        if (!major && labelled.some((l) => Math.abs(l - y) < MIN_LABEL_GAP)) continue;
+        labelled.push(y);
+        ctx.fillText(this.options.formatY(v), MARGIN.left - 8, y);
+      }
+    }
 
     // x labels
     ctx.textAlign = 'center';

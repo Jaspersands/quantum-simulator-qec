@@ -74,7 +74,9 @@ function keepRows(latency) {
 
 function accuracyRows(fits) {
   const order = ['global/plain', 'window/sliding/Bd/plain', 'window/parallel/Bd/plain',
-    'global/correlated', 'window/sliding/Bd/correlated', 'window/parallel/Bd/correlated'];
+    'window/parallel/Bhalf/plain', 'window/parallel/B2d/plain',
+    'global/correlated', 'window/sliding/Bd/correlated', 'window/parallel/Bd/correlated',
+    'window/parallel/Bhalf/correlated', 'window/parallel/B2d/correlated'];
   return order.filter((k) => fits.has(k)).map((key) => {
     const { eps, lambda, interval } = fits.get(key);
     const byD = new Map(eps.map((e) => [e.d, e]));
@@ -135,7 +137,9 @@ export function initRealtime(root, compute) {
         + `${m.streams} streams × ${million.rounds.toLocaleString('en-US')} rounds decoded with ${m.unexplained} `
         + `defects unexplained; ${keepUpText(mk, 'parallel').toLowerCase()}${mk ? `, at ${us(m.by_workers[mk].mean_us)} mean latency` : ''}. ` : '')
       + 'Google\'s 63 µs is its own real-time decoder at d = 5, on its own hardware (arXiv:2408.13687). '
-      + 'The accuracy table fits every Willow experiment\'s windowed and global failures the same way as section 11.';
+      + 'The accuracy table fits every Willow experiment\'s windowed and global failures the same way as section 11; '
+      + 'windows commit d rounds with a buffer of d unless the row names another, and buffers of d/2 and 2d were '
+      + 'run at d = 5 only.';
     status.textContent = 'Loaded.';
   }
 
