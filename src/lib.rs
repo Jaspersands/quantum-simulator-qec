@@ -27,6 +27,7 @@ pub mod bp;
 pub mod gf2;
 pub mod bb;
 pub mod osd;
+pub mod surgery;
 pub mod belief;
 pub mod stream;
 pub mod frame_sampler;
