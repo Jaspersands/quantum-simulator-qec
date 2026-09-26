@@ -83,9 +83,34 @@ def run_point(code, cycles, p, shot_cap, time_cap, seed):
     return rec
 
 
+def surface_point(d, p, shot_cap, time_cap, seed):
+    """A rotated surface code's Z memory beside it: SD6 at the same p, 12 rounds,
+    correlated matching. SD6 also puts noise on the Hadamards the surface
+    code's X checks use, which the bivariate bicycle circuit does not have, so
+    the comparison slightly favours the gross code."""
+    text = sq.generate_circuit("rotated", d, 12, "sd6", p, 0.5, "z")
+    failures, shots, t0, batch = 0, 0, time.perf_counter(), 0
+    while True:
+        dets, obs, _ = sq.sample_b8_batch(text, 16_384, seed * 7919 + batch, 0)
+        truth = np.frombuffer(obs, np.uint8) & 1
+        raw, _, errors, _ = sq.decode_b8_own(text, dets, 16_384, 0, True)
+        pred = (np.frombuffer(raw, "<u8") & np.uint64(1)).astype(np.uint8)
+        failures += int((pred != truth).sum()) + int(errors)
+        shots += 16_384
+        batch += 1
+        if failures >= TARGET_FAILURES or shots >= shot_cap or time.perf_counter() - t0 >= time_cap:
+            break
+    lo, hi = wilson(failures, shots)
+    return dict(code=f"surface-d{d}", cycles=12, p=p, shots=shots,
+                results={"correlated_matching": dict(failures=failures, pl_shot=failures / shots,
+                                                     pl_cycle=per_cycle(failures / shots, 12),
+                                                     pl_cycle_interval=[per_cycle(lo, 12), per_cycle(hi, 12)])})
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--surface", action="store_true", help="the rotated surface code beside it, d = 11 and 13")
     ap.add_argument("--shot-cap", type=int, default=400_000)
     ap.add_argument("--time-cap", type=float, default=1800.0, help="seconds per point")
     args = ap.parse_args()
@@ -93,6 +118,20 @@ def main():
     doc = load_json(out_path, dict(points={})) if not args.quick else dict(points={})
     doc.update(engine_commit=engine_commit(), machine=machine(), decoders={k: dict(osd=v[0], order=v[1], bp="minimum_sum, adaptive scaling", max_iter=10_000) for k, v in DECODERS.items()},
                note="Z-basis memory, Bravyi et al.'s depth-8 cycle and noise model; a shot fails if any logical qubit does")
+    if args.surface:
+        for d in (11, 13):
+            for p in PS:
+                key = f"surface-d{d}/{p}"
+                if key in doc.setdefault("surface", {}):
+                    continue
+                t = time.perf_counter()
+                rec = surface_point(d, p, args.shot_cap, args.time_cap, seed=int(p * 1e4) + d)
+                doc["surface"][key] = rec
+                write_json(out_path, doc)
+                r = rec["results"]["correlated_matching"]
+                print(f"surface d={d} p={p:.3f}: {rec['shots']:>9,} shots, {r['failures']} failures, p_L/cycle {r['pl_cycle']:.2e}"
+                      f"  {time.perf_counter() - t:.0f} s", flush=True)
+        return
     for code, cycles in CODES.items():
         for p in ([0.005] if args.quick else PS):
             key = f"{code}/{p}"
