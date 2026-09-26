@@ -531,6 +531,30 @@ export function hwBeliefDecode(instance, dets, shots) {
   return { ...out, predictions: readBytes(instance, shots) };
 }
 
+/* -- Bivariate bicycle codes (section 13) -------------------------------- */
+
+/** Build a bivariate bicycle memory (code 0: [[72,12,6]]; 1: the gross code) and its BP+OSD decoder. */
+export function bbSetup(instance, { code, cycles, p, maxIter = 10000 }) {
+  return replyOrThrow(instance, instance.exports.wasm_bb_setup(code, cycles, p, maxIter));
+}
+
+/** Sample 64 shots and decode them with BP+OSD: failures, and how often BP alone converged. */
+export function bbRun(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_bb_run());
+}
+
+/* -- Lattice surgery (section 14) ---------------------------------------- */
+
+/** Build Z-basis lattice surgery (d rounds either side, `merged` merged) and its matcher. */
+export function lsSetup(instance, { d, merged, p, correlated = true }) {
+  return replyOrThrow(instance, instance.exports.wasm_ls_setup(d, merged, p, correlated ? 1 : 0));
+}
+
+/** Sample 64 shots and decode them: failures at all, on the merge outcome, on the patches. */
+export function lsRun(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_ls_run());
+}
+
 /* -- Real-time decoding (section 12) ------------------------------------- */
 
 /** Build a rotated SD6 memory stream's window decoder, sampler and global decoder. */

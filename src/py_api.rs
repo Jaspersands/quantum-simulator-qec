@@ -59,7 +59,8 @@ fn generate_circuit(code: &str, d: usize, rounds: usize, noise: &str, p: f64, et
 #[pyo3(signature = (circuit_text, decompose=false))]
 fn dem_from_circuit(circuit_text: &str, decompose: bool) -> PyResult<String> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
-    Ok(Dem::from_circuit(&c).map_err(err)?.to_stim(decompose))
+    let dem = if decompose { Dem::from_circuit(&c) } else { Dem::from_circuit_undecomposed(&c) };
+    Ok(dem.map_err(err)?.to_stim(decompose))
 }
 
 type Decoded<'py> = (Bound<'py, PyBytes>, Bound<'py, PyBytes>, usize, f64);
@@ -580,6 +581,154 @@ fn decode_b8_belief<'py>(
     Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), PyBytes::new_bound(py, &conv), errors, seconds))
 }
 
+fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
+    match name {
+        "gross" | "144" => Ok(crate::bb::BbCode::gross()),
+        "72" => Ok(crate::bb::BbCode::bb72()),
+        other => Err(err(format!("unknown bivariate bicycle code '{other}' (gross or 72)"))),
+    }
+}
+
+/// A bivariate bicycle code's check matrices and paired logical operators,
+/// each as a list of rows, a row being the data qubits it acts on:
+/// (H_X, H_Z, logical X, logical Z).
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn bb_matrices(code: &str) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
+    let c = bb_code(code)?;
+    let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect::<Vec<_>>();
+    let (lx, lz) = c.logicals();
+    Ok((rows(&c.hx()), rows(&c.hz()), rows(&lx), rows(&lz)))
+}
+
+/// The paper's Z-basis memory on a bivariate bicycle code ("gross" or "72"),
+/// `cycles` depth-8 syndrome cycles under circuit noise `p`, as Stim text.
+#[pyfunction]
+fn bb_memory_circuit(code: &str, cycles: usize, p: f64) -> PyResult<String> {
+    Ok(bb_code(code)?.memory_z(cycles, p))
+}
+
+fn osd_method(name: &str, order: usize) -> PyResult<crate::osd::OsdMethod> {
+    use crate::osd::OsdMethod;
+    match name {
+        "osd_0" | "osd0" => Ok(OsdMethod::Osd0),
+        "osd_e" => Ok(OsdMethod::Exhaustive(order)),
+        "osd_cs" => Ok(OsdMethod::CombinationSweep(order)),
+        other => Err(err(format!("OSD method '{other}' is not osd_0, osd_e or osd_cs"))),
+    }
+}
+
+/// BP+OSD on a parity-check matrix given by its columns. Returns (correction,
+/// BP converged, iterations).
+#[pyfunction]
+#[pyo3(signature = (num_checks, columns, priors, syndrome, max_iter=20, method="minimum_sum", ms_scale=0.0, osd="osd_cs", osd_order=7))]
+#[allow(clippy::too_many_arguments)]
+fn bposd_decode(
+    num_checks: usize,
+    columns: Vec<Vec<u32>>,
+    priors: Vec<f64>,
+    syndrome: Vec<u8>,
+    max_iter: usize,
+    method: &str,
+    ms_scale: f64,
+    osd: &str,
+    osd_order: usize,
+) -> PyResult<(Vec<u8>, bool, usize)> {
+    use crate::osd::BpOsd;
+    let dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, ms_scale)?, max_iter, osd_method(osd, osd_order)?)
+        .map_err(err)?;
+    if syndrome.len() != num_checks {
+        return Err(err(format!("{} syndrome bits for {num_checks} checks", syndrome.len())));
+    }
+    let mut w = dec.work();
+    let out = dec.decode(&syndrome, &mut w);
+    Ok((w.correction, out.converged, out.iterations))
+}
+
+/// BP+OSD of b8 shots on an undecomposed error model: each fault a column,
+/// its prior the model's. Returns (predictions as u64 per shot; one byte per
+/// shot, 1 where BP converged; seconds).
+#[pyfunction]
+#[pyo3(signature = (dem_text, packed, num_shots, max_iter=10_000, method="minimum_sum", ms_scale=0.0, osd="osd_cs", osd_order=7, threads=0))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn decode_b8_bposd<'py>(
+    py: Python<'py>,
+    dem_text: &str,
+    packed: &[u8],
+    num_shots: usize,
+    max_iter: usize,
+    method: &str,
+    ms_scale: f64,
+    osd: &str,
+    osd_order: usize,
+    threads: usize,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, f64)> {
+    use crate::osd::BpOsd;
+    let dem = Dem::parse(dem_text).map_err(err)?;
+    let columns: Vec<Vec<u32>> = dem.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+    let priors: Vec<f64> = dem.mechanisms.iter().map(|m| m.p).collect();
+    let obs: Vec<u64> = dem.mechanisms.iter().map(|m| m.observables).collect();
+    let dec = BpOsd::new(dem.num_detectors, columns, &priors, bp_method(method, ms_scale)?, max_iter, osd_method(osd, osd_order)?)
+        .map_err(err)?;
+    let nd = dem.num_detectors;
+    let stride = nd.div_ceil(8);
+    if packed.len() != stride * num_shots {
+        return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
+    }
+    let threads = resolve_threads(threads, num_shots);
+    let chunk = num_shots.div_ceil(threads);
+    let start = Instant::now();
+    let parts: Vec<Vec<(u64, u8)>> = py.allow_threads(|| {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads)
+                .map(|t| {
+                    let (dec, obs) = (&dec, &obs);
+                    scope.spawn(move || {
+                        let mut work = dec.work();
+                        let mut syndrome = vec![0u8; nd];
+                        let mut out = Vec::new();
+                        for s in (t * chunk)..((t + 1) * chunk).min(num_shots) {
+                            let row = &packed[s * stride..(s + 1) * stride];
+                            for (i, x) in syndrome.iter_mut().enumerate() {
+                                *x = (row[i / 8] >> (i % 8)) & 1;
+                            }
+                            let o = dec.decode(&syndrome, &mut work);
+                            let pred = work.correction.iter().enumerate().filter(|x| *x.1 != 0).fold(0u64, |a, (v, _)| a ^ obs[v]);
+                            out.push((pred, u8::from(o.converged)));
+                        }
+                        out
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("BP+OSD thread panicked")).collect()
+        })
+    });
+    let seconds = start.elapsed().as_secs_f64();
+    let (mut preds, mut conv) = (Vec::new(), Vec::new());
+    for (o, c) in parts.into_iter().flatten() {
+        preds.extend_from_slice(&o.to_le_bytes());
+        conv.push(c);
+    }
+    Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &conv), seconds))
+}
+
+/// Lattice surgery as a circuit (Stim text): two rotated distance-`d` patches,
+/// `pre` rounds apart, the seam prepared in |+> and `merged` rounds of the
+/// merged patch, the split, `post` rounds apart, and the readout, SD6 noise
+/// `p`. `basis` "z": both patches in |0>, observables L0 = the merge outcome
+/// Z1Z2, L1 = Z1, L2 = Z2. "x": both in |+>, L0 = X1X2.
+#[pyfunction]
+#[pyo3(signature = (d, merged, p, basis="z", pre=None, post=None))]
+fn surgery_circuit(d: usize, merged: usize, p: f64, basis: &str, pre: Option<usize>, post: Option<usize>) -> PyResult<String> {
+    let basis = match basis {
+        "z" => Basis::Z,
+        "x" => Basis::X,
+        other => return Err(err(format!("unknown basis '{other}'"))),
+    };
+    let s = crate::surgery::Surgery { d, pre: pre.unwrap_or(d), merged, post: post.unwrap_or(d), basis, p };
+    Ok(s.circuit().map_err(err)?.to_stim())
+}
+
 /// b8 rows of `num_bits` bits as Stim's 01 text.
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
@@ -601,5 +750,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stream_decode, m)?)?;
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_matrices, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_memory_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(bposd_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_b8_bposd, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_circuit, m)?)?;
     Ok(())
 }

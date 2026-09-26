@@ -24,6 +24,10 @@ pub mod sparse;
 pub mod m2d;
 pub mod window;
 pub mod bp;
+pub mod gf2;
+pub mod bb;
+pub mod osd;
+pub mod surgery;
 pub mod belief;
 pub mod stream;
 pub mod frame_sampler;
@@ -42,6 +46,10 @@ mod wasm_xc;
 mod wasm_hw;
 #[cfg(not(feature = "python"))]
 mod wasm_rt;
+#[cfg(not(feature = "python"))]
+mod wasm_bb;
+#[cfg(not(feature = "python"))]
+mod wasm_ls;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;

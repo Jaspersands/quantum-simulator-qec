@@ -820,6 +820,171 @@ It is checked four ways:
 Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
 `node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
 
+## Beyond the surface code: IBM's gross code
+
+A surface code spends about 2d² physical qubits on each logical qubit. IBM's bivariate bicycle codes
+(Bravyi, Cross, Gambetta, Maslov, Rall and Yoder, *Nature* 627, 778, 2024) keep many at once. The
+**gross code**, [[144, 12, 12]], stores 12 logical qubits at distance 12 on 144 data and 144 check
+qubits; twelve distance-12 surface codes would need about 3,450.
+- **The code.** It lives on a 12 × 6 torus. With x and y the shifts along it, A = x³ + y + y² and
+  B = y³ + x + x² give H_X = [A | B] and H_Z = [Bᵀ | Aᵀ].
+- **The decoder.** Every check has weight six, and a fault sets off several at once, so nothing is
+  matchable. The decoder is **BP+OSD**:
+  - belief propagation (`src/bp.rs`, the same BP as belief-matching);
+  - where BP does not settle, ordered-statistics decoding (`src/osd.rs`). It solves the syndrome
+    equation on the faults BP trusts least: OSD-0, or with combinations of other faults tried as
+    well (OSD-E, OSD-CS).
+
+**Built** (`src/gf2.rs`, `src/bb.rs`):
+- **Logical operators** are computed over GF(2), not typed in. Z logicals are kernel vectors of H_X
+  outside the rowspace of H_Z, X logicals likewise, paired by inverting their overlap matrix.
+- **The memory experiment** is the paper's depth-8 syndrome cycle, from the schedule in its
+  published simulation code, with the paper's noise model and Z-basis memory.
+- **Its error model** is built by the same backward walk as every model here, undecomposed, since
+  these faults have no graph-like pieces (`Dem::from_circuit_undecomposed`).
+
+**Checked** (`tools/bb_check.py`, and the Rust tests):
+- The check matrices equal ones built independently the way Bravyi et al.'s code builds them
+  (Kronecker products of cyclic shifts). k = 12, the logical pairs anticommute exactly in pairs,
+  and every logical commutes with every check.
+- Without noise every detector of the memory circuit is deterministic, which is what says the
+  reconstructed schedule measures the stabilizers. The error model equals Stim's fault for fault.
+- BP+OSD's corrections equal `ldpc`'s `BpOsdDecoder`'s on every shot tried, on random matrices and
+  on the memory's model: OSD-0, OSD-E and OSD-CS, with `ldpc`'s adaptive min-sum scaling.
+  Exhaustive OSD finds the brute-force optimum.
+
+**Measured** (`tools/gross.py`; M2 Pro): the Z memory over N_c syndrome cycles (12 for the gross
+code, 6 for [[72, 12, 6]]). A shot fails if any logical qubit does, and the logical error per
+cycle is 1 − (1 − P_L)^(1/N_c). The decoder is the paper's: BP+OSD-CS of order 7, min-sum BP with
+adaptive scaling for up to 10,000 iterations. BP+OSD-0 runs on the same shots.
+
+| code | p | shots | failures | per cycle, BP+OSD-CS [95%] | per cycle, BP+OSD-0 | BP alone |
+|---|---|---|---|---|---|---|
+| gross [[144, 12, 12]] | 0.2% | 401,408 | 42 | 8.7 × 10⁻⁶ [6.5 × 10⁻⁶, 1.2 × 10⁻⁵] | 2.4 × 10⁻⁵ | 99.7% |
+| gross [[144, 12, 12]] | 0.3% | 94,208 | 202 | 1.8 × 10⁻⁴ [1.6 × 10⁻⁴, 2.1 × 10⁻⁴] | 3.7 × 10⁻⁴ | 97.8% |
+| gross [[144, 12, 12]] | 0.4% | 12,288 | 230 | 1.6 × 10⁻³ [1.4 × 10⁻³, 1.8 × 10⁻³] | 2.6 × 10⁻³ | 90.5% |
+| gross [[144, 12, 12]] | 0.5% | 2,048 | 247 | 1.1 × 10⁻² [9.4 × 10⁻³, 1.2 × 10⁻²] | 1.5 × 10⁻² | 68.7% |
+| gross [[144, 12, 12]] | 0.6% | 2,048 | 684 | 3.3 × 10⁻² [3.1 × 10⁻², 3.6 × 10⁻²] | 4.4 × 10⁻² | 39.5% |
+| [[72, 12, 6]] | 0.2% | 71,680 | 204 | 4.7 × 10⁻⁴ [4.1 × 10⁻⁴, 5.4 × 10⁻⁴] | 4.9 × 10⁻⁴ | 99.9% |
+| [[72, 12, 6]] | 0.3% | 14,336 | 217 | 2.5 × 10⁻³ [2.2 × 10⁻³, 2.9 × 10⁻³] | 2.9 × 10⁻³ | 98.8% |
+| [[72, 12, 6]] | 0.4% | 4,096 | 225 | 9.4 × 10⁻³ [8.2 × 10⁻³, 1.1 × 10⁻²] | 1.0 × 10⁻² | 95.1% |
+| [[72, 12, 6]] | 0.5% | 2,048 | 295 | 2.6 × 10⁻² [2.3 × 10⁻², 2.9 × 10⁻²] | 2.8 × 10⁻² | 87.4% |
+| [[72, 12, 6]] | 0.6% | 2,048 | 565 | 5.2 × 10⁻² [4.8 × 10⁻², 5.7 × 10⁻²] | 5.7 × 10⁻² | 73.2% |
+
+- **Below 12 unprotected qubits everywhere measured.** At p = 0.6% the gross code fails 3.3% of
+  cycles, where 12 bare qubits would fail 6.9%.
+- **OSD-CS earns its cost.** Against OSD-0 it cuts the gross code's failures 2.7 times at p = 0.2%
+  and 2 times at 0.3%, where most shots never reach OSD at all.
+- **The gross code falls steeply.** From 0.3% to 0.2% its error per cycle falls twentyfold.
+
+**Beside the surface code.** The same 12 logical qubits as twelve rotated d = 11 surface-code patches
+need 12 × 241 = 2,892 qubits, ten times the gross code's 288. Measured the same way (a Z memory of 12
+rounds at the same p, sampled here and decoded by correlated matching; SD6, which also puts noise on
+the Hadamards the surface code's X checks use), the chance that any of the twelve fails in a cycle
+is 1 − (1 − p_L)¹² of a single patch's:
+
+| p | gross code: 12 logical qubits on 288 | twelve d = 11 surface patches on 2,892 | ratio |
+|---|---|---|---|
+| 0.2% | 8.7 × 10⁻⁶ | 8.2 × 10⁻⁵ | 9.3× |
+| 0.3% | 1.8 × 10⁻⁴ | 1.2 × 10⁻³ | 6.8× |
+| 0.4% | 1.6 × 10⁻³ | 7.9 × 10⁻³ | 5.0× |
+| 0.5% | 1.1 × 10⁻² | 3.3 × 10⁻² | 3.1× |
+| 0.6% | 3.3 × 10⁻² | 8.7 × 10⁻² | 2.6× |
+
+With a tenth of the qubits, the gross code fails less often at every p measured, by 2.6 to 9.3 times.
+
+**On the site**, section 13 draws the code on its torus (hover a check to see its six qubits). It
+plots these measurements, and runs BP+OSD on [[72, 12, 6]] in the browser.
+
+## Lattice surgery
+
+Every experiment above holds logical qubits still. **Lattice surgery** (Horsman, Fowler, Devitt and
+Van Meter, 2012) is how surface-code qubits interact on a planar chip:
+- two patches are merged across a seam by measuring the merged patch's checks for some rounds;
+- the product of the new checks along the seam is the joint parity, here Z₁Z₂;
+- the patches are split again.
+
+`src/surgery.rs` writes the whole experiment as one circuit:
+1. both patches prepared in |0⟩, then d rounds apart;
+2. the seam prepared in |+⟩, then T merged rounds;
+3. the seam read out in X, then d rounds apart;
+4. the data read out, under SD6.
+
+The observables are the merge outcome and each patch's own Z.
+
+**One rule for detectors.** A check is compared with its previous value, and where its support
+changed (the boundary X checks reaching across the seam at the merge, and pulling back at the
+split), the qubits it gained were freshly prepared in its basis and the qubits it lost were read out
+in it. A check measured for the first time is a detector only if its qubits were all freshly
+prepared in its basis.
+
+**Checked:**
+- **Determinism.** Without noise, every detector and observable is deterministic at d = 3 and 5,
+  in both bases, for 1, 2 and d merged rounds.
+- **Stim and PyMatching.** The error models equal Stim's fault for fault, and split for split
+  (`tools/surgery.py check`). Every disagreement with PyMatching is a tie.
+- **An independent geometry check.** The site's geometry module (`js/surgery-geometry.js`) shows
+  that the new seam checks multiply to Z on exactly the two facing columns, Z₁Z₂.
+- **The physics of one round.** With a single merged round the error model is refused: one
+  measurement error on a seam check flips the outcome with nothing after it to notice. With three,
+  every single fault is corrected in both bases.
+
+**The timing law** (`tools/surgery.py run`): how often the merge outcome is wrong, against merged
+rounds T, correlated matching.
+
+| d | p | T = 2 | T = d | T = 2d | T = d, plain | either patch, T = d |
+|---|---|---|---|---|---|---|
+| 3 | 0.3% | 10.99% | 6.38% | 6.15% | 7.53% | 10.93% |
+| 5 | 0.3% | 12.87% | 3.48% | 3.19% | 5.12% | 6.25% |
+| 7 | 0.3% | 15.34% | 1.62% | 1.60% | 3.21% | 2.99% |
+| 3 | 0.2% | 7.31% | 3.23% | 2.90% | 3.59% | 5.65% |
+| 5 | 0.2% | 7.61% | 1.02% | 0.94% | 1.65% | 1.85% |
+
+- **T = 2 is a trap that grows with the code.** A pair of measurement errors on one seam check,
+  in consecutive rounds, flips the outcome unseen, and a bigger code has more seam checks. At
+  p = 0.3%, T = 2 fails 11%, 13% and 15% of the time at d = 3, 5 and 7.
+- **By T = d the curve has flattened.** From then on the merge outcome fails about as often as a
+  single patch of the same size, and further rounds buy nothing: the textbook "d rounds per
+  lattice surgery", measured.
+- **Correlated matching matters here too.** At d = 7, p = 0.2%, T = d it fails 0.28% of the time
+  against plain matching's 0.71%.
+
+## What it would take: a resource estimate from the measured Λ
+
+Every section above measures one ingredient of a quantum computer's cost. `js/estimator.js` (section
+15 of the site, and `node tools/estimate.mjs`) puts them together:
+- **Λ and ε at d = 7**, fitted from Google's Willow counts: our correlated matching, Google's Libra, or
+  our belief-matching.
+- **Every operation takes d merged rounds** of lattice surgery, the point from which the merge
+  outcome's failure rate stops falling. Every patch is exposed for those rounds, so one operation
+  fails with probability about N · d · ε_d.
+- **The distance** is the smallest odd d that keeps the whole run within its failure budget (1% here).
+- **Qubits** are N · (2d² − 1) times a routing overhead of 2.
+- **Time** is d rounds of Willow's 1.1 µs cycle per operation.
+- **Decoding cores** are those that keep real-time decoding up at d = 3, 5, 7 (parallel windows,
+  correlated), extrapolated beyond d = 7.
+
+The sizes are illustrations of scale, not particular algorithms:
+
+| algorithm | Λ (from) | d | physical qubits | run time | decoding cores |
+|---|---|---|---|---|---|
+| 100 qubits × 10⁶ operations | 1.95 (ours, correlated matching) | 71 | 2.0 million | 78 s | 94,586 |
+| 100 qubits × 10⁶ operations | 2.04 (Google's Libra) | 67 | 1.8 million | 74 s | 83,936 |
+| 100 qubits × 10⁶ operations | 1.81 (ours, belief-matching) | 79 | 2.5 million | 87 s | 117,855 |
+| 1,000 qubits × 10⁹ operations | 1.95 (ours, correlated matching) | 101 | 41 million | 31 h | 2.0 million |
+| 1,000 qubits × 10⁹ operations | 2.04 (Google's Libra) | 93 | 35 million | 28 h | 1.6 million |
+| 1,000 qubits × 10⁹ operations | 1.81 (ours, belief-matching) | 111 | 49 million | 34 h | 2.4 million |
+| 10,000 qubits × 10¹² operations | 1.95 (ours, correlated matching) | 129 | 666 million | 4.5 years | 32 million |
+| 10,000 qubits × 10¹² operations | 2.04 (Google's Libra) | 119 | 566 million | 4.1 years | 27 million |
+| 10,000 qubits × 10¹² operations | 1.81 (ours, belief-matching) | 143 | 818 million | 5.0 years | 40 million |
+
+- **Λ ≈ 2 is not enough for anything large.** Even the small size needs d ≈ 70, because every factor
+  of 10 in ε costs about 7 more steps of distance at Λ = 2.
+- **Λ is the lever.** At Λ = 4 the medium size would need d = 51 and 10 million physical qubits. Doubling Λ cuts the qubits fourfold. The decoders measured here, Λ from 1.81 to 2.04,
+  move the medium size between 35 and 49 million.
+- **Decoding scales with it.** Real-time decoding at these distances needs cores in the millions: an
+  extrapolation, but not a small one.
+
 ## Technical report
 
 `report/report.md` is the source. `python3 tools/report.py` builds `report/report.html`, which
@@ -1282,12 +1447,20 @@ src/equivalence.rs    test: the old per-code circuit and the general one are the
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
+src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's arithmetic
+src/belief.rs         belief-matching, as the authors' beliefmatching package does it
+src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows
+src/bb.rs             bivariate bicycle codes (the gross code), their logicals, the depth-8 memory
+src/osd.rs            BP+OSD: OSD-0, OSD-E and OSD-CS on BP's posteriors
+src/surgery.rs        lattice surgery: two patches merged across a seam to measure Z⊗Z
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
 src/stream.rs         streams too long to model, decoded window by window from a template
 src/py_api.rs         PyO3 bindings: sampling, decoding, windows and streams
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
+src/wasm_bb.rs        WASM exports for Figure 15: the [[72, 12, 6]] memory decoded by BP+OSD
+src/wasm_ls.rs        WASM exports for Figure 18: lattice surgery sampled and matched
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -1305,6 +1478,10 @@ js/sweep-config.js    what the threshold sweep measures, shared with tools/sweep
 js/xcheck-format.js   pure formatting for Figure 8
 js/lambda-fit.js      logical error per cycle and Λ, for the README and section 11
 js/hardware-format.js names and formats for section 11
+js/realtime-format.js names and formats for section 12
+js/bb-geometry.js     the gross code's torus, for section 13's drawing
+js/surgery-geometry.js lattice surgery's layout, for section 14's drawing
+js/estimator.js       the resource estimate's model and its inputs, for section 15
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
 tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
@@ -1312,6 +1489,15 @@ data/xcheck/            Stim's circuits and models, the recorded reference, and 
 tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
 tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
 tools/realtime.py       window decoders' accuracy, latency, and the million-round stream
+tools/bp_check.py       BP and belief-matching against ldpc and beliefmatching, exactly
+tools/belief.py         belief-matching on all of Sycamore and Willow; BP iterations
+tools/bb_check.py       the bivariate bicycle codes and BP+OSD against Bravyi et al., Stim and ldpc
+tools/gross.py          the gross code's logical error per cycle, and the surface code beside it
+tools/surgery.py        lattice surgery against Stim and PyMatching, and its timing law
+tools/estimate.mjs      the resource estimate from the committed data
+data/belief/            belief-matching's results and the oracle check
+data/gross/             the gross code's results and checks
+data/surgery/           lattice surgery's timing law
 data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)

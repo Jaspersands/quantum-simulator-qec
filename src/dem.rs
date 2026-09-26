@@ -241,6 +241,19 @@ fn nondeterministic(space: &Space, coords: &[Vec<f64>], sym: &[u64], q: usize, w
 
 impl Dem {
     pub fn from_circuit(circuit: &Circuit) -> Result<Dem, String> {
+        Dem::build(circuit, true)
+    }
+
+    /// The model without splitting faults into graph-like pieces: one
+    /// mechanism per symptom, faults with the same symptom merged. What BP and
+    /// BP+OSD decode, and the only model a code whose faults fire three or
+    /// more checks has (a fault of one or two detectors keeps itself as its
+    /// one piece).
+    pub fn from_circuit_undecomposed(circuit: &Circuit) -> Result<Dem, String> {
+        Dem::build(circuit, false)
+    }
+
+    fn build(circuit: &Circuit, decompose: bool) -> Result<Dem, String> {
         let res = circuit.resolve()?;
         let nd = res.detectors.len();
         let no = res.observables.len();
@@ -418,6 +431,24 @@ impl Dem {
                     e.origin.describe()
                 ));
             }
+        }
+
+        if !decompose {
+            let mut mechanisms: Vec<Mechanism> = b
+                .entries
+                .iter()
+                .map(|e| {
+                    let (detectors, observables) = space.split(&e.sym);
+                    let pieces = if (1..=2).contains(&detectors.len()) {
+                        vec![Piece { detectors: detectors.clone(), observables }]
+                    } else {
+                        Vec::new()
+                    };
+                    Mechanism { p: e.p, detectors, observables, pieces }
+                })
+                .collect();
+            mechanisms.sort_by(|a, b| a.detectors.cmp(&b.detectors).then(a.observables.cmp(&b.observables)));
+            return Ok(Dem { num_detectors: nd, num_observables: no, detector_coords: res.detector_coords, mechanisms });
         }
 
         // The global pass, as Stim runs it when the circuit is done: every

@@ -16,7 +16,10 @@ It generates a d = 5 SD6 memory, and checks that:
      PyMatching's enable_correlations=True;
   5. window decoding, sliding and parallel, explains every defect and fails no
      more often than a small margin above global decoding;
-  6. a streamed memory explains every defect.
+  6. a streamed memory explains every defect;
+  7. belief-matching decodes every shot, no worse than plain matching;
+  8. BP+OSD decodes the [[72, 12, 6]] bivariate bicycle memory, which Stim reads;
+  9. lattice surgery's circuit reads in Stim, and one merged round is refused.
 It prints one line per check and exits non-zero on the first failure.
 """
 
@@ -98,6 +101,7 @@ def main():
     dets, obs = circuit.compile_detector_sampler(seed=13).sample(SHOTS, separate_observables=True)
     actual = obs[:, 0].astype(np.uint64)
     packed = np.packbits(dets, axis=1, bitorder="little").tobytes()
+    packed_first, actual_first = packed, actual
     plain = pymatching.Matching.from_detector_error_model(dem)
     pm = plain.decode_batch(dets)[:, 0].astype(np.uint64)
     pred_b, weight_b, errors, _ = sq.decode_b8(str(dem), packed, SHOTS, threads=0)
@@ -148,6 +152,35 @@ def main():
     if unexplained:
         fail(f"stream: {unexplained} defects unexplained")
     print(f"ok  6. stream: {streams} streams x 500 rounds, {failures} failures, {len(windows)} windows, {wall:.1f} s")
+
+    # 7. Belief-matching, on the first memory's shots: no worse than plain matching beyond noise.
+    raw_b, _, conv_b, errors_b, _ = sq.decode_b8_belief(str(dem), packed_first, SHOTS)
+    belief = int(((np.frombuffer(raw_b, "<u8") & ONE) != actual_first).sum())
+    if errors_b or not belief <= f["plain"] + 4 * math.sqrt(f["plain"] + 1):
+        fail(f"belief-matching {belief} failures vs plain {f['plain']} ({errors_b} errors)")
+    print(f"ok  7. belief-matching: {belief} failures (plain {f['plain']}), BP alone on {np.frombuffer(conv_b, np.uint8).sum()}")
+
+    # 8. BP+OSD on the [[72, 12, 6]] bivariate bicycle memory: Stim reads it, every shot decodes.
+    bb = sq.bb_memory_circuit("72", 2, 0.003)
+    bb_circuit = stim.Circuit(bb)
+    bb_dem = sq.dem_from_circuit(bb, False)
+    bb_dets, _, _ = sq.sample_b8_batch(bb, 256, 17)
+    preds, bb_conv, _ = sq.decode_b8_bposd(bb_dem, bb_dets, 256, 200)
+    if len(preds) != 8 * 256 or bb_circuit.num_observables != 12:
+        fail("BP+OSD on [[72, 12, 6]]")
+    print(f"ok  8. BP+OSD: [[72, 12, 6]], {bb_circuit.num_detectors} detectors, 256 shots, BP alone on {np.frombuffer(bb_conv, np.uint8).sum()}")
+
+    # 9. Lattice surgery: Stim reads it and agrees on the number of detectors; one merged round is refused.
+    ls = stim.Circuit(sq.surgery_circuit(3, 3, 0.001))
+    ls_dem = stim.DetectorErrorModel(sq.dem_from_circuit(str(ls), True))
+    if ls_dem.num_detectors != ls.num_detectors or ls.num_observables != 3:
+        fail("lattice surgery's model")
+    try:
+        sq.dem_from_circuit(sq.surgery_circuit(3, 1, 0.001), True)
+        fail("one merged round should be refused")
+    except ValueError:
+        pass
+    print(f"ok  9. lattice surgery: {ls.num_detectors} detectors, 3 observables; one merged round refused")
     print("all checks passed")
 
 

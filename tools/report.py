@@ -351,6 +351,62 @@ def build_values(F):
             v[f"bw.{name}.lambda"] = lam(BW[key])
             v[f"bw.{name}.e7"] = pct(BW[key]["eps"]["7"])
             v[f"bw.{name}.e3"] = pct(BW[key]["eps"]["3"])
+    # The gross code.
+    G = load("data/gross/results.json")
+    bb = load("data/gross/bb-check.json")
+    v["g.model_mechanisms"] = num(next(m["mechanisms"] for m in bb["models"] if m["code"] == "gross" and m["cycles"] == 12))
+    v["g.osd_shots"] = num(sum(r["shots"] for r in bb["bposd"]))
+    v["g.osd_same"] = num(sum(r["same"] for r in bb["bposd"]))
+
+    def sci(x):
+        e = math.floor(math.log10(x))
+        return f"{x / 10 ** e:.1f} × 10{str(e).replace('-', '⁻').translate(str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹'))}"
+
+    rows = []
+    for q in sorted(G["points"].values(), key=lambda q: (q["code"] != "gross", q["p"])):
+        cs, o0 = q["results"]["bposd_cs7"], q["results"]["bposd_0"]
+        rows.append(["gross [[144, 12, 12]]" if q["code"] == "gross" else "[[72, 12, 6]]", pct(q["p"], 1), num(q["shots"]),
+                     num(cs["failures"]), f"{sci(cs['pl_cycle'])}", sci(o0["pl_cycle"]), f"{cs['converged'] / q['shots'] * 100:.1f}%"])
+    t["gross"] = table(["code", "p", "shots", "failures", "per cycle, OSD-CS", "per cycle, OSD-0", "BP alone"], rows, "lrrrrrr")
+    rows, ratios = [], []
+    for p in sorted({q["p"] for q in G["points"].values()}):
+        gp = G["points"][f"gross/{p}"]["results"]["bposd_cs7"]["pl_cycle"]
+        sp = G["surface"][f"surface-d11/{p}"]["results"]["correlated_matching"]["pl_cycle"]
+        twelve = 1 - (1 - sp) ** 12
+        ratios.append(twelve / gp)
+        rows.append([pct(p, 1), sci(gp), sci(twelve), f"{twelve / gp:.1f}×"])
+    t["gross_vs_surface"] = table(["p", "gross code, 288 qubits", "twelve d = 11 patches, 2,892 qubits", "ratio"], rows, "rrrr")
+    v["g.ratio_range"] = f"{min(ratios):.1f} to {max(ratios):.1f}"
+
+    # Lattice surgery.
+    S = load("data/surgery/results.json")["points"]
+    rows = []
+    for p in (0.003, 0.002):
+        for d in (3, 5, 7):
+            get = lambda T, m="correlated": S.get(f"d{d}/T{T}/p{p}/{m}")
+            cells = [get(2), get(d), get(2 * d), get(d, "plain")]
+            if not all(cells):
+                continue
+            f = lambda q, k="outcome": f"{q['rate_' + k] * 100:.2f}%"
+            rows.append([str(d), pct(p, 1), f(cells[0]), f(cells[1]), f(cells[2]), f(cells[3]), f(cells[1], "patches")])
+    t["surgery"] = table(["d", "p", "T = 2", "T = d", "T = 2d", "T = d, plain", "either patch, T = d"], rows, "rrrrrrr")
+
+    # The resource estimate, by the page's own model (js/estimator.js via tools/estimate.mjs).
+    est_path = BUILD / "estimate.json"
+    subprocess.run(["node", "tools/estimate.mjs", "--json", str(est_path)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    E = json.loads(est_path.read_text())
+    labels = {"small": "100 qubits × 10⁶ operations", "medium": "1,000 qubits × 10⁹", "large": "10,000 qubits × 10¹²"}
+    names = {"ours": "ours, correlated", "libra": "Google's Libra", "belief": "ours, belief-matching"}
+
+    t["estimate"] = table(["algorithm", "Λ (from)", "d", "physical qubits", "run time", "decoding cores"],
+                          [[labels[r["preset"]], f"{r['lambda']:.2f} ({names[r['source']]})", str(r["d"]), r["text"]["physical"],
+                            r["text"]["seconds"], r["text"]["cores"]] for r in E["rows"]], "llrrrr")
+    medium = next(r for r in E["rows"] if r["preset"] == "medium" and r["source"] == "ours")
+    v["est.medium.d"] = str(medium["d"])
+    v["est.medium.qubits"] = medium["text"]["physical"]
+    v["est.medium.time"] = medium["text"]["seconds"]
+    v["est.lever.d"] = str(E["lever"]["d"])
+    v["est.lever.qubits"] = E["lever"]["text"]["physical"]
     return v, t
 
 
@@ -369,6 +425,8 @@ def figures(F):
         "grid.color": PALETTE["rule"], "grid.linewidth": 0.6, "legend.frameon": False, "figure.dpi": 100,
         "svg.hashsalt": "report",
     })
+    # No build date in the SVGs: a rebuild changes only the figures whose data changed.
+    STABLE = {"Date": None}
     FIGS.mkdir(parents=True, exist_ok=True)
     ref = load("data/xcheck/reference.json")
 
@@ -395,7 +453,7 @@ def figures(F):
     ax.set_ylabel("logical error per cycle, ε")
     ax.legend(fontsize=8, loc="lower left")
     fig.tight_layout()
-    fig.savefig(FIGS / "willow-lambda.svg")
+    fig.savefig(FIGS / "willow-lambda.svg", metadata=STABLE)
     plt.close(fig)
 
     # Figure 2: agreement with PyMatching.
@@ -423,7 +481,7 @@ def figures(F):
     ax.set_ylabel("ours, on the same shots")
     ax.legend(fontsize=8, loc="upper left")
     fig.tight_layout()
-    fig.savefig(FIGS / "pymatching-agreement.svg")
+    fig.savefig(FIGS / "pymatching-agreement.svg", metadata=STABLE)
     plt.close(fig)
 
     # Figure 3: speed.
@@ -451,7 +509,43 @@ def figures(F):
     a2.set_ylabel("sampling, µs per shot")
     a2.legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(FIGS / "speed.svg")
+    fig.savefig(FIGS / "speed.svg", metadata=STABLE)
+    plt.close(fig)
+
+    # The gross code: error per cycle against p.
+    G = load("data/gross/results.json")
+    fig, ax = plt.subplots(figsize=(5.6, 3.4))
+    for code, color, label in [("gross", PALETTE["d3"], "gross [[144, 12, 12]]"), ("72", PALETTE["d5"], "[[72, 12, 6]]")]:
+        for dec, ls, tag in [("bposd_cs7", "-", "BP+OSD-CS"), ("bposd_0", "--", "BP+OSD-0")]:
+            pts = sorted((q["p"], q["results"][dec]) for q in G["points"].values() if q["code"] == code)
+            xs = [x * 100 for x, _ in pts]
+            ys = [r["pl_cycle"] for _, r in pts]
+            ax.plot(xs, ys, color=color, ls=ls, marker="o", ms=4, lw=1.4, label=f"{label}, {tag}")
+    ps = sorted({q["p"] for q in G["points"].values()})
+    ax.plot([x * 100 for x in ps], [1 - (1 - x) ** 12 for x in ps], color=PALETTE["ink3"], lw=1.2, label="12 unprotected qubits")
+    ax.set_yscale("log")
+    ax.set_xlabel("physical error rate p, %")
+    ax.set_ylabel("logical error per syndrome cycle")
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(FIGS / "gross.svg", metadata=STABLE)
+    plt.close(fig)
+
+    # Lattice surgery: the merge outcome against merged rounds.
+    Sg = load("data/surgery/results.json")["points"]
+    fig, ax = plt.subplots(figsize=(5.6, 3.3))
+    for d, color in [(3, PALETTE["d3"]), (5, PALETTE["d5"]), (7, PALETTE["d7"])]:
+        for p, ls in [(0.003, "-"), (0.002, "--")]:
+            pts = sorted((q["merged"], q["rate_outcome"]) for q in Sg.values() if q["d"] == d and q["p"] == p and q["matcher"] == "correlated")
+            ax.plot([x for x, _ in pts], [y for _, y in pts], color=color, ls=ls, marker="o", ms=3.5, lw=1.3,
+                    label=f"d = {d}, p = {p * 100:.1f}%")
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(plain)
+    ax.set_xlabel("merged rounds T")
+    ax.set_ylabel("merge outcome wrong, per shot")
+    ax.legend(fontsize=7, ncol=2)
+    fig.tight_layout()
+    fig.savefig(FIGS / "surgery.svg", metadata=STABLE)
     plt.close(fig)
 
     # Figure 4: latency against cores.
@@ -476,7 +570,7 @@ def figures(F):
     ax.set_ylabel("latency, µs (mean; bar to p99)")
     ax.legend(fontsize=7.5, loc="upper right", ncol=2)
     fig.tight_layout()
-    fig.savefig(FIGS / "latency.svg")
+    fig.savefig(FIGS / "latency.svg", metadata=STABLE)
     plt.close(fig)
 
 

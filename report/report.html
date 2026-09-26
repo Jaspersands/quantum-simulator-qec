@@ -13,21 +13,24 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 0.2.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
-  <p class="subtitle">Exact and correlated matching, Google’s Willow and Sycamore data, and window decoding at Willow’s cycle</p>
-  <p class="byline">Jasper Sands · 27 September 2026 · commit <code>3df0872</code></p>
+  <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
+  <p class="byline">Jasper Sands · 27 September 2026 · commit <code>dba952d</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
 <h2 class="abstract__title">Summary</h2>
-<p><code>stabilizer-qec</code> is a surface-code simulator and decoder written in Rust. It runs natively, from Python, and in a web browser. Its results come in five parts.</p>
+<p><code>stabilizer-qec</code> is a surface-code simulator and decoder written in Rust. It runs natively, from Python, and in a web browser. Its results come in eight parts.</p>
 <ol type="1">
 <li><strong>Error models.</strong> It builds error models identical to Stim’s, fault by fault, on 15 circuits (the largest relative difference is 1.1e-15).</li>
 <li><strong>Matching.</strong> Its exact matcher agrees with PyMatching on every shot but ties: 13 disagreements in 600,000 shots, 0 of them not ties. Its correlated matcher agrees with PyMatching 2.4’s correlated mode just as closely, and fails 19% less often than plain matching.</li>
 <li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91. Its belief-matching reproduces <code>ldpc</code>’s posteriors bit for bit, and makes Sycamore’s d = 5 beat d = 3 as Google’s does (Λ = 1.016 [1.01, 1.02]).</li>
 <li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.84 µs a shot at d = 7, against Stim’s 1.31 µs.</li>
 <li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 59 µs mean latency on 8 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
+<li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits.</li>
+<li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds.</li>
+<li><strong>What it would take.</strong> Put together, the measurements say a thousand logical qubits running a billion operations need about 41 million physical qubits at Willow’s Λ, and 10 million at Λ = 4.</li>
 </ol>
 </section>
 <nav class="toc" aria-label="Contents">
@@ -51,6 +54,9 @@
 <li><a href="#belief-matching"><span class="toc-section-number">4.4</span> Belief-matching</a></li>
 <li><a href="#throughput"><span class="toc-section-number">4.5</span> Throughput</a></li>
 <li><a href="#real-time"><span class="toc-section-number">4.6</span> Real time</a></li>
+<li><a href="#beyond-the-surface-code-the-gross-code"><span class="toc-section-number">4.7</span> Beyond the surface code: the gross code</a></li>
+<li><a href="#lattice-surgery"><span class="toc-section-number">4.8</span> Lattice surgery</a></li>
+<li><a href="#what-it-would-take"><span class="toc-section-number">4.9</span> What it would take</a></li>
 </ul></li>
 <li><a href="#limits-and-next-steps"><span class="toc-section-number">5</span> Limits and next steps</a></li>
 <li><a href="#reproducing-everything"><span class="toc-section-number">6</span> Reproducing everything</a></li>
@@ -1183,16 +1189,366 @@
 <li><strong>Simulated SD6 agrees.</strong> At d = 3, 5 and 7, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.3</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.3\%</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>0.5</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">0.5\%</annotation></semantics></math>, 50 rounds and 20,000 shots, every window decoder’s failures are within 1.6% of the global decoder’s on the same shots.</li>
 <li><strong>No defect was left unexplained</strong> (0 over every Willow run).</li>
 </ul>
+<h2 data-number="4.7" id="beyond-the-surface-code-the-gross-code"><span class="header-section-number">4.7</span> Beyond the surface code: the gross code</h2>
+<p>IBM’s bivariate bicycle codes (Bravyi et al., <em>Nature</em> 627, 778, 2024) keep many logical qubits in one block. The <strong>gross code</strong>, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mo stretchy="false" form="prefix">[</mo><mn>144</mn><mo>,</mo><mn>12</mn><mo>,</mo><mn>12</mn><mo stretchy="false" form="postfix">]</mo><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[[144, 12, 12]]</annotation></semantics></math>, stores 12 at distance 12 on 144 data and 144 check qubits. Its checks have weight six, and a single fault sets off several at once, so it cannot be matched. It is decoded by <strong>BP+OSD</strong>: belief propagation, and where BP fails to settle, ordered- statistics decoding, which solves the syndrome equation on the faults BP trusts least.</p>
+<p>The engine builds the code and its logical operators over GF(2), and the paper’s Z-basis memory from the depth-8 syndrome cycle in the paper’s own simulation code. Each piece is checked against something independent:</p>
+<ul>
+<li><strong>The check matrices</strong> equal ones built as Bravyi et al.’s code builds them, and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi><mo>=</mo><mn>12</mn></mrow><annotation encoding="application/x-tex">k = 12</annotation></semantics></math>.</li>
+<li><strong>Without noise every detector is deterministic.</strong> This is what shows that the reconstructed schedule measures the stabilizers.</li>
+<li><strong>The error model equals Stim’s</strong> for 8,784 faults at 12 cycles.</li>
+<li><strong>BP+OSD equals <code>ldpc</code>’s.</strong> Over 700 shots, 700 corrections equal those of <code>ldpc</code>’s <code>BpOsdDecoder</code>, for OSD-0 and OSD-CS of order 7, with its adaptive min-sum scaling. Making that exact meant ordering tied posteriors the way <code>ldpc</code> does. Min-sum run long enough repeats values, and one tied pair in 300 shots changed which columns OSD-CS paired up.</li>
+</ul>
+<p>The Z memory runs 12 cycles for the gross code and 6 for <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">[</mo><mo stretchy="false" form="prefix">[</mo><mn>72</mn><mo>,</mo><mn>12</mn><mo>,</mo><mn>6</mn><mo stretchy="false" form="postfix">]</mo><mo stretchy="false" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[[72, 12, 6]]</annotation></semantics></math>. A shot fails if any logical qubit does, and the decoder is the paper’s: BP+OSD-CS of order 7, with up to 10,000 BP iterations.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">code</th>
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">shots</th>
+<th style="text-align: right;">failures</th>
+<th style="text-align: right;">per cycle, OSD-CS</th>
+<th style="text-align: right;">per cycle, OSD-0</th>
+<th style="text-align: right;">BP alone</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">gross [[144, 12, 12]]</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">401,408</td>
+<td style="text-align: right;">42</td>
+<td style="text-align: right;">8.7 × 10⁻⁶</td>
+<td style="text-align: right;">2.4 × 10⁻⁵</td>
+<td style="text-align: right;">99.7%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">gross [[144, 12, 12]]</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">94,208</td>
+<td style="text-align: right;">202</td>
+<td style="text-align: right;">1.8 × 10⁻⁴</td>
+<td style="text-align: right;">3.7 × 10⁻⁴</td>
+<td style="text-align: right;">97.8%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">gross [[144, 12, 12]]</td>
+<td style="text-align: right;">0.4%</td>
+<td style="text-align: right;">12,288</td>
+<td style="text-align: right;">230</td>
+<td style="text-align: right;">1.6 × 10⁻³</td>
+<td style="text-align: right;">2.6 × 10⁻³</td>
+<td style="text-align: right;">90.5%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">gross [[144, 12, 12]]</td>
+<td style="text-align: right;">0.5%</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">247</td>
+<td style="text-align: right;">1.1 × 10⁻²</td>
+<td style="text-align: right;">1.5 × 10⁻²</td>
+<td style="text-align: right;">68.7%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">gross [[144, 12, 12]]</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">684</td>
+<td style="text-align: right;">3.3 × 10⁻²</td>
+<td style="text-align: right;">4.4 × 10⁻²</td>
+<td style="text-align: right;">39.5%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">[[72, 12, 6]]</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">71,680</td>
+<td style="text-align: right;">204</td>
+<td style="text-align: right;">4.7 × 10⁻⁴</td>
+<td style="text-align: right;">4.9 × 10⁻⁴</td>
+<td style="text-align: right;">99.9%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">[[72, 12, 6]]</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">14,336</td>
+<td style="text-align: right;">217</td>
+<td style="text-align: right;">2.5 × 10⁻³</td>
+<td style="text-align: right;">2.9 × 10⁻³</td>
+<td style="text-align: right;">98.8%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">[[72, 12, 6]]</td>
+<td style="text-align: right;">0.4%</td>
+<td style="text-align: right;">4,096</td>
+<td style="text-align: right;">225</td>
+<td style="text-align: right;">9.4 × 10⁻³</td>
+<td style="text-align: right;">1.0 × 10⁻²</td>
+<td style="text-align: right;">95.1%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">[[72, 12, 6]]</td>
+<td style="text-align: right;">0.5%</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">295</td>
+<td style="text-align: right;">2.6 × 10⁻²</td>
+<td style="text-align: right;">2.8 × 10⁻²</td>
+<td style="text-align: right;">87.4%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">[[72, 12, 6]]</td>
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">565</td>
+<td style="text-align: right;">5.2 × 10⁻²</td>
+<td style="text-align: right;">5.7 × 10⁻²</td>
+<td style="text-align: right;">73.2%</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="figures/gross.svg" style="width:82.0%" alt="Logical error per syndrome cycle of the gross code and [[72, 12, 6]] against physical error, BP+OSD-CS (solid) and BP+OSD-0 (dashed), beside 12 unprotected qubits." /><figcaption aria-hidden="true">Logical error per syndrome cycle of the gross code and [[72, 12, 6]] against physical error, BP+OSD-CS (solid) and BP+OSD-0 (dashed), beside 12 unprotected qubits.</figcaption>
+</figure>
+<p><strong>Beside the surface code.</strong> Twelve rotated <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi><mo>=</mo><mn>11</mn></mrow><annotation encoding="application/x-tex">d = 11</annotation></semantics></math> surface-code patches hold the same 12 logical qubits on 2,892 qubits, ten times as many. The comparison measures them the same way: a Z memory of 12 rounds at the same p, decoded by correlated matching.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">gross code, 288 qubits</th>
+<th style="text-align: right;">twelve d = 11 patches, 2,892 qubits</th>
+<th style="text-align: right;">ratio</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">8.7 × 10⁻⁶</td>
+<td style="text-align: right;">8.2 × 10⁻⁵</td>
+<td style="text-align: right;">9.3×</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">1.8 × 10⁻⁴</td>
+<td style="text-align: right;">1.2 × 10⁻³</td>
+<td style="text-align: right;">6.8×</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">0.4%</td>
+<td style="text-align: right;">1.6 × 10⁻³</td>
+<td style="text-align: right;">7.9 × 10⁻³</td>
+<td style="text-align: right;">5.0×</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">0.5%</td>
+<td style="text-align: right;">1.1 × 10⁻²</td>
+<td style="text-align: right;">3.3 × 10⁻²</td>
+<td style="text-align: right;">3.1×</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">0.6%</td>
+<td style="text-align: right;">3.3 × 10⁻²</td>
+<td style="text-align: right;">8.7 × 10⁻²</td>
+<td style="text-align: right;">2.6×</td>
+</tr>
+</tbody>
+</table>
+<p>With a tenth of the qubits the gross code fails 2.6 to 9.3 times less often, at every p measured. SD6 also puts noise on the surface code’s Hadamards, which the bivariate bicycle circuit does not use, so the comparison slightly favours the gross code.</p>
+<h2 data-number="4.8" id="lattice-surgery"><span class="header-section-number">4.8</span> Lattice surgery</h2>
+<p>Two patches interact by <strong>lattice surgery</strong>:</p>
+<ol type="1">
+<li><strong>Merge.</strong> The checks across the seam between the patches are measured for T rounds.</li>
+<li><strong>Read the product.</strong> The product of the new checks along the seam is the joint parity, here <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mn>1</mn></msub><msub><mi>Z</mi><mn>2</mn></msub></mrow><annotation encoding="application/x-tex">Z_1 Z_2</annotation></semantics></math>.</li>
+<li><strong>Split.</strong> The patches are split again.</li>
+</ol>
+<p>The engine writes the whole experiment as one circuit: prepare, merge, split, read out. One rule places its detectors, even where checks change shape at the merge and the split. Without noise every detector and observable is deterministic. The error model equals Stim’s fault for fault, and split for split, and every disagreement with PyMatching is a tie.</p>
+<p>With one merged round, the error-model builder refuses the circuit, because a single measurement error on a seam check flips the outcome with nothing after it to notice. With three, every single fault is corrected.</p>
+<p><strong>The timing law.</strong> Here is how often the merge outcome is wrong, against the number of merged rounds T:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">T = 2</th>
+<th style="text-align: right;">T = d</th>
+<th style="text-align: right;">T = 2d</th>
+<th style="text-align: right;">T = d, plain</th>
+<th style="text-align: right;">either patch, T = d</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">10.99%</td>
+<td style="text-align: right;">6.38%</td>
+<td style="text-align: right;">6.15%</td>
+<td style="text-align: right;">7.53%</td>
+<td style="text-align: right;">10.93%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">12.87%</td>
+<td style="text-align: right;">3.48%</td>
+<td style="text-align: right;">3.19%</td>
+<td style="text-align: right;">5.12%</td>
+<td style="text-align: right;">6.25%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">15.34%</td>
+<td style="text-align: right;">1.62%</td>
+<td style="text-align: right;">1.60%</td>
+<td style="text-align: right;">3.21%</td>
+<td style="text-align: right;">2.99%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">7.31%</td>
+<td style="text-align: right;">3.23%</td>
+<td style="text-align: right;">2.90%</td>
+<td style="text-align: right;">3.59%</td>
+<td style="text-align: right;">5.65%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">7.61%</td>
+<td style="text-align: right;">1.02%</td>
+<td style="text-align: right;">0.94%</td>
+<td style="text-align: right;">1.65%</td>
+<td style="text-align: right;">1.85%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">9.97%</td>
+<td style="text-align: right;">0.28%</td>
+<td style="text-align: right;">0.27%</td>
+<td style="text-align: right;">0.71%</td>
+<td style="text-align: right;">0.54%</td>
+</tr>
+</tbody>
+</table>
+<figure>
+<img src="figures/surgery.svg" style="width:82.0%" alt="How often the merge outcome is wrong against merged rounds T, correlated matching, SD6 at p = 0.3% (solid) and 0.2% (dashed)." /><figcaption aria-hidden="true">How often the merge outcome is wrong against merged rounds T, correlated matching, SD6 at p = 0.3% (solid) and 0.2% (dashed).</figcaption>
+</figure>
+<ul>
+<li><strong>T = 2 is a trap that grows with the code.</strong> A pair of measurement errors on one seam check flips the outcome unseen, and a bigger code has more seam checks.</li>
+<li><strong>By T = d the curve has flattened.</strong> The merge outcome then fails about as often as a single patch of the same size. This is the textbook “d rounds per lattice surgery”, measured, and it is the clock the resource estimate below uses.</li>
+</ul>
+<h2 data-number="4.9" id="what-it-would-take"><span class="header-section-number">4.9</span> What it would take</h2>
+<p>Each section above measures one ingredient of a quantum computer’s cost, and a simple model puts them together:</p>
+<ul>
+<li>Logical error per cycle falls from the measured <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ε</mi><mn>7</mn></msub><annotation encoding="application/x-tex">\varepsilon_7</annotation></semantics></math> by Λ for every two steps of distance.</li>
+<li>Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it fails with probability about <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mi>d</mi><mspace width="0.167em"></mspace><msub><mi>ε</mi><mi>d</mi></msub></mrow><annotation encoding="application/x-tex">N d\,\varepsilon_d</annotation></semantics></math>.</li>
+<li>The distance is the smallest odd one that keeps the run within a 1% budget.</li>
+<li>The qubits are <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo stretchy="false" form="prefix">(</mo><mn>2</mn><msup><mi>d</mi><mn>2</mn></msup><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">N(2d^2 - 1)</annotation></semantics></math> with a routing overhead of 2.</li>
+<li>The time is d cycles of 1.1 µs per operation.</li>
+<li>The decoding cores are those measured to keep real time at d = 3, 5 and 7, extrapolated.</li>
+</ul>
+<p>The sizes are illustrations of scale:</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">algorithm</th>
+<th style="text-align: left;">Λ (from)</th>
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">physical qubits</th>
+<th style="text-align: right;">run time</th>
+<th style="text-align: right;">decoding cores</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">100 qubits × 10⁶ operations</td>
+<td style="text-align: left;">1.95 (ours, correlated)</td>
+<td style="text-align: right;">71</td>
+<td style="text-align: right;">2.0 million</td>
+<td style="text-align: right;">78 s</td>
+<td style="text-align: right;">94,586</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">100 qubits × 10⁶ operations</td>
+<td style="text-align: left;">2.04 (Google’s Libra)</td>
+<td style="text-align: right;">67</td>
+<td style="text-align: right;">1.8 million</td>
+<td style="text-align: right;">74 s</td>
+<td style="text-align: right;">83,936</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">100 qubits × 10⁶ operations</td>
+<td style="text-align: left;">1.81 (ours, belief-matching)</td>
+<td style="text-align: right;">79</td>
+<td style="text-align: right;">2.5 million</td>
+<td style="text-align: right;">87 s</td>
+<td style="text-align: right;">117,855</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">1,000 qubits × 10⁹</td>
+<td style="text-align: left;">1.95 (ours, correlated)</td>
+<td style="text-align: right;">101</td>
+<td style="text-align: right;">41 million</td>
+<td style="text-align: right;">31 h</td>
+<td style="text-align: right;">2.0 million</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">1,000 qubits × 10⁹</td>
+<td style="text-align: left;">2.04 (Google’s Libra)</td>
+<td style="text-align: right;">93</td>
+<td style="text-align: right;">35 million</td>
+<td style="text-align: right;">28 h</td>
+<td style="text-align: right;">1.6 million</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">1,000 qubits × 10⁹</td>
+<td style="text-align: left;">1.81 (ours, belief-matching)</td>
+<td style="text-align: right;">111</td>
+<td style="text-align: right;">49 million</td>
+<td style="text-align: right;">34 h</td>
+<td style="text-align: right;">2.4 million</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">10,000 qubits × 10¹²</td>
+<td style="text-align: left;">1.95 (ours, correlated)</td>
+<td style="text-align: right;">129</td>
+<td style="text-align: right;">666 million</td>
+<td style="text-align: right;">4.5 years</td>
+<td style="text-align: right;">32 million</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">10,000 qubits × 10¹²</td>
+<td style="text-align: left;">2.04 (Google’s Libra)</td>
+<td style="text-align: right;">119</td>
+<td style="text-align: right;">566 million</td>
+<td style="text-align: right;">4.1 years</td>
+<td style="text-align: right;">27 million</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">10,000 qubits × 10¹²</td>
+<td style="text-align: left;">1.81 (ours, belief-matching)</td>
+<td style="text-align: right;">143</td>
+<td style="text-align: right;">818 million</td>
+<td style="text-align: right;">5.0 years</td>
+<td style="text-align: right;">40 million</td>
+</tr>
+</tbody>
+</table>
+<p>At Willow’s measured Λ, a thousand logical qubits running a billion operations would need d = 101, 41 million physical qubits and 31 h. At Λ = 4 the same run needs d = 51 and 10 million. Λ is the lever. The decoders measured here, which differ by about 10% in Λ, move the answer far less than the hardware could.</p>
 <h1 data-number="5" id="limits-and-next-steps"><span class="header-section-number">5</span> Limits and next steps</h1>
 <ul>
 <li><strong>The matcher.</strong> It is exact but not the fastest: it runs at 2.5 to 2.9 times PyMatching’s single-threaded time. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
 <li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
-<li><strong>The next decoders.</strong> The next pieces of work, in order:
-<ul>
-<li>the IBM “gross” bivariate-bicycle code with BP+OSD, reusing this belief propagation;</li>
-<li>lattice surgery between patches;</li>
-<li>a resource estimator driven by the Λ measured here.</li>
-</ul></li>
+<li><strong>Memories and one operation.</strong> The gross code is simulated as a memory, and lattice surgery as a single Z⊗Z measurement between two patches. Logical operations on the gross code, and sequences of surgeries, are the next step up.</li>
+<li><strong>The estimate is a model.</strong> It takes lattice surgery as the only operation, ignores magic-state distillation and routing in detail, and extrapolates the decoding cost past d = 7. It is meant to show what the measured numbers imply, and how strongly they depend on Λ.</li>
 </ul>
 <h1 data-number="6" id="reproducing-everything"><span class="header-section-number">6</span> Reproducing everything</h1>
 <p>Every number in this report is filled in by <code>tools/report.py</code> from these committed files:</p>

@@ -9,6 +9,9 @@ import { cores, keepUpText, microseconds as rtUs, windowLabel } from '../js/real
 import { splitRuns, mergeStream, mergeStreamResults } from '../js/pool-merge.js';
 import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
+import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
+import { surgeryLayout } from '../js/surgery-geometry.js';
+import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom } from '../js/estimator.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -259,6 +262,90 @@ test('real-time labels: cores to keep up, latencies, window names', () => {
   assert.equal(windowLabel('window/parallel/Bd/correlated'), 'parallel windows, correlated');
   assert.equal(windowLabel('window/sliding/Bhalf/plain'), 'sliding windows, buffer d/2, plain');
   assert.equal(windowLabel('global/plain'), 'global, plain');
+});
+
+test('bivariate bicycle geometry: the gross code as src/bb.rs builds it, commuting checks, weight six', () => {
+  // X check 0 of the gross code: A = x³ + y + y² on the left, B = y³ + x + x² on the right.
+  assert.deepEqual(bbNeighbours(GROSS, 0, 'X').map((q) => dataIndex(GROSS, q)), [18, 1, 2, 72 + 3, 72 + 6, 72 + 12]);
+  for (const code of [GROSS, BB72]) {
+    const cells = code.l * code.m;
+    const rows = (type) => Array.from({ length: cells }, (_, c) => bbNeighbours(code, c, type).map((q) => dataIndex(code, q)));
+    const hx = rows('X'), hz = rows('Z');
+    for (const r of [...hx, ...hz]) assert.equal(new Set(r).size, 6);
+    // H_X H_Zᵀ = 0: every X check and Z check overlap on an even number of qubits.
+    for (const x of hx) for (const z of hz) assert.equal(x.filter((q) => z.includes(q)).length % 2, 0);
+    // Every data qubit sits in three X checks and three Z checks.
+    const count = new Array(2 * cells).fill(0);
+    for (const r of hx) for (const q of r) count[q]++;
+    assert.ok(count.every((n) => n === 3));
+  }
+  assert.deepEqual(bbPosition(GROSS, 'Z', 7), { col: 3, row: 3 });
+  assert.equal(torusDelta(1, 23, 24), -2);
+  assert.equal(torusDelta(23, 1, 24), 2);
+  assert.equal(torusDelta(0, 12, 24), 12);
+});
+
+test('lattice surgery geometry: the counts src/surgery.rs asserts, and Z1Z2 as the new seam checks', () => {
+  for (const d of [3, 5, 7]) {
+    const g = surgeryLayout(d);
+    assert.equal(g.patches.length, 2 * (d * d - 1));
+    assert.equal(g.merged.length, d * (2 * d + 1) - 1);
+    // The new Z checks sit in the two columns beside the seam; their supports
+    // cover each seam qubit twice and patch 1's last and patch 2's first
+    // columns once: their product is Z on those two columns, Z1 Z2.
+    const count = new Map();
+    for (const c of g.newZ) for (const [x, y] of c.support) count.set(`${x},${y}`, (count.get(`${x},${y}`) ?? 0) + 1);
+    for (const [k, n] of count) {
+      const x = Number(k.split(',')[0]);
+      assert.equal(n % 2, x === g.seam ? 0 : 1, `qubit ${k}`);
+      assert.ok([g.p1[1], g.seam, g.p2[0]].includes(x));
+    }
+    assert.equal([...count.values()].filter((n) => n % 2 === 1).length, 2 * d);
+  }
+});
+
+test('estimator: the model reproduces what it is given, and moves the right way', () => {
+  const model = { eps0: 0.00234, d0: 7, lambda: 1.95 };
+  // At the measured distance, the measured ε exactly; two distances on, Λ times smaller.
+  assert.equal(epsilonAt(7, model), 0.00234);
+  assert.ok(Math.abs(epsilonAt(9, model) - 0.00234 / 1.95) < 1e-15);
+  const algo = { qubits: 100, operations: 1e6 };
+  const d = distanceFor(algo, model, 0.01);
+  assert.ok(d % 2 === 1 && d >= 3);
+  assert.ok(failureAt(d, algo, model) <= 0.01 && failureAt(d - 2, algo, model) > 0.01, 'the smallest distance that meets the budget');
+  // Bigger algorithms need larger distances, and more qubits.
+  const bigger = distanceFor({ qubits: 100, operations: 1e9 }, model, 0.01);
+  assert.ok(bigger > d);
+  assert.ok(physicalQubits(bigger, algo) > physicalQubits(d, algo));
+  assert.equal(physicalQubits(3, { qubits: 1 }, 1), 17);
+  assert.ok(Math.abs(runtimeSeconds(5, { operations: 2 }, 1e-6) - 1e-5) < 1e-18);
+  // No suppression, no distance.
+  assert.equal(distanceFor(algo, { ...model, lambda: 1 }, 0.01), null);
+  // Cores: measured distances read back; beyond them, a power law through the last two.
+  const cores = { 3: 2, 5: 4, 7: 8 };
+  assert.equal(decodingCores(5, { qubits: 1 }, cores), 4);
+  assert.equal(decodingCores(4, { qubits: 1 }, cores), 4);
+  // Through (5, 4) and (7, 8) the law is 8 · (d / 7)^(ln 2 / ln 1.4): 13.4 at d = 9, so 14 cores.
+  assert.equal(decodingCores(9, { qubits: 1 }, cores), Math.ceil(8 * (9 / 7) ** (Math.log(2) / Math.log(1.4))));
+  assert.equal(decodingCores(9, { qubits: 1 }, cores), 14);
+  assert.equal(estimate(algo, model, { budget: 0.01 }).d, d);
+  assert.equal(bigNumber(3.2e7), '32 million');
+  assert.equal(bigNumber(12345), '12,345');
+  assert.equal(bigNumber(6.7e8), '670 million');
+  assert.equal(bigNumber(4.1e12), '4,100 billion');
+  assert.equal(duration(90), '90 s');
+  assert.equal(duration(7200 * 3), '6.0 h');
+  assert.equal(duration(1.5 * 3.156e7), '1.5 years');
+  assert.equal(duration(200 * 86400), '200 days');
+  // Fewer than two measured distances: no law, no core count.
+  assert.equal(decodingCores(9, { qubits: 1 }, { 7: 8 }), null);
+  // Streams that never keep up are left out, not written as null.
+  const byWorkers = (k) => ({ 1: { keeps_up: k === 1 }, 2: { keeps_up: k <= 2 }, 4: { keeps_up: k <= 4 } });
+  assert.deepEqual(coresFrom({ streams: [
+    { d: 3, mode: 'parallel', matcher: 'correlated', by_workers: byWorkers(2) },
+    { d: 5, mode: 'parallel', matcher: 'correlated', by_workers: byWorkers(99) },
+    { d: 5, mode: 'sliding', matcher: 'correlated', by_workers: byWorkers(1) },
+  ] }), { 3: 2 });
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

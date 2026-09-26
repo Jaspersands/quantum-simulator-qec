@@ -698,8 +698,10 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    quoted rather than fitted, are italic. */
 .hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
 .hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
-[data-hw-canvas], [data-rt-canvas] { width: 100%; }
-[data-hw-canvas] + .legend, [data-rt-canvas] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-est-plot] { width: 100%; }
+[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-ls-phases] { margin-bottom: var(--s4); }
+[data-bb-canvas] { touch-action: none; cursor: crosshair; }
 /* The column heads carry ε and d, which the site's uppercase heads would turn
    into E and D. */
 .hw thead th.num { text-transform: none; }
@@ -712,6 +714,7 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key { width: 11px; height: 11px; border: 1px solid var(--ink); flex: none; }
 .legend__key--round { border-radius: 50%; }
 .legend__key--line { width: 15px; height: 0; border: 0; border-top: 2px solid; }
+.legend__key--line.legend__key--dashed { border-top-style: dashed; }
 
 /* Legend keys mirror how the canvas renderer draws each mark. The glyph
    suffixes match the letters stamped on the qubits themselves, so the legend
@@ -720,6 +723,7 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--z { background: var(--z); border-color: var(--z); }
 .legend__key--y { background: var(--y); border-color: var(--y); }
 .legend__key--clean { background: var(--surface); border-color: var(--ink-3); }
+.legend__key--solid { background: var(--ink-3); border-color: var(--ink-3); }
 .legend__key--defect { background: var(--defect-soft); border-color: var(--defect); }
 .legend__key--xplaq { background: var(--x-soft); border-color: var(--rule-soft); }
 .legend__key--zplaq { background: var(--z-soft); border-color: var(--rule-soft); }
