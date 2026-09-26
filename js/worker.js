@@ -252,7 +252,7 @@ const OPS = {
       // the rest of the table should not wait for it.
       hwBeliefModel(instance, dem);
       const stride = conv.dets.length / shots;
-      const belief = { failures: 0, converged: 0, errors: 0, agree: 0, micros: 0 };
+      const belief = { failures: 0, converged: 0, errors: 0, micros: 0 };
       t0 = performance.now();
       for (let s = 0; s < shots; s += BELIEF_CHUNK) {
         const n = Math.min(BELIEF_CHUNK, shots - s);
@@ -262,7 +262,6 @@ const OPS = {
         for (let i = 0; i < n; i++) {
           const p = r.predictions[i];
           belief.failures += p === 255 || p !== actual[s + i] ? 1 : 0;
-          if (reference) belief.agree += p === (reference[s + i] & 1) ? 1 : 0;
         }
         report({ d: ex.d, step: 'belief', done: s + n, total: shots, failures: belief.failures });
       }
