@@ -1,0 +1,2927 @@
+{
+ "points": {
+  "d3/T2/p0.003/plain": {
+   "d": 3,
+   "merged": 2,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2923,
+    "outcome": 1926,
+    "patches": 1980
+   },
+   "rate_any": 0.17840576171875,
+   "interval_any": [
+    0.17261890042873704,
+    0.18434339776677397
+   ],
+   "rate_outcome": 0.1175537109375,
+   "interval_outcome": [
+    0.11271129272562969,
+    0.12257543350194139
+   ],
+   "rate_patches": 0.120849609375,
+   "interval_patches": [
+    0.1159471361272044,
+    0.12592984174155902
+   ]
+  },
+  "d3/T2/p0.003/correlated": {
+   "d": 3,
+   "merged": 2,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2698,
+    "outcome": 1801,
+    "patches": 1736
+   },
+   "rate_any": 0.1646728515625,
+   "interval_any": [
+    0.1590724028433277,
+    0.1704305135138819
+   ],
+   "rate_outcome": 0.10992431640625,
+   "interval_outcome": [
+    0.10522576606227,
+    0.11480574803291141
+   ],
+   "rate_patches": 0.10595703125,
+   "interval_patches": [
+    0.10133612778659587,
+    0.1107626759997429
+   ]
+  },
+  "d3/T3/p0.003/plain": {
+   "d": 3,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2317,
+    "outcome": 1234,
+    "patches": 2101
+   },
+   "rate_any": 0.14141845703125,
+   "interval_any": [
+    0.1361667963452088,
+    0.14683823343247707
+   ],
+   "rate_outcome": 0.0753173828125,
+   "interval_outcome": [
+    0.07137517212119146,
+    0.07945869974147043
+   ],
+   "rate_patches": 0.12823486328125,
+   "interval_patches": [
+    0.12320211817763532,
+    0.13344190503528125
+   ]
+  },
+  "d3/T3/p0.003/correlated": {
+   "d": 3,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1996,
+    "outcome": 1046,
+    "patches": 1790
+   },
+   "rate_any": 0.121826171875,
+   "interval_any": [
+    0.11690613690121975,
+    0.12692350812048955
+   ],
+   "rate_outcome": 0.0638427734375,
+   "interval_outcome": [
+    0.060200571695593806,
+    0.06768946111995407
+   ],
+   "rate_patches": 0.1092529296875,
+   "interval_patches": [
+    0.10456737869824048,
+    0.11412167672929063
+   ]
+  },
+  "d3/T4/p0.003/plain": {
+   "d": 3,
+   "merged": 4,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2267,
+    "outcome": 1209,
+    "patches": 2135
+   },
+   "rate_any": 0.13836669921875,
+   "interval_any": [
+    0.13316424431103788,
+    0.14373870061369218
+   ],
+   "rate_outcome": 0.07379150390625,
+   "interval_outcome": [
+    0.06988747063263878,
+    0.0778953588035452
+   ],
+   "rate_patches": 0.13031005859375,
+   "interval_patches": [
+    0.12524173119773474,
+    0.13555170971519181
+   ]
+  },
+  "d3/T4/p0.003/correlated": {
+   "d": 3,
+   "merged": 4,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2016,
+    "outcome": 1047,
+    "patches": 1893
+   },
+   "rate_any": 0.123046875,
+   "interval_any": [
+    0.11810503433758056,
+    0.12816544462531104
+   ],
+   "rate_outcome": 0.06390380859375,
+   "interval_outcome": [
+    0.06025992684213933,
+    0.06775214767046762
+   ],
+   "rate_patches": 0.11553955078125,
+   "interval_patches": [
+    0.11073444227638342,
+    0.1205249079482368
+   ]
+  },
+  "d3/T5/p0.003/plain": {
+   "d": 3,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2265,
+    "outcome": 1131,
+    "patches": 2203
+   },
+   "rate_any": 0.13824462890625,
+   "interval_any": [
+    0.13304416007300665,
+    0.14361470145760516
+   ],
+   "rate_outcome": 0.06903076171875,
+   "interval_outcome": [
+    0.06524911158850019,
+    0.07301446547707263
+   ],
+   "rate_patches": 0.13446044921875,
+   "interval_patches": [
+    0.12932224404196932,
+    0.1397700322709772
+   ]
+  },
+  "d3/T5/p0.003/correlated": {
+   "d": 3,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1955,
+    "outcome": 973,
+    "patches": 1901
+   },
+   "rate_any": 0.11932373046875,
+   "interval_any": [
+    0.11444890870951523,
+    0.12437702673277025
+   ],
+   "rate_outcome": 0.05938720703125,
+   "interval_outcome": [
+    0.05587036649673594,
+    0.06311062243349633
+   ],
+   "rate_patches": 0.11602783203125,
+   "interval_patches": [
+    0.11121363553743598,
+    0.12102204826365716
+   ]
+  },
+  "d3/T6/p0.003/plain": {
+   "d": 3,
+   "merged": 6,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2227,
+    "outcome": 1099,
+    "patches": 2174
+   },
+   "rate_any": 0.13592529296875,
+   "interval_any": [
+    0.1307628247103887,
+    0.14125845233197665
+   ],
+   "rate_outcome": 0.06707763671875,
+   "interval_outcome": [
+    0.06334770613895148,
+    0.07101053662072958
+   ],
+   "rate_patches": 0.1326904296875,
+   "interval_patches": [
+    0.12758181850492673,
+    0.1379712485933054
+   ]
+  },
+  "d3/T6/p0.003/correlated": {
+   "d": 3,
+   "merged": 6,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2000,
+    "outcome": 1007,
+    "patches": 1965
+   },
+   "rate_any": 0.1220703125,
+   "interval_any": [
+    0.11714590342509755,
+    0.1271719083848482
+   ],
+   "rate_outcome": 0.06146240234375,
+   "interval_outcome": [
+    0.057886494309820805,
+    0.06524391232042145
+   ],
+   "rate_patches": 0.11993408203125,
+   "interval_patches": [
+    0.11504816854601958,
+    0.12499818386685706
+   ]
+  },
+  "d5/T2/p0.003/plain": {
+   "d": 5,
+   "merged": 2,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2934,
+    "outcome": 2293,
+    "patches": 1346
+   },
+   "rate_any": 0.1790771484375,
+   "interval_any": [
+    0.17328151322648455,
+    0.18502324363667672
+   ],
+   "rate_outcome": 0.13995361328125,
+   "interval_outcome": [
+    0.13472546485727918,
+    0.14535056419098794
+   ],
+   "rate_patches": 0.0821533203125,
+   "interval_patches": [
+    0.07804583856887491,
+    0.08645670336440812
+   ]
+  },
+  "d5/T2/p0.003/correlated": {
+   "d": 5,
+   "merged": 2,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2564,
+    "outcome": 2108,
+    "patches": 904
+   },
+   "rate_any": 0.156494140625,
+   "interval_any": [
+    0.15101134779378242,
+    0.16213798115750547
+   ],
+   "rate_outcome": 0.128662109375,
+   "interval_outcome": [
+    0.12362200277488691,
+    0.13387631231744349
+   ],
+   "rate_patches": 0.05517578125,
+   "interval_patches": [
+    0.05178271420628739,
+    0.0587773976268658
+   ]
+  },
+  "d5/T3/p0.003/plain": {
+   "d": 5,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1904,
+    "outcome": 1160,
+    "patches": 1513
+   },
+   "rate_any": 0.1162109375,
+   "interval_any": [
+    0.11139334017595454,
+    0.12120846871631596
+   ],
+   "rate_outcome": 0.07080078125,
+   "interval_outcome": [
+    0.06697303457279893,
+    0.07482975170748829
+   ],
+   "rate_patches": 0.09234619140625,
+   "interval_patches": [
+    0.08800805880230066,
+    0.09687544653985498
+   ]
+  },
+  "d5/T3/p0.003/correlated": {
+   "d": 5,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2692,
+    "outcome": 1698,
+    "patches": 2014
+   },
+   "rate_any": 0.0821533203125,
+   "interval_any": [
+    0.0792288406320709,
+    0.08517576212909951
+   ],
+   "rate_outcome": 0.05181884765625,
+   "interval_outcome": [
+    0.0494708983750147,
+    0.05427187084427752
+   ],
+   "rate_patches": 0.06146240234375,
+   "interval_patches": [
+    0.058912924169918224,
+    0.06411469353954856
+   ]
+  },
+  "d5/T4/p0.003/plain": {
+   "d": 5,
+   "merged": 4,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1731,
+    "outcome": 950,
+    "patches": 1546
+   },
+   "rate_any": 0.10565185546875,
+   "interval_any": [
+    0.1010370090863149,
+    0.1104515862147283
+   ],
+   "rate_outcome": 0.0579833984375,
+   "interval_outcome": [
+    0.05450721871752873,
+    0.06166681118034385
+   ],
+   "rate_patches": 0.0943603515625,
+   "interval_patches": [
+    0.08997866150730431,
+    0.09893221983780219
+   ]
+  },
+  "d5/T4/p0.003/correlated": {
+   "d": 5,
+   "merged": 4,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2373,
+    "outcome": 1341,
+    "patches": 2069
+   },
+   "rate_any": 0.072418212890625,
+   "interval_any": [
+    0.06966177130131866,
+    0.07527489896502364
+   ],
+   "rate_outcome": 0.040924072265625,
+   "interval_outcome": [
+    0.03883223969275578,
+    0.04312353297276327
+   ],
+   "rate_patches": 0.063140869140625,
+   "interval_patches": [
+    0.060558294746827536,
+    0.06582586304795443
+   ]
+  },
+  "d5/T5/p0.003/plain": {
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1623,
+    "outcome": 839,
+    "patches": 1534
+   },
+   "rate_any": 0.09906005859375,
+   "interval_any": [
+    0.09457912003541419,
+    0.10372897198324435
+   ],
+   "rate_outcome": 0.05120849609375,
+   "interval_outcome": [
+    0.047937233733073174,
+    0.054690167791237386
+   ],
+   "rate_patches": 0.0936279296875,
+   "interval_patches": [
+    0.08926200590131599,
+    0.09818437507908111
+   ]
+  },
+  "d5/T5/p0.003/correlated": {
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2172,
+    "outcome": 1141,
+    "patches": 2048
+   },
+   "rate_any": 0.0662841796875,
+   "interval_any": [
+    0.06364103517920094,
+    0.06902900677535312
+   ],
+   "rate_outcome": 0.034820556640625,
+   "interval_outcome": [
+    0.032889487995847025,
+    0.03686068435943496
+   ],
+   "rate_patches": 0.0625,
+   "interval_patches": [
+    0.05992999874618601,
+    0.06517257101602106
+   ]
+  },
+  "d5/T6/p0.003/plain": {
+   "d": 5,
+   "merged": 6,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1579,
+    "outcome": 790,
+    "patches": 1525
+   },
+   "rate_any": 0.09637451171875,
+   "interval_any": [
+    0.09194988531678701,
+    0.10098837203127035
+   ],
+   "rate_outcome": 0.0482177734375,
+   "interval_outcome": [
+    0.045042017272619514,
+    0.0516053410957943
+   ],
+   "rate_patches": 0.09307861328125,
+   "interval_patches": [
+    0.08872456860768242,
+    0.09762343709918263
+   ]
+  },
+  "d5/T6/p0.003/correlated": {
+   "d": 5,
+   "merged": 6,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2084,
+    "outcome": 1054,
+    "patches": 2020
+   },
+   "rate_any": 0.0635986328125,
+   "interval_any": [
+    0.06100712494482891,
+    0.06629245287322082
+   ],
+   "rate_outcome": 0.03216552734375,
+   "interval_outcome": [
+    0.030309281293983286,
+    0.034131454926345575
+   ],
+   "rate_patches": 0.0616455078125,
+   "interval_patches": [
+    0.059092392785713384,
+    0.0643013929330605
+   ]
+  },
+  "d5/T7/p0.003/plain": {
+   "d": 5,
+   "merged": 7,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1534,
+    "outcome": 846,
+    "patches": 1502
+   },
+   "rate_any": 0.0936279296875,
+   "interval_any": [
+    0.08926200590131599,
+    0.09818437507908111
+   ],
+   "rate_outcome": 0.0516357421875,
+   "interval_outcome": [
+    0.048351103007719415,
+    0.05513059039600497
+   ],
+   "rate_patches": 0.0916748046875,
+   "interval_patches": [
+    0.08735133238953449,
+    0.09618971428497083
+   ]
+  },
+  "d5/T7/p0.003/correlated": {
+   "d": 5,
+   "merged": 7,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2060,
+    "outcome": 1050,
+    "patches": 2028
+   },
+   "rate_any": 0.0628662109375,
+   "interval_any": [
+    0.060289015512837725,
+    0.06554589026798356
+   ],
+   "rate_outcome": 0.03204345703125,
+   "interval_outcome": [
+    0.03019073149725228,
+    0.03400589271687185
+   ],
+   "rate_patches": 0.0618896484375,
+   "interval_patches": [
+    0.059331694408527785,
+    0.0645503153226556
+   ]
+  },
+  "d5/T8/p0.003/plain": {
+   "d": 5,
+   "merged": 8,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1559,
+    "outcome": 786,
+    "patches": 1532
+   },
+   "rate_any": 0.09515380859375,
+   "interval_any": [
+    0.09075513105784756,
+    0.09974229234902747
+   ],
+   "rate_outcome": 0.0479736328125,
+   "interval_outcome": [
+    0.04480582254433235,
+    0.05135336903584499
+   ],
+   "rate_patches": 0.093505859375,
+   "interval_patches": [
+    0.08914257134469725,
+    0.0980597262415816
+   ]
+  },
+  "d5/T8/p0.003/correlated": {
+   "d": 5,
+   "merged": 8,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2129,
+    "outcome": 1072,
+    "patches": 2108
+   },
+   "rate_any": 0.064971923828125,
+   "interval_any": [
+    0.062353847995936046,
+    0.06769198989191705
+   ],
+   "rate_outcome": 0.03271484375,
+   "interval_outcome": [
+    0.030842845551377333,
+    0.03469639469687286
+   ],
+   "rate_patches": 0.0643310546875,
+   "interval_patches": [
+    0.06172533422153334,
+    0.06703891563374484
+   ]
+  },
+  "d5/T9/p0.003/plain": {
+   "d": 5,
+   "merged": 9,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1553,
+    "outcome": 783,
+    "patches": 1532
+   },
+   "rate_any": 0.09478759765625,
+   "interval_any": [
+    0.09039674858926454,
+    0.09936842463525579
+   ],
+   "rate_outcome": 0.04779052734375,
+   "interval_outcome": [
+    0.044628691800645104,
+    0.051164374688354886
+   ],
+   "rate_patches": 0.093505859375,
+   "interval_patches": [
+    0.08914257134469725,
+    0.0980597262415816
+   ]
+  },
+  "d5/T9/p0.003/correlated": {
+   "d": 5,
+   "merged": 9,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2106,
+    "outcome": 1000,
+    "patches": 2086
+   },
+   "rate_any": 0.06427001953125,
+   "interval_any": [
+    0.061665479673917695,
+    0.06697671417825812
+   ],
+   "rate_outcome": 0.030517578125,
+   "interval_outcome": [
+    0.028709494760588577,
+    0.03243572937597627
+   ],
+   "rate_patches": 0.06365966796875,
+   "interval_patches": [
+    0.06106697192652366,
+    0.06635466189462846
+   ]
+  },
+  "d5/T10/p0.003/plain": {
+   "d": 5,
+   "merged": 10,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1584,
+    "outcome": 827,
+    "patches": 1570
+   },
+   "rate_any": 0.0966796875,
+   "interval_any": [
+    0.09224860867639693,
+    0.10129985715695601
+   ],
+   "rate_outcome": 0.05047607421875,
+   "interval_outcome": [
+    0.04722789551073446,
+    0.05393500564886669
+   ],
+   "rate_patches": 0.0958251953125,
+   "interval_patches": [
+    0.0914122182330932,
+    0.10042766384143212
+   ]
+  },
+  "d5/T10/p0.003/correlated": {
+   "d": 5,
+   "merged": 10,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2058,
+    "outcome": 1045,
+    "patches": 2045
+   },
+   "rate_any": 0.06280517578125,
+   "interval_any": [
+    0.06022917761781283,
+    0.06548367215990611
+   ],
+   "rate_outcome": 0.031890869140625,
+   "interval_outcome": [
+    0.030042554625376812,
+    0.03384892958099139
+   ],
+   "rate_patches": 0.062408447265625,
+   "interval_patches": [
+    0.05984024854259906,
+    0.06507923721495447
+   ]
+  },
+  "d7/T2/p0.003/plain": {
+   "d": 7,
+   "merged": 2,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 3101,
+    "outcome": 2633,
+    "patches": 918
+   },
+   "rate_any": 0.18927001953125,
+   "interval_any": [
+    0.18334486305491318,
+    0.19534085721712066
+   ],
+   "rate_outcome": 0.16070556640625,
+   "interval_outcome": [
+    0.15516154389586673,
+    0.16640866215250022
+   ],
+   "rate_patches": 0.0560302734375,
+   "interval_patches": [
+    0.052611651397104026,
+    0.0596570441948768
+   ]
+  },
+  "d7/T2/p0.003/correlated": {
+   "d": 7,
+   "merged": 2,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2753,
+    "outcome": 2514,
+    "patches": 482
+   },
+   "rate_any": 0.16802978515625,
+   "interval_any": [
+    0.16238251453121103,
+    0.17383269516425
+   ],
+   "rate_outcome": 0.1534423828125,
+   "interval_outcome": [
+    0.14800484080143947,
+    0.15904240329689254
+   ],
+   "rate_patches": 0.0294189453125,
+   "interval_patches": [
+    0.02693973903855637,
+    0.03211877663564931
+   ]
+  },
+  "d7/T3/p0.003/plain": {
+   "d": 7,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1568,
+    "outcome": 1092,
+    "patches": 938
+   },
+   "rate_any": 0.095703125,
+   "interval_any": [
+    0.0912927427914392,
+    0.10030305588896787
+   ],
+   "rate_outcome": 0.066650390625,
+   "interval_outcome": [
+    0.06293189658677611,
+    0.07057205429349114
+   ],
+   "rate_patches": 0.0572509765625,
+   "interval_patches": [
+    0.05379624415857036,
+    0.06091328537459281
+   ]
+  },
+  "d7/T3/p0.003/correlated": {
+   "d": 7,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 1896,
+    "outcome": 1429,
+    "patches": 912
+   },
+   "rate_any": 0.057861328125,
+   "interval_any": [
+    0.05538474079905089,
+    0.060441572727376026
+   ],
+   "rate_outcome": 0.043609619140625,
+   "interval_outcome": [
+    0.041451340678868215,
+    0.04587489612315515
+   ],
+   "rate_patches": 0.02783203125,
+   "interval_patches": [
+    0.026105582325106128,
+    0.029669177674954413
+   ]
+  },
+  "d7/T4/p0.003/plain": {
+   "d": 7,
+   "merged": 4,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2491,
+    "outcome": 1534,
+    "patches": 1922
+   },
+   "rate_any": 0.076019287109375,
+   "interval_any": [
+    0.07319910462711333,
+    0.07893886982226885
+   ],
+   "rate_outcome": 0.04681396484375,
+   "interval_outcome": [
+    0.04457938717527691,
+    0.04915478978962091
+   ],
+   "rate_patches": 0.05865478515625,
+   "interval_patches": [
+    0.0561619085438167,
+    0.06125113302294103
+   ]
+  },
+  "d7/T4/p0.003/correlated": {
+   "d": 7,
+   "merged": 4,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 2030,
+    "outcome": 1341,
+    "patches": 1367
+   },
+   "rate_any": 0.041300455729166664,
+   "interval_any": [
+    0.039576852069487405,
+    0.04309575545230101
+   ],
+   "rate_outcome": 0.02728271484375,
+   "interval_outcome": [
+    0.025879041629144946,
+    0.028760275135192578
+   ],
+   "rate_patches": 0.027811686197916668,
+   "interval_patches": [
+    0.026394478408942233,
+    0.029302698383978344
+   ]
+  },
+  "d7/T5/p0.003/plain": {
+   "d": 7,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2275,
+    "outcome": 1290,
+    "patches": 1988
+   },
+   "rate_any": 0.069427490234375,
+   "interval_any": [
+    0.06672551253664452,
+    0.07223041357768162
+   ],
+   "rate_outcome": 0.03936767578125,
+   "interval_outcome": [
+    0.03731548541475102,
+    0.04152785917165758
+   ],
+   "rate_patches": 0.0606689453125,
+   "interval_patches": [
+    0.05813530282693567,
+    0.06330558684220029
+   ]
+  },
+  "d7/T5/p0.003/correlated": {
+   "d": 7,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1782,
+    "outcome": 1012,
+    "patches": 1487
+   },
+   "rate_any": 0.0362548828125,
+   "interval_any": [
+    0.03463826055857438,
+    0.03794398976749876
+   ],
+   "rate_outcome": 0.020589192708333332,
+   "interval_outcome": [
+    0.019370733668053152,
+    0.02188258504229113
+   ],
+   "rate_patches": 0.030253092447916668,
+   "interval_patches": [
+    0.028775161147325354,
+    0.03180444654674777
+   ]
+  },
+  "d7/T6/p0.003/plain": {
+   "d": 7,
+   "merged": 6,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2007,
+    "outcome": 1058,
+    "patches": 1885
+   },
+   "rate_any": 0.061248779296875,
+   "interval_any": [
+    0.058703552393041855,
+    0.06389686930556664
+   ],
+   "rate_outcome": 0.03228759765625,
+   "interval_outcome": [
+    0.030427838423895667,
+    0.03425700980263793
+   ],
+   "rate_patches": 0.057525634765625,
+   "interval_patches": [
+    0.055055979187626176,
+    0.0600990263217377
+   ]
+  },
+  "d7/T6/p0.003/correlated": {
+   "d": 7,
+   "merged": 6,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1540,
+    "outcome": 827,
+    "patches": 1447
+   },
+   "rate_any": 0.031331380208333336,
+   "interval_any": [
+    0.029827482633195776,
+    0.03290853204221973
+   ],
+   "rate_outcome": 0.016825358072916668,
+   "interval_outcome": [
+    0.015725477534813577,
+    0.018000760202920525
+   ],
+   "rate_patches": 0.029439290364583332,
+   "interval_patches": [
+    0.02798129320773576,
+    0.030970837519286514
+   ]
+  },
+  "d7/T7/p0.003/plain": {
+   "d": 7,
+   "merged": 7,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2018,
+    "outcome": 1051,
+    "patches": 1940
+   },
+   "rate_any": 0.06158447265625,
+   "interval_any": [
+    0.059032569188172714,
+    0.0642391605274988
+   ],
+   "rate_outcome": 0.032073974609375,
+   "interval_outcome": [
+    0.030220368256740394,
+    0.03403728395893492
+   ],
+   "rate_patches": 0.0592041015625,
+   "interval_patches": [
+    0.05670002479001896,
+    0.061811520804660104
+   ]
+  },
+  "d7/T7/p0.003/correlated": {
+   "d": 7,
+   "merged": 7,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1506,
+    "outcome": 797,
+    "patches": 1469
+   },
+   "rate_any": 0.0306396484375,
+   "interval_any": [
+    0.029152351072001315,
+    0.032200308181420965
+   ],
+   "rate_outcome": 0.016215006510416668,
+   "interval_outcome": [
+    0.0151356276565405,
+    0.01737000235590547
+   ],
+   "rate_patches": 0.029886881510416668,
+   "interval_patches": [
+    0.028417883870606776,
+    0.031429359188293475
+   ]
+  },
+  "d7/T8/p0.003/plain": {
+   "d": 7,
+   "merged": 8,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2014,
+    "outcome": 995,
+    "patches": 1978
+   },
+   "rate_any": 0.06146240234375,
+   "interval_any": [
+    0.058912924169918224,
+    0.06411469353954856
+   ],
+   "rate_outcome": 0.030364990234375,
+   "interval_outcome": [
+    0.028561437664493802,
+    0.03227864646431512
+   ],
+   "rate_patches": 0.06036376953125,
+   "interval_patches": [
+    0.0578362509005487,
+    0.06299435875307541
+   ]
+  },
+  "d7/T8/p0.003/correlated": {
+   "d": 7,
+   "merged": 8,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 65536,
+   "failures": {
+    "any": 1964,
+    "outcome": 960,
+    "patches": 1928
+   },
+   "rate_any": 0.02996826171875,
+   "interval_any": [
+    0.02869017133102479,
+    0.03130145367162093
+   ],
+   "rate_outcome": 0.0146484375,
+   "interval_outcome": [
+    0.013756643804984672,
+    0.01559712869482558
+   ],
+   "rate_patches": 0.0294189453125,
+   "interval_patches": [
+    0.028152536500192452,
+    0.03074052008601694
+   ]
+  },
+  "d7/T9/p0.003/plain": {
+   "d": 7,
+   "merged": 9,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2034,
+    "outcome": 1032,
+    "patches": 1999
+   },
+   "rate_any": 0.06207275390625,
+   "interval_any": [
+    0.05951117819196905,
+    0.06473699954852144
+   ],
+   "rate_outcome": 0.031494140625,
+   "interval_outcome": [
+    0.02965734925536847,
+    0.033440770930834314
+   ],
+   "rate_patches": 0.061004638671875,
+   "interval_patches": [
+    0.058464281327649005,
+    0.06364791635855
+   ]
+  },
+  "d7/T9/p0.003/correlated": {
+   "d": 7,
+   "merged": 9,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1542,
+    "outcome": 794,
+    "patches": 1517
+   },
+   "rate_any": 0.0313720703125,
+   "interval_any": [
+    0.02986720254075835,
+    0.032950185983009694
+   ],
+   "rate_outcome": 0.016153971354166668,
+   "interval_outcome": [
+    0.015076664738972574,
+    0.017306904500944582
+   ],
+   "rate_patches": 0.030863444010416668,
+   "interval_patches": [
+    0.029370753723922588,
+    0.03242946169543868
+   ]
+  },
+  "d7/T10/p0.003/plain": {
+   "d": 7,
+   "merged": 10,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2001,
+    "outcome": 1018,
+    "patches": 1978
+   },
+   "rate_any": 0.061065673828125,
+   "interval_any": [
+    0.0585240979941406,
+    0.06371015569516077
+   ],
+   "rate_outcome": 0.03106689453125,
+   "interval_outcome": [
+    0.02924260206139504,
+    0.033001126103091145
+   ],
+   "rate_patches": 0.06036376953125,
+   "interval_patches": [
+    0.0578362509005487,
+    0.06299435875307541
+   ]
+  },
+  "d7/T10/p0.003/correlated": {
+   "d": 7,
+   "merged": 10,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1585,
+    "outcome": 771,
+    "patches": 1574
+   },
+   "rate_any": 0.032246907552083336,
+   "interval_any": [
+    0.030721345370379335,
+    0.03384558089296838
+   ],
+   "rate_outcome": 0.01568603515625,
+   "interval_outcome": [
+    0.01462475369316162,
+    0.016823016290701296
+   ],
+   "rate_patches": 0.032023111979166664,
+   "interval_patches": [
+    0.030502814048512066,
+    0.03361655604889665
+   ]
+  },
+  "d7/T11/p0.003/plain": {
+   "d": 7,
+   "merged": 11,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2053,
+    "outcome": 1032,
+    "patches": 2025
+   },
+   "rate_any": 0.062652587890625,
+   "interval_any": [
+    0.060079585969426634,
+    0.06532812380053636
+   ],
+   "rate_outcome": 0.031494140625,
+   "interval_outcome": [
+    0.02965734925536847,
+    0.033440770930834314
+   ],
+   "rate_patches": 0.061798095703125,
+   "interval_patches": [
+    0.059241954946040086,
+    0.06445697078048973
+   ]
+  },
+  "d7/T11/p0.003/correlated": {
+   "d": 7,
+   "merged": 11,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1563,
+    "outcome": 769,
+    "patches": 1553
+   },
+   "rate_any": 0.03179931640625,
+   "interval_any": [
+    0.030284302990941696,
+    0.033387510940528047
+   ],
+   "rate_outcome": 0.015645345052083332,
+   "interval_outcome": [
+    0.01458546882255738,
+    0.016780927312952984
+   ],
+   "rate_patches": 0.031595865885416664,
+   "interval_patches": [
+    0.030085674333864356,
+    0.03317927035584266
+   ]
+  },
+  "d7/T12/p0.003/plain": {
+   "d": 7,
+   "merged": 12,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 1996,
+    "outcome": 1014,
+    "patches": 1980
+   },
+   "rate_any": 0.0609130859375,
+   "interval_any": [
+    0.05837455770626807,
+    0.06355455597527739
+   ],
+   "rate_outcome": 0.03094482421875,
+   "interval_outcome": [
+    0.029124120133590895,
+    0.032875496024690545
+   ],
+   "rate_patches": 0.0604248046875,
+   "interval_patches": [
+    0.05789605979821072,
+    0.06305660585851576
+   ]
+  },
+  "d7/T12/p0.003/correlated": {
+   "d": 7,
+   "merged": 12,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 65536,
+   "failures": {
+    "any": 1950,
+    "outcome": 941,
+    "patches": 1942
+   },
+   "rate_any": 0.029754638671875,
+   "interval_any": [
+    0.028481077110036616,
+    0.031083326841772754
+   ],
+   "rate_outcome": 0.0143585205078125,
+   "interval_outcome": [
+    0.013475752666404661,
+    0.01529821983584197
+   ],
+   "rate_patches": 0.029632568359375,
+   "interval_patches": [
+    0.028361602675256767,
+    0.030958674961788973
+   ]
+  },
+  "d7/T13/p0.003/plain": {
+   "d": 7,
+   "merged": 13,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 1955,
+    "outcome": 986,
+    "patches": 1938
+   },
+   "rate_any": 0.059661865234375,
+   "interval_any": [
+    0.05714850245834838,
+    0.062278463159598466
+   ],
+   "rate_outcome": 0.03009033203125,
+   "interval_outcome": [
+    0.028294966343178234,
+    0.03199586577167002
+   ],
+   "rate_patches": 0.05914306640625,
+   "interval_patches": [
+    0.05664023101506877,
+    0.06174925857650792
+   ]
+  },
+  "d7/T13/p0.003/correlated": {
+   "d": 7,
+   "merged": 13,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1529,
+    "outcome": 769,
+    "patches": 1525
+   },
+   "rate_any": 0.031107584635416668,
+   "interval_any": [
+    0.02960903553609794,
+    0.032679422973378586
+   ],
+   "rate_outcome": 0.015645345052083332,
+   "interval_outcome": [
+    0.01458546882255738,
+    0.016780927312952984
+   ],
+   "rate_patches": 0.031026204427083332,
+   "interval_patches": [
+    0.029529605456499734,
+    0.03259610535627169
+   ]
+  },
+  "d7/T14/p0.003/plain": {
+   "d": 7,
+   "merged": 14,
+   "p": 0.003,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2051,
+    "outcome": 1040,
+    "patches": 2035
+   },
+   "rate_any": 0.062591552734375,
+   "interval_any": [
+    0.060019750548268046,
+    0.06526590321859257
+   ],
+   "rate_outcome": 0.03173828125,
+   "interval_outcome": [
+    0.029894389354893143,
+    0.033691954843719125
+   ],
+   "rate_patches": 0.062103271484375,
+   "interval_patches": [
+    0.05954109278423088,
+    0.06476811295781079
+   ]
+  },
+  "d7/T14/p0.003/correlated": {
+   "d": 7,
+   "merged": 14,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1534,
+    "outcome": 786,
+    "patches": 1528
+   },
+   "rate_any": 0.031209309895833332,
+   "interval_any": [
+    0.029708327064346056,
+    0.032783566066011814
+   ],
+   "rate_outcome": 0.0159912109375,
+   "interval_outcome": [
+    0.014919450407924141,
+    0.017138623438582842
+   ],
+   "rate_patches": 0.031087239583333332,
+   "interval_patches": [
+    0.02958917775378446,
+    0.032658593831515786
+   ]
+  },
+  "d3/T2/p0.002/plain": {
+   "d": 3,
+   "merged": 2,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1687,
+    "outcome": 1171,
+    "patches": 986
+   },
+   "rate_any": 0.10296630859375,
+   "interval_any": [
+    0.09840529865156751,
+    0.10771346197887453
+   ],
+   "rate_outcome": 0.07147216796875,
+   "interval_outcome": [
+    0.06762712343123106,
+    0.07551812151670645
+   ],
+   "rate_patches": 0.0601806640625,
+   "interval_patches": [
+    0.05664109493485609,
+    0.06392643605714471
+   ]
+  },
+  "d3/T2/p0.002/correlated": {
+   "d": 3,
+   "merged": 2,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1666,
+    "outcome": 1198,
+    "patches": 945
+   },
+   "rate_any": 0.1016845703125,
+   "interval_any": [
+    0.09714959939507019,
+    0.10640628559713038
+   ],
+   "rate_outcome": 0.0731201171875,
+   "interval_outcome": [
+    0.06923303897828822,
+    0.07720733179024547
+   ],
+   "rate_patches": 0.05767822265625,
+   "interval_patches": [
+    0.05421095963449074,
+    0.06135286177808626
+   ]
+  },
+  "d3/T3/p0.002/plain": {
+   "d": 3,
+   "merged": 3,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2244,
+    "outcome": 1178,
+    "patches": 2039
+   },
+   "rate_any": 0.0684814453125,
+   "interval_any": [
+    0.06579699867768647,
+    0.07126705938855292
+   ],
+   "rate_outcome": 0.03594970703125,
+   "interval_outcome": [
+    0.03398777577046357,
+    0.03802043264221227
+   ],
+   "rate_patches": 0.062225341796875,
+   "interval_patches": [
+    0.05966075294405226,
+    0.06489256480419416
+   ]
+  },
+  "d3/T3/p0.002/correlated": {
+   "d": 3,
+   "merged": 3,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2034,
+    "outcome": 1060,
+    "patches": 1850
+   },
+   "rate_any": 0.06207275390625,
+   "interval_any": [
+    0.05951117819196905,
+    0.06473699954852144
+   ],
+   "rate_outcome": 0.0323486328125,
+   "interval_outcome": [
+    0.030487119726239353,
+    0.03431978450339662
+   ],
+   "rate_patches": 0.05645751953125,
+   "interval_patches": [
+    0.05401008111433618,
+    0.05900894434073621
+   ]
+  },
+  "d3/T4/p0.002/plain": {
+   "d": 3,
+   "merged": 4,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2155,
+    "outcome": 1134,
+    "patches": 2072
+   },
+   "rate_any": 0.065765380859375,
+   "interval_any": [
+    0.06313211059371013,
+    0.06850045533447377
+   ],
+   "rate_outcome": 0.03460693359375,
+   "interval_outcome": [
+    0.03268176597198944,
+    0.03664121037243425
+   ],
+   "rate_patches": 0.063232421875,
+   "interval_patches": [
+    0.060648057647456094,
+    0.06591918415197942
+   ]
+  },
+  "d3/T4/p0.002/correlated": {
+   "d": 3,
+   "merged": 4,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 1991,
+    "outcome": 1017,
+    "patches": 1924
+   },
+   "rate_any": 0.060760498046875,
+   "interval_any": [
+    0.058225022021531014,
+    0.0633989516522585
+   ],
+   "rate_outcome": 0.031036376953125,
+   "interval_outcome": [
+    0.029212980854718032,
+    0.03296971930821697
+   ],
+   "rate_patches": 0.0587158203125,
+   "interval_patches": [
+    0.056221696146429946,
+    0.06131340142343016
+   ]
+  },
+  "d3/T5/p0.002/plain": {
+   "d": 3,
+   "merged": 5,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2169,
+    "outcome": 1111,
+    "patches": 2148
+   },
+   "rate_any": 0.066192626953125,
+   "interval_any": [
+    0.06355122150753219,
+    0.06893573644236832
+   ],
+   "rate_outcome": 0.033905029296875,
+   "interval_outcome": [
+    0.03199939397017602,
+    0.03591993833857041
+   ],
+   "rate_patches": 0.0655517578125,
+   "interval_patches": [
+    0.06292256727672439,
+    0.0682828026406012
+   ]
+  },
+  "d3/T5/p0.002/correlated": {
+   "d": 3,
+   "merged": 5,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 1973,
+    "outcome": 998,
+    "patches": 1956
+   },
+   "rate_any": 0.060211181640625,
+   "interval_any": [
+    0.057686731922099964,
+    0.06283873772376823
+   ],
+   "rate_outcome": 0.03045654296875,
+   "interval_outcome": [
+    0.028650270433181167,
+    0.03237289770028132
+   ],
+   "rate_patches": 0.0596923828125,
+   "interval_patches": [
+    0.05717840249120293,
+    0.06230959112829511
+   ]
+  },
+  "d3/T6/p0.002/plain": {
+   "d": 3,
+   "merged": 6,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2189,
+    "outcome": 1057,
+    "patches": 2166
+   },
+   "rate_any": 0.066802978515625,
+   "interval_any": [
+    0.06415000705056303,
+    0.06955751093036117
+   ],
+   "rate_outcome": 0.032257080078125,
+   "interval_outcome": [
+    0.03039819845613291,
+    0.03422562176884951
+   ],
+   "rate_patches": 0.06610107421875,
+   "interval_patches": [
+    0.0634614093112465,
+    0.06884246463400046
+   ]
+  },
+  "d3/T6/p0.002/correlated": {
+   "d": 3,
+   "merged": 6,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 1983,
+    "outcome": 950,
+    "patches": 1967
+   },
+   "rate_any": 0.060516357421875,
+   "interval_any": [
+    0.05798577454098768,
+    0.06314997512039235
+   ],
+   "rate_outcome": 0.02899169921875,
+   "interval_outcome": [
+    0.027229495559531885,
+    0.030864328499473695
+   ],
+   "rate_patches": 0.060028076171875,
+   "interval_patches": [
+    0.0575073153251472,
+    0.06265198631141389
+   ]
+  },
+  "d5/T2/p0.002/plain": {
+   "d": 5,
+   "merged": 2,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 3065,
+    "outcome": 2559,
+    "patches": 940
+   },
+   "rate_any": 0.093536376953125,
+   "interval_any": [
+    0.09043104738778669,
+    0.09673699995197586
+   ],
+   "rate_outcome": 0.078094482421875,
+   "interval_outcome": [
+    0.07523843207831193,
+    0.08104944647655085
+   ],
+   "rate_patches": 0.0286865234375,
+   "interval_patches": [
+    0.026933652436543887,
+    0.03054989160694984
+   ]
+  },
+  "d5/T2/p0.002/correlated": {
+   "d": 5,
+   "merged": 2,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2806,
+    "outcome": 2494,
+    "patches": 576
+   },
+   "rate_any": 0.08563232421875,
+   "interval_any": [
+    0.08265091052296916,
+    0.08871088441503638
+   ],
+   "rate_outcome": 0.07611083984375,
+   "interval_outcome": [
+    0.07328906193004402,
+    0.07903199652399172
+   ],
+   "rate_patches": 0.017578125,
+   "interval_patches": [
+    0.016210761914087313,
+    0.019058589564774953
+   ]
+  },
+  "d5/T3/p0.002/plain": {
+   "d": 5,
+   "merged": 3,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 49152,
+   "failures": {
+    "any": 2017,
+    "outcome": 1248,
+    "patches": 1449
+   },
+   "rate_any": 0.041035970052083336,
+   "interval_any": [
+    0.03931778525171805,
+    0.04282589225577884
+   ],
+   "rate_outcome": 0.025390625,
+   "interval_outcome": [
+    0.02403656335871462,
+    0.026818869457229676
+   ],
+   "rate_patches": 0.02947998046875,
+   "interval_patches": [
+    0.028020979513672835,
+    0.031012525061701983
+   ]
+  },
+  "d5/T3/p0.002/correlated": {
+   "d": 5,
+   "merged": 3,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 65536,
+   "failures": {
+    "any": 1728,
+    "outcome": 1153,
+    "patches": 1171
+   },
+   "rate_any": 0.0263671875,
+   "interval_any": [
+    0.025167950738024036,
+    0.027621947979094622
+   ],
+   "rate_outcome": 0.0175933837890625,
+   "interval_outcome": [
+    0.016614739816566904,
+    0.01862858002691591
+   ],
+   "rate_patches": 0.0178680419921875,
+   "interval_patches": [
+    0.016881700966375864,
+    0.01891090308532511
+   ]
+  },
+  "d5/T4/p0.002/plain": {
+   "d": 5,
+   "merged": 4,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 49152,
+   "failures": {
+    "any": 1734,
+    "outcome": 941,
+    "patches": 1527
+   },
+   "rate_any": 0.0352783203125,
+   "interval_any": [
+    0.033683349135290384,
+    0.03694592883032174
+   ],
+   "rate_outcome": 0.019144694010416668,
+   "interval_outcome": [
+    0.01797026954964803,
+    0.020394277544180998
+   ],
+   "rate_patches": 0.03106689453125,
+   "interval_patches": [
+    0.029569320146302792,
+    0.032637764514821185
+   ]
+  },
+  "d5/T4/p0.002/correlated": {
+   "d": 5,
+   "merged": 4,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1744,
+    "outcome": 986,
+    "patches": 1514
+   },
+   "rate_any": 0.0212890625,
+   "interval_any": [
+    0.020322801638578768,
+    0.022300219106092957
+   ],
+   "rate_outcome": 0.0120361328125,
+   "interval_outcome": [
+    0.011311931788021996,
+    0.012806097364556221
+   ],
+   "rate_patches": 0.0184814453125,
+   "interval_patches": [
+    0.017581457127548664,
+    0.01942659255355907
+   ]
+  },
+  "d5/T5/p0.002/plain": {
+   "d": 5,
+   "merged": 5,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 49152,
+   "failures": {
+    "any": 1547,
+    "outcome": 813,
+    "patches": 1475
+   },
+   "rate_any": 0.031473795572916664,
+   "interval_any": [
+    0.02996650532617277,
+    0.03305431781847662
+   ],
+   "rate_outcome": 0.01654052734375,
+   "interval_outcome": [
+    0.015450164896541363,
+    0.01770645590272494
+   ],
+   "rate_patches": 0.030008951822916668,
+   "interval_patches": [
+    0.028536969684210167,
+    0.0315543949197477
+   ]
+  },
+  "d5/T5/p0.002/correlated": {
+   "d": 5,
+   "merged": 5,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1582,
+    "outcome": 832,
+    "patches": 1514
+   },
+   "rate_any": 0.0193115234375,
+   "interval_any": [
+    0.018391417414346384,
+    0.02027671066816287
+   ],
+   "rate_outcome": 0.01015625,
+   "interval_outcome": [
+    0.009492240331091032,
+    0.010866199500666078
+   ],
+   "rate_patches": 0.0184814453125,
+   "interval_patches": [
+    0.017581457127548664,
+    0.01942659255355907
+   ]
+  },
+  "d5/T6/p0.002/plain": {
+   "d": 5,
+   "merged": 6,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 49152,
+   "failures": {
+    "any": 1562,
+    "outcome": 784,
+    "patches": 1539
+   },
+   "rate_any": 0.031778971354166664,
+   "interval_any": [
+    0.030264439361313615,
+    0.03336668764597985
+   ],
+   "rate_outcome": 0.015950520833333332,
+   "interval_outcome": [
+    0.014880151434023008,
+    0.01709654856413143
+   ],
+   "rate_patches": 0.03131103515625,
+   "interval_patches": [
+    0.029807622938621492,
+    0.03288770481261774
+   ]
+  },
+  "d5/T6/p0.002/correlated": {
+   "d": 5,
+   "merged": 6,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1571,
+    "outcome": 789,
+    "patches": 1545
+   },
+   "rate_any": 0.01917724609375,
+   "interval_any": [
+    0.01826036299837583,
+    0.02013922298978906
+   ],
+   "rate_outcome": 0.00963134765625,
+   "interval_outcome": [
+    0.008985152201021746,
+    0.010323532171025577
+   ],
+   "rate_patches": 0.01885986328125,
+   "interval_patches": [
+    0.01795064576255865,
+    0.019814204366246833
+   ]
+  },
+  "d5/T7/p0.002/plain": {
+   "d": 5,
+   "merged": 7,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 65536,
+   "failures": {
+    "any": 2025,
+    "outcome": 987,
+    "patches": 2007
+   },
+   "rate_any": 0.0308990478515625,
+   "interval_any": [
+    0.029601427910339245,
+    0.03225166024237915
+   ],
+   "rate_outcome": 0.0150604248046875,
+   "interval_outcome": [
+    0.014155963623815255,
+    0.016021735188322245
+   ],
+   "rate_patches": 0.0306243896484375,
+   "interval_patches": [
+    0.02933249862606921,
+    0.03197130531843102
+   ]
+  },
+  "d5/T7/p0.002/correlated": {
+   "d": 5,
+   "merged": 7,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1592,
+    "outcome": 776,
+    "patches": 1577
+   },
+   "rate_any": 0.01943359375,
+   "interval_any": [
+    0.018510568063822348,
+    0.0204016891953636
+   ],
+   "rate_outcome": 0.00947265625,
+   "interval_outcome": [
+    0.00883194417968237,
+    0.010159372262685247
+   ],
+   "rate_patches": 0.01925048828125,
+   "interval_patches": [
+    0.01833184575110808,
+    0.02021421774306283
+   ]
+  },
+  "d5/T8/p0.002/plain": {
+   "d": 5,
+   "merged": 8,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 65536,
+   "failures": {
+    "any": 1993,
+    "outcome": 1004,
+    "patches": 1989
+   },
+   "rate_any": 0.0304107666015625,
+   "interval_any": [
+    0.029123350888742627,
+    0.03175323200492125
+   ],
+   "rate_outcome": 0.01531982421875,
+   "interval_outcome": [
+    0.014407479809025205,
+    0.016288987421985007
+   ],
+   "rate_patches": 0.0303497314453125,
+   "interval_patches": [
+    0.029063597551012267,
+    0.031690922185269796
+   ]
+  },
+  "d5/T8/p0.002/correlated": {
+   "d": 5,
+   "merged": 8,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1530,
+    "outcome": 763,
+    "patches": 1525
+   },
+   "rate_any": 0.0186767578125,
+   "interval_any": [
+    0.017771993770308615,
+    0.01962666259348183
+   ],
+   "rate_outcome": 0.00931396484375,
+   "interval_outcome": [
+    0.008678783508854636,
+    0.009995165003833276
+   ],
+   "rate_patches": 0.01861572265625,
+   "interval_patches": [
+    0.017712448225643107,
+    0.01956414354980899
+   ]
+  },
+  "d5/T9/p0.002/plain": {
+   "d": 5,
+   "merged": 9,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 49152,
+   "failures": {
+    "any": 1536,
+    "outcome": 751,
+    "patches": 1529
+   },
+   "rate_any": 0.03125,
+   "interval_any": [
+    0.029748044893682865,
+    0.032825222085027556
+   ],
+   "rate_outcome": 0.015279134114583334,
+   "interval_outcome": [
+    0.014231991876862932,
+    0.016402039623474557
+   ],
+   "rate_patches": 0.031107584635416668,
+   "interval_patches": [
+    0.02960903553609794,
+    0.032679422973378586
+   ]
+  },
+  "d5/T9/p0.002/correlated": {
+   "d": 5,
+   "merged": 9,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1581,
+    "outcome": 772,
+    "patches": 1580
+   },
+   "rate_any": 0.01929931640625,
+   "interval_any": [
+    0.018379502885753626,
+    0.02026421227908796
+   ],
+   "rate_outcome": 0.009423828125,
+   "interval_outcome": [
+    0.008784812721354607,
+    0.010108852050342333
+   ],
+   "rate_patches": 0.019287109375,
+   "interval_patches": [
+    0.01836758845504229,
+    0.020251713792131632
+   ]
+  },
+  "d5/T10/p0.002/plain": {
+   "d": 5,
+   "merged": 10,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 49152,
+   "failures": {
+    "any": 1545,
+    "outcome": 771,
+    "patches": 1534
+   },
+   "rate_any": 0.03143310546875,
+   "interval_any": [
+    0.029926783695700863,
+    0.03301266560059599
+   ],
+   "rate_outcome": 0.01568603515625,
+   "interval_outcome": [
+    0.01462475369316162,
+    0.016823016290701296
+   ],
+   "rate_patches": 0.031209309895833332,
+   "interval_patches": [
+    0.029708327064346056,
+    0.032783566066011814
+   ]
+  },
+  "d5/T10/p0.002/correlated": {
+   "d": 5,
+   "merged": 10,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 81920,
+   "failures": {
+    "any": 1554,
+    "outcome": 772,
+    "patches": 1549
+   },
+   "rate_any": 0.0189697265625,
+   "interval_any": [
+    0.018057847914192907,
+    0.019926718473621607
+   ],
+   "rate_outcome": 0.009423828125,
+   "interval_outcome": [
+    0.008784812721354607,
+    0.010108852050342333
+   ],
+   "rate_patches": 0.01890869140625,
+   "interval_patches": [
+    0.01799829015492164,
+    0.019864211644554524
+   ]
+  },
+  "d7/T2/p0.002/plain": {
+   "d": 7,
+   "merged": 2,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1721,
+    "outcome": 1616,
+    "patches": 225
+   },
+   "rate_any": 0.10504150390625,
+   "interval_any": [
+    0.10043880852267072,
+    0.10982936980778131
+   ],
+   "rate_outcome": 0.0986328125,
+   "interval_outcome": [
+    0.09416076251141042,
+    0.10329303762783429
+   ],
+   "rate_patches": 0.01373291015625,
+   "interval_patches": [
+    0.012061396688460964,
+    0.01563240284155158
+   ]
+  },
+  "d7/T2/p0.002/correlated": {
+   "d": 7,
+   "merged": 2,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1671,
+    "outcome": 1633,
+    "patches": 93
+   },
+   "rate_any": 0.10198974609375,
+   "interval_any": [
+    0.09744855490761435,
+    0.10671753856988182
+   ],
+   "rate_outcome": 0.09967041015625,
+   "interval_outcome": [
+    0.0951768190240298,
+    0.1043516899652199
+   ],
+   "rate_patches": 0.00567626953125,
+   "interval_patches": [
+    0.004636079933101399,
+    0.006948215585107662
+   ]
+  },
+  "d7/T3/p0.002/plain": {
+   "d": 7,
+   "merged": 3,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 65536,
+   "failures": {
+    "any": 1967,
+    "outcome": 1547,
+    "patches": 813
+   },
+   "rate_any": 0.0300140380859375,
+   "interval_any": [
+    0.02873497953282826,
+    0.031348192837853825
+   ],
+   "rate_outcome": 0.0236053466796875,
+   "interval_outcome": [
+    0.022470626942770716,
+    0.024795913902820835
+   ],
+   "rate_patches": 0.0124053955078125,
+   "interval_patches": [
+    0.011586075226233927,
+    0.013281876239794639
+   ]
+  },
+  "d7/T3/p0.002/correlated": {
+   "d": 7,
+   "merged": 3,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 98304,
+   "failures": {
+    "any": 1773,
+    "outcome": 1525,
+    "patches": 485
+   },
+   "rate_any": 0.018035888671875,
+   "interval_any": [
+    0.0172225950742573,
+    0.01888684993261996
+   ],
+   "rate_outcome": 0.015513102213541666,
+   "interval_outcome": [
+    0.014759271012916894,
+    0.016304798244402657
+   ],
+   "rate_patches": 0.004933675130208333,
+   "interval_patches": [
+    0.004514594766609915,
+    0.005391447153854749
+   ]
+  },
+  "d7/T4/p0.002/plain": {
+   "d": 7,
+   "merged": 4,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 81920,
+   "failures": {
+    "any": 1620,
+    "outcome": 1127,
+    "patches": 998
+   },
+   "rate_any": 0.019775390625,
+   "interval_any": [
+    0.018844241145663652,
+    0.02075157780821705
+   ],
+   "rate_outcome": 0.01375732421875,
+   "interval_outcome": [
+    0.012982154171322023,
+    0.0145780963723976
+   ],
+   "rate_patches": 0.0121826171875,
+   "interval_patches": [
+    0.011453937018605477,
+    0.012957047145984774
+   ]
+  },
+  "d7/T4/p0.002/correlated": {
+   "d": 7,
+   "merged": 4,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 147456,
+   "failures": {
+    "any": 1525,
+    "outcome": 1121,
+    "patches": 784
+   },
+   "rate_any": 0.010342068142361112,
+   "interval_any": [
+    0.009838291809760317,
+    0.010871357453826034
+   ],
+   "rate_outcome": 0.007602267795138889,
+   "interval_outcome": [
+    0.007171573445802275,
+    0.008058617877012763
+   ],
+   "rate_patches": 0.005316840277777778,
+   "interval_patches": [
+    0.0049583207689467045,
+    0.005701134598323945
+   ]
+  },
+  "d7/T5/p0.002/plain": {
+   "d": 7,
+   "merged": 5,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 98304,
+   "failures": {
+    "any": 1546,
+    "outcome": 884,
+    "patches": 1325
+   },
+   "rate_any": 0.015726725260416668,
+   "interval_any": [
+    0.0149676709816859,
+    0.016523627673781682
+   ],
+   "rate_outcome": 0.008992513020833334,
+   "interval_outcome": [
+    0.0084212674976103,
+    0.009602132987666961
+   ],
+   "rate_patches": 0.013478597005208334,
+   "interval_patches": [
+    0.0127765203855119,
+    0.014218697460874022
+   ]
+  },
+  "d7/T5/p0.002/correlated": {
+   "d": 7,
+   "merged": 5,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 245760,
+   "failures": {
+    "any": 1572,
+    "outcome": 955,
+    "patches": 1260
+   },
+   "rate_any": 0.006396484375,
+   "interval_any": [
+    0.006088914236662258,
+    0.006719485809115669
+   ],
+   "rate_outcome": 0.0038859049479166665,
+   "interval_outcome": [
+    0.003647558810512581,
+    0.004139760868168743
+   ],
+   "rate_patches": 0.005126953125,
+   "interval_patches": [
+    0.004852217860667715,
+    0.005417159373871735
+   ]
+  },
+  "d7/T6/p0.002/plain": {
+   "d": 7,
+   "merged": 6,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 114688,
+   "failures": {
+    "any": 1646,
+    "outcome": 888,
+    "patches": 1527
+   },
+   "rate_any": 0.014351981026785714,
+   "interval_any": [
+    0.013679709824582786,
+    0.015056785762388412
+   ],
+   "rate_outcome": 0.007742745535714286,
+   "interval_outcome": [
+    0.007251683804143051,
+    0.008266783552998069
+   ],
+   "rate_patches": 0.013314383370535714,
+   "interval_patches": [
+    0.01266713919792165,
+    0.013994230585158017
+   ]
+  },
+  "d7/T6/p0.002/correlated": {
+   "d": 7,
+   "merged": 6,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 262144,
+   "failures": {
+    "any": 1568,
+    "outcome": 849,
+    "patches": 1442
+   },
+   "rate_any": 0.0059814453125,
+   "interval_any": [
+    0.0056934185625644625,
+    0.006283951080596468
+   ],
+   "rate_outcome": 0.003238677978515625,
+   "interval_outcome": [
+    0.0030283343180914565,
+    0.0034635810439154766
+   ],
+   "rate_patches": 0.00550079345703125,
+   "interval_patches": [
+    0.0052248095147902724,
+    0.0057912705046913775
+   ]
+  },
+  "d7/T7/p0.002/plain": {
+   "d": 7,
+   "merged": 7,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 114688,
+   "failures": {
+    "any": 1569,
+    "outcome": 812,
+    "patches": 1534
+   },
+   "rate_any": 0.013680594308035714,
+   "interval_any": [
+    0.013024404874448501,
+    0.01436936225118112
+   ],
+   "rate_outcome": 0.007080078125,
+   "interval_outcome": [
+    0.006611057219764065,
+    0.007582119708000953
+   ],
+   "rate_patches": 0.013375418526785714,
+   "interval_patches": [
+    0.012726674675615904,
+    0.014056761331222089
+   ]
+  },
+  "d7/T7/p0.002/correlated": {
+   "d": 7,
+   "merged": 7,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 278528,
+   "failures": {
+    "any": 1546,
+    "outcome": 780,
+    "patches": 1513
+   },
+   "rate_any": 0.005550608915441176,
+   "interval_any": [
+    0.005281426083566036,
+    0.0058334309547396325
+   ],
+   "rate_outcome": 0.002800436580882353,
+   "interval_outcome": [
+    0.002610918519516705,
+    0.003003669712179387
+   ],
+   "rate_patches": 0.00543212890625,
+   "interval_patches": [
+    0.0051658911766166715,
+    0.005712009111534799
+   ]
+  },
+  "d7/T8/p0.002/plain": {
+   "d": 7,
+   "merged": 8,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 131072,
+   "failures": {
+    "any": 1735,
+    "outcome": 836,
+    "patches": 1711
+   },
+   "rate_any": 0.01323699951171875,
+   "interval_any": [
+    0.012632378665691852,
+    0.0138701526749118
+   ],
+   "rate_outcome": 0.006378173828125,
+   "interval_outcome": [
+    0.005961421863377571,
+    0.006823860150024354
+   ],
+   "rate_patches": 0.01305389404296875,
+   "interval_patches": [
+    0.012453514551878007,
+    0.013682816584217477
+   ]
+  },
+  "d7/T8/p0.002/correlated": {
+   "d": 7,
+   "merged": 8,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 294912,
+   "failures": {
+    "any": 1571,
+    "outcome": 757,
+    "patches": 1550
+   },
+   "rate_any": 0.005327012803819444,
+   "interval_any": [
+    0.005070659918273017,
+    0.005596252998079455
+   ],
+   "rate_outcome": 0.002566867404513889,
+   "interval_outcome": [
+    0.002390611131835739,
+    0.0027560828937048683
+   ],
+   "rate_patches": 0.005255805121527778,
+   "interval_patches": [
+    0.0050012050867461275,
+    0.0055232943201382265
+   ]
+  },
+  "d7/T9/p0.002/plain": {
+   "d": 7,
+   "merged": 9,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 131072,
+   "failures": {
+    "any": 1686,
+    "outcome": 814,
+    "patches": 1678
+   },
+   "rate_any": 0.0128631591796875,
+   "interval_any": [
+    0.012267230747307404,
+    0.013487641842425409
+   ],
+   "rate_outcome": 0.0062103271484375,
+   "interval_outcome": [
+    0.005799249330937507,
+    0.006650349161665265
+   ],
+   "rate_patches": 0.0128021240234375,
+   "interval_patches": [
+    0.01220762715570596,
+    0.013425178699190795
+   ]
+  },
+  "d7/T9/p0.002/correlated": {
+   "d": 7,
+   "merged": 9,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 278528,
+   "failures": {
+    "any": 1541,
+    "outcome": 755,
+    "patches": 1538
+   },
+   "rate_any": 0.0055326573988970585,
+   "interval_any": [
+    0.005263918728423716,
+    0.005815035771979802
+   ],
+   "rate_outcome": 0.002710678998161765,
+   "interval_outcome": [
+    0.002524322220025597,
+    0.002910753322159739
+   ],
+   "rate_patches": 0.005521886488970588,
+   "interval_patches": [
+    0.0052534146666814744,
+    0.005803998310980752
+   ]
+  },
+  "d7/T10/p0.002/plain": {
+   "d": 7,
+   "merged": 10,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 131072,
+   "failures": {
+    "any": 1717,
+    "outcome": 866,
+    "patches": 1711
+   },
+   "rate_any": 0.01309967041015625,
+   "interval_any": [
+    0.012498227698573115,
+    0.013729653488649412
+   ],
+   "rate_outcome": 0.0066070556640625,
+   "interval_outcome": [
+    0.006182687273869876,
+    0.007060344995167257
+   ],
+   "rate_patches": 0.01305389404296875,
+   "interval_patches": [
+    0.012453514551878007,
+    0.013682816584217477
+   ]
+  },
+  "d7/T10/p0.002/correlated": {
+   "d": 7,
+   "merged": 10,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 294912,
+   "failures": {
+    "any": 1527,
+    "outcome": 795,
+    "patches": 1523
+   },
+   "rate_any": 0.005177815755208333,
+   "interval_any": [
+    0.004925149392560825,
+    0.005443373313477491
+   ],
+   "rate_outcome": 0.0026957194010416665,
+   "interval_outcome": [
+    0.0025149488726997145,
+    0.0028894457890212984
+   ],
+   "rate_patches": 0.005164252387152778,
+   "interval_patches": [
+    0.004911923819978585,
+    0.0054294725033039
+   ]
+  },
+  "d7/T11/p0.002/plain": {
+   "d": 7,
+   "merged": 11,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 114688,
+   "failures": {
+    "any": 1532,
+    "outcome": 731,
+    "patches": 1529
+   },
+   "rate_any": 0.013357979910714286,
+   "interval_any": [
+    0.012709664175613061,
+    0.014038895767293984
+   ],
+   "rate_outcome": 0.006373814174107143,
+   "interval_outcome": [
+    0.0059294757912882485,
+    0.006851220547273291
+   ],
+   "rate_patches": 0.013331821986607142,
+   "interval_patches": [
+    0.012684148970535549,
+    0.01401209687647507
+   ]
+  },
+  "d7/T11/p0.002/correlated": {
+   "d": 7,
+   "merged": 11,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 294912,
+   "failures": {
+    "any": 1525,
+    "outcome": 726,
+    "patches": 1523
+   },
+   "rate_any": 0.005171034071180556,
+   "interval_any": [
+    0.0049185365500880925,
+    0.005436422964572309
+   ],
+   "rate_outcome": 0.0024617513020833335,
+   "interval_outcome": [
+    0.0022892628585540857,
+    0.0026472017006288215
+   ],
+   "rate_patches": 0.005164252387152778,
+   "interval_patches": [
+    0.004911923819978585,
+    0.0054294725033039
+   ]
+  },
+  "d7/T12/p0.002/plain": {
+   "d": 7,
+   "merged": 12,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 131072,
+   "failures": {
+    "any": 1694,
+    "outcome": 816,
+    "patches": 1691
+   },
+   "rate_any": 0.0129241943359375,
+   "interval_any": [
+    0.012326837859705373,
+    0.013550101464863493
+   ],
+   "rate_outcome": 0.0062255859375,
+   "interval_outcome": [
+    0.0058139890912265015,
+    0.006666126085085285
+   ],
+   "rate_patches": 0.01290130615234375,
+   "interval_patches": [
+    0.012304484781528931,
+    0.013526679517476414
+   ]
+  },
+  "d7/T12/p0.002/correlated": {
+   "d": 7,
+   "merged": 12,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 294912,
+   "failures": {
+    "any": 1592,
+    "outcome": 793,
+    "patches": 1590
+   },
+   "rate_any": 0.005398220486111111,
+   "interval_any": [
+    0.005140126601516924,
+    0.005669199824303668
+   ],
+   "rate_outcome": 0.002688937717013889,
+   "interval_outcome": [
+    0.002508402037591264,
+    0.0028824294327518332
+   ],
+   "rate_patches": 0.005391438802083333,
+   "interval_patches": [
+    0.005133510222717627,
+    0.005662253011725048
+   ]
+  },
+  "d7/T13/p0.002/plain": {
+   "d": 7,
+   "merged": 13,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 131072,
+   "failures": {
+    "any": 1666,
+    "outcome": 820,
+    "patches": 1663
+   },
+   "rate_any": 0.0127105712890625,
+   "interval_any": [
+    0.01211822842427162,
+    0.013331477328371054
+   ],
+   "rate_outcome": 0.006256103515625,
+   "interval_outcome": [
+    0.005843470548686699,
+    0.006697677995043116
+   ],
+   "rate_patches": 0.01268768310546875,
+   "interval_patches": [
+    0.012095879997894157,
+    0.013308050729184995
+   ]
+  },
+  "d7/T13/p0.002/correlated": {
+   "d": 7,
+   "merged": 13,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 278528,
+   "failures": {
+    "any": 1548,
+    "outcome": 750,
+    "patches": 1548
+   },
+   "rate_any": 0.005557789522058824,
+   "interval_any": [
+    0.005288429229914233,
+    0.005840788823552296
+   ],
+   "rate_outcome": 0.002692727481617647,
+   "interval_outcome": [
+    0.002507009251734311,
+    0.002892163752548873
+   ],
+   "rate_patches": 0.005557789522058824,
+   "interval_patches": [
+    0.005288429229914233,
+    0.005840788823552296
+   ]
+  },
+  "d7/T14/p0.002/plain": {
+   "d": 7,
+   "merged": 14,
+   "p": 0.002,
+   "matcher": "plain",
+   "shots": 131072,
+   "failures": {
+    "any": 1687,
+    "outcome": 828,
+    "patches": 1683
+   },
+   "rate_any": 0.01287078857421875,
+   "interval_any": [
+    0.012274681444320321,
+    0.013495449487266999
+   ],
+   "rate_outcome": 0.006317138671875,
+   "interval_outcome": [
+    0.005902441145787622,
+    0.006760774132778248
+   ],
+   "rate_patches": 0.01284027099609375,
+   "interval_patches": [
+    0.012244878986534402,
+    0.01346421857763489
+   ]
+  },
+  "d7/T14/p0.002/correlated": {
+   "d": 7,
+   "merged": 14,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 278528,
+   "failures": {
+    "any": 1524,
+    "outcome": 743,
+    "patches": 1522
+   },
+   "rate_any": 0.0054716222426470585,
+   "interval_any": [
+    0.005204399220921413,
+    0.005752486650614789
+   ],
+   "rate_outcome": 0.002667595358455882,
+   "interval_outcome": [
+    0.0024827747059916376,
+    0.0028661347452285345
+   ],
+   "rate_patches": 0.005464441636029412,
+   "interval_patches": [
+    0.005197397489105435,
+    0.005745127367269907
+   ]
+  }
+ },
+ "engine_commit": "e5bbaa2",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "note": "Z-basis lattice surgery: pre = post = d rounds; L0 the merge outcome, L1/L2 each patch's Z; SD6",
+ "generated": "2026-09-27"
+}
