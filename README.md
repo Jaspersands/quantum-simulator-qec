@@ -844,7 +844,21 @@ adaptive scaling for up to 10,000 iterations. BP+OSD-0 runs on the same shots.
   shots never reach OSD at all.
 - **The gross code falls steeply.** From 0.3% to 0.2% its error per cycle falls twentyfold.
 
-SURFACE_COMPARISON
+**Beside the surface code.** The same 12 logical qubits as twelve rotated d = 11 surface-code patches
+need 12 × 241 = 2,892 qubits, ten times the gross code's 288. Measured the same way (a Z memory of 12
+rounds at the same p, sampled here and decoded by correlated matching; SD6, which also puts noise on
+the Hadamards the surface code's X checks use), the chance that any of the twelve fails in a cycle
+is 1 − (1 − p_L)¹² of a single patch's:
+
+| p | gross code: 12 logical qubits on 288 | twelve d = 11 surface patches on 2,892 | ratio |
+|---|---|---|---|
+| 0.2% | 9.0 × 10⁻⁶ | 8.2 × 10⁻⁵ | 9.1× |
+| 0.3% | 1.8 × 10⁻⁴ | 1.2 × 10⁻³ | 6.8× |
+| 0.4% | 1.6 × 10⁻³ | 7.9 × 10⁻³ | 5.0× |
+| 0.5% | 1.1 × 10⁻² | 3.3 × 10⁻² | 3.1× |
+| 0.6% | 3.3 × 10⁻² | 8.7 × 10⁻² | 2.6× |
+
+With a tenth of the qubits, the gross code fails less often at every p measured, by 3 to 9 times.
 
 **On the site**, section 13 draws the code on its torus (hover a check to see its six qubits). It
 plots these measurements, and runs BP+OSD on [[72, 12, 6]] in the browser.
