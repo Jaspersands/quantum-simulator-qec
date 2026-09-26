@@ -78,7 +78,8 @@ def table(header, rows, align=None):
 
 def fits():
     out = BUILD / "fits.json"
-    subprocess.run(["node", "tools/lambda.mjs", "400", "--json", str(out), "data/realtime/willow-windows.json"],
+    subprocess.run(["node", "tools/lambda.mjs", "400", "--json", str(out), "data/realtime/willow-windows.json",
+                    "data/belief/willow.json", "data/belief/sycamore.json"],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     return json.loads(out.read_text())
 
@@ -300,6 +301,56 @@ def build_values(F):
                 worst = max(worst, abs(x["failures"] - g) / g)
     v["win.sd6_worst"] = f"{worst * 100:.1f}%"
     v["win.sd6_shots"] = num(sd["points"][0]["shots"])
+
+    # Belief-matching.
+    bc = load("data/belief/bp-check.json")
+    v["bp.cases"] = num(sum(r["cases"] for r in bc["bp"]))
+    v["bp.configs"] = num(len(bc["bp"]))
+    v["bp.max_diff"] = f"{max(r['llr_abs'] for r in bc['bp']):.1f}"
+    v["bp.bad"] = num(sum(r["hard"] + r["converge"] + r["iterations"] for r in bc["bp"]))
+    v["bm.shots"] = num(sum(r["shots"] for r in bc["belief_matching"]))
+    v["bm.disagree"] = num(sum(r["disagreements"] for r in bc["belief_matching"]))
+    v["bm.conv_differ"] = num(sum(r["convergence_differs"] for r in bc["belief_matching"]))
+    d7 = [r for r in bc["belief_matching"] if r["d"] == 7]
+    v["bm.speed"] = f"{sum(r['ours_us'] for r in d7) / len(d7) / 1000:.1f} ms against {sum(r['theirs_us'] for r in d7) / len(d7) / 1000:.1f} ms"
+    BS = F["files"]["data/belief/sycamore.json"]
+    bsy = load("data/belief/sycamore.json")["experiments"]
+    agree = sum(e["agree"]["ours/pij/belief"] for e in bsy.values())
+    shots = sum(e["shots"] for e in bsy.values())
+    v["bs.agree"] = f"{agree / shots * 100:.1f}%"
+    v["bs.shots"] = f"{shots / 1e6:.1f} million"
+    ours_f = sum(e["results"]["ours/pij/belief"]["failures"] for e in bsy.values())
+    their_f = sum(e["results"]["google/belief_matching"]["failures"] for e in bsy.values())
+    v["bs.more"] = f"{(ours_f / their_f - 1) * 100:.1f}%"
+    for key, name in [("ours/pij/belief", "ours"), ("google/belief_matching", "google"), ("ours/circuit/belief", "circuit")]:
+        v[f"bs.{name}.lambda"] = f"{BS[key]['lambda']:.3f} [{BS[key]['interval'][0]:.2f}, {BS[key]['interval'][1]:.2f}]"
+        v[f"bs.{name}.e3"] = pct(BS[key]["eps"]["3"])
+    rows = [("ours/pij/belief", "ours, belief-matching", "pij, cross-fitted"), ("ours/circuit/belief", "ours, belief-matching", "circuit"),
+            ("google/belief_matching", "Google, belief matching", "pij"), ("google/tensor_network_contraction", "Google, tensor network", "pij"),
+            ("google/correlated_matching", "Google, correlated matching", "circuit")]
+    t["belief_sycamore"] = table(["decoder", "prior", "ε, d = 3", "ε, d = 5", "Λ [95%]"],
+                                 [[n, pr] + [pct(BS[k]["eps"][d]) for d in ("3", "5")] + [lam(BS[k])] for k, n, pr in rows], "llrrr")
+    BW = F["files"]["data/belief/willow.json"]
+    bw = load("data/belief/willow.json")["experiments"]
+    v["bw.experiments"] = num(len(bw))
+    v["bw.shots"] = num(next(iter(bw.values()))["shots"])
+    rows = [("ours/si1000/belief", "ours, belief-matching"), ("ours/si1000/correlated", "ours, correlated matching"),
+            ("ours/si1000/plain", "ours, plain matching"), ("google/correlated_matching_decoder_with_si1000_prior", "Google, correlated matching"),
+            ("google/libra_decoder_with_rl_optimized_prior", "Google, Libra (RL prior)")]
+    t["belief_willow"] = table(["decoder, same shots", "ε, d = 3", "ε, d = 5", "ε, d = 7", "Λ [95%]"],
+                               [[n] + [pct(BW[k]["eps"][d]) for d in ("3", "5", "7")] + [lam(BW[k])] for k, n in rows if "lambda" in BW[k]], "lrrrr")
+    conv = sum(e["results"]["ours/si1000/belief"]["converged"] for e in bw.values())
+    v["bw.converged"] = f"{conv / sum(e['shots'] for e in bw.values()) * 100:.0f}%"
+    it = load("data/belief/iterations.json")["experiments"]["willow/d7_at_q6_7/Z/r50"]
+    v["bi.d7.rounds"] = str(it["rounds"])
+    v["bi.d7.b20"] = num(it["results"]["belief/20"]["failures"])
+    v["bi.d7.b100"] = num(it["results"]["belief/100"]["failures"])
+    v["bi.d7.corr"] = num(it["results"]["correlated"]["failures"])
+    for key, name in [("ours/si1000/belief", "belief"), ("ours/si1000/correlated", "corr"), ("google/correlated_matching_decoder_with_si1000_prior", "gcorr")]:
+        if "lambda" in BW[key]:
+            v[f"bw.{name}.lambda"] = lam(BW[key])
+            v[f"bw.{name}.e7"] = pct(BW[key]["eps"]["7"])
+            v[f"bw.{name}.e3"] = pct(BW[key]["eps"]["3"])
     return v, t
 
 

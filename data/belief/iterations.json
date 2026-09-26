@@ -1,0 +1,70 @@
+{
+ "generated": "2026-09-27",
+ "engine_commit": "3df0872",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "experiments": {
+  "willow/d3_at_q6_7/Z/r110": {
+   "d": 3,
+   "rounds": 110,
+   "shots": 10000,
+   "results": {
+    "correlated": {
+     "failures": 4546
+    },
+    "belief/20": {
+     "failures": 4398,
+     "converged": 9,
+     "seconds": 14.763215209
+    },
+    "belief/100": {
+     "failures": 4402,
+     "converged": 9,
+     "seconds": 55.51702125
+    }
+   }
+  },
+  "willow/d7_at_q6_7/Z/r50": {
+   "d": 7,
+   "rounds": 50,
+   "shots": 10000,
+   "results": {
+    "correlated": {
+     "failures": 902
+    },
+    "belief/20": {
+     "failures": 960,
+     "converged": 0,
+     "seconds": 46.552101416
+    },
+    "belief/100": {
+     "failures": 959,
+     "converged": 0,
+     "seconds": 230.542634083
+    }
+   }
+  },
+  "willow/d7_at_q6_7/Z/r110": {
+   "d": 7,
+   "rounds": 110,
+   "shots": 10000,
+   "results": {
+    "correlated": {
+     "failures": 1969
+    },
+    "belief/20": {
+     "failures": 2038,
+     "converged": 0,
+     "seconds": 104.698243375
+    },
+    "belief/100": {
+     "failures": 2035,
+     "converged": 0,
+     "seconds": 520.548556875
+    }
+   }
+  }
+ }
+}
