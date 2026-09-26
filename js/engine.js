@@ -94,7 +94,7 @@ export async function instantiate(source = WASM_URL) {
   // platform CSPRNG so a reload genuinely re-samples.
   if (typeof instance.exports.wasm_seed === 'function') {
     const seed = new Uint32Array(2);
-    (self.crypto ?? globalThis.crypto).getRandomValues(seed);
+    globalThis.crypto.getRandomValues(seed);
     instance.exports.wasm_seed(seed[0], seed[1]);
   }
   return instance;
