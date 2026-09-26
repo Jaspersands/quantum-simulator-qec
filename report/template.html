@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$title$</title>
+<meta name="description" content="$description$">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+<main class="paper">
+<header class="masthead">
+  <p class="kicker">Technical report · stabilizer-qec $version$</p>
+  <h1>$title$</h1>
+$if(subtitle)$
+  <p class="subtitle">$subtitle$</p>
+$endif$
+  <p class="byline">$author$ · $date$ · commit <code>$commit$</code></p>
+  <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
+</header>
+$if(abstract)$
+<section class="abstract">
+<h2 class="abstract__title">Summary</h2>
+$abstract$
+</section>
+$endif$
+$if(toc)$
+<nav class="toc" aria-label="Contents">
+<h2 class="toc__title">Contents</h2>
+$table-of-contents$
+</nav>
+$endif$
+$body$
+</main>
+</body>
+</html>

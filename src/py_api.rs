@@ -296,8 +296,9 @@ fn sample_b8_batch<'py>(
 }
 
 /// Window decoding of b8 shots. Returns the predictions (u64 per shot,
-/// u64::MAX where a window failed to decode), the number of defects left
-/// unexplained over all shots (zero unless something is wrong), each window's
+/// u64::MAX where a window failed to decode and the shot was abandoned), the
+/// number of defects left unexplained over the shots decoded (zero unless
+/// something is wrong), each window's
 /// decode time per shot in seconds (f64, shots × windows, when `timings`), and
 /// the windows as (first layer, end layer, commit start, commit end, phase).
 #[pyfunction]

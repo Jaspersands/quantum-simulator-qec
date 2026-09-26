@@ -1,5 +1,7 @@
 # Quantum Error Correction (QEC) Simulator
 
+[![CI](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml/badge.svg)](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml)
+
 A Rust stabilizer circuit simulator and decoder for rotated surface codes and XZZX codes.
 Compiles to WebAssembly for an interactive browser explainer, and to PyO3 Python bindings
 (`stabilizer_qec`) for Monte Carlo threshold benchmarking. It reads and writes Stim's circuit and
@@ -9,6 +11,60 @@ error-model formats, and it agrees with Stim and PyMatching on every check in
 The website walks through surface-code error correction in order: errors, syndromes, decoding,
 spacetime, threshold. Each interactive figure is driven by the real engine running locally, and
 every number on the page is computed in the reader's browser on load.
+
+**The technical report** ([web](https://qcompiler.jaspersands.com/report/report.html),
+[PDF](report/report.pdf)) covers the engine, how it is checked, and what it measures, in about
+ten pages. Every number in it is filled in from the committed data (see
+[Technical report](#technical-report)).
+
+## Install
+
+The Python package is one abi3 wheel for every CPython from 3.9 on:
+
+```bash
+pip install maturin
+maturin build --out dist
+pip install dist/stabilizer_qec-*.whl
+```
+
+```python
+import numpy as np, stabilizer_qec as sq
+
+text = sq.generate_circuit("rotated", 5, 5, "sd6", 0.004)                 # a Stim circuit
+dets, obs, _ = sq.sample_b8_batch(text, 100_000, seed=1)                   # b8 rows
+pred, _, errors, seconds = sq.decode_b8_own(text, dets, 100_000, threads=0, correlated=True)
+failures = ((np.frombuffer(pred, "<u8") & 1) != (np.frombuffer(obs, np.uint8) & 1)).sum()
+```
+
+- **Types.** The whole API is typed and documented in `stabilizer_qec.pyi`, which the wheel carries.
+- **Checks.** `python tools/smoke.py`, run from outside the repository, checks an installed wheel
+  against Stim and PyMatching end to end: the error model, raw measurements to detection events
+  bit for bit, the sampler, plain and correlated matching, windows, and a stream.
+- **Where it has been checked.** Wheels built here install and pass from fresh virtualenvs on
+  Python 3.13 and 3.9, arm64 and x86_64 (a universal2 build), and from the source distribution.
+
+**Publishing to PyPI is prepared, not performed.** `.github/workflows/wheels.yml` builds wheels for
+Linux (x86_64 and aarch64, manylinux), macOS (universal2) and Windows, and an sdist, on any `v*`
+tag. It publishes them by PyPI's trusted publishing, which needs three steps from the account
+owner:
+1. Register `stabilizer-qec` on PyPI.
+2. Add this repository as its trusted publisher: workflow `wheels.yml`, environment `pypi`.
+3. Create the `pypi` environment in the repository's settings.
+
+Then `git tag v0.2.0 && git push --tags` publishes. Until then the publish job fails and nothing
+leaves the repository.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+- the Rust tests;
+- the WebAssembly engine, built fresh and driven in Node through the page's own wrappers
+  (`tools/wasm-smoke.mjs`: Willow's raw measurements must hash to Google's detection events, then
+  decode, and a stream must window-decode). The committed engine, the one the site serves, runs
+  the same check.
+- the site's tests and the palette's contrast check;
+- the Python package built, installed and smoke-tested against Stim and PyMatching on Linux, macOS
+  and Windows, with the quick cross-check on Linux.
 
 ## Key Features
 
@@ -37,7 +93,8 @@ every number on the page is computed in the reader's browser on load.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, every figure is driven by it, the threshold table is
   plotted as it is measured, and the bench streams its estimate.
-- **Python extension** (`stabilizer_qec.so`): PyO3 bindings for offline threshold benchmarking.
+- **Python package** (`stabilizer-qec`, one abi3 wheel, typed): circuits, error models, sampling,
+  plain and correlated matching, window decoding and streams, from Python (see [Install](#install)).
 
 ## A note on quoted figures
 
@@ -618,18 +675,25 @@ It is checked four ways:
 | Willow d = 5 | parallel, correlated | 34 µs | 4 cores | 73 µs | 192 µs |
 | Willow d = 7 | parallel, plain | 62 µs | 8 cores | 111 µs | 235 µs |
 | Willow d = 7 | parallel, correlated | 133 µs | 8 cores | 242 µs | 511 µs |
-| SD6 d = 5, 10⁶ rounds | parallel, plain | 16 µs | 4 cores | 32 µs | 72 µs |
-| SD6 d = 5, 10⁶ rounds | parallel, correlated | 33 µs | 4 cores (8 for 60 µs) | 216 µs (60 µs on 8) | 813 µs (138 µs on 8) |
+| SD6 d = 5, 10⁶ rounds | parallel, plain | 16 µs | 2 cores (4 for 31 µs) | 52 µs (31 µs on 4) | 193 µs (71 µs on 4) |
+| SD6 d = 5, 10⁶ rounds | parallel, correlated | 32 µs | 4 cores (8 for 59 µs) | 117 µs (59 µs on 8) | 421 µs (137 µs on 8) |
 
 - **Sliding windows** keep up only at d = 3 with plain matching. Everywhere else one core is too
   slow, which is exactly why parallel windows exist.
-- **At d = 5, correlated matching on 8 cores holds a 60 µs mean latency over a million rounds**,
+- **Every defect of every stream is explained**, all 64 × 10⁶ rounds of each run. The count is made
+  as rounds are let go. An earlier version let rounds go without counting what was left in them,
+  so its zero could not have been anything else; review caught it, and these runs are the repeat
+  with the count working.
+- **At d = 5, correlated matching on 8 cores holds a 59 µs mean latency over a million rounds**,
   beside Google's 63 µs for its own real-time decoder. That is on its hardware with its definition
   of latency, so it is context, not a like-for-like comparison.
-- **Throughput.** On all 10 cores, independent streams decode at 3.1 million rounds a second plain
+- **Throughput.** On all 10 cores, independent streams decode at 3.2 million rounds a second plain
   and 1.6 million correlated. Willow's cycle demands 0.91 million per stream.
-- **In the browser** (Figure 12), WebAssembly runs window decoding at 1.0, 5.3 and 12.1 µs per
-  round of one stream at d = 3, 5, 7, so about 1, 5 and 11 cores would keep up.
+- **In the browser** (Figure 12), WebAssembly runs window decoding at 1.06 to 1.34, 4.3 to 4.4 and
+  10.5 µs per round of one stream at d = 3, 5 and 7 (three runs in headless Chrome). About 1 to 2,
+  4 to 5 and 10 cores would keep up. The timed call is window decoding alone: the streams are
+  sampled as they are decoded, as a real stream would arrive, and the copy kept for global
+  decoding is drawn outside it.
 
 **Accuracy.** Windowed decoding of every Willow experiment, fitted like section 11 (see
 `data/realtime/willow-windows.json`):
@@ -656,6 +720,19 @@ It is checked four ways:
 
 Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
 `node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
+
+## Technical report
+
+`report/report.md` is the source. `python3 tools/report.py` builds `report/report.html`, which
+is served with the site, and `report/report.pdf`, printed from it by headless Chrome. It needs
+Node, pandoc, matplotlib and Chrome.
+
+- **Numbers.** None is typed by hand. `{{name}}` is a value computed from a file in `data/`, or from
+  the fits `tools/lambda.mjs --json` makes of them. `{{table:name}}` is a whole table built the same
+  way. `{{readme:…}}` quotes a phrase the README must contain word for word, for the few figures
+  only the README records.
+- **Failure.** The build stops on a value it cannot fill or one that is not finite.
+- **Figures** are drawn from the same data into `report/figures/`.
 
 ## Engine defects found and fixed
 
@@ -1106,7 +1183,9 @@ src/equivalence.rs    test: the old per-code circuit and the general one are the
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
-src/py_api.rs         PyO3 bindings for the cross-check
+src/window.rs         window decoders: models cut by time, sliding and parallel schedules
+src/stream.rs         streams too long to model, decoded window by window from a template
+src/py_api.rs         PyO3 bindings: sampling, decoding, windows and streams
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
@@ -1137,6 +1216,14 @@ tools/realtime.py       window decoders' accuracy, latency, and the million-roun
 data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
+
+tools/smoke.py          an installed wheel checked end to end against Stim and PyMatching
+tools/wasm-smoke.mjs    the WASM engine driven in Node through the page's wrappers
+tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
+report/                 the report's source, template, figures, and the built HTML and PDF
+pyproject.toml          the Python package (maturin; one abi3 wheel)
+stabilizer_qec.pyi      the Python API, typed and documented
+.github/workflows/      CI on every push; wheels and PyPI publishing on a tag
 
 run_benchmarks.py       phenomenological threshold benchmarks
 run_data_benchmarks.py  data-noise threshold benchmarks

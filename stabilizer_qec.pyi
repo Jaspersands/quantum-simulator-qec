@@ -90,8 +90,9 @@ def decode_b8_window(
     ``commit`` rounds it commits and ``buffer`` rounds beyond. ``"sliding"``
     windows run one after another; ``"parallel"`` windows run in two layers
     (Skoric et al., Tan et al.) so many cores can share one stream. Returns
-    (predictions as u64 per shot, u64 max where a window failed; defects
-    left unexplained over all shots, zero unless something is wrong; each
+    (predictions as u64 per shot, u64 max where a window failed and the
+    shot was abandoned; defects left unexplained over the shots decoded,
+    zero unless something is wrong; each
     window's decode time per shot in seconds as f64, shots × windows, when
     ``timings``; the windows)."""
 
@@ -111,7 +112,8 @@ def stream_decode(
     """A long SD6 memory decoded as it streams: ``batches`` × 64 streams of
     ``rounds`` rounds, sampled round by round and window-decoded with graphs
     built once from a short template, so memory does not grow with
-    ``rounds``. Returns (logical failures, streams, defects left unexplained,
+    ``rounds``. A defect still standing in a round no window will read again
+    is unexplained. Returns (logical failures, streams, defects left unexplained,
     lane 0's window decode times in seconds as f64, one per window per batch,
     the windows, wall seconds)."""
 
