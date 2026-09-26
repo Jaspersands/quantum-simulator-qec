@@ -78,8 +78,9 @@ async function boot() {
     initRealtime($('#realtime'), compute);
     initGross($('#gross'), compute);
     initSurgery($('#surgery'), compute);
-    initEstimator($('#estimator'));
   }
+  // The estimator only fetches data and computes here: it needs no workers.
+  initEstimator($('#estimator'));
 
   let instance;
   try {

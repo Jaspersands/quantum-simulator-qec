@@ -398,28 +398,15 @@ def build_values(F):
     labels = {"small": "100 qubits × 10⁶ operations", "medium": "1,000 qubits × 10⁹", "large": "10,000 qubits × 10¹²"}
     names = {"ours": "ours, correlated", "libra": "Google's Libra", "belief": "ours, belief-matching"}
 
-    def big(x):
-        for unit, size in (("billion", 1e9), ("million", 1e6)):
-            if x >= size:
-                v = x / size
-                return f"{round(v):,} {unit}" if v >= 100 else f"{v:.2g} {unit}"
-        return f"{round(x):,}"
-
-    def dur(sec):
-        for unit, size, limit in (("s", 1, 120), ("min", 60, 7200), ("h", 3600, 172800), ("days", 86400, 6.3e7)):
-            if sec < limit:
-                return f"{sec / size:.2g} {unit}"
-        return f"{sec / 3.156e7:.2g} years"
-
     t["estimate"] = table(["algorithm", "Λ (from)", "d", "physical qubits", "run time", "decoding cores"],
-                          [[labels[r["preset"]], f"{r['lambda']:.2f} ({names[r['source']]})", str(r["d"]), big(r["physical"]),
-                            dur(r["seconds"]), big(r["cores"])] for r in E["rows"]], "llrrrr")
+                          [[labels[r["preset"]], f"{r['lambda']:.2f} ({names[r['source']]})", str(r["d"]), r["text"]["physical"],
+                            r["text"]["seconds"], r["text"]["cores"]] for r in E["rows"]], "llrrrr")
     medium = next(r for r in E["rows"] if r["preset"] == "medium" and r["source"] == "ours")
     v["est.medium.d"] = str(medium["d"])
-    v["est.medium.qubits"] = big(medium["physical"])
-    v["est.medium.time"] = dur(medium["seconds"])
+    v["est.medium.qubits"] = medium["text"]["physical"]
+    v["est.medium.time"] = medium["text"]["seconds"]
     v["est.lever.d"] = str(E["lever"]["d"])
-    v["est.lever.qubits"] = big(E["lever"]["physical"])
+    v["est.lever.qubits"] = E["lever"]["text"]["physical"]
     return v, t
 
 

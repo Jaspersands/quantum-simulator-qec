@@ -11,7 +11,7 @@ import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { surgeryLayout } from '../js/surgery-geometry.js';
-import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration } from '../js/estimator.js';
+import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom } from '../js/estimator.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -335,6 +335,17 @@ test('estimator: the model reproduces what it is given, and moves the right way'
   assert.equal(bigNumber(4.1e12), '4,100 billion');
   assert.equal(duration(90), '90 s');
   assert.equal(duration(7200 * 3), '6.0 h');
+  assert.equal(duration(1.5 * 3.156e7), '1.5 years');
+  assert.equal(duration(200 * 86400), '200 days');
+  // Fewer than two measured distances: no law, no core count.
+  assert.equal(decodingCores(9, { qubits: 1 }, { 7: 8 }), null);
+  // Streams that never keep up are left out, not written as null.
+  const byWorkers = (k) => ({ 1: { keeps_up: k === 1 }, 2: { keeps_up: k <= 2 }, 4: { keeps_up: k <= 4 } });
+  assert.deepEqual(coresFrom({ streams: [
+    { d: 3, mode: 'parallel', matcher: 'correlated', by_workers: byWorkers(2) },
+    { d: 5, mode: 'parallel', matcher: 'correlated', by_workers: byWorkers(99) },
+    { d: 5, mode: 'sliding', matcher: 'correlated', by_workers: byWorkers(1) },
+  ] }), { 3: 2 });
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -11,9 +11,7 @@
 
 import { $, fill, el } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
-import { epsilonByDistance, lambdaFit } from '../lambda-fit.js';
-import { cores as coresToKeepUp } from '../realtime-format.js';
-import { estimate, physicalQubits, distanceFor, bigNumber, duration } from '../estimator.js';
+import { estimate, physicalQubits, distanceFor, bigNumber, duration, modelFrom, coresFrom } from '../estimator.js';
 
 const DATA = new URL('../../data/', import.meta.url);
 const PRESETS = {
@@ -37,23 +35,11 @@ async function loadJson(path) {
 async function measuredModels() {
   const files = {};
   for (const s of SOURCES) files[s.file] ??= Object.values((await loadJson(s.file)).experiments);
-  return Object.fromEntries(SOURCES.map((s) => {
-    const byD = epsilonByDistance(files[s.file], s.key, { minRounds: 10 });
-    return [s.id, { eps0: byD.get(7).eps, d0: 7, lambda: lambdaFit(byD).lambda }];
-  }));
+  return Object.fromEntries(SOURCES.map((s) => [s.id, modelFrom(files[s.file], s.key)]));
 }
 
-/** Cores that keep one stream up at each measured distance (parallel windows, correlated). */
 async function measuredCores() {
-  const latency = await loadJson('realtime/latency.json');
-  const out = {};
-  for (const s of latency.streams) {
-    if (s.mode === 'parallel' && s.matcher === 'correlated') {
-      const k = coresToKeepUp(s.by_workers);
-      if (k) out[s.d] = k;
-    }
-  }
-  return out;
+  return coresFrom(await loadJson('realtime/latency.json'));
 }
 
 export function initEstimator(root) {
@@ -96,7 +82,7 @@ export function initEstimator(root) {
       row('Logical error per cycle at that d', r.epsilon.toExponential(1)),
       row('Physical qubits', bigNumber(r.physical)),
       row('Run time', duration(r.seconds)),
-      row('Cores to decode in real time', bigNumber(r.cores)),
+      row('Cores to decode in real time', r.cores == null ? '—' : bigNumber(r.cores)),
       row('Chance the whole run fails', `${(r.failure * 100).toPrecision(2)}%`),
     ] : [row('Code distance needed', 'none up to d = 201: Λ too small for this size')]);
 
@@ -126,7 +112,7 @@ export function initEstimator(root) {
           el('td', { class: 'num', text: r ? `${r.d}` : '—' }),
           el('td', { class: 'num', text: r ? bigNumber(r.physical) : '—' }),
           el('td', { class: 'num', text: r ? duration(r.seconds) : '—' }),
-          el('td', { class: 'num', text: r ? bigNumber(r.cores) : '—' }),
+          el('td', { class: 'num', text: r && r.cores != null ? bigNumber(r.cores) : '—' }),
         ]));
       }
     }

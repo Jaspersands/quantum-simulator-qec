@@ -9,6 +9,32 @@
  * one operation fails with probability about N · d · ε_d.
  */
 
+import { epsilonByDistance, lambdaFit } from './lambda-fit.js';
+import { cores as coresToKeepUp } from './realtime-format.js';
+
+/**
+ * The model's inputs from the committed data, one definition for the page
+ * and tools/estimate.mjs: ε at the largest measured distance and Λ, point
+ * fits from round 10 as section 11 fits them, for decoder `key` over
+ * Willow-shaped `records`.
+ */
+export function modelFrom(records, key) {
+  const byD = epsilonByDistance(records, key, { minRounds: 10 });
+  const d0 = Math.max(...byD.keys());
+  return { eps0: byD.get(d0).eps, d0, lambda: lambdaFit(byD).lambda };
+}
+
+/** Cores that keep one stream up at each measured distance (parallel windows, correlated), from latency.json. */
+export function coresFrom(latency) {
+  const out = {};
+  for (const s of latency.streams) {
+    if (s.mode !== 'parallel' || s.matcher !== 'correlated') continue;
+    const k = coresToKeepUp(s.by_workers);
+    if (k) out[s.d] = k;
+  }
+  return out;
+}
+
 /** ε at distance d, extrapolated from ε0 measured at d0 with suppression Λ. */
 export function epsilonAt(d, { eps0, d0, lambda }) {
   return eps0 * lambda ** (-(d - d0) / 2);
@@ -48,6 +74,8 @@ export function runtimeSeconds(d, { operations }, cycleSeconds = 1.1e-6) {
  */
 export function decodingCores(d, { qubits }, measured) {
   const ds = Object.keys(measured).map(Number).sort((a, b) => a - b);
+  // Two measured distances at least, or there is no law to extrapolate by.
+  if (ds.length < 2) return null;
   const [a, b] = ds.slice(-2);
   const slope = Math.log(measured[b] / measured[a]) / Math.log(b / a);
   const perPatch = d <= b ? measured[ds.find((x) => x >= d) ?? b] : measured[b] * (d / b) ** slope;
@@ -78,10 +106,12 @@ export function bigNumber(x) {
 
 /** Seconds as the largest sensible unit. */
 export function duration(s) {
-  if (s < 1) return `${(s * 1000).toPrecision(2)} ms`;
-  if (s < 120) return `${s.toPrecision(2)} s`;
-  if (s < 7200) return `${(s / 60).toPrecision(2)} min`;
-  if (s < 172800) return `${(s / 3600).toPrecision(2)} h`;
-  if (s < 3.15e7 * 2) return `${(s / 86400).toPrecision(2)} days`;
-  return `${(s / 3.156e7).toPrecision(2)} years`;
+  // Two significant figures, never in exponent form.
+  const fig = (v) => (v >= 100 ? Math.round(v).toLocaleString('en-US') : v.toPrecision(2));
+  if (s < 1) return `${fig(s * 1000)} ms`;
+  if (s < 120) return `${fig(s)} s`;
+  if (s < 7200) return `${fig(s / 60)} min`;
+  if (s < 172800) return `${fig(s / 3600)} h`;
+  if (s < 3.156e7) return `${fig(s / 86400)} days`;
+  return `${fig(s / 3.156e7)} years`;
 }
