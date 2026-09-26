@@ -27,6 +27,15 @@ abstract: |
      matching and keep up with its {{rt.cycle}} cycle on {{rt.d5.cores}} cores. A simulated
      million-round stream at the same detection rate holds a {{m.corr.mean8}} mean latency on 8
      cores. Windowed decoding reaches the same Λ as global decoding ({{win.corr.lambda}}).
+  6. **Beyond the surface code.** The IBM gross code, decoded by BP+OSD that equals `ldpc`'s on every
+     shot checked, keeps 12 logical qubits failing {{g.ratio_range}} times less often than twelve d = 11
+     surface-code patches, on a tenth of the qubits.
+  7. **Lattice surgery.** A Z⊗Z measurement between two patches, written as one circuit and equal to
+     Stim's model, shows the timing law directly: the merge outcome's failure rate stops falling at
+     d merged rounds.
+  8. **What it would take.** Put together, the measurements say a thousand logical qubits running a
+     billion operations need about {{est.medium.qubits}} physical qubits at Willow's Λ, and
+     {{est.lever.qubits}} at Λ = 4.
 ---
 
 # Introduction
@@ -482,6 +491,29 @@ rounds T:
   patch of the same size. This is the textbook "d rounds per lattice surgery", measured, and it is
   the clock the resource estimate below uses.
 
+## What it would take
+
+Each section above measures one ingredient of a quantum computer's cost, and a simple model puts
+them together:
+
+- Logical error per cycle falls from the measured $\varepsilon_7$ by Λ for every two steps of
+  distance.
+- Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it
+  fails with probability about $N d\,\varepsilon_d$.
+- The distance is the smallest odd one that keeps the run within a 1% budget.
+- The qubits are $N(2d^2 - 1)$ with a routing overhead of 2.
+- The time is d cycles of 1.1 µs per operation.
+- The decoding cores are those measured to keep real time at d = 3, 5 and 7, extrapolated.
+
+The sizes are illustrations of scale:
+
+{{table:estimate}}
+
+At Willow's measured Λ, a thousand logical qubits running a billion operations would need
+d = {{est.medium.d}}, {{est.medium.qubits}} physical qubits and {{est.medium.time}}. At Λ = 4 the
+same run needs d = {{est.lever.d}} and {{est.lever.qubits}}. Λ is the lever. The decoders measured
+here, which differ by about 10% in Λ, move the answer far less than the hardware could.
+
 # Limits and next steps
 
 - **The matcher.** It is exact but not the fastest: it runs at {{xc.plain_ratio}} times
@@ -493,8 +525,9 @@ rounds T:
 - **Memories and one operation.** The gross code is simulated as a memory, and lattice surgery as a
   single Z⊗Z measurement between two patches. Logical operations on the gross code, and sequences
   of surgeries, are the next step up.
-- **Next:** a resource estimator driven by the Λ, the real-time decoding cost and the lattice-surgery
-  timing measured here.
+- **The estimate is a model.** It takes lattice surgery as the only operation, ignores magic-state
+  distillation and routing in detail, and extrapolates the decoding cost past d = 7. It is meant to
+  show what the measured numbers imply, and how strongly they depend on Λ.
 
 # Reproducing everything
 

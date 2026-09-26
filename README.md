@@ -949,6 +949,42 @@ rounds T, correlated matching.
 - **Correlated matching matters here too.** At d = 7, p = 0.2%, T = d it fails 0.28% of the time
   against plain matching's 0.71%.
 
+## What it would take: a resource estimate from the measured Λ
+
+Every section above measures one ingredient of a quantum computer's cost. `js/estimator.js` (section
+15 of the site, and `node tools/estimate.mjs`) puts them together:
+- **Λ and ε at d = 7**, fitted from Google's Willow counts: our correlated matching, Google's Libra, or
+  our belief-matching.
+- **Every operation takes d merged rounds** of lattice surgery, the point from which the merge
+  outcome's failure rate stops falling. Every patch is exposed for those rounds, so one operation
+  fails with probability about N · d · ε_d.
+- **The distance** is the smallest odd d that keeps the whole run within its failure budget (1% here).
+- **Qubits** are N · (2d² − 1) times a routing overhead of 2.
+- **Time** is d rounds of Willow's 1.1 µs cycle per operation.
+- **Decoding cores** are those that keep real-time decoding up at d = 3, 5, 7 (parallel windows,
+  correlated), extrapolated beyond d = 7.
+
+The sizes are illustrations of scale, not particular algorithms:
+
+| algorithm | Λ (from) | d | physical qubits | run time | decoding cores |
+|---|---|---|---|---|---|
+| 100 qubits × 10⁶ operations | 1.95 (ours, correlated matching) | 71 | 2.0 million | 78 s | 94,586 |
+| 100 qubits × 10⁶ operations | 2.04 (Google's Libra) | 67 | 1.8 million | 74 s | 83,936 |
+| 100 qubits × 10⁶ operations | 1.81 (ours, belief-matching) | 79 | 2.5 million | 87 s | 117,855 |
+| 1,000 qubits × 10⁹ operations | 1.95 (ours, correlated matching) | 101 | 41 million | 31 h | 2.0 million |
+| 1,000 qubits × 10⁹ operations | 2.04 (Google's Libra) | 93 | 35 million | 28 h | 1.6 million |
+| 1,000 qubits × 10⁹ operations | 1.81 (ours, belief-matching) | 111 | 49 million | 34 h | 2.4 million |
+| 10,000 qubits × 10¹² operations | 1.95 (ours, correlated matching) | 129 | 666 million | 4.5 years | 32 million |
+| 10,000 qubits × 10¹² operations | 2.04 (Google's Libra) | 119 | 566 million | 4.1 years | 27 million |
+| 10,000 qubits × 10¹² operations | 1.81 (ours, belief-matching) | 143 | 818 million | 5.0 years | 40 million |
+
+- **Λ ≈ 2 is not enough for anything large.** Even the small size needs d ≈ 70, because every factor
+  of 10 in ε costs about 7 more steps of distance at Λ = 2.
+- **Λ is the lever.** At Λ = 4 the medium size would need d = 51 and 10 million physical qubits. Doubling Λ cuts the qubits fourfold. The decoders measured here, Λ from 1.81 to 2.04,
+  move the medium size between 35 and 49 million.
+- **Decoding scales with it.** Real-time decoding at these distances needs cores in the millions: an
+  extrapolation, but not a small one.
+
 ## Technical report
 
 `report/report.md` is the source. `python3 tools/report.py` builds `report/report.html`, which
