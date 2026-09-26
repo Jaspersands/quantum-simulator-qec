@@ -35,6 +35,7 @@
     <li><a class="toc__link" href="#bench"><span class="toc__num">09</span><span>The bench</span></a></li>
     <li><a class="toc__link" href="#internals"><span class="toc__num">10</span><span>Under the hood</span></a></li>
     <li><a class="toc__link" href="#hardware"><span class="toc__num">11</span><span>Real hardware</span></a></li>
+    <li><a class="toc__link" href="#realtime"><span class="toc__num">12</span><span>Real time</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -1391,6 +1392,105 @@
       </div>
       <p class="status" role="status" data-hw-live-status>Runs when you scroll here.</p>
       <p class="note" data-hw-live-foot></p>
+    </div>
+  </figure>
+
+</section>
+
+
+<!-- 12 ================================================================== -->
+<section class="section" id="realtime">
+  <div class="section__head">
+    <span class="section__num">12</span>
+    <h2 class="section__title">Real time</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every decoder above waits for the experiment to end and then matches everything at once. A
+      quantum computer cannot wait. Willow runs one round of error correction every
+      <span class="mono">1.1 µs</span>, and a computation that needs a logical measurement's outcome
+      stalls until the decoder has caught up; a decoder slower than the chip falls further behind
+      with every round and never catches up. Google decoded a distance-5 memory in real time over a
+      million rounds, with an average latency of <span class="mono">63 µs</span>.
+    </p>
+    <p>
+      A real-time decoder matches a few rounds at a time. It decodes a window of rounds, keeps the
+      corrections touching the window's first part, and carries the rest forward; a buffer at the
+      window's end lets a defect wait for a partner not yet seen. Sliding windows run one after
+      another, on one core. Parallel windows come in two layers that each decode independently, so
+      a stream can use as many cores as it needs. Figure 11 measures both on Google's own recorded
+      syndromes; Figure 12 runs them here.
+    </p>
+  </div>
+
+  <figure class="figure" data-rt-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 11</span>
+      <span class="figure__title">keeping up with Willow</span>
+      <span class="figure__meta">† measured natively, on an M2 Pro</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-rt-canvas data-aspect="0.5"></canvas>
+      <div class="legend" data-rt-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Cores needed to keep up with Willow's 1.1 µs cycle, and the latency then</caption>
+          <thead>
+            <tr>
+              <th scope="col">Willow's recorded syndromes, 250 rounds</th>
+              <th scope="col" class="num">Window decode</th>
+              <th scope="col" class="num">Cores to keep up</th>
+              <th scope="col" class="num">Latency, mean</th>
+              <th scope="col" class="num">Latency, p99</th>
+            </tr>
+          </thead>
+          <tbody data-rt-keep></tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Window decoding's accuracy against global decoding on Willow's data</caption>
+          <thead>
+            <tr>
+              <th scope="col">Willow, windows of d rounds</th>
+              <th scope="col" class="num">ε, d = 3</th>
+              <th scope="col" class="num">ε, d = 5</th>
+              <th scope="col" class="num">ε, d = 7</th>
+              <th scope="col" class="num">Λ, 95%</th>
+            </tr>
+          </thead>
+          <tbody data-rt-accuracy></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-rt-fit-status>Loads when you scroll here.</p>
+      <p class="note" data-rt-fit-foot></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-rt-live>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 12</span>
+      <span class="figure__title">window decoding, here</span>
+      <span class="figure__meta">rotated SD6 at Willow's detection rate, 100 rounds</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Window decoding of simulated memory streams in this tab</caption>
+          <thead>
+            <tr>
+              <th scope="col">Parallel windows, correlated</th>
+              <th scope="col" class="num">d = 3</th>
+              <th scope="col" class="num">d = 5</th>
+              <th scope="col" class="num">d = 7</th>
+            </tr>
+          </thead>
+          <tbody data-rt-live-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-rt-live-status>Runs when you scroll here.</p>
+      <p class="note" data-rt-live-foot></p>
     </div>
   </figure>
 

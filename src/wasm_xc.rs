@@ -22,6 +22,10 @@ static mut DECODE_ERRORS: usize = 0;
 #[allow(clippy::type_complexity)]
 static mut CACHE: Option<((usize, usize, usize, usize, u64, u64), BatchSampler, DemDecoder)> = None;
 
+/// Tests that drive the exports share one text buffer, so they take turns.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub(crate) fn text() -> &'static mut Vec<u8> {
     unsafe { &mut *std::ptr::addr_of_mut!(TEXT) }
 }

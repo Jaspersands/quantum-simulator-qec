@@ -15,7 +15,7 @@
 
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
-  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode,
+  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode, rtSetup, rtWindows, rtGlobal,
 } from './engine.js';
 import { planChunks } from './stream.js';
 import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
@@ -274,6 +274,41 @@ const OPS = {
       report({ done: i + 1, total: keys.length });
     }
     return { generated: doc.generated, engine: doc.engine_commit, fits };
+  },
+
+  /**
+   * Section 12's live panel: batches of 64 simulated memory streams, each
+   * window-decoded as it streams and then globally, both timed from here (the
+   * engine has no clock). Reports after each batch.
+   */
+  async realtime(instance, { config, batches }, report) {
+    const setup = rtSetup(instance, config);
+    let streams = 0, windowFailures = 0, globalFailures = 0, agree = 0, unexplained = 0;
+    let windowSeconds = 0, globalSeconds = 0;
+    for (let b = 0; b < batches; b++) {
+      let t0 = performance.now();
+      const w = rtWindows(instance);
+      windowSeconds += (performance.now() - t0) / 1000;
+      t0 = performance.now();
+      const g = rtGlobal(instance);
+      globalSeconds += (performance.now() - t0) / 1000;
+      streams += 64;
+      windowFailures += w.failures;
+      globalFailures += g.failures;
+      agree += g.agree;
+      unexplained += w.unexplained;
+      report({ d: config.d, streams, done: b + 1, total: batches });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const rounds = streams * config.rounds;
+    return {
+      ...config, windows: setup.windows, template: setup.template, streams, rounds,
+      windowFailures, globalFailures, agree, unexplained, windowSeconds, globalSeconds,
+      // Per stream: the window decoding's cost of one round, and what that
+      // means against Willow's cycle.
+      windowMicrosPerRound: (windowSeconds * 1e6) / rounds,
+      roundsPerSecond: rounds / windowSeconds,
+    };
   },
 
   async sweep(instance, { distances, ps, base }, report) {

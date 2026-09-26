@@ -384,6 +384,87 @@ fn decode_b8_window<'py>(
     Ok((PyBytes::new_bound(py, &preds), unexplained, PyBytes::new_bound(py, &times), info))
 }
 
+/// A long SD6 memory decoded as it streams: `batches` × 64 streams of
+/// `rounds` rounds of a rotated (or XZZX) patch, sampled by the batch sampler
+/// round by round and window-decoded with graphs from a short template.
+/// Returns (failures, streams, unexplained defects, lane 0's window decode
+/// times in seconds (f64, one per window, per batch), the windows as (first
+/// layer, end layer, commit start, commit end, phase), wall seconds).
+#[pyfunction]
+#[pyo3(signature = (code, d, p, rounds, commit, buffer, mode, correlated=false, batches=1, seed=1, threads=0))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn stream_decode<'py>(
+    py: Python<'py>,
+    code: &str,
+    d: usize,
+    p: f64,
+    rounds: usize,
+    commit: usize,
+    buffer: usize,
+    mode: &str,
+    correlated: bool,
+    batches: usize,
+    seed: u64,
+    threads: usize,
+) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<(u32, u32, u32, u32, usize)>, f64)> {
+    use crate::stream::{run_stream, StreamDecoder};
+    use crate::window::Mode;
+    let kind = match code {
+        "rotated" => CodeKind::Rotated,
+        "xzzx" => CodeKind::Xzzx,
+        other => return Err(err(format!("unknown code '{other}'"))),
+    };
+    let mode = match mode {
+        "sliding" => Mode::Sliding,
+        "parallel" => Mode::Parallel,
+        other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
+    };
+    let dec = StreamDecoder::new(kind, d, p, Basis::Z, commit, buffer, mode, rounds).map_err(err)?;
+    let plan = dec.plan(rounds).map_err(err)?;
+    let circuit = crate::memory::generate_repeat(kind, d, rounds, p, Basis::Z).map_err(err)?;
+    let sampler = crate::batch_sampler::BatchSampler::new(&circuit).map_err(err)?;
+    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
+        .clamp(1, batches.max(1));
+    let start = Instant::now();
+    let parts: Vec<Result<(usize, usize, Vec<f64>), String>> = py.allow_threads(|| {
+        std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..threads)
+                .map(|t| {
+                    let (dec, plan, sampler) = (&dec, &plan, &sampler);
+                    scope.spawn(move || {
+                        let clock_origin = Instant::now();
+                        let clock = move || clock_origin.elapsed().as_secs_f64();
+                        let mut scratches = dec.scratches();
+                        let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
+                        for b in (t..batches).step_by(threads) {
+                            let mut rng = Xorshift::new(seed ^ (b as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                            let (pred, truth, u, ts) =
+                                run_stream(dec, plan, sampler, &mut rng, correlated, &mut scratches, Some(&clock))
+                                    .map_err(|e| format!("{e:?}"))?;
+                            failures += pred.iter().enumerate().filter(|(lane, &p)| ((p ^ (truth >> lane)) & 1) == 1).count();
+                            unexplained += u;
+                            times.extend(ts);
+                        }
+                        Ok((failures, unexplained, times))
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().expect("stream thread panicked")).collect()
+        })
+    });
+    let seconds = start.elapsed().as_secs_f64();
+    let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
+    for part in parts {
+        let (f, u, t) = part.map_err(err)?;
+        failures += f;
+        unexplained += u;
+        times.extend(t);
+    }
+    let info = plan.specs.iter().map(|s| (s.a, s.b, s.commit.0, s.commit.1, s.phase)).collect();
+    let bytes: Vec<u8> = times.iter().flat_map(|x| x.to_le_bytes()).collect();
+    Ok((failures, batches * 64, unexplained, PyBytes::new_bound(py, &bytes), info, seconds))
+}
+
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
     Ok(write_01(&read_b8(packed, num_bits).map_err(err)?))
@@ -401,5 +482,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circuit_to_stim, m)?)?;
     m.add_function(wrap_pyfunction!(sample_b8_batch, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_window, m)?)?;
+    m.add_function(wrap_pyfunction!(stream_decode, m)?)?;
     Ok(())
 }

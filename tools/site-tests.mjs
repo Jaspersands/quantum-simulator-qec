@@ -5,6 +5,7 @@ import { planChunks } from '../js/stream.js';
 import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../js/sweep-config.js';
 import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megabytes } from '../js/xcheck-format.js';
 import { logTicks } from '../js/plot.js';
+import { cores, keepUpText, microseconds as rtUs, windowLabel } from '../js/realtime-format.js';
 import { splitRuns, mergeStream, mergeStreamResults } from '../js/pool-merge.js';
 import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
@@ -243,6 +244,20 @@ test('the pool splits runs without losing any, and combines progress and results
   ]);
   assert.deepEqual(r, { runs: 200, failures: 8, rate: 0.04, seconds: 1, decodeErrors: 2, runsPerSecond: 200, cancelled: true });
   assert.ok(poolSize() >= 1 && poolSize() <= 8);
+});
+
+test('real-time labels: cores to keep up, latencies, window names', () => {
+  assert.equal(cores({ 1: { keeps_up: false }, 2: { keeps_up: false }, 4: { keeps_up: true }, 8: { keeps_up: true } }), 4);
+  assert.equal(cores({ 1: { keeps_up: false } }), null);
+  assert.equal(keepUpText(1, 'sliding'), 'Keeps up on one core');
+  assert.equal(keepUpText(4, 'parallel'), 'Keeps up on 4 cores');
+  assert.equal(keepUpText(null, 'sliding'), 'Falls behind (one core by design)');
+  assert.equal(rtUs(63.2), '63 µs');
+  assert.equal(rtUs(5.71), '5.7 µs');
+  assert.equal(rtUs(0.842), '0.84 µs');
+  assert.equal(windowLabel('window/parallel/Bd/correlated'), 'parallel windows, correlated');
+  assert.equal(windowLabel('window/sliding/Bhalf/plain'), 'sliding windows, buffer d/2, plain');
+  assert.equal(windowLabel('global/plain'), 'global, plain');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

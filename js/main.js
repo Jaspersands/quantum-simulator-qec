@@ -23,6 +23,7 @@ import { initBias } from './sections/bias.js';
 import { initBench } from './sections/bench.js';
 import { initXcheck } from './sections/xcheck.js';
 import { initHardware } from './sections/hardware.js';
+import { initRealtime } from './sections/realtime.js';
 
 /**
  * Show a boot failure. Each caller supplies its own diagnosis — the two failure
@@ -71,6 +72,7 @@ async function boot() {
     initBench($('#bench'), compute);
     initXcheck($('#internals'), compute);
     initHardware($('#hardware'), compute);
+    initRealtime($('#realtime'), compute);
   }
 
   let instance;

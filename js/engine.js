@@ -517,3 +517,20 @@ export function hwDecode(instance, slot, dets, shots, correlated) {
   const out = replyOrThrow(instance, instance.exports.wasm_hw_decode(slot, shots, correlated ? 1 : 0));
   return { ...out, predictions: readBytes(instance, shots) };
 }
+
+/* -- Real-time decoding (section 12) ------------------------------------- */
+
+/** Build a rotated SD6 memory stream's window decoder, sampler and global decoder. */
+export function rtSetup(instance, { d, rounds, p, commit, buffer, parallel = true, correlated = true }) {
+  return replyOrThrow(instance, instance.exports.wasm_rt_setup(d, rounds, p, commit, buffer, parallel ? 1 : 0, correlated ? 1 : 0));
+}
+
+/** Sample 64 streams and window-decode them as they stream. */
+export function rtWindows(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_rt_windows());
+}
+
+/** Decode the last 64 streams globally, for comparison. */
+export function rtGlobal(instance) {
+  return replyOrThrow(instance, instance.exports.wasm_rt_global());
+}
