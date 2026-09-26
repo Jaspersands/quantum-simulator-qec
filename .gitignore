@@ -9,3 +9,5 @@ __pycache__/
 /target-wheel
 /dist
 /report/build
+.venv-f/
+/target-f
