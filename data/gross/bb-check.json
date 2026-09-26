@@ -1,0 +1,86 @@
+{
+ "codes": [
+  {
+   "code": "72",
+   "n": 72,
+   "k": 12,
+   "matches_bravyi": true
+  },
+  {
+   "code": "gross",
+   "n": 144,
+   "k": 12,
+   "matches_bravyi": true
+  }
+ ],
+ "models": [
+  {
+   "code": "72",
+   "cycles": 3,
+   "p": 0.003,
+   "detectors": 144,
+   "mechanisms": 1152,
+   "ours": 1152,
+   "one_sided": 0,
+   "max_rel": 5.822133519123035e-16,
+   "deterministic": true
+  },
+  {
+   "code": "gross",
+   "cycles": 2,
+   "p": 0.003,
+   "detectors": 216,
+   "mechanisms": 1584,
+   "ours": 1584,
+   "one_sided": 0,
+   "max_rel": 5.822133519123035e-16,
+   "deterministic": true
+  },
+  {
+   "code": "gross",
+   "cycles": 12,
+   "p": 0.003,
+   "detectors": 936,
+   "mechanisms": 8784,
+   "ours": 8784,
+   "one_sided": 0,
+   "max_rel": 5.822133519123035e-16,
+   "deterministic": true
+  }
+ ],
+ "bposd": [
+  {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.004,
+   "osd": "osd_0",
+   "order": 0,
+   "max_iter": 1000,
+   "shots": 300,
+   "same": 300,
+   "converged": 280
+  },
+  {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.004,
+   "osd": "osd_cs",
+   "order": 7,
+   "max_iter": 1000,
+   "shots": 300,
+   "same": 300,
+   "converged": 280
+  },
+  {
+   "code": "gross",
+   "cycles": 3,
+   "p": 0.004,
+   "osd": "osd_cs",
+   "order": 7,
+   "max_iter": 1000,
+   "shots": 100,
+   "same": 100,
+   "converged": 99
+  }
+ ]
+}

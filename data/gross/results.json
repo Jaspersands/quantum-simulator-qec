@@ -1,0 +1,412 @@
+{
+ "points": {
+  "gross/0.002": {
+   "code": "gross",
+   "cycles": 12,
+   "p": 0.002,
+   "shots": 401408,
+   "results": {
+    "bposd_cs7": {
+     "failures": 42,
+     "converged": 400319,
+     "seconds": 740.7472945479997,
+     "pl_shot": 0.00010463169642857142,
+     "pl_cycle": 8.719726208528122e-06,
+     "pl_cycle_interval": [
+      6.451374977123336e-06,
+      1.1785585438572888e-05
+     ]
+    },
+    "bposd_0": {
+     "failures": 114,
+     "converged": 400319,
+     "seconds": 747.7555169980004,
+     "pl_shot": 0.000284000318877551,
+     "pl_cycle": 2.3669774416923417e-05,
+     "pl_cycle_interval": [
+      1.9705241374290416e-05,
+      2.8431791610050716e-05
+     ]
+    }
+   }
+  },
+  "gross/0.003": {
+   "code": "gross",
+   "cycles": 12,
+   "p": 0.003,
+   "shots": 94208,
+   "results": {
+    "bposd_cs7": {
+     "failures": 202,
+     "converged": 92136,
+     "seconds": 662.111085877,
+     "pl_shot": 0.0021441915760869565,
+     "pl_cycle": 0.00017885847342846706,
+     "pl_cycle_interval": [
+      0.00015583546720254748,
+      0.0002052783428875271
+     ]
+    },
+    "bposd_0": {
+     "failures": 413,
+     "converged": 92136,
+     "seconds": 657.328483249,
+     "pl_shot": 0.004383916440217391,
+     "pl_cycle": 0.0003660624810233326,
+     "pl_cycle_interval": [
+      0.00033242128879273913,
+      0.0004030992623088592
+     ]
+    }
+   }
+  },
+  "gross/0.004": {
+   "code": "gross",
+   "cycles": 12,
+   "p": 0.004,
+   "shots": 12288,
+   "results": {
+    "bposd_cs7": {
+     "failures": 230,
+     "converged": 11116,
+     "seconds": 279.161358166,
+     "pl_shot": 0.018717447916666668,
+     "pl_cycle": 0.0015733307103543703,
+     "pl_cycle_interval": [
+      0.001382738445655507,
+      0.0017898887599875346
+     ]
+    },
+    "bposd_0": {
+     "failures": 379,
+     "converged": 11116,
+     "seconds": 275.988721708,
+     "pl_shot": 0.030843098958333332,
+     "pl_cycle": 0.0026073249766203066,
+     "pl_cycle_interval": [
+      0.002357813362227179,
+      0.002882747880824099
+     ]
+    }
+   }
+  },
+  "gross/0.005": {
+   "code": "gross",
+   "cycles": 12,
+   "p": 0.005,
+   "shots": 2048,
+   "results": {
+    "bposd_cs7": {
+     "failures": 247,
+     "converged": 1407,
+     "seconds": 127.09030475,
+     "pl_shot": 0.12060546875,
+     "pl_cycle": 0.010652987441629125,
+     "pl_cycle_interval": [
+      0.009405470760309731,
+      0.01205323143987691
+     ]
+    },
+    "bposd_0": {
+     "failures": 338,
+     "converged": 1407,
+     "seconds": 125.553057,
+     "pl_shot": 0.1650390625,
+     "pl_cycle": 0.014918461850160325,
+     "pl_cycle_interval": [
+      0.013412450743921722,
+      0.016575766111087353
+     ]
+    }
+   }
+  },
+  "gross/0.006": {
+   "code": "gross",
+   "cycles": 12,
+   "p": 0.006,
+   "shots": 2048,
+   "results": {
+    "bposd_cs7": {
+     "failures": 684,
+     "converged": 808,
+     "seconds": 219.976520291,
+     "pl_shot": 0.333984375,
+     "pl_cycle": 0.03330300591812785,
+     "pl_cycle_interval": [
+      0.030904914919449578,
+      0.03584574513513117
+     ]
+    },
+    "bposd_0": {
+     "failures": 847,
+     "converged": 808,
+     "seconds": 216.638758083,
+     "pl_shot": 0.41357421875,
+     "pl_cycle": 0.04350121817032104,
+     "pl_cycle_interval": [
+      0.040673179974119456,
+      0.04646984265376164
+     ]
+    }
+   }
+  },
+  "72/0.002": {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.002,
+   "shots": 71680,
+   "results": {
+    "bposd_cs7": {
+     "failures": 204,
+     "converged": 71602,
+     "seconds": 17.032920917,
+     "pl_shot": 0.0028459821428571427,
+     "pl_cycle": 0.00047489381059828695,
+     "pl_cycle_interval": [
+      0.00041405098270530516,
+      0.0005446601623620984
+     ]
+    },
+    "bposd_0": {
+     "failures": 211,
+     "converged": 71602,
+     "seconds": 17.050057915999997,
+     "pl_shot": 0.002943638392857143,
+     "pl_cycle": 0.000491209220126021,
+     "pl_cycle_interval": [
+      0.00042925826872608486,
+      0.0005620834035853228
+     ]
+    }
+   }
+  },
+  "72/0.003": {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.003,
+   "shots": 14336,
+   "results": {
+    "bposd_cs7": {
+     "failures": 217,
+     "converged": 14160,
+     "seconds": 13.511393707,
+     "pl_shot": 0.01513671875,
+     "pl_cycle": 0.0025388463651083715,
+     "pl_cycle_interval": [
+      0.002222979325440244,
+      0.002899140417655155
+     ]
+    },
+    "bposd_0": {
+     "failures": 245,
+     "converged": 14160,
+     "seconds": 13.537453791,
+     "pl_shot": 0.01708984375,
+     "pl_cycle": 0.002868803848415924,
+     "pl_cycle_interval": [
+      0.0025316246327370395,
+      0.0032503804077326226
+     ]
+    }
+   }
+  },
+  "72/0.004": {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.004,
+   "shots": 4096,
+   "results": {
+    "bposd_cs7": {
+     "failures": 225,
+     "converged": 3897,
+     "seconds": 14.001388333000001,
+     "pl_shot": 0.054931640625,
+     "pl_cycle": 0.009372141158244918,
+     "pl_cycle_interval": [
+      0.008227671340643727,
+      0.010669877140160433
+     ]
+    },
+    "bposd_0": {
+     "failures": 241,
+     "converged": 3897,
+     "seconds": 14.087706959,
+     "pl_shot": 0.058837890625,
+     "pl_cycle": 0.01005574625457284,
+     "pl_cycle_interval": [
+      0.008866928253507877,
+      0.0113976114539025
+     ]
+    }
+   }
+  },
+  "72/0.005": {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.005,
+   "shots": 2048,
+   "results": {
+    "bposd_cs7": {
+     "failures": 295,
+     "converged": 1789,
+     "seconds": 14.765384375,
+     "pl_shot": 0.14404296875,
+     "pl_cycle": 0.02558941293693695,
+     "pl_cycle_interval": [
+      0.022849746342051835,
+      0.028624842383081273
+     ]
+    },
+    "bposd_0": {
+     "failures": 325,
+     "converged": 1789,
+     "seconds": 14.517411667,
+     "pl_shot": 0.15869140625,
+     "pl_cycle": 0.028388706461890956,
+     "pl_cycle_interval": [
+      0.025487801960362932,
+      0.03158349551814521
+     ]
+    }
+   }
+  },
+  "72/0.006": {
+   "code": "72",
+   "cycles": 6,
+   "p": 0.006,
+   "shots": 2048,
+   "results": {
+    "bposd_cs7": {
+     "failures": 565,
+     "converged": 1500,
+     "seconds": 26.724386625,
+     "pl_shot": 0.27587890625,
+     "pl_cycle": 0.05237785809388307,
+     "pl_cycle_interval": [
+      0.04829448205359621,
+      0.05673837591241182
+     ]
+    },
+    "bposd_0": {
+     "failures": 612,
+     "converged": 1500,
+     "seconds": 26.717012666,
+     "pl_shot": 0.298828125,
+     "pl_cycle": 0.057450686888707136,
+     "pl_cycle_interval": [
+      0.05314624307643023,
+      0.062028571765006535
+     ]
+    }
+   }
+  }
+ },
+ "engine_commit": "917ec30",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "decoders": {
+  "bposd_cs7": {
+   "osd": "osd_cs",
+   "order": 7,
+   "bp": "minimum_sum, adaptive scaling",
+   "max_iter": 10000
+  },
+  "bposd_0": {
+   "osd": "osd_0",
+   "order": 0,
+   "bp": "minimum_sum, adaptive scaling",
+   "max_iter": 10000
+  }
+ },
+ "note": "Z-basis memory, Bravyi et al.'s depth-8 cycle and noise model; a shot fails if any logical qubit does",
+ "generated": "2026-09-27",
+ "surface": {
+  "surface-d11/0.002": {
+   "code": "surface-d11",
+   "cycles": 12,
+   "p": 0.002,
+   "shots": 2490368,
+   "results": {
+    "correlated_matching": {
+     "failures": 203,
+     "pl_shot": 8.151405736019737e-05,
+     "pl_cycle": 6.793091911094784e-06,
+     "pl_cycle_interval": [
+      5.920669219006136e-06,
+      7.794061354760018e-06
+     ]
+    }
+   }
+  },
+  "surface-d11/0.003": {
+   "code": "surface-d11",
+   "cycles": 12,
+   "p": 0.003,
+   "shots": 163840,
+   "results": {
+    "correlated_matching": {
+     "failures": 200,
+     "pl_shot": 0.001220703125,
+     "pl_cycle": 0.00010178221900059015,
+     "pl_cycle_interval": [
+      8.861970964979538e-05,
+      0.00011689824447880248
+     ]
+    }
+   }
+  },
+  "surface-d11/0.004": {
+   "code": "surface-d11",
+   "cycles": 12,
+   "p": 0.004,
+   "shots": 32768,
+   "results": {
+    "correlated_matching": {
+     "failures": 260,
+     "pl_shot": 0.0079345703125,
+     "pl_cycle": 0.0006636310765998354,
+     "pl_cycle_interval": [
+      0.0005877237934914792,
+      0.0007492944435117943
+     ]
+    }
+   }
+  },
+  "surface-d11/0.005": {
+   "code": "surface-d11",
+   "cycles": 12,
+   "p": 0.005,
+   "shots": 16384,
+   "results": {
+    "correlated_matching": {
+     "failures": 544,
+     "pl_shot": 0.033203125,
+     "pl_cycle": 0.0028099498854828875,
+     "pl_cycle_interval": [
+      0.002583666769871207,
+      0.00305565925361595
+     ]
+    }
+   }
+  },
+  "surface-d11/0.006": {
+   "code": "surface-d11",
+   "cycles": 12,
+   "p": 0.006,
+   "shots": 16384,
+   "results": {
+    "correlated_matching": {
+     "failures": 1426,
+     "pl_shot": 0.0870361328125,
+     "pl_cycle": 0.00755952985654007,
+     "pl_cycle_interval": [
+      0.007178040354914761,
+      0.00796025453843574
+     ]
+    }
+   }
+  }
+ }
+}

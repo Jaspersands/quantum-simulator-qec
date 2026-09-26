@@ -860,10 +860,10 @@ adaptive scaling for up to 10,000 iterations. BP+OSD-0 runs on the same shots.
 
 | code | p | shots | failures | per cycle, BP+OSD-CS [95%] | per cycle, BP+OSD-0 | BP alone |
 |---|---|---|---|---|---|---|
-| gross [[144, 12, 12]] | 0.2% | 362,496 | 39 | 9.0 × 10⁻⁶ [6.6 × 10⁻⁶, 1.2 × 10⁻⁵] | 2.3 × 10⁻⁵ | 99.7% |
-| gross [[144, 12, 12]] | 0.3% | 92,160 | 199 | 1.8 × 10⁻⁴ [1.6 × 10⁻⁴, 2.1 × 10⁻⁴] | 3.7 × 10⁻⁴ | 97.8% |
-| gross [[144, 12, 12]] | 0.4% | 12,288 | 232 | 1.6 × 10⁻³ [1.4 × 10⁻³, 1.8 × 10⁻³] | 2.6 × 10⁻³ | 90.5% |
-| gross [[144, 12, 12]] | 0.5% | 2,048 | 245 | 1.1 × 10⁻² [9.3 × 10⁻³, 1.2 × 10⁻²] | 1.5 × 10⁻² | 68.7% |
+| gross [[144, 12, 12]] | 0.2% | 401,408 | 42 | 8.7 × 10⁻⁶ [6.5 × 10⁻⁶, 1.2 × 10⁻⁵] | 2.4 × 10⁻⁵ | 99.7% |
+| gross [[144, 12, 12]] | 0.3% | 94,208 | 202 | 1.8 × 10⁻⁴ [1.6 × 10⁻⁴, 2.1 × 10⁻⁴] | 3.7 × 10⁻⁴ | 97.8% |
+| gross [[144, 12, 12]] | 0.4% | 12,288 | 230 | 1.6 × 10⁻³ [1.4 × 10⁻³, 1.8 × 10⁻³] | 2.6 × 10⁻³ | 90.5% |
+| gross [[144, 12, 12]] | 0.5% | 2,048 | 247 | 1.1 × 10⁻² [9.4 × 10⁻³, 1.2 × 10⁻²] | 1.5 × 10⁻² | 68.7% |
 | gross [[144, 12, 12]] | 0.6% | 2,048 | 684 | 3.3 × 10⁻² [3.1 × 10⁻², 3.6 × 10⁻²] | 4.4 × 10⁻² | 39.5% |
 | [[72, 12, 6]] | 0.2% | 71,680 | 204 | 4.7 × 10⁻⁴ [4.1 × 10⁻⁴, 5.4 × 10⁻⁴] | 4.9 × 10⁻⁴ | 99.9% |
 | [[72, 12, 6]] | 0.3% | 14,336 | 217 | 2.5 × 10⁻³ [2.2 × 10⁻³, 2.9 × 10⁻³] | 2.9 × 10⁻³ | 98.8% |
@@ -873,8 +873,8 @@ adaptive scaling for up to 10,000 iterations. BP+OSD-0 runs on the same shots.
 
 - **Below 12 unprotected qubits everywhere measured.** At p = 0.6% the gross code fails 3.3% of
   cycles, where 12 bare qubits would fail 6.9%.
-- **OSD-CS earns its cost.** It halves the gross code's failures at low p against OSD-0, where most
-  shots never reach OSD at all.
+- **OSD-CS earns its cost.** Against OSD-0 it cuts the gross code's failures 2.7 times at p = 0.2%
+  and 2 times at 0.3%, where most shots never reach OSD at all.
 - **The gross code falls steeply.** From 0.3% to 0.2% its error per cycle falls twentyfold.
 
 **Beside the surface code.** The same 12 logical qubits as twelve rotated d = 11 surface-code patches
@@ -885,13 +885,13 @@ is 1 − (1 − p_L)¹² of a single patch's:
 
 | p | gross code: 12 logical qubits on 288 | twelve d = 11 surface patches on 2,892 | ratio |
 |---|---|---|---|
-| 0.2% | 9.0 × 10⁻⁶ | 8.2 × 10⁻⁵ | 9.1× |
+| 0.2% | 8.7 × 10⁻⁶ | 8.2 × 10⁻⁵ | 9.3× |
 | 0.3% | 1.8 × 10⁻⁴ | 1.2 × 10⁻³ | 6.8× |
 | 0.4% | 1.6 × 10⁻³ | 7.9 × 10⁻³ | 5.0× |
 | 0.5% | 1.1 × 10⁻² | 3.3 × 10⁻² | 3.1× |
 | 0.6% | 3.3 × 10⁻² | 8.7 × 10⁻² | 2.6× |
 
-With a tenth of the qubits, the gross code fails less often at every p measured, by 3 to 9 times.
+With a tenth of the qubits, the gross code fails less often at every p measured, by 2.6 to 9.3 times.
 
 **On the site**, section 13 draws the code on its torus (hover a check to see its six qubits). It
 plots these measurements, and runs BP+OSD on [[72, 12, 6]] in the browser.
