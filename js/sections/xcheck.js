@@ -16,9 +16,13 @@ import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megab
 
 const DATA = new URL('../../data/xcheck/', import.meta.url);
 
-/** Live shots per distance for the decoding table, set by measured cost. */
-const LIVE_RUNS = { 3: 20000, 5: 6000, 7: 1500 };
-const TIMING_RUNS = { 3: 2000, 5: 600, 7: 150 };
+/**
+ * Live shots per distance for the decoding table, set by measured cost: the
+ * sparse matcher decodes d = 7 at p = 0.6% in about 0.06 ms a shot in
+ * WebAssembly, so the whole table runs in roughly ten seconds.
+ */
+const LIVE_RUNS = { 3: 100000, 5: 100000, 7: 50000 };
+const TIMING_RUNS = { 3: 20000, 5: 5000, 7: 2000 };
 
 function job(c) {
   return {

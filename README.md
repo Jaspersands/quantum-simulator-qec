@@ -20,10 +20,15 @@ every number on the page is computed in the reader's browser on load.
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model.
+  error model by sparse blossom: plain, at 2.3 to 2.9 times PyMatching's single-threaded time, and
+  correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
+  at 2.0 to 2.3 times.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
+- **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
+  million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
+  matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, every figure is driven by it, the threshold table is
   plotted as it is measured, and the bench streams its estimate.
@@ -98,10 +103,11 @@ Those two last columns did not match on the first attempt. What caught it was no
 Stim at all; see *What the checks caught* below.
 
 **2. The decoders agree shot for shot.** At each point, Stim sampled 100,000 shots, and PyMatching and
-this engine decoded the same detection events. Two exact matchers can disagree only where two
-corrections tie in weight. There were 16 disagreements in 600,000 shots, and
-every one is a tie: the two matchings' weights differ by less than the discretisation noise measured
-on shots where the decoders agree (at most 2e-06).
+this engine's decoder (now the sparse matcher described in the next section) decoded the same
+detection events. Two exact matchers can disagree only where two corrections tie in weight. There
+were 13 disagreements in 600,000 shots, and every one is a tie: the two
+matchings' weights differ by less than the discretisation noise measured on shots where the decoders
+agree (at most 1e-05).
 
 **3. The samplers agree.** The same circuits were also sampled by this engine's frame sampler and
 decoded by its own decoder, and compared with Stim's sampler decoded by PyMatching:
@@ -113,19 +119,21 @@ decoded by its own decoder, and compared with Stim's sampler decoded by PyMatchi
 
 | d | p | PyMatching | ours, on Stim's graph | ours, on our graph | disagreements (not ties) | our sampler + decoder | χ² z | PyMatching | ours |
 |---|---|---|---|---|---|---|---|---|---|
-| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 3.6 µs |
-| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 7.7 µs |
-| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.7 µs | 55.0 µs |
-| 5 | 0.6% | 9.432% | 9.433% | 9.433% | 7 (0) | 9.493% | -0.90 | 3.9 µs | 161.0 µs |
-| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.072% | +0.06 | 5.6 µs | 516.3 µs |
-| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.682% | -2.35 | 15.1 µs | 2.05 ms |
+| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 0.6 µs |
+| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 1.3 µs |
+| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.8 µs | 4.7 µs |
+| 5 | 0.6% | 9.432% | 9.432% | 9.432% | 4 (0) | 9.493% | -0.90 | 5.1 µs | 11.5 µs |
+| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.073% | +0.06 | 6.1 µs | 15.6 µs |
+| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.686% | -2.35 | 16.0 µs | 40.8 µs |
 
 The last two columns are native decode time per shot.
 
-**4. Speed.** PyMatching's sparse blossom is 18 to 136 times faster than this engine's dense matcher,
-and the gap widens with the patch, as it should for a sparse algorithm. At d = 7, p = 0.6% this
-decoder takes 2 ms a shot, native, against PyMatching's 15 µs. That is the cost of an exact matcher
-that works from all-pairs shortest paths, and speed is the next sub-project.
+**4. Speed.** Single-threaded, this engine takes 2.3 to 2.9 times PyMatching's time per
+shot. At d = 7, p = 0.6% it takes 41 µs a shot, native, against PyMatching's
+16 µs. The first version of this check used the dense matcher, which was 18 to
+136 times slower and fell further behind as the patch grew. The sparse matcher closed that gap. It
+also decodes shots in parallel, one workspace per thread: across every core of the recording machine,
+d = 7, p = 0.6% runs at 5.6 µs a shot.
 
 **5. The old path and the new one describe the same circuit.** `src/equivalence.rs` rebuilds the old
 path's error model from its own code:
@@ -193,7 +201,7 @@ its first run.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
-VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --profile python
 .venv/bin/python tools/xcheck.py
 cargo test --release --no-default-features equivalence -- --include-ignored --nocapture
 cargo test --release --no-default-features every_single_fault -- --include-ignored
@@ -201,6 +209,281 @@ cargo test --release --no-default-features every_single_fault -- --include-ignor
 
 The recorded run is `data/xcheck/report.txt`. Figure 8 on the site repeats the error-model
 comparison live, in the reader's browser.
+
+## An exact sparse matcher
+
+The first general-path decoder was exact and simple:
+
+1. Run Dijkstra from every defect.
+2. Build the complete graph of defects.
+3. Run Edmonds' blossom algorithm on it, which costs O(n³).
+
+It stopped at 256 defects and, near that limit, took seconds per shot. Google's longest memory
+experiments have about 12,000 detectors and on the order of a thousand defects a shot.
+`src/sparse/` replaces it with **sparse blossom**, the algorithm of Higgott and Gidney
+(arXiv:2303.15933) that PyMatching 2 is built on.
+
+How it works:
+
+- **Regions grow on the detector graph itself.** Every defect grows a region, all at the same rate,
+  and a region's radius is its dual variable.
+- **Collisions come from the growth.** When two regions touch, Edmonds' alternating trees and
+  blossoms take over, but over regions rather than vertices. A collision is found by the growth
+  itself, not by a precomputed distance, so nothing is explored beyond where the regions reach.
+- **Even weights keep the events on integer times.** Edge weights are discretised to even
+  integers, so two regions growing toward each other always meet at an integer time.
+- **Only the next event is queued.** A queue of look-at reminders holds only the next event per
+  node or region.
+
+The dense matcher stays as `decode_dense`, and it is what the sparse one is checked against first.
+
+**Verification, in five layers.** The dense and sparse matchers minimise exactly the same integer
+weights, so their optimal weights must be *equal*, not merely close.
+
+1. **Brute force.** On 3,000 random small graphs, with and without boundaries, including odd
+   components that cannot be matched: every weight is optimal, and every prediction is one of the
+   optimal ones.
+2. **Against the dense matcher**, with equal integer weight on every shot either way:
+   - 20,000 random graphs of up to 43 nodes, with the dual's feasibility checked after every event:
+     no radius negative, no two regions overlapping across an edge, every node's recorded blossom
+     ancestry correct;
+   - 4,320 sampled surface-code shots (rotated and XZZX, both bases, both noise models, d = 3, 5, 7,
+     p up to 1.2%). Two of them break a tie differently.
+3. **Every single fault is corrected**, at d = 3, 5 and 7, in all 24 circuits.
+4. **Against PyMatching on identical shots:** 13 disagreements in 600,000 shots, every one a tie
+   (check 2 above).
+5. **Beyond the dense limit:** d = 7 run for 60 rounds, with more than 256 defects in a shot, decodes
+   without error.
+
+It passed every layer on its first complete run. The only change the tests forced was to a test's
+own floor on how many unmatchable cases the random generator must produce.
+
+**Speed.** Native, single-threaded, rotated code under SD6 with T = d, per shot:
+
+| d | p | dense | sparse | PyMatching |
+|---|---|---|---|---|
+| 3 | 0.3% | 6.0 µs | 1.0 µs | 0.2 µs |
+| 3 | 0.6% | 13.4 µs | 2.1 µs | 0.4 µs |
+| 5 | 0.3% | 75.5 µs | 7.6 µs | 1.8 µs |
+| 5 | 0.6% | 210 µs | 15.8 µs | 5.1 µs |
+| 7 | 0.3% | 656 µs | 23.0 µs | 6.1 µs |
+| 7 | 0.6% | 2.58 ms | 55.5 µs | 16.0 µs |
+| 9 | 0.3% | 4.42 ms | 53.4 µs | — |
+| 9 | 0.6% | 20.5 ms | 137 µs | — |
+
+The dense and sparse columns come from `cargo test --release --no-default-features sparse::tests::timing
+-- --ignored --nocapture`. PyMatching's column is from the cross-check's recorded run.
+
+The site uses the same matcher in WebAssembly. A whole SD6 sweep window, one shot at every point
+across d = 3, 5, 7 and 9, now costs about 1.7 ms instead of more than 100 ms. So the SD6 sweep went
+from 800 shots a point to 40,000, and Figure 8's live rates now run 50,000 to 100,000 shots.
+
+## Correlated matching
+
+One fault in a circuit can set off detectors in both halves of the detector graph. A Y error is an X
+error and a Z error at once, so it lights the X-type and the Z-type checks together. The error
+model knows this and writes such a fault as pieces, `error(p) D0 D1 ^ D7 D8`, one per half. Plain
+matching sees only the pieces, as independent edges, and forgets that they come together.
+Correlated matching remembers. `src/sparse/correlated.rs` follows PyMatching 2.4's
+`enable_correlations=True`, read from its source, so that PyMatching can serve as the oracle:
+
+1. **Pass one.** The sparse matcher, unchanged.
+2. **Trace.** A shortest path on the detector graph for each matched pair (`src/sparse/paths.rs`),
+   all XORed into one edge set, so an edge two paths share cancels.
+3. **Reweight.** From the model's decompositions, each edge c has rules. For every edge a it shares
+   an error with, the rule is `p_a = min(0.5, joint(c, a) / marginal(c))`: the probability that a
+   fired given that c did. Each edge the set uses lowers every edge its rules name to the smaller
+   of its own weight and ln((1 − p_a)/p_a).
+4. **Pass two.** The sparse matcher again, on the lowered weights. Its observables are the
+   prediction. The weights are then restored, so decoding threads never share mutable state.
+
+**Verification, in five layers.**
+
+1. **Rule tables by hand.** Two- and three-piece decompositions, a piece shared by several errors,
+   the cap at one half, errors of probability zero, and PyMatching's quirk of counting a piece
+   repeated within one error twice more toward its marginal.
+2. **The traced edges.** On 3,600 surface-code shots (rotated and XZZX, d = 3, 5, 7, SD6 at 0.3% and
+   0.6%), every traced edge set has exactly the shot's defects as its syndrome and weighs exactly the
+   optimum: each is a minimum-weight correction.
+3. **Pass two is exact.** On 1,440 shots, the second pass's integer weight equals the dense
+   matcher's on a model carrying exactly the reweighted weights.
+4. **Against PyMatching's correlated mode on identical shots**, 1.2 million of them (check 5 of the
+   cross-check): 696 disagreements, and not one bug among them. For every disagreement,
+   PyMatching's own first-pass edges (`decode_to_edges_array`) go into our second pass. In 682
+   cases that reproduces PyMatching's answer: the two first passes traced different, equally short
+   paths. The other 14 tie PyMatching's second-pass weight to within the discretisation noise
+   (below 1e-5).
+5. **It helps.** Pooled over all twelve points, correlated matching fails 53,030 times against plain
+   matching's 65,316, 19% fewer. At d = 7 it nearly halves the failure rate at p = 0.3%.
+
+| code | d | p | PyMatching correlated | ours correlated | ours plain | disagreements | PyMatching µs | ours µs |
+|---|---|---|---|---|---|---|---|---|
+| rotated | 3 | 0.3% | 2.061% | 2.061% | 2.332% | 0 | 0.6 | 1.3 |
+| rotated | 3 | 0.6% | 6.951% | 6.951% | 7.708% | 0 | 1.2 | 2.8 |
+| rotated | 5 | 0.3% | 1.133% | 1.131% | 1.645% | 8 | 4.8 | 9.6 |
+| rotated | 5 | 0.6% | 7.735% | 7.738% | 9.335% | 31 | 10.1 | 22.0 |
+| rotated | 7 | 0.3% | 0.555% | 0.558% | 1.037% | 29 | 15.2 | 32.1 |
+| rotated | 7 | 0.6% | 7.932% | 7.906% | 10.590% | 274 | 36.7 | 78.6 |
+| XZZX | 3 | 0.3% | 2.020% | 2.020% | 2.293% | 0 | 0.6 | 1.3 |
+| XZZX | 3 | 0.6% | 7.098% | 7.098% | 7.665% | 0 | 1.3 | 2.6 |
+| XZZX | 5 | 0.3% | 1.210% | 1.210% | 1.639% | 8 | 4.9 | 10.0 |
+| XZZX | 5 | 0.6% | 7.739% | 7.745% | 9.323% | 22 | 10.4 | 22.4 |
+| XZZX | 7 | 0.3% | 0.581% | 0.579% | 1.103% | 32 | 15.5 | 31.9 |
+| XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 37.0 | 78.5 |
+
+100,000 shots per row, sampled by Stim, SD6 noise, T = d. The timing columns are single-threaded,
+correlated mode for both: ours takes 2.0 to 2.3 times as long as PyMatching's. Natively,
+from `sparse::tests::timing`, the second pass roughly doubles the cost of a shot: at d = 9 and
+p = 0.6%, 126 µs plain and 264 µs correlated.
+
+It passed every layer on its first complete run. One thing did go wrong along the way, outside
+the algorithm. The Python module built with Rust 1.90's default release strip would not load on
+this Mac: the arm64 library's symbol string table came out unaligned, and the loader refused it.
+The module now builds with its own profile, `python` in `Cargo.toml`: release, unstripped.
+
+## Google's hardware data
+
+Everything above runs on simulated noise. Google publishes what its chips actually recorded, and
+this engine now decodes all of it:
+
+- **Willow**, 2024 ("Quantum error correction below the surface code threshold", Zenodo 13273331):
+  surface-code memories at d = 3, 5 and 7 (nine, four and one patch), X and Z bases, 1 to 250
+  rounds. That is 420 experiments of 50,000 shots, 21.0 million shots.
+- **Sycamore**, 2022 ("Suppressing quantum errors by scaling a surface code logical qubit", Zenodo
+  6804040): d = 3 (four patches) and d = 5, both bases, 1 to 25 rounds. That is 130 experiments,
+  6.5 million shots.
+
+Both datasets are CC BY 4.0, by Google Quantum AI. They stay in their zips in `data/google/`,
+gitignored, and are fetched by `data/google/fetch.sh`. What is committed is the results, in
+`data/google-results/`, and a 0.95 MB extract for the site, in `data/willow-extract/`.
+
+**Reading the chips' output.**
+
+- **Parser.** Google's circuits need two things the parser lacked:
+  - `CX sweep[k] q`, an X applied when the shot's sweep bit k is set, which is how each shot
+    prepares its data qubits in a different pattern;
+  - the Pauli gates `X`, `Y`, `Z` and `I`.
+
+  Neither changes which detectors a fault sets off, so the error-model builder and the sampler
+  ignore both.
+- **From raw measurements to detection events** (`src/m2d.rs`). A detector compares a parity of
+  measurements with what a noiseless run gives. One noiseless run of the ideal circuit on the
+  stabilizer tableau is the reference. Each sweep bit's effect on every detector is fixed, since
+  the circuit is Clifford, so one more run per bit finds it. Seven more references with other
+  random outcomes must agree, or a detector is refused as nondeterministic.
+
+  This is the tableau reading the circuit, independently of the backward walk the error models
+  come from. On synthetic circuits with random sweep bits it matches Stim's own `m2d` converter bit
+  for bit.
+
+**Checked against Google's own files** (`tools/google.py check`, all 550 experiments, 27.5 million
+shots):
+
+- Every circuit round-trips through the parser and printer, and Stim reads the result back as the
+  same circuit.
+- The detection events and observable flips rebuilt from the raw `measurements.b8` and sweep bits
+  equal Google's `detection_events.b8` and `obs_flips_actual` **bit for bit, on every shot of every
+  experiment**.
+- This engine's model of every noisy circuit is **identical to Stim's**, mechanism by mechanism and
+  edge by edge.
+- Against the models Google decoded with:
+  - Sycamore's `circuit_detector_error_model.dem` matches ours to 2.5 × 10⁻⁶.
+  - Willow's SI1000 prior has exactly our edges, but its probabilities are reweighted: a median
+    9.5% from ours, and up to 49%.
+
+  So on Willow our own model is a third prior, not a copy of theirs.
+
+**The run** (`tools/google.py run`) decodes every experiment with every prior, each with plain and
+with correlated matching:
+
+- Willow: Google's SI1000 prior, Google's RL-optimised prior, and our model of the noisy circuit.
+- Sycamore: the circuit's model; ours; and the data-fitted `pij` models, cross-fitted as Google
+  used them, each shot decoded by the model fitted on the other half.
+
+Google's own predictions are scored against the same truth. On ten cores the whole of it took 53
+minutes: 48 of decoding and the rest reading the zips.
+- The heaviest experiment, d = 7 at 250 rounds, has 12,000 detectors and 936 defects a shot on
+  average.
+- It decodes at 0.13 ms a shot plain and 0.28 ms correlated.
+
+**One fit for everything** (`js/lambda-fit.js`, run by `node tools/lambda.mjs`; the page runs the
+same module):
+
+- **Per patch and basis:** the logical fidelity 1 − 2 P_L is fitted as A (1 − 2ε)^r by weighted
+  least squares on ln F. Points within 3σ of zero are left out. The fit starts from round 10 for
+  Willow (its first round is not in steady state) and round 3 for Sycamore.
+- **Per distance:** ε is the mean over patches and bases.
+- **Λ:** from a line through ln ε against d.
+- **Intervals:** a parametric bootstrap, each experiment's failures redrawn and everything refitted.
+  Which points each fit uses, and how much it weighs them, stay as the observed data set them.
+  Letting a redrawn fidelity choose its own weight biased the draws about 0.2% low, which the
+  average over eighteen patches turned into visibly lopsided intervals. That was caught and fixed
+  before anything was quoted.
+
+**Validation.** Fitted this way, Google's own tensor-network predictions for Sycamore give
+**ε₃ = 3.028% and ε₅ = 2.914%, the published numbers exactly** (the paper's are 3.028% ± 0.023%
+and 2.914% ± 0.016%), starting from round 2 or 3. So the comparison below is made the way Google
+made theirs.
+
+**Willow** (ε per cycle, 95% bootstrap intervals in `data/google-results/lambda.txt`):
+
+| decoder | prior | ε, d = 3 | ε, d = 5 | ε, d = 7 | Λ |
+|---|---|---|---|---|---|
+| ours, plain | SI1000 | 1.032% | 0.684% | 0.435% | 1.54 |
+| ours, correlated | SI1000 | 0.888% | 0.449% | 0.234% | **1.95** [1.94, 1.95] |
+| ours, correlated | RL-optimised | 0.808% | 0.425% | 0.222% | 1.91 |
+| ours, correlated | our model | 0.884% | 0.468% | 0.241% | 1.91 |
+| Google, correlated matching | SI1000 | 0.836% | 0.443% | 0.229% | 1.91 |
+| Google, correlated matching | RL-optimised | 0.759% | 0.404% | 0.210% | 1.90 |
+| Google, Harmony (51 matchers) | RL-optimised | 0.729% | 0.387% | 0.206% | 1.88 |
+| Google, Libra | RL-optimised | 0.712% | 0.349% | 0.171% | 2.04 |
+| Google, neural network (published) | — | — | — | 0.143% | 2.14 |
+
+- **Correlated matching is most of the story.** With the same prior, it takes Λ from 1.54 to 1.95
+  and nearly halves ε at d = 7.
+- **Ours sits within a few per cent of Google's own correlated matcher on the same prior:** 0.234%
+  against 0.229% at d = 7. It is further behind at d = 3, 0.888% against 0.836%. Google describes
+  theirs as a variant of the two-step reweighting, and small patches evidently reward the variant.
+  That relative weakness at d = 3 is why our Λ comes out higher than theirs (1.95 against 1.91):
+  Λ rewards improving with size, not being good.
+- **Our own model of the noisy circuit**, built here from Google's circuit with no fitting to the
+  data, does about as well as their SI1000 prior (0.241% at d = 7).
+- **What the published 2.14 is, and isn't.** It is Google's neural-network decoder. Its predictions
+  are not in the dataset, so it cannot be refitted here. Libra, the best decoder whose predictions
+  are published, reaches 2.04 on this fit.
+
+**Sycamore:**
+
+| decoder | prior | ε, d = 3 | ε, d = 5 | Λ |
+|---|---|---|---|---|
+| ours, plain | circuit | 4.012% | 4.354% | 0.92 |
+| ours, correlated | circuit | 3.507% | 3.558% | 0.99 |
+| ours, correlated | pij, cross-fitted | 3.424% | 3.466% | 0.99 |
+| Google, PyMatching | circuit | 4.012% | 4.362% | 0.92 |
+| Google, correlated matching | circuit | 3.497% | 3.597% | 0.97 |
+| Google, belief matching | pij | 3.118% | 3.056% | 1.02 |
+| Google, tensor network | pij | 3.028% | 2.914% | 1.04 |
+
+- **Our plain matcher reproduces Google's recorded PyMatching:** 4.012% at d = 3, identical.
+- Where the two disagree, on 8,448 shots over the whole dataset, our matching weighs exactly the
+  optimum PyMatching 2.4 finds on every one: ties, broken differently by the older PyMatching
+  Google used.
+- Our correlated matcher lands beside Google's on the same prior.
+- Sycamore's Λ ≈ 1 was the point of that paper: it was the first time a larger surface code beat a
+  smaller one at all, and only with the best decoders. With matching, d = 5 does not yet beat d = 3.
+
+**On the site.** Section 11 shows two figures.
+
+- **Figure 9 fits** every decoder from these recorded counts, in the reader's tab, with the same
+  module.
+- **Figure 10 decodes live, from the raw readouts.** The data is 2,000 raw Willow shots each at
+  d = 3, 5 and 7 (Z basis, 30 rounds, the first shots of each, unmodified). The worker:
+  1. rebuilds their detection events and checks the SHA-256 against Google's;
+  2. builds two models, Google's SI1000 prior and ours from the noisy circuit;
+  3. decodes with both matchers, next to Google's five decoders on the same shots.
+
+  At d = 7 our correlated matcher on Google's prior fails 123 times in 2,000 shots, against
+  Google's correlated matcher's 122, and agrees with it on 97% of shots.
 
 ## Engine defects found and fixed
 
@@ -243,8 +526,8 @@ not by hand. Figures are the mean and spread of **four independent sweeps**:
 | XZZX | phenomenological | **3.25% ± 0.07** | 0.97 ± 0.06 | 2.56 | 2.94% |
 | rotated | circuit-level | **0.41% ± 0.03** | *not determined* | 4.31 | 0.37% |
 | XZZX | circuit-level | **0.42% ± 0.04** | *not determined* | 3.88 | 0.34% |
-| rotated | circuit-level, SD6 (per basis) | **0.48% ± 0.05** | *not determined* | 3.13 | 0.49% |
-| XZZX | circuit-level, SD6 (per basis) | **0.53% ± 0.07** | *not determined* | 2.25 | 0.45% |
+| rotated | circuit-level, SD6 (per basis) | **0.54% ± 0.01** | 1.11 ± 0.05 † | 1.06 | 0.48% |
+| XZZX | circuit-level, SD6 (per basis) | **0.51% ± 0.01** | 1.22 ± 0.05 † | 2.19 | 0.47% |
 
 The two circuit-level models are different physics.
 
@@ -255,12 +538,25 @@ The two circuit-level models are different physics.
   thresholds assume.
 
 The SD6 rows come from the general path (see *Checked against Stim and PyMatching*) and its
-probability-weighted matcher, and they are scored the way experiments are, one logical basis at a
-time. That barely moves where the curves cross, but it roughly halves the rate below threshold.
-Stim's own generated circuit, which depolarizes idle data only once a round, crosses higher, near
-0.65–0.7% with PyMatching. SD6 costs the dense matcher about 0.1 s a shot across the window at
-d = 9, so these sweeps run 800 shots a point, and the spread shows it. The runs are in
-`data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/sweep.mjs 3 1`.
+probability-weighted sparse matcher, and they are scored the way experiments are, one logical basis
+at a time. That barely moves where the curves cross, but it roughly halves the rate below threshold.
+
+- **Stim's own generated circuit crosses higher**, near 0.65–0.7% with PyMatching, because it
+  depolarizes idle data only once a round.
+- **These sweeps run 40,000 shots a point**, affordable since the sparse matcher replaced the dense
+  one, which allowed 800. The same fit at 800 shots gave 0.48% ± 0.05 and 0.53% ± 0.07; the new
+  values sit inside those ranges, with the spread five times smaller.
+- **† ν is provisional.** At these shot counts the fit reports ν as determined for SD6, for the
+  first time at circuit level. But the synthetic-data check in section 9, which established which
+  sweeps can recover ν, was run at the old shot counts and has not been repeated at these.
+- **The correction term is loosely constrained under SD6.** Across these sweeps ω ranged from 0.5 to
+  3.0. In two of the four XZZX sweeps the corrected point estimate sits at or just outside its own
+  bootstrap interval, and a single run of the page's own rotated sweep gave 0.51% [0.50–0.54%],
+  just below the four sweeps' spread. The uncorrected fit is the steadier number, at 0.47–0.48% for
+  both codes. Read the corrected values as good to a few hundredths of a percent, not to the ±0.01
+  the four-sweep spread alone suggests.
+
+The runs are in `data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/sweep.mjs 3 1`.
 
 **Confirmed against an independent implementation.** An L×L toric code written from scratch in
 JavaScript (periodic lattice, no boundaries, with its own noise, syndrome, graph and scoring, and
@@ -634,8 +930,12 @@ src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the mo
 src/shots.rs          Stim's 01 and b8 detection-event formats
 src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
+src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
+                      and correlated matching's two passes on top of it
+src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
 src/py_api.rs         PyO3 bindings for the cross-check
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
+src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
@@ -650,10 +950,16 @@ js/plot.js            canvas plotting primitive
 js/sections/*.js      one module per section of the page
 js/sweep-config.js    what the threshold sweep measures, shared with tools/sweep.mjs
 js/xcheck-format.js   pure formatting for Figure 8
+js/lambda-fit.js      logical error per cycle and Λ, for the README and section 11
+js/hardware-format.js names and formats for section 11
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
 tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
 data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
+tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
+tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
+data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
+data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
 
 run_benchmarks.py       phenomenological threshold benchmarks
 run_data_benchmarks.py  data-noise threshold benchmarks
@@ -702,7 +1008,7 @@ it; installing a native `aarch64-apple-darwin` toolchain is the better long-term
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install stim pymatching numpy maturin
-VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --profile python
 .venv/bin/python run_benchmarks.py
 .venv/bin/python run_data_benchmarks.py
 .venv/bin/python tools/xcheck.py

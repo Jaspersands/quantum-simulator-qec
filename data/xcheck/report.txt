@@ -15,11 +15,25 @@ Checks 1 and 1b: detector error models and matching graphs
   ok  xzzx-sd6-d5                    120 detectors    1677 / 1677   mechanisms  max rel 1.1e-15  |  graph   502 edges, 0 one-sided, 0 splits differ, max rel 6.3e-16
   ok  xzzx-sd6-d7                    336 detectors    5471 / 5471   mechanisms  max rel 1.1e-15  |  graph  1558 edges, 0 one-sided, 0 splits differ, max rel 8.3e-16
 Checks 2-4: decoding, 100,000 shots per point
-  ok  d=3 p=0.003  PyMatching 2.2890%  ours 2.2890%  own-DEM 2.2890%  our sampler 2.2920%  disagree 0/0 (non-ties 0/0, weight noise 4.6e-07)  chi2 z -0.10  0.2 us vs 3.6 us
-  ok  d=3 p=0.006  PyMatching 7.6030%  ours 7.6030%  own-DEM 7.6030%  our sampler 7.6240%  disagree 0/0 (non-ties 0/0, weight noise 7.3e-07)  chi2 z -1.38  0.4 us vs 7.7 us
-  ok  d=5 p=0.003  PyMatching 1.6470%  ours 1.6490%  own-DEM 1.6490%  our sampler 1.6310%  disagree 2/2 (non-ties 0/0, weight noise 8.8e-07)  chi2 z -2.38  1.7 us vs 55.0 us
-  ok  d=5 p=0.006  PyMatching 9.4320%  ours 9.4330%  own-DEM 9.4330%  our sampler 9.4930%  disagree 7/7 (non-ties 0/0, weight noise 1.3e-06)  chi2 z -0.90  3.9 us vs 161.0 us
-  ok  d=7 p=0.003  PyMatching 1.1240%  ours 1.1240%  own-DEM 1.1240%  our sampler 1.0720%  disagree 0/0 (non-ties 0/0, weight noise 1.6e-06)  chi2 z +0.06  5.6 us vs 516.3 us
-  ok  d=7 p=0.006  PyMatching 10.6530%  ours 10.6520%  own-DEM 10.6520%  our sampler 10.6820%  disagree 7/7 (non-ties 0/0, weight noise 2.1e-06)  chi2 z -2.35  15.1 us vs 2050.3 us
+  ok  d=3 p=0.003  PyMatching 2.2890%  ours 2.2890%  own-DEM 2.2890%  our sampler 2.2920%  disagree 0/0 (non-ties 0/0, weight noise 2.2e-06)  chi2 z -0.10  0.2 us vs 0.6 us
+  ok  d=3 p=0.006  PyMatching 7.6030%  ours 7.6030%  own-DEM 7.6030%  our sampler 7.6240%  disagree 0/0 (non-ties 0/0, weight noise 2.5e-06)  chi2 z -1.38  0.4 us vs 1.3 us
+  ok  d=5 p=0.003  PyMatching 1.6470%  ours 1.6490%  own-DEM 1.6490%  our sampler 1.6310%  disagree 2/2 (non-ties 0/0, weight noise 4.0e-06)  chi2 z -2.38  1.7 us vs 4.7 us
+  ok  d=5 p=0.006  PyMatching 9.4320%  ours 9.4320%  own-DEM 9.4320%  our sampler 9.4930%  disagree 4/4 (non-ties 0/0, weight noise 5.1e-06)  chi2 z -0.90  4.0 us vs 10.6 us
+  ok  d=7 p=0.003  PyMatching 1.1240%  ours 1.1240%  own-DEM 1.1240%  our sampler 1.0730%  disagree 0/0 (non-ties 0/0, weight noise 8.1e-06)  chi2 z +0.06  5.7 us vs 15.2 us
+  ok  d=7 p=0.006  PyMatching 10.6530%  ours 10.6520%  own-DEM 10.6520%  our sampler 10.6860%  disagree 7/7 (non-ties 0/0, weight noise 1.1e-05)  chi2 z -2.35  14.5 us vs 37.7 us
+Check 5: correlated matching against PyMatching's, 100,000 shots per point
+  ok  rotated d=3 p=0.003  PyMatching 2.0610%  ours 2.0610%  (plain 2.3320%)  disagree 0 (path ties 0, weight ties 0, non-ties 0, weight noise 2.3e-06)  0.6 us vs 1.3 us
+  ok  rotated d=3 p=0.006  PyMatching 6.9510%  ours 6.9510%  (plain 7.7080%)  disagree 0 (path ties 0, weight ties 0, non-ties 0, weight noise 2.8e-06)  1.2 us vs 2.8 us
+  ok  rotated d=5 p=0.003  PyMatching 1.1330%  ours 1.1310%  (plain 1.6450%)  disagree 8 (path ties 7, weight ties 1, non-ties 0, weight noise 4.7e-06)  4.8 us vs 9.6 us
+  ok  rotated d=5 p=0.006  PyMatching 7.7350%  ours 7.7380%  (plain 9.3350%)  disagree 31 (path ties 27, weight ties 4, non-ties 0, weight noise 7.0e-06)  10.1 us vs 22.0 us
+  ok  rotated d=7 p=0.003  PyMatching 0.5550%  ours 0.5580%  (plain 1.0370%)  disagree 29 (path ties 29, weight ties 0, non-ties 0, weight noise 7.3e-06)  15.2 us vs 32.1 us
+  ok  rotated d=7 p=0.006  PyMatching 7.9320%  ours 7.9060%  (plain 10.5900%)  disagree 274 (path ties 270, weight ties 4, non-ties 0, weight noise 9.1e-06)  36.7 us vs 78.6 us
+  ok  xzzx    d=3 p=0.003  PyMatching 2.0200%  ours 2.0200%  (plain 2.2930%)  disagree 0 (path ties 0, weight ties 0, non-ties 0, weight noise 3.2e-06)  0.6 us vs 1.3 us
+  ok  xzzx    d=3 p=0.006  PyMatching 7.0980%  ours 7.0980%  (plain 7.6650%)  disagree 0 (path ties 0, weight ties 0, non-ties 0, weight noise 2.6e-06)  1.3 us vs 2.6 us
+  ok  xzzx    d=5 p=0.003  PyMatching 1.2100%  ours 1.2100%  (plain 1.6390%)  disagree 8 (path ties 8, weight ties 0, non-ties 0, weight noise 4.1e-06)  4.9 us vs 10.0 us
+  ok  xzzx    d=5 p=0.006  PyMatching 7.7390%  ours 7.7450%  (plain 9.3230%)  disagree 22 (path ties 22, weight ties 0, non-ties 0, weight noise 8.0e-06)  10.4 us vs 22.4 us
+  ok  xzzx    d=7 p=0.003  PyMatching 0.5810%  ours 0.5790%  (plain 1.1030%)  disagree 32 (path ties 32, weight ties 0, non-ties 0, weight noise 6.5e-06)  15.5 us vs 31.9 us
+  ok  xzzx    d=7 p=0.006  PyMatching 8.0270%  ours 8.0330%  (plain 10.6460%)  disagree 292 (path ties 287, weight ties 5, non-ties 0, weight noise 9.9e-06)  37.0 us vs 78.5 us
+  ok  correlated fails less often than plain, pooled over every point: 53,030 against 65,316
 Wrote data/xcheck/ (18 files + reference.json)
 ALL CHECKS PASSED

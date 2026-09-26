@@ -22,6 +22,7 @@ import { initResultsTable, initThresholdSweep } from './sections/threshold.js';
 import { initBias } from './sections/bias.js';
 import { initBench } from './sections/bench.js';
 import { initXcheck } from './sections/xcheck.js';
+import { initHardware } from './sections/hardware.js';
 
 /**
  * Show a boot failure. Each caller supplies its own diagnosis — the two failure
@@ -63,6 +64,7 @@ async function boot() {
     initBias($('#bias'), compute);
     initBench($('#bench'), compute);
     initXcheck($('#internals'), compute);
+    initHardware($('#hardware'), compute);
   }
 
   let instance;

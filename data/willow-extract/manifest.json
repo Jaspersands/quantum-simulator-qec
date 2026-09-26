@@ -1,0 +1,69 @@
+{
+ "credit": "Google Quantum AI, data for \"Quantum error correction below the surface code threshold\", Zenodo record 13273331, CC BY 4.0. The first 2,000 shots of each experiment, unmodified; text files gzipped.",
+ "licence": "CC BY 4.0",
+ "zenodo": "https://zenodo.org/records/13273331",
+ "zip": "google_105Q_surface_code_d3_d5_d7.zip",
+ "shots": 2000,
+ "experiments": [
+  {
+   "d": 3,
+   "patch": "d3_at_q6_7",
+   "basis": "Z",
+   "rounds": 30,
+   "dir": "d3",
+   "shots": 2000,
+   "measurements": 249,
+   "detectors": 240,
+   "sweep_bits": 9,
+   "detection_events_sha256": "d087fdef84c436571b087f11cc4746b9de642d679632fc530d113e09bcb0d52c",
+   "pathways": [
+    "correlated_matching_decoder_with_si1000_prior",
+    "correlated_matching_decoder_with_rl_optimized_prior",
+    "harmony_decoder_with_si1000_prior",
+    "harmony_decoder_with_rl_optimized_prior",
+    "libra_decoder_with_rl_optimized_prior"
+   ],
+   "source": "google_105Q_surface_code_d3_d5_d7/d3_at_q6_7/Z/r30/"
+  },
+  {
+   "d": 5,
+   "patch": "d5_at_q4_7",
+   "basis": "Z",
+   "rounds": 30,
+   "dir": "d5",
+   "shots": 2000,
+   "measurements": 745,
+   "detectors": 720,
+   "sweep_bits": 25,
+   "detection_events_sha256": "054f1e665df9792f5a28d498eea3a7cad67ddc37188c642ff22ccd04c5e7ab4c",
+   "pathways": [
+    "correlated_matching_decoder_with_si1000_prior",
+    "correlated_matching_decoder_with_rl_optimized_prior",
+    "harmony_decoder_with_si1000_prior",
+    "harmony_decoder_with_rl_optimized_prior",
+    "libra_decoder_with_rl_optimized_prior"
+   ],
+   "source": "google_105Q_surface_code_d3_d5_d7/d5_at_q4_7/Z/r30/"
+  },
+  {
+   "d": 7,
+   "patch": "d7_at_q6_7",
+   "basis": "Z",
+   "rounds": 30,
+   "dir": "d7",
+   "shots": 2000,
+   "measurements": 1489,
+   "detectors": 1440,
+   "sweep_bits": 49,
+   "detection_events_sha256": "f0a14f86acb3fa379acf945c3b0c04266c5f95028adab8003d8d999f894b0f56",
+   "pathways": [
+    "correlated_matching_decoder_with_si1000_prior",
+    "correlated_matching_decoder_with_rl_optimized_prior",
+    "harmony_decoder_with_si1000_prior",
+    "harmony_decoder_with_rl_optimized_prior",
+    "libra_decoder_with_rl_optimized_prior"
+   ],
+   "source": "google_105Q_surface_code_d3_d5_d7/d7_at_q6_7/Z/r30/"
+  }
+ ]
+}

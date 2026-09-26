@@ -18,10 +18,28 @@ use std::collections::{BinaryHeap, HashMap};
 
 use crate::blossom::{min_weight_perfect_matching, MAX_VERTICES};
 use crate::dem::{xor_prob, Dem};
+use crate::sparse::{Correlations, Scratch, SparseGraph};
 
 /// Integer weight resolution: 2^20 per unit of ln((1 − p)/p). Fine enough that
 /// rounding cannot reorder paths that differ by more than a few parts in 10^6.
 pub const SCALE: f64 = 1_048_576.0;
+pub const HALF_SCALE: f64 = SCALE / 2.0;
+
+/// An edge's integer weight: ln((1 − p)/p) at `SCALE`, rounded to an even
+/// integer. Even, because the sparse matcher's regions grow toward each other
+/// from both ends of an edge and must meet at an integer time. Shared, so the
+/// dense and sparse matchers solve exactly the same integer problem, and their
+/// optimal weights can be required to be equal rather than merely close.
+pub fn int_weight(wf: f64) -> i64 {
+    2 * (wf * HALF_SCALE).round() as i64
+}
+
+/// An edge of probability `p`: its weight ln((1 − p)/p), and that weight as
+/// `int_weight`. The one definition both matchers build their graphs from.
+pub fn edge_weight(p: f64) -> (f64, i64) {
+    let wf = ((1.0 - p) / p).ln();
+    (wf, int_weight(wf))
+}
 
 /// Cost of a pairing with no path. Dominates any real path, and stays far enough
 /// below the blossom's own infinity that sums of 512 of them cannot overflow.
@@ -30,8 +48,12 @@ const UNREACHABLE: i64 = 1 << 44;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Prediction {
     pub observables: u64,
-    /// Total weight of the chosen matching, in the float weights.
+    /// Total weight of the chosen matching. The dense matcher sums the float
+    /// weights; the sparse matcher reports `iweight / SCALE`, which differs
+    /// from that sum by the rounding, at most a few parts in 10^6 per edge.
     pub weight: f64,
+    /// The same, in the integer weights the matcher actually minimises.
+    pub iweight: i64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -57,55 +79,105 @@ pub struct DemDecoder {
     /// Parallel edges whose observable masks disagreed. Zero for any code of
     /// distance three or more: a conflict is a weight-two logical operator.
     pub conflicts: usize,
+    sparse: SparseGraph,
+    /// Correlated matching's rules (see `sparse::correlated`).
+    corr: Correlations,
+    /// Workspace for `decode`. A decoder is used by one thread at a time;
+    /// callers decoding in parallel share `graph()` and hold a `Scratch` each.
+    scratch: std::cell::RefCell<Scratch>,
+}
+
+/// The model's graph-like pieces as merged edges `(u, v, p, observables)`,
+/// sorted, with `v == num_detectors` standing for the boundary, and the number
+/// of conflicting parallel edges. Parallel edges with the same observables
+/// combine as independent events, which is what PyMatching 2.4 does. With
+/// different observables the more probable one is kept and the conflict is
+/// counted: for any code of distance three or more that count is zero, since a
+/// conflict is a weight-two logical operator.
+pub(crate) fn merged_edges(dem: &Dem) -> Result<(Vec<(u32, u32, f64, u64)>, usize), String> {
+    let boundary = dem.num_detectors as u32;
+    let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
+    let mut conflicts = 0usize;
+    for m in &dem.mechanisms {
+        if m.pieces.is_empty() {
+            return Err(format!(
+                "mechanism on detectors {:?} fires more than two detectors and has no decomposition",
+                m.detectors
+            ));
+        }
+        for piece in &m.pieces {
+            let key = match piece.detectors.as_slice() {
+                [a] => (*a, boundary),
+                [a, b] => (*a.min(b), *a.max(b)),
+                other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
+            };
+            match edges.get_mut(&key) {
+                None => {
+                    edges.insert(key, (m.p, piece.observables));
+                }
+                Some(e) if e.1 == piece.observables => e.0 = xor_prob(e.0, m.p),
+                Some(e) => {
+                    conflicts += 1;
+                    if m.p > e.0 {
+                        *e = (m.p, piece.observables);
+                    }
+                }
+            }
+        }
+    }
+    let mut out: Vec<(u32, u32, f64, u64)> = edges.into_iter().map(|((u, v), (p, o))| (u, v, p, o)).collect();
+    out.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    for &(u, v, p, _) in &out {
+        if !(p > 0.0 && p <= 0.5) {
+            return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
+        }
+    }
+    Ok((out, conflicts))
+}
+
+/// Sorted, with detectors listed an even number of times removed.
+fn cancel_repeats(defects: &[u32]) -> Vec<u32> {
+    let mut set: Vec<u32> = defects.to_vec();
+    set.sort_unstable();
+    let mut out: Vec<u32> = Vec::with_capacity(set.len());
+    for d in set {
+        if out.last() == Some(&d) {
+            out.pop();
+        } else {
+            out.push(d);
+        }
+    }
+    out
 }
 
 impl DemDecoder {
     pub fn new(dem: &Dem) -> Result<DemDecoder, String> {
         let nd = dem.num_detectors;
-        let boundary = nd as u32;
-        let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
-        let mut conflicts = 0usize;
-        for m in &dem.mechanisms {
-            if m.pieces.is_empty() {
-                return Err(format!(
-                    "mechanism on detectors {:?} fires more than two detectors and has no decomposition",
-                    m.detectors
-                ));
-            }
-            for piece in &m.pieces {
-                let key = match piece.detectors.as_slice() {
-                    [a] => (*a, boundary),
-                    [a, b] => (*a.min(b), *a.max(b)),
-                    other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
-                };
-                match edges.get_mut(&key) {
-                    None => {
-                        edges.insert(key, (m.p, piece.observables));
-                    }
-                    Some(e) if e.1 == piece.observables => e.0 = xor_prob(e.0, m.p),
-                    Some(e) => {
-                        conflicts += 1;
-                        if m.p > e.0 {
-                            *e = (m.p, piece.observables);
-                        }
-                    }
-                }
-            }
-        }
-        let mut keys: Vec<(u32, u32)> = edges.keys().copied().collect();
-        keys.sort_unstable();
+        let (edges, conflicts) = merged_edges(dem)?;
         let mut adj: Vec<Vec<Arc>> = (0..=nd).map(|_| Vec::new()).collect();
-        for (u, v) in keys {
-            let (p, obs) = edges[&(u, v)];
-            if !(p > 0.0 && p <= 0.5) {
-                return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
-            }
-            let wf = ((1.0 - p) / p).ln();
-            let w = (wf * SCALE).round() as i64;
+        for &(u, v, p, obs) in &edges {
+            let (wf, w) = edge_weight(p);
             adj[u as usize].push(Arc { to: v, w, wf, obs });
             adj[v as usize].push(Arc { to: u, w, wf, obs });
         }
-        Ok(DemDecoder { num_detectors: nd, adj, conflicts })
+        let sparse = SparseGraph::from_edges(nd, &edges);
+        let corr = Correlations::from_dem(dem, &sparse)?;
+        let scratch = std::cell::RefCell::new(Scratch::new(&sparse));
+        Ok(DemDecoder { num_detectors: nd, adj, conflicts, sparse, corr, scratch })
+    }
+
+    pub fn num_detectors(&self) -> usize {
+        self.num_detectors
+    }
+
+    /// The detector graph the sparse matcher grows on.
+    pub fn graph(&self) -> &SparseGraph {
+        &self.sparse
+    }
+
+    /// The rules correlated matching reweights by.
+    pub fn correlations(&self) -> &Correlations {
+        &self.corr
     }
 
     pub fn decode_bools(&self, dets: &[bool]) -> Result<Prediction, DecodeError> {
@@ -115,23 +187,58 @@ impl DemDecoder {
 
     /// Decode a set of fired detectors. A detector listed twice has fired an
     /// even number of times and cancels, as detection events XOR.
+    ///
+    /// Decodes with the sparse matcher, which has no ceiling on the number of
+    /// defects.
     pub fn decode(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
         if !defects.windows(2).all(|w| w[0] < w[1]) {
-            let mut set: Vec<u32> = defects.to_vec();
-            set.sort_unstable();
-            let mut out: Vec<u32> = Vec::with_capacity(set.len());
-            for d in set {
-                if out.last() == Some(&d) {
-                    out.pop();
-                } else {
-                    out.push(d);
-                }
-            }
-            return self.decode(&out);
+            return self.decode(&cancel_repeats(defects));
+        }
+        self.sparse.decode(&mut self.scratch.borrow_mut(), defects)
+    }
+
+    /// The edges the matching uses, as PyMatching's `decode_to_edges_array`
+    /// gives them: one shortest path per matched pair, XORed together, each
+    /// edge as its endpoints with `num_detectors` for the boundary.
+    pub fn decode_to_edges(&self, defects: &[u32]) -> Result<Vec<(u32, u32)>, DecodeError> {
+        if !defects.windows(2).all(|w| w[0] < w[1]) {
+            return self.decode_to_edges(&cancel_repeats(defects));
+        }
+        self.sparse.decode_to_edges(&mut self.scratch.borrow_mut(), defects)
+    }
+
+    /// Correlated matching, as PyMatching's `enable_correlations=True`.
+    pub fn decode_correlated(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        if !defects.windows(2).all(|w| w[0] < w[1]) {
+            return self.decode_correlated(&cancel_repeats(defects));
+        }
+        self.sparse.decode_correlated(&self.corr, &mut self.scratch.borrow_mut(), defects)
+    }
+
+    /// Correlated matching's second pass alone, from edges given as endpoints
+    /// (`num_detectors` for the boundary), as PyMatching's
+    /// `decode_to_edges_array` returns them.
+    pub fn decode_pass2(&self, defects: &[u32], edges: &[(u32, u32)]) -> Result<Prediction, String> {
+        let defects = if defects.windows(2).all(|w| w[0] < w[1]) { defects.to_vec() } else { cancel_repeats(defects) };
+        let ids = edges
+            .iter()
+            .map(|&(u, v)| self.sparse.edge_id(u, v).ok_or_else(|| format!("({u}, {v}) is not an edge of the graph")))
+            .collect::<Result<Vec<u32>, String>>()?;
+        self.sparse
+            .decode_pass2(&self.corr, &mut self.scratch.borrow_mut(), &defects, &ids)
+            .map_err(|e| format!("{e:?}"))
+    }
+
+    /// The dense matcher: Dijkstra from every defect, then Edmonds' blossom on
+    /// the complete graph of defects. Exact, capped at 256 defects, and kept as
+    /// the reference the sparse matcher is checked against.
+    pub fn decode_dense(&self, defects: &[u32]) -> Result<Prediction, DecodeError> {
+        if !defects.windows(2).all(|w| w[0] < w[1]) {
+            return self.decode_dense(&cancel_repeats(defects));
         }
         let k = defects.len();
         if k == 0 {
-            return Ok(Prediction { observables: 0, weight: 0.0 });
+            return Ok(Prediction { observables: 0, weight: 0.0, iweight: 0 });
         }
         if 2 * k > MAX_VERTICES {
             return Err(DecodeError::TooManyDefects(k));
@@ -225,7 +332,7 @@ impl DemDecoder {
         }
         let mate = min_weight_perfect_matching(n, &cost).ok_or(DecodeError::MatcherDeclined)?;
 
-        let mut prediction = Prediction { observables: 0, weight: 0.0 };
+        let mut prediction = Prediction { observables: 0, weight: 0.0, iweight: 0 };
         for i in 0..k {
             let j = mate[i];
             let (d, o, w) = if j >= k {
@@ -240,6 +347,7 @@ impl DemDecoder {
             }
             prediction.observables ^= o;
             prediction.weight += w;
+            prediction.iweight += d;
         }
         Ok(prediction)
     }
@@ -325,14 +433,17 @@ mod tests {
             }
             let dec = DemDecoder::new(&Dem::parse(&text).unwrap()).unwrap();
             let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64() % 2 == 0).collect();
-            match (brute_force(&edges, &defects), dec.decode(&defects)) {
-                (None, Err(DecodeError::Unmatchable)) => {}
-                (Some((w, masks)), Ok(pred)) => {
-                    assert!((pred.weight - w).abs() < 1e-4, "trial {trial}: weight {} vs brute {w}", pred.weight);
-                    assert!(masks.contains(&pred.observables), "trial {trial}: obs {} not in {masks:?}", pred.observables);
-                    compared += !defects.is_empty() as usize;
+            let brute = brute_force(&edges, &defects);
+            for (name, got) in [("sparse", dec.decode(&defects)), ("dense", dec.decode_dense(&defects))] {
+                match (&brute, got) {
+                    (None, Err(DecodeError::Unmatchable)) => {}
+                    (Some((w, masks)), Ok(pred)) => {
+                        assert!((pred.weight - w).abs() < 1e-4, "{name} trial {trial}: weight {} vs brute {w}", pred.weight);
+                        assert!(masks.contains(&pred.observables), "{name} trial {trial}: obs {} not in {masks:?}", pred.observables);
+                        compared += !defects.is_empty() as usize;
+                    }
+                    (b, d) => panic!("{name} trial {trial}: brute {b:?}, decoder {d:?}"),
                 }
-                (b, d) => panic!("trial {trial}: brute {b:?}, decoder {d:?}"),
             }
         }
         // Not vacuous: most trials must have been a real matching problem.
@@ -362,7 +473,9 @@ mod tests {
         let text: String = (0..300).map(|d| format!("error(0.1) D{d}\n")).collect();
         let dec = DemDecoder::new(&Dem::parse(&text).unwrap()).unwrap();
         let defects: Vec<u32> = (0..257).collect();
-        assert_eq!(dec.decode(&defects), Err(DecodeError::TooManyDefects(257)));
+        assert_eq!(dec.decode_dense(&defects), Err(DecodeError::TooManyDefects(257)));
+        // The sparse matcher has no such ceiling.
+        assert!(dec.decode(&defects).is_ok());
     }
 
     #[test]
@@ -381,6 +494,16 @@ mod tests {
     }
 
     #[test]
+    fn integer_weights_are_even_and_reported() {
+        assert_eq!(int_weight(1.0) % 2, 0);
+        assert_eq!(int_weight(0.0), 0);
+        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D1").unwrap()).unwrap();
+        let pred = dec.decode_dense(&[0, 1]).unwrap();
+        assert_eq!(pred.iweight, int_weight((0.9f64 / 0.1).ln()));
+        assert_eq!(pred.iweight % 2, 0);
+    }
+
+    #[test]
     fn rejects_probabilities_above_one_half() {
         assert!(DemDecoder::new(&Dem::parse("error(0.6) D0").unwrap()).is_err());
     }
@@ -389,9 +512,13 @@ mod tests {
     fn parallel_edges_merge_like_pymatching() {
         // PyMatching 2.4 gives this pair one edge of p = 0.26, weight 1.0459685551826876.
         let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1 L0").unwrap()).unwrap();
-        let pred = dec.decode(&[0, 1]).unwrap();
+        let pred = dec.decode_dense(&[0, 1]).unwrap();
         assert_eq!(pred.observables, 1);
         assert!((pred.weight - 1.0459685551826876).abs() < 1e-12);
+        // The sparse matcher reports its weight from the integer one.
+        let pred = dec.decode(&[0, 1]).unwrap();
+        assert_eq!(pred.observables, 1);
+        assert!((pred.weight - 1.0459685551826876).abs() < 1e-5);
         assert_eq!(dec.conflicts, 0);
     }
 

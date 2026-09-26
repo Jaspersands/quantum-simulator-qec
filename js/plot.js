@@ -31,6 +31,24 @@ function resolveColor(value) {
   return getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim() || '#000';
 }
 
+/**
+ * Gridlines for a logarithmic axis: whole decades from the one at or below
+ * `min` to the one at or above `max`, with 2× and 5× between them as minor
+ * lines. Pure, so it can be tested without a canvas.
+ */
+export function logTicks(min, max) {
+  const clean = (v) => Number(v.toPrecision(12));
+  const lo = clean(10 ** Math.floor(Math.log10(min)));
+  let hi = clean(10 ** Math.ceil(Math.log10(max)));
+  if (hi <= lo) hi = clean(lo * 10);
+  const ticks = [];
+  for (let decade = lo; decade <= hi * (1 + 1e-9); decade = clean(decade * 10)) {
+    ticks.push({ v: decade, major: true });
+    for (const m of [2, 5]) if (clean(decade * m) < hi) ticks.push({ v: clean(decade * m), major: false });
+  }
+  return { lo, hi, ticks };
+}
+
 export class Plot {
   /**
    * @param {HTMLCanvasElement} canvas
@@ -39,6 +57,8 @@ export class Plot {
    * @param {string} [options.yLabel]
    * @param {(v:number)=>string} [options.formatX]
    * @param {(v:number)=>string} [options.formatY]
+   * @param {boolean} [options.yLog] a logarithmic y axis, gridded by decade
+   * @param {number[]} [options.xTickValues] explicit x ticks, instead of evenly spaced ones
    */
   constructor(canvas, options = {}) {
     this.canvas = canvas;
@@ -50,6 +70,8 @@ export class Plot {
       formatY: (v) => `${(v * 100).toFixed(0)}%`,
       xTicks: 5,
       yTicks: 5,
+      yLog: false,
+      xTickValues: null,
       ...options,
     };
     this.colors = palette();
@@ -113,14 +135,38 @@ export class Plot {
     const xs = allPoints.map((p) => p.x);
     const ys = allPoints.flatMap((p) => [p.y, p.hi ?? p.y, p.lo ?? p.y]);
     const xRange = data.xRange ?? [Math.min(...xs), Math.max(...xs)];
-    let yMax = data.yRange?.[1] ?? Math.max(...ys);
-    yMax = Math.min(1, Math.max(0.05, Math.ceil(yMax * 20) / 20));
-    const yRange = [data.yRange?.[0] ?? 0, yMax];
+    const log = this.options.yLog;
+    let yRange;
+    let yTicks;
+    if (log && !ys.some((v) => v > 0) && !data.yRange) {
+      ctx.fillStyle = this.colors.ink3;
+      ctx.font = '400 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(data.empty ?? 'Nothing above zero to plot', width / 2, height / 2);
+      this.canvas.setAttribute('aria-label', data.empty ?? 'Chart with nothing above zero to plot.');
+      return;
+    }
+    if (log) {
+      const positive = ys.filter((v) => v > 0);
+      const auto = logTicks(Math.min(...positive), Math.max(...positive));
+      yRange = data.yRange ?? [auto.lo, auto.hi];
+      yTicks = logTicks(yRange[0], yRange[1]).ticks.filter((t) => t.v >= yRange[0] && t.v <= yRange[1]);
+    } else {
+      let yMax = data.yRange?.[1] ?? Math.max(...ys);
+      yMax = Math.min(1, Math.max(0.05, Math.ceil(yMax * 20) / 20));
+      yRange = [data.yRange?.[0] ?? 0, yMax];
+      yTicks = Array.from({ length: this.options.yTicks + 1 }, (_, i) => ({
+        v: yRange[0] + ((yRange[1] - yRange[0]) * i) / this.options.yTicks,
+        major: true,
+      }));
+    }
+    const ty = log ? (v) => Math.log10(Math.max(v, 1e-300)) : (v) => v;
 
     const plotW = width - MARGIN.left - MARGIN.right;
     const plotH = height - MARGIN.top - MARGIN.bottom;
     const sx = (v) => MARGIN.left + ((v - xRange[0]) / (xRange[1] - xRange[0] || 1)) * plotW;
-    const sy = (v) => MARGIN.top + plotH - ((v - yRange[0]) / (yRange[1] - yRange[0] || 1)) * plotH;
+    const sy = (v) => MARGIN.top + plotH - ((ty(v) - ty(yRange[0])) / (ty(yRange[1]) - ty(yRange[0]) || 1)) * plotH;
     this.scaleX = sx;
     this.scaleY = sy;
 
@@ -131,25 +177,25 @@ export class Plot {
     ctx.fillStyle = this.colors.ink3;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    for (let i = 0; i <= this.options.yTicks; i++) {
-      const v = yRange[0] + ((yRange[1] - yRange[0]) * i) / this.options.yTicks;
+    yTicks.forEach(({ v, major }, i) => {
       const y = sy(v);
       ctx.beginPath();
       ctx.moveTo(MARGIN.left, y);
       ctx.lineTo(width - MARGIN.right, y);
       ctx.strokeStyle = this.colors.rule;
+      ctx.globalAlpha = major ? 1 : 0.55;
       ctx.lineWidth = i === 0 ? 1 : 0.6;
       ctx.stroke();
+      ctx.globalAlpha = 1;
       ctx.fillText(this.options.formatY(v), MARGIN.left - 8, y);
-    }
+    });
 
     // x labels
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    for (let i = 0; i <= this.options.xTicks; i++) {
-      const v = xRange[0] + ((xRange[1] - xRange[0]) * i) / this.options.xTicks;
-      ctx.fillText(this.options.formatX(v), sx(v), MARGIN.top + plotH + 9);
-    }
+    const xTickValues = this.options.xTickValues
+      ?? Array.from({ length: this.options.xTicks + 1 }, (_, i) => xRange[0] + ((xRange[1] - xRange[0]) * i) / this.options.xTicks);
+    for (const v of xTickValues) ctx.fillText(this.options.formatX(v), sx(v), MARGIN.top + plotH + 9);
 
     // Axis frame
     ctx.beginPath();

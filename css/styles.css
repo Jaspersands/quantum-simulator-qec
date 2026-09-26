@@ -693,6 +693,19 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .xcheck__more { margin: var(--s3) 0; }
 .figure__body .table-wrap + .table-wrap { margin-top: var(--s5); }
 
+/* Section 11: Google's hardware. Google's own decoders' rows sit in the
+   secondary ink, as recorded values do in Figure 8; the published numbers,
+   quoted rather than fitted, are italic. */
+.hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
+.hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
+[data-hw-canvas] { width: 100%; }
+[data-hw-canvas] + .legend { margin: var(--s3) 0 var(--s5); }
+/* The column heads carry ε and d, which the site's uppercase heads would turn
+   into E and D. */
+.hw thead th.num { text-transform: none; }
+.legend__key--ink-3 { border-color: var(--ink-3); }
+.legend__key--ink { border-color: var(--ink); }
+
 /* Legend shared by lattice figures and plots */
 .legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); font-size: var(--t-micro); color: var(--ink-2); }
 .legend__item { display: flex; align-items: center; gap: 5px; }

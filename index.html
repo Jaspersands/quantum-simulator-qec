@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-09-25">
+<link rel="stylesheet" href="css/styles.css?v=2026-09-26">
 </head>
 <body>
 
@@ -34,6 +34,7 @@
     <li><a class="toc__link" href="#bias"><span class="toc__num">08</span><span>Biased noise</span></a></li>
     <li><a class="toc__link" href="#bench"><span class="toc__num">09</span><span>The bench</span></a></li>
     <li><a class="toc__link" href="#internals"><span class="toc__num">10</span><span>Under the hood</span></a></li>
+    <li><a class="toc__link" href="#hardware"><span class="toc__num">11</span><span>Real hardware</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -646,7 +647,7 @@
       alone. SD6, the standard model published thresholds assume, gives each CNOT one two-qubit
       error of total probability p and lets idle qubits err too. They are different physics, and
       they cross in different places: over four sweeps each, 0.41% for the engine's model and
-      0.48% for SD6 on the rotated code. SD6 is scored the way experiments are, one logical basis
+      0.54% for SD6 on the rotated code. SD6 is scored the way experiments are, one logical basis
       at a time, and decoded by exact matching weighted by each fault's probability; the decoder
       selector does not apply to it.
     </p>
@@ -1289,6 +1290,106 @@
       </div>
     </dl>
 
+</section>
+
+
+<!-- 11 ================================================================== -->
+<section class="section" id="hardware">
+  <div class="section__head">
+    <span class="section__num">11</span>
+    <h2 class="section__title">Real hardware</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every figure above runs on simulated noise. Google publishes what its chips actually recorded.
+      In 2024 its Willow processor ran surface-code memories at distance 3, 5 and 7, each for up to
+      250 rounds; in 2022 its Sycamore processor ran them at distance 3 and 5. Each experiment
+      prepares a logical qubit, runs <span class="sym">r</span> rounds of error correction, measures,
+      and records whether the logical qubit came back flipped. The chance of that grows with every
+      round, at the <em>logical error per cycle</em> <span class="sym">ε</span>, and the whole point
+      of a bigger code is a smaller <span class="sym">ε</span>. The factor it falls by each time the
+      distance grows by two is <span class="sym">Λ</span>; <span class="sym">Λ &gt; 1</span> is what
+      operating below threshold means.
+    </p>
+    <p>
+      This engine reads Google's circuits, turns the chips' raw readouts into detection events, and
+      decodes them: with plain matching and with correlated matching, on Google's error models and on
+      its own model of the same circuits. Figure 9 fits every decoder the same way, ours and the
+      predictions Google published with its data, from 27.5 million recorded shots. Figure 10 does the
+      whole path again, here, on 6,000 of them.
+    </p>
+  </div>
+
+  <figure class="figure" data-hw-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 9</span>
+      <span class="figure__title">Google's chips, decoded here</span>
+      <span class="figure__meta">† decoded offline, fitted in this tab</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-hw-canvas data-aspect="0.5"></canvas>
+      <div class="legend" data-hw-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Willow: logical error per cycle at each distance, and Λ, for every decoder</caption>
+          <thead>
+            <tr>
+              <th scope="col">Willow, 2024</th>
+              <th scope="col" class="num">ε, d = 3</th>
+              <th scope="col" class="num">ε, d = 5</th>
+              <th scope="col" class="num">ε, d = 7</th>
+              <th scope="col" class="num">Λ, 95%</th>
+            </tr>
+          </thead>
+          <tbody data-hw-willow></tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Sycamore: logical error per cycle at each distance, and Λ, for every decoder</caption>
+          <thead>
+            <tr>
+              <th scope="col">Sycamore, 2022</th>
+              <th scope="col" class="num">ε, d = 3</th>
+              <th scope="col" class="num">ε, d = 5</th>
+              <th scope="col" class="num">Λ, 95%</th>
+            </tr>
+          </thead>
+          <tbody data-hw-sycamore></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-hw-fit-status>Fits when you scroll here.</p>
+      <p class="note" data-hw-fit-foot></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-hw-live>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 10</span>
+      <span class="figure__title">raw readouts, decoded now</span>
+      <span class="figure__meta">Willow, Z basis, 30 rounds, 2,000 shots each</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Willow shots decoded in this tab from raw measurements, against Google's own predictions for the same shots</caption>
+          <thead>
+            <tr>
+              <th scope="col">Failures in 2,000 shots</th>
+              <th scope="col" class="num">d = 3</th>
+              <th scope="col" class="num">d = 5</th>
+              <th scope="col" class="num">d = 7</th>
+            </tr>
+          </thead>
+          <tbody data-hw-live-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-hw-live-status>Runs when you scroll here.</p>
+      <p class="note" data-hw-live-foot></p>
+    </div>
+  </figure>
+
   <footer class="foot">
     <span>Built with Rust, WebAssembly, and no dependencies.</span>
     <a href="https://github.com/Jaspersands/quantum-simulator-qec" target="_blank" rel="noopener">Jaspersands/quantum-simulator-qec</a>
@@ -1298,6 +1399,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-09-25"></script>
+<script type="module" src="js/main.js?v=2026-09-26"></script>
 </body>
 </html>

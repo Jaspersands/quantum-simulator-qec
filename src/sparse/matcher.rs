@@ -1,0 +1,355 @@
+//! What an event means: the seven cases of the paper, over alternating trees
+//! of regions.
+
+use super::state::{AltNode, CEdge, Radius, Region, BOUNDARY, NONE, NO_TIME};
+use super::Solver;
+
+impl<'a> Solver<'a> {
+    fn set_match(&mut self, r: u32, partner: u32, e: CEdge) {
+        self.s.regions[r as usize].matched = Some((partner, e));
+        if partner != BOUNDARY {
+            self.s.regions[partner as usize].matched = Some((r, e.rev()));
+        }
+    }
+
+    fn path_to_root(&self, mut n: u32) -> Vec<u32> {
+        let mut out = vec![n];
+        while self.s.alt[n as usize].parent != NONE {
+            n = self.s.alt[n as usize].parent;
+            out.push(n);
+        }
+        out
+    }
+
+    fn root_of(&self, mut n: u32) -> u32 {
+        while self.s.alt[n as usize].parent != NONE {
+            n = self.s.alt[n as usize].parent;
+        }
+        n
+    }
+
+    /// Index of the blossom child of `b` that holds `defect`.
+    pub(crate) fn child_index(&self, b: u32, children: &[(u32, CEdge)], defect: u32) -> usize {
+        let mut r = self.s.nodes[defect as usize].own;
+        while self.s.regions[r as usize].blossom_parent != b {
+            r = self.s.regions[r as usize].blossom_parent;
+        }
+        children.iter().position(|c| c.0 == r).expect("the defect lies in a child of the blossom")
+    }
+
+    /// Two top regions touch; `e` runs from `r1` to `r2`.
+    pub(crate) fn on_collide(&mut self, r1: u32, r2: u32, e: CEdge) {
+        let n1 = self.s.regions[r1 as usize].tree;
+        let n2 = self.s.regions[r2 as usize].tree;
+        if n1 == NONE {
+            assert!(n2 != NONE, "a collision needs a growing region");
+            return self.on_collide(r2, r1, e.rev());
+        }
+        if n2 == NONE {
+            let (partner, _) = self.s.regions[r2 as usize].matched.expect("a region outside every tree is matched");
+            if partner == BOUNDARY {
+                self.take_from_boundary(n1, r2, e)
+            } else {
+                self.grow_tree(n1, r2, e)
+            }
+        } else if self.root_of(n1) == self.root_of(n2) {
+            self.form_blossom(n1, n2, e)
+        } else {
+            self.augment(n1, n2, e)
+        }
+    }
+
+    /// (f) A growing region reaches the boundary.
+    pub(crate) fn on_boundary(&mut self, r: u32, e: CEdge) {
+        let n = self.s.regions[r as usize].tree;
+        assert!(n != NONE, "only a growing region reaches the boundary");
+        self.set_match(r, BOUNDARY, e);
+        self.dissolve(n);
+    }
+
+    /// (a) A growing region reaches a matched pair; both join its tree.
+    fn grow_tree(&mut self, n: u32, m: u32, e: CEdge) {
+        let (partner, me) = self.s.regions[m as usize].matched.take().expect("matched");
+        self.s.regions[partner as usize].matched = None;
+        let child = self.new_alt(AltNode {
+            inner: m,
+            outer: partner,
+            inner_to_outer: me,
+            parent: n,
+            parent_edge: e,
+            children: Vec::new(),
+            alive: true,
+        });
+        self.s.alt[n as usize].children.push(child);
+        self.s.regions[m as usize].tree = child;
+        self.s.regions[partner as usize].tree = child;
+        self.set_slope(m, -1);
+        self.set_slope(partner, 1);
+        self.reschedule(m);
+        self.reschedule(partner);
+    }
+
+    /// (g) A growing region reaches a region matched to the boundary. It takes
+    /// that region as its partner, and its tree dissolves.
+    fn take_from_boundary(&mut self, n: u32, m: u32, e: CEdge) {
+        let r = self.s.alt[n as usize].outer;
+        self.set_match(r, m, e);
+        self.dissolve(n);
+    }
+
+    /// (b) Two trees meet: augment along both paths to their roots.
+    fn augment(&mut self, n1: u32, n2: u32, e: CEdge) {
+        let (r1, r2) = (self.s.alt[n1 as usize].outer, self.s.alt[n2 as usize].outer);
+        self.set_match(r1, r2, e);
+        self.dissolve(n1);
+        self.dissolve(n2);
+    }
+
+    /// Turn the tree holding `n` into matched pairs. `n`'s outer region has just
+    /// been matched outside the tree. Along the path to the root each inner
+    /// region matches its parent's outer region; every other node's pair matches
+    /// along its own edge.
+    fn dissolve(&mut self, n: u32) {
+        let path = self.path_to_root(n);
+        for &m in &path {
+            let (parent, inner, pe) = {
+                let a = &self.s.alt[m as usize];
+                (a.parent, a.inner, a.parent_edge)
+            };
+            if parent != NONE {
+                let pouter = self.s.alt[parent as usize].outer;
+                self.set_match(inner, pouter, pe.rev());
+            }
+        }
+        let root = *path.last().expect("path has a root");
+        let mut stack = vec![root];
+        let mut regions = Vec::new();
+        while let Some(x) = stack.pop() {
+            let (inner, outer, io, children) = {
+                let a = &self.s.alt[x as usize];
+                (a.inner, a.outer, a.inner_to_outer, a.children.clone())
+            };
+            stack.extend(children);
+            if inner != NONE {
+                if !path.contains(&x) {
+                    self.set_match(inner, outer, io);
+                }
+                regions.push(inner);
+            }
+            regions.push(outer);
+            self.s.alt[x as usize].alive = false;
+        }
+        for &r in &regions {
+            self.s.regions[r as usize].tree = NONE;
+            self.set_slope(r, 0);
+        }
+        for r in regions {
+            self.reschedule(r);
+        }
+    }
+
+    /// (c) Two growing regions of one tree meet. The cycle through their common
+    /// ancestor becomes a blossom, which takes the ancestor's outer place.
+    pub(crate) fn form_blossom(&mut self, n1: u32, n2: u32, e: CEdge) {
+        let path1 = self.path_to_root(n1);
+        let path2 = self.path_to_root(n2);
+        let a = *path2.iter().find(|x| path1.contains(x)).expect("same tree");
+        let p1: Vec<u32> = path1.iter().copied().take_while(|&x| x != a).collect();
+        let p2: Vec<u32> = path2.iter().copied().take_while(|&x| x != a).collect();
+
+        let mut cycle: Vec<(u32, CEdge)> = Vec::new();
+        let mut cur = self.s.alt[a as usize].outer;
+        for &m in p1.iter().rev() {
+            let (pe, inner, io, outer) = {
+                let am = &self.s.alt[m as usize];
+                (am.parent_edge, am.inner, am.inner_to_outer, am.outer)
+            };
+            cycle.push((cur, pe));
+            cycle.push((inner, io));
+            cur = outer;
+        }
+        cycle.push((cur, e));
+        for &m in &p2 {
+            let (outer, io, inner, pe) = {
+                let am = &self.s.alt[m as usize];
+                (am.outer, am.inner_to_outer, am.inner, am.parent_edge)
+            };
+            cycle.push((outer, io.rev()));
+            cycle.push((inner, pe.rev()));
+        }
+
+        let b = self.new_region(Region {
+            radius: Radius { y0: -self.s.now, slope: 1 },
+            blossom_parent: NONE,
+            children: cycle.clone(),
+            shell: Vec::new(),
+            tree: a,
+            matched: None,
+            queued: NO_TIME,
+            dead: false,
+        });
+        for &(c, _) in &cycle {
+            self.enclose(c, b);
+        }
+
+        let on: Vec<u32> = p1.iter().chain(p2.iter()).copied().collect();
+        let mut orphans = Vec::new();
+        for &m in &on {
+            let children = self.s.alt[m as usize].children.clone();
+            orphans.extend(children.into_iter().filter(|c| !on.contains(c)));
+            self.s.alt[m as usize].alive = false;
+        }
+        let kept: Vec<u32> = self.s.alt[a as usize].children.iter().copied().filter(|c| !on.contains(c)).collect();
+        self.s.alt[a as usize].children = kept;
+        for o in orphans {
+            self.s.alt[o as usize].parent = a;
+            self.s.alt[a as usize].children.push(o);
+        }
+        self.s.alt[a as usize].outer = b;
+        self.reschedule(b);
+    }
+
+    /// Put top region `c` inside blossom `b`, which starts at radius zero now,
+    /// keeping every node's local radius continuous.
+    fn enclose(&mut self, c: u32, b: u32) {
+        let now = self.s.now;
+        for v in self.nodes_under(c) {
+            let l = self.local_radius(v);
+            let n = &mut self.s.nodes[v as usize];
+            n.top = b;
+            n.wrapped = l;
+        }
+        let reg = &mut self.s.regions[c as usize];
+        let y = reg.radius.at(now);
+        reg.radius = Radius { y0: y, slope: 0 };
+        reg.blossom_parent = b;
+        reg.tree = NONE;
+        reg.matched = None;
+    }
+
+    /// (d) A shrinking blossom reaches radius zero and comes apart. The even
+    /// path around its cycle, between the children its two tree edges attach
+    /// to, rejoins the tree; the rest of the cycle pairs off.
+    pub(crate) fn shatter(&mut self, b: u32) {
+        let n = self.s.regions[b as usize].tree;
+        let (p, pe, iot) = {
+            let a = &self.s.alt[n as usize];
+            (a.parent, a.parent_edge, a.inner_to_outer)
+        };
+        let children = self.s.regions[b as usize].children.clone();
+        let k = children.len();
+        let i_in = self.child_index(b, &children, pe.b);
+        let i_out = self.child_index(b, &children, iot.a);
+
+        let now = self.s.now;
+        for &(c, _) in &children {
+            let yc = self.s.regions[c as usize].radius.at(now);
+            for v in self.nodes_under(c) {
+                let l = self.local_radius(v);
+                let nd = &mut self.s.nodes[v as usize];
+                nd.top = c;
+                nd.wrapped = l - yc;
+            }
+        }
+        for &(c, _) in &children {
+            self.s.regions[c as usize].blossom_parent = NONE;
+        }
+        self.s.regions[b as usize].dead = true;
+        self.s.regions[b as usize].children.clear();
+
+        let forward = ((i_out + k - i_in) % k) % 2 == 0;
+        let mut path = vec![i_in];
+        let mut edges = Vec::new();
+        let mut j = i_in;
+        while j != i_out {
+            if forward {
+                edges.push(children[j].1);
+                j = (j + 1) % k;
+            } else {
+                let prev = (j + k - 1) % k;
+                edges.push(children[prev].1.rev());
+                j = prev;
+            }
+            path.push(j);
+        }
+        let mut on_path = vec![false; k];
+        for &i in &path {
+            on_path[i] = true;
+        }
+
+        let mut changed = Vec::new();
+        let mut j = if forward { (i_out + 1) % k } else { (i_in + 1) % k };
+        while !on_path[j] {
+            let next = (j + 1) % k;
+            let (c1, c2, ce) = (children[j].0, children[next].0, children[j].1);
+            self.set_match(c1, c2, ce);
+            self.set_slope(c1, 0);
+            self.set_slope(c2, 0);
+            changed.push(c1);
+            changed.push(c2);
+            j = (next + 1) % k;
+        }
+
+        let q: Vec<u32> = path.iter().map(|&i| children[i].0).collect();
+        let (mut parent, mut pedge, mut first) = (p, pe, NONE);
+        let mut i = 0;
+        while i + 1 < q.len() {
+            let node = self.new_alt(AltNode {
+                inner: q[i],
+                outer: q[i + 1],
+                inner_to_outer: edges[i],
+                parent,
+                parent_edge: pedge,
+                children: Vec::new(),
+                alive: true,
+            });
+            if parent == p {
+                first = node;
+            } else {
+                self.s.alt[parent as usize].children.push(node);
+            }
+            self.s.regions[q[i] as usize].tree = node;
+            self.s.regions[q[i + 1] as usize].tree = node;
+            self.set_slope(q[i], -1);
+            self.set_slope(q[i + 1], 1);
+            changed.push(q[i]);
+            changed.push(q[i + 1]);
+            parent = node;
+            pedge = edges[i + 1];
+            i += 2;
+        }
+        let last = *q.last().expect("the path has an end");
+        {
+            let a = &mut self.s.alt[n as usize];
+            a.inner = last;
+            a.parent = parent;
+            a.parent_edge = pedge;
+        }
+        if parent != p {
+            self.s.alt[parent as usize].children.push(n);
+        }
+        if first != NONE {
+            let pc = &mut self.s.alt[p as usize].children;
+            let slot = pc.iter().position(|&c| c == n).expect("n is a child of p");
+            pc[slot] = first;
+        }
+        self.s.regions[last as usize].tree = n;
+        self.set_slope(last, -1);
+        changed.push(last);
+        for r in changed {
+            self.reschedule(r);
+        }
+    }
+
+    /// (e) A trivial shrinking region reaches radius zero. Its tree parent and
+    /// child now touch through it, and the three form a blossom.
+    pub(crate) fn implode(&mut self, r: u32) {
+        let n = self.s.regions[r as usize].tree;
+        let (p, pe, iot) = {
+            let a = &self.s.alt[n as usize];
+            (a.parent, a.parent_edge, a.inner_to_outer)
+        };
+        let e = CEdge { a: pe.a, b: iot.b, obs: pe.obs ^ iot.obs };
+        self.form_blossom(p, n, e);
+    }
+}

@@ -20,6 +20,8 @@ pub mod circuit_model;
 pub mod circuit;
 pub mod dem;
 pub mod dem_decoder;
+pub mod sparse;
+pub mod m2d;
 pub mod frame_sampler;
 pub mod shots;
 pub mod memory;
@@ -31,6 +33,8 @@ mod equivalence;
 mod py_api;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
+#[cfg(not(feature = "python"))]
+mod wasm_hw;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;

@@ -71,9 +71,10 @@ export const SWEEP_RUNS = {
   [NOISE.DATA]: 20000,
   [NOISE.PHENOM]: 6000,
   [NOISE.CIRCUIT]: 1200,
-  // SD6 is decoded by exact matching on the dense general-path decoder, and d = 9
-  // costs 3 ms a shot at the bottom of the window and 30 ms at the top, about
-  // 0.1 s a shot summed across it. 800 shots keeps the sweep near the
-  // circuit-level one's wall-clock; the interval says what that buys.
-  [NOISE.SD6]: 800,
+  // SD6 is decoded by the sparse matcher. Summed over the window, a shot at
+  // every point costs about 1.7 ms across all four distances (1.1 ms of it at
+  // d = 9), measured in WebAssembly; the dense matcher it replaced needed 0.1 s
+  // at d = 9 alone and allowed 800 shots. 40,000 keeps the sweep near the
+  // circuit-level one's wall-clock.
+  [NOISE.SD6]: 40000,
 };

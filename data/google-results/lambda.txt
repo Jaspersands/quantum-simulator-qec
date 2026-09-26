@@ -1,0 +1,34 @@
+
+Willow: 420 experiments, fits from round 10, 400 bootstrap draws
+  decoder                                                        eps_3                  eps_5                  eps_7                  L3/5     L5/7     Lambda [95%]
+  ours, plain · Google's SI1000 prior                            1.032% (1.029–1.036%)  0.684% (0.682–0.687%)  0.435% (0.433–0.438%)  1.509    1.571    1.54 [1.53, 1.55]   (from 30: 1.518)
+  ours, correlated · Google's SI1000 prior                       0.888% (0.886–0.892%)  0.449% (0.448–0.451%)  0.234% (0.233–0.236%)  1.977    1.919    1.95 [1.94, 1.95]   (from 30: 1.942)
+  ours, plain · Google's RL-optimised prior                      0.989% (0.986–0.993%)  0.662% (0.660–0.665%)  0.425% (0.423–0.428%)  1.493    1.558    1.53 [1.52, 1.53]   (from 30: 1.503)
+  ours, correlated · Google's RL-optimised prior                 0.808% (0.805–0.811%)  0.425% (0.424–0.426%)  0.222% (0.220–0.223%)  1.901    1.918    1.91 [1.90, 1.92]   (from 30: 1.904)
+  ours, plain · our model of the noisy circuit                   1.042% (1.039–1.047%)  0.695% (0.693–0.698%)  0.437% (0.435–0.440%)  1.499    1.589    1.54 [1.54, 1.55]   (from 30: 1.520)
+  ours, correlated · our model of the noisy circuit              0.884% (0.881–0.887%)  0.468% (0.467–0.470%)  0.241% (0.240–0.243%)  1.887    1.940    1.91 [1.91, 1.92]   (from 30: 1.910)
+  Google: correlated matching, SI1000 prior                      0.836% (0.833–0.839%)  0.443% (0.441–0.444%)  0.229% (0.228–0.231%)  1.889    1.930    1.91 [1.90, 1.92]   (from 30: 1.905)
+  Google: correlated matching, RL-optimised prior                0.759% (0.757–0.762%)  0.404% (0.403–0.405%)  0.210% (0.209–0.211%)  1.879    1.925    1.90 [1.90, 1.91]   (from 30: 1.902)
+  Google: Harmony, SI1000 prior                                  0.781% (0.779–0.784%)  0.411% (0.410–0.412%)  0.216% (0.214–0.217%)  1.902    1.906    1.90 [1.90, 1.91]   (from 30: 1.884)
+  Google: Harmony, RL-optimised prior                            0.729% (0.727–0.731%)  0.387% (0.386–0.388%)  0.206% (0.205–0.207%)  1.884    1.878    1.88 [1.88, 1.89]   (from 30: 1.852)
+  Google: Libra, RL-optimised prior                              0.712% (0.710–0.714%)  0.349% (0.348–0.350%)  0.171% (0.170–0.172%)  2.037    2.042    2.04 [2.03, 2.05]   (from 30: 2.031)
+
+Sycamore: 130 experiments, fits from round 3, 400 bootstrap draws
+  decoder                                                        eps_3                  eps_5                  L3/5     Lambda [95%]
+  ours, plain · the circuit's model                              4.012% (3.998–4.027%)  4.354% (4.325–4.386%)  0.921    0.92 [0.91, 0.93]   (from 1: 0.957, from 5: 0.912)
+  ours, correlated · the circuit's model                         3.507% (3.495–3.520%)  3.558% (3.534–3.582%)  0.986    0.99 [0.98, 0.99]   (from 1: 1.021, from 5: 0.979)
+  ours, plain · our model of the noisy circuit                   4.012% (3.998–4.027%)  4.354% (4.325–4.386%)  0.921    0.92 [0.91, 0.93]   (from 1: 0.957, from 5: 0.912)
+  ours, correlated · our model of the noisy circuit              3.507% (3.495–3.520%)  3.558% (3.534–3.582%)  0.986    0.99 [0.98, 0.99]   (from 1: 1.021, from 5: 0.979)
+  ours, plain · the data-fitted pij models                       3.882% (3.868–3.896%)  4.322% (4.293–4.353%)  0.898    0.90 [0.89, 0.90]   (from 1: 0.939, from 5: 0.890)
+  ours, correlated · the data-fitted pij models                  3.424% (3.412–3.437%)  3.466% (3.442–3.489%)  0.988    0.99 [0.98, 1.00]   (from 1: 1.021, from 5: 0.980)
+  Google: PyMatching                                             4.012% (3.998–4.027%)  4.362% (4.333–4.394%)  0.920    0.92 [0.91, 0.93]   (from 1: 0.956, from 5: 0.910)
+  Google: correlated matching                                    3.497% (3.485–3.510%)  3.597% (3.573–3.622%)  0.972    0.97 [0.96, 0.98]   (from 1: 1.006, from 5: 0.965)
+  Google: belief matching                                        3.118% (3.108–3.130%)  3.056% (3.036–3.076%)  1.020    1.02 [1.01, 1.03]   (from 1: 1.057, from 5: 1.015)
+  Google: tensor-network contraction                             3.028% (3.018–3.039%)  2.914% (2.895–2.933%)  1.039    1.04 [1.03, 1.05]   (from 1: 1.078, from 5: 1.037)
+
+Validation, Google's tensor-network predictions fitted here: eps_3 3.028% (published 3.028% ± 0.023%), eps_5 2.914% (published 2.914% ± 0.016%)
+  from round 1: eps_3 3.032%, eps_5 2.814%
+  from round 2: eps_3 3.028%, eps_5 2.914%
+  from round 3: eps_3 3.028%, eps_5 2.914%
+  from round 4: eps_3 3.038%, eps_5 2.928%
+  from round 5: eps_3 3.038%, eps_5 2.928%

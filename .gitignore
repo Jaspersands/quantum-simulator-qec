@@ -3,3 +3,6 @@
 *.dylib
 .venv/
 /target-py
+/data/google/
+__pycache__/
+.DS_Store

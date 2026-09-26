@@ -31,6 +31,10 @@ pub enum Instr {
     H(Vec<u32>),
     Cx(Vec<(u32, u32)>),
     Cz(Vec<(u32, u32)>),
+    /// `I`, `X`, `Y`, `Z`: Pauli gates, which only flip signs. 0 = I.
+    Pauli { pauli: Pauli, qubits: Vec<u32> },
+    /// `CX sweep[k] q`: an X on `q` when sweep bit `k` of the shot is set.
+    SweepX(Vec<(u32, u32)>),
     /// `M`, `MX`, `MR`, `MRX`. `flip` is the classical flip probability of `M(p)`.
     Measure { basis: Basis, reset: bool, flip: f64, qubits: Vec<u32> },
     /// `X_ERROR`, `Y_ERROR`, `Z_ERROR`.
@@ -57,7 +61,9 @@ impl Instr {
             | Instr::PauliError { qubits, .. }
             | Instr::Depolarize1 { qubits, .. }
             | Instr::PauliChannel1 { qubits, .. }
-            | Instr::QubitCoords { qubits, .. } => qubits.clone(),
+            | Instr::QubitCoords { qubits, .. }
+            | Instr::Pauli { qubits, .. } => qubits.clone(),
+            Instr::SweepX(pairs) => pairs.iter().map(|&(_, q)| q).collect(),
             Instr::Cx(pairs) | Instr::Cz(pairs) | Instr::Depolarize2 { pairs, .. } => {
                 pairs.iter().flat_map(|&(a, b)| [a, b]).collect()
             }
@@ -79,6 +85,8 @@ pub struct Resolved {
     pub instrs: Vec<Instr>,
     pub num_qubits: usize,
     pub num_measurements: usize,
+    /// One more than the highest sweep bit any `CX sweep[k]` reads.
+    pub num_sweep_bits: usize,
     /// Absolute measurement indices each detector reads.
     pub detectors: Vec<Vec<usize>>,
     pub detector_coords: Vec<Vec<f64>>,
@@ -112,6 +120,7 @@ impl Circuit {
         let flat = self.flattened().instrs;
         let mut num_qubits = 0usize;
         let mut m = 0usize;
+        let mut sweeps = 0usize;
         let mut detectors = Vec::new();
         let mut detector_coords = Vec::new();
         let mut observables: Vec<Vec<usize>> = Vec::new();
@@ -128,6 +137,11 @@ impl Circuit {
             }
             match ins {
                 Instr::Measure { qubits, .. } => m += qubits.len(),
+                Instr::SweepX(pairs) => {
+                    for &(k, _) in pairs {
+                        sweeps = sweeps.max(k as usize + 1);
+                    }
+                }
                 Instr::Detector { coords, recs } => {
                     let abs = recs.iter().map(|&k| absolute(k, m)).collect::<Result<Vec<_>, _>>()?;
                     detectors.push(abs);
@@ -148,7 +162,15 @@ impl Circuit {
                 _ => {}
             }
         }
-        Ok(Resolved { instrs: flat, num_qubits, num_measurements: m, detectors, detector_coords, observables })
+        Ok(Resolved {
+            instrs: flat,
+            num_qubits,
+            num_measurements: m,
+            num_sweep_bits: sweeps,
+            detectors,
+            detector_coords,
+            observables,
+        })
     }
 }
 
@@ -238,6 +260,25 @@ fn pair_targets(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> 
         .collect()
 }
 
+/// `sweep[k] q` pairs: a sweep bit controlling an X on a qubit.
+fn sweep_pairs(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> {
+    if tokens.len() % 2 != 0 {
+        return Err(format!("{name}: targets must come in pairs, got {}", tokens.len()));
+    }
+    tokens
+        .chunks(2)
+        .map(|c| {
+            let bit = c[0]
+                .strip_prefix("sweep[")
+                .and_then(|s| s.strip_suffix(']'))
+                .and_then(|s| s.parse::<u32>().ok())
+                .ok_or_else(|| format!("{name}: a sweep-controlled pair needs 'sweep[k] q', got '{} {}'", c[0], c[1]))?;
+            let q = c[1].parse::<u32>().map_err(|_| format!("{name}: bad qubit target '{}'", c[1]))?;
+            Ok((bit, q))
+        })
+        .collect()
+}
+
 fn rec_targets(tokens: &[&str], name: &str) -> Result<Vec<u32>, String> {
     tokens
         .iter()
@@ -290,7 +331,21 @@ fn parse_line(line: &str) -> Result<Instr, String> {
         }
         "CX" | "CNOT" | "ZCX" => {
             none()?;
-            Instr::Cx(pair_targets(&t, &name)?)
+            if t.iter().any(|x| x.starts_with("sweep[")) {
+                Instr::SweepX(sweep_pairs(&t, &name)?)
+            } else {
+                Instr::Cx(pair_targets(&t, &name)?)
+            }
+        }
+        "I" | "X" | "Y" | "Z" => {
+            none()?;
+            let pauli = match name.as_str() {
+                "X" => 1,
+                "Z" => 2,
+                "Y" => 3,
+                _ => 0,
+            };
+            Instr::Pauli { pauli, qubits: qubit_targets(&t, &name)? }
         }
         "CZ" | "ZCZ" => {
             none()?;
@@ -419,6 +474,11 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
             Instr::H(q) => format!("H {}", join_q(q)),
             Instr::Cx(p) => format!("CX {}", join_pairs(p)),
             Instr::Cz(p) => format!("CZ {}", join_pairs(p)),
+            Instr::Pauli { pauli, qubits } => format!("{} {}", ["I", "X", "Z", "Y"][*pauli as usize], join_q(qubits)),
+            Instr::SweepX(pairs) => format!(
+                "CX {}",
+                pairs.iter().map(|(k, q)| format!("sweep[{k}] {q}")).collect::<Vec<_>>().join(" ")
+            ),
             Instr::Measure { basis, reset, flip, qubits } => {
                 let name = match (reset, basis) {
                     (false, Basis::Z) => "M",
@@ -512,6 +572,31 @@ mod tests {
         assert!(Circuit::parse("M !0").is_err());
         assert!(Circuit::parse("X_ERROR(1.5) 0").is_err());
         assert!(Circuit::parse("REPEAT 2 {\nH 0\n").is_err());
+    }
+
+    #[test]
+    fn sweep_controls_and_pauli_gates_parse_and_round_trip() {
+        let text = "R 0 1 2\nCX sweep[0] 1 sweep[3] 2\nX 0 1\nY 2\nZ 0\nI 1 2\nM 0 1 2\nDETECTOR rec[-1]\n";
+        let c = Circuit::parse(text).unwrap();
+        assert_eq!(c.instrs[1], Instr::SweepX(vec![(0, 1), (3, 2)]));
+        assert_eq!(c.instrs[2], Instr::Pauli { pauli: 1, qubits: vec![0, 1] });
+        assert_eq!(c.instrs[3], Instr::Pauli { pauli: 3, qubits: vec![2] });
+        assert_eq!(c.instrs[4], Instr::Pauli { pauli: 2, qubits: vec![0] });
+        assert_eq!(c.instrs[5], Instr::Pauli { pauli: 0, qubits: vec![1, 2] });
+        assert_eq!(Circuit::parse(&c.to_stim()).unwrap(), c);
+        let r = c.resolve().unwrap();
+        assert_eq!(r.num_sweep_bits, 4);
+        assert_eq!(r.num_qubits, 3);
+    }
+
+    #[test]
+    fn sweep_bits_may_only_control_a_cx() {
+        assert!(Circuit::parse("CX 0 sweep[1]").is_err());
+        assert!(Circuit::parse("CX sweep[0] 1 2 3").is_err());
+        assert!(Circuit::parse("CX sweep[0] sweep[1]").is_err());
+        assert!(Circuit::parse("CZ sweep[0] 1").is_err());
+        assert!(Circuit::parse("CX sweep[x] 1").is_err());
+        assert!(Circuit::parse("X(0.1) 0").is_err());
     }
 
     #[test]

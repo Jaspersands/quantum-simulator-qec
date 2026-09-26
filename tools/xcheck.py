@@ -2,7 +2,7 @@
 
 Run from the repository root, with the engine built into the virtualenv:
 
-    VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --release
+    VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --profile python
     .venv/bin/python tools/xcheck.py              # full run; writes data/xcheck/
     .venv/bin/python tools/xcheck.py --quick      # a smoke test; writes nothing
 
@@ -13,7 +13,10 @@ Checks, strictest first (spec: docs/superpowers/specs/2026-09-24-stim-foundation
   2. Decoders agree shot for shot on Stim's samples; every disagreement is a tie.
   3. Samplers agree: per-detector firing rates, and logical error rates.
   4. Speed, reported as measured.
-Exits non-zero if check 1, 1b, 2 or 3 fails.
+  5. Correlated matching agrees with PyMatching's (enable_correlations=True)
+     shot for shot, and every disagreement is a tie: PyMatching's own
+     first-pass edges, fed to our second pass, give its answer or tie it.
+Exits non-zero if check 1, 1b, 2, 3 or 5 fails.
 """
 
 import argparse
@@ -34,7 +37,7 @@ import stabilizer_qec as sq
 
 if not hasattr(sq, "generate_circuit"):
     sys.exit(f"{sq.__file__} is an old build without the cross-check bindings; "
-             "run `maturin develop --release` into .venv, and run this from the repository root.")
+             "run `maturin develop --profile python` into .venv, and run this from the repository root.")
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "xcheck"
@@ -222,6 +225,64 @@ def check_decoding(code, d, p, shots, seed):
                      our_decode_errors=int(s_errors)))
 
 
+def check_correlated(code, d, p, shots, seed):
+    """Check 5 at one point: correlated matching, ours against PyMatching's."""
+    text = sq.generate_circuit(code, d, d, "sd6", p, 0.5, "z")
+    circuit = stim.Circuit(text)
+    dem = circuit.detector_error_model(decompose_errors=True)
+    matching = pymatching.Matching.from_detector_error_model(dem, enable_correlations=True)
+    dets, obs = circuit.compile_detector_sampler(seed=seed).sample(shots, separate_observables=True)
+    actual = obs[:, 0].astype(np.uint64)
+    packed = np.packbits(dets, axis=1, bitorder="little").tobytes()
+
+    t = time.perf_counter()
+    pm = matching.decode_batch(dets, enable_correlations=True)[:, 0].astype(np.uint64)
+    pm_seconds = time.perf_counter() - t
+    raw_b, _, errors, our_seconds = sq.decode_b8(str(dem), packed, shots, 1, True)
+    raw = np.frombuffer(raw_b, dtype="<u8")
+    ours, failed = raw & ONE, raw == FAILED
+    plain_b, _, _, _ = sq.decode_b8(str(dem), packed, shots, 0, False)
+    plain = np.frombuffer(plain_b, dtype="<u8") & ONE
+
+    # A disagreement is explained if PyMatching's own first-pass edges, fed to
+    # our second pass, give PyMatching's answer (the two passes traced
+    # different, equally short paths), or tie it in weight. The weight noise
+    # between the two discretisations is measured on shots where both agree.
+    dec = sq.Decoder(str(dem))
+
+    def ours_from_their_edges(i):
+        defects = np.flatnonzero(dets[i]).tolist()
+        edges = [(int(u), int(v)) for u, v in matching.decode_to_edges_array(dets[i])]
+        return dec.pass2(defects, edges)
+
+    def their_weight(i):
+        return matching.decode(dets[i], return_weight=True, enable_correlations=True)[1]
+
+    noise = 0.0
+    for i in np.nonzero((pm == ours) & ~failed)[0][:300]:
+        noise = max(noise, abs(ours_from_their_edges(i)[1] - their_weight(i)))
+    tol = max(10 * noise, 1e-6)
+    disagree = np.nonzero((pm != ours) & ~failed)[0]
+    path_ties = weight_ties = non_ties = 0
+    for i in disagree:
+        o, w = ours_from_their_edges(i)
+        if np.uint64(o & 1) == pm[i]:
+            path_ties += 1
+        elif abs(w - their_weight(i)) <= tol:
+            weight_ties += 1
+        else:
+            non_ties += 1
+
+    return dict(
+        code=code, noise="sd6", d=d, p=p, shots=shots,
+        pymatching_failures=int(np.count_nonzero(pm != actual)),
+        ours_failures=int(np.count_nonzero((ours != actual) | failed)),
+        plain_failures=int(np.count_nonzero(plain != actual)),
+        disagreements=int(len(disagree)), path_ties=path_ties, weight_ties=weight_ties,
+        non_ties=non_ties, weight_noise=noise, decode_errors=int(errors),
+        pymatching_us=pm_seconds / shots * 1e6, ours_us=our_seconds / shots * 1e6)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="few shots, d <= 5, write nothing")
@@ -280,6 +341,28 @@ def main():
                   f"chi2 z {r['sampler']['z']:+.2f}  "
                   f"{r['pymatching_us']:.1f} us vs {r['ours_us']:.1f} us")
 
+    print(f"Check 5: correlated matching against PyMatching's, {shots:,} shots per point")
+    correlated = []
+    for code in ("rotated", "xzzx"):
+        for d in ds:
+            for p in (0.003, 0.006):
+                r = check_correlated(code, d, p, shots, seed=7000 + 1000 * d + int(p * 1e4))
+                correlated.append(r)
+                ci_pm = wilson(r["pymatching_failures"], shots)
+                ci_us = wilson(r["ours_failures"], shots)
+                overlap = ci_pm[0] <= ci_us[1] and ci_us[0] <= ci_pm[1]
+                good = r["non_ties"] == 0 and r["decode_errors"] == 0 and overlap
+                ok &= good
+                print(f"  {'ok ' if good else 'BAD'} {code:<7} d={d} p={p:.3f}  "
+                      f"PyMatching {r['pymatching_failures'] / shots:.4%}  ours {r['ours_failures'] / shots:.4%}  "
+                      f"(plain {r['plain_failures'] / shots:.4%})  disagree {r['disagreements']} "
+                      f"(path ties {r['path_ties']}, weight ties {r['weight_ties']}, non-ties {r['non_ties']}, "
+                      f"weight noise {r['weight_noise']:.1e})  {r['pymatching_us']:.1f} us vs {r['ours_us']:.1f} us")
+    gain_ok = sum(r["ours_failures"] for r in correlated) < sum(r["plain_failures"] for r in correlated)
+    ok &= gain_ok
+    print(f"  {'ok ' if gain_ok else 'BAD'} correlated fails less often than plain, pooled over every point: "
+          f"{sum(r['ours_failures'] for r in correlated):,} against {sum(r['plain_failures'] for r in correlated):,}")
+
     if not args.quick:
         OUT.mkdir(parents=True, exist_ok=True)
         for name, text in files.items():
@@ -287,7 +370,7 @@ def main():
         reference = dict(
             generated=datetime.date.today().isoformat(), stim=stim.__version__,
             pymatching=pymatching.__version__, command="python tools/xcheck.py",
-            circuits=circuits, decoding=decoding)
+            circuits=circuits, decoding=decoding, correlated=correlated)
         (OUT / "reference.json").write_text(json.dumps(reference, indent=1) + "\n")
         print(f"Wrote {OUT.relative_to(ROOT)}/ ({len(files)} files + reference.json)")
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

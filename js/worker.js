@@ -15,9 +15,10 @@
 
 import {
   instantiate, runBenchmark, estimateChannel, DEFAULT_RUN, NOISE,
-  xcGenerate, xcLoadCircuit, xcCompare, xcTiming,
+  xcGenerate, xcLoadCircuit, xcCompare, xcTiming, hwM2d, hwModel, hwDecode,
 } from './engine.js';
 import { planChunks } from './stream.js';
+import { epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from './lambda-fit.js';
 
 let enginePromise = null;
 
@@ -39,6 +40,36 @@ async function sha256Hex(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+async function fetchBytes(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
+ * A text file of the extract, gzipped to a quarter of its size. Inflated here
+ * unless the server already did (some send .gz with Content-Encoding: gzip),
+ * which the gzip signature tells apart.
+ */
+async function fetchGzipText(url) {
+  const bytes = await fetchBytes(url);
+  if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return new TextDecoder().decode(bytes);
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('this browser cannot inflate the gzipped extract (DecompressionStream is missing; '
+      + 'it arrived in Safari 16.4 and Firefox 113)');
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).text();
+}
+
+async function sha256Bytes(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The pathway whose predictions our correlated matcher is compared with shot by shot. */
+const GOOGLE_CORRELATED = 'correlated_matching_decoder_with_si1000_prior';
 
 /** Ids of streaming jobs asked to stop; checked between chunks. */
 const cancelled = new Set();
@@ -155,6 +186,96 @@ const OPS = {
    * Sweep a grid of (distance, physical error rate) points.
    * Emits a progress message per point so the caller can draw as it goes.
    */
+  /**
+   * Section 11's live panel. For each Willow experiment in the extract: raw
+   * measurements and sweep bits to detection events (checked against the
+   * SHA-256 of Google's own), two models (Google's SI1000 prior, and ours
+   * built from the noisy circuit), each decoded plainly and with correlated
+   * matching, and every result scored against the true observable flips.
+   */
+  async hardware(instance, { base, experiments }, report) {
+    const rows = [];
+    for (const ex of experiments) {
+      const at = (name) => new URL(`${ex.dir}/${name}`, base);
+      report({ d: ex.d, step: 'fetching' });
+      const [ideal, noisy, dem, meas, sweeps, actualBytes, ...preds] = await Promise.all([
+        fetchGzipText(at('circuit_ideal.stim.gz')), fetchGzipText(at('circuit_noisy_si1000.stim.gz')),
+        fetchGzipText(at('error_model_si1000.dem.gz')), fetchBytes(at('measurements.b8')),
+        fetchBytes(at('sweep_bits.b8')), fetchBytes(at('obs_flips_actual.b8')),
+        ...ex.pathways.map((p) => fetchBytes(at(`pred_${p}.b8`))),
+      ]);
+      const shots = ex.shots;
+      const actual = actualBytes.map((b) => b & 1);
+
+      report({ d: ex.d, step: 'converting' });
+      let t0 = performance.now();
+      const conv = hwM2d(instance, ideal, meas, sweeps, shots);
+      const m2dMs = performance.now() - t0;
+      const hashMatches = (await sha256Bytes(conv.dets)) === ex.detection_events_sha256;
+      let obsDiffer = 0;
+      for (let i = 0; i < shots; i++) obsDiffer += (conv.obs[i] & 1) !== actual[i] ? 1 : 0;
+
+      report({ d: ex.d, step: 'decoding' });
+      const google = {};
+      ex.pathways.forEach((p, k) => {
+        let f = 0;
+        for (let i = 0; i < shots; i++) f += (preds[k][i] & 1) !== actual[i] ? 1 : 0;
+        google[p] = { failures: f, predictions: preds[k] };
+      });
+      const reference = google[GOOGLE_CORRELATED]?.predictions;
+      const ours = {};
+      const models = [['si1000', { dem }], ['ours', { circuit: noisy }]];
+      for (const [slot, [prior, source]] of models.entries()) {
+        hwModel(instance, slot, source);
+        for (const correlated of [false, true]) {
+          t0 = performance.now();
+          const r = hwDecode(instance, slot, conv.dets, shots, correlated);
+          const micros = ((performance.now() - t0) * 1000) / shots;
+          let failures = 0, agree = 0;
+          for (let i = 0; i < shots; i++) {
+            const p = r.predictions[i];
+            failures += p === 255 || p !== actual[i] ? 1 : 0;
+            if (reference) agree += p === (reference[i] & 1) ? 1 : 0;
+          }
+          ours[`${prior}/${correlated ? 'correlated' : 'plain'}`] = { failures, errors: r.errors, micros, agree };
+        }
+      }
+      for (const g of Object.values(google)) delete g.predictions;
+      const row = { d: ex.d, patch: ex.patch, rounds: ex.rounds, shots, hashMatches, obsDiffer, m2dMs, ours, google };
+      rows.push(row);
+      report({ d: ex.d, step: 'done', row });
+    }
+    return rows;
+  },
+
+  /**
+   * Section 11's Figure 9: every decoder's ε and Λ from the recorded counts,
+   * with the same fit, draws and seed as tools/lambda.mjs, so the intervals on
+   * the page are the README's to the last digit. Here rather than on the main
+   * thread because the bootstrap refits every decoder hundreds of times.
+   */
+  async hwfits(instance, { url, minRounds, draws }, report) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const doc = await response.json();
+    const records = Object.values(doc.experiments);
+    const keys = decoderKeys(records);
+    const fits = [];
+    for (const [i, key] of keys.entries()) {
+      const byD = epsilonByDistance(records, key, { minRounds });
+      const fit = lambdaFit(byD);
+      const boot = bootstrap(records, key, { minRounds }, draws, seededRandom(11));
+      fits.push({
+        key,
+        eps: [...byD].map(([d, v]) => ({ d, eps: v.eps, interval: boot.eps.get(d) })),
+        lambda: fit.lambda,
+        interval: boot.lambda,
+      });
+      report({ done: i + 1, total: keys.length });
+    }
+    return { generated: doc.generated, engine: doc.engine_commit, fits };
+  },
+
   async sweep(instance, { distances, ps, base }, report) {
     const points = [];
     const total = distances.length * ps.length;
