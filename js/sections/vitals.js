@@ -29,7 +29,9 @@ export function initVitals(root, compute) {
     });
   }
 
-  compute.call('vitals').then((result) => {
+  // The measurement has the machine to itself, so it times one worker, not one
+  // worker competing with the rest of the pool.
+  (compute.callAlone ? compute.callAlone('vitals') : compute.call('vitals')).then((result) => {
     fill(dataRate, [
       document.createTextNode(count(result.dataRunsPerSecond)),
       el('span', { class: 'vital__unit', text: ' runs/s' }),

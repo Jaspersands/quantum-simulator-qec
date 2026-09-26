@@ -38,6 +38,7 @@ export class Pool {
       ? module.then((m) => Promise.all(this.workers.map((w) => w.compute.call('module', { module: m })))).catch(() => {})
       : Promise.resolve();
     this.queue = [];
+    this.alone = false;
     this.jobs = new Map();
     this.groups = new Map();
     this.nextId = 1;
@@ -52,26 +53,40 @@ export class Pool {
    * worker's own queue, so a worker that finishes early takes the next job
    * rather than idling while another works through a backlog.
    */
-  call(op, payload, onProgress) {
+  call(op, payload, onProgress, { alone = false } = {}) {
     const id = this.nextId++;
     const promise = new Promise((resolve, reject) => {
-      this.queue.push({ id, op, payload, onProgress, resolve, reject, cancelled: false });
+      this.queue.push({ id, op, payload, onProgress, resolve, reject, cancelled: false, alone });
     });
     promise.id = id;
     this.ready.then(() => this.#pump());
     return promise;
   }
 
+  /**
+   * A job that must have the machine to itself, such as a throughput
+   * measurement: it waits for every worker to be idle, and nothing else starts
+   * until it is done.
+   */
+  callAlone(op, payload, onProgress) {
+    return this.call(op, payload, onProgress, { alone: true });
+  }
+
   #pump() {
     for (const worker of this.workers) {
-      if (worker.busy || !this.queue.length) continue;
-      const job = this.queue.shift();
+      if (this.alone || !this.queue.length) return;
+      if (worker.busy) continue;
+      const job = this.queue[0];
+      if (job.alone && this.workers.some((w) => w.busy)) return;
+      this.queue.shift();
       worker.busy = true;
+      this.alone = job.alone;
       const inner = worker.compute.call(job.op, job.payload, job.onProgress);
       this.jobs.set(job.id, { worker, innerId: inner.id });
       if (job.cancelled) worker.compute.cancel(inner.id);
       inner.then(job.resolve, job.reject).finally(() => {
         worker.busy = false;
+        if (job.alone) this.alone = false;
         this.jobs.delete(job.id);
         this.#pump();
       });

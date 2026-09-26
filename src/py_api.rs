@@ -251,7 +251,6 @@ fn sample_b8_batch<'py>(
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, f64)> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
     let sampler = crate::batch_sampler::BatchSampler::new(&c).map_err(err)?;
-    let (ds, os) = (sampler.num_detectors.div_ceil(8), sampler.num_observables.div_ceil(8));
     let batches = num_shots.div_ceil(64);
     let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
         .clamp(1, batches.max(1));
@@ -267,27 +266,7 @@ fn sample_b8_batch<'py>(
                         let (mut dets, mut obs) = (Vec::new(), Vec::new());
                         for b in (t * per)..((t + 1) * per).min(batches) {
                             let lanes = (num_shots - b * 64).min(64);
-                            let batch = sampler.sample(&mut rng);
-                            let (d0, o0) = (dets.len(), obs.len());
-                            dets.resize(d0 + lanes * ds, 0);
-                            obs.resize(o0 + lanes * os, 0);
-                            for (d, &w) in batch.detectors.iter().enumerate() {
-                                let mut w = w;
-                                while w != 0 {
-                                    let lane = w.trailing_zeros() as usize;
-                                    w &= w - 1;
-                                    if lane < lanes {
-                                        dets[d0 + lane * ds + d / 8] |= 1 << (d % 8);
-                                    }
-                                }
-                            }
-                            for (k, &w) in batch.observables.iter().enumerate() {
-                                for lane in 0..lanes {
-                                    if (w >> lane) & 1 == 1 {
-                                        obs[o0 + lane * os + k / 8] |= 1 << (k % 8);
-                                    }
-                                }
-                            }
+                            sampler.sample(&mut rng).write_b8(lanes, &mut dets, &mut obs);
                         }
                         (dets, obs)
                     })

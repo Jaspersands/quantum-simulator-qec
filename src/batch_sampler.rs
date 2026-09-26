@@ -31,7 +31,10 @@ struct Noise {
 
 impl Noise {
     fn new(p: f64) -> Noise {
-        Noise { p, log1mp: if p > 0.0 && p < 1.0 { (1.0 - p).ln() } else { 0.0 } }
+        // ln_1p keeps ln(1 − p) nonzero for p far below 1e-16, where 1 − p
+        // rounds to 1; a p it still cannot resolve is treated as zero.
+        let log1mp = if p > 0.0 && p < 1.0 { (-p).ln_1p() } else { 0.0 };
+        Noise { p: if log1mp == 0.0 && p < 1.0 { 0.0 } else { p }, log1mp }
     }
 }
 
@@ -50,7 +53,8 @@ fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
         let mut i: i64 = -1;
         loop {
             let u = rng.next_f64();
-            i += 1 + ((1.0 - u).ln() / n.log1mp) as i64;
+            // The cast saturates, and a gap of 64 or more ends the word anyway.
+            i += 1 + (((1.0 - u).ln() / n.log1mp) as i64).min(64);
             if i >= 64 {
                 return w;
             }
@@ -166,17 +170,13 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                     _ => {}
                 }
             }
+            Op::Repeat(0, _) => {}
             Op::Repeat(count, body) => {
                 let (m0, d0) = (s.measurements, s.detectors);
                 shape(body, s)?;
                 let (dm, dd) = (s.measurements - m0, s.detectors - d0);
-                if *count == 0 {
-                    s.measurements = m0;
-                    s.detectors = d0;
-                } else {
-                    s.measurements = m0 + dm * count;
-                    s.detectors = d0 + dd * count;
-                }
+                s.measurements = m0 + dm * count;
+                s.detectors = d0 + dd * count;
             }
         }
     }
@@ -212,6 +212,27 @@ impl Batch {
             out |= ((w >> lane) & 1) << k;
         }
         out
+    }
+
+    /// The first `lanes` shots appended as Stim b8 rows: detectors to `dets`,
+    /// observables to `obs`, each row padded to whole bytes.
+    pub fn write_b8(&self, lanes: usize, dets: &mut Vec<u8>, obs: &mut Vec<u8>) {
+        let (ds, os) = (self.detectors.len().div_ceil(8), self.observables.len().div_ceil(8));
+        let (d0, o0) = (dets.len(), obs.len());
+        dets.resize(d0 + lanes * ds, 0);
+        obs.resize(o0 + lanes * os, 0);
+        for (rows, start, stride, words) in [(&mut *dets, d0, ds, &self.detectors), (&mut *obs, o0, os, &self.observables)] {
+            for (k, &w) in words.iter().enumerate() {
+                let mut w = w;
+                while w != 0 {
+                    let lane = w.trailing_zeros() as usize;
+                    w &= w - 1;
+                    if lane < lanes {
+                        rows[start + lane * stride + k / 8] |= 1 << (k % 8);
+                    }
+                }
+            }
+        }
     }
 
     /// Every shot's defects at once, reading only the set bits.
@@ -583,6 +604,25 @@ mod tests {
         }
         assert_eq!(bernoulli(&mut rng, Noise::new(0.0)), 0);
         assert_eq!(bernoulli(&mut rng, Noise::new(1.0)), !0);
+    }
+
+    #[test]
+    fn vanishing_probabilities_never_fire() {
+        let mut rng = Xorshift::new(4);
+        for &p in &[1e-20, 1e-300, f64::MIN_POSITIVE] {
+            for _ in 0..10_000 {
+                assert_eq!(bernoulli(&mut rng, Noise::new(p)), 0, "p = {p}");
+            }
+        }
+        // Small but resolvable: the rate is still right.
+        let n = Noise::new(1e-7);
+        let fired: u32 = (0..2_000_000).map(|_| bernoulli(&mut rng, n).count_ones()).sum();
+        assert!(fired < 40, "{fired} of 128e6 at p = 1e-7");
+    }
+
+    #[test]
+    fn a_loop_that_never_runs_is_not_checked() {
+        assert!(BatchSampler::new(&Circuit::parse("REPEAT 0 {\n DETECTOR rec[-1]\n}\nM 0").unwrap()).is_ok());
     }
 
     #[test]

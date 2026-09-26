@@ -321,8 +321,11 @@ self.onmessage = async (event) => {
   // engine is downloaded once rather than once per worker.
   if (op === 'module') {
     enginePromise = instantiate(payload.module);
-    enginePromise.then(() => self.postMessage({ id, type: 'done', result: true }),
-      (error) => self.postMessage({ id, type: 'error', message: error?.message ?? String(error) }));
+    enginePromise.then(() => self.postMessage({ id, type: 'done', result: true }), (error) => {
+      // Fall back to fetching the engine at the next job rather than failing every one.
+      enginePromise = null;
+      self.postMessage({ id, type: 'error', message: error?.message ?? String(error) });
+    });
     return;
   }
 

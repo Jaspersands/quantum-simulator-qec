@@ -546,7 +546,9 @@ shots):
 - **Scheduling.** Jobs wait in the pool, not in a worker's queue, so a worker that finishes early
   takes the next one. The sweep hands out its largest distances first.
 - **The measured gain.** On an M2 Pro (6 performance and 4 efficiency cores), the section 7 sweep
-  (216,000 shots over 36 points) takes 6.6 s against 27.8 s with one worker, 4.2 times faster.
+  (216,000 shots over 36 points) takes 6.6 to 11.2 s over three runs, against 27.8 to 29.6 s with
+  one worker: 2.5 to 4.4 times faster. The spread is which cores the workers land on; eight
+  workers on this machine include efficiency cores. The times are polled once a second.
   `?workers=N` sets the pool's size, for measuring exactly that.
 
 ## Engine defects found and fixed
