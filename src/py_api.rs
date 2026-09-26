@@ -23,6 +23,12 @@ fn err(e: String) -> PyErr {
     PyValueError::new_err(e)
 }
 
+/// `threads = 0` means every core; never more threads than units of work.
+fn resolve_threads(threads: usize, units: usize) -> usize {
+    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads };
+    threads.clamp(1, units.max(1))
+}
+
 /// A memory experiment as a Stim circuit: a distance-`d` patch (`"rotated"`
 /// or `"xzzx"`) held for `rounds` rounds, under `"sd6"` noise at `p` or the
 /// biased `"current"` model with bias `eta`, in basis `"z"` or `"x"`.
@@ -74,8 +80,7 @@ fn decode_packed<'py>(
     if packed.len() != stride * num_shots {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
-    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
-        .clamp(1, num_shots.max(1));
+    let threads = resolve_threads(threads, num_shots);
     let chunk = num_shots.div_ceil(threads);
     let start = Instant::now();
     let parts: Vec<Vec<(u64, f64)>> = py.allow_threads(|| {
@@ -259,8 +264,7 @@ fn sample_b8_batch<'py>(
     let c = Circuit::parse(circuit_text).map_err(err)?;
     let sampler = crate::batch_sampler::BatchSampler::new(&c).map_err(err)?;
     let batches = num_shots.div_ceil(64);
-    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
-        .clamp(1, batches.max(1));
+    let threads = resolve_threads(threads, batches);
     let per = batches.div_ceil(threads);
     let start = Instant::now();
     let parts: Vec<(Vec<u8>, Vec<u8>)> = py.allow_threads(|| {
@@ -318,18 +322,14 @@ fn decode_b8_window<'py>(
         "parallel" => Mode::Parallel,
         other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
     };
-    if mode == Mode::Parallel && buffer == 0 {
-        return Err(err("parallel windows need a buffer of at least one layer".into()));
-    }
-    let wd = WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode);
+    let wd = WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode).map_err(err)?;
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
     if packed.len() != stride * num_shots {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
     let nw = wd.windows.len();
-    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
-        .clamp(1, num_shots.max(1));
+    let threads = resolve_threads(threads, num_shots);
     let chunk = num_shots.div_ceil(threads);
     let parts: Vec<(Vec<u64>, usize, Vec<f64>)> = py.allow_threads(|| {
         std::thread::scope(|scope| {
@@ -348,18 +348,23 @@ fn decode_b8_window<'py>(
                             let mut obs = 0u64;
                             let mut failed = false;
                             let mut shot_times = vec![0.0; if timings { nw } else { 0 }];
-                            for phase in &wd.phases {
+                            'windows: for phase in &wd.phases {
                                 for &wi in phase {
-                                    let start = Instant::now();
+                                    let start = timings.then(Instant::now);
                                     if wd.decode_window(wi, &mut live, &mut obs, correlated, &mut scratches[wi]).is_err() {
+                                        // A refused window fails the shot; its defects are
+                                        // not "unexplained", which counts commit mistakes.
                                         failed = true;
+                                        break 'windows;
                                     }
-                                    if timings {
+                                    if let Some(start) = start {
                                         shot_times[wi] = start.elapsed().as_secs_f64();
                                     }
                                 }
                             }
-                            unexplained += live.iter().filter(|&&b| b).count();
+                            if !failed {
+                                unexplained += live.iter().filter(|&&b| b).count();
+                            }
                             preds.push(if failed { u64::MAX } else { obs });
                             times.extend(shot_times);
                         }
@@ -430,8 +435,7 @@ fn stream_decode<'py>(
     let plan = dec.plan(rounds).map_err(err)?;
     let circuit = crate::memory::generate_repeat(kind, d, rounds, p, Basis::Z).map_err(err)?;
     let sampler = crate::batch_sampler::BatchSampler::new(&circuit).map_err(err)?;
-    let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }
-        .clamp(1, batches.max(1));
+    let threads = resolve_threads(threads, batches);
     let start = Instant::now();
     let parts: Vec<Result<(usize, usize, Vec<f64>), String>> = py.allow_threads(|| {
         std::thread::scope(|scope| {

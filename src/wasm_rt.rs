@@ -2,16 +2,19 @@
 //! streams in the reader's browser, beside global decoding of the same streams.
 //!
 //! The engine has no clock of its own (it imports nothing), so the page times
-//! each call; `wasm_rt_windows` does the window decoding and nothing else
-//! heavy, so its time is the decoder's.
+//! each call. `wasm_rt_windows` samples the streams as they are decoded, as a
+//! real stream arrives, with its scratch space made once at setup; the second
+//! draw of the same shots, kept whole for global decoding, is made in
+//! `wasm_rt_global`, outside the window decoder's time.
 
-use crate::batch_sampler::{Batch, BatchSampler};
+use crate::batch_sampler::BatchSampler;
 use crate::circuit::Basis;
 use crate::dem::Dem;
 use crate::dem_decoder::DemDecoder;
 use crate::memory::{generate_repeat, CodeKind};
 use crate::stream::{run_stream, StreamDecoder, StreamPlan};
-use crate::surface_code::next_shot_rng;
+use crate::sparse::Scratch;
+use crate::surface_code::{next_shot_rng, Xorshift};
 use crate::wasm_xc::{json_error, reply};
 use crate::window::Mode;
 
@@ -21,8 +24,10 @@ struct Setup {
     sampler: BatchSampler,
     global: DemDecoder,
     correlated: bool,
-    /// The last batch, kept for global decoding: its streams' defects and truth.
-    last: Option<(Batch, [u64; 64])>,
+    scratches: Vec<Scratch>,
+    /// The last batch's generator, before it drew, and its window predictions:
+    /// global decoding draws the same shots again.
+    last: Option<(Xorshift, [u64; 64])>,
 }
 
 static mut SETUP: Option<Setup> = None;
@@ -42,7 +47,8 @@ pub extern "C" fn wasm_rt_setup(d: usize, rounds: usize, p: f64, commit: usize, 
         let circuit = generate_repeat(CodeKind::Rotated, d, rounds, p, Basis::Z)?;
         let sampler = BatchSampler::new(&circuit)?;
         let global = DemDecoder::new(&Dem::from_circuit(&circuit)?)?;
-        Ok(Setup { stream, plan, sampler, global, correlated: correlated != 0, last: None })
+        let scratches = stream.scratches();
+        Ok(Setup { stream, plan, sampler, global, correlated: correlated != 0, scratches, last: None })
     })();
     match built {
         Ok(s) => {
@@ -66,14 +72,11 @@ pub extern "C" fn wasm_rt_setup(d: usize, rounds: usize, p: f64, commit: usize, 
 pub extern "C" fn wasm_rt_windows() -> usize {
     let Some(s) = setup() else { return json_error("no stream set up") };
     let mut rng = next_shot_rng();
-    // The same draws twice: once kept whole for global decoding, once streamed.
-    let mut again = rng.clone();
-    let batch = s.sampler.sample(&mut rng);
-    let mut scratches = s.stream.scratches();
-    match run_stream(&s.stream, &s.plan, &s.sampler, &mut again, s.correlated, &mut scratches, None) {
+    let before = rng.clone();
+    match run_stream(&s.stream, &s.plan, &s.sampler, &mut rng, s.correlated, &mut s.scratches, None) {
         Ok((pred, truth, unexplained, _)) => {
             let failures = (0..64).filter(|&l| ((pred[l] ^ (truth >> l)) & 1) == 1).count();
-            s.last = Some((batch, pred));
+            s.last = Some((before, pred));
             reply(&format!("{{\"ok\":true,\"failures\":{failures},\"unexplained\":{unexplained}}}"))
         }
         Err(e) => json_error(&format!("{e:?}")),
@@ -85,7 +88,9 @@ pub extern "C" fn wasm_rt_windows() -> usize {
 #[no_mangle]
 pub extern "C" fn wasm_rt_global() -> usize {
     let Some(s) = setup() else { return json_error("no stream set up") };
-    let Some((batch, pred)) = s.last.as_ref() else { return json_error("no batch decoded yet") };
+    let Some((before, pred)) = s.last.as_ref() else { return json_error("no batch decoded yet") };
+    // The same draws the streams were made from, this time kept whole.
+    let batch = s.sampler.sample(&mut before.clone());
     let (mut failures, mut agree) = (0usize, 0usize);
     let defects = batch.all_defects();
     for (lane, shot) in defects.iter().enumerate() {

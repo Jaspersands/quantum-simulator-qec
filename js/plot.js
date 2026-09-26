@@ -190,14 +190,14 @@ export class Plot {
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
-    // Every major tick is labelled; a minor one only where it has room, so a
-    // short log axis spanning several decades stays legible.
+    // Labels go where they have room: majors first, lowest up, then minors
+    // between them, so a short log axis spanning several decades stays legible.
     const labelled = [];
     for (const pass of [true, false]) {
       for (const { v, major } of yTicks) {
         if (major !== pass) continue;
         const y = sy(v);
-        if (!major && labelled.some((l) => Math.abs(l - y) < MIN_LABEL_GAP)) continue;
+        if (labelled.some((l) => Math.abs(l - y) < MIN_LABEL_GAP)) continue;
         labelled.push(y);
         ctx.fillText(this.options.formatY(v), MARGIN.left - 8, y);
       }

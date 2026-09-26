@@ -194,10 +194,10 @@ def latency_stats(times, info, workers):
     lat = []
     grow = []
     deps = dependencies(info)
+    order = sorted(range(len(info)), key=lambda w: info[w][2])
     for row in times:
         ls = schedule(row, info, workers, deps)
         lat.extend(ls)
-        order = sorted(range(len(info)), key=lambda w: info[w][2])
         seq = [ls[w] for w in order]
         q = max(1, len(seq) // 4)
         grow.append(np.mean(seq[-q:]) / max(np.mean(seq[q:2 * q]), 1e-12))
@@ -269,17 +269,9 @@ def cmd_million(args):
             failures, streams, unexplained, times_b, info, wall = sq.stream_decode(
                 "rotated", d, p, rounds, d, d, mode, corr, 1, 11, 1)
             times = np.frombuffer(times_b, "<f8")
-            deps = dependencies(info)
-            by_k = {}
-            for k in ((1,) if mode == "sliding" else (1, 2, 4, 8, 16)):
-                lat = np.array(schedule(times, info, k, deps))
-                q = len(lat) // 4
-                order = np.argsort([x[2] for x in info])
-                seq = lat[order]
-                growth = float(seq[-q:].mean() / max(seq[q:2 * q].mean(), 1e-12))
-                by_k[k] = dict(mean_us=float(lat.mean() * 1e6), p99_us=float(np.percentile(lat, 99) * 1e6),
-                               max_us=float(lat.max() * 1e6), final_us=float(seq[-1] * 1e6), growth=growth,
-                               keeps_up=bool(growth < 1.1))
+            # One batch, so one row: lane 0's time for every window of the stream.
+            by_k = {k: latency_stats(times.reshape(1, -1), info, k)
+                    for k in ((1,) if mode == "sliding" else (1, 2, 4, 8, 16))}
             run = dict(matcher=m, mode=mode, streams=streams, windows=len(info), unexplained=int(unexplained),
                        failures=int(failures), wall_seconds=wall,
                        rounds_per_second_one_thread=streams * rounds / wall,

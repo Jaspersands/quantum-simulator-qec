@@ -27,7 +27,7 @@ use crate::dem::Dem;
 use crate::dem_decoder::DecodeError;
 use crate::memory::{generate, CodeKind, NoiseModel};
 use crate::sparse::Scratch;
-use crate::window::{plan, Mode, Model, Spec, WindowDecoder};
+use crate::window::{check_schedule, plan, Mode, Model, Spec, WindowDecoder};
 
 /// Windows matched from each end of the stream to the template's ends.
 const EDGE: usize = 3;
@@ -94,6 +94,7 @@ impl StreamDecoder {
         mode: Mode,
         stream_rounds: usize,
     ) -> Result<StreamDecoder, String> {
+        check_schedule(commit, buffer, mode)?;
         // The template's windows repeat with the stream's: same round count
         // modulo the schedule's period, and long enough to have EDGE windows
         // at each end and a whole period of windows between.
@@ -110,7 +111,7 @@ impl StreamDecoder {
         };
         let circuit = generate(kind, d, rounds, NoiseModel::Sd6 { p }, basis)?;
         let dem = Dem::from_circuit(&circuit)?;
-        let template = WindowDecoder::new(Model::new(&dem)?, commit, buffer, mode);
+        let template = WindowDecoder::new(Model::new(&dem)?, commit, buffer, mode)?;
         let layers = &template.model.layers;
         let mut place = vec![(0u32, 0u32); template.model.num_detectors];
         for (l, members) in layers.members.iter().enumerate() {
@@ -138,8 +139,11 @@ impl StreamDecoder {
     /// The windows of a stream of `stream_rounds` rounds (the template's
     /// layers plus one per extra round), each tied to its template window.
     pub fn plan(&self, stream_rounds: usize) -> Result<StreamPlan, String> {
+        if stream_rounds < self.template_rounds {
+            return Err(format!("a stream of {stream_rounds} rounds is shorter than its {}-round template", self.template_rounds));
+        }
         let layers = (self.template.model.layers.count() + stream_rounds - self.template_rounds) as u32;
-        let specs = plan(layers, self.commit, self.buffer, self.mode);
+        let specs = plan(layers, self.commit, self.buffer, self.mode)?;
         let (t_specs, s_time, t_time) = (&self.template.specs, by_time(&specs), by_time(&self.template.specs));
         let (n_s, n_t) = (specs.len(), t_specs.len());
         let per = if self.mode == Mode::Sliding { 1 } else { 2 };
@@ -185,6 +189,10 @@ pub struct Stream<'a> {
     /// Live defect words per layer, from layer `base`.
     live: VecDeque<Vec<u64>>,
     base: u32,
+    /// Defects in layers already let go: no window was left to explain them.
+    dropped: usize,
+    /// One lane's defects in the window being decoded, reused.
+    defects: Vec<u32>,
     complete: u32,
     pos: usize,
     pub predictions: [u64; 64],
@@ -209,6 +217,8 @@ impl<'a> Stream<'a> {
             correlated,
             live: VecDeque::new(),
             base: 0,
+            dropped: 0,
+            defects: Vec::new(),
             complete: 0,
             pos: 0,
             predictions: [0; 64],
@@ -245,9 +255,12 @@ impl<'a> Stream<'a> {
             let wi = self.plan.order[self.pos];
             self.decode_window(wi)?;
             self.pos += 1;
+            // Let go of the layers no window still to come reads, counting any
+            // defect left in them: nothing can explain it any more.
             let keep = self.plan.suffix_min_a[self.pos].min(self.complete);
-            while self.base < keep && !self.live.is_empty() {
-                self.live.pop_front();
+            while self.base < keep {
+                let Some(row) = self.live.pop_front() else { break };
+                self.dropped += row.iter().map(|w| w.count_ones() as usize).sum::<usize>();
                 self.base += 1;
             }
         }
@@ -261,9 +274,10 @@ impl<'a> Stream<'a> {
         let model = &dec.template.model;
         let boundary = model.num_detectors as u32;
         let (c0, c1) = (spec.commit.0 - off, spec.commit.1 - off);
+        let mut defects = std::mem::take(&mut self.defects);
         for lane in 0..64 {
             let bit = 1u64 << lane;
-            let mut defects = Vec::new();
+            defects.clear();
             for (li, ranks) in dec.local[ti].iter().enumerate() {
                 if let Some(row) = self.live.get((spec.a + li as u32 - self.base) as usize) {
                     for (r, &node) in ranks.iter().enumerate() {
@@ -299,16 +313,19 @@ impl<'a> Stream<'a> {
                 }
             }
         }
+        self.defects = defects;
         Ok(())
     }
 
-    /// Every window decoded; returns the defects left unexplained, over all 64 streams.
+    /// Every window decoded; returns the defects left unexplained, over all 64
+    /// streams: those in layers already let go, and those still held.
     pub fn finish(mut self) -> Result<(Self, usize), DecodeError> {
         self.advance()?;
         if self.pos != self.plan.order.len() {
             return Err(DecodeError::MatcherDeclined);
         }
-        let unexplained = self.live.iter().flatten().map(|w| w.count_ones() as usize).sum();
+        let held: usize = self.live.iter().flatten().map(|w| w.count_ones() as usize).sum();
+        let unexplained = self.dropped + held;
         Ok((self, unexplained))
     }
 }
@@ -356,21 +373,21 @@ mod tests {
     use crate::memory::generate_repeat;
     use crate::surface_code::Xorshift;
 
-    /// On a 60-round stream, windows taken from a shorter template decode every
-    /// one of 64 streams exactly as windows cut from the full 60-round model.
-    #[test]
-    fn a_template_decodes_exactly_as_the_full_model() {
-        let (d, rounds, p) = (3usize, 60usize, 0.008);
+    /// On a stream longer than its template, windows taken from the template
+    /// decode every one of 64 streams exactly as windows cut from the full
+    /// model of the stream.
+    fn template_matches_full_model(d: usize, rounds: usize, commit: usize, buffer: usize) {
+        let p = 0.008;
         let circuit = generate_repeat(CodeKind::Rotated, d, rounds, p, Basis::Z).unwrap();
         let sampler = BatchSampler::new(&circuit).unwrap();
         let full = Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap();
         let full_layers = full.layers.count();
         for mode in [Mode::Sliding, Mode::Parallel] {
-            let dec = StreamDecoder::new(CodeKind::Rotated, d, p, Basis::Z, d, d, mode, rounds).unwrap();
+            let dec = StreamDecoder::new(CodeKind::Rotated, d, p, Basis::Z, commit, buffer, mode, rounds).unwrap();
             assert!(dec.template_rounds < rounds, "{mode:?}: template of {} rounds", dec.template_rounds);
             let plan = dec.plan(rounds).unwrap();
             assert_eq!(plan.layers as usize, full_layers);
-            let wd = WindowDecoder::new(Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap(), d, d, mode);
+            let wd = WindowDecoder::new(Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap(), commit, buffer, mode).unwrap();
             let mut full_scratch = wd.scratches();
             for correlated in [false, true] {
                 let mut rng = Xorshift::new(21);
@@ -382,10 +399,48 @@ mod tests {
                 for (lane, &p) in pred.iter().enumerate() {
                     let want = wd.decode_with(&batch.lane_defects(lane), correlated, &mut full_scratch).unwrap();
                     assert_eq!(want.unexplained, 0);
-                    assert_eq!(p, want.observables, "{mode:?} correlated {correlated}, lane {lane}");
+                    assert_eq!(p, want.observables, "d = {d} C = {commit} B = {buffer} {mode:?} correlated {correlated}, lane {lane}");
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_template_decodes_exactly_as_the_full_model() {
+        template_matches_full_model(3, 60, 3, 3);
+    }
+
+    /// The million-round configuration (d = 5, commit and buffer 5), and a
+    /// commit shorter than the buffer, whose period differs.
+    #[test]
+    fn a_template_decodes_exactly_as_the_full_model_at_d5_and_unequal_windows() {
+        template_matches_full_model(5, 100, 5, 5);
+        template_matches_full_model(3, 60, 2, 3);
+    }
+
+    /// A defect in a layer no window will read again is counted when the
+    /// layer is let go, not lost with it.
+    #[test]
+    fn defects_left_behind_are_counted() {
+        let rounds = 30;
+        let dec = StreamDecoder::new(CodeKind::Rotated, 3, 0.001, Basis::Z, 3, 3, Mode::Sliding, rounds).unwrap();
+        let plan = dec.plan(rounds).unwrap();
+        let members = &dec.template.model.layers.members;
+        let mut scratches = dec.scratches();
+        let mut stream = Stream::new(&dec, &plan, false, &mut scratches, None);
+        // Skip every window but the last, so layer 0's defect is never read.
+        stream.pos = plan.order.len() - 1;
+        for l in 0..plan.layers as usize {
+            let len = members[(l).min(members.len() - 1)].len();
+            let mut row = vec![0u64; len];
+            if l == 0 {
+                row[0] = 1 << 5;
+            }
+            stream.push_layer(&row).unwrap();
+        }
+        assert!(stream.live.is_empty(), "every layer let go after the last window");
+        let (_, unexplained) = stream.finish().unwrap();
+        assert_eq!(unexplained, 1);
     }
 
     /// The bulk windows repeat: at three offsets deep in a long model, the

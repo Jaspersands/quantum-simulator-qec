@@ -9,10 +9,12 @@
 import { readFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { instantiate, runBenchmark, NOISE, hwM2d, hwModel, hwDecode, rtSetup, rtWindows, rtGlobal } from '../js/engine.js';
 
 const root = new URL('../', import.meta.url);
-const wasmPath = process.argv[2] ? new URL(process.argv[2], `file://${process.cwd()}/`) : new URL('stabilizer_qec.wasm', root);
+const wasmPath = process.argv[2] ? pathToFileURL(resolve(process.argv[2])) : new URL('stabilizer_qec.wasm', root);
 const module = await WebAssembly.compile(await readFile(wasmPath));
 const instance = await instantiate(module);
 

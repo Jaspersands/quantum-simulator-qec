@@ -196,7 +196,10 @@ export function initRealtime(root, compute) {
     if (started || !entries.some((e) => e.isIntersecting)) return;
     started = true;
     observer.disconnect();
-    runRecorded().then(runLive);
+    // The live figure runs whatever became of the recorded one.
+    runRecorded()
+      .catch((error) => { $('[data-rt-fit-status]', fitFig).textContent = `Failed: ${error.message}`; })
+      .then(runLive);
   }, { rootMargin: '200px 0px' });
   observer.observe(fitFig);
   observer.observe(liveFig);

@@ -166,10 +166,28 @@ pub struct Spec {
     pub phase: usize,
 }
 
+/// A schedule's shape is sound: a window commits at least one layer, and
+/// parallel windows have a buffer. Layer B lives in the gaps between A's
+/// commit regions, 2B layers wide; with no buffer there are no gaps, and a
+/// correction an A window reaches back into its neighbour with would have
+/// nowhere to be resolved.
+pub fn check_schedule(commit: usize, buffer: usize, mode: Mode) -> Result<(), String> {
+    if commit == 0 {
+        return Err("a window must commit at least one layer".into());
+    }
+    if mode == Mode::Parallel && buffer == 0 {
+        return Err("parallel windows need a buffer of at least one layer".into());
+    }
+    if commit + 2 * buffer > u32::MAX as usize {
+        return Err(format!("commit {commit} and buffer {buffer} are too large"));
+    }
+    Ok(())
+}
+
 /// The windows of a schedule over `total` layers, in the order they are
 /// planned (sliding: in time; parallel: layer A in time, then layer B).
-pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Vec<Spec> {
-    assert!(commit > 0, "a window must commit at least one layer");
+pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Result<Vec<Spec>, String> {
+    check_schedule(commit, buffer, mode)?;
     let (c, b) = (commit as u32, buffer as u32);
     let mut out = Vec::new();
     match mode {
@@ -184,11 +202,6 @@ pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Vec<Spec> {
             }
         }
         Mode::Parallel => {
-            // Layer B lives in the gaps between A's commit regions, 2B layers
-            // wide. With no buffer there are no gaps, and a correction an A
-            // window reaches back into its neighbour with would have nowhere to
-            // be resolved.
-            assert!(buffer >= 1, "parallel windows need a buffer of at least one layer");
             let mut starts = Vec::new();
             let mut s = 0u32;
             while s < total {
@@ -205,7 +218,7 @@ pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Vec<Spec> {
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// A window's graph and its commit region.
@@ -234,15 +247,15 @@ pub struct Outcome {
 }
 
 impl WindowDecoder {
-    pub fn new(model: Model, commit: usize, buffer: usize, mode: Mode) -> WindowDecoder {
-        let specs = plan(model.layers.count() as u32, commit, buffer, mode);
+    pub fn new(model: Model, commit: usize, buffer: usize, mode: Mode) -> Result<WindowDecoder, String> {
+        let specs = plan(model.layers.count() as u32, commit, buffer, mode)?;
         let windows =
             specs.iter().map(|s| Planned { window: model.window(s.a, s.b, s.past, s.future), commit: s.commit }).collect();
         let mut phases: Vec<Vec<usize>> = vec![Vec::new(); specs.iter().map(|s| s.phase + 1).max().unwrap_or(0)];
         for (i, s) in specs.iter().enumerate() {
             phases[s.phase].push(i);
         }
-        WindowDecoder { model, specs, windows, phases, mode }
+        Ok(WindowDecoder { model, specs, windows, phases, mode })
     }
 
     /// One scratch per window, sized for its graph.
@@ -336,10 +349,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "buffer of at least one layer")]
-    fn parallel_windows_refuse_no_buffer() {
+    fn unsound_schedules_are_refused() {
         let (_, dem) = sd6(CodeKind::Rotated, 3, 5, 0.005);
-        WindowDecoder::new(Model::new(&dem).unwrap(), 2, 0, Mode::Parallel);
+        let refused = |c, b, mode| WindowDecoder::new(Model::new(&dem).unwrap(), c, b, mode).err().unwrap_or_default();
+        assert!(refused(2, 0, Mode::Parallel).contains("buffer of at least one layer"));
+        assert!(refused(0, 2, Mode::Parallel).contains("at least one layer"));
+        assert!(refused(0, 2, Mode::Sliding).contains("at least one layer"));
+        assert!(WindowDecoder::new(Model::new(&dem).unwrap(), 2, 0, Mode::Sliding).is_ok());
     }
 
     #[test]
@@ -448,7 +464,7 @@ mod tests {
                 let dec = DemDecoder::new(&dem).unwrap();
                 let sampler = FrameSampler::new(&c).unwrap();
                 for mode in [Mode::Sliding, Mode::Parallel] {
-                    let wd = WindowDecoder::new(Model::new(&dem).unwrap(), 1000, 3, mode);
+                    let wd = WindowDecoder::new(Model::new(&dem).unwrap(), 1000, 3, mode).unwrap();
                     assert_eq!(wd.windows.len(), 1);
                     let mut scratches = wd.scratches();
                     let mut s = Scratch::new(dec.graph());
@@ -482,7 +498,7 @@ mod tests {
             for mode in [Mode::Sliding, Mode::Parallel] {
                 for commit in 1..=3 {
                     for buffer in usize::from(mode == Mode::Parallel)..=3 {
-                        let wd = WindowDecoder::new(Model::new(&dem).unwrap(), commit, buffer, mode);
+                        let wd = WindowDecoder::new(Model::new(&dem).unwrap(), commit, buffer, mode).unwrap();
                         let mut scratches = wd.scratches();
                         for defects in &shots {
                             for correlated in [false, true] {
@@ -512,7 +528,7 @@ mod tests {
             })
             .collect();
         for mode in [Mode::Sliding, Mode::Parallel] {
-            let wd = WindowDecoder::new(Model::new(&dem).unwrap(), 5, 5, mode);
+            let wd = WindowDecoder::new(Model::new(&dem).unwrap(), 5, 5, mode).unwrap();
             let mut scratches = wd.scratches();
             for correlated in [false, true] {
                 let (mut global, mut windowed, mut differ) = (0i64, 0i64, 0i64);
