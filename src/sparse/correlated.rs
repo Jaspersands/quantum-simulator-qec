@@ -64,6 +64,9 @@ impl FaultEdges {
             }
             for piece in &m.pieces {
                 let (u, v) = match piece.detectors.as_slice() {
+                    // Observables alone: no edge, as in plain matching. (PyMatching's
+                    // correlated mode refuses such a model outright.)
+                    [] => continue,
                     [a] => (*a, boundary),
                     [a, b] => (*a.min(b), *a.max(b)),
                     other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),

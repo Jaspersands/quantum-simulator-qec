@@ -139,6 +139,9 @@ pub(crate) fn merged_edges(dem: &Dem) -> Result<(Vec<(u32, u32, f64, u64)>, usiz
         }
         for piece in &m.pieces {
             let key = match piece.detectors.as_slice() {
+                // A piece of observables alone fires nothing to match; PyMatching
+                // drops it too.
+                [] => continue,
                 [a] => (*a, boundary),
                 [a, b] => (*a.min(b), *a.max(b)),
                 other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
@@ -577,6 +580,17 @@ mod tests {
         let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1").unwrap()).unwrap();
         assert_eq!(dec.conflicts, 1);
         assert_eq!(dec.decode(&[0, 1]).unwrap().observables, 0);
+    }
+
+    #[test]
+    fn a_piece_of_observables_alone_is_no_edge() {
+        // Stim's split of a fault through a conflicting piece; PyMatching builds
+        // the same two edges from it.
+        let dem = Dem::parse("error(0.05) D0 D1 L0 ^ D2 ^ L0\nerror(0.1) D0 D1\nerror(0.1) D2\nerror(0.2) D0 D1 L0").unwrap();
+        let dec = DemDecoder::new(&dem).unwrap();
+        assert_eq!(dec.graph().num_edges(), 2);
+        assert!(dec.decode(&[0, 1, 2]).is_ok());
+        assert!(dec.decode_correlated(&[0, 1, 2]).is_ok());
     }
 
     #[test]

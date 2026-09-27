@@ -20,7 +20,8 @@
 //! `sz` non-empty means some detector anticommutes with the state the reset
 //! prepares, so its value is a coin flip. That is an error, not a warning.
 
-use std::collections::HashMap;
+use std::collections::hash_map::Entry as Slot;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use crate::circuit::{fmt_args, split_instruction, Basis, Circuit, Instr};
@@ -185,8 +186,40 @@ struct Entry {
     /// its own probability. Faults can share a symptom without sharing a
     /// decomposition, and each contributes its own pieces to the matching graph,
     /// as they do in Stim's decomposed models.
-    variants: Vec<(Vec<Vec<u64>>, f64)>,
+    variants: Vec<Variant>,
     origin: Origin,
+}
+
+struct Variant {
+    /// The pieces, sorted.
+    pieces: Vec<Vec<u64>>,
+    p: f64,
+    /// The order the pieces first arrived in, and any other order they arrived
+    /// in since (see `Order`). Stim keeps each order as its own error class,
+    /// and the order of its classes decides which of two conflicting pieces it
+    /// splits a wider fault by (see `known_pieces`).
+    order: Order,
+    more_orders: Vec<Order>,
+}
+
+/// An arrival order of a fault's pieces: the place among the sorted pieces of
+/// the j-th to arrive, in bits 4j..4j+4. A fault splits into four pieces at
+/// most (a two-qubit channel's four generators); beyond sixteen the order is
+/// not kept and the sorted one stands in, `UNORDERED`.
+type Order = u64;
+const UNORDERED: Order = u64::MAX;
+
+impl Variant {
+    /// The pieces in each order they arrived in.
+    fn arrivals(&self) -> impl Iterator<Item = Vec<&Vec<u64>>> + '_ {
+        std::iter::once(self.order).chain(self.more_orders.iter().copied()).map(move |code| {
+            let n = self.pieces.len();
+            if code == UNORDERED {
+                return self.pieces.iter().collect();
+            }
+            (0..n).map(|j| &self.pieces[((code >> (4 * j)) & 15) as usize]).collect()
+        })
+    }
 }
 
 struct Builder {
@@ -202,7 +235,28 @@ impl Builder {
             return;
         }
         let mut pieces: Vec<Vec<u64>> = pieces.into_iter().filter(|x| !is_zero(x)).collect();
-        pieces.sort();
+        // Sort the pieces, keeping where each arrival went (equal pieces in
+        // arrival order).
+        let order = if pieces.len() <= 1 {
+            0
+        } else if pieces.len() > 16 {
+            pieces.sort();
+            UNORDERED
+        } else {
+            let n = pieces.len();
+            let mut by_value = [0u8; 16];
+            for (j, slot) in by_value[..n].iter_mut().enumerate() {
+                *slot = j as u8;
+            }
+            by_value[..n].sort_by(|&a, &b| pieces[a as usize].cmp(&pieces[b as usize]));
+            let mut code: Order = 0;
+            for (place, &j) in by_value[..n].iter().enumerate() {
+                code |= (place as u64) << (4 * j as u64);
+            }
+            let mut arrived = std::mem::take(&mut pieces);
+            pieces = by_value[..n].iter().map(|&j| std::mem::take(&mut arrived[j as usize])).collect();
+            code
+        };
         let mut sym = self.space.zero();
         for x in &pieces {
             xor_into(&mut sym, x);
@@ -214,14 +268,20 @@ impl Builder {
             Some(&i) => {
                 let e = &mut self.entries[i];
                 e.p = xor_prob(e.p, p);
-                match e.variants.iter_mut().find(|v| v.0 == pieces) {
-                    Some(v) => v.1 = xor_prob(v.1, p),
-                    None => e.variants.push((pieces, p)),
+                match e.variants.iter_mut().find(|v| v.pieces == pieces) {
+                    Some(v) => {
+                        v.p = xor_prob(v.p, p);
+                        if v.order != order && !v.more_orders.contains(&order) {
+                            v.more_orders.push(order);
+                        }
+                    }
+                    None => e.variants.push(Variant { pieces, p, order, more_orders: Vec::new() }),
                 }
             }
             None => {
                 self.index.insert(sym.clone(), self.entries.len());
-                self.entries.push(Entry { sym, p, variants: vec![(pieces, p)], origin });
+                let variant = Variant { pieces, p, order, more_orders: Vec::new() };
+                self.entries.push(Entry { sym, p, variants: vec![variant], origin });
             }
         }
     }
@@ -454,23 +514,13 @@ impl Dem {
         // The global pass, as Stim runs it when the circuit is done: every
         // one- or two-detector piece is a known edge, and any fault still holding
         // a wider piece is rewritten into known edges.
-        let mut known: HashMap<Vec<u32>, Vec<u64>> = HashMap::new();
-        for e in &b.entries {
-            for (pieces, _) in &e.variants {
-                for x in pieces {
-                    let (dets, _) = space.split(x);
-                    if (1..=2).contains(&dets.len()) {
-                        known.entry(dets).or_insert_with(|| x.clone());
-                    }
-                }
-            }
-        }
+        let known = known_pieces(&space, &b.entries);
 
         let mut mechanisms = Vec::with_capacity(b.entries.len());
         for e in &b.entries {
             let (detectors, observables) = space.split(&e.sym);
             let mut grouped: Vec<(Vec<Piece>, f64)> = Vec::new();
-            for (pieces, p) in &e.variants {
+            for Variant { pieces, p, .. } in &e.variants {
                 let graphlike = pieces.iter().all(|x| (1..=2).contains(&space.split(x).0.len()));
                 let rewritten: Vec<Vec<u64>> = if graphlike {
                     pieces.clone()
@@ -494,7 +544,10 @@ impl Dem {
                 let mut final_pieces = Vec::with_capacity(rewritten.len());
                 for x in &rewritten {
                     let (dets, obs) = space.split(x);
-                    if dets.is_empty() || dets.len() > 2 {
+                    // A piece of observables alone is Stim's too: what is left
+                    // when the known pieces a fault splits into carry other
+                    // observables than the fault (a weight-two logical).
+                    if dets.len() > 2 {
                         return Err(format!(
                             "cannot split {} into graph-like pieces: a piece fires detectors {:?}",
                             e.origin.describe(),
@@ -519,6 +572,101 @@ impl Dem {
 
         Ok(Dem { num_detectors: nd, num_observables: no, detector_coords: res.detector_coords, mechanisms })
     }
+}
+
+/// Stim's map from a one- or two-detector set to the piece a wider fault is
+/// split by (`do_global_error_decomposition_pass`). Stim assigns every such
+/// piece of every error class in turn, its classes sorted by their targets, so
+/// where two pieces fire the same detectors with different observables (a
+/// weight-two logical), the last class's wins. Where all agree, order cannot
+/// matter, so the sort is only done for the detector sets in conflict.
+fn known_pieces(space: &Space, entries: &[Entry]) -> HashMap<Vec<u32>, Vec<u64>> {
+    let mut known: HashMap<Vec<u32>, Vec<u64>> = HashMap::new();
+    let mut conflicted: HashSet<Vec<u32>> = HashSet::new();
+    for e in entries {
+        for v in &e.variants {
+            for x in &v.pieces {
+                let (dets, _) = space.split(x);
+                if (1..=2).contains(&dets.len()) {
+                    match known.entry(dets) {
+                        Slot::Vacant(slot) => {
+                            slot.insert(x.clone());
+                        }
+                        Slot::Occupied(slot) => {
+                            if slot.get() != x {
+                                conflicted.insert(slot.key().clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if conflicted.is_empty() {
+        return known;
+    }
+    // For each set in conflict: the class that sorts last, and its last piece
+    // on that set.
+    let mut last: HashMap<Vec<u32>, (Vec<u64>, Vec<u64>)> = HashMap::new();
+    for e in entries {
+        for v in &e.variants {
+            for pieces in v.arrivals() {
+                let hits = pieces.iter().any(|x| conflicted.contains(&space.split(x).0));
+                if !hits {
+                    continue;
+                }
+                let key = stim_class_key(space, &pieces);
+                for x in pieces {
+                    let (dets, _) = space.split(x);
+                    if conflicted.contains(&dets) && last.get(&dets).is_none_or(|(k, _)| key >= *k) {
+                        last.insert(dets, (key.clone(), x.clone()));
+                    }
+                }
+            }
+        }
+    }
+    for (dets, (_, x)) in last {
+        known.insert(dets, x);
+    }
+    known
+}
+
+/// Two pieces in the order of their targets, as `stim_class_key` would give
+/// it, without building the keys: detector targets are the detectors' numbers
+/// and observable targets carry the top bit, so a piece's targets ascend as
+/// its set bits do, and the comparison is of the set bits in turn.
+fn stim_cmp(a: &[u64], b: &[u64]) -> std::cmp::Ordering {
+    set_bits(a).cmp(set_bits(b))
+}
+
+/// The indices of a symptom's set bits, ascending.
+fn set_bits(v: &[u64]) -> impl Iterator<Item = usize> + '_ {
+    v.iter().enumerate().flat_map(|(w, &word)| {
+        let mut rest = word;
+        std::iter::from_fn(move || {
+            (rest != 0).then(|| {
+                let i = rest.trailing_zeros();
+                rest &= rest - 1;
+                w * 64 + i as usize
+            })
+        })
+    })
+}
+
+/// An error class's targets as Stim orders them: each piece's detectors
+/// ascending, then its observables (whose targets carry the top bit), pieces
+/// joined by the separator, which sorts after everything.
+fn stim_class_key(space: &Space, pieces: &[&Vec<u64>]) -> Vec<u64> {
+    let mut key = Vec::new();
+    for (k, x) in pieces.iter().enumerate() {
+        if k > 0 {
+            key.push(u64::MAX);
+        }
+        let (dets, obs) = space.split(x);
+        key.extend(dets.iter().map(|&d| u64::from(d)));
+        key.extend((0..64).filter(|&i| (obs >> i) & 1 == 1).map(|i| (1u64 << 63) | i));
+    }
+    key
 }
 
 /* -- Decomposition --------------------------------------------------------- */
@@ -628,6 +776,12 @@ fn channel_combinations(space: &Space, basis: &[Vec<u64>]) -> Vec<Vec<Vec<u64>>>
             }
             match found {
                 Some((k1, k2, both)) => {
+                    // Stim appends the pair whose targets sort first first.
+                    let (k1, k2) = if stim_cmp(&sym[k2], &sym[k1]).is_lt() {
+                        (k2, k1)
+                    } else {
+                        (k1, k2)
+                    };
                     pieces.push(sym[k1].clone());
                     pieces.push(sym[k2].clone());
                     remnants = and_not(goal, &both);
@@ -1111,5 +1265,54 @@ mod tests {
         let with = Circuit::parse(&text).unwrap();
         assert_ne!(with, base);
         assert_eq!(Dem::from_circuit(&with).unwrap().to_stim(true), Dem::from_circuit(&base).unwrap().to_stim(true));
+    }
+
+    /// A model as a set of lines, "p pieces", each piece's targets sorted and
+    /// the pieces sorted: Stim's piece order within a line is not part of the
+    /// model.
+    fn normalised(dem: &Dem) -> Vec<String> {
+        let mut out: Vec<String> = dem
+            .mechanisms
+            .iter()
+            .map(|m| {
+                let mut pieces: Vec<String> = m
+                    .pieces
+                    .iter()
+                    .map(|pc| {
+                        let mut t: Vec<String> = pc.detectors.iter().map(|d| format!("D{d}")).collect();
+                        t.extend((0..64).filter(|i| (pc.observables >> i) & 1 == 1).map(|i| format!("L{i}")));
+                        t.sort();
+                        t.join(" ")
+                    })
+                    .collect();
+                pieces.sort();
+                let p = format!("{:.9}", m.p);
+                format!("{} {}", p.trim_end_matches('0').trim_end_matches('.'), pieces.join(" ^ "))
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// Where two faults fire the same detectors with different observables (a
+    /// weight-two logical), a wider fault is split as Stim splits it: by the
+    /// piece of the error class Stim sorts last, with a piece of observables
+    /// alone where the pieces' observables fall short of the fault's. The
+    /// first case differs from the second only in the order of two faults,
+    /// which would change the piece if the first one found were kept. The
+    /// expected models are Stim 1.16's.
+    #[test]
+    fn conflicting_pieces_split_as_stim_splits_them() {
+        let cases: &[(&str, &str, &[&str])] = &[
+        ("obs-on-q1-reordered", "R 0 1 2\nX_ERROR(0.05) 0\nCX 0 2\nX_ERROR(0.2) 1\nX_ERROR(0.1) 0\nX_ERROR(0.1) 2\nM 0 1 2\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-2]\n", &["0.05 D0 D1 L0 ^ D2 ^ L0", "0.1 D0 D1", "0.1 D2", "0.2 D0 D1 L0"]),
+        ("obs-on-q1", "R 0 1 2\nX_ERROR(0.05) 0\nCX 0 2\nX_ERROR(0.1) 0\nX_ERROR(0.2) 1\nX_ERROR(0.1) 2\nM 0 1 2\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-2]\n", &["0.05 D0 D1 L0 ^ D2 ^ L0", "0.1 D0 D1", "0.1 D2", "0.2 D0 D1 L0"]),
+        ("obs-on-q0", "R 0 1 2\nX_ERROR(0.05) 0\nCX 0 2\nX_ERROR(0.1) 0\nX_ERROR(0.2) 1\nX_ERROR(0.1) 2\nM 0 1 2\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-3]\n", &["0.05 D0 D1 L0 ^ D2", "0.1 D0 D1 L0", "0.1 D2", "0.2 D0 D1"]),
+        ("split-through-q1", "R 0 1 2\nX_ERROR(0.05) 1\nCX 1 2\nX_ERROR(0.1) 0\nX_ERROR(0.2) 1\nX_ERROR(0.1) 2\nM 0 1 2\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-3] rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-2]\n", &["0.05 D0 D1 L0 ^ D2", "0.1 D0 D1", "0.1 D2", "0.2 D0 D1 L0"]),
+        ("three-way", "R 0 1 2 3\nX_ERROR(0.05) 0\nCX 0 3\nX_ERROR(0.04) 2\nCX 2 3\nX_ERROR(0.1) 0\nX_ERROR(0.2) 1\nX_ERROR(0.15) 2\nX_ERROR(0.1) 3\nM 0 1 2 3\nDETECTOR rec[-4] rec[-3] rec[-2]\nDETECTOR rec[-4] rec[-3] rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-3]\nOBSERVABLE_INCLUDE(1) rec[-2]\n", &["0.04 D0 D1 L1 ^ D2", "0.05 D0 D1 L1 ^ D2 ^ L1", "0.1 D0 D1", "0.1 D2", "0.15 D0 D1 L1", "0.2 D0 D1 L0"]),
+        ];
+        for &(name, text, stim) in cases {
+            let dem = Dem::from_circuit(&Circuit::parse(text).unwrap()).unwrap();
+            assert_eq!(normalised(&dem), stim.iter().map(|s| s.to_string()).collect::<Vec<_>>(), "{name}");
+        }
     }
 }
