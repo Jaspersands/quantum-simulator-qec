@@ -37,14 +37,14 @@ pub(crate) struct RadixHeap<T> {
     /// Entries at time `last`, least item first.
     current: BinaryHeap<Reverse<T>>,
     /// Bucket b holds times whose highest bit differing from `last` is b − 1.
-    buckets: Vec<Vec<(i64, T)>>,
+    buckets: [Vec<(i64, T)>; 64],
     /// Which buckets hold anything, one bit per bucket.
     occupied: u64,
 }
 
 impl<T: Ord + Copy> Default for RadixHeap<T> {
     fn default() -> Self {
-        RadixHeap { last: 0, current: BinaryHeap::new(), buckets: (0..64).map(|_| Vec::new()).collect(), occupied: 0 }
+        RadixHeap { last: 0, current: BinaryHeap::new(), buckets: std::array::from_fn(|_| Vec::new()), occupied: 0 }
     }
 }
 

@@ -50,8 +50,10 @@ impl<'a> Solver<'a> {
         self.s.touched.clear();
         // Keep the regions' and tree nodes' vectors for the next shot's.
         let s = &mut *self.s;
-        // Region 0, nobody's, stays.
-        for r in s.regions.drain(super::state::NOBODY + 1..) {
+        // Region 0, nobody's, stays: next_node_event reads it for every empty
+        // neighbour.
+        assert!(s.regions.len() > NOBODY && s.regions[NOBODY].dead, "region 0, nobody's, is missing");
+        for r in s.regions.drain(NOBODY + 1..) {
             if r.shell.capacity() > 0 {
                 let mut v = r.shell;
                 v.clear();
@@ -403,6 +405,12 @@ impl<'a> Solver<'a> {
     /// an empty node, nor a region and the boundary) overlap across an edge.
     pub(crate) fn check_invariants(&self) {
         let now = self.s.now;
+        // What next_node_event reads in place of branches: nobody's region,
+        // dead and of radius zero, and the boundary's node, empty.
+        let nobody = &self.s.regions[NOBODY];
+        assert!(nobody.dead && nobody.radius.y0 == 0 && nobody.radius.slope == 0, "region 0 is no longer nobody's");
+        let beyond = &self.s.nodes[self.g.num_nodes];
+        assert!(beyond.top == NONE && beyond.wrapped == 0, "the boundary's node has been reached");
         for (i, r) in self.s.regions.iter().enumerate() {
             if !r.dead {
                 assert!(r.radius.at(now) >= 0, "region {i} has radius {} at {now}", r.radius.at(now));

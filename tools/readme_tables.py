@@ -12,6 +12,8 @@ load = lambda path: json.loads((ROOT / path).read_text())
 
 
 def sci(x):
+    if x == 0:
+        return "0"
     e = math.floor(math.log10(x)); m = x / 10 ** e
     if round(m, 1) >= 10:
         m, e = m / 10, e + 1
@@ -91,17 +93,26 @@ def latency():
     cores = lambda k: f"{k} core" + ("" if k == 1 else "s")
 
     def first_k(by):
-        return min(int(k) for k, v in by.items() if v["keeps_up"])
+        # The fewest workers that keep up, or None if none measured does.
+        return min((int(k) for k, v in by.items() if v["keeps_up"]), default=None)
 
     rows = []
     for d, mode, m in ((3, "sliding", "plain"), (3, "parallel", "correlated"), (5, "parallel", "plain"),
                        (5, "parallel", "correlated"), (7, "parallel", "plain"), (7, "parallel", "correlated")):
         s = next(x for x in lat["streams"] if x["d"] == d and x["mode"] == mode and x["matcher"] == m)
-        k = first_k(s["by_workers"]); w = s["by_workers"][str(k)]
+        k = first_k(s["by_workers"])
+        if k is None:
+            rows.append(f"| Willow d = {d} | {mode}, {m} | {us(s['window_us']['mean'])} | falls behind | — | — |")
+            continue
+        w = s["by_workers"][str(k)]
         rows.append(f"| Willow d = {d} | {mode}, {m} | {us(s['window_us']['mean'])} | {cores(k)} | {whole(w['mean_us'])} | {whole(w['p99_us'])} |")
     for m, k2 in (("plain", 4), ("correlated", 8)):
         r = next(x for x in mil["runs"] if x["mode"] == "parallel" and x["matcher"] == m)
-        k = first_k(r["by_workers"]); w = r["by_workers"][str(k)]; w2 = r["by_workers"][str(k2)]
+        k = first_k(r["by_workers"])
+        if k is None:
+            rows.append(f"| SD6 d = 5, 10⁶ rounds | parallel, {m} | {us(r['window_us']['mean'])} | falls behind | — | — |")
+            continue
+        w = r["by_workers"][str(k)]; w2 = r["by_workers"][str(k2)]
         if k2 > k and w2["mean_us"] < 0.8 * w["mean_us"]:
             rows.append(f"| SD6 d = 5, 10⁶ rounds | parallel, {m} | {us(r['window_us']['mean'])} | {cores(k)} ({k2} for {whole(w2['mean_us'])}) | "
                         f"{whole(w['mean_us'])} ({whole(w2['mean_us'])} on {k2}) | {whole(w['p99_us'])} ({whole(w2['p99_us'])} on {k2}) |")
