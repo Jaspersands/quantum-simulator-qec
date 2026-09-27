@@ -341,7 +341,8 @@ The dense and sparse columns come from `cargo test --release --no-default-featur
 -- --ignored --nocapture`. PyMatching's column is from the cross-check's recorded run.
 
 A later pass took the sparse matcher from 2.5–2.9 times PyMatching's time to 1.3–1.7 without changing
-one prediction (checked bit for bit on 100,000 shots at each of eight points, plain and correlated).
+one prediction (checked bit for bit, plain and correlated, on 100,000 shots at each of six points up to
+d = 7, and 20,000 at d = 9 and 11).
 Two steps of the blossom, dissolving a tree and forming a blossom, tested tree nodes for membership
 by scanning lists, which is quadratic in the tree; they now mark nodes instead. Every event also
 allocated: the list of nodes under a region, the path to a root, the tree's stack, and each shot's

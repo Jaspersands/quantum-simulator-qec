@@ -72,13 +72,14 @@ impl<'a> Solver<'a> {
     fn grow_tree(&mut self, n: u32, m: u32, e: CEdge) {
         let (partner, me) = self.s.regions[m as usize].matched.take().expect("matched");
         self.s.regions[partner as usize].matched = None;
+        let children = self.s.spare_u32();
         let child = self.new_alt(AltNode {
             inner: m,
             outer: partner,
             inner_to_outer: me,
             parent: n,
             parent_edge: e,
-            children: Vec::new(),
+            children,
             alive: true,
             mark: 0,
         });
@@ -196,11 +197,12 @@ impl<'a> Solver<'a> {
         }
 
         let len = cycle.len();
+        let shell = self.s.spare_u32();
         let b = self.new_region(Region {
             radius: Radius { y0: -self.s.now, slope: 1 },
             blossom_parent: NONE,
             children: cycle,
-            shell: Vec::new(),
+            shell,
             tree: a,
             matched: None,
             queued: NO_TIME,
@@ -328,13 +330,14 @@ impl<'a> Solver<'a> {
         let (mut parent, mut pedge, mut first) = (p, pe, NONE);
         let mut i = 0;
         while i + 1 < q.len() {
+            let children = self.s.spare_u32();
             let node = self.new_alt(AltNode {
                 inner: q[i],
                 outer: q[i + 1],
                 inner_to_outer: edges[i],
                 parent,
                 parent_edge: pedge,
-                children: Vec::new(),
+                children,
                 alive: true,
                 mark: 0,
             });

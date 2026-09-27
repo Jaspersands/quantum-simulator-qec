@@ -141,7 +141,8 @@ pub struct Scratch {
     pub(crate) under: Vec<u32>,
     pub(crate) under_stack: Vec<u32>,
     /// Emptied vectors from the last shot's regions and tree nodes, reused by
-    /// the next shot's.
+    /// the next shot's. Every new shell and child list draws from here, so
+    /// the pool never holds more than one shot's worth.
     pub(crate) spare_u32: Vec<Vec<u32>>,
     pub(crate) spare_cycles: Vec<Vec<(u32, CEdge)>>,
 }

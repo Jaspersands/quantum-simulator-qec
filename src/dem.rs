@@ -662,9 +662,7 @@ fn stim_class_key(space: &Space, pieces: &[&Vec<u64>]) -> Vec<u64> {
         if k > 0 {
             key.push(u64::MAX);
         }
-        let (dets, obs) = space.split(x);
-        key.extend(dets.iter().map(|&d| u64::from(d)));
-        key.extend((0..64).filter(|&i| (obs >> i) & 1 == 1).map(|i| (1u64 << 63) | i));
+        key.extend(set_bits(x).map(|i| if i < space.nd { i as u64 } else { (1u64 << 63) | (i - space.nd) as u64 }));
     }
     key
 }

@@ -134,13 +134,14 @@ impl<'a> Solver<'a> {
             queued: NO_TIME,
             dead: false,
         });
+        let children = self.s.spare_u32();
         let a = self.new_alt(AltNode {
             inner: NONE,
             outer: r,
             inner_to_outer: none,
             parent: NONE,
             parent_edge: none,
-            children: Vec::new(),
+            children,
             alive: true,
             mark: 0,
         });

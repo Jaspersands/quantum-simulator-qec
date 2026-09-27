@@ -110,11 +110,18 @@ export class Pool {
         this.#pump();
       });
     }
-    // Jobs still waiting: a worker for each, up to the pool's size.
+    // Jobs still waiting: a worker for each, up to the pool's size. A browser
+    // that will not start another worker caps the pool where it stands; the
+    // workers it has carry on.
     if (this.alone) return;
     let wanted = this.queue.length - this.workers.filter((w) => !w.ready).length;
     while (wanted > 0 && this.workers.length < this.size) {
-      this.#spawn();
+      try {
+        this.#spawn();
+      } catch {
+        this.size = this.workers.length;
+        return;
+      }
       wanted -= 1;
     }
   }

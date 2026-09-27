@@ -80,7 +80,8 @@ fn decode_packed<'py>(
 ) -> PyResult<Decoded<'py>> {
     let decoder = DemDecoder::new(dem).map_err(err)?;
     let graph = decoder.graph();
-    let corr = decoder.correlations();
+    // Built only for correlated matching: plain matching never reads them.
+    let corr = correlated.then(|| decoder.correlations());
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
     if packed.len() != stride * num_shots {
@@ -109,10 +110,9 @@ fn decode_packed<'py>(
                             // A failed shot is written as all-ones observables and a NaN
                             // weight, and counted by the NaN: all-ones is a real prediction
                             // when a model has 64 observables.
-                            let result = if correlated {
-                                graph.decode_correlated(corr, &mut scratch, &defects)
-                            } else {
-                                graph.decode(&mut scratch, &defects)
+                            let result = match corr {
+                                Some(corr) => graph.decode_correlated(corr, &mut scratch, &defects),
+                                None => graph.decode(&mut scratch, &defects),
                             };
                             out.push(match result {
                                 Ok(p) => (p.observables, p.weight),
