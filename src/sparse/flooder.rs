@@ -97,9 +97,6 @@ impl<'a> Solver<'a> {
         self.s.regions[n.top as usize].radius.at(self.s.now) + n.wrapped
     }
 
-    fn slope_at(&self, v: u32) -> i64 {
-        self.s.regions[self.s.nodes[v as usize].top as usize].radius.slope
-    }
 
     /// Every node owned by `r` or by any region inside it, in a buffer the
     /// caller hands back with `done_with_nodes` once it has walked them.
@@ -364,8 +361,13 @@ impl<'a> Solver<'a> {
                     self.s.queued[v as usize] = NO_TIME;
                     match self.next_node_event(v) {
                         Some((te, ev)) if te == t => {
+                            // An arrival has already looked at both its nodes,
+                            // v one of them, in the state it leaves.
+                            let arrival = matches!(ev, NodeEvent::Arrive { .. });
                             self.dispatch_node(ev);
-                            self.look_at_node(v);
+                            if !arrival {
+                                self.look_at_node(v);
+                            }
                         }
                         Some((te, _)) => self.schedule_node(v, te),
                         None => {}

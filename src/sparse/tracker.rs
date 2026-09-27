@@ -23,24 +23,32 @@ pub(crate) enum Item {
     Region(u32),
 }
 
-pub(crate) struct Tracker {
+/// The flooder's queue of reminders.
+pub(crate) type Tracker = RadixHeap<Item>;
+
+/// A min-queue of (time, item) for times that never go backwards: every push
+/// is at or after the last time popped. It pops in increasing (time, item)
+/// order, exactly as `BinaryHeap<Reverse<(i64, T)>>`. The flooder's reminders
+/// use it, and so does the shortest-path search that traces a matching's
+/// paths.
+pub(crate) struct RadixHeap<T> {
     /// The last time taken; every queued time is at least this.
     last: i64,
-    /// Reminders at time `last`, least item first.
-    current: BinaryHeap<Reverse<Item>>,
+    /// Entries at time `last`, least item first.
+    current: BinaryHeap<Reverse<T>>,
     /// Bucket b holds times whose highest bit differing from `last` is b − 1.
-    buckets: Vec<Vec<(i64, Item)>>,
+    buckets: Vec<Vec<(i64, T)>>,
     /// Which buckets hold anything, one bit per bucket.
     occupied: u64,
 }
 
-impl Default for Tracker {
+impl<T: Ord + Copy> Default for RadixHeap<T> {
     fn default() -> Self {
-        Tracker { last: 0, current: BinaryHeap::new(), buckets: (0..64).map(|_| Vec::new()).collect(), occupied: 0 }
+        RadixHeap { last: 0, current: BinaryHeap::new(), buckets: (0..64).map(|_| Vec::new()).collect(), occupied: 0 }
     }
 }
 
-impl Tracker {
+impl<T: Ord + Copy> RadixHeap<T> {
     fn bucket(&self, t: i64) -> usize {
         64 - ((t ^ self.last) as u64).leading_zeros() as usize
     }
@@ -55,7 +63,7 @@ impl Tracker {
         }
     }
 
-    pub fn push(&mut self, t: i64, item: Item) {
+    pub fn push(&mut self, t: i64, item: T) {
         debug_assert!(t >= self.last, "a reminder at {t} before the last time taken, {}", self.last);
         if t == self.last {
             self.current.push(Reverse(item));
@@ -66,7 +74,7 @@ impl Tracker {
         }
     }
 
-    pub fn pop(&mut self) -> Option<(i64, Item)> {
+    pub fn pop(&mut self) -> Option<(i64, T)> {
         if self.current.is_empty() {
             if self.occupied == 0 {
                 return None;

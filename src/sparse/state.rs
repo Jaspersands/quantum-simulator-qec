@@ -1,10 +1,7 @@
 //! The state of one decode: regions, alternating-tree nodes, detector nodes.
 
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-
 use super::graph::SparseGraph;
-use super::tracker::Tracker;
+use super::tracker::{RadixHeap, Tracker};
 
 pub(crate) const NONE: u32 = u32::MAX;
 /// The boundary, as an edge target and as a match partner.
@@ -131,7 +128,7 @@ pub struct Scratch {
     pub(crate) dist: Vec<i64>,
     pub(crate) pred: Vec<(u32, u32)>,
     pub(crate) seen: Vec<u32>,
-    pub(crate) heap: BinaryHeap<Reverse<(i64, u32)>>,
+    pub(crate) heap: RadixHeap<u32>,
     /// The edge set being built: a flag per edge, and every edge whose flag
     /// was raised at some point.
     pub(crate) flipped: Vec<bool>,
@@ -186,7 +183,7 @@ impl Scratch {
             dist: Vec::new(),
             pred: Vec::new(),
             seen: Vec::new(),
-            heap: BinaryHeap::new(),
+            heap: RadixHeap::default(),
             flipped: Vec::new(),
             edge_set: Vec::new(),
             stamp: 0,

@@ -102,6 +102,7 @@ impl SparseGraph {
     }
 
     /// An edge's integer weight as built, before any reweighting.
+    #[cfg(test)]
     pub(crate) fn weight_of(&self, id: u32) -> i64 {
         self.w[self.halves[id as usize][0] as usize]
     }
