@@ -137,7 +137,7 @@ def build_values(F):
     v["xc.plain_disagree"] = str(sum(r["disagreements"] for r in dec))
     v["xc.plain_non_ties"] = str(sum(r["non_ties"] + r["own_non_ties"] for r in dec))
     ratios = [r["ours_us"] / r["pymatching_us"] for r in dec]
-    v["xc.plain_ratio"] = f"{min(ratios):.1f} to {max(ratios):.1f}"
+    v["xc.plain_ratio"] = f"{min(ratios):.2f} to {max(ratios):.2f}"
     t["decoding"] = table(
         ["d", "p", "PyMatching", "ours", "ours, own model", "disagreements", "non-ties", "PyMatching µs", "ours µs"],
         [[r["d"], pct(r["p"], 1), pct(r["pymatching_failures"] / r["shots"]), pct(r["ours_failures"] / r["shots"]),
@@ -154,7 +154,7 @@ def build_values(F):
     v["xc.corr_failures"], v["xc.plain_failures"] = num(corr_f), num(plain_f)
     v["xc.corr_gain"] = f"{(1 - corr_f / plain_f) * 100:.0f}%"
     cr = [r["ours_us"] / r["pymatching_us"] for r in cor]
-    v["xc.corr_ratio"] = f"{min(cr):.1f} to {max(cr):.1f}"
+    v["xc.corr_ratio"] = f"{min(cr):.2f} to {max(cr):.2f}"
     t["correlated"] = table(
         ["code", "d", "p", "PyMatching", "ours", "ours, plain", "disagreements", "path ties", "weight ties", "non-ties"],
         [["XZZX" if r["code"] == "xzzx" else "rotated", r["d"], pct(r["p"], 1), pct(r["pymatching_failures"] / r["shots"]),

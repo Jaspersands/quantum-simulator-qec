@@ -232,46 +232,6 @@ fn decodes_shots_far_beyond_the_dense_limit() {
 }
 
 #[test]
-#[ignore] // timing, for the README and the site
-fn timing() {
-    use crate::circuit::Basis;
-    use crate::frame_sampler::FrameSampler;
-    use crate::memory::{generate, CodeKind, NoiseModel};
-    for d in [3usize, 5, 7, 9] {
-        for &p in &[0.003, 0.006] {
-            let c = generate(CodeKind::Rotated, d, d, NoiseModel::Sd6 { p }, Basis::Z).unwrap();
-            let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
-            let sampler = FrameSampler::new(&c).unwrap();
-            let mut rng = Xorshift::new(1);
-            let shots: Vec<Vec<u32>> = (0..2000)
-                .map(|_| sampler.sample(&mut rng).detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect())
-                .collect();
-            let mut scratch = Scratch::new(dec.graph());
-            let t = std::time::Instant::now();
-            for s in &shots {
-                dec.graph().decode(&mut scratch, s).unwrap();
-            }
-            let sparse_us = t.elapsed().as_secs_f64() * 1e6 / shots.len() as f64;
-            let corr = dec.correlations();
-            let t = std::time::Instant::now();
-            for s in &shots {
-                dec.graph().decode_correlated(corr, &mut scratch, s).unwrap();
-            }
-            let correlated_us = t.elapsed().as_secs_f64() * 1e6 / shots.len() as f64;
-            let t = std::time::Instant::now();
-            let mut dense_n = 0;
-            for s in shots.iter().take(300) {
-                if dec.decode_dense(s).is_ok() {
-                    dense_n += 1;
-                }
-            }
-            let dense_us = t.elapsed().as_secs_f64() * 1e6 / dense_n.max(1) as f64;
-            println!("d = {d}, p = {p}: sparse {sparse_us:.1} us/shot, correlated {correlated_us:.1} us/shot, dense {dense_us:.1} us/shot");
-        }
-    }
-}
-
-#[test]
 fn edge_ids_name_both_halves() {
     use super::state::NONE;
     let dec = decoder("error(0.1) D0 D1 L0\nerror(0.2) D1 D2\nerror(0.3) D2\n");
