@@ -76,9 +76,9 @@ leaves the repository.
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model by sparse blossom: plain, at 2.3 to 2.9 times PyMatching's single-threaded time, and
+  error model by sparse blossom: plain, at 1.3 to 1.7 times PyMatching's single-threaded time, and
   correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
-  at 2.0 to 2.3 times.
+  at 1.0 to 1.5 times.
 - **Throughput**: a bit-parallel sampler (64 shots a word, `REPEAT` without flattening) at 15–20×
   the reference sampler's speed, and a pool of workers that puts every core on the page to work.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
@@ -184,21 +184,22 @@ decoded by its own decoder, and compared with Stim's sampler decoded by PyMatchi
 
 | d | p | PyMatching | ours, on Stim's graph | ours, on our graph | disagreements (not ties) | our sampler + decoder | χ² z | PyMatching | ours |
 |---|---|---|---|---|---|---|---|---|---|
-| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 0.6 µs |
-| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 1.3 µs |
-| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.8 µs | 4.7 µs |
-| 5 | 0.6% | 9.432% | 9.432% | 9.432% | 4 (0) | 9.493% | -0.90 | 5.1 µs | 11.5 µs |
-| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.073% | +0.06 | 6.1 µs | 15.6 µs |
-| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.686% | -2.35 | 16.0 µs | 40.8 µs |
+| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 0.3 µs |
+| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.4 µs | 0.6 µs |
+| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.7 µs | 2.6 µs |
+| 5 | 0.6% | 9.432% | 9.432% | 9.432% | 4 (0) | 9.493% | -0.90 | 4.0 µs | 6.4 µs |
+| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.073% | +0.06 | 5.9 µs | 9.3 µs |
+| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.686% | -2.35 | 14.4 µs | 24.9 µs |
 
 The last two columns are native decode time per shot.
 
-**4. Speed.** Single-threaded, this engine takes 2.3 to 2.9 times PyMatching's time per
-shot. At d = 7, p = 0.6% it takes 41 µs a shot, native, against PyMatching's
-16 µs. The first version of this check used the dense matcher, which was 18 to
-136 times slower and fell further behind as the patch grew. The sparse matcher closed that gap. It
-also decodes shots in parallel, one workspace per thread: across every core of the recording machine,
-d = 7, p = 0.6% runs at 5.6 µs a shot.
+**4. Speed.** Single-threaded, this engine takes 1.3 to 1.7 times PyMatching's time per
+shot. At d = 7, p = 0.6% it takes 25 µs a shot, native, against PyMatching's
+14 µs. The first version of this check used the dense matcher, which was 18 to
+136 times slower and fell further behind as the patch grew. The sparse matcher closed most of that
+gap, and removing its allocations and quadratic scans (below) most of the rest. It also decodes shots
+in parallel, one workspace per thread: across every core of the recording machine, d = 7, p = 0.6%
+runs at 3.5 µs a shot.
 
 **5. The old path and the new one describe the same circuit.** `src/equivalence.rs` rebuilds the old
 path's error model from its own code:
@@ -327,20 +328,27 @@ own floor on how many unmatchable cases the random generator must produce.
 
 | d | p | dense | sparse | PyMatching |
 |---|---|---|---|---|
-| 3 | 0.3% | 6.0 µs | 1.0 µs | 0.2 µs |
-| 3 | 0.6% | 13.4 µs | 2.1 µs | 0.4 µs |
-| 5 | 0.3% | 75.5 µs | 7.6 µs | 1.8 µs |
-| 5 | 0.6% | 210 µs | 15.8 µs | 5.1 µs |
-| 7 | 0.3% | 656 µs | 23.0 µs | 6.1 µs |
-| 7 | 0.6% | 2.58 ms | 55.5 µs | 16.0 µs |
-| 9 | 0.3% | 4.42 ms | 53.4 µs | — |
-| 9 | 0.6% | 20.5 ms | 137 µs | — |
+| 3 | 0.3% | 4.8 µs | 0.4 µs | 0.2 µs |
+| 3 | 0.6% | 10.6 µs | 0.8 µs | 0.4 µs |
+| 5 | 0.3% | 70.3 µs | 3.2 µs | 1.7 µs |
+| 5 | 0.6% | 200 µs | 7.5 µs | 4.0 µs |
+| 7 | 0.3% | 654 µs | 10.9 µs | 5.9 µs |
+| 7 | 0.6% | 2.59 ms | 28.6 µs | 14.4 µs |
+| 9 | 0.3% | 4.53 ms | 27.2 µs | — |
+| 9 | 0.6% | 19.8 ms | 77.8 µs | — |
 
 The dense and sparse columns come from `cargo test --release --no-default-features sparse::tests::timing
 -- --ignored --nocapture`. PyMatching's column is from the cross-check's recorded run.
 
+A later pass took the sparse matcher from 2.5–2.9 times PyMatching's time to 1.3–1.7 without changing
+one prediction (checked bit for bit on 100,000 shots at each of eight points, plain and correlated).
+Two steps of the blossom, dissolving a tree and forming a blossom, tested tree nodes for membership
+by scanning lists, which is quadratic in the tree; they now mark nodes instead. Every event also
+allocated: the list of nodes under a region, the path to a root, the tree's stack, and each shot's
+regions afresh. Those buffers are now kept and reused, shot after shot.
+
 The site uses the same matcher in WebAssembly. A whole SD6 sweep window, one shot at every point
-across d = 3, 5, 7 and 9, now costs about 1.7 ms instead of more than 100 ms. So the SD6 sweep went
+across d = 3, 5, 7 and 9, now costs about 0.9 ms instead of more than 100 ms. So the SD6 sweep went
 from 800 shots a point to 40,000, and Figure 8's live rates now run 50,000 to 100,000 shots.
 
 ## Correlated matching
@@ -383,23 +391,23 @@ Correlated matching remembers. `src/sparse/correlated.rs` follows PyMatching 2.4
 
 | code | d | p | PyMatching correlated | ours correlated | ours plain | disagreements | PyMatching µs | ours µs |
 |---|---|---|---|---|---|---|---|---|
-| rotated | 3 | 0.3% | 2.061% | 2.061% | 2.332% | 0 | 0.6 | 1.3 |
-| rotated | 3 | 0.6% | 6.951% | 6.951% | 7.708% | 0 | 1.2 | 2.8 |
-| rotated | 5 | 0.3% | 1.133% | 1.131% | 1.645% | 8 | 4.8 | 9.6 |
-| rotated | 5 | 0.6% | 7.735% | 7.738% | 9.335% | 31 | 10.1 | 22.0 |
-| rotated | 7 | 0.3% | 0.555% | 0.558% | 1.037% | 29 | 15.2 | 32.1 |
-| rotated | 7 | 0.6% | 7.932% | 7.906% | 10.590% | 274 | 36.7 | 78.6 |
-| XZZX | 3 | 0.3% | 2.020% | 2.020% | 2.293% | 0 | 0.6 | 1.3 |
-| XZZX | 3 | 0.6% | 7.098% | 7.098% | 7.665% | 0 | 1.3 | 2.6 |
-| XZZX | 5 | 0.3% | 1.210% | 1.210% | 1.639% | 8 | 4.9 | 10.0 |
-| XZZX | 5 | 0.6% | 7.739% | 7.745% | 9.323% | 22 | 10.4 | 22.4 |
-| XZZX | 7 | 0.3% | 0.581% | 0.579% | 1.103% | 32 | 15.5 | 31.9 |
-| XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 37.0 | 78.5 |
+| rotated | 3 | 0.3% | 2.061% | 2.061% | 2.332% | 0 | 0.6 | 0.6 |
+| rotated | 3 | 0.6% | 6.951% | 6.951% | 7.708% | 0 | 1.3 | 1.4 |
+| rotated | 5 | 0.3% | 1.133% | 1.131% | 1.645% | 8 | 4.7 | 6.0 |
+| rotated | 5 | 0.6% | 7.735% | 7.738% | 9.335% | 31 | 10.3 | 14.2 |
+| rotated | 7 | 0.3% | 0.555% | 0.558% | 1.037% | 29 | 15.3 | 21.1 |
+| rotated | 7 | 0.6% | 7.932% | 7.906% | 10.590% | 274 | 37.3 | 54.7 |
+| XZZX | 3 | 0.3% | 2.020% | 2.020% | 2.293% | 0 | 0.6 | 0.6 |
+| XZZX | 3 | 0.6% | 7.098% | 7.098% | 7.665% | 0 | 1.2 | 1.4 |
+| XZZX | 5 | 0.3% | 1.210% | 1.210% | 1.639% | 8 | 4.9 | 6.0 |
+| XZZX | 5 | 0.6% | 7.739% | 7.745% | 9.323% | 22 | 10.3 | 14.2 |
+| XZZX | 7 | 0.3% | 0.581% | 0.579% | 1.103% | 32 | 15.6 | 21.1 |
+| XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 36.0 | 54.8 |
 
 100,000 shots per row, sampled by Stim, SD6 noise, T = d. The timing columns are single-threaded,
-correlated mode for both: ours takes 2.0 to 2.3 times as long as PyMatching's. Natively,
+correlated mode for both: ours takes 1.0 to 1.5 times as long as PyMatching's. Natively,
 from `sparse::tests::timing`, the second pass roughly doubles the cost of a shot: at d = 9 and
-p = 0.6%, 126 µs plain and 264 µs correlated.
+p = 0.6%, 78 µs plain and 169 µs correlated.
 
 It passed every layer on its first complete run. One thing did go wrong along the way, outside
 the algorithm. The Python module built with Rust 1.90's default release strip would not load on
