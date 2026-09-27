@@ -65,6 +65,9 @@ pub(crate) struct AltNode {
     pub parent_edge: CEdge,
     pub children: Vec<u32>,
     pub alive: bool,
+    /// Marks the node as one of a set being built (see `Scratch::stamp`):
+    /// equal to the current stamp while it is in the set.
+    pub mark: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -124,6 +127,23 @@ pub struct Scratch {
     /// was raised at some point.
     pub(crate) flipped: Vec<bool>,
     pub(crate) edge_set: Vec<u32>,
+    /// The last stamp handed out. A tree node is in a set being built while
+    /// its `mark` equals the set's stamp, so a set is made in one pass and
+    /// tested in constant time, and forgetting it costs nothing.
+    pub(crate) stamp: u64,
+    /// Buffers kept between events and shots, so the hot loop does not
+    /// allocate: paths to a tree root, a depth-first stack, regions to
+    /// reschedule, and the nodes under a region.
+    pub(crate) path_a: Vec<u32>,
+    pub(crate) path_b: Vec<u32>,
+    pub(crate) stack: Vec<u32>,
+    pub(crate) touched_regions: Vec<u32>,
+    pub(crate) under: Vec<u32>,
+    pub(crate) under_stack: Vec<u32>,
+    /// Emptied vectors from the last shot's regions and tree nodes, reused by
+    /// the next shot's.
+    pub(crate) spare_u32: Vec<Vec<u32>>,
+    pub(crate) spare_cycles: Vec<Vec<(u32, CEdge)>>,
 }
 
 impl Scratch {
@@ -139,12 +159,53 @@ impl Scratch {
             w: graph.w.clone(),
             undo: Vec::new(),
             pairs: Vec::new(),
-            dist: vec![NO_TIME; graph.num_nodes],
-            pred: vec![(NONE, NONE); graph.num_nodes],
+            // Sized on first use (`ensure_paths`): plain matching never traces.
+            dist: Vec::new(),
+            pred: Vec::new(),
             seen: Vec::new(),
             heap: BinaryHeap::new(),
-            flipped: vec![false; graph.num_edges()],
+            flipped: Vec::new(),
             edge_set: Vec::new(),
+            stamp: 0,
+            path_a: Vec::new(),
+            path_b: Vec::new(),
+            stack: Vec::new(),
+            touched_regions: Vec::new(),
+            under: Vec::new(),
+            under_stack: Vec::new(),
+            spare_u32: Vec::new(),
+            spare_cycles: Vec::new(),
+        }
+    }
+
+    /// Size the shortest-path state for `graph`, once: tracing a matching's
+    /// paths and correlated matching need it, plain matching does not.
+    pub(crate) fn ensure_paths(&mut self, graph: &SparseGraph) {
+        if self.dist.len() != graph.num_nodes {
+            self.dist = vec![NO_TIME; graph.num_nodes];
+            self.pred = vec![(NONE, NONE); graph.num_nodes];
+        }
+        if self.flipped.len() != graph.num_edges() {
+            self.flipped = vec![false; graph.num_edges()];
+        }
+    }
+
+    /// A fresh stamp: no tree node carries it yet.
+    pub(crate) fn next_stamp(&mut self) -> u64 {
+        self.stamp += 1;
+        self.stamp
+    }
+
+    /// An empty vector, reusing a spare one's allocation when there is one.
+    pub(crate) fn spare_u32(&mut self) -> Vec<u32> {
+        self.spare_u32.pop().unwrap_or_default()
+    }
+
+    /// Keep an emptied vector's allocation for later.
+    pub(crate) fn keep_u32(&mut self, mut v: Vec<u32>) {
+        if v.capacity() > 0 {
+            v.clear();
+            self.spare_u32.push(v);
         }
     }
 }

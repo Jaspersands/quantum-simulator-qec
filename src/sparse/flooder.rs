@@ -46,8 +46,27 @@ impl<'a> Solver<'a> {
             self.s.nodes[v as usize] = NodeState::EMPTY;
         }
         self.s.touched.clear();
-        self.s.regions.clear();
-        self.s.alt.clear();
+        // Keep the regions' and tree nodes' vectors for the next shot's.
+        let s = &mut *self.s;
+        for r in s.regions.drain(..) {
+            if r.shell.capacity() > 0 {
+                let mut v = r.shell;
+                v.clear();
+                s.spare_u32.push(v);
+            }
+            if r.children.capacity() > 0 {
+                let mut v = r.children;
+                v.clear();
+                s.spare_cycles.push(v);
+            }
+        }
+        for a in s.alt.drain(..) {
+            if a.children.capacity() > 0 {
+                let mut v = a.children;
+                v.clear();
+                s.spare_u32.push(v);
+            }
+        }
         self.s.queue.clear();
         self.s.now = 0;
         self.s.events = 0;
@@ -80,25 +99,36 @@ impl<'a> Solver<'a> {
         self.s.regions[self.s.nodes[v as usize].top as usize].radius.slope
     }
 
-    /// Every node owned by `r` or by any region inside it.
-    pub(crate) fn nodes_under(&self, r: u32) -> Vec<u32> {
-        let mut out = Vec::new();
-        let mut stack = vec![r];
+    /// Every node owned by `r` or by any region inside it, in a buffer the
+    /// caller hands back with `done_with_nodes` once it has walked them.
+    pub(crate) fn nodes_under(&mut self, r: u32) -> Vec<u32> {
+        let mut out = std::mem::take(&mut self.s.under);
+        let mut stack = std::mem::take(&mut self.s.under_stack);
+        out.clear();
+        stack.clear();
+        stack.push(r);
         while let Some(x) = stack.pop() {
             let reg = &self.s.regions[x as usize];
             out.extend_from_slice(&reg.shell);
             stack.extend(reg.children.iter().map(|c| c.0));
         }
+        self.s.under_stack = stack;
         out
+    }
+
+    pub(crate) fn done_with_nodes(&mut self, buf: Vec<u32>) {
+        self.s.under = buf;
     }
 
     fn create_trivial(&mut self, d: u32) {
         let none = CEdge { a: NONE, b: NONE, obs: 0 };
+        let mut shell = self.s.spare_u32();
+        shell.push(d);
         let r = self.new_region(Region {
             radius: Radius { y0: -self.s.now, slope: 1 },
             blossom_parent: NONE,
             children: Vec::new(),
-            shell: vec![d],
+            shell,
             tree: NONE,
             matched: None,
             queued: NO_TIME,
@@ -112,6 +142,7 @@ impl<'a> Solver<'a> {
             parent_edge: none,
             children: Vec::new(),
             alive: true,
+            mark: 0,
         });
         self.s.regions[r as usize].tree = a;
         self.touch(d);
@@ -257,9 +288,11 @@ impl<'a> Solver<'a> {
 
     /// Recompute every reminder a region's change can have moved.
     pub(crate) fn reschedule(&mut self, r: u32) {
-        for v in self.nodes_under(r) {
+        let nodes = self.nodes_under(r);
+        for &v in &nodes {
             self.look_at_node(v);
         }
+        self.done_with_nodes(nodes);
         self.look_at_region(r);
     }
 
