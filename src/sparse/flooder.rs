@@ -188,29 +188,23 @@ impl<'a> Solver<'a> {
         let w = &self.s.w[range];
         let mut best_dt = i64::MAX;
         let mut best_k = usize::MAX;
+        // The boundary reads the node past the graph's last, which is never
+        // reached; an empty node reads nobody's region. So every edge is the
+        // same loads and arithmetic, and the one branch left is the rarely
+        // taken "earlier than the best so far".
+        let beyond = nodes.len() - 1;
         for (k, (&u, &wt)) in to.iter().zip(w).enumerate() {
-            let (lu, su) = if u == BOUNDARY {
-                (0, 0)
-            } else {
-                let nu = &nodes[u as usize];
-                if nu.top == nv.top {
-                    // One region, or two empty nodes: nothing to meet.
-                    continue;
-                }
-                // An empty node reads nobody's region: radius 0, not growing.
-                let top = if nu.top == NONE { NOBODY } else { nu.top as usize };
-                let r = &regions[top].radius;
-                (r.at(now) + nu.wrapped, r.slope)
-            };
-            let rate = sv + su;
-            if rate <= 0 {
-                continue;
-            }
+            let nu = &nodes[if u == BOUNDARY { beyond } else { u as usize }];
+            let r = &regions[if nu.top == NONE { NOBODY } else { nu.top as usize }].radius;
+            let lu = r.at(now) + nu.wrapped;
+            let rate = sv + r.slope;
             let gap = wt - lv - lu;
-            debug_assert!(gap >= 0 && gap % rate == 0, "gap {gap} at rate {rate}");
+            // One region, or two empty nodes, meet nothing; nor do sides whose
+            // radii do not close.
+            let meets = nu.top != nv.top && rate > 0;
+            debug_assert!(!meets || (gap >= 0 && gap % rate == 0), "gap {gap} at rate {rate}");
             // Slopes are -1, 0 or 1, so a positive rate is 1 or 2.
-            let g = gap.max(0);
-            let dt = if rate == 2 { g >> 1 } else { g };
+            let dt = if meets { gap.max(0) >> u32::from(rate == 2) } else { i64::MAX };
             if dt < best_dt {
                 best_dt = dt;
                 best_k = k;

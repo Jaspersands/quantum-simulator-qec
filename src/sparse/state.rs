@@ -159,7 +159,9 @@ pub struct Scratch {
 impl Scratch {
     pub fn new(graph: &SparseGraph) -> Scratch {
         Scratch {
-            nodes: vec![NodeState::EMPTY; graph.num_nodes],
+            // One more than the graph's: the boundary's, never reached, which
+            // the hot loop reads for a boundary edge in place of a branch.
+            nodes: vec![NodeState::EMPTY; graph.num_nodes + 1],
             queued: vec![NO_TIME; graph.num_nodes],
             dirty: vec![false; graph.num_nodes],
             touched: Vec::new(),

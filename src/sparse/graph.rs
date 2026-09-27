@@ -110,7 +110,7 @@ impl SparseGraph {
     /// weights restored.
     pub(crate) fn check_scratch(&self, scratch: &Scratch) {
         assert!(
-            scratch.nodes.len() == self.num_nodes && scratch.w.len() == self.w.len(),
+            scratch.nodes.len() == self.num_nodes + 1 && scratch.w.len() == self.w.len(),
             "a Scratch serves the graph it was built for"
         );
         debug_assert!(scratch.undo.is_empty(), "a Scratch's weights are restored after every decode");
