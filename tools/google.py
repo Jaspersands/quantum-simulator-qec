@@ -191,12 +191,13 @@ def check_one(e):
         rec["m2d_detector_shots_differ"] = int((a != b).any(axis=1).sum())
     rec["m2d_observable_shots_differ"] = int(((np.frombuffer(ours_o, np.uint8) & 1) != bits(e, "obs")).sum())
 
-    entry, _ = check_model({}, noisy)
+    ours = sq.dem_from_circuit(noisy, True)
+    entry, _ = check_model({}, noisy, ours)
     rec["model_vs_stim"] = {k: entry[k] for k in (
         "detectors", "mechanisms", "ours", "missing", "extra", "differing", "max_rel",
         "edges", "edges_one_sided", "splits_differ", "edges_max_rel")}
 
-    ea, _ = graph(stim.DetectorErrorModel(sq.dem_from_circuit(noisy, True)))
+    ea, _ = graph(stim.DetectorErrorModel(ours))
     eb, _ = graph(stim.DetectorErrorModel(text(e, google_prior(e))))
     common = set(ea) & set(eb)
     rels = sorted(rel(ea[k], eb[k]) for k in common)
