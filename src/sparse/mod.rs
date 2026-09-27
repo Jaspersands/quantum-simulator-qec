@@ -36,6 +36,7 @@ mod correlated_tests;
 mod tests;
 
 pub use correlated::Correlations;
+pub(crate) use correlated::FaultEdges;
 pub use graph::SparseGraph;
 pub use state::Scratch;
 

@@ -13,12 +13,13 @@
 //! dense matcher, or one with no consistent explanation, is an error the caller
 //! counts. Bug 12 in the README is why.
 
+use std::cell::{OnceCell, RefCell};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use crate::blossom::{min_weight_perfect_matching, MAX_VERTICES};
 use crate::dem::{xor_prob, Dem};
-use crate::sparse::{Correlations, Scratch, SparseGraph};
+use crate::sparse::{Correlations, FaultEdges, Scratch, SparseGraph};
 
 /// Integer weight resolution: 2^20 per unit of ln((1 − p)/p). Fine enough that
 /// rounding cannot reorder paths that differ by more than a few parts in 10^6.
@@ -66,25 +67,56 @@ pub enum DecodeError {
     MatcherDeclined,
 }
 
-struct Arc {
-    to: u32,
-    w: i64,
-    wf: f64,
-    obs: u64,
-}
-
 pub struct DemDecoder {
     num_detectors: usize,
-    adj: Vec<Vec<Arc>>,
     /// Parallel edges whose observable masks disagreed. Zero for any code of
     /// distance three or more: a conflict is a weight-two logical operator.
     pub conflicts: usize,
     sparse: SparseGraph,
-    /// Correlated matching's rules (see `sparse::correlated`).
-    corr: Correlations,
+    /// Correlated matching's rules (see `sparse::correlated`), built on first
+    /// use from `faults`, which is then dropped: plain matching never reads
+    /// them, and they cost more to build than the graph.
+    corr: OnceCell<Correlations>,
+    faults: RefCell<Option<FaultEdges>>,
     /// Workspace for `decode`. A decoder is used by one thread at a time;
     /// callers decoding in parallel share `graph()` and hold a `Scratch` each.
-    scratch: std::cell::RefCell<Scratch>,
+    scratch: RefCell<Scratch>,
+    /// The dense reference matcher's workspace, made on first use.
+    dense: RefCell<Option<DenseScratch>>,
+}
+
+/// What `decode_dense` keeps between shots: Dijkstra's state over the
+/// detectors and the boundary, the defect-to-defect tables, and the
+/// blossom's cost matrix.
+struct DenseScratch {
+    slot: Vec<u32>,
+    d_node: Vec<i64>,
+    o_node: Vec<u64>,
+    f_node: Vec<f64>,
+    touched: Vec<usize>,
+    heap: BinaryHeap<Reverse<(i64, usize)>>,
+    /// Row i, column j of k + 1: from defect i to defect j, column k the boundary.
+    dist: Vec<i64>,
+    obs: Vec<u64>,
+    wsum: Vec<f64>,
+    cost: Vec<Vec<i64>>,
+}
+
+impl DenseScratch {
+    fn new(nd: usize) -> DenseScratch {
+        DenseScratch {
+            slot: vec![u32::MAX; nd + 1],
+            d_node: vec![i64::MAX; nd + 1],
+            o_node: vec![0; nd + 1],
+            f_node: vec![0.0; nd + 1],
+            touched: Vec::new(),
+            heap: BinaryHeap::new(),
+            dist: Vec::new(),
+            obs: Vec::new(),
+            wsum: Vec::new(),
+            cost: Vec::new(),
+        }
+    }
 }
 
 /// The model's graph-like pieces as merged edges `(u, v, p, observables)`,
@@ -154,16 +186,18 @@ impl DemDecoder {
     pub fn new(dem: &Dem) -> Result<DemDecoder, String> {
         let nd = dem.num_detectors;
         let (edges, conflicts) = merged_edges(dem)?;
-        let mut adj: Vec<Vec<Arc>> = (0..=nd).map(|_| Vec::new()).collect();
-        for &(u, v, p, obs) in &edges {
-            let (wf, w) = edge_weight(p);
-            adj[u as usize].push(Arc { to: v, w, wf, obs });
-            adj[v as usize].push(Arc { to: u, w, wf, obs });
-        }
         let sparse = SparseGraph::from_edges(nd, &edges);
-        let corr = Correlations::from_dem(dem, &sparse)?;
-        let scratch = std::cell::RefCell::new(Scratch::new(&sparse));
-        Ok(DemDecoder { num_detectors: nd, adj, conflicts, sparse, corr, scratch })
+        let faults = RefCell::new(Some(FaultEdges::from_dem(dem, &sparse)?));
+        let scratch = RefCell::new(Scratch::new(&sparse));
+        Ok(DemDecoder {
+            num_detectors: nd,
+            conflicts,
+            sparse,
+            corr: OnceCell::new(),
+            faults,
+            scratch,
+            dense: RefCell::new(None),
+        })
     }
 
     pub fn num_detectors(&self) -> usize {
@@ -175,9 +209,12 @@ impl DemDecoder {
         &self.sparse
     }
 
-    /// The rules correlated matching reweights by.
+    /// The rules correlated matching reweights by, built on first use.
     pub fn correlations(&self) -> &Correlations {
-        &self.corr
+        self.corr.get_or_init(|| {
+            let faults = self.faults.borrow_mut().take().expect("the faults are kept until the rules are built");
+            Correlations::from_faults(&faults)
+        })
     }
 
     pub fn decode_bools(&self, dets: &[bool]) -> Result<Prediction, DecodeError> {
@@ -212,7 +249,7 @@ impl DemDecoder {
         if !defects.windows(2).all(|w| w[0] < w[1]) {
             return self.decode_correlated(&cancel_repeats(defects));
         }
-        self.sparse.decode_correlated(&self.corr, &mut self.scratch.borrow_mut(), defects)
+        self.sparse.decode_correlated(self.correlations(), &mut self.scratch.borrow_mut(), defects)
     }
 
     /// Correlated matching's second pass alone, from edges given as endpoints
@@ -225,7 +262,7 @@ impl DemDecoder {
             .map(|&(u, v)| self.sparse.edge_id(u, v).ok_or_else(|| format!("({u}, {v}) is not an edge of the graph")))
             .collect::<Result<Vec<u32>, String>>()?;
         self.sparse
-            .decode_pass2(&self.corr, &mut self.scratch.borrow_mut(), &defects, &ids)
+            .decode_pass2(self.correlations(), &mut self.scratch.borrow_mut(), &defects, &ids)
             .map_err(|e| format!("{e:?}"))
     }
 
@@ -245,45 +282,53 @@ impl DemDecoder {
         }
         let nd = self.num_detectors;
         let boundary = nd;
-        let mut slot = vec![u32::MAX; nd + 1];
+        let mut guard = self.dense.borrow_mut();
+        let ws = guard.get_or_insert_with(|| DenseScratch::new(nd));
         for (i, &d) in defects.iter().enumerate() {
-            slot[d as usize] = i as u32;
+            ws.slot[d as usize] = i as u32;
         }
+        let result = Self::dense_match(&self.sparse, ws, defects, boundary);
+        for &d in defects {
+            ws.slot[d as usize] = u32::MAX;
+        }
+        result
+    }
 
+    /// The dense matcher's work, on a workspace whose `slot` names the defects.
+    fn dense_match(g: &SparseGraph, ws: &mut DenseScratch, defects: &[u32], boundary: usize) -> Result<Prediction, DecodeError> {
+        let k = defects.len();
+        let row = k + 1;
         // Row i: distance, observable parity and float weight from defect i to
         // every defect j > i, with column k the boundary.
-        let mut dist = vec![vec![UNREACHABLE; k + 1]; k];
-        let mut obs = vec![vec![0u64; k + 1]; k];
-        let mut wsum = vec![vec![0f64; k + 1]; k];
-
-        let mut d_node = vec![i64::MAX; nd + 1];
-        let mut o_node = vec![0u64; nd + 1];
-        let mut f_node = vec![0f64; nd + 1];
-        let mut touched: Vec<usize> = Vec::new();
-        let mut heap = BinaryHeap::new();
+        ws.dist.clear();
+        ws.dist.resize(k * row, UNREACHABLE);
+        ws.obs.clear();
+        ws.obs.resize(k * row, 0);
+        ws.wsum.clear();
+        ws.wsum.resize(k * row, 0.0);
 
         for (i, &src) in defects.iter().enumerate() {
-            for &t in &touched {
-                d_node[t] = i64::MAX;
+            for &t in &ws.touched {
+                ws.d_node[t] = i64::MAX;
             }
-            touched.clear();
-            heap.clear();
+            ws.touched.clear();
+            ws.heap.clear();
             let src = src as usize;
-            d_node[src] = 0;
-            o_node[src] = 0;
-            f_node[src] = 0.0;
-            touched.push(src);
-            heap.push(Reverse((0i64, src)));
+            ws.d_node[src] = 0;
+            ws.o_node[src] = 0;
+            ws.f_node[src] = 0.0;
+            ws.touched.push(src);
+            ws.heap.push(Reverse((0i64, src)));
             // Targets still to settle: defects after i, and the boundary.
             let mut remaining = (k - 1 - i) + 1;
-            while let Some(Reverse((du, u))) = heap.pop() {
-                if du > d_node[u] {
+            while let Some(Reverse((du, u))) = ws.heap.pop() {
+                if du > ws.d_node[u] {
                     continue;
                 }
                 if u == boundary {
-                    dist[i][k] = du;
-                    obs[i][k] = o_node[u];
-                    wsum[i][k] = f_node[u];
+                    ws.dist[i * row + k] = du;
+                    ws.obs[i * row + k] = ws.o_node[u];
+                    ws.wsum[i * row + k] = ws.f_node[u];
                     remaining -= 1;
                     if remaining == 0 {
                         break;
@@ -291,27 +336,27 @@ impl DemDecoder {
                     // The boundary is not a node paths may pass through.
                     continue;
                 }
-                let j = slot[u];
+                let j = ws.slot[u];
                 if j != u32::MAX && (j as usize) > i {
-                    dist[i][j as usize] = du;
-                    obs[i][j as usize] = o_node[u];
-                    wsum[i][j as usize] = f_node[u];
+                    ws.dist[i * row + j as usize] = du;
+                    ws.obs[i * row + j as usize] = ws.o_node[u];
+                    ws.wsum[i * row + j as usize] = ws.f_node[u];
                     remaining -= 1;
                     if remaining == 0 {
                         break;
                     }
                 }
-                for arc in &self.adj[u] {
-                    let v = arc.to as usize;
-                    let nd2 = du + arc.w;
-                    if nd2 < d_node[v] {
-                        if d_node[v] == i64::MAX {
-                            touched.push(v);
+                for (to, w, obs, wf) in g.arcs(u as u32) {
+                    let v = to.map_or(boundary, |t| t as usize);
+                    let nd2 = du + w;
+                    if nd2 < ws.d_node[v] {
+                        if ws.d_node[v] == i64::MAX {
+                            ws.touched.push(v);
                         }
-                        d_node[v] = nd2;
-                        o_node[v] = o_node[u] ^ arc.obs;
-                        f_node[v] = f_node[u] + arc.wf;
-                        heap.push(Reverse((nd2, v)));
+                        ws.d_node[v] = nd2;
+                        ws.o_node[v] = ws.o_node[u] ^ obs;
+                        ws.f_node[v] = ws.f_node[u] + wf;
+                        ws.heap.push(Reverse((nd2, v)));
                     }
                 }
             }
@@ -319,35 +364,40 @@ impl DemDecoder {
 
         // Defects 0..k, then one boundary copy per defect; copies pair for free.
         let n = 2 * k;
-        let mut cost = vec![vec![0i64; n]; n];
+        ws.cost.resize_with(n, Vec::new);
+        ws.cost.truncate(n);
+        for r in ws.cost.iter_mut() {
+            r.clear();
+            r.resize(n, 0);
+        }
         for i in 0..k {
             for j in (i + 1)..k {
-                cost[i][j] = dist[i][j];
-                cost[j][i] = dist[i][j];
+                ws.cost[i][j] = ws.dist[i * row + j];
+                ws.cost[j][i] = ws.dist[i * row + j];
             }
             for c in 0..k {
-                cost[i][k + c] = dist[i][k];
-                cost[k + c][i] = dist[i][k];
+                ws.cost[i][k + c] = ws.dist[i * row + k];
+                ws.cost[k + c][i] = ws.dist[i * row + k];
             }
         }
-        let mate = min_weight_perfect_matching(n, &cost).ok_or(DecodeError::MatcherDeclined)?;
+        let mate = min_weight_perfect_matching(n, &ws.cost).ok_or(DecodeError::MatcherDeclined)?;
 
         let mut prediction = Prediction { observables: 0, weight: 0.0, iweight: 0 };
         for i in 0..k {
             let j = mate[i];
-            let (d, o, w) = if j >= k {
-                (dist[i][k], obs[i][k], wsum[i][k])
+            let at = if j >= k {
+                i * row + k
             } else if i < j {
-                (dist[i][j], obs[i][j], wsum[i][j])
+                i * row + j
             } else {
                 continue;
             };
-            if d >= UNREACHABLE {
+            if ws.dist[at] >= UNREACHABLE {
                 return Err(DecodeError::Unmatchable);
             }
-            prediction.observables ^= o;
-            prediction.weight += w;
-            prediction.iweight += d;
+            prediction.observables ^= ws.obs[at];
+            prediction.weight += ws.wsum[at];
+            prediction.iweight += ws.dist[at];
         }
         Ok(prediction)
     }
