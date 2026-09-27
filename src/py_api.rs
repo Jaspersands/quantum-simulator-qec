@@ -102,11 +102,7 @@ fn decode_packed<'py>(
                         for s in lo..hi {
                             defects.clear();
                             let row = &packed[s * stride..(s + 1) * stride];
-                            for i in 0..nd {
-                                if (row[i / 8] >> (i % 8)) & 1 == 1 {
-                                    defects.push(i as u32);
-                                }
-                            }
+                            crate::shots::defects_from_b8(row, nd, &mut defects);
                             // A failed shot is written as all-ones observables and a NaN
                             // weight, and counted by the NaN: all-ones is a real prediction
                             // when a model has 64 observables.
@@ -562,11 +558,7 @@ fn decode_b8_belief<'py>(
                         for s in (t * chunk)..((t + 1) * chunk).min(num_shots) {
                             defects.clear();
                             let row = &packed[s * stride..(s + 1) * stride];
-                            for i in 0..nd {
-                                if (row[i / 8] >> (i % 8)) & 1 == 1 {
-                                    defects.push(i as u32);
-                                }
-                            }
+                            crate::shots::defects_from_b8(row, nd, &mut defects);
                             out.push(match bm.decode(&defects, &mut work) {
                                 Ok(o) => (o.observables, o.weight, u8::from(o.converged)),
                                 Err(_) => (u64::MAX, f64::NAN, 2),
