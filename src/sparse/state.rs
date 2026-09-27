@@ -84,9 +84,11 @@ pub(crate) struct NodeState {
     pub wrapped: i64,
     /// For a defect, its own trivial region.
     pub own: u32,
-    pub queued: i64,
-    pub dirty: bool,
 }
+
+// Two nodes to a 64-byte cache line: the hot loop reads a neighbour's node
+// for every edge it scans.
+const _: () = assert!(std::mem::size_of::<NodeState>() == 32);
 
 impl NodeState {
     pub const EMPTY: NodeState = NodeState {
@@ -96,14 +98,17 @@ impl NodeState {
         obs: 0,
         wrapped: 0,
         own: NONE,
-        queued: NO_TIME,
-        dirty: false,
     };
 }
 
 /// Reusable workspace for decoding shots on one graph, one per thread.
 pub struct Scratch {
     pub(crate) nodes: Vec<NodeState>,
+    /// Per node: the time of its queued reminder (NO_TIME if none), and
+    /// whether this decode has touched it. Kept apart from `nodes`, which the
+    /// hot loop reads, so a node there is 32 bytes, two to a cache line.
+    pub(crate) queued: Vec<i64>,
+    pub(crate) dirty: Vec<bool>,
     pub(crate) touched: Vec<u32>,
     pub(crate) regions: Vec<Region>,
     pub(crate) alt: Vec<AltNode>,
@@ -151,6 +156,8 @@ impl Scratch {
     pub fn new(graph: &SparseGraph) -> Scratch {
         Scratch {
             nodes: vec![NodeState::EMPTY; graph.num_nodes],
+            queued: vec![NO_TIME; graph.num_nodes],
+            dirty: vec![false; graph.num_nodes],
             touched: Vec::new(),
             regions: Vec::new(),
             alt: Vec::new(),

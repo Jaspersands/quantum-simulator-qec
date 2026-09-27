@@ -44,6 +44,8 @@ impl<'a> Solver<'a> {
     pub(crate) fn reset(&mut self) {
         for &v in &self.s.touched {
             self.s.nodes[v as usize] = NodeState::EMPTY;
+            self.s.queued[v as usize] = NO_TIME;
+            self.s.dirty[v as usize] = false;
         }
         self.s.touched.clear();
         // Keep the regions' and tree nodes' vectors for the next shot's.
@@ -73,9 +75,8 @@ impl<'a> Solver<'a> {
     }
 
     fn touch(&mut self, v: u32) {
-        let n = &mut self.s.nodes[v as usize];
-        if !n.dirty {
-            n.dirty = true;
+        if !self.s.dirty[v as usize] {
+            self.s.dirty[v as usize] = true;
             self.s.touched.push(v);
         }
     }
@@ -237,9 +238,9 @@ impl<'a> Solver<'a> {
     }
 
     fn schedule_node(&mut self, v: u32, t: i64) {
-        if t < self.s.nodes[v as usize].queued {
+        if t < self.s.queued[v as usize] {
             self.touch(v);
-            self.s.nodes[v as usize].queued = t;
+            self.s.queued[v as usize] = t;
             self.s.queue.push(t, Item::Node(v));
         }
     }
@@ -297,7 +298,8 @@ impl<'a> Solver<'a> {
     pub(crate) fn leave(&mut self, r: u32) {
         let v = self.s.regions[r as usize].shell.pop().expect("a leave event has a node to give up");
         let n = self.s.nodes[v as usize];
-        self.s.nodes[v as usize] = NodeState { own: n.own, queued: n.queued, dirty: true, ..NodeState::EMPTY };
+        // Its reminder and touch flag live apart, and stay as they are.
+        self.s.nodes[v as usize] = NodeState { own: n.own, ..NodeState::EMPTY };
         self.look_at_node(v);
         self.look_at_region(r);
     }
@@ -361,10 +363,10 @@ impl<'a> Solver<'a> {
             }
             match item {
                 Item::Node(v) => {
-                    if self.s.nodes[v as usize].queued != t {
+                    if self.s.queued[v as usize] != t {
                         continue;
                     }
-                    self.s.nodes[v as usize].queued = NO_TIME;
+                    self.s.queued[v as usize] = NO_TIME;
                     match self.next_node_event(v) {
                         Some((te, ev)) if te == t => {
                             self.dispatch_node(ev);
