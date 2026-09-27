@@ -156,55 +156,78 @@ impl<'a> Solver<'a> {
         n.own = r;
     }
 
-    /// The next thing that happens across one of `v`'s edges, seen from `v`.
+    /// The next thing that happens across one of `v`'s edges, seen from `v`:
+    /// the earliest, and among equals the first edge in adjacency order.
+    ///
+    /// Every edge is one formula. An empty node, and the boundary, count as a
+    /// radius of zero that does not grow; two sides whose radii grow at a
+    /// combined rate of 1 or 2 meet when they cover the edge's weight. What the
+    /// winning edge's event is (reaching an empty node, being reached, a
+    /// collision, the boundary) is decided only for the winner.
     pub(crate) fn next_node_event(&self, v: u32) -> Option<(i64, NodeEvent)> {
         let now = self.s.now;
-        let nv = self.s.nodes[v as usize];
-        let v_owned = nv.top != NONE;
-        let (lv, sv) = if v_owned { (self.local_radius(v), self.slope_at(v)) } else { (0, 0) };
-        let mut best: Option<(i64, NodeEvent)> = None;
-        let mut offer = |t: i64, ev: NodeEvent| {
-            if best.map_or(true, |(bt, _)| t < bt) {
-                best = Some((t, ev));
-            }
+        let nodes = &self.s.nodes;
+        let regions = &self.s.regions;
+        let nv = &nodes[v as usize];
+        let (lv, sv) = if nv.top == NONE {
+            (0, 0)
+        } else {
+            let r = &regions[nv.top as usize].radius;
+            (r.at(now) + nv.wrapped, r.slope)
         };
-        for e in self.g.edges(v) {
-            let u = self.g.to[e];
-            let w = self.s.w[e];
-            if u == BOUNDARY {
-                if v_owned && sv > 0 {
-                    offer(now + (w - lv).max(0), NodeEvent::Boundary { v, e });
+        // A node of a shrinking region meets nothing: no neighbour grows faster
+        // than its region gives ground.
+        if sv < 0 {
+            return None;
+        }
+        let range = self.g.edges(v);
+        let first = range.start;
+        let to = &self.g.to[range.clone()];
+        let w = &self.s.w[range];
+        let mut best_dt = i64::MAX;
+        let mut best_k = usize::MAX;
+        for (k, (&u, &wt)) in to.iter().zip(w).enumerate() {
+            let (lu, su) = if u == BOUNDARY {
+                (0, 0)
+            } else {
+                let nu = &nodes[u as usize];
+                if nu.top == NONE {
+                    (0, 0)
+                } else if nu.top == nv.top {
+                    continue;
+                } else {
+                    let r = &regions[nu.top as usize].radius;
+                    (r.at(now) + nu.wrapped, r.slope)
                 }
+            };
+            let rate = sv + su;
+            if rate <= 0 {
                 continue;
             }
-            let nu = self.s.nodes[u as usize];
-            match (v_owned, nu.top != NONE) {
-                (false, false) => {}
-                (true, false) => {
-                    if sv > 0 {
-                        offer(now + (w - lv).max(0), NodeEvent::Arrive { from: v, to: u, e });
-                    }
-                }
-                (false, true) => {
-                    if self.slope_at(u) > 0 {
-                        offer(now + (w - self.local_radius(u)).max(0), NodeEvent::Arrive { from: u, to: v, e });
-                    }
-                }
-                (true, true) => {
-                    if nu.top == nv.top {
-                        continue;
-                    }
-                    let rate = sv + self.slope_at(u);
-                    if rate <= 0 {
-                        continue;
-                    }
-                    let gap = w - lv - self.local_radius(u);
-                    debug_assert!(gap >= 0 && gap % rate == 0, "gap {gap} at rate {rate}");
-                    offer(now + gap.max(0) / rate, NodeEvent::Collide { v, u, e });
-                }
+            let gap = wt - lv - lu;
+            debug_assert!(gap >= 0 && gap % rate == 0, "gap {gap} at rate {rate}");
+            // Slopes are -1, 0 or 1, so a positive rate is 1 or 2.
+            let g = gap.max(0);
+            let dt = if rate == 2 { g >> 1 } else { g };
+            if dt < best_dt {
+                best_dt = dt;
+                best_k = k;
             }
         }
-        best
+        if best_k == usize::MAX {
+            return None;
+        }
+        let (u, e) = (to[best_k], first + best_k);
+        let ev = if u == BOUNDARY {
+            NodeEvent::Boundary { v, e }
+        } else if nodes[u as usize].top == NONE {
+            NodeEvent::Arrive { from: v, to: u, e }
+        } else if nv.top == NONE {
+            NodeEvent::Arrive { from: u, to: v, e }
+        } else {
+            NodeEvent::Collide { v, u, e }
+        };
+        Some((now + best_dt, ev))
     }
 
     pub(crate) fn look_at_node(&mut self, v: u32) {
