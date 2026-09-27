@@ -254,9 +254,7 @@ def build_values(F):
         if r["mode"] == "parallel" and r["matcher"] == "correlated":
             v["m.corr.cores"] = str(k)
             v["m.corr.mean"] = us(at["mean_us"])
-            b8 = r["by_workers"].get("8")
-            v["m.corr.mean8"] = us(b8["mean_us"])
-            v["m.corr.p998"] = us(b8["p99_us"])
+            v["m.corr.p99"] = us(at["p99_us"])
             v["m.streams"] = str(r["streams"])
         if r["mode"] == "parallel" and r["matcher"] == "plain":
             v["m.plain.cores"] = str(k)

@@ -382,8 +382,8 @@
    "own_non_ties": 0,
    "decode_errors": 0,
    "own_decode_errors": 0,
-   "pymatching_us": 0.21437583985971287,
-   "ours_us": 0.27634458,
+   "pymatching_us": 0.22960916016018018,
+   "ours_us": 0.27358,
    "sampler": {
     "chi2": 23.286514385751723,
     "dof": 24,
@@ -399,9 +399,9 @@
     "our_decode_errors": 0
    },
    "sample_us": {
-    "stim": 0.12015375017654152,
-    "frame": 1.2512683297973126,
-    "batch": 0.07764499999999999
+    "stim": 0.11712500010617077,
+    "frame": 1.2247187498724088,
+    "batch": 0.07667875
    }
   },
   {
@@ -420,8 +420,8 @@
    "own_non_ties": 0,
    "decode_errors": 0,
    "own_decode_errors": 0,
-   "pymatching_us": 0.43814375007059425,
-   "ours_us": 0.6150650000000001,
+   "pymatching_us": 0.44654083001660183,
+   "ours_us": 0.59466916,
    "sampler": {
     "chi2": 14.45705365716961,
     "dof": 24,
@@ -437,9 +437,9 @@
     "our_decode_errors": 0
    },
    "sample_us": {
-    "stim": 0.20000291988253593,
-    "frame": 1.2993166598607786,
-    "batch": 0.09733959
+    "stim": 0.1953816702007316,
+    "frame": 1.2878841598285362,
+    "batch": 0.09472542
    }
   },
   {
@@ -458,8 +458,8 @@
    "own_non_ties": 0,
    "decode_errors": 0,
    "own_decode_errors": 0,
-   "pymatching_us": 1.6878350000479259,
-   "ours_us": 2.613755,
+   "pymatching_us": 1.6523749998304993,
+   "ours_us": 2.52282542,
    "sampler": {
     "chi2": 83.07246271811599,
     "dof": 120,
@@ -475,9 +475,9 @@
     "our_decode_errors": 0
    },
    "sample_us": {
-    "stim": 0.505831669725012,
-    "frame": 6.15540458005853,
-    "batch": 0.33255874999999996
+    "stim": 0.500068329856731,
+    "frame": 6.021021250053309,
+    "batch": 0.32467458
    }
   },
   {
@@ -496,8 +496,8 @@
    "own_non_ties": 0,
    "decode_errors": 0,
    "own_decode_errors": 0,
-   "pymatching_us": 3.9736745899426755,
-   "ours_us": 6.378089999999999,
+   "pymatching_us": 3.8675079200766045,
+   "ours_us": 6.04080625,
    "sampler": {
     "chi2": 106.0738826564286,
     "dof": 120,
@@ -513,9 +513,9 @@
     "our_decode_errors": 0
    },
    "sample_us": {
-    "stim": 0.8733258297434077,
-    "frame": 6.323592090047896,
-    "batch": 0.42400833
+    "stim": 0.866109159833286,
+    "frame": 6.181565410224721,
+    "batch": 0.41404792
    }
   },
   {
@@ -534,8 +534,8 @@
    "own_non_ties": 0,
    "decode_errors": 0,
    "own_decode_errors": 0,
-   "pymatching_us": 5.915638339938596,
-   "ours_us": 9.25215708,
+   "pymatching_us": 5.478353340004105,
+   "ours_us": 8.93797917,
    "sampler": {
     "chi2": 337.5257105319066,
     "dof": 336,
@@ -551,9 +551,9 @@
     "our_decode_errors": 0
    },
    "sample_us": {
-    "stim": 1.3526424998417497,
-    "frame": 17.530492919904646,
-    "batch": 0.90868958
+    "stim": 1.3519604201428592,
+    "frame": 17.550405000220053,
+    "batch": 0.87393458
    }
   },
   {
@@ -572,8 +572,8 @@
    "own_non_ties": 0,
    "decode_errors": 0,
    "own_decode_errors": 0,
-   "pymatching_us": 14.361315419955645,
-   "ours_us": 24.89624916,
+   "pymatching_us": 14.513583749940153,
+   "ours_us": 23.86869958,
    "sampler": {
     "chi2": 275.0275781571669,
     "dof": 336,
@@ -589,9 +589,9 @@
     "our_decode_errors": 0
    },
    "sample_us": {
-    "stim": 2.356920419842936,
-    "frame": 18.035158339771442,
-    "batch": 1.12483209
+    "stim": 2.3561870798585005,
+    "frame": 17.6387516700197,
+    "batch": 1.1184500000000002
    }
   }
  ],
@@ -611,8 +611,8 @@
    "non_ties": 0,
    "weight_noise": 2.3336525689643395e-06,
    "decode_errors": 0,
-   "pymatching_us": 0.6158091701217927,
-   "ours_us": 0.6442841699999999
+   "pymatching_us": 0.6166458301595412,
+   "ours_us": 0.62611458
   },
   {
    "code": "rotated",
@@ -629,8 +629,8 @@
    "non_ties": 0,
    "weight_noise": 2.8427378566675543e-06,
    "decode_errors": 0,
-   "pymatching_us": 1.2634166699717753,
-   "ours_us": 1.3643162500000001
+   "pymatching_us": 1.2354162498377264,
+   "ours_us": 1.34420333
   },
   {
    "code": "rotated",
@@ -647,8 +647,8 @@
    "non_ties": 0,
    "weight_noise": 4.7408025309891855e-06,
    "decode_errors": 0,
-   "pymatching_us": 4.693158750014845,
-   "ours_us": 5.984733330000001
+   "pymatching_us": 4.656340420187917,
+   "ours_us": 5.89663792
   },
   {
    "code": "rotated",
@@ -665,8 +665,8 @@
    "non_ties": 0,
    "weight_noise": 6.991153469471101e-06,
    "decode_errors": 0,
-   "pymatching_us": 10.306443340086844,
-   "ours_us": 14.240075000000001
+   "pymatching_us": 10.587293329881504,
+   "ours_us": 13.890741669999999
   },
   {
    "code": "rotated",
@@ -683,8 +683,8 @@
    "non_ties": 0,
    "weight_noise": 7.289813041211346e-06,
    "decode_errors": 0,
-   "pymatching_us": 15.32213166996371,
-   "ours_us": 21.053792499999997
+   "pymatching_us": 15.091380419908091,
+   "ours_us": 20.705528329999996
   },
   {
    "code": "rotated",
@@ -701,8 +701,8 @@
    "non_ties": 0,
    "weight_noise": 9.147721584668034e-06,
    "decode_errors": 0,
-   "pymatching_us": 37.317844170029275,
-   "ours_us": 54.68186582999999
+   "pymatching_us": 36.4653912500944,
+   "ours_us": 53.56270917
   },
   {
    "code": "xzzx",
@@ -719,8 +719,8 @@
    "non_ties": 0,
    "weight_noise": 3.2328203829479207e-06,
    "decode_errors": 0,
-   "pymatching_us": 0.6039529200643301,
-   "ours_us": 0.63656208
+   "pymatching_us": 0.6052020800416358,
+   "ours_us": 0.62533
   },
   {
    "code": "xzzx",
@@ -737,8 +737,8 @@
    "non_ties": 0,
    "weight_noise": 2.643160994963978e-06,
    "decode_errors": 0,
-   "pymatching_us": 1.2296637499821372,
-   "ours_us": 1.36198292
+   "pymatching_us": 1.218824170064181,
+   "ours_us": 1.34442792
   },
   {
    "code": "xzzx",
@@ -755,8 +755,8 @@
    "non_ties": 0,
    "weight_noise": 4.075098576805658e-06,
    "decode_errors": 0,
-   "pymatching_us": 4.8577079200185835,
-   "ours_us": 5.974325
+   "pymatching_us": 4.661341659957543,
+   "ours_us": 5.892777500000001
   },
   {
    "code": "xzzx",
@@ -773,8 +773,8 @@
    "non_ties": 0,
    "weight_noise": 8.03763628454135e-06,
    "decode_errors": 0,
-   "pymatching_us": 10.334465840132907,
-   "ours_us": 14.22117875
+   "pymatching_us": 10.555878750164993,
+   "ours_us": 13.90869833
   },
   {
    "code": "xzzx",
@@ -791,8 +791,8 @@
    "non_ties": 0,
    "weight_noise": 6.522932437746931e-06,
    "decode_errors": 0,
-   "pymatching_us": 15.566868750029244,
-   "ours_us": 21.09082167
+   "pymatching_us": 15.583458330074789,
+   "ours_us": 20.748362919999998
   },
   {
    "code": "xzzx",
@@ -809,8 +809,8 @@
    "non_ties": 0,
    "weight_noise": 9.877825831949849e-06,
    "decode_errors": 0,
-   "pymatching_us": 36.010654580022674,
-   "ours_us": 54.76366958
+   "pymatching_us": 36.59664041013457,
+   "ours_us": 53.565881250000004
   }
  ]
 }
