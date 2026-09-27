@@ -45,11 +45,23 @@ def wilson(k, n, z=1.96):
     return (max(0.0, mid - half), min(1.0, mid + half))
 
 
+def check_cases(quick):
+    """(label, Stim text, seed) for every circuit the check covers."""
+    cases = []
+    for d, merged, basis in [(3, 3, "z"), (3, 2, "x")] + ([] if quick else [(5, 5, "z"), (5, 3, "x")]):
+        cases.append((f"Z⊗Z d={d} T={merged} basis {basis}", sq.surgery_circuit(d, merged, 0.003, basis), d * 100 + merged))
+    for d in (3,) if quick else (3, 5):
+        for inputs in ("z", "x"):
+            cases.append((f"CNOT d={d} T={d} inputs {inputs}", sq.surgery_cnot(d, d, 0.003, inputs), d * 100 + 7))
+            cases.append((f"X⊗X d={d} T={d} basis {inputs}", sq.surgery_vertical(d, d, 0.003, inputs), d * 100 + 11))
+        cases.append((f"Z⊗Z three times d={d} T={d}", sq.surgery_repeated(d, 3, d, 0.003), d * 100 + 13))
+        cases.append((f"Z⊗Z⊗Z d={d} T={d}", sq.surgery_product(d, 3, d, 0.003), d * 100 + 17))
+    return cases
+
+
 def cmd_check(args):
     ok = True
-    cases = [(3, 3, "z"), (3, 2, "x")] if args.quick else [(3, 3, "z"), (3, 2, "x"), (5, 5, "z"), (5, 3, "x")]
-    for d, merged, basis in cases:
-        text = sq.surgery_circuit(d, merged, 0.003, basis)
+    for label, text, seed in check_cases(args.quick):
         circuit = stim.Circuit(text)
         a = mechanisms(stim.DetectorErrorModel(sq.dem_from_circuit(text, False)))
         b = mechanisms(circuit.detector_error_model(decompose_errors=False))
@@ -61,7 +73,7 @@ def cmd_check(args):
         # Matching on Stim's shots: ours against PyMatching, every disagreement a tie.
         shots = 4_000 if args.quick else 20_000
         dem = circuit.detector_error_model(decompose_errors=True)
-        dets, obs = circuit.compile_detector_sampler(seed=d * 100 + merged).sample(shots, separate_observables=True)
+        dets, obs = circuit.compile_detector_sampler(seed=seed).sample(shots, separate_observables=True)
         truth = sum(obs[:, i].astype(np.uint64) << np.uint64(i) for i in range(obs.shape[1]))
         m = pymatching.Matching.from_detector_error_model(dem)
         pm = m.decode_batch(dets)
@@ -72,7 +84,7 @@ def cmd_check(args):
         non_ties = sum(1 for i in disagree if abs(m.decode(dets[i], return_weight=True)[1] - weights[i]) > 1e-4)
         good &= non_ties == 0 and errors == 0
         ok &= good
-        print(f"  {'ok ' if good else 'BAD'} d={d} T={merged} basis {basis}: {circuit.num_detectors} detectors, {len(b)} "
+        print(f"  {'ok ' if good else 'BAD'} {label}: {circuit.num_detectors} detectors, {len(b)} "
               f"mechanisms (ours {len(a)}), worst Δp/p {worst:.1e}, {len(eb)} graph edges ({len(set(ea) ^ set(eb))} one-sided), "
               f"{splits_differ} splits differ; PyMatching {int((pm != truth).sum())} failures, ours "
               f"{int((ours != truth).sum())}, {len(disagree)} disagreements, {non_ties} not ties")

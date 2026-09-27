@@ -730,6 +730,46 @@ fn surgery_circuit(d: usize, merged: usize, p: f64, basis: &str, pre: Option<usi
     Ok(s.circuit().map_err(err)?.to_stim())
 }
 
+fn basis_of(name: &str) -> PyResult<Basis> {
+    match name {
+        "z" => Ok(Basis::Z),
+        "x" => Ok(Basis::X),
+        other => Err(err(format!("unknown basis '{other}'"))),
+    }
+}
+
+/// A logical CNOT by lattice surgery (see `surgery::cnot`), as Stim text:
+/// control, an ancilla in |+> and target in an L; Z_C Z_A, then X_A X_T, then
+/// the ancilla read in Z. `inputs` "z": |0>|0>, observables L0 = Z_C and L1 =
+/// Z_T with its frame. "x": |+>|+>, L0 = X_T and L1 = X_C X_T with its frame.
+#[pyfunction]
+#[pyo3(signature = (d, merged, p, inputs="z"))]
+fn surgery_cnot(d: usize, merged: usize, p: f64, inputs: &str) -> PyResult<String> {
+    Ok(crate::surgery::cnot(d, merged, p, basis_of(inputs)?).circuit().map_err(err)?.to_stim())
+}
+
+/// k Z⊗Z measurements in a row on two patches in |0>|0> (see
+/// `surgery::repeated`): observables each outcome, then Z1 and Z2.
+#[pyfunction]
+fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<String> {
+    Ok(crate::surgery::repeated(d, k, merged, p).circuit().map_err(err)?.to_stim())
+}
+
+/// Z⊗…⊗Z on n patches in a row, merged at once (see `surgery::product`):
+/// observables the outcome, then each patch's Z.
+#[pyfunction]
+fn surgery_product(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
+    Ok(crate::surgery::product(d, n, merged, p).circuit().map_err(err)?.to_stim())
+}
+
+/// The X⊗X mirror of `surgery_circuit` (see `surgery::vertical`): "x", the
+/// outcome and each patch's X; "z", Z1Z2 with its seam qubit.
+#[pyfunction]
+#[pyo3(signature = (d, merged, p, basis="x"))]
+fn surgery_vertical(d: usize, merged: usize, p: f64, basis: &str) -> PyResult<String> {
+    Ok(crate::surgery::vertical(d, merged, p, basis_of(basis)?).circuit().map_err(err)?.to_stim())
+}
+
 /// b8 rows of `num_bits` bits as Stim's 01 text.
 #[pyfunction]
 fn b8_to_01(packed: &[u8], num_bits: usize) -> PyResult<String> {
@@ -756,5 +796,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bposd_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_bposd, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_cnot, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_repeated, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_product, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_vertical, m)?)?;
     Ok(())
 }

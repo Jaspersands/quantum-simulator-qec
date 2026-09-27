@@ -208,6 +208,29 @@ def surgery_circuit(
     keeps. One merged round leaves the outcome unprotected; the error-model
     builder then refuses the circuit."""
 
+def surgery_cnot(d: int, merged: int, p: float, inputs: Literal["z", "x"] = "z") -> str:
+    """A logical CNOT by lattice surgery, as Stim text: control C, an ancilla
+    A in |+> and target T in an L of three patches; Z_C Z_A measured (merged
+    ``merged`` rounds), then X_A X_T, then A read out in Z; d rounds apart
+    before and after; SD6 noise ``p``. ``inputs`` "z": |0>|0>, L0 = Z_C and
+    L1 = Z_T with its Pauli frame. "x": |+>|+>, L0 = X_T and L1 = X_C X_T with
+    its frame. The two together fix the CNOT's action on Z_C, Z_T, X_C, X_T."""
+
+def surgery_repeated(d: int, k: int, merged: int, p: float) -> str:
+    """``k`` Z⊗Z measurements in a row on two patches in |0>|0>, each merged
+    ``merged`` rounds and followed by one round apart: observables each
+    outcome (L0 .. L{k-1}), then Z1 and Z2."""
+
+def surgery_product(d: int, n: int, merged: int, p: float) -> str:
+    """Z⊗...⊗Z on ``n`` patches in a row, all in |0>, merged at once:
+    observables the outcome (L0), then each patch's Z."""
+
+def surgery_vertical(d: int, merged: int, p: float, basis: Literal["z", "x"] = "x") -> str:
+    """The X⊗X mirror of ``surgery_circuit``: two patches one above the other,
+    the seam prepared in |0> and read in Z. "x": |+>|+>, L0 the outcome X1X2,
+    L1 and L2 each patch's X. "z": |0>|0>, L0 = Z1Z2 (kept by the X⊗X
+    measurement)."""
+
 class Decoder:
     """One model's matcher, shot by shot, for looking inside correlated
     matching. Edges are ``(u, v)`` detector pairs with ``-1`` for the
