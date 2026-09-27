@@ -65,6 +65,11 @@ fn dem_from_circuit(circuit_text: &str, decompose: bool) -> PyResult<String> {
 
 type Decoded<'py> = (Bound<'py, PyBytes>, Bound<'py, PyBytes>, usize, f64);
 
+/// A window as the bindings describe it: (first layer, end layer, commit
+/// start, commit end, phase, the windows it waits for), the last as the
+/// engine's own scheduler reads it (`stream::dependencies`).
+type WindowInfo = (u32, u32, u32, u32, usize, Vec<usize>);
+
 fn decode_packed<'py>(
     py: Python<'py>,
     dem: &Dem,
@@ -301,7 +306,8 @@ fn sample_b8_batch<'py>(
 /// number of defects left unexplained over the shots decoded (zero unless
 /// something is wrong), each window's
 /// decode time per shot in seconds (f64, shots × windows, when `timings`), and
-/// the windows as (first layer, end layer, commit start, commit end, phase).
+/// the windows as (first layer, end layer, commit start, commit end, phase,
+/// the windows it waits for).
 #[pyfunction]
 #[pyo3(signature = (dem_text, packed, num_shots, commit, buffer, mode, correlated=false, threads=0, timings=false))]
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -316,7 +322,7 @@ fn decode_b8_window<'py>(
     correlated: bool,
     threads: usize,
     timings: bool,
-) -> PyResult<(Bound<'py, PyBytes>, usize, Bound<'py, PyBytes>, Vec<(u32, u32, u32, u32, usize)>)> {
+) -> PyResult<(Bound<'py, PyBytes>, usize, Bound<'py, PyBytes>, Vec<WindowInfo>)> {
     use crate::window::{Mode, Model, WindowDecoder};
     let dem = Dem::parse(dem_text).map_err(err)?;
     let mode = match mode {
@@ -389,11 +395,13 @@ fn decode_b8_window<'py>(
             phase_of[wi] = k;
         }
     }
+    let deps = crate::stream::dependencies(&wd.specs, wd.mode);
     let info = wd
         .windows
         .iter()
+        .zip(deps)
         .enumerate()
-        .map(|(i, w)| (w.window.layers.0, w.window.layers.1, w.commit.0, w.commit.1, phase_of[i]))
+        .map(|(i, (w, deps))| (w.window.layers.0, w.window.layers.1, w.commit.0, w.commit.1, phase_of[i], deps))
         .collect();
     Ok((PyBytes::new_bound(py, &preds), unexplained, PyBytes::new_bound(py, &times), info))
 }
@@ -403,7 +411,8 @@ fn decode_b8_window<'py>(
 /// round by round and window-decoded with graphs from a short template.
 /// Returns (failures, streams, unexplained defects, lane 0's window decode
 /// times in seconds (f64, one per window, per batch), the windows as (first
-/// layer, end layer, commit start, commit end, phase), wall seconds).
+/// layer, end layer, commit start, commit end, phase, the windows it waits
+/// for), wall seconds).
 #[pyfunction]
 #[pyo3(signature = (code, d, p, rounds, commit, buffer, mode, correlated=false, batches=1, seed=1, threads=0))]
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -420,7 +429,7 @@ fn stream_decode<'py>(
     batches: usize,
     seed: u64,
     threads: usize,
-) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<(u32, u32, u32, u32, usize)>, f64)> {
+) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<WindowInfo>, f64)> {
     use crate::stream::{run_stream, StreamDecoder};
     use crate::window::Mode;
     let kind = match code {
@@ -473,7 +482,7 @@ fn stream_decode<'py>(
         unexplained += u;
         times.extend(t);
     }
-    let info = plan.specs.iter().map(|s| (s.a, s.b, s.commit.0, s.commit.1, s.phase)).collect();
+    let info = plan.specs.iter().zip(&plan.deps).map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone())).collect();
     let bytes: Vec<u8> = times.iter().flat_map(|x| x.to_le_bytes()).collect();
     Ok((failures, batches * 64, unexplained, PyBytes::new_bound(py, &bytes), info, seconds))
 }

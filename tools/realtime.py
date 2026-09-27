@@ -129,37 +129,16 @@ def cmd_accuracy(args):
 
 # -- latency ----------------------------------------------------------------
 
-def dependencies(info):
-    """Which windows each window waits for. Sliding windows (one per phase)
-    wait for the one before. Parallel layer-B windows wait for the layer-A
-    windows whose commit regions border theirs."""
-    n = len(info)
-    phases = [x[4] for x in info]
-    deps = [[] for _ in range(n)]
-    if len(set(phases)) == n:
-        by_phase = {phases[w]: w for w in range(n)}
-        for w in range(n):
-            if phases[w] - 1 in by_phase:
-                deps[w] = [by_phase[phases[w] - 1]]
-        return deps
-    a_by_end = {info[w][3]: w for w in range(n) if phases[w] == 0}
-    a_by_start = {info[w][2]: w for w in range(n) if phases[w] == 0}
-    for w in range(n):
-        if phases[w] == 1:
-            deps[w] = [x for x in (a_by_end.get(info[w][2]), a_by_start.get(info[w][3])) if x is not None]
-    return deps
-
-
 def schedule(times, info, workers, deps, cycle=CYCLE):
     """Each window's latency in one stream, at a fixed cadence of rounds.
 
     `times[w]` is window w's measured decode time, and `info[w]` is (first
-    layer, end layer, commit start, commit end, phase). Layer l arrives at
-    (l + 1) · cycle, so a window's last layer arrives at end · cycle. A window
-    is ready once its last layer has arrived and every window it depends on is
-    done; the ready window soonest ready goes to the earliest free of
-    `workers` (list scheduling, O(n log n)). Latency is completion minus the
-    arrival of its last layer.
+    layer, end layer, commit start, commit end, phase, dependencies). Layer l
+    arrives at (l + 1) · cycle, so a window's last layer arrives at end ·
+    cycle. A window is ready once its last layer has arrived and every window
+    it depends on is done; the ready window soonest ready goes to the earliest
+    free of `workers` (list scheduling, O(n log n)). Latency is completion
+    minus the arrival of its last layer.
     """
     import heapq
     n = len(info)
@@ -193,7 +172,8 @@ def latency_stats(times, info, workers):
     10% of the second quarter's, over windows ordered by commit)."""
     lat = []
     grow = []
-    deps = dependencies(info)
+    # Which windows each waits for, as the engine schedules them.
+    deps = [w[5] for w in info]
     order = sorted(range(len(info)), key=lambda w: info[w][2])
     for row in times:
         ls = schedule(row, info, workers, deps)
