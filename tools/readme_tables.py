@@ -1,0 +1,149 @@
+"""The README's tables, generated from the committed data, so none can fall
+behind what was measured.
+
+    python3 tools/readme_tables.py            # print every table
+    python3 tools/readme_tables.py --write    # replace them in README.md
+    python3 tools/readme_tables.py --check    # exit 1 if any differs (CI)
+"""
+import json, math, pathlib, re, sys
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+load = lambda path: json.loads((ROOT / path).read_text())
+
+
+def sci(x):
+    e = math.floor(math.log10(x)); m = x / 10 ** e
+    if round(m, 1) >= 10:
+        m, e = m / 10, e + 1
+    return f"{m:.1f} × 10{str(e).replace('-', '⁻').translate(str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹'))}"
+
+
+def pct(k, n):
+    return f"{k / n * 100:.3f}%"
+
+
+def time_us(x):
+    if x < 100:
+        return f"{x:.1f} µs"
+    if x < 1000:
+        return f"{x:.0f} µs"
+    return f"{x / 1000:.2f} ms" if x < 10_000 else f"{x / 1000:.1f} ms"
+
+
+def gross():
+    g = load("data/gross/results.json")
+    rows = []
+    for code, name in (("gross", "gross [[144, 12, 12]]"), ("72", "[[72, 12, 6]]")):
+        for p in (0.002, 0.003, 0.004, 0.005, 0.006):
+            q = g["points"][f"{code}/{p}"]; cs = q["results"]["bposd_cs7"]; o0 = q["results"]["bposd_0"]
+            lo, hi = cs["pl_cycle_interval"]
+            rows.append(f"| {name} | {p * 100:.1f}% | {q['shots']:,} | {cs['failures']} | {sci(cs['pl_cycle'])} "
+                        f"[{sci(lo)}, {sci(hi)}] | {sci(o0['pl_cycle'])} | {cs['converged'] / q['shots'] * 100:.1f}% |")
+    return rows
+
+
+def gross_vs_surface():
+    g = load("data/gross/results.json")
+    rows = []
+    for p in (0.002, 0.003, 0.004, 0.005, 0.006):
+        gp = g["points"][f"gross/{p}"]["results"]["bposd_cs7"]["pl_cycle"]
+        sp = g["surface"][f"surface-d11/{p}"]["results"]["correlated_matching"]["pl_cycle"]
+        twelve = 1 - (1 - sp) ** 12
+        rows.append(f"| {p * 100:.1f}% | {sci(gp)} | {sci(twelve)} | {twelve / gp:.1f}× |")
+    return rows
+
+
+def xcheck_plain():
+    rows = []
+    for r in load("data/xcheck/reference.json")["decoding"]:
+        n = r["shots"]
+        rows.append(f"| {r['d']} | {r['p'] * 100:.1f}% | {pct(r['pymatching_failures'], n)} | {pct(r['ours_failures'], n)} | "
+                    f"{pct(r['ours_own_dem_failures'], n)} | {r['disagreements']} ({r['non_ties']}) | "
+                    f"{pct(r['sampler']['our_failures'], n)} | {r['sampler']['z']:+.2f} | {r['pymatching_us']:.1f} µs | {r['ours_us']:.1f} µs |")
+    return rows
+
+
+def xcheck_corr():
+    rows = []
+    for r in load("data/xcheck/reference.json")["correlated"]:
+        n = r["shots"]
+        code = "rotated" if r["code"] == "rotated" else "XZZX"
+        rows.append(f"| {code} | {r['d']} | {r['p'] * 100:.1f}% | {pct(r['pymatching_failures'], n)} | {pct(r['ours_failures'], n)} | "
+                    f"{pct(r['plain_failures'], n)} | {r['disagreements']} | {r['pymatching_us']:.1f} | {r['ours_us']:.1f} |")
+    return rows
+
+
+def speed():
+    native = load("data/matcher/native.json")["points"]
+    pm = {(r["d"], r["p"]): r["pymatching_us"] for r in load("data/xcheck/reference.json")["decoding"]}
+    rows = []
+    for r in native:
+        m = pm.get((r["d"], r["p"]))
+        rows.append(f"| {r['d']} | {r['p'] * 100:.1f}% | {time_us(r['dense_us'])} | {time_us(r['sparse_us'])} | "
+                    f"{time_us(m) if m is not None else '—'} |")
+    return rows
+
+
+def latency():
+    lat, mil = load("data/realtime/latency.json"), load("data/realtime/million.json")
+    us = lambda x: f"{x:.1f} µs" if x < 10 else f"{x:.0f} µs"
+    whole = lambda x: f"{x:.0f} µs"
+    cores = lambda k: f"{k} core" + ("" if k == 1 else "s")
+
+    def first_k(by):
+        return min(int(k) for k, v in by.items() if v["keeps_up"])
+
+    rows = []
+    for d, mode, m in ((3, "sliding", "plain"), (3, "parallel", "correlated"), (5, "parallel", "plain"),
+                       (5, "parallel", "correlated"), (7, "parallel", "plain"), (7, "parallel", "correlated")):
+        s = next(x for x in lat["streams"] if x["d"] == d and x["mode"] == mode and x["matcher"] == m)
+        k = first_k(s["by_workers"]); w = s["by_workers"][str(k)]
+        rows.append(f"| Willow d = {d} | {mode}, {m} | {us(s['window_us']['mean'])} | {cores(k)} | {whole(w['mean_us'])} | {whole(w['p99_us'])} |")
+    for m, k2 in (("plain", 4), ("correlated", 8)):
+        r = next(x for x in mil["runs"] if x["mode"] == "parallel" and x["matcher"] == m)
+        k = first_k(r["by_workers"]); w = r["by_workers"][str(k)]; w2 = r["by_workers"][str(k2)]
+        if k2 > k and w2["mean_us"] < 0.8 * w["mean_us"]:
+            rows.append(f"| SD6 d = 5, 10⁶ rounds | parallel, {m} | {us(r['window_us']['mean'])} | {cores(k)} ({k2} for {whole(w2['mean_us'])}) | "
+                        f"{whole(w['mean_us'])} ({whole(w2['mean_us'])} on {k2}) | {whole(w['p99_us'])} ({whole(w2['p99_us'])} on {k2}) |")
+        else:
+            rows.append(f"| SD6 d = 5, 10⁶ rounds | parallel, {m} | {us(r['window_us']['mean'])} | {cores(k)} | {whole(w['mean_us'])} | {whole(w['p99_us'])} |")
+    return rows
+
+
+# Each table's header row (as a regex), and the function giving its body.
+TABLES = [
+    ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
+    ("gross beside the surface code", r"\| p \| gross code: 12 logical qubits on 288 \| twelve d = 11 surface patches on 2,892 \| ratio \|", gross_vs_surface),
+    ("cross-check, plain", r"\| d \| p \| PyMatching \| ours, on Stim's graph \|[^\n]*", xcheck_plain),
+    ("cross-check, correlated", r"\| code \| d \| p \| PyMatching correlated \|[^\n]*", xcheck_corr),
+    ("matcher speed", r"\| d \| p \| dense \| sparse \| PyMatching \|", speed),
+    ("latency", r"\| stream \| decoder \| window decode \| keeps up on \| mean latency \| p99 \|", latency),
+]
+
+
+def main():
+    readme = (ROOT / "README.md").read_text()
+    out, stale = readme, []
+    for name, header, fn in TABLES:
+        body = "\n".join(fn()) + "\n"
+        pattern = re.compile("(" + header + r"\n\|---(?:\|---)*\|\n)((?:\|.*\|\n)+)")
+        m = pattern.search(out)
+        if not m:
+            raise SystemExit(f"{name}: header not found in README.md")
+        if m.group(2) != body:
+            stale.append(name)
+        out = out[:m.start(2)] + body + out[m.end(2):]
+        if "--write" not in sys.argv and "--check" not in sys.argv:
+            print(f"## {name}\n{body}")
+    if "--check" in sys.argv:
+        for name in stale:
+            print(f"README table out of date: {name}")
+        return 1 if stale else 0
+    if "--write" in sys.argv:
+        (ROOT / "README.md").write_text(out)
+        print(f"rewrote {len(stale)} table(s): {', '.join(stale) or 'none'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
