@@ -9,7 +9,7 @@
  * results.json). Figure 18 samples and matches the whole experiment here.
  */
 
-import { $, fill, el } from '../dom.js';
+import { $, fill, el, whenNear } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
 import { surgeryLayout } from '../surgery-geometry.js';
 
@@ -227,13 +227,5 @@ export function initSurgery(root, compute) {
   const liveFig = $('[data-ls-live]', root);
   if (!diagram || !fitFig || !liveFig) return;
   initDiagram(diagram);
-  let started = false;
-  const observer = new IntersectionObserver((entries) => {
-    if (started || !entries.some((e) => e.isIntersecting)) return;
-    started = true;
-    observer.disconnect();
-    runRecorded(fitFig).catch(() => {}).then(() => runLive(liveFig, compute));
-  }, { rootMargin: '200px 0px' });
-  observer.observe(fitFig);
-  observer.observe(liveFig);
+  whenNear([fitFig, liveFig], () => runRecorded(fitFig).catch(() => {}).then(() => runLive(liveFig, compute)));
 }

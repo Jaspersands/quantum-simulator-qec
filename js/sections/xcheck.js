@@ -11,7 +11,7 @@
 
 import { CODE, NOISE, XC_NOISE } from '../engine.js';
 import { wilson, percent } from '../compute.js';
-import { $, fill, el } from '../dom.js';
+import { $, fill, el, whenNear } from '../dom.js';
 import { verdict, formatRel, circuitLabel, microseconds, disagreementText, megabytes } from '../xcheck-format.js';
 
 const DATA = new URL('../../data/xcheck/', import.meta.url);
@@ -217,12 +217,5 @@ export function initXcheck(root, compute) {
     }
   }
 
-  let started = false;
-  const observer = new IntersectionObserver((entries) => {
-    if (started || !entries.some((e) => e.isIntersecting)) return;
-    started = true;
-    observer.disconnect();
-    start();
-  }, { rootMargin: '400px 0px' });
-  observer.observe(figure);
+  whenNear(figure, start, '400px 0px');
 }

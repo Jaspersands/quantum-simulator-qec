@@ -9,7 +9,7 @@
  * rounds per operation (section 14). The model is js/estimator.js.
  */
 
-import { $, fill, el } from '../dom.js';
+import { $, fill, el, whenNear } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
 import { estimate, physicalQubits, distanceFor, bigNumber, duration, modelFrom, coresFrom } from '../estimator.js';
 
@@ -149,12 +149,5 @@ export function initEstimator(root) {
       + `${Object.values(cores).join(', ')}.`;
   }
 
-  let started = false;
-  const observer = new IntersectionObserver((entries) => {
-    if (started || !entries.some((e) => e.isIntersecting)) return;
-    started = true;
-    observer.disconnect();
-    start();
-  }, { rootMargin: '300px 0px' });
-  observer.observe(fig);
+  whenNear(fig, start, '300px 0px');
 }
