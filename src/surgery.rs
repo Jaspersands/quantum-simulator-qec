@@ -157,6 +157,8 @@ impl Layout {
 struct Last {
     rec: usize,
     support: Vec<u32>,
+    /// The round it was measured in.
+    round: usize,
 }
 
 struct Writer {
@@ -272,7 +274,11 @@ impl Writer {
             let support = ch.support();
             let coords = vec![ch.pos.0 as f64, ch.pos.1 as f64, self.round as f64];
             let mut targets = vec![rec];
-            let deterministic = match self.last.get(&ch.pos) {
+            // A check compares with its last measurement only if that was the
+            // round before: one that skipped a round (a seam check of an
+            // earlier merge, say, whose seam was since read and prepared
+            // again) starts over, as if measured for the first time.
+            let deterministic = match self.last.get(&ch.pos).filter(|prev| prev.round + 1 == self.round) {
                 Some(prev) => {
                     targets.push(prev.rec);
                     let gained = support.iter().filter(|q| !prev.support.contains(q));
@@ -293,7 +299,7 @@ impl Writer {
                 let recs = targets.iter().map(|&r| self.lookback(r)).collect();
                 self.c.push(Instr::Detector { coords, recs });
             }
-            self.last.insert(ch.pos, Last { rec, support });
+            self.last.insert(ch.pos, Last { rec, support, round: self.round });
         }
         self.fresh.clear();
         recs
@@ -344,15 +350,15 @@ pub enum Step {
 #[derive(Clone, Copy, Debug)]
 pub enum Term {
     /// A patch's logical in `basis`, from its final measurement in that
-    /// basis: Z its first column, X its first row.
-    Logical { patch: usize, basis: Basis },
+    /// basis, along data line `line` (0 the first): Z a column, X a row.
+    Logical { patch: usize, basis: Basis, line: usize },
     /// Merge `merge`'s outcome (merges numbered in program order): the product
     /// of its new checks of the measured type in its first round.
     Outcome { merge: usize },
-    /// Merge `merge`'s seam records, from its split, on the line of `patch`'s
-    /// logical that crosses it: the patch's first row for a horizontal line
-    /// (vertical seams), its first column for a vertical line.
-    Seam { merge: usize, patch: usize },
+    /// Merge `merge`'s seam records, from its split, on `patch`'s data line
+    /// `line` where it crosses the seam: a row for a horizontal line
+    /// (vertical seams), a column for a vertical line.
+    Seam { merge: usize, patch: usize, line: usize },
 }
 
 struct MergeState {
@@ -537,7 +543,8 @@ impl Program {
                         life[q] = Life::Done;
                         final_basis[q] = Some(*basis);
                         for ch in codes[q].iter().filter(|c| c.x_type == want_x) {
-                            let Some(last) = w.last.get(&ch.pos) else { continue };
+                            // Only a check measured in the last round predicts the readout.
+                            let Some(last) = w.last.get(&ch.pos).filter(|l| l.round == w.round) else { continue };
                             let support = ch.support();
                             let mut targets: Vec<usize> = support.iter().map(|x| final_rec[x]).collect();
                             targets.push(last.rec);
@@ -562,16 +569,20 @@ impl Program {
             let mut recs = Vec::new();
             for term in terms {
                 match *term {
-                    Term::Logical { patch, basis } => {
+                    Term::Logical { patch, basis, line } => {
                         check(patch)?;
                         if final_basis[patch] != Some(basis) {
                             return Err(format!("patch {patch}'s logical {basis:?} needs it measured in {basis:?}"));
                         }
+                        if line >= d {
+                            return Err(format!("a patch has {d} lines, not {}", line + 1));
+                        }
                         let b = boxes[patch];
+                        let at = 2 * line as i32;
                         let qubits: Vec<u32> = if basis == Basis::Z {
-                            (b.y0..=b.y1).step_by(2).map(|y| layout.index[&(b.x0, y)]).collect()
+                            (b.y0..=b.y1).step_by(2).map(|y| layout.index[&(b.x0 + at, y)]).collect()
                         } else {
-                            (b.x0..=b.x1).step_by(2).map(|x| layout.index[&(x, b.y0)]).collect()
+                            (b.x0..=b.x1).step_by(2).map(|x| layout.index[&(x, b.y0 + at)]).collect()
                         };
                         recs.extend(qubits.iter().map(|q| w.lookback(final_rec[q])));
                     }
@@ -580,14 +591,15 @@ impl Program {
                         let out = ms.outcome.as_ref().ok_or(format!("merge {merge} had no rounds"))?;
                         recs.extend(out.iter().map(|&r| w.lookback(r)));
                     }
-                    Term::Seam { merge, patch } => {
+                    Term::Seam { merge, patch, line } => {
                         check(patch)?;
                         let ms = merges.get(merge).ok_or(format!("there is no merge {merge}"))?;
                         let seam_recs = ms.seam_recs.as_ref().ok_or(format!("merge {merge} was never split"))?;
                         let b = boxes[patch];
+                        let at = 2 * line as i32;
                         for (&q, &r) in ms.seam.iter().zip(seam_recs) {
                             let (x, y) = layout.positions[q as usize];
-                            if (ms.horizontal && y == b.y0) || (!ms.horizontal && x == b.x0) {
+                            if (ms.horizontal && y == b.y0 + at) || (!ms.horizontal && x == b.x0 + at) {
                                 recs.push(w.lookback(r));
                             }
                         }
@@ -608,14 +620,14 @@ impl Surgery {
         let observables = match self.basis {
             Basis::Z => vec![
                 vec![Term::Outcome { merge: 0 }],
-                vec![Term::Logical { patch: 0, basis: Basis::Z }],
-                vec![Term::Logical { patch: 1, basis: Basis::Z }],
+                vec![Term::Logical { patch: 0, basis: Basis::Z, line: 0 }],
+                vec![Term::Logical { patch: 1, basis: Basis::Z, line: 0 }],
             ],
             // X₁X₂ along the first row, with that row's seam qubit read at the split.
             Basis::X => vec![vec![
-                Term::Logical { patch: 0, basis: Basis::X },
-                Term::Logical { patch: 1, basis: Basis::X },
-                Term::Seam { merge: 0, patch: 0 },
+                Term::Logical { patch: 0, basis: Basis::X, line: 0 },
+                Term::Logical { patch: 1, basis: Basis::X, line: 0 },
+                Term::Seam { merge: 0, patch: 0, line: 0 },
             ]],
         };
         Program {
@@ -643,6 +655,147 @@ impl Surgery {
             return Err("the merge needs at least one round".into());
         }
         self.program().circuit()
+    }
+}
+
+/// A logical CNOT by lattice surgery (Horsman, Fowler, Devitt and Van Meter,
+/// arXiv:1111.4022; Litinski, arXiv:1808.02892): control C at tile (0, 0),
+/// an ancilla A at (1, 0) in |+⟩, target T at (1, 1). Z_C Z_A is measured
+/// (outcome m₁, merging C and A side by side), then X_A X_T (m₂, merging A
+/// and T one above the other), then A is read out in Z (m₃). The result is
+/// CNOT from C to T, up to Pauli corrections tracked in software.
+///
+/// The frames, derived by following the stabilizers through the three
+/// measurements. With Z inputs, |0⟩|0⟩: Z_C stays +1, and Z_T comes out
+/// (−1)^(m₁ + m₃), so Z_T ⊕ Z_A ⊕ m₁ is +1. Z_A and Z_T are columns that the
+/// A–T merge joined through its seam, which the split read in Z, so the seam
+/// qubits on that column join them. With X inputs, |+⟩|+⟩: X_T stays +1, and
+/// X_C X_T comes out (−1)^m₂. m₂ is the product of the A–T seam's new X checks,
+/// which is X on A's last row and T's first; X_C X_A must be taken along that
+/// same last row (a different row of A differs by A's X checks, which are not
+/// all fixed), and it crossed the C–A seam, read in X at its split, so the
+/// seam qubit on that row joins it. `inputs` picks the pair;
+/// together they fix the CNOT's action on Z_C, Z_T, X_C and X_T.
+pub fn cnot(d: usize, merged: usize, p: f64, inputs: Basis) -> Program {
+    const C: usize = 0;
+    const A: usize = 1;
+    const T: usize = 2;
+    let observables = match inputs {
+        Basis::Z => vec![
+            vec![Term::Logical { patch: C, basis: Basis::Z, line: 0 }],
+            vec![
+                Term::Logical { patch: T, basis: Basis::Z, line: 0 },
+                Term::Logical { patch: A, basis: Basis::Z, line: 0 },
+                Term::Outcome { merge: 0 },
+                Term::Seam { merge: 1, patch: T, line: 0 },
+            ],
+        ],
+        // m₂ reads X on A's last row and T's first, the rows that touch the
+        // A–T seam, so X_C X_A is taken along the last row too.
+        Basis::X => vec![
+            vec![Term::Logical { patch: T, basis: Basis::X, line: 0 }],
+            vec![
+                Term::Logical { patch: C, basis: Basis::X, line: d - 1 },
+                Term::Logical { patch: T, basis: Basis::X, line: 0 },
+                Term::Outcome { merge: 1 },
+                Term::Seam { merge: 0, patch: C, line: d - 1 },
+            ],
+        ],
+    };
+    Program {
+        d,
+        p,
+        tiles: vec![(0, 0), (1, 0), (1, 1)],
+        steps: vec![
+            Step::Prepare { patches: vec![C, T], basis: inputs },
+            Step::Prepare { patches: vec![A], basis: Basis::X },
+            Step::Rounds(d),
+            Step::Merge { patches: vec![C, A] },
+            Step::Rounds(merged),
+            Step::Split,
+            Step::Merge { patches: vec![A, T] },
+            Step::Rounds(merged),
+            Step::Split,
+            Step::Measure { patches: vec![A], basis: Basis::Z },
+            Step::Rounds(d),
+            Step::Measure { patches: vec![C, T], basis: inputs },
+        ],
+        observables,
+    }
+}
+
+/// k Z⊗Z measurements in a row on two patches in |0⟩|0⟩, each of `merged`
+/// rounds, split, and followed by one round apart; d rounds apart before the
+/// first and after the last. Observables: each outcome (all +1), then each
+/// patch's Z.
+pub fn repeated(d: usize, k: usize, merged: usize, p: f64) -> Program {
+    let mut steps = vec![Step::Prepare { patches: vec![0, 1], basis: Basis::Z }, Step::Rounds(d)];
+    for _ in 0..k {
+        steps.extend([Step::Merge { patches: vec![0, 1] }, Step::Rounds(merged), Step::Split, Step::Rounds(1)]);
+    }
+    steps.extend([Step::Rounds(d.saturating_sub(1)), Step::Measure { patches: vec![0, 1], basis: Basis::Z }]);
+    let mut observables: Vec<Vec<Term>> = (0..k).map(|i| vec![Term::Outcome { merge: i }]).collect();
+    observables.push(vec![Term::Logical { patch: 0, basis: Basis::Z, line: 0 }]);
+    observables.push(vec![Term::Logical { patch: 1, basis: Basis::Z, line: 0 }]);
+    Program { d, p, tiles: vec![(0, 0), (1, 0)], steps, observables }
+}
+
+/// Z⊗…⊗Z on n patches in a row, all in |0⟩, merged at once: the product
+/// measurement every gate of a Pauli-based computation reduces to.
+/// Observables: the outcome (+1), then each patch's Z.
+pub fn product(d: usize, n: usize, merged: usize, p: f64) -> Program {
+    let all: Vec<usize> = (0..n).collect();
+    let mut observables = vec![vec![Term::Outcome { merge: 0 }]];
+    observables.extend((0..n).map(|q| vec![Term::Logical { patch: q, basis: Basis::Z, line: 0 }]));
+    Program {
+        d,
+        p,
+        tiles: (0..n as i32).map(|i| (i, 0)).collect(),
+        steps: vec![
+            Step::Prepare { patches: all.clone(), basis: Basis::Z },
+            Step::Rounds(d),
+            Step::Merge { patches: all.clone() },
+            Step::Rounds(merged),
+            Step::Split,
+            Step::Rounds(d),
+            Step::Measure { patches: all, basis: Basis::Z },
+        ],
+        observables,
+    }
+}
+
+/// The X⊗X mirror of the Z⊗Z experiment: two patches one above the other,
+/// merged across a row of seam qubits prepared in |0⟩ and split by reading
+/// them in Z. With X inputs the observables are the outcome and each patch's
+/// X; with Z inputs, Z₁Z₂ (which the X⊗X measurement keeps), with the seam
+/// qubit on patch 0's column read at the split.
+pub fn vertical(d: usize, merged: usize, p: f64, basis: Basis) -> Program {
+    let observables = match basis {
+        Basis::X => vec![
+            vec![Term::Outcome { merge: 0 }],
+            vec![Term::Logical { patch: 0, basis: Basis::X, line: 0 }],
+            vec![Term::Logical { patch: 1, basis: Basis::X, line: 0 }],
+        ],
+        Basis::Z => vec![vec![
+            Term::Logical { patch: 0, basis: Basis::Z, line: 0 },
+            Term::Logical { patch: 1, basis: Basis::Z, line: 0 },
+            Term::Seam { merge: 0, patch: 0, line: 0 },
+        ]],
+    };
+    Program {
+        d,
+        p,
+        tiles: vec![(0, 0), (0, 1)],
+        steps: vec![
+            Step::Prepare { patches: vec![0, 1], basis },
+            Step::Rounds(d),
+            Step::Merge { patches: vec![0, 1] },
+            Step::Rounds(merged),
+            Step::Split,
+            Step::Rounds(d),
+            Step::Measure { patches: vec![0, 1], basis },
+        ],
+        observables,
     }
 }
 
@@ -737,6 +890,72 @@ mod tests {
                 .filter(|m| dec.decode(&m.detectors).map(|p| p.observables != m.observables).unwrap_or(true))
                 .count();
             assert_eq!(failed, 0, "{basis:?}, T = 3: {failed} of {} single faults uncorrected", dem.mechanisms.len());
+        }
+    }
+    /// Every program's detectors and observables are deterministic without
+    /// noise. For the CNOT this checks the hand-derived Pauli frames: a frame
+    /// missing a record leaves its observable random, and the reference
+    /// simulation refuses it.
+    #[test]
+    fn programs_are_deterministic() {
+        for d in [3usize, 5] {
+            for basis in [Basis::Z, Basis::X] {
+                for (name, prog) in [("cnot", cnot(d, d, 0.0, basis)), ("vertical", vertical(d, d, 0.0, basis))] {
+                    let c = prog.circuit().unwrap();
+                    M2d::new(&c).unwrap_or_else(|e| panic!("{name}, d = {d}, {basis:?}: {e}"));
+                }
+            }
+            for (name, prog) in [("repeated", repeated(d, 3, d, 0.0)), ("product", product(d, 3, d, 0.0))] {
+                M2d::new(&prog.circuit().unwrap()).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
+            }
+        }
+    }
+
+    /// The frame is exercised: without noise the two merge outcomes the CNOT's
+    /// observables use each come out -1 in about half of shots, so a wrong
+    /// frame could not hide behind outcomes that happened to be +1.
+    #[test]
+    fn the_cnot_s_outcomes_are_random() {
+        use crate::frame_sampler::FrameSampler;
+        for basis in [Basis::Z, Basis::X] {
+            let mut prog = cnot(3, 3, 0.0, basis);
+            let k = prog.observables.len();
+            prog.observables.push(vec![Term::Outcome { merge: 0 }]);
+            prog.observables.push(vec![Term::Outcome { merge: 1 }]);
+            let sampler = FrameSampler::new(&prog.circuit().unwrap()).unwrap();
+            let mut rng = crate::surface_code::Xorshift::new(4);
+            let (mut ones0, mut ones1) = (0, 0);
+            for _ in 0..400 {
+                let shot = sampler.sample(&mut rng);
+                ones0 += ((shot.observables >> k) & 1) as usize;
+                ones1 += ((shot.observables >> (k + 1)) & 1) as usize;
+            }
+            assert!((120..=280).contains(&ones0) && (120..=280).contains(&ones1), "{basis:?}: {ones0}, {ones1} of 400");
+        }
+    }
+
+    /// With d merged rounds, every single fault of every program is
+    /// corrected: the CNOT in both input bases, the X⊗X mirror, repeated
+    /// Z⊗Z and the three-patch product.
+    #[test]
+    fn every_program_corrects_every_single_fault() {
+        let programs = [
+            ("cnot, Z inputs", cnot(3, 3, 0.001, Basis::Z)),
+            ("cnot, X inputs", cnot(3, 3, 0.001, Basis::X)),
+            ("vertical, X", vertical(3, 3, 0.001, Basis::X)),
+            ("vertical, Z", vertical(3, 3, 0.001, Basis::Z)),
+            ("repeated, k = 3", repeated(3, 3, 3, 0.001)),
+            ("product, n = 3", product(3, 3, 3, 0.001)),
+        ];
+        for (name, prog) in programs {
+            let dem = Dem::from_circuit(&prog.circuit().unwrap()).unwrap();
+            let dec = DemDecoder::new(&dem).unwrap();
+            let failed = dem
+                .mechanisms
+                .iter()
+                .filter(|m| dec.decode(&m.detectors).map(|p| p.observables != m.observables).unwrap_or(true))
+                .count();
+            assert_eq!(failed, 0, "{name}: {failed} of {} single faults uncorrected", dem.mechanisms.len());
         }
     }
 }
