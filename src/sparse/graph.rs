@@ -102,6 +102,7 @@ impl SparseGraph {
     }
 
     /// An edge's integer weight as built, before any reweighting.
+    #[cfg(test)]
     pub(crate) fn weight_of(&self, id: u32) -> i64 {
         self.w[self.halves[id as usize][0] as usize]
     }
@@ -110,7 +111,7 @@ impl SparseGraph {
     /// weights restored.
     pub(crate) fn check_scratch(&self, scratch: &Scratch) {
         assert!(
-            scratch.nodes.len() == self.num_nodes && scratch.w.len() == self.w.len(),
+            scratch.nodes.len() == self.num_nodes + 1 && scratch.w.len() == self.w.len(),
             "a Scratch serves the graph it was built for"
         );
         debug_assert!(scratch.undo.is_empty(), "a Scratch's weights are restored after every decode");

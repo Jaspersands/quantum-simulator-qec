@@ -135,7 +135,7 @@ pub extern "C" fn wasm_hw_decode(slot: usize, num_shots: usize, correlated: u32)
     for s in 0..num_shots {
         let row = &b[s * stride..(s + 1) * stride];
         defects.clear();
-        defects.extend((0..nd).filter(|&i| (row[i / 8] >> (i % 8)) & 1 == 1).map(|i| i as u32));
+        crate::shots::defects_from_b8(row, nd, &mut defects);
         let result = if correlated != 0 { dec.decode_correlated(&defects) } else { dec.decode(&defects) };
         out.push(match result {
             Ok(p) => (p.observables & 1) as u8,
@@ -190,7 +190,7 @@ pub extern "C" fn wasm_hw_belief_decode(num_shots: usize) -> usize {
     for s in 0..num_shots {
         let row = &b[s * stride..(s + 1) * stride];
         defects.clear();
-        defects.extend((0..nd).filter(|&i| (row[i / 8] >> (i % 8)) & 1 == 1).map(|i| i as u32));
+        crate::shots::defects_from_b8(row, nd, &mut defects);
         out.push(match bm.decode(&defects, work) {
             Ok(o) => {
                 converged += usize::from(o.converged);

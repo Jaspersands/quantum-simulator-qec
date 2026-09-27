@@ -9,7 +9,7 @@
 
 use crate::dem_decoder::DecodeError;
 
-use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NONE, NO_TIME};
+use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NOBODY, NONE, NO_TIME};
 use super::tracker::Item;
 use super::Solver;
 
@@ -44,11 +44,16 @@ impl<'a> Solver<'a> {
     pub(crate) fn reset(&mut self) {
         for &v in &self.s.touched {
             self.s.nodes[v as usize] = NodeState::EMPTY;
+            self.s.queued[v as usize] = NO_TIME;
+            self.s.dirty[v as usize] = false;
         }
         self.s.touched.clear();
         // Keep the regions' and tree nodes' vectors for the next shot's.
         let s = &mut *self.s;
-        for r in s.regions.drain(..) {
+        // Region 0, nobody's, stays: next_node_event reads it for every empty
+        // neighbour.
+        assert!(s.regions.len() > NOBODY && s.regions[NOBODY].dead, "region 0, nobody's, is missing");
+        for r in s.regions.drain(NOBODY + 1..) {
             if r.shell.capacity() > 0 {
                 let mut v = r.shell;
                 v.clear();
@@ -73,9 +78,8 @@ impl<'a> Solver<'a> {
     }
 
     fn touch(&mut self, v: u32) {
-        let n = &mut self.s.nodes[v as usize];
-        if !n.dirty {
-            n.dirty = true;
+        if !self.s.dirty[v as usize] {
+            self.s.dirty[v as usize] = true;
             self.s.touched.push(v);
         }
     }
@@ -95,9 +99,6 @@ impl<'a> Solver<'a> {
         self.s.regions[n.top as usize].radius.at(self.s.now) + n.wrapped
     }
 
-    fn slope_at(&self, v: u32) -> i64 {
-        self.s.regions[self.s.nodes[v as usize].top as usize].radius.slope
-    }
 
     /// Every node owned by `r` or by any region inside it, in a buffer the
     /// caller hands back with `done_with_nodes` once it has walked them.
@@ -156,55 +157,72 @@ impl<'a> Solver<'a> {
         n.own = r;
     }
 
-    /// The next thing that happens across one of `v`'s edges, seen from `v`.
+    /// The next thing that happens across one of `v`'s edges, seen from `v`:
+    /// the earliest, and among equals the first edge in adjacency order.
+    ///
+    /// Every edge is one formula. An empty node, and the boundary, count as a
+    /// radius of zero that does not grow; two sides whose radii grow at a
+    /// combined rate of 1 or 2 meet when they cover the edge's weight. What the
+    /// winning edge's event is (reaching an empty node, being reached, a
+    /// collision, the boundary) is decided only for the winner.
     pub(crate) fn next_node_event(&self, v: u32) -> Option<(i64, NodeEvent)> {
         let now = self.s.now;
-        let nv = self.s.nodes[v as usize];
-        let v_owned = nv.top != NONE;
-        let (lv, sv) = if v_owned { (self.local_radius(v), self.slope_at(v)) } else { (0, 0) };
-        let mut best: Option<(i64, NodeEvent)> = None;
-        let mut offer = |t: i64, ev: NodeEvent| {
-            if best.map_or(true, |(bt, _)| t < bt) {
-                best = Some((t, ev));
-            }
+        let nodes = &self.s.nodes;
+        let regions = &self.s.regions;
+        let nv = &nodes[v as usize];
+        let (lv, sv) = if nv.top == NONE {
+            (0, 0)
+        } else {
+            let r = &regions[nv.top as usize].radius;
+            (r.at(now) + nv.wrapped, r.slope)
         };
-        for e in self.g.edges(v) {
-            let u = self.g.to[e];
-            let w = self.s.w[e];
-            if u == BOUNDARY {
-                if v_owned && sv > 0 {
-                    offer(now + (w - lv).max(0), NodeEvent::Boundary { v, e });
-                }
-                continue;
-            }
-            let nu = self.s.nodes[u as usize];
-            match (v_owned, nu.top != NONE) {
-                (false, false) => {}
-                (true, false) => {
-                    if sv > 0 {
-                        offer(now + (w - lv).max(0), NodeEvent::Arrive { from: v, to: u, e });
-                    }
-                }
-                (false, true) => {
-                    if self.slope_at(u) > 0 {
-                        offer(now + (w - self.local_radius(u)).max(0), NodeEvent::Arrive { from: u, to: v, e });
-                    }
-                }
-                (true, true) => {
-                    if nu.top == nv.top {
-                        continue;
-                    }
-                    let rate = sv + self.slope_at(u);
-                    if rate <= 0 {
-                        continue;
-                    }
-                    let gap = w - lv - self.local_radius(u);
-                    debug_assert!(gap >= 0 && gap % rate == 0, "gap {gap} at rate {rate}");
-                    offer(now + gap.max(0) / rate, NodeEvent::Collide { v, u, e });
-                }
+        // A node of a shrinking region meets nothing: no neighbour grows faster
+        // than its region gives ground.
+        if sv < 0 {
+            return None;
+        }
+        let range = self.g.edges(v);
+        let first = range.start;
+        let to = &self.g.to[range.clone()];
+        let w = &self.s.w[range];
+        let mut best_dt = i64::MAX;
+        let mut best_k = usize::MAX;
+        // The boundary reads the node past the graph's last, which is never
+        // reached; an empty node reads nobody's region. So every edge is the
+        // same loads and arithmetic, and the one branch left is the rarely
+        // taken "earlier than the best so far".
+        let beyond = nodes.len() - 1;
+        for (k, (&u, &wt)) in to.iter().zip(w).enumerate() {
+            let nu = &nodes[if u == BOUNDARY { beyond } else { u as usize }];
+            let r = &regions[if nu.top == NONE { NOBODY } else { nu.top as usize }].radius;
+            let lu = r.at(now) + nu.wrapped;
+            let rate = sv + r.slope;
+            let gap = wt - lv - lu;
+            // One region, or two empty nodes, meet nothing; nor do sides whose
+            // radii do not close.
+            let meets = nu.top != nv.top && rate > 0;
+            debug_assert!(!meets || (gap >= 0 && gap % rate == 0), "gap {gap} at rate {rate}");
+            // Slopes are -1, 0 or 1, so a positive rate is 1 or 2.
+            let dt = if meets { gap.max(0) >> u32::from(rate == 2) } else { i64::MAX };
+            if dt < best_dt {
+                best_dt = dt;
+                best_k = k;
             }
         }
-        best
+        if best_k == usize::MAX {
+            return None;
+        }
+        let (u, e) = (to[best_k], first + best_k);
+        let ev = if u == BOUNDARY {
+            NodeEvent::Boundary { v, e }
+        } else if nodes[u as usize].top == NONE {
+            NodeEvent::Arrive { from: v, to: u, e }
+        } else if nv.top == NONE {
+            NodeEvent::Arrive { from: u, to: v, e }
+        } else {
+            NodeEvent::Collide { v, u, e }
+        };
+        Some((now + best_dt, ev))
     }
 
     pub(crate) fn look_at_node(&mut self, v: u32) {
@@ -214,9 +232,9 @@ impl<'a> Solver<'a> {
     }
 
     fn schedule_node(&mut self, v: u32, t: i64) {
-        if t < self.s.nodes[v as usize].queued {
+        if t < self.s.queued[v as usize] {
             self.touch(v);
-            self.s.nodes[v as usize].queued = t;
+            self.s.queued[v as usize] = t;
             self.s.queue.push(t, Item::Node(v));
         }
     }
@@ -274,7 +292,8 @@ impl<'a> Solver<'a> {
     pub(crate) fn leave(&mut self, r: u32) {
         let v = self.s.regions[r as usize].shell.pop().expect("a leave event has a node to give up");
         let n = self.s.nodes[v as usize];
-        self.s.nodes[v as usize] = NodeState { own: n.own, queued: n.queued, dirty: true, ..NodeState::EMPTY };
+        // Its reminder and touch flag live apart, and stay as they are.
+        self.s.nodes[v as usize] = NodeState { own: n.own, ..NodeState::EMPTY };
         self.look_at_node(v);
         self.look_at_region(r);
     }
@@ -338,14 +357,19 @@ impl<'a> Solver<'a> {
             }
             match item {
                 Item::Node(v) => {
-                    if self.s.nodes[v as usize].queued != t {
+                    if self.s.queued[v as usize] != t {
                         continue;
                     }
-                    self.s.nodes[v as usize].queued = NO_TIME;
+                    self.s.queued[v as usize] = NO_TIME;
                     match self.next_node_event(v) {
                         Some((te, ev)) if te == t => {
+                            // An arrival has already looked at both its nodes,
+                            // v one of them, in the state it leaves.
+                            let arrival = matches!(ev, NodeEvent::Arrive { .. });
                             self.dispatch_node(ev);
-                            self.look_at_node(v);
+                            if !arrival {
+                                self.look_at_node(v);
+                            }
                         }
                         Some((te, _)) => self.schedule_node(v, te),
                         None => {}
@@ -381,6 +405,12 @@ impl<'a> Solver<'a> {
     /// an empty node, nor a region and the boundary) overlap across an edge.
     pub(crate) fn check_invariants(&self) {
         let now = self.s.now;
+        // What next_node_event reads in place of branches: nobody's region,
+        // dead and of radius zero, and the boundary's node, empty.
+        let nobody = &self.s.regions[NOBODY];
+        assert!(nobody.dead && nobody.radius.y0 == 0 && nobody.radius.slope == 0, "region 0 is no longer nobody's");
+        let beyond = &self.s.nodes[self.g.num_nodes];
+        assert!(beyond.top == NONE && beyond.wrapped == 0, "the boundary's node has been reached");
         for (i, r) in self.s.regions.iter().enumerate() {
             if !r.dead {
                 assert!(r.radius.at(now) >= 0, "region {i} has radius {} at {now}", r.radius.at(now));

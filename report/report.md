@@ -516,8 +516,8 @@ here, which differ by about 10% in Λ, move the answer far less than the hardwar
 
 # Limits and next steps
 
-- **The matcher.** It is exact but not the fastest: it runs at {{xc.plain_ratio}} times
-  PyMatching's single-threaded time. Correlated matching closes most of the gap to Google's
+- **The matcher.** It is exact, and single-threaded it runs at {{xc.plain_ratio}} times
+  PyMatching's time plain and {{xc.corr_ratio}} times correlated. Correlated matching closes most of the gap to Google's
   correlated matcher, but Google's Harmony and Libra decoders do better still.
 - **Latency is scheduled, not served.** The latency figures schedule decode times measured
   natively on one machine. They leave out the transport of syndromes from a quantum computer to

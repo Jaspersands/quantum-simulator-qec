@@ -7,8 +7,6 @@
 //! and it may differ from PyMatching's. Either way the set is a minimum-weight
 //! correction of the shot.
 
-use std::cmp::Reverse;
-
 use crate::dem_decoder::{DecodeError, Prediction};
 
 use super::state::{Scratch, BOUNDARY, NONE, NO_TIME};
@@ -71,10 +69,10 @@ impl<'a> Solver<'a> {
         let s = &mut *self.s;
         s.dist[a as usize] = 0;
         s.seen.push(a);
-        s.heap.push(Reverse((0, a)));
+        s.heap.push(0, a);
         // The best way out to the boundary so far: distance, node, edge.
         let mut exit = (NO_TIME, NONE, NONE);
-        while let Some(Reverse((d, u))) = s.heap.pop() {
+        while let Some((d, u)) = s.heap.pop() {
             if d > s.dist[u as usize] {
                 continue;
             }
@@ -96,7 +94,7 @@ impl<'a> Solver<'a> {
                     }
                     s.dist[v as usize] = nd;
                     s.pred[v as usize] = (u, g.edge_of[e]);
-                    s.heap.push(Reverse((nd, v)));
+                    s.heap.push(nd, v);
                 }
             }
         }

@@ -1,10 +1,7 @@
 //! The state of one decode: regions, alternating-tree nodes, detector nodes.
 
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-
 use super::graph::SparseGraph;
-use super::tracker::Tracker;
+use super::tracker::{RadixHeap, Tracker};
 
 pub(crate) const NONE: u32 = u32::MAX;
 /// The boundary, as an edge target and as a match partner.
@@ -38,6 +35,10 @@ impl Radius {
         self.y0 + self.slope * t
     }
 }
+
+/// Region 0 is nobody's: a dead region of radius zero that does not grow,
+/// which an empty node's neighbours read in place of a branch.
+pub(crate) const NOBODY: usize = 0;
 
 pub(crate) struct Region {
     pub radius: Radius,
@@ -84,9 +85,11 @@ pub(crate) struct NodeState {
     pub wrapped: i64,
     /// For a defect, its own trivial region.
     pub own: u32,
-    pub queued: i64,
-    pub dirty: bool,
 }
+
+// Two nodes to a 64-byte cache line: the hot loop reads a neighbour's node
+// for every edge it scans.
+const _: () = assert!(std::mem::size_of::<NodeState>() == 32);
 
 impl NodeState {
     pub const EMPTY: NodeState = NodeState {
@@ -96,14 +99,17 @@ impl NodeState {
         obs: 0,
         wrapped: 0,
         own: NONE,
-        queued: NO_TIME,
-        dirty: false,
     };
 }
 
 /// Reusable workspace for decoding shots on one graph, one per thread.
 pub struct Scratch {
     pub(crate) nodes: Vec<NodeState>,
+    /// Per node: the time of its queued reminder (NO_TIME if none), and
+    /// whether this decode has touched it. Kept apart from `nodes`, which the
+    /// hot loop reads, so a node there is 32 bytes, two to a cache line.
+    pub(crate) queued: Vec<i64>,
+    pub(crate) dirty: Vec<bool>,
     pub(crate) touched: Vec<u32>,
     pub(crate) regions: Vec<Region>,
     pub(crate) alt: Vec<AltNode>,
@@ -122,7 +128,7 @@ pub struct Scratch {
     pub(crate) dist: Vec<i64>,
     pub(crate) pred: Vec<(u32, u32)>,
     pub(crate) seen: Vec<u32>,
-    pub(crate) heap: BinaryHeap<Reverse<(i64, u32)>>,
+    pub(crate) heap: RadixHeap<u32>,
     /// The edge set being built: a flag per edge, and every edge whose flag
     /// was raised at some point.
     pub(crate) flipped: Vec<bool>,
@@ -150,9 +156,22 @@ pub struct Scratch {
 impl Scratch {
     pub fn new(graph: &SparseGraph) -> Scratch {
         Scratch {
-            nodes: vec![NodeState::EMPTY; graph.num_nodes],
+            // One more than the graph's: the boundary's, never reached, which
+            // the hot loop reads for a boundary edge in place of a branch.
+            nodes: vec![NodeState::EMPTY; graph.num_nodes + 1],
+            queued: vec![NO_TIME; graph.num_nodes],
+            dirty: vec![false; graph.num_nodes],
             touched: Vec::new(),
-            regions: Vec::new(),
+            regions: vec![Region {
+                radius: Radius { y0: 0, slope: 0 },
+                blossom_parent: NONE,
+                children: Vec::new(),
+                shell: Vec::new(),
+                tree: NONE,
+                matched: None,
+                queued: NO_TIME,
+                dead: true,
+            }],
             alt: Vec::new(),
             queue: Tracker::default(),
             now: 0,
@@ -164,7 +183,7 @@ impl Scratch {
             dist: Vec::new(),
             pred: Vec::new(),
             seen: Vec::new(),
-            heap: BinaryHeap::new(),
+            heap: RadixHeap::default(),
             flipped: Vec::new(),
             edge_set: Vec::new(),
             stamp: 0,

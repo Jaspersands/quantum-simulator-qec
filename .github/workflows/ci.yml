@@ -37,6 +37,8 @@ jobs:
         run: |
           node tools/site-tests.mjs
           node tools/contrast.mjs
+      - name: README tables match their data
+        run: python3 tools/readme_tables.py --check
       - name: The fresh engine in Node (Willow's detection events, decoding, streams)
         run: node tools/wasm-smoke.mjs target/wasm32-unknown-unknown/release/stabilizer_qec.wasm
       - name: The committed engine, the one the site serves

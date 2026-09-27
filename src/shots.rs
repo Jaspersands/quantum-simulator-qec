@@ -32,6 +32,28 @@ pub fn read_b8(bytes: &[u8], num_bits: usize) -> Result<Vec<Vec<bool>>, String> 
         .collect())
 }
 
+/// Append the indices of `row`'s set bits below `num_bits`, ascending: a
+/// b8 shot's detection events. Eight bytes at a time; bits past `num_bits`
+/// are ignored.
+pub fn defects_from_b8(row: &[u8], num_bits: usize, out: &mut Vec<u32>) {
+    let bytes = num_bits.div_ceil(8).min(row.len());
+    let mut base = 0usize;
+    for chunk in row[..bytes].chunks(8) {
+        let mut buf = [0u8; 8];
+        buf[..chunk.len()].copy_from_slice(chunk);
+        let mut word = u64::from_le_bytes(buf);
+        let left = num_bits - base;
+        if left < 64 {
+            word &= (1u64 << left) - 1;
+        }
+        while word != 0 {
+            out.push((base + word.trailing_zeros() as usize) as u32);
+            word &= word - 1;
+        }
+        base += 64;
+    }
+}
+
 pub fn write_01(shots: &[Vec<bool>]) -> String {
     let mut s = String::with_capacity(shots.iter().map(|r| r.len() + 1).sum());
     for row in shots {
@@ -93,5 +115,23 @@ mod tests {
         assert!(read_b8(&[0u8; 5], 10).is_err());
         assert!(read_01("101\n", 10).is_err());
         assert!(read_01("10x0000000\n", 10).is_err());
+    }
+    #[test]
+    fn defects_from_b8_equals_the_bitwise_scan() {
+        let mut rng = crate::surface_code::Xorshift::new(9);
+        for trial in 0..500 {
+            let n = 1 + (rng.next_u64() % 300) as usize;
+            let mut row: Vec<u8> = (0..n.div_ceil(8)).map(|_| rng.next_u64() as u8).collect();
+            if trial % 2 == 0 {
+                // Stray bits past num_bits must be ignored.
+                if let Some(last) = row.last_mut() {
+                    *last |= 0x80;
+                }
+            }
+            let slow: Vec<u32> = (0..n).filter(|&i| (row[i / 8] >> (i % 8)) & 1 == 1).map(|i| i as u32).collect();
+            let mut fast = vec![7u32];
+            defects_from_b8(&row, n, &mut fast);
+            assert_eq!(&fast[1..], &slow[..], "n = {n}");
+        }
     }
 }
