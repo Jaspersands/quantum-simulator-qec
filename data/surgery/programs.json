@@ -1,0 +1,1100 @@
+{
+ "points": {
+  "cnot/d3/T3/p0.002/z/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.002,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1746,
+    "L0": 695,
+    "L1": 1316
+   },
+   "rate_any": 0.1065673828125,
+   "interval_any": [
+    0.10193440179076428,
+    0.11138481896616569
+   ]
+  },
+  "cnot/d3/T3/p0.002/z/plain": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.002,
+   "inputs": "z",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1880,
+    "L0": 698,
+    "L1": 1420
+   },
+   "rate_any": 0.11474609375,
+   "interval_any": [
+    0.10995581283371647,
+    0.11971699532913521
+   ]
+  },
+  "cnot/d3/T3/p0.002/x/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.002,
+   "inputs": "x",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1877,
+    "L0": 672,
+    "L1": 1476
+   },
+   "rate_any": 0.11456298828125,
+   "interval_any": [
+    0.10977613965450535,
+    0.11953054341716897
+   ]
+  },
+  "cnot/d3/T3/p0.002/x/plain": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.002,
+   "inputs": "x",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2072,
+    "L0": 720,
+    "L1": 1625
+   },
+   "rate_any": 0.12646484375,
+   "interval_any": [
+    0.12146279617747159,
+    0.13164201782073057
+   ]
+  },
+  "memory/d3/R12/p0.002": {
+   "kind": "memory",
+   "d": 3,
+   "rounds": 12,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 2243,
+    "L0": 2243
+   },
+   "rate_any": 0.045633951822916664,
+   "interval_any": [
+    0.043824231368519935,
+    0.047514691002814254
+   ]
+  },
+  "cnot/d5/T5/p0.002/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.002,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1741,
+    "L0": 671,
+    "L1": 1303
+   },
+   "rate_any": 0.035420735677083336,
+   "interval_any": [
+    0.033822586473869404,
+    0.03709149996097662
+   ]
+  },
+  "cnot/d5/T5/p0.002/z/plain": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.002,
+   "inputs": "z",
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 1958,
+    "L0": 724,
+    "L1": 1485
+   },
+   "rate_any": 0.05975341796875,
+   "interval_any": [
+    0.05723820312506499,
+    0.06237184649753541
+   ]
+  },
+  "cnot/d5/T5/p0.002/x/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.002,
+   "inputs": "x",
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 1894,
+    "L0": 642,
+    "L1": 1484
+   },
+   "rate_any": 0.038533528645833336,
+   "interval_any": [
+    0.03686762061795105,
+    0.04027156521586448
+   ]
+  },
+  "cnot/d5/T5/p0.002/x/plain": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.002,
+   "inputs": "x",
+   "matcher": "plain",
+   "shots": 32768,
+   "failures": {
+    "any": 2173,
+    "L0": 724,
+    "L1": 1729
+   },
+   "rate_any": 0.066314697265625,
+   "interval_any": [
+    0.06367097339712934,
+    0.0690600965589759
+   ]
+  },
+  "memory/d5/R20/p0.002": {
+   "kind": "memory",
+   "d": 5,
+   "rounds": 20,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 114688,
+   "failures": {
+    "any": 1747,
+    "L0": 1747
+   },
+   "rate_any": 0.015232631138392858,
+   "interval_any": [
+    0.014539849184580825,
+    0.01595788763090335
+   ]
+  },
+  "cnot/d7/T7/p0.002/z/correlated": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.002,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 163840,
+   "failures": {
+    "any": 1680,
+    "L0": 635,
+    "L1": 1261
+   },
+   "rate_any": 0.01025390625,
+   "interval_any": [
+    0.009777447556080652,
+    0.0107533308189303
+   ]
+  },
+  "cnot/d7/T7/p0.002/z/plain": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.002,
+   "inputs": "z",
+   "matcher": "plain",
+   "shots": 65536,
+   "failures": {
+    "any": 1712,
+    "L0": 639,
+    "L1": 1299
+   },
+   "rate_any": 0.026123046875,
+   "interval_any": [
+    0.02492936190202815,
+    0.02737228418556325
+   ]
+  },
+  "cnot/d7/T7/p0.002/x/correlated": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.002,
+   "inputs": "x",
+   "matcher": "correlated",
+   "shots": 147456,
+   "failures": {
+    "any": 1657,
+    "L0": 537,
+    "L1": 1287
+   },
+   "rate_any": 0.011237250434027778,
+   "interval_any": [
+    0.010711816851205135,
+    0.011788150353425305
+   ]
+  },
+  "cnot/d7/T7/p0.002/x/plain": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.002,
+   "inputs": "x",
+   "matcher": "plain",
+   "shots": 65536,
+   "failures": {
+    "any": 1936,
+    "L0": 605,
+    "L1": 1532
+   },
+   "rate_any": 0.029541015625,
+   "interval_any": [
+    0.028272000683068683,
+    0.03086518221790434
+   ]
+  },
+  "memory/d7/R28/p0.002": {
+   "kind": "memory",
+   "d": 7,
+   "rounds": 28,
+   "p": 0.002,
+   "matcher": "correlated",
+   "shots": 327680,
+   "failures": {
+    "any": 1506,
+    "L0": 1506
+   },
+   "rate_any": 0.004595947265625,
+   "interval_any": [
+    0.004370094463725376,
+    0.004833415801762184
+   ]
+  },
+  "cnot/d3/T3/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 3186,
+    "L0": 1239,
+    "L1": 2391
+   },
+   "rate_any": 0.1944580078125,
+   "interval_any": [
+    0.18846949395432347,
+    0.2005897705677354
+   ]
+  },
+  "cnot/d3/T3/p0.003/z/plain": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 3527,
+    "L0": 1388,
+    "L1": 2687
+   },
+   "rate_any": 0.21527099609375,
+   "interval_any": [
+    0.2090445314871073,
+    0.22163095173211053
+   ]
+  },
+  "cnot/d3/T3/p0.003/x/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 3638,
+    "L0": 1382,
+    "L1": 2794
+   },
+   "rate_any": 0.2220458984375,
+   "interval_any": [
+    0.21574725871769782,
+    0.22847485287508204
+   ]
+  },
+  "cnot/d3/T3/p0.003/x/plain": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 3,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 4086,
+    "L0": 1562,
+    "L1": 3187
+   },
+   "rate_any": 0.2493896484375,
+   "interval_any": [
+    0.24282380972149684,
+    0.2560729821537676
+   ]
+  },
+  "memory/d3/R12/p0.003": {
+   "kind": "memory",
+   "d": 3,
+   "rounds": 12,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2864,
+    "L0": 2864
+   },
+   "rate_any": 0.08740234375,
+   "interval_any": [
+    0.0843925426238118,
+    0.0905088764041625
+   ]
+  },
+  "cnot/d5/T5/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1820,
+    "L0": 706,
+    "L1": 1375
+   },
+   "rate_any": 0.111083984375,
+   "interval_any": [
+    0.10636311302940038,
+    0.11598719330990426
+   ]
+  },
+  "cnot/d5/T5/p0.003/z/plain": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2774,
+    "L0": 1116,
+    "L1": 2061
+   },
+   "rate_any": 0.1693115234375,
+   "interval_any": [
+    0.16364659403406048,
+    0.17513149129964203
+   ]
+  },
+  "cnot/d5/T5/p0.003/x/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1976,
+    "L0": 711,
+    "L1": 1546
+   },
+   "rate_any": 0.12060546875,
+   "interval_any": [
+    0.11570740234921119,
+    0.12568140873131575
+   ]
+  },
+  "cnot/d5/T5/p0.003/x/plain": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 3104,
+    "L0": 1089,
+    "L1": 2416
+   },
+   "rate_any": 0.189453125,
+   "interval_any": [
+    0.18352570352724404,
+    0.1955261418359672
+   ]
+  },
+  "memory/d5/R20/p0.003": {
+   "kind": "memory",
+   "d": 5,
+   "rounds": 20,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 1648,
+    "L0": 1648
+   },
+   "rate_any": 0.05029296875,
+   "interval_any": [
+    0.0479788829313367,
+    0.052712486210396245
+   ]
+  },
+  "cnot/d7/T7/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 1834,
+    "L0": 698,
+    "L1": 1356
+   },
+   "rate_any": 0.05596923828125,
+   "interval_any": [
+    0.053532039472788805,
+    0.058510537957464616
+   ]
+  },
+  "cnot/d7/T7/p0.003/z/plain": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 1876,
+    "L0": 681,
+    "L1": 1431
+   },
+   "rate_any": 0.114501953125,
+   "interval_any": [
+    0.10971624947641734,
+    0.11946839189819786
+   ]
+  },
+  "cnot/d7/T7/p0.003/x/correlated": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2103,
+    "L0": 713,
+    "L1": 1644
+   },
+   "rate_any": 0.064178466796875,
+   "interval_any": [
+    0.061575699133859074,
+    0.06688341071366319
+   ]
+  },
+  "cnot/d7/T7/p0.003/x/plain": {
+   "kind": "cnot",
+   "d": 7,
+   "merged": 7,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "plain",
+   "shots": 16384,
+   "failures": {
+    "any": 2106,
+    "L0": 740,
+    "L1": 1644
+   },
+   "rate_any": 0.1285400390625,
+   "interval_any": [
+    0.12350203384553823,
+    0.13375219785267392
+   ]
+  },
+  "memory/d7/R28/p0.003": {
+   "kind": "memory",
+   "d": 7,
+   "rounds": 28,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 65536,
+   "failures": {
+    "any": 1591,
+    "L0": 1591
+   },
+   "rate_any": 0.0242767333984375,
+   "interval_any": [
+    0.023125971741120306,
+    0.025483263835671205
+   ]
+  },
+  "cnot/d3/T2/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 2,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 3433,
+    "L0": 1122,
+    "L1": 2779
+   },
+   "rate_any": 0.20953369140625,
+   "interval_any": [
+    0.20337032294805069,
+    0.21583324074761012
+   ]
+  },
+  "cnot/d3/T4/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 4,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 3571,
+    "L0": 1462,
+    "L1": 2625
+   },
+   "rate_any": 0.21795654296875,
+   "interval_any": [
+    0.21170117053085138,
+    0.2243441473589676
+   ]
+  },
+  "cnot/d3/T5/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 3887,
+    "L0": 1553,
+    "L1": 2903
+   },
+   "rate_any": 0.23724365234375,
+   "interval_any": [
+    0.23079189089148258,
+    0.24381860326901747
+   ]
+  },
+  "cnot/d3/T6/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 3,
+   "merged": 6,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 4369,
+    "L0": 1687,
+    "L1": 3282
+   },
+   "rate_any": 0.26666259765625,
+   "interval_any": [
+    0.25994645943794203,
+    0.27348813270505257
+   ]
+  },
+  "repeated/d3/k1/p0.003": {
+   "kind": "repeated",
+   "d": 3,
+   "k": 1,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2016,
+    "L0": 1054,
+    "L1": 963,
+    "L2": 926
+   },
+   "rate_any": 0.123046875,
+   "interval_any": [
+    0.11810503433758056,
+    0.12816544462531104
+   ]
+  },
+  "repeated/d3/k2/p0.003": {
+   "kind": "repeated",
+   "d": 3,
+   "k": 2,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2780,
+    "L0": 1039,
+    "L1": 1725,
+    "L2": 1292,
+    "L3": 1264
+   },
+   "rate_any": 0.169677734375,
+   "interval_any": [
+    0.16400778153996595,
+    0.17550255397609124
+   ]
+  },
+  "repeated/d3/k4/p0.003": {
+   "kind": "repeated",
+   "d": 3,
+   "k": 4,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 4490,
+    "L0": 1074,
+    "L1": 1793,
+    "L2": 2400,
+    "L3": 2942,
+    "L4": 2023,
+    "L5": 1943
+   },
+   "rate_any": 0.2740478515625,
+   "interval_any": [
+    0.2672715303406922,
+    0.2809301071464556
+   ]
+  },
+  "repeated/d3/k8/p0.003": {
+   "kind": "repeated",
+   "d": 3,
+   "k": 8,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 7009,
+    "L0": 1093,
+    "L1": 1786,
+    "L2": 2456,
+    "L3": 2961,
+    "L4": 3456,
+    "L5": 3929,
+    "L6": 4271,
+    "L7": 4674,
+    "L8": 3014,
+    "L9": 3173
+   },
+   "rate_any": 0.42779541015625,
+   "interval_any": [
+    0.42023720766735023,
+    0.435387464711714
+   ]
+  },
+  "cnot/d5/T2/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 2,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2915,
+    "L0": 563,
+    "L1": 2595
+   },
+   "rate_any": 0.17791748046875,
+   "interval_any": [
+    0.1721370195063916,
+    0.18384894511264643
+   ]
+  },
+  "cnot/d5/T3/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 3,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1777,
+    "L0": 597,
+    "L1": 1437
+   },
+   "rate_any": 0.10845947265625,
+   "interval_any": [
+    0.10378935779206211,
+    0.11331315557370047
+   ]
+  },
+  "cnot/d5/T4/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 4,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1759,
+    "L0": 696,
+    "L1": 1325
+   },
+   "rate_any": 0.10736083984375,
+   "interval_any": [
+    0.10271223044547975,
+    0.11219353237321872
+   ]
+  },
+  "cnot/d5/T6/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 6,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2070,
+    "L0": 819,
+    "L1": 1546
+   },
+   "rate_any": 0.1263427734375,
+   "interval_any": [
+    0.12134285490025108,
+    0.13151787570383286
+   ]
+  },
+  "cnot/d5/T7/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 7,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2136,
+    "L0": 825,
+    "L1": 1575
+   },
+   "rate_any": 0.13037109375,
+   "interval_any": [
+    0.12530172639565315,
+    0.1356137562143325
+   ]
+  },
+  "cnot/d5/T8/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 8,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2328,
+    "L0": 873,
+    "L1": 1748
+   },
+   "rate_any": 0.14208984375,
+   "interval_any": [
+    0.13682747160195258,
+    0.14752001684338362
+   ]
+  },
+  "cnot/d5/T9/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 9,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2398,
+    "L0": 887,
+    "L1": 1788
+   },
+   "rate_any": 0.1463623046875,
+   "interval_any": [
+    0.14103270809359394,
+    0.15185769914588046
+   ]
+  },
+  "cnot/d5/T10/p0.003/z/correlated": {
+   "kind": "cnot",
+   "d": 5,
+   "merged": 10,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2562,
+    "L0": 938,
+    "L1": 1905
+   },
+   "rate_any": 0.1563720703125,
+   "interval_any": [
+    0.15089107313162228,
+    0.16201417242554736
+   ]
+  },
+  "repeated/d5/k1/p0.003": {
+   "kind": "repeated",
+   "d": 5,
+   "k": 1,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2148,
+    "L0": 1150,
+    "L1": 1039,
+    "L2": 1023
+   },
+   "rate_any": 0.0655517578125,
+   "interval_any": [
+    0.06292256727672439,
+    0.0682828026406012
+   ]
+  },
+  "repeated/d5/k2/p0.003": {
+   "kind": "repeated",
+   "d": 5,
+   "k": 2,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 32768,
+   "failures": {
+    "any": 2902,
+    "L0": 1104,
+    "L1": 1750,
+    "L2": 1378,
+    "L3": 1333
+   },
+   "rate_any": 0.08856201171875,
+   "interval_any": [
+    0.08553381660415682,
+    0.09168666648276252
+   ]
+  },
+  "repeated/d5/k4/p0.003": {
+   "kind": "repeated",
+   "d": 5,
+   "k": 4,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2073,
+    "L0": 550,
+    "L1": 833,
+    "L2": 1111,
+    "L3": 1383,
+    "L4": 919,
+    "L5": 962
+   },
+   "rate_any": 0.12652587890625,
+   "interval_any": [
+    0.1215227673983275,
+    0.13170408829693375
+   ]
+  },
+  "repeated/d5/k8/p0.003": {
+   "kind": "repeated",
+   "d": 5,
+   "k": 8,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 3409,
+    "L0": 532,
+    "L1": 844,
+    "L2": 1170,
+    "L3": 1458,
+    "L4": 1756,
+    "L5": 1939,
+    "L6": 2201,
+    "L7": 2442,
+    "L8": 1564,
+    "L9": 1530
+   },
+   "rate_any": 0.20806884765625,
+   "interval_any": [
+    0.20192188606700265,
+    0.21435267689923934
+   ]
+  },
+  "product/d3/n3/p0.003": {
+   "kind": "product",
+   "d": 3,
+   "n": 3,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2944,
+    "L0": 1323,
+    "L1": 947,
+    "L2": 870,
+    "L3": 938
+   },
+   "rate_any": 0.1796875,
+   "interval_any": [
+    0.1738839150506332,
+    0.18564125878311924
+   ]
+  },
+  "product/d5/n3/p0.003": {
+   "kind": "product",
+   "d": 5,
+   "n": 3,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1531,
+    "L0": 597,
+    "L1": 476,
+    "L2": 495,
+    "L3": 503
+   },
+   "rate_any": 0.09344482421875,
+   "interval_any": [
+    0.08908285493206212,
+    0.0979974009571576
+   ]
+  },
+  "product/d7/n3/p0.003": {
+   "kind": "product",
+   "d": 7,
+   "n": 3,
+   "merged": 7,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 2266,
+    "L0": 899,
+    "L1": 746,
+    "L2": 684,
+    "L3": 763
+   },
+   "rate_any": 0.046101888020833336,
+   "interval_any": [
+    0.04428315327345067,
+    0.047991568353937766
+   ]
+  },
+  "windowed/cnot/d5/p0.003/z": {
+   "kind": "windowed",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "commit": 5,
+   "buffer": 5,
+   "shots": 16384,
+   "failures": {
+    "any": 1847,
+    "L0": 749,
+    "L1": 1348
+   },
+   "rate_any": 0.11273193359375,
+   "interval_any": [
+    0.10797962755162366,
+    0.11766580460827714
+   ],
+   "windowed_failures": {
+    "any": 1847
+   },
+   "windowed_rate_any": 0.11273193359375,
+   "windowed_interval_any": [
+    0.10797962755162366,
+    0.11766580460827714
+   ]
+  },
+  "windowed/cnot/d5/p0.003/x": {
+   "kind": "windowed",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "correlated",
+   "commit": 5,
+   "buffer": 5,
+   "shots": 16384,
+   "failures": {
+    "any": 2081,
+    "L0": 756,
+    "L1": 1611
+   },
+   "rate_any": 0.12701416015625,
+   "interval_any": [
+    0.1220025511074471,
+    0.13220063816428715
+   ],
+   "windowed_failures": {
+    "any": 2110
+   },
+   "windowed_rate_any": 0.1287841796875,
+   "windowed_interval_any": [
+    0.12374197322271845,
+    0.13400042526373018
+   ]
+  }
+ },
+ "engine_commit": "03112ee",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "note": "Lattice-surgery programs (src/surgery.rs), SD6, sampled by the batch sampler and decoded on the engine's own model; 'any' is a shot with any observable wrong",
+ "generated": "2026-09-28"
+}

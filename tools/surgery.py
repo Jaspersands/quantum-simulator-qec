@@ -5,6 +5,7 @@ also has stim and pymatching:
 
     python tools/surgery.py check    # error models against Stim's, matching against PyMatching's
     python tools/surgery.py run      # failure rates against merged rounds -> data/surgery/results.json
+    python tools/surgery.py programs # the CNOT, repeated Z⊗Z, Z⊗Z⊗Z -> data/surgery/programs.json
 
 The experiment (src/surgery.rs): two rotated distance-d patches in |0>_L, d
 rounds apart, the seam prepared in |+> and T rounds of the merged patch, the
@@ -139,15 +140,95 @@ def cmd_run(args):
                           f"{time.perf_counter() - t:.0f} s", flush=True)
 
 
+def program_point(text, seed, correlated, shot_cap, time_cap, window=None):
+    """Sample a program by the batch sampler and decode it with its own model:
+    failures of each observable, and of any. With `window` (commit, buffer),
+    also window-decode the same shots (parallel windows) and count those."""
+    nobs = stim.Circuit(text).num_observables
+    dem = sq.dem_from_circuit(text, True) if window else None
+    counts = dict(any=0, **{f"L{i}": 0 for i in range(nobs)})
+    wcounts = dict(any=0) if window else None
+    shots, t0, batch = 0, time.perf_counter(), 0
+    mask = np.uint64((1 << nobs) - 1)
+    while True:
+        dets, obs, _ = sq.sample_b8_batch(text, BATCH, seed + batch, 0)
+        rows = np.frombuffer(obs, np.uint8).reshape(BATCH, -1)
+        truth = sum(((rows[:, i // 8] >> (i % 8)) & 1).astype(np.uint64) << np.uint64(i) for i in range(nobs))
+        raw, _, _, _ = sq.decode_b8_own(text, dets, BATCH, 0, correlated)
+        # A refused shot is predicted u64::MAX: wrong on every observable, counted once.
+        wrong = (np.frombuffer(raw, "<u8") ^ truth) & mask
+        counts["any"] += int((wrong != 0).sum())
+        for i in range(nobs):
+            counts[f"L{i}"] += int(((wrong >> np.uint64(i)) & np.uint64(1)).sum())
+        if window:
+            wraw, _, _, _ = sq.decode_b8_window(dem, dets, BATCH, window[0], window[1], "parallel", correlated, 0, False)
+            wcounts["any"] += int((((np.frombuffer(wraw, "<u8") ^ truth) & mask) != 0).sum())
+        shots += BATCH
+        batch += 1
+        if counts["any"] >= TARGET or shots >= shot_cap or time.perf_counter() - t0 >= time_cap:
+            break
+    return shots, counts, wcounts
+
+
+def program_points():
+    """Every point `programs` measures: (key, description, Stim text, correlated, window)."""
+    pts = []
+    for p in (0.002, 0.003):
+        for d in (3, 5, 7):
+            for inputs in ("z", "x"):
+                for matcher, corr in (("correlated", True), ("plain", False)):
+                    pts.append((f"cnot/d{d}/T{d}/p{p}/{inputs}/{matcher}", dict(kind="cnot", d=d, merged=d, p=p, inputs=inputs, matcher=matcher),
+                                sq.surgery_cnot(d, d, p, inputs), corr, None))
+            # Three patches held as memories for the CNOT's whole length (d + 2d + d rounds).
+            pts.append((f"memory/d{d}/R{4 * d}/p{p}", dict(kind="memory", d=d, rounds=4 * d, p=p, matcher="correlated"),
+                        sq.generate_circuit("rotated", d, 4 * d, "sd6", p, 0.5, "z"), True, None))
+    for d in (3, 5):
+        for merged in range(2, 2 * d + 1):
+            if merged != d:
+                pts.append((f"cnot/d{d}/T{merged}/p0.003/z/correlated", dict(kind="cnot", d=d, merged=merged, p=0.003, inputs="z", matcher="correlated"),
+                            sq.surgery_cnot(d, merged, 0.003, "z"), True, None))
+        for k in (1, 2, 4, 8):
+            pts.append((f"repeated/d{d}/k{k}/p0.003", dict(kind="repeated", d=d, k=k, merged=d, p=0.003, matcher="correlated"),
+                        sq.surgery_repeated(d, k, d, 0.003), True, None))
+    for d in (3, 5, 7):
+        pts.append((f"product/d{d}/n3/p0.003", dict(kind="product", d=d, n=3, merged=d, p=0.003, matcher="correlated"),
+                    sq.surgery_product(d, 3, d, 0.003), True, None))
+    for inputs in ("z", "x"):
+        pts.append((f"windowed/cnot/d5/p0.003/{inputs}", dict(kind="windowed", d=5, merged=5, p=0.003, inputs=inputs, matcher="correlated", commit=5, buffer=5),
+                    sq.surgery_cnot(5, 5, 0.003, inputs), True, (5, 5)))
+    return pts
+
+
+def cmd_programs(args):
+    out_path = OUT / "programs.json"
+    doc = load_json(out_path, dict(points={}))
+    doc.update(engine_commit=engine_commit(), machine=machine(),
+               note="Lattice-surgery programs (src/surgery.rs), SD6, sampled by the batch sampler and decoded on the engine's own model; "
+                    "'any' is a shot with any observable wrong")
+    for i, (key, meta, text, corr, window) in enumerate(program_points()):
+        if key in doc["points"]:
+            continue
+        t = time.perf_counter()
+        shots, c, wc = program_point(text, 7_000_003 * (i + 1), corr, args.shot_cap, args.time_cap, window)
+        rec = dict(meta, shots=shots, failures=c, rate_any=c["any"] / shots, interval_any=list(wilson(c["any"], shots)))
+        if wc is not None:
+            rec.update(windowed_failures=wc, windowed_rate_any=wc["any"] / shots, windowed_interval_any=list(wilson(wc["any"], shots)))
+        doc["points"][key] = rec
+        doc["generated"] = datetime.date.today().isoformat()
+        write_json(out_path, doc)
+        extra = f"  windowed {wc['any']}" if wc else ""
+        print(f"{key:<40} {shots:>9,} shots  any {c['any']:>5} ({rec['rate_any']:.2e}){extra}  {time.perf_counter() - t:.0f} s", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("command", choices=["check", "run"])
+    ap.add_argument("command", choices=["check", "run", "programs"])
     ap.add_argument("--ps", type=float, nargs="+", default=[0.003, 0.002])
     ap.add_argument("--quick", action="store_true", help="check: two small cases, fewer shots")
     ap.add_argument("--shot-cap", type=int, default=2_000_000)
     ap.add_argument("--time-cap", type=float, default=300.0)
     args = ap.parse_args()
-    return cmd_check(args) if args.command == "check" else cmd_run(args)
+    return {"check": cmd_check, "run": cmd_run, "programs": cmd_programs}[args.command](args)
 
 
 if __name__ == "__main__":
