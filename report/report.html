@@ -16,7 +16,7 @@
   <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
-  <p class="byline">Jasper Sands · 27 September 2026 · commit <code>dba952d</code></p>
+  <p class="byline">Jasper Sands · 27 September 2026 · commit <code>8ba9142</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -26,8 +26,8 @@
 <li><strong>Error models.</strong> It builds error models identical to Stim’s, fault by fault, on 15 circuits (the largest relative difference is 1.1e-15).</li>
 <li><strong>Matching.</strong> Its exact matcher agrees with PyMatching on every shot but ties: 13 disagreements in 600,000 shots, 0 of them not ties. Its correlated matcher agrees with PyMatching 2.4’s correlated mode just as closely, and fails 19% less often than plain matching.</li>
 <li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91. Its belief-matching reproduces <code>ldpc</code>’s posteriors bit for bit, and makes Sycamore’s d = 5 beat d = 3 as Google’s does (Λ = 1.016 [1.01, 1.02]).</li>
-<li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.84 µs a shot at d = 7, against Stim’s 1.31 µs.</li>
-<li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 59 µs mean latency on 8 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
+<li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.87 µs a shot at d = 7, against Stim’s 1.35 µs.</li>
+<li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 41 µs mean latency on 4 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
 <li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits.</li>
 <li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds.</li>
 <li><strong>What it would take.</strong> Put together, the measurements say a thousand logical qubits running a billion operations need about 41 million physical qubits at Willow’s Λ, and 10 million at Λ = 4.</li>
@@ -263,7 +263,7 @@
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0.2</td>
-<td style="text-align: right;">0.6</td>
+<td style="text-align: right;">0.3</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">3</td>
@@ -274,7 +274,7 @@
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0.4</td>
-<td style="text-align: right;">1.2</td>
+<td style="text-align: right;">0.6</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">5</td>
@@ -284,8 +284,8 @@
 <td style="text-align: right;">1.649%</td>
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">1.6</td>
-<td style="text-align: right;">4.3</td>
+<td style="text-align: right;">1.7</td>
+<td style="text-align: right;">2.5</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">5</td>
@@ -295,8 +295,8 @@
 <td style="text-align: right;">9.432%</td>
 <td style="text-align: right;">4</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">4.0</td>
-<td style="text-align: right;">9.8</td>
+<td style="text-align: right;">3.9</td>
+<td style="text-align: right;">6.0</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">7</td>
@@ -306,8 +306,8 @@
 <td style="text-align: right;">1.124%</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">5.7</td>
-<td style="text-align: right;">15.1</td>
+<td style="text-align: right;">5.5</td>
+<td style="text-align: right;">8.9</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">7</td>
@@ -317,8 +317,8 @@
 <td style="text-align: right;">10.652%</td>
 <td style="text-align: right;">7</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">14.2</td>
-<td style="text-align: right;">36.3</td>
+<td style="text-align: right;">14.5</td>
+<td style="text-align: right;">23.9</td>
 </tr>
 </tbody>
 </table>
@@ -494,7 +494,7 @@
 <figure>
 <img src="figures/pymatching-agreement.svg" style="width:62.0%" alt="Our logical error rate against PyMatching’s on the same shots: plain matching at six points and correlated matching at twelve, SD6, 100,000 shots each. Every point lies on the diagonal." /><figcaption aria-hidden="true">Our logical error rate against PyMatching’s on the same shots: plain matching at six points and correlated matching at twelve, SD6, 100,000 shots each. Every point lies on the diagonal.</figcaption>
 </figure>
-<p><strong>Speed.</strong> Single-threaded, our plain matcher takes 2.5 to 2.9 times PyMatching’s time per shot, and our correlated matcher 2.0 to 2.2 times PyMatching’s correlated mode. PyMatching’s C++ has had years of tuning that this matcher has not. The gap is a roughly constant factor that does not grow with d, as the figure below shows.</p>
+<p><strong>Speed.</strong> Single-threaded, our plain matcher takes 1.2 to 1.6 times PyMatching’s time per shot, and our correlated matcher 1.0 to 1.5 times PyMatching’s correlated mode. PyMatching’s C++ has had years of tuning that this matcher has not. The gap is a roughly constant factor that does not grow with d, as the figure below shows.</p>
 <h2 data-number="4.3" id="googles-hardware"><span class="header-section-number">4.3</span> Google’s hardware</h2>
 <p>Google has published everything its chips recorded in two surface-code memory experiments:</p>
 <ul>
@@ -810,22 +810,22 @@
 <td style="text-align: left;">3</td>
 <td style="text-align: right;">0.3%</td>
 <td style="text-align: right;">0.12 µs</td>
-<td style="text-align: right;">1.23 µs</td>
-<td style="text-align: right;">0.07 µs</td>
-<td style="text-align: right;">1.6×</td>
+<td style="text-align: right;">1.22 µs</td>
+<td style="text-align: right;">0.08 µs</td>
+<td style="text-align: right;">1.5×</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">3</td>
 <td style="text-align: right;">0.6%</td>
-<td style="text-align: right;">0.19 µs</td>
-<td style="text-align: right;">1.27 µs</td>
+<td style="text-align: right;">0.20 µs</td>
+<td style="text-align: right;">1.29 µs</td>
 <td style="text-align: right;">0.09 µs</td>
 <td style="text-align: right;">2.1×</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">5</td>
 <td style="text-align: right;">0.3%</td>
-<td style="text-align: right;">0.49 µs</td>
+<td style="text-align: right;">0.50 µs</td>
 <td style="text-align: right;">6.0 µs</td>
 <td style="text-align: right;">0.32 µs</td>
 <td style="text-align: right;">1.5×</td>
@@ -833,25 +833,25 @@
 <tr class="even">
 <td style="text-align: left;">5</td>
 <td style="text-align: right;">0.6%</td>
-<td style="text-align: right;">0.89 µs</td>
+<td style="text-align: right;">0.87 µs</td>
 <td style="text-align: right;">6.2 µs</td>
-<td style="text-align: right;">0.40 µs</td>
-<td style="text-align: right;">2.2×</td>
+<td style="text-align: right;">0.41 µs</td>
+<td style="text-align: right;">2.1×</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">7</td>
 <td style="text-align: right;">0.3%</td>
-<td style="text-align: right;">1.31 µs</td>
-<td style="text-align: right;">17.0 µs</td>
-<td style="text-align: right;">0.84 µs</td>
+<td style="text-align: right;">1.35 µs</td>
+<td style="text-align: right;">17.6 µs</td>
+<td style="text-align: right;">0.87 µs</td>
 <td style="text-align: right;">1.5×</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">7</td>
 <td style="text-align: right;">0.6%</td>
-<td style="text-align: right;">2.3 µs</td>
-<td style="text-align: right;">17.5 µs</td>
-<td style="text-align: right;">1.06 µs</td>
+<td style="text-align: right;">2.4 µs</td>
+<td style="text-align: right;">17.6 µs</td>
+<td style="text-align: right;">1.12 µs</td>
 <td style="text-align: right;">2.1×</td>
 </tr>
 </tbody>
@@ -886,43 +886,43 @@
 <td style="text-align: left;">d = 3</td>
 <td style="text-align: left;">sliding</td>
 <td style="text-align: left;">plain</td>
-<td style="text-align: right;">2.1 µs</td>
+<td style="text-align: right;">1.19 µs</td>
 <td style="text-align: left;">1 core</td>
-<td style="text-align: right;">4.4 µs</td>
-<td style="text-align: right;">27 µs</td>
+<td style="text-align: right;">1.42 µs</td>
+<td style="text-align: right;">8.7 µs</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">d = 3</td>
 <td style="text-align: left;">parallel</td>
 <td style="text-align: left;">plain</td>
-<td style="text-align: right;">2.5 µs</td>
+<td style="text-align: right;">1.53 µs</td>
 <td style="text-align: left;">1 core</td>
-<td style="text-align: right;">7.9 µs</td>
-<td style="text-align: right;">28 µs</td>
+<td style="text-align: right;">5.7 µs</td>
+<td style="text-align: right;">16.7 µs</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">d = 3</td>
 <td style="text-align: left;">sliding</td>
 <td style="text-align: left;">correlated</td>
-<td style="text-align: right;">4.0 µs</td>
-<td style="text-align: left;">no (one core by design)</td>
-<td style="text-align: right;">—</td>
-<td style="text-align: right;">—</td>
+<td style="text-align: right;">2.4 µs</td>
+<td style="text-align: left;">1 core</td>
+<td style="text-align: right;">7.2 µs</td>
+<td style="text-align: right;">43 µs</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">d = 3</td>
 <td style="text-align: left;">parallel</td>
 <td style="text-align: left;">correlated</td>
-<td style="text-align: right;">5.2 µs</td>
-<td style="text-align: left;">2 cores</td>
-<td style="text-align: right;">12.2 µs</td>
+<td style="text-align: right;">3.1 µs</td>
+<td style="text-align: left;">1 core</td>
+<td style="text-align: right;">10.3 µs</td>
 <td style="text-align: right;">42 µs</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">d = 5</td>
 <td style="text-align: left;">sliding</td>
 <td style="text-align: left;">plain</td>
-<td style="text-align: right;">13.9 µs</td>
+<td style="text-align: right;">9.1 µs</td>
 <td style="text-align: left;">no (one core by design)</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
@@ -931,52 +931,52 @@
 <td style="text-align: left;">d = 5</td>
 <td style="text-align: left;">parallel</td>
 <td style="text-align: left;">plain</td>
-<td style="text-align: right;">16.9 µs</td>
+<td style="text-align: right;">11.2 µs</td>
+<td style="text-align: left;">2 cores</td>
+<td style="text-align: right;">25 µs</td>
+<td style="text-align: right;">67 µs</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">sliding</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">18.3 µs</td>
+<td style="text-align: left;">no (one core by design)</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">parallel</td>
+<td style="text-align: left;">correlated</td>
+<td style="text-align: right;">23 µs</td>
 <td style="text-align: left;">4 cores</td>
-<td style="text-align: right;">33 µs</td>
-<td style="text-align: right;">86 µs</td>
+<td style="text-align: right;">45 µs</td>
+<td style="text-align: right;">121 µs</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">d = 7</td>
 <td style="text-align: left;">sliding</td>
-<td style="text-align: left;">correlated</td>
-<td style="text-align: right;">27 µs</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">35 µs</td>
 <td style="text-align: left;">no (one core by design)</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">d = 5</td>
+<td style="text-align: left;">d = 7</td>
 <td style="text-align: left;">parallel</td>
-<td style="text-align: left;">correlated</td>
-<td style="text-align: right;">34 µs</td>
+<td style="text-align: left;">plain</td>
+<td style="text-align: right;">44 µs</td>
 <td style="text-align: left;">4 cores</td>
-<td style="text-align: right;">73 µs</td>
-<td style="text-align: right;">192 µs</td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;">d = 7</td>
-<td style="text-align: left;">sliding</td>
-<td style="text-align: left;">plain</td>
-<td style="text-align: right;">50 µs</td>
-<td style="text-align: left;">no (one core by design)</td>
-<td style="text-align: right;">—</td>
-<td style="text-align: right;">—</td>
-</tr>
-<tr class="even">
-<td style="text-align: left;">d = 7</td>
-<td style="text-align: left;">parallel</td>
-<td style="text-align: left;">plain</td>
-<td style="text-align: right;">62 µs</td>
-<td style="text-align: left;">8 cores</td>
-<td style="text-align: right;">111 µs</td>
-<td style="text-align: right;">235 µs</td>
+<td style="text-align: right;">84 µs</td>
+<td style="text-align: right;">190 µs</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">d = 7</td>
 <td style="text-align: left;">sliding</td>
 <td style="text-align: left;">correlated</td>
-<td style="text-align: right;">106 µs</td>
+<td style="text-align: right;">74 µs</td>
 <td style="text-align: left;">no (one core by design)</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
@@ -985,10 +985,10 @@
 <td style="text-align: left;">d = 7</td>
 <td style="text-align: left;">parallel</td>
 <td style="text-align: left;">correlated</td>
-<td style="text-align: right;">133 µs</td>
+<td style="text-align: right;">95 µs</td>
 <td style="text-align: left;">8 cores</td>
-<td style="text-align: right;">242 µs</td>
-<td style="text-align: right;">511 µs</td>
+<td style="text-align: right;">169 µs</td>
+<td style="text-align: right;">370 µs</td>
 </tr>
 </tbody>
 </table>
@@ -996,8 +996,8 @@
 <img src="figures/latency.svg" style="width:82.0%" alt="Mean window latency (points; bars reach the 99th percentile) against the cores given to one stream, parallel windows with correlated matching on Willow’s recorded 250-round syndromes." /><figcaption aria-hidden="true">Mean window latency (points; bars reach the 99th percentile) against the cores given to one stream, parallel windows with correlated matching on Willow’s recorded 250-round syndromes.</figcaption>
 </figure>
 <ul>
-<li><strong>Sliding windows</strong> keep up only at d = 3 with plain matching. Everywhere else one core is too slow, which is why parallel windows exist.</li>
-<li><strong>At d = 5, parallel windows with correlated matching keep up on 4 cores</strong> with a 73 µs mean latency. At d = 7 they need 8.</li>
+<li><strong>Sliding windows</strong> keep up only at d = 3, with either matcher. Everywhere else one core is too slow, which is why parallel windows exist.</li>
+<li><strong>At d = 5, parallel windows with correlated matching keep up on 4 cores</strong> with a 45 µs mean latency. At d = 7 they need 8.</li>
 </ul>
 <p><strong>A million rounds.</strong> The stream is a rotated d = 5 memory under SD6 at <em>p</em> = 0.313%, the noise at which its detectors fire as often as Willow’s do (7.5% of detectors a round). There are 64 streams of 1,000,000 rounds each, sampled round by round and decoded as they arrive:</p>
 <table style="width:100%;">
@@ -1032,7 +1032,7 @@
 <td style="text-align: right;">64</td>
 <td style="text-align: right;">200,000</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">12.1 µs</td>
+<td style="text-align: right;">7.7 µs</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
@@ -1043,10 +1043,10 @@
 <td style="text-align: right;">64</td>
 <td style="text-align: right;">133,334</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">15.5 µs</td>
+<td style="text-align: right;">10.1 µs</td>
 <td style="text-align: right;">2</td>
-<td style="text-align: right;">52 µs</td>
-<td style="text-align: right;">193 µs</td>
+<td style="text-align: right;">22 µs</td>
+<td style="text-align: right;">55 µs</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">sliding</td>
@@ -1054,7 +1054,7 @@
 <td style="text-align: right;">64</td>
 <td style="text-align: right;">200,000</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">25 µs</td>
+<td style="text-align: right;">16.2 µs</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
@@ -1065,17 +1065,17 @@
 <td style="text-align: right;">64</td>
 <td style="text-align: right;">133,334</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">32 µs</td>
+<td style="text-align: right;">21 µs</td>
 <td style="text-align: right;">4</td>
-<td style="text-align: right;">117 µs</td>
-<td style="text-align: right;">421 µs</td>
+<td style="text-align: right;">41 µs</td>
+<td style="text-align: right;">100 µs</td>
 </tr>
 </tbody>
 </table>
 <ul>
 <li><strong>Every defect of every stream is explained</strong> (0 left, counted as rounds are dropped).</li>
-<li><strong>Correlated matching on 8 cores holds a 59 µs mean latency</strong> (137 µs at the 99th percentile) over a million rounds.</li>
-<li><strong>Throughput.</strong> On all 10 cores, independent streams decode at 3.2 million rounds a second with plain matching and 1.6 million with correlated. Willow’s cycle demands 0.91 million a second per stream.</li>
+<li><strong>Correlated matching on 4 cores holds a 41 µs mean latency</strong> (100 µs at the 99th percentile) over a million rounds.</li>
+<li><strong>Throughput.</strong> On all 10 cores, independent streams decode at 5.1 million rounds a second with plain matching and 2.6 million with correlated. Willow’s cycle demands 0.91 million a second per stream.</li>
 </ul>
 <p><strong>Accuracy.</strong> Windowing costs nothing in Λ. The run covers 392 Willow experiments (all but the single-round ones, which have nothing to window), 50,000 shots each. Every one was decoded globally and by sliding and parallel windows, fitted as above:</p>
 <table>
@@ -1545,7 +1545,7 @@
 <p>At Willow’s measured Λ, a thousand logical qubits running a billion operations would need d = 101, 41 million physical qubits and 31 h. At Λ = 4 the same run needs d = 51 and 10 million. Λ is the lever. The decoders measured here, which differ by about 10% in Λ, move the answer far less than the hardware could.</p>
 <h1 data-number="5" id="limits-and-next-steps"><span class="header-section-number">5</span> Limits and next steps</h1>
 <ul>
-<li><strong>The matcher.</strong> It is exact but not the fastest: it runs at 2.5 to 2.9 times PyMatching’s single-threaded time. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
+<li><strong>The matcher.</strong> It is exact but not the fastest: it runs at 1.2 to 1.6 times PyMatching’s single-threaded time. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
 <li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
 <li><strong>Memories and one operation.</strong> The gross code is simulated as a memory, and lattice surgery as a single Z⊗Z measurement between two patches. Logical operations on the gross code, and sequences of surgeries, are the next step up.</li>
 <li><strong>The estimate is a model.</strong> It takes lattice surgery as the only operation, ignores magic-state distillation and routing in detail, and extrapolates the decoding cost past d = 7. It is meant to show what the measured numbers imply, and how strongly they depend on Λ.</li>

@@ -12,6 +12,10 @@
  *
  * The pool speaks Compute's interface (`call`, `cancel`) so every section can
  * use it unchanged, and adds `map` for jobs split into independent parts.
+ *
+ * Workers start when jobs need them, one per waiting job up to the pool's
+ * size, not all at load: a reader who never runs the Monte Carlo pays for one
+ * engine instance, the one that times the device for the overview.
  */
 
 import { Compute } from './compute.js';
@@ -31,17 +35,32 @@ export class Pool {
    */
   constructor(size = poolSize(), module = null) {
     this.size = size;
-    this.workers = Array.from({ length: size }, () => ({ compute: new Compute(), busy: false }));
-    // No job is handed out until every worker has the module, so none fetches
-    // its own copy. If compiling fails, the workers fetch their own as before.
-    this.ready = module
-      ? module.then((m) => Promise.all(this.workers.map((w) => w.compute.call('module', { module: m })))).catch(() => {})
-      : Promise.resolve();
+    this.module = module;
+    this.workers = [];
     this.queue = [];
     this.alone = false;
     this.jobs = new Map();
     this.groups = new Map();
     this.nextId = 1;
+    // The first worker starts now: the overview needs it at once, and a
+    // browser without module workers says so here, where the page expects it.
+    this.#spawn();
+  }
+
+  /** Start a worker. It takes no job until it has the page's module. */
+  #spawn() {
+    const worker = { compute: new Compute(), busy: true, ready: false };
+    this.workers.push(worker);
+    // Handing over the module first means no worker fetches its own copy; if
+    // compiling failed, the worker fetches its own as before.
+    const handed = this.module
+      ? this.module.then((m) => worker.compute.call('module', { module: m })).catch(() => {})
+      : Promise.resolve();
+    handed.then(() => {
+      worker.busy = false;
+      worker.ready = true;
+      this.#pump();
+    });
   }
 
   get dead() {
@@ -59,7 +78,7 @@ export class Pool {
       this.queue.push({ id, op, payload, onProgress, resolve, reject, cancelled: false, alone });
     });
     promise.id = id;
-    this.ready.then(() => this.#pump());
+    this.#pump();
     return promise;
   }
 
@@ -75,7 +94,7 @@ export class Pool {
   #pump() {
     for (const worker of this.workers) {
       if (this.alone || !this.queue.length) return;
-      if (worker.busy) continue;
+      if (worker.busy || !worker.ready) continue;
       const job = this.queue[0];
       if (job.alone && this.workers.some((w) => w.busy)) return;
       this.queue.shift();
@@ -90,6 +109,20 @@ export class Pool {
         this.jobs.delete(job.id);
         this.#pump();
       });
+    }
+    // Jobs still waiting: a worker for each, up to the pool's size. A browser
+    // that will not start another worker caps the pool where it stands; the
+    // workers it has carry on.
+    if (this.alone) return;
+    let wanted = this.queue.length - this.workers.filter((w) => !w.ready).length;
+    while (wanted > 0 && this.workers.length < this.size) {
+      try {
+        this.#spawn();
+      } catch {
+        this.size = this.workers.length;
+        return;
+      }
+      wanted -= 1;
     }
   }
 

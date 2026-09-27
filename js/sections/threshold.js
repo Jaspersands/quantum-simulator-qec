@@ -15,7 +15,7 @@ import { CODE, DECODER, NOISE } from '../engine.js';
 import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../sweep-config.js';
 import { Plot, plotLegend } from '../plot.js';
 import { wilson, fitThreshold, collapseCurve, percent, count } from '../compute.js';
-import { $, fill, el } from '../dom.js';
+import { $, fill, el, whenNear } from '../dom.js';
 
 const SERIES_COLOR = {
   3: 'var(--d3)', 5: 'var(--d5)', 7: 'var(--d7)', 9: 'var(--d9)', 11: 'var(--d11)',
@@ -163,7 +163,10 @@ export function initResultsTable(root, compute) {
 
   paint();
 
-  compute.table(cells, {
+  // Measured when a reader nears the section, a screen ahead: 72,000 runs
+  // take well under a second on the pool, and a reader who never scrolls
+  // here starts no worker for them.
+  whenNear(root, () => compute.table(cells, {
     codeType: CODE.ROTATED,
     decoder: DECODER.UNION_FIND,
     bias: 0.5,
@@ -188,7 +191,7 @@ export function initResultsTable(root, compute) {
     failed = true;
     paint();
     paintPlots();
-  });
+  }), '100% 0px');
 }
 
 /* -- The sweep and fit -------------------------------------------------- */

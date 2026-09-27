@@ -43,6 +43,7 @@ impl<'a> Solver<'a> {
     /// One shortest path per matched pair of the last extraction, on the
     /// current weights, XORed into `s.edge_set`.
     pub(crate) fn trace_pairs(&mut self) -> Result<(), DecodeError> {
+        self.s.ensure_paths(self.g);
         self.s.edge_set.clear();
         for i in 0..self.s.pairs.len() {
             let (a, b) = self.s.pairs[i];

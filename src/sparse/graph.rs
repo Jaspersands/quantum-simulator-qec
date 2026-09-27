@@ -20,6 +20,9 @@ pub struct SparseGraph {
     pub(crate) halves: Vec<[u32; 2]>,
     /// Per edge, its endpoints, with `num_nodes` standing for the boundary.
     pub(crate) ends: Vec<(u32, u32)>,
+    /// Per edge, its weight ln((1 − p)/p) as a float, which the dense
+    /// reference matcher sums for the weight it reports.
+    wf: Vec<f64>,
 }
 
 impl SparseGraph {
@@ -43,9 +46,11 @@ impl SparseGraph {
         let mut edge_of = vec![0u32; m];
         let mut halves = vec![[NONE, NONE]; edges.len()];
         let mut ends = Vec::with_capacity(edges.len());
+        let mut wf = Vec::with_capacity(edges.len());
         let mut fill: Vec<u32> = offsets[..num_nodes].to_vec();
         for (i, &(u, v, p, o)) in edges.iter().enumerate() {
-            let (_, iw) = edge_weight(p);
+            let (fw, iw) = edge_weight(p);
+            wf.push(fw);
             let boundary = (v as usize) >= num_nodes;
             let pairs: &[(u32, u32)] = if boundary { &[(u, BOUNDARY)] } else { &[(u, v), (v, u)] };
             for (k, &(a, b)) in pairs.iter().enumerate() {
@@ -59,11 +64,20 @@ impl SparseGraph {
             }
             ends.push((u, if boundary { num_nodes as u32 } else { v }));
         }
-        SparseGraph { num_nodes, offsets, to, w, obs, edge_of, halves, ends }
+        SparseGraph { num_nodes, offsets, to, w, obs, edge_of, halves, ends, wf }
     }
 
     pub(crate) fn edges(&self, v: u32) -> std::ops::Range<usize> {
         self.offsets[v as usize] as usize..self.offsets[v as usize + 1] as usize
+    }
+
+    /// Node `v`'s edges in order, each as (the node across it, or None for the
+    /// boundary; its integer weight; its observables; its float weight).
+    pub(crate) fn arcs(&self, v: u32) -> impl Iterator<Item = (Option<u32>, i64, u64, f64)> + '_ {
+        self.edges(v).map(move |e| {
+            let to = self.to[e];
+            (if to == BOUNDARY { None } else { Some(to) }, self.w[e], self.obs[e], self.wf[self.edge_of[e] as usize])
+        })
     }
 
     pub fn num_edges(&self) -> usize {

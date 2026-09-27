@@ -11,7 +11,7 @@
  * at a time on every worker.
  */
 
-import { $, fill, el } from '../dom.js';
+import { $, fill, el, whenNear } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
 import { GROSS, neighbours, position, torusDelta } from '../bb-geometry.js';
 
@@ -262,13 +262,5 @@ export function initGross(root, compute) {
   const liveFig = $('[data-bb-live]', root);
   if (!torusFig || !fitFig || !liveFig) return;
   initTorus(torusFig);
-  let started = false;
-  const observer = new IntersectionObserver((entries) => {
-    if (started || !entries.some((e) => e.isIntersecting)) return;
-    started = true;
-    observer.disconnect();
-    runRecorded(fitFig).catch(() => {}).then(() => runLive(liveFig, compute));
-  }, { rootMargin: '200px 0px' });
-  observer.observe(fitFig);
-  observer.observe(liveFig);
+  whenNear([fitFig, liveFig], () => runRecorded(fitFig).catch(() => {}).then(() => runLive(liveFig, compute)));
 }

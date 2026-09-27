@@ -112,15 +112,18 @@ def rel(a, b):
     return abs(a - b) / max(a, b) if max(a, b) > 0 else 0.0
 
 
-def check_model(entry, circuit_text):
-    """Checks 1 and 1b for one circuit."""
+def check_model(entry, circuit_text, ours_decomposed=None):
+    """Checks 1 and 1b for one circuit. `ours_decomposed` is our decomposed
+    model of it, when the caller has already built it."""
     flat = stim.Circuit(circuit_text).flattened()
     theirs = flat.detector_error_model(decompose_errors=False).flattened()
     ours = stim.DetectorErrorModel(sq.dem_from_circuit(circuit_text, False))
     a, b = mechanisms(ours), mechanisms(theirs)
     rels = [rel(a[k], b[k]) for k in a if k in b]
 
-    ea, sa = graph(stim.DetectorErrorModel(sq.dem_from_circuit(circuit_text, True)))
+    if ours_decomposed is None:
+        ours_decomposed = sq.dem_from_circuit(circuit_text, True)
+    ea, sa = graph(stim.DetectorErrorModel(ours_decomposed))
     eb, sb = graph(flat.detector_error_model(decompose_errors=True))
     edge_rels = [rel(ea[k], eb[k]) for k in ea if k in eb]
     split_differ = sum(

@@ -12,13 +12,14 @@ impl<'a> Solver<'a> {
         }
     }
 
-    fn path_to_root(&self, mut n: u32) -> Vec<u32> {
-        let mut out = vec![n];
+    /// `n` and its ancestors up to the root, into `out`.
+    fn path_to_root(&self, mut n: u32, out: &mut Vec<u32>) {
+        out.clear();
+        out.push(n);
         while self.s.alt[n as usize].parent != NONE {
             n = self.s.alt[n as usize].parent;
             out.push(n);
         }
-        out
     }
 
     fn root_of(&self, mut n: u32) -> u32 {
@@ -71,14 +72,16 @@ impl<'a> Solver<'a> {
     fn grow_tree(&mut self, n: u32, m: u32, e: CEdge) {
         let (partner, me) = self.s.regions[m as usize].matched.take().expect("matched");
         self.s.regions[partner as usize].matched = None;
+        let children = self.s.spare_u32();
         let child = self.new_alt(AltNode {
             inner: m,
             outer: partner,
             inner_to_outer: me,
             parent: n,
             parent_edge: e,
-            children: Vec::new(),
+            children,
             alive: true,
+            mark: 0,
         });
         self.s.alt[n as usize].children.push(child);
         self.s.regions[m as usize].tree = child;
@@ -110,10 +113,13 @@ impl<'a> Solver<'a> {
     /// region matches its parent's outer region; every other node's pair matches
     /// along its own edge.
     fn dissolve(&mut self, n: u32) {
-        let path = self.path_to_root(n);
+        let mut path = std::mem::take(&mut self.s.path_a);
+        self.path_to_root(n, &mut path);
+        let on_path = self.s.next_stamp();
         for &m in &path {
             let (parent, inner, pe) = {
-                let a = &self.s.alt[m as usize];
+                let a = &mut self.s.alt[m as usize];
+                a.mark = on_path;
                 (a.parent, a.inner, a.parent_edge)
             };
             if parent != NONE {
@@ -122,42 +128,54 @@ impl<'a> Solver<'a> {
             }
         }
         let root = *path.last().expect("path has a root");
-        let mut stack = vec![root];
-        let mut regions = Vec::new();
+        self.s.path_a = path;
+        let mut stack = std::mem::take(&mut self.s.stack);
+        let mut regions = std::mem::take(&mut self.s.touched_regions);
+        stack.clear();
+        regions.clear();
+        stack.push(root);
         while let Some(x) = stack.pop() {
-            let (inner, outer, io, children) = {
-                let a = &self.s.alt[x as usize];
-                (a.inner, a.outer, a.inner_to_outer, a.children.clone())
-            };
-            stack.extend(children);
+            // Every node of the tree dies here, so its children can be moved out.
+            let a = &mut self.s.alt[x as usize];
+            let (inner, outer, io, off_path) = (a.inner, a.outer, a.inner_to_outer, a.mark != on_path);
+            a.alive = false;
+            stack.extend(a.children.drain(..));
             if inner != NONE {
-                if !path.contains(&x) {
+                if off_path {
                     self.set_match(inner, outer, io);
                 }
                 regions.push(inner);
             }
             regions.push(outer);
-            self.s.alt[x as usize].alive = false;
         }
+        self.s.stack = stack;
         for &r in &regions {
             self.s.regions[r as usize].tree = NONE;
             self.set_slope(r, 0);
         }
-        for r in regions {
+        for &r in &regions {
             self.reschedule(r);
         }
+        self.s.touched_regions = regions;
     }
 
     /// (c) Two growing regions of one tree meet. The cycle through their common
     /// ancestor becomes a blossom, which takes the ancestor's outer place.
     pub(crate) fn form_blossom(&mut self, n1: u32, n2: u32, e: CEdge) {
-        let path1 = self.path_to_root(n1);
-        let path2 = self.path_to_root(n2);
-        let a = *path2.iter().find(|x| path1.contains(x)).expect("same tree");
-        let p1: Vec<u32> = path1.iter().copied().take_while(|&x| x != a).collect();
-        let p2: Vec<u32> = path2.iter().copied().take_while(|&x| x != a).collect();
+        let mut path1 = std::mem::take(&mut self.s.path_a);
+        let mut path2 = std::mem::take(&mut self.s.path_b);
+        self.path_to_root(n1, &mut path1);
+        self.path_to_root(n2, &mut path2);
+        // The common ancestor: the first node of path2 that path1 holds.
+        let in_path1 = self.s.next_stamp();
+        for &x in &path1 {
+            self.s.alt[x as usize].mark = in_path1;
+        }
+        let a = *path2.iter().find(|&&x| self.s.alt[x as usize].mark == in_path1).expect("same tree");
+        let p1 = &path1[..path1.iter().position(|&x| x == a).expect("a is on path1")];
+        let p2 = &path2[..path2.iter().position(|&x| x == a).expect("a is on path2")];
 
-        let mut cycle: Vec<(u32, CEdge)> = Vec::new();
+        let mut cycle = self.s.spare_cycles.pop().unwrap_or_default();
         let mut cur = self.s.alt[a as usize].outer;
         for &m in p1.iter().rev() {
             let (pe, inner, io, outer) = {
@@ -169,7 +187,7 @@ impl<'a> Solver<'a> {
             cur = outer;
         }
         cycle.push((cur, e));
-        for &m in &p2 {
+        for &m in p2 {
             let (outer, io, inner, pe) = {
                 let am = &self.s.alt[m as usize];
                 (am.outer, am.inner_to_outer, am.inner, am.parent_edge)
@@ -178,33 +196,47 @@ impl<'a> Solver<'a> {
             cycle.push((inner, pe.rev()));
         }
 
+        let len = cycle.len();
+        let shell = self.s.spare_u32();
         let b = self.new_region(Region {
             radius: Radius { y0: -self.s.now, slope: 1 },
             blossom_parent: NONE,
-            children: cycle.clone(),
-            shell: Vec::new(),
+            children: cycle,
+            shell,
             tree: a,
             matched: None,
             queued: NO_TIME,
             dead: false,
         });
-        for &(c, _) in &cycle {
+        for i in 0..len {
+            let c = self.s.regions[b as usize].children[i].0;
             self.enclose(c, b);
         }
 
-        let on: Vec<u32> = p1.iter().chain(p2.iter()).copied().collect();
-        let mut orphans = Vec::new();
-        for &m in &on {
-            let children = self.s.alt[m as usize].children.clone();
-            orphans.extend(children.into_iter().filter(|c| !on.contains(c)));
+        // The cycle's tree nodes die; their children that are not themselves
+        // on the cycle move to the ancestor, after its own remaining children.
+        let on = self.s.next_stamp();
+        for &m in p1.iter().chain(p2.iter()) {
+            self.s.alt[m as usize].mark = on;
+        }
+        let mut orphans = std::mem::take(&mut self.s.stack);
+        orphans.clear();
+        for &m in p1.iter().chain(p2.iter()) {
+            let children = std::mem::take(&mut self.s.alt[m as usize].children);
+            orphans.extend(children.iter().copied().filter(|&c| self.s.alt[c as usize].mark != on));
             self.s.alt[m as usize].alive = false;
+            self.s.keep_u32(children);
         }
-        let kept: Vec<u32> = self.s.alt[a as usize].children.iter().copied().filter(|c| !on.contains(c)).collect();
-        self.s.alt[a as usize].children = kept;
-        for o in orphans {
+        let mut kept = std::mem::take(&mut self.s.alt[a as usize].children);
+        kept.retain(|&c| self.s.alt[c as usize].mark != on);
+        for &o in &orphans {
             self.s.alt[o as usize].parent = a;
-            self.s.alt[a as usize].children.push(o);
         }
+        kept.extend_from_slice(&orphans);
+        self.s.alt[a as usize].children = kept;
+        self.s.stack = orphans;
+        self.s.path_a = path1;
+        self.s.path_b = path2;
         self.s.alt[a as usize].outer = b;
         self.reschedule(b);
     }
@@ -213,12 +245,14 @@ impl<'a> Solver<'a> {
     /// keeping every node's local radius continuous.
     fn enclose(&mut self, c: u32, b: u32) {
         let now = self.s.now;
-        for v in self.nodes_under(c) {
+        let nodes = self.nodes_under(c);
+        for &v in &nodes {
             let l = self.local_radius(v);
             let n = &mut self.s.nodes[v as usize];
             n.top = b;
             n.wrapped = l;
         }
+        self.done_with_nodes(nodes);
         let reg = &mut self.s.regions[c as usize];
         let y = reg.radius.at(now);
         reg.radius = Radius { y0: y, slope: 0 };
@@ -244,12 +278,14 @@ impl<'a> Solver<'a> {
         let now = self.s.now;
         for &(c, _) in &children {
             let yc = self.s.regions[c as usize].radius.at(now);
-            for v in self.nodes_under(c) {
+            let nodes = self.nodes_under(c);
+            for &v in &nodes {
                 let l = self.local_radius(v);
                 let nd = &mut self.s.nodes[v as usize];
                 nd.top = c;
                 nd.wrapped = l - yc;
             }
+            self.done_with_nodes(nodes);
         }
         for &(c, _) in &children {
             self.s.regions[c as usize].blossom_parent = NONE;
@@ -294,14 +330,16 @@ impl<'a> Solver<'a> {
         let (mut parent, mut pedge, mut first) = (p, pe, NONE);
         let mut i = 0;
         while i + 1 < q.len() {
+            let children = self.s.spare_u32();
             let node = self.new_alt(AltNode {
                 inner: q[i],
                 outer: q[i + 1],
                 inner_to_outer: edges[i],
                 parent,
                 parent_edge: pedge,
-                children: Vec::new(),
+                children,
                 alive: true,
+                mark: 0,
             });
             if parent == p {
                 first = node;

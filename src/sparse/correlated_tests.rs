@@ -73,9 +73,20 @@ fn a_piece_repeated_within_one_error_takes_p_twice_more() {
 
 #[test]
 fn models_the_rules_cannot_use_are_refused() {
-    // An undecomposed error on three detectors, and a piece with no detectors.
+    // An undecomposed error on three detectors.
     assert!(DemDecoder::new(&Dem::parse("error(0.1) D0 D1 D2\n").unwrap()).is_err());
-    assert!(DemDecoder::new(&Dem::parse("error(0.1) D0 ^ L0\n").unwrap()).is_err());
+}
+
+#[test]
+fn a_piece_of_observables_alone_names_no_edge() {
+    // Stim writes such a piece when a fault is split through pieces whose
+    // observables fall short of its own (a weight-two logical). It fires
+    // nothing, so plain matching drops it, as PyMatching's plain mode does, and
+    // so do the rules; PyMatching's correlated mode refuses the model instead.
+    let dec = decoder("error(0.1) D0 ^ D1 ^ L0\nerror(0.2) D0\nerror(0.2) D1\n");
+    assert_eq!(dec.graph().num_edges(), 2);
+    let (e0, e1) = (dec.graph().edge_id(0, 2).unwrap(), dec.graph().edge_id(1, 2).unwrap());
+    assert_eq!(dec.correlations().rules_of(e0).iter().map(|r| r.0).collect::<Vec<_>>(), vec![e1]);
 }
 
 #[test]

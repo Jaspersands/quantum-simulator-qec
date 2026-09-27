@@ -15,7 +15,7 @@
  * decoders on the same shots.
  */
 
-import { $, fill, el } from '../dom.js';
+import { $, fill, el, whenNear } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
 import { decoderLabel, isOurs, percent, percentRange, ratio } from '../hardware-format.js';
 
@@ -300,13 +300,5 @@ export function initHardware(root, compute) {
       + 'experiment.';
   }
 
-  let started = false;
-  const observer = new IntersectionObserver((entries) => {
-    if (started || !entries.some((e) => e.isIntersecting)) return;
-    started = true;
-    observer.disconnect();
-    runFits().then(runLive);
-  }, { rootMargin: '200px 0px' });
-  observer.observe(fitFig);
-  observer.observe(liveFig);
+  whenNear([fitFig, liveFig], () => runFits().then(runLive));
 }

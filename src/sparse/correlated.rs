@@ -42,27 +42,55 @@ pub struct Correlations {
     pub(crate) prob: Vec<f64>,
 }
 
-impl Correlations {
-    pub fn from_dem(dem: &Dem, graph: &SparseGraph) -> Result<Correlations, String> {
-        let n = graph.num_edges();
+/// Every fault that can happen, as its probability and the edges its pieces
+/// are, in compressed rows: all that correlated matching's rules are built
+/// from, and much smaller than the model, so a decoder can keep it and build
+/// the rules only when correlated matching is first asked for.
+pub(crate) struct FaultEdges {
+    p: Vec<f64>,
+    start: Vec<u32>,
+    ids: Vec<u32>,
+    num_edges: usize,
+}
+
+impl FaultEdges {
+    pub(crate) fn from_dem(dem: &Dem, graph: &SparseGraph) -> Result<FaultEdges, String> {
         let boundary = graph.num_nodes as u32;
-        let mut marginal = vec![0.0f64; n];
-        let mut joint: HashMap<(u32, u32), f64> = HashMap::new();
-        let mut ids: Vec<u32> = Vec::new();
+        let mut f = FaultEdges { p: Vec::new(), start: vec![0], ids: Vec::new(), num_edges: graph.num_edges() };
         for m in &dem.mechanisms {
             // PyMatching skips an error that cannot happen.
             if m.p == 0.0 {
                 continue;
             }
-            ids.clear();
             for piece in &m.pieces {
                 let (u, v) = match piece.detectors.as_slice() {
+                    // Observables alone: no edge, as in plain matching. (PyMatching's
+                    // correlated mode refuses such a model outright.)
+                    [] => continue,
                     [a] => (*a, boundary),
                     [a, b] => (*a.min(b), *a.max(b)),
                     other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
                 };
-                ids.push(graph.edge_id(u, v).ok_or_else(|| format!("piece ({u}, {v}) is not an edge of the graph"))?);
+                f.ids.push(graph.edge_id(u, v).ok_or_else(|| format!("piece ({u}, {v}) is not an edge of the graph"))?);
             }
+            f.p.push(m.p);
+            f.start.push(f.ids.len() as u32);
+        }
+        Ok(f)
+    }
+}
+
+impl Correlations {
+    pub fn from_dem(dem: &Dem, graph: &SparseGraph) -> Result<Correlations, String> {
+        Ok(Correlations::from_faults(&FaultEdges::from_dem(dem, graph)?))
+    }
+
+    pub(crate) fn from_faults(faults: &FaultEdges) -> Correlations {
+        let n = faults.num_edges;
+        let mut marginal = vec![0.0f64; n];
+        let mut joint: HashMap<(u32, u32), f64> = HashMap::new();
+        for (k, &p) in faults.p.iter().enumerate() {
+            let ids = &faults.ids[faults.start[k] as usize..faults.start[k + 1] as usize];
             if ids.len() > 1 {
                 for k0 in 0..ids.len() {
                     for k1 in k0 + 1..ids.len() {
@@ -71,19 +99,19 @@ impl Correlations {
                             // PyMatching's two entries are then one, the
                             // marginal, and it takes p twice.
                             let e = &mut marginal[a as usize];
-                            *e = xor_prob(xor_prob(*e, m.p), m.p);
+                            *e = xor_prob(xor_prob(*e, p), p);
                         } else {
                             for key in [(a, b), (b, a)] {
                                 let e = joint.entry(key).or_insert(0.0);
-                                *e = xor_prob(*e, m.p);
+                                *e = xor_prob(*e, p);
                             }
                         }
                     }
                 }
             }
-            for &c in &ids {
+            for &c in ids {
                 let e = &mut marginal[c as usize];
-                *e = xor_prob(*e, m.p);
+                *e = xor_prob(*e, p);
             }
         }
         let mut rules: Vec<(u32, u32, f64)> = joint
@@ -99,12 +127,12 @@ impl Correlations {
         for i in 0..n {
             start[i + 1] += start[i];
         }
-        Ok(Correlations {
+        Correlations {
             start,
             affected: rules.iter().map(|r| r.1).collect(),
             weight: rules.iter().map(|r| edge_weight(r.2).1).collect(),
             prob: rules.iter().map(|r| r.2).collect(),
-        })
+        }
     }
 
     pub(crate) fn rules(&self, c: u32) -> std::ops::Range<usize> {

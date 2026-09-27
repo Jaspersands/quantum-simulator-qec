@@ -299,3 +299,26 @@ fn edge_ids_name_both_halves() {
     let scratch = Scratch::new(g);
     assert_eq!(scratch.w, g.w);
 }
+
+#[test]
+fn a_reused_scratch_keeps_no_more_than_one_shot_needs() {
+    // Buffers are recycled from shot to shot. The pool of spare vectors must
+    // stay within what the largest shot had in use, not grow with every shot.
+    use crate::circuit::Basis;
+    use crate::frame_sampler::FrameSampler;
+    use crate::memory::{generate, CodeKind, NoiseModel};
+    let c = generate(CodeKind::Rotated, 5, 5, NoiseModel::Sd6 { p: 0.008 }, Basis::Z).unwrap();
+    let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
+    let sampler = FrameSampler::new(&c).unwrap();
+    let mut rng = Xorshift::new(5);
+    let mut scratch = Scratch::new(dec.graph());
+    let mut peak = 0;
+    for _ in 0..3000 {
+        let s: Vec<u32> = sampler.sample(&mut rng).detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
+        dec.graph().decode_correlated(dec.correlations(), &mut scratch, &s).unwrap();
+        peak = peak.max(scratch.regions.len() + scratch.alt.len());
+    }
+    let spare = scratch.spare_u32.len() + scratch.spare_cycles.len();
+    assert!(peak > 20, "the shots must exercise the matcher (peak {peak})");
+    assert!(spare <= peak, "{spare} spare vectors after 3,000 shots, where the largest shot used {peak}");
+}

@@ -30,3 +30,16 @@ export function el(tag, props = {}, children = []) {
 export function fill(node, children) {
   node.replaceChildren(...[].concat(children).filter(Boolean));
 }
+
+/**
+ * Run `start` once, the first time any of `nodes` comes within `margin` of the
+ * viewport: the page's heavy figures wait until a reader nears them.
+ */
+export function whenNear(nodes, start, margin = '200px 0px') {
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((e) => e.isIntersecting)) return;
+    observer.disconnect();
+    start();
+  }, { rootMargin: margin });
+  for (const node of [].concat(nodes)) observer.observe(node);
+}

@@ -25,8 +25,8 @@ abstract: |
      Stim's {{speed.stim_d7}}.
   5. **Real time.** Parallel windows decode Willow's recorded d = 5 syndromes with correlated
      matching and keep up with its {{rt.cycle}} cycle on {{rt.d5.cores}} cores. A simulated
-     million-round stream at the same detection rate holds a {{m.corr.mean8}} mean latency on 8
-     cores. Windowed decoding reaches the same Λ as global decoding ({{win.corr.lambda}}).
+     million-round stream at the same detection rate holds a {{m.corr.mean}} mean latency on
+     {{m.corr.cores}} cores. Windowed decoding reaches the same Λ as global decoding ({{win.corr.lambda}}).
   6. **Beyond the surface code.** The IBM gross code, decoded by BP+OSD that equals `ldpc`'s on every
      shot checked, keeps 12 logical qubits failing {{g.ratio_range}} times less often than twelve d = 11
      surface-code patches, on a tenth of the qubits.
@@ -386,7 +386,7 @@ shots at each of d = 3, 5 and 7, at 250 rounds, decoded with Google's SI1000 pri
 
 ![Mean window latency (points; bars reach the 99th percentile) against the cores given to one stream, parallel windows with correlated matching on Willow's recorded 250-round syndromes.](figures/latency.svg){width=82%}
 
-- **Sliding windows** keep up only at d = 3 with plain matching. Everywhere else one core is too
+- **Sliding windows** keep up only at d = 3, with either matcher. Everywhere else one core is too
   slow, which is why parallel windows exist.
 - **At d = 5, parallel windows with correlated matching keep up on {{rt.d5.cores}} cores** with a
   {{rt.d5.mean}} mean latency. At d = 7 they need {{rt.d7.cores}}.
@@ -400,8 +400,8 @@ arrive:
 
 - **Every defect of every stream is explained** ({{m.unexplained}} left, counted as rounds are
   dropped).
-- **Correlated matching on 8 cores holds a {{m.corr.mean8}} mean latency** ({{m.corr.p998}} at the
-  99th percentile) over a million rounds.
+- **Correlated matching on {{m.corr.cores}} cores holds a {{m.corr.mean}} mean latency** ({{m.corr.p99}} at
+  the 99th percentile) over a million rounds.
 - **Throughput.** On all {{m.tput.cores}} cores, independent streams decode at {{m.tput.plain}}
   rounds a second with plain matching and {{m.tput.correlated}} with correlated. Willow's cycle
   demands {{m.willow_rate}} a second per stream.

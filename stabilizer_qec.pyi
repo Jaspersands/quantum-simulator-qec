@@ -14,11 +14,13 @@ from __future__ import annotations
 
 from typing import Literal
 
-Window = tuple[int, int, int, int, int]
-"""A window: (first layer, end layer, commit start, commit end, phase).
-Layers are rounds of detectors; the window decodes layers [first, end) and
-commits the corrections in [commit start, commit end). Phase 0 windows run
-first; in parallel mode, phase 1 windows wait for their phase 0 neighbours."""
+Window = tuple[int, int, int, int, int, list[int]]
+"""A window: (first layer, end layer, commit start, commit end, phase, the
+windows it waits for). Layers are rounds of detectors; the window decodes
+layers [first, end) and commits the corrections in [commit start, commit
+end). Phase 0 windows run first; in parallel mode, phase 1 windows wait for
+their phase 0 neighbours, and sliding windows each wait for the one before.
+The last entry lists them, as the engine's own scheduler reads them."""
 
 def generate_circuit(
     code: Literal["rotated", "xzzx"],
