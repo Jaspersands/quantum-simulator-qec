@@ -9,7 +9,7 @@
 
 use crate::dem_decoder::DecodeError;
 
-use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NONE, NO_TIME};
+use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NOBODY, NONE, NO_TIME};
 use super::tracker::Item;
 use super::Solver;
 
@@ -50,7 +50,8 @@ impl<'a> Solver<'a> {
         self.s.touched.clear();
         // Keep the regions' and tree nodes' vectors for the next shot's.
         let s = &mut *self.s;
-        for r in s.regions.drain(..) {
+        // Region 0, nobody's, stays.
+        for r in s.regions.drain(super::state::NOBODY + 1..) {
             if r.shell.capacity() > 0 {
                 let mut v = r.shell;
                 v.clear();
@@ -192,14 +193,14 @@ impl<'a> Solver<'a> {
                 (0, 0)
             } else {
                 let nu = &nodes[u as usize];
-                if nu.top == NONE {
-                    (0, 0)
-                } else if nu.top == nv.top {
+                if nu.top == nv.top {
+                    // One region, or two empty nodes: nothing to meet.
                     continue;
-                } else {
-                    let r = &regions[nu.top as usize].radius;
-                    (r.at(now) + nu.wrapped, r.slope)
                 }
+                // An empty node reads nobody's region: radius 0, not growing.
+                let top = if nu.top == NONE { NOBODY } else { nu.top as usize };
+                let r = &regions[top].radius;
+                (r.at(now) + nu.wrapped, r.slope)
             };
             let rate = sv + su;
             if rate <= 0 {

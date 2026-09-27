@@ -39,6 +39,10 @@ impl Radius {
     }
 }
 
+/// Region 0 is nobody's: a dead region of radius zero that does not grow,
+/// which an empty node's neighbours read in place of a branch.
+pub(crate) const NOBODY: usize = 0;
+
 pub(crate) struct Region {
     pub radius: Radius,
     pub blossom_parent: u32,
@@ -159,7 +163,16 @@ impl Scratch {
             queued: vec![NO_TIME; graph.num_nodes],
             dirty: vec![false; graph.num_nodes],
             touched: Vec::new(),
-            regions: Vec::new(),
+            regions: vec![Region {
+                radius: Radius { y0: 0, slope: 0 },
+                blossom_parent: NONE,
+                children: Vec::new(),
+                shell: Vec::new(),
+                tree: NONE,
+                matched: None,
+                queued: NO_TIME,
+                dead: true,
+            }],
             alt: Vec::new(),
             queue: Tracker::default(),
             now: 0,
