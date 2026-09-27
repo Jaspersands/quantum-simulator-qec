@@ -63,6 +63,21 @@ impl Check {
     }
 }
 
+/// Data columns x0..=x1 and rows y0..=y1 (odd) of one patch, or of patches merged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TileBox {
+    x0: i32,
+    x1: i32,
+    y0: i32,
+    y1: i32,
+}
+
+impl TileBox {
+    fn union(a: TileBox, b: TileBox) -> TileBox {
+        TileBox { x0: a.x0.min(b.x0), x1: a.x1.max(b.x1), y0: a.y0.min(b.y0), y1: a.y1.max(b.y1) }
+    }
+}
+
 struct Layout {
     d: i32,
     positions: Vec<(i32, i32)>,
@@ -70,18 +85,22 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(d: usize) -> Layout {
+    /// A grid of `cols` × `rows` tiles, 2d + 2 apart, one seam column or row
+    /// of data between neighbours: data first, row by row, then every check
+    /// position, row by row (for 2 × 1 tiles, the order of the two-patch
+    /// experiment as it was first written).
+    fn new(d: usize, cols: i32, rows: i32) -> Layout {
         let d = d as i32;
+        let (w, h) = (cols * (2 * d + 2) - 2, rows * (2 * d + 2) - 2);
         let (mut positions, mut index) = (Vec::new(), HashMap::new());
-        // Data first, then every check position any phase uses.
-        for y in (1..2 * d).step_by(2) {
-            for x in (1..=4 * d + 1).step_by(2) {
+        for y in (1..h).step_by(2) {
+            for x in (1..w).step_by(2) {
                 index.insert((x, y), positions.len() as u32);
                 positions.push((x, y));
             }
         }
-        for y in (0..=2 * d).step_by(2) {
-            for x in (0..=4 * d + 2).step_by(2) {
+        for y in (0..=h).step_by(2) {
+            for x in (0..=w).step_by(2) {
                 index.insert((x, y), positions.len() as u32);
                 positions.push((x, y));
             }
@@ -89,26 +108,32 @@ impl Layout {
         Layout { d, positions, index }
     }
 
-    fn data(&self, x0: i32, x1: i32) -> Vec<u32> {
-        let mut v: Vec<u32> = (1..2 * self.d)
+    /// The data of tile (column i, row j).
+    fn tile(&self, (i, j): (i32, i32)) -> TileBox {
+        let (x0, y0) = (1 + i * (2 * self.d + 2), 1 + j * (2 * self.d + 2));
+        TileBox { x0, x1: x0 + 2 * self.d - 2, y0, y1: y0 + 2 * self.d - 2 }
+    }
+
+    fn data(&self, b: TileBox) -> Vec<u32> {
+        let mut v: Vec<u32> = (b.y0..=b.y1)
             .step_by(2)
-            .flat_map(|y| (x0..=x1).step_by(2).map(move |x| (x, y)))
+            .flat_map(|y| (b.x0..=b.x1).step_by(2).map(move |x| (x, y)))
             .map(|p| self.index[&p])
             .collect();
         v.sort_unstable();
         v
     }
 
-    /// The checks of the rotated code on data columns x0 … x1 (odd), rows 1 … 2d − 1.
-    fn code(&self, x0: i32, x1: i32) -> Vec<Check> {
-        let d = self.d;
-        let inside = |x: i32, y: i32| x >= x0 && x <= x1 && y >= 1 && y < 2 * d;
+    /// The rotated code on box `b`: X-type boundaries left and right, Z-type
+    /// top and bottom.
+    fn code(&self, b: TileBox) -> Vec<Check> {
+        let inside = |x: i32, y: i32| x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
         let mut checks = Vec::new();
-        for y in (0..=2 * d).step_by(2) {
-            for x in (x0 - 1..=x1 + 1).step_by(2) {
+        for y in (b.y0 - 1..=b.y1 + 1).step_by(2) {
+            for x in (b.x0 - 1..=b.x1 + 1).step_by(2) {
                 let x_type = ((x + y) / 2).rem_euclid(2) == 1;
                 // Z checks stay off the left and right edges, X checks off the top and bottom.
-                let allowed = if x_type { y >= 2 && y <= 2 * d - 2 } else { x > x0 && x < x1 };
+                let allowed = if x_type { y > b.y0 && y < b.y1 } else { x > b.x0 && x < b.x1 };
                 if !allowed {
                     continue;
                 }
@@ -283,14 +308,15 @@ impl Surgery {
         if self.merged == 0 {
             return Err("the merge needs at least one round".into());
         }
-        let layout = Layout::new(self.d);
+        let layout = Layout::new(self.d, 2, 1);
         let d = self.d as i32;
-        let (p1, seam, p2) = ((1, 2 * d - 1), 2 * d + 1, (2 * d + 3, 4 * d + 1));
-        let patches: Vec<Check> = layout.code(p1.0, p1.1).into_iter().chain(layout.code(p2.0, p2.1)).collect();
-        let merged = layout.code(p1.0, p2.1);
-        let patch_data: Vec<u32> = layout.data(p1.0, p1.1).into_iter().chain(layout.data(p2.0, p2.1)).collect();
-        let seam_data = layout.data(seam, seam);
-        let all_data: Vec<u32> = layout.data(p1.0, p2.1);
+        let (b1, b2) = (layout.tile((0, 0)), layout.tile((1, 0)));
+        let (p1, seam, p2) = ((b1.x0, b1.x1), 2 * d + 1, (b2.x0, b2.x1));
+        let patches: Vec<Check> = layout.code(b1).into_iter().chain(layout.code(b2)).collect();
+        let merged = layout.code(TileBox::union(b1, b2));
+        let patch_data: Vec<u32> = layout.data(b1).into_iter().chain(layout.data(b2)).collect();
+        let seam_data = layout.data(TileBox { x0: seam, x1: seam, ..b1 });
+        let all_data: Vec<u32> = layout.data(TileBox::union(b1, b2));
 
         let mut w = Writer { c: Vec::new(), m: 0, p: self.p, last: HashMap::new(), fresh: HashMap::new(), measured: HashMap::new(), round: 0 };
         for (q, &(x, y)) in layout.positions.iter().enumerate() {
@@ -364,6 +390,36 @@ mod tests {
         Surgery { d, pre: d, merged, post: d, basis, p }
     }
 
+    /// FNV-1a, 64 bits: a fingerprint that is the same in every Rust version.
+    fn fnv1a64(bytes: &[u8]) -> String {
+        let h = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3));
+        format!("{h:016x}")
+    }
+
+    /// The grid layout and the program compiler change nothing: every
+    /// experiment section 14 measured compiles to the same circuit, byte for
+    /// byte, as before either existed (fingerprints taken before, in
+    /// data/surgery/golden.json).
+    #[test]
+    fn the_z_z_experiment_is_unchanged() {
+        let golden = include_str!("../data/surgery/golden.json");
+        let mut n = 0;
+        for d in [3usize, 5, 7] {
+            let mut ts = vec![1usize, 2, 3, d, 2 * d];
+            ts.sort_unstable();
+            ts.dedup();
+            for merged in ts {
+                for (basis, name) in [(Basis::Z, "z"), (Basis::X, "x")] {
+                    let text = Surgery { d, pre: d, merged, post: d, basis, p: 0.002 }.circuit().unwrap().to_stim();
+                    let key = format!("\"d{d}/T{merged}/{name}\": \"{}\"", fnv1a64(text.as_bytes()));
+                    assert!(golden.contains(&key), "d = {d}, T = {merged}, {name}: the circuit changed");
+                    n += 1;
+                }
+            }
+        }
+        assert_eq!(n, 28);
+    }
+
     /// Without noise every detector and observable is deterministic: the
     /// engine's references refuse any that is not.
     #[test]
@@ -384,11 +440,13 @@ mod tests {
     #[test]
     fn the_codes_have_the_right_number_of_checks() {
         for d in [3usize, 5, 7] {
-            let layout = Layout::new(d);
-            let di = d as i32;
-            assert_eq!(layout.code(1, 2 * di - 1).len(), d * d - 1);
-            assert_eq!(layout.code(2 * di + 3, 4 * di + 1).len(), d * d - 1);
-            assert_eq!(layout.code(1, 4 * di + 1).len(), d * (2 * d + 1) - 1);
+            let layout = Layout::new(d, 2, 2);
+            let (a, b, c) = (layout.tile((0, 0)), layout.tile((1, 0)), layout.tile((0, 1)));
+            assert_eq!(layout.code(a).len(), d * d - 1);
+            assert_eq!(layout.code(b).len(), d * d - 1);
+            // Merged side by side, and one above the other.
+            assert_eq!(layout.code(TileBox::union(a, b)).len(), d * (2 * d + 1) - 1);
+            assert_eq!(layout.code(TileBox::union(a, c)).len(), d * (2 * d + 1) - 1);
         }
     }
 
