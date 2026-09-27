@@ -300,7 +300,341 @@ impl Writer {
     }
 }
 
+/// A lattice-surgery program: patches of distance d on a grid of tiles, and
+/// what is done to them, in order.
+///
+/// Every step is one of five. `Prepare` resets patches' data in a basis;
+/// `Rounds` measures every live patch and merge for some rounds; `Merge` joins
+/// a line of adjacent patches, which a horizontal line does by measuring
+/// Z⊗…⊗Z (the seam prepared in |+⟩) and a vertical line X⊗…⊗X (in |0⟩);
+/// `Split` measures every current merge's seam, X or Z, to part them again;
+/// `Measure` reads patches' data out in a basis, which ends them. Detectors
+/// follow the one rule the Writer applies, whatever the program. Observables
+/// are given as terms (`Term`), and their determinism is not assumed: the
+/// engine's reference simulation refuses any observable the terms leave
+/// random, so a program with a wrong Pauli frame fails to compile into a
+/// usable model rather than decoding nonsense.
+#[derive(Clone, Debug)]
+pub struct Program {
+    pub d: usize,
+    pub p: f64,
+    /// Each patch's tile, (column, row).
+    pub tiles: Vec<(i32, i32)>,
+    pub steps: Vec<Step>,
+    /// Each observable, as the terms whose records it multiplies.
+    pub observables: Vec<Vec<Term>>,
+}
+
+#[derive(Clone, Debug)]
+pub enum Step {
+    /// Prepare the patches' data in `basis`, as one reset.
+    Prepare { patches: Vec<usize>, basis: Basis },
+    /// Rounds of syndrome extraction on every live patch and merge.
+    Rounds(usize),
+    /// Merge a line of adjacent patches: horizontal measures Z⊗…⊗Z, vertical
+    /// X⊗…⊗X. The seam is prepared at once; rounds follow.
+    Merge { patches: Vec<usize> },
+    /// Split every current merge: each seam measured, X for a horizontal
+    /// line, Z for a vertical one.
+    Split,
+    /// Measure the patches' data in `basis`, as one measurement; they are done.
+    Measure { patches: Vec<usize>, basis: Basis },
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Term {
+    /// A patch's logical in `basis`, from its final measurement in that
+    /// basis: Z its first column, X its first row.
+    Logical { patch: usize, basis: Basis },
+    /// Merge `merge`'s outcome (merges numbered in program order): the product
+    /// of its new checks of the measured type in its first round.
+    Outcome { merge: usize },
+    /// Merge `merge`'s seam records, from its split, on the line of `patch`'s
+    /// logical that crosses it: the patch's first row for a horizontal line
+    /// (vertical seams), its first column for a vertical line.
+    Seam { merge: usize, patch: usize },
+}
+
+struct MergeState {
+    patches: Vec<usize>,
+    horizontal: bool,
+    code: Vec<Check>,
+    data: Vec<u32>,
+    /// The seam's data qubits, sorted.
+    seam: Vec<u32>,
+    /// The merged code's new checks of the measured type, as indices into `code`.
+    new_checks: Vec<usize>,
+    outcome: Option<Vec<usize>>,
+    seam_recs: Option<Vec<usize>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Life {
+    Unprepared,
+    Live,
+    Done,
+}
+
+/// A compiled program: its circuit, and each merge's outcome records.
+pub struct Compiled {
+    pub circuit: Circuit,
+    pub outcomes: Vec<Vec<usize>>,
+}
+
+impl Program {
+    pub fn circuit(&self) -> Result<Circuit, String> {
+        self.compile().map(|c| c.circuit)
+    }
+
+    pub fn compile(&self) -> Result<Compiled, String> {
+        let d = self.d;
+        if d < 3 || d % 2 == 0 {
+            return Err(format!("lattice surgery needs an odd distance of at least 3, not {d}"));
+        }
+        if self.tiles.is_empty() || self.tiles.iter().any(|&(i, j)| i < 0 || j < 0) {
+            return Err("a program needs patches on tiles of non-negative column and row".into());
+        }
+        let n = self.tiles.len();
+        for a in 0..n {
+            if self.tiles[a + 1..].contains(&self.tiles[a]) {
+                return Err(format!("two patches share tile {:?}", self.tiles[a]));
+            }
+        }
+        let cols = self.tiles.iter().map(|t| t.0).max().unwrap() + 1;
+        let rows = self.tiles.iter().map(|t| t.1).max().unwrap() + 1;
+        let layout = Layout::new(d, cols, rows);
+        let boxes: Vec<TileBox> = self.tiles.iter().map(|&t| layout.tile(t)).collect();
+        let codes: Vec<Vec<Check>> = boxes.iter().map(|&b| layout.code(b)).collect();
+        let datas: Vec<Vec<u32>> = boxes.iter().map(|&b| layout.data(b)).collect();
+
+        let mut w = Writer { c: Vec::new(), m: 0, p: self.p, last: HashMap::new(), fresh: HashMap::new(), measured: HashMap::new(), round: 0 };
+        for (q, &(x, y)) in layout.positions.iter().enumerate() {
+            w.c.push(Instr::QubitCoords { coords: vec![x as f64, y as f64], qubits: vec![q as u32] });
+        }
+        let mut life = vec![Life::Unprepared; n];
+        let mut in_merge: Vec<Option<usize>> = vec![None; n];
+        let mut merges: Vec<MergeState> = Vec::new();
+        let mut active: Vec<usize> = Vec::new();
+        let mut final_basis: Vec<Option<Basis>> = vec![None; n];
+        let mut final_rec: HashMap<u32, usize> = HashMap::new();
+        let check = |q: usize| if q < n { Ok(()) } else { Err(format!("there is no patch {q}")) };
+
+        for step in &self.steps {
+            match step {
+                Step::Prepare { patches, basis } => {
+                    for &q in patches {
+                        check(q)?;
+                        if life[q] != Life::Unprepared {
+                            return Err(format!("patch {q} is prepared twice"));
+                        }
+                        life[q] = Life::Live;
+                    }
+                    let data: Vec<u32> = patches.iter().flat_map(|&q| datas[q].iter().copied()).collect();
+                    w.prepare(*basis, &data);
+                }
+                Step::Rounds(k) => {
+                    // Units in order of their lowest patch: a patch alone, or a merge.
+                    let mut units: Vec<(usize, Option<usize>)> = (0..n)
+                        .filter(|&q| life[q] == Life::Live && in_merge[q].is_none())
+                        .map(|q| (q, None))
+                        .chain(active.iter().map(|&m| (merges[m].patches[0], Some(m))))
+                        .collect();
+                    units.sort_unstable_by_key(|u| u.0);
+                    if units.is_empty() {
+                        return Err("rounds with no live patch".into());
+                    }
+                    let mut checks: Vec<Check> = Vec::new();
+                    let mut data: Vec<u32> = Vec::new();
+                    let mut offsets = Vec::new();
+                    for &(q, m) in &units {
+                        offsets.push(checks.len());
+                        match m {
+                            None => {
+                                checks.extend(codes[q].iter().cloned());
+                                data.extend(&datas[q]);
+                            }
+                            Some(m) => {
+                                checks.extend(merges[m].code.iter().cloned());
+                                data.extend(&merges[m].data);
+                            }
+                        }
+                    }
+                    for _ in 0..*k {
+                        let recs = w.round(&checks, &data);
+                        for (&(_, m), &off) in units.iter().zip(&offsets) {
+                            if let Some(m) = m {
+                                let ms = &mut merges[m];
+                                if ms.outcome.is_none() {
+                                    ms.outcome = Some(ms.new_checks.iter().map(|&i| recs[off + i]).collect());
+                                }
+                            }
+                        }
+                    }
+                }
+                Step::Merge { patches } => {
+                    if patches.len() < 2 {
+                        return Err("a merge needs at least two patches".into());
+                    }
+                    for &q in patches {
+                        check(q)?;
+                        if life[q] != Life::Live || in_merge[q].is_some() {
+                            return Err(format!("patch {q} is not live and alone, so it cannot merge"));
+                        }
+                    }
+                    let t: Vec<(i32, i32)> = patches.iter().map(|&q| self.tiles[q]).collect();
+                    let horizontal = t.windows(2).all(|p| p[1] == (p[0].0 + 1, p[0].1));
+                    let vertical = t.windows(2).all(|p| p[1] == (p[0].0, p[0].1 + 1));
+                    if !horizontal && !vertical {
+                        return Err(format!("patches {patches:?} are not a line of neighbouring tiles, in order"));
+                    }
+                    let bbox = patches.iter().map(|&q| boxes[q]).reduce(TileBox::union).unwrap();
+                    let code = layout.code(bbox);
+                    let data = layout.data(bbox);
+                    let seam: Vec<u32> = data.iter().copied().filter(|q| !patches.iter().any(|&p| datas[p].contains(q))).collect();
+                    // Horizontal measures Z⊗…⊗Z, by new Z checks; vertical X⊗…⊗X, by new X checks.
+                    let new_checks = code
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, c)| c.x_type != horizontal && !patches.iter().any(|&q| codes[q].iter().any(|pc| pc.pos == c.pos)))
+                        .map(|(i, _)| i)
+                        .collect();
+                    w.c.push(Instr::Tick);
+                    w.prepare(if horizontal { Basis::X } else { Basis::Z }, &seam);
+                    let m = merges.len();
+                    for &q in patches {
+                        in_merge[q] = Some(m);
+                    }
+                    merges.push(MergeState { patches: patches.clone(), horizontal, code, data, seam, new_checks, outcome: None, seam_recs: None });
+                    active.push(m);
+                }
+                Step::Split => {
+                    if active.is_empty() {
+                        return Err("a split with nothing merged".into());
+                    }
+                    w.c.push(Instr::Tick);
+                    for m in std::mem::take(&mut active) {
+                        let basis = if merges[m].horizontal { Basis::X } else { Basis::Z };
+                        let seam = merges[m].seam.clone();
+                        merges[m].seam_recs = Some(w.measure(basis, &seam));
+                        for &q in &merges[m].patches {
+                            in_merge[q] = None;
+                        }
+                    }
+                }
+                Step::Measure { patches, basis } => {
+                    for &q in patches {
+                        check(q)?;
+                        if life[q] != Life::Live || in_merge[q].is_some() {
+                            return Err(format!("patch {q} is not live and alone, so it cannot be measured"));
+                        }
+                    }
+                    w.c.push(Instr::Tick);
+                    let data: Vec<u32> = patches.iter().flat_map(|&q| datas[q].iter().copied()).collect();
+                    let recs = w.measure(*basis, &data);
+                    final_rec.extend(data.iter().copied().zip(recs));
+                    let want_x = *basis == Basis::X;
+                    for &q in patches {
+                        life[q] = Life::Done;
+                        final_basis[q] = Some(*basis);
+                        for ch in codes[q].iter().filter(|c| c.x_type == want_x) {
+                            let Some(last) = w.last.get(&ch.pos) else { continue };
+                            let support = ch.support();
+                            let mut targets: Vec<usize> = support.iter().map(|x| final_rec[x]).collect();
+                            targets.push(last.rec);
+                            // Qubits its last measurement read and its patch does not:
+                            // seam qubits, read at a split in the same basis.
+                            for lost in last.support.iter().filter(|x| !support.contains(x)) {
+                                match w.measured.get(lost) {
+                                    Some(&(r, b)) if b == *basis => targets.push(r),
+                                    _ => return Err(format!("the check at {:?} lost a qubit not measured in its basis", ch.pos)),
+                                }
+                            }
+                            let coords = vec![ch.pos.0 as f64, ch.pos.1 as f64, (w.round + 1) as f64];
+                            let recs = targets.iter().map(|&r| w.lookback(r)).collect();
+                            w.c.push(Instr::Detector { coords, recs });
+                        }
+                    }
+                }
+            }
+        }
+
+        for (index, terms) in self.observables.iter().enumerate() {
+            let mut recs = Vec::new();
+            for term in terms {
+                match *term {
+                    Term::Logical { patch, basis } => {
+                        check(patch)?;
+                        if final_basis[patch] != Some(basis) {
+                            return Err(format!("patch {patch}'s logical {basis:?} needs it measured in {basis:?}"));
+                        }
+                        let b = boxes[patch];
+                        let qubits: Vec<u32> = if basis == Basis::Z {
+                            (b.y0..=b.y1).step_by(2).map(|y| layout.index[&(b.x0, y)]).collect()
+                        } else {
+                            (b.x0..=b.x1).step_by(2).map(|x| layout.index[&(x, b.y0)]).collect()
+                        };
+                        recs.extend(qubits.iter().map(|q| w.lookback(final_rec[q])));
+                    }
+                    Term::Outcome { merge } => {
+                        let ms = merges.get(merge).ok_or(format!("there is no merge {merge}"))?;
+                        let out = ms.outcome.as_ref().ok_or(format!("merge {merge} had no rounds"))?;
+                        recs.extend(out.iter().map(|&r| w.lookback(r)));
+                    }
+                    Term::Seam { merge, patch } => {
+                        check(patch)?;
+                        let ms = merges.get(merge).ok_or(format!("there is no merge {merge}"))?;
+                        let seam_recs = ms.seam_recs.as_ref().ok_or(format!("merge {merge} was never split"))?;
+                        let b = boxes[patch];
+                        for (&q, &r) in ms.seam.iter().zip(seam_recs) {
+                            let (x, y) = layout.positions[q as usize];
+                            if (ms.horizontal && y == b.y0) || (!ms.horizontal && x == b.x0) {
+                                recs.push(w.lookback(r));
+                            }
+                        }
+                    }
+                }
+            }
+            w.c.push(Instr::Observable { index: index as u32, recs });
+        }
+        let outcomes = merges.iter().map(|m| m.outcome.clone().unwrap_or_default()).collect();
+        Ok(Compiled { circuit: Circuit { instrs: w.c }, outcomes })
+    }
+}
+
 impl Surgery {
+    /// The experiment as a program: two patches side by side, prepared, held
+    /// apart, merged to measure Z₁Z₂, split, held apart, read out.
+    pub fn program(&self) -> Program {
+        let observables = match self.basis {
+            Basis::Z => vec![
+                vec![Term::Outcome { merge: 0 }],
+                vec![Term::Logical { patch: 0, basis: Basis::Z }],
+                vec![Term::Logical { patch: 1, basis: Basis::Z }],
+            ],
+            // X₁X₂ along the first row, with that row's seam qubit read at the split.
+            Basis::X => vec![vec![
+                Term::Logical { patch: 0, basis: Basis::X },
+                Term::Logical { patch: 1, basis: Basis::X },
+                Term::Seam { merge: 0, patch: 0 },
+            ]],
+        };
+        Program {
+            d: self.d,
+            p: self.p,
+            tiles: vec![(0, 0), (1, 0)],
+            steps: vec![
+                Step::Prepare { patches: vec![0, 1], basis: self.basis },
+                Step::Rounds(self.pre),
+                Step::Merge { patches: vec![0, 1] },
+                Step::Rounds(self.merged),
+                Step::Split,
+                Step::Rounds(self.post),
+                Step::Measure { patches: vec![0, 1], basis: self.basis },
+            ],
+            observables,
+        }
+    }
+
     pub fn circuit(&self) -> Result<Circuit, String> {
         if self.d < 3 || self.d % 2 == 0 {
             return Err(format!("lattice surgery needs an odd distance of at least 3, not {}", self.d));
@@ -308,74 +642,7 @@ impl Surgery {
         if self.merged == 0 {
             return Err("the merge needs at least one round".into());
         }
-        let layout = Layout::new(self.d, 2, 1);
-        let d = self.d as i32;
-        let (b1, b2) = (layout.tile((0, 0)), layout.tile((1, 0)));
-        let (p1, seam, p2) = ((b1.x0, b1.x1), 2 * d + 1, (b2.x0, b2.x1));
-        let patches: Vec<Check> = layout.code(b1).into_iter().chain(layout.code(b2)).collect();
-        let merged = layout.code(TileBox::union(b1, b2));
-        let patch_data: Vec<u32> = layout.data(b1).into_iter().chain(layout.data(b2)).collect();
-        let seam_data = layout.data(TileBox { x0: seam, x1: seam, ..b1 });
-        let all_data: Vec<u32> = layout.data(TileBox::union(b1, b2));
-
-        let mut w = Writer { c: Vec::new(), m: 0, p: self.p, last: HashMap::new(), fresh: HashMap::new(), measured: HashMap::new(), round: 0 };
-        for (q, &(x, y)) in layout.positions.iter().enumerate() {
-            w.c.push(Instr::QubitCoords { coords: vec![x as f64, y as f64], qubits: vec![q as u32] });
-        }
-
-        // Prepare, and hold each patch separately.
-        w.prepare(self.basis, &patch_data);
-        for _ in 0..self.pre {
-            w.round(&patches, &patch_data);
-        }
-        // Merge: the seam in |+⟩, the merged patch measured.
-        w.c.push(Instr::Tick);
-        w.prepare(Basis::X, &seam_data);
-        let new_z: Vec<usize> = merged.iter().enumerate().filter(|(_, c)| !c.x_type && !patches.iter().any(|q| q.pos == c.pos)).map(|(i, _)| i).collect();
-        let mut first_merge: Option<Vec<usize>> = None;
-        for _ in 0..self.merged {
-            let recs = w.round(&merged, &all_data);
-            first_merge.get_or_insert(recs);
-        }
-        // Split: the seam read out in X.
-        w.c.push(Instr::Tick);
-        let seam_recs = w.measure(Basis::X, &seam_data);
-        for _ in 0..self.post {
-            w.round(&patches, &patch_data);
-        }
-        // Finish: the patches read out in the experiment's basis.
-        w.c.push(Instr::Tick);
-        let final_recs = w.measure(self.basis, &patch_data);
-        let rec_of: HashMap<u32, usize> = patch_data.iter().copied().zip(final_recs).collect();
-        let final_basis_x = self.basis == Basis::X;
-        for ch in patches.iter().filter(|c| c.x_type == final_basis_x) {
-            let mut recs: Vec<u32> = ch.support().iter().map(|q| w.lookback(rec_of[q])).collect();
-            recs.push(w.lookback(w.last[&ch.pos].rec));
-            let coords = vec![ch.pos.0 as f64, ch.pos.1 as f64, (w.round + 1) as f64];
-            w.c.push(Instr::Detector { coords, recs });
-        }
-        let column = |w: &Writer, x: i32| -> Vec<u32> {
-            (1..2 * d).step_by(2).map(|y| w.lookback(rec_of[&layout.index[&(x, y)]])).collect()
-        };
-        match self.basis {
-            Basis::Z => {
-                let first = first_merge.expect("at least one merged round");
-                let outcome: Vec<u32> = new_z.iter().map(|&i| w.lookback(first[i])).collect();
-                let (z1, z2) = (column(&w, p1.0), column(&w, p2.0));
-                w.c.push(Instr::Observable { index: 0, recs: outcome });
-                w.c.push(Instr::Observable { index: 1, recs: z1 });
-                w.c.push(Instr::Observable { index: 2, recs: z2 });
-            }
-            Basis::X => {
-                // X₁X₂ along the bottom row, with the seam qubit of that row read at the split.
-                let mut recs: Vec<u32> = (p1.0..=p1.1).step_by(2).chain((p2.0..=p2.1).step_by(2)).map(|x| w.lookback(rec_of[&layout.index[&(x, 1)]])).collect();
-                let seam_q = layout.index[&(seam, 1)];
-                let seam_rec = seam_data.iter().position(|&q| q == seam_q).map(|i| seam_recs[i]).expect("seam qubit");
-                recs.push(w.lookback(seam_rec));
-                w.c.push(Instr::Observable { index: 0, recs });
-            }
-        }
-        Ok(Circuit { instrs: w.c })
+        self.program().circuit()
     }
 }
 
