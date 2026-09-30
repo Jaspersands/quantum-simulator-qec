@@ -181,6 +181,15 @@ def main():
     except ValueError:
         pass
     print(f"ok  9. lattice surgery: {ls.num_detectors} detectors, 3 observables; one merged round refused")
+
+    # 10. A logical CNOT by lattice surgery: Stim reads it; its model decodes Stim's shots.
+    cn = stim.Circuit(sq.surgery_cnot(3, 3, 0.001))
+    cn_dem = sq.dem_from_circuit(str(cn), True)
+    cn_dets, _ = cn.compile_detector_sampler(seed=5).sample(256, separate_observables=True)
+    _, _, cn_errors, _ = sq.decode_b8(cn_dem, np.packbits(cn_dets, axis=1, bitorder="little").tobytes(), 256, 1, True)
+    if cn.num_observables != 2 or cn_errors != 0:
+        fail("the lattice-surgery CNOT")
+    print(f"ok 10. lattice-surgery CNOT: {cn.num_detectors} detectors, 256 shots decoded")
     print("all checks passed")
 
 

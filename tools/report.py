@@ -389,6 +389,20 @@ def build_values(F):
             rows.append([str(d), pct(p, 1), f(cells[0]), f(cells[1]), f(cells[2]), f(cells[3]), f(cells[1], "patches")])
     t["surgery"] = table(["d", "p", "T = 2", "T = d", "T = 2d", "T = d, plain", "either patch, T = d"], rows, "rrrrrrr")
 
+    # Lattice-surgery programs: the CNOT, merges in a row, the three-patch product.
+    import readme_tables  # noqa: E402  (one definition of these rows)
+    PG = load("data/surgery/programs.json")["points"]
+    cells = lambda line: [c.strip() for c in line.strip("|").split("|")]
+    t["surgery_cnot"] = table(["d", "p", "Z inputs", "X inputs", "Z inputs, plain", "three idle patches", "CNOT ÷ idle"],
+                              [cells(r) for r in readme_tables.surgery_cnot()], "rrrrrrr")
+    t["surgery_seq"] = table(["d", "k = 1", "k = 2", "k = 4", "k = 8", "per merge"],
+                             [cells(r) for r in readme_tables.surgery_sequences()], "rrrrrr")
+    idle = {(d, p): 1 - (1 - PG[f"memory/d{d}/R{4 * d}/p{p}"]["rate_any"]) ** 3 for d in (3, 5, 7) for p in (0.002, 0.003)}
+    ratios = [PG[f"cnot/d{d}/T{d}/p{p}/{i}/correlated"]["rate_any"] / idle[(d, p)] for d in (3, 5, 7) for p in (0.002, 0.003) for i in "zx"]
+    v["ls.cnot_ratio"] = f"{min(ratios):.2f} to {max(ratios):.2f}"
+    v["ls.cnot_d7"] = pct(PG["cnot/d7/T7/p0.002/z/correlated"]["rate_any"], 2)
+    v["ls.line3"] = ", ".join(pct(PG[f"line/d{d}/n3/p0.003"]["rate_any"], 2) for d in (3, 5, 7))
+
     # The resource estimate, by the page's own model (js/estimator.js via tools/estimate.mjs).
     est_path = BUILD / "estimate.json"
     subprocess.run(["node", "tools/estimate.mjs", "--json", str(est_path)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)

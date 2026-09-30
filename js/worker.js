@@ -361,6 +361,7 @@ const OPS = {
   async surgery(instance, { config, batches }, report) {
     const setup = lsSetup(instance, config);
     let shots = 0, any = 0, outcome = 0, patches = 0, seconds = 0;
+    const wrong = new Array(setup.observables ?? 0).fill(0);
     for (let b = 0; b < batches; b++) {
       const t0 = performance.now();
       const r = lsRun(instance);
@@ -369,9 +370,10 @@ const OPS = {
       any += r.any;
       outcome += r.outcome;
       patches += r.patches;
-      report({ shots, outcome, done: b + 1, total: batches });
+      (r.wrong ?? []).forEach((n, i) => { wrong[i] += n; });
+      report({ shots, any, outcome, done: b + 1, total: batches });
     }
-    return { ...config, detectors: setup.detectors, shots, any, outcome, patches, seconds };
+    return { ...config, detectors: setup.detectors, observables: setup.observables, shots, any, outcome, patches, wrong, seconds };
   },
 
   async sweep(instance, { distances, ps, base }, report) {

@@ -10,7 +10,7 @@ import { splitRuns, mergeStream, mergeStreamResults } from '../js/pool-merge.js'
 import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
-import { surgeryLayout } from '../js/surgery-geometry.js';
+import { surgeryLayout, cnotLayout } from '../js/surgery-geometry.js';
 import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom } from '../js/estimator.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
@@ -301,6 +301,28 @@ test('lattice surgery geometry: the counts src/surgery.rs asserts, and Z1Z2 as t
       assert.ok([g.p1[1], g.seam, g.p2[0]].includes(x));
     }
     assert.equal([...count.values()].filter((n) => n % 2 === 1).length, 2 * d);
+  }
+});
+
+test('the CNOT\'s geometry: its merges have the right checks, and X_A X_T is the new X checks on A\'s last row and T\'s first', () => {
+  for (const d of [3, 5, 7]) {
+    const g = cnotLayout(d);
+    for (const name of ['C', 'A', 'T']) assert.equal(g.patches[name].length, d * d - 1, name);
+    assert.equal(g.ca.length, d * (2 * d + 1) - 1);
+    assert.equal(g.at.length, d * (2 * d + 1) - 1);
+    // Parities of the new X checks' supports: each seam qubit twice, A's last
+    // row and T's first row once. This is why the CNOT's X frame takes X_C X_A
+    // along the last row (src/surgery.rs, cnot).
+    const count = new Map();
+    for (const c of g.newAT) for (const [x, y] of c.support) count.set(`${x},${y}`, (count.get(`${x},${y}`) ?? 0) + 1);
+    const odd = [...count].filter(([, n]) => n % 2 === 1).map(([k]) => Number(k.split(',')[1]));
+    assert.equal(odd.length, 2 * d);
+    assert.deepEqual([...new Set(odd)].sort((a, b) => a - b), [g.A.y1, g.T.y0]);
+    // And Z_C Z_A is the new Z checks on C's last column and A's first.
+    const zc = new Map();
+    for (const c of g.newCA) for (const [x, y] of c.support) zc.set(`${x},${y}`, (zc.get(`${x},${y}`) ?? 0) + 1);
+    const oddX = [...zc].filter(([, n]) => n % 2 === 1).map(([k]) => Number(k.split(',')[0]));
+    assert.deepEqual([...new Set(oddX)].sort((a, b) => a - b), [g.C.x1, g.A.x0]);
   }
 });
 

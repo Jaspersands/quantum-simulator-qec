@@ -16,7 +16,7 @@
   <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
-  <p class="byline">Jasper Sands · 27 September 2026 · commit <code>954d7c2</code></p>
+  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>2a3d837</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -29,7 +29,7 @@
 <li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.88 µs a shot at d = 7, against Stim’s 1.33 µs.</li>
 <li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 82 µs mean latency on 2 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
 <li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits.</li>
-<li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds.</li>
+<li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails 1.03% of the time at d = 7 and p = 0.2%, and 0.75 to 0.93 times as often as its three patches held idle for as long.</li>
 <li><strong>What it would take.</strong> Put together, the measurements say a thousand logical qubits running a billion operations need about 41 million physical qubits at Willow’s Λ, and 10 million at Λ = 4.</li>
 </ol>
 </section>
@@ -1437,11 +1437,130 @@
 <li><strong>T = 2 is a trap that grows with the code.</strong> A pair of measurement errors on one seam check flips the outcome unseen, and a bigger code has more seam checks.</li>
 <li><strong>By T = d the curve has flattened.</strong> The merge outcome then fails about as often as a single patch of the same size. This is the textbook “d rounds per lattice surgery”, measured, and it is the clock the resource estimate below uses.</li>
 </ul>
+<p><strong>Programs.</strong> The engine compiles lattice-surgery programs: patches on a grid of tiles, merged along a line (side by side to measure Z⊗Z, one above the other for X⊗X), split and read out, under the same detector rule. Observables are written as terms (a patch’s logical along a line, a merge’s outcome, a merge’s seam records), and the reference simulation checks every one is deterministic. The Z⊗Z experiment above is one such program, and compiles to the same circuits byte for byte.</p>
+<p>The <strong>logical CNOT</strong> puts control C, an ancilla A in <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|+\rangle</annotation></semantics></math> and target T in an L.</p>
+<ol type="1">
+<li><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mi>C</mi></msub><msub><mi>Z</mi><mi>A</mi></msub></mrow><annotation encoding="application/x-tex">Z_C Z_A</annotation></semantics></math> is measured (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mn>1</mn></msub><annotation encoding="application/x-tex">m_1</annotation></semantics></math>).</li>
+<li><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>X</mi><mi>A</mi></msub><msub><mi>X</mi><mi>T</mi></msub></mrow><annotation encoding="application/x-tex">X_A X_T</annotation></semantics></math> is measured (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mn>2</mn></msub><annotation encoding="application/x-tex">m_2</annotation></semantics></math>).</li>
+<li>A is read out in Z (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mn>3</mn></msub><annotation encoding="application/x-tex">m_3</annotation></semantics></math>).</li>
+</ol>
+<p>The Pauli corrections the outcomes fix are tracked, not applied. Four checks mattered:</p>
+<ul>
+<li><strong>A refused frame.</strong> The reference simulation refused a first frame for the <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|+\rangle|+\rangle</annotation></semantics></math> inputs. <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mn>2</mn></msub><annotation encoding="application/x-tex">m_2</annotation></semantics></math> reads X on A’s last row, so <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>X</mi><mi>C</mi></msub><msub><mi>X</mi><mi>A</mi></msub></mrow><annotation encoding="application/x-tex">X_C X_A</annotation></semantics></math> must be taken along that row.</li>
+<li><strong>A stale comparison.</strong> A second merge exposed a detector-rule case: a seam check measured again after skipping rounds compared itself with a stale value. It now starts over.</li>
+<li><strong>The action, not just the error rate.</strong> <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mn>0</mn><mo stretchy="false" form="postfix">⟩</mo><mo stretchy="false" form="prefix">|</mo><mn>0</mn><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|0\rangle|0\rangle</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|+\rangle|+\rangle</annotation></semantics></math>, the inputs the error rates use, are left alone by the identity too. Three more noiseless programs pin the gate: <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo><mo stretchy="false" form="prefix">|</mo><mn>0</mn><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|+\rangle|0\rangle</annotation></semantics></math> must come out a Bell pair, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mi>C</mi></msub><msub><mi>Z</mi><mi>T</mi></msub></mrow><annotation encoding="application/x-tex">Z_C Z_T</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>X</mi><mi>C</mi></msub><msub><mi>X</mi><mi>T</mi></msub></mrow><annotation encoding="application/x-tex">X_C X_T</annotation></semantics></math> each fixed once the frame is applied, and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mn>0</mn><mo stretchy="false" form="postfix">⟩</mo><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|0\rangle|+\rangle</annotation></semantics></math> must come out unchanged. With the two above, this fixes the images of <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>Z</mi><mi>C</mi></msub><annotation encoding="application/x-tex">Z_C</annotation></semantics></math>, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>Z</mi><mi>T</mi></msub><annotation encoding="application/x-tex">Z_T</annotation></semantics></math>, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>X</mi><mi>C</mi></msub><annotation encoding="application/x-tex">X_C</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>X</mi><mi>T</mi></msub><annotation encoding="application/x-tex">X_T</annotation></semantics></math> as a CNOT’s, up to signs, and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>Z</mi><mi>T</mi></msub><annotation encoding="application/x-tex">Z_T</annotation></semantics></math> alone after <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mo>+</mo><mo stretchy="false" form="postfix">⟩</mo><mo stretchy="false" form="prefix">|</mo><mn>0</mn><mo stretchy="false" form="postfix">⟩</mo></mrow><annotation encoding="application/x-tex">|+\rangle|0\rangle</annotation></semantics></math> is refused as random.</li>
+<li><strong>A line is not a product.</strong> Three patches merged in a row become one patch holding one logical qubit, so the merge measures <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mn>1</mn></msub><msub><mi>Z</mi><mn>2</mn></msub></mrow><annotation encoding="application/x-tex">Z_1 Z_2</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mn>2</mn></msub><msub><mi>Z</mi><mn>3</mn></msub></mrow><annotation encoding="application/x-tex">Z_2 Z_3</annotation></semantics></math>, two parities, not the product <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mn>1</mn></msub><msub><mi>Z</mi><mn>2</mn></msub><msub><mi>Z</mi><mn>3</mn></msub></mrow><annotation encoding="application/x-tex">Z_1 Z_2 Z_3</annotation></semantics></math>. A first version called it a product; review caught it, and each seam now has its own outcome. A true product needs an ancilla region along every patch.</li>
+</ul>
+<p>Every program’s error model equals Stim’s fault for fault, and every single fault of each is corrected at d = 3.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">p</th>
+<th style="text-align: right;">Z inputs</th>
+<th style="text-align: right;">X inputs</th>
+<th style="text-align: right;">Z inputs, plain</th>
+<th style="text-align: right;">three idle patches</th>
+<th style="text-align: right;">CNOT ÷ idle</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">10.66%</td>
+<td style="text-align: right;">11.46%</td>
+<td style="text-align: right;">11.47%</td>
+<td style="text-align: right;">13.07%</td>
+<td style="text-align: right;">0.82</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">3.54%</td>
+<td style="text-align: right;">3.85%</td>
+<td style="text-align: right;">5.98%</td>
+<td style="text-align: right;">4.50%</td>
+<td style="text-align: right;">0.79</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.2%</td>
+<td style="text-align: right;">1.03%</td>
+<td style="text-align: right;">1.12%</td>
+<td style="text-align: right;">2.61%</td>
+<td style="text-align: right;">1.37%</td>
+<td style="text-align: right;">0.75</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">19.45%</td>
+<td style="text-align: right;">22.20%</td>
+<td style="text-align: right;">21.53%</td>
+<td style="text-align: right;">24.00%</td>
+<td style="text-align: right;">0.81</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">11.11%</td>
+<td style="text-align: right;">12.06%</td>
+<td style="text-align: right;">16.93%</td>
+<td style="text-align: right;">14.34%</td>
+<td style="text-align: right;">0.77</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.3%</td>
+<td style="text-align: right;">5.60%</td>
+<td style="text-align: right;">6.42%</td>
+<td style="text-align: right;">11.45%</td>
+<td style="text-align: right;">7.11%</td>
+<td style="text-align: right;">0.79</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Cheaper than holding the patches.</strong> The CNOT fails 0.75 to 0.93 times as often as its three patches held as memories for its 4d rounds. The resource estimate’s model, every patch exposed for every operation, is if anything pessimistic.</li>
+<li><strong>Merges add up.</strong> <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math> Z⊗Z measurements in a row fail with <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>ln</mo><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>−</mo><mi>P</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">\ln(1-P)</annotation></semantics></math> linear in <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>: each merge adds the same risk, the sum-of-parts law an estimate assumes.</li>
+<li><strong>Three in a row.</strong> Three patches merged at once, measuring <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mn>1</mn></msub><msub><mi>Z</mi><mn>2</mn></msub></mrow><annotation encoding="application/x-tex">Z_1 Z_2</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Z</mi><mn>2</mn></msub><msub><mi>Z</mi><mn>3</mn></msub></mrow><annotation encoding="application/x-tex">Z_2 Z_3</annotation></semantics></math> together, fail 18.04%, 9.36%, 4.61% at d = 3, 5, 7 and p = 0.3%.</li>
+</ul>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">k = 1</th>
+<th style="text-align: right;">k = 2</th>
+<th style="text-align: right;">k = 4</th>
+<th style="text-align: right;">k = 8</th>
+<th style="text-align: right;">per merge</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">12.30%</td>
+<td style="text-align: right;">16.97%</td>
+<td style="text-align: right;">27.40%</td>
+<td style="text-align: right;">42.78%</td>
+<td style="text-align: right;">5.96%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">6.56%</td>
+<td style="text-align: right;">8.86%</td>
+<td style="text-align: right;">12.65%</td>
+<td style="text-align: right;">20.81%</td>
+<td style="text-align: right;">2.33%</td>
+</tr>
+</tbody>
+</table>
 <h2 data-number="4.9" id="what-it-would-take"><span class="header-section-number">4.9</span> What it would take</h2>
 <p>Each section above measures one ingredient of a quantum computer’s cost, and a simple model puts them together:</p>
 <ul>
 <li>Logical error per cycle falls from the measured <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ε</mi><mn>7</mn></msub><annotation encoding="application/x-tex">\varepsilon_7</annotation></semantics></math> by Λ for every two steps of distance.</li>
-<li>Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it fails with probability about <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mi>d</mi><mspace width="0.167em"></mspace><msub><mi>ε</mi><mi>d</mi></msub></mrow><annotation encoding="application/x-tex">N d\,\varepsilon_d</annotation></semantics></math>.</li>
+<li>Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it fails with probability about <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mi>d</mi><mspace width="0.167em"></mspace><msub><mi>ε</mi><mi>d</mi></msub></mrow><annotation encoding="application/x-tex">N d\,\varepsilon_d</annotation></semantics></math>. The measured CNOT fails 0.75 to 0.93 times as often as its patches held idle for as long, so this errs on the safe side.</li>
 <li>The distance is the smallest odd one that keeps the run within a 1% budget.</li>
 <li>The qubits are <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo stretchy="false" form="prefix">(</mo><mn>2</mn><msup><mi>d</mi><mn>2</mn></msup><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">N(2d^2 - 1)</annotation></semantics></math> with a routing overhead of 2.</li>
 <li>The time is d cycles of 1.1 µs per operation.</li>

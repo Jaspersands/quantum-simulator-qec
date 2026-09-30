@@ -545,12 +545,16 @@ export function bbRun(instance) {
 
 /* -- Lattice surgery (section 14) ---------------------------------------- */
 
-/** Build Z-basis lattice surgery (d rounds either side, `merged` merged) and its matcher. */
-export function lsSetup(instance, { d, merged, p, correlated = true }) {
-  return replyOrThrow(instance, instance.exports.wasm_ls_setup(d, merged, p, correlated ? 1 : 0));
+/**
+ * Build a lattice-surgery program and its matcher: `kind` 0 is Z⊗Z on two
+ * patches (d rounds either side, `merged` merged), 1 the logical CNOT on
+ * |0⟩|0⟩, 2 the CNOT on |+⟩|+⟩.
+ */
+export function lsSetup(instance, { kind = 0, d, merged, p, correlated = true }) {
+  return replyOrThrow(instance, instance.exports.wasm_ls_setup(kind, d, merged, p, correlated ? 1 : 0));
 }
 
-/** Sample 64 shots and decode them: failures at all, on the merge outcome, on the patches. */
+/** Sample 64 shots and decode them: failures at all, on each observable, on the Z⊗Z outcome, on its patches. */
 export function lsRun(instance) {
   return replyOrThrow(instance, instance.exports.wasm_ls_run());
 }
