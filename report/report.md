@@ -630,7 +630,9 @@ paper is recorded with its page or table.
   so this errs on the safe side).
 - **Reaction:** each Toffoli waits for the longer of its lattice-surgery steps and this project's
   decoder latency plus a control delay.
-- **Storage:** surface patches, Gidney's yoked codes, or gross-code modules.
+- **Storage:** surface patches, Gidney's yoked codes, or gross-code modules, priced idle (reaching a
+  stored qubit is not priced). Cultivation's figures are Gidney's at $p = 0.1\%$, and scaling its
+  150 rounds per CCZ at $d = 25$ with d is this model's assumption.
 
 {{table:est_noise}}
 

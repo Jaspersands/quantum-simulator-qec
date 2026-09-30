@@ -16,7 +16,7 @@
   <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
-  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>36e42ac</code></p>
+  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>f84f2a4</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -1850,7 +1850,7 @@
 <li><strong>Magic states</strong> from Gidney’s cultivation factory or the cheapest of Litinski’s distillation protocols, half the budget, as many factories as keep up. The 15-to-1 law those protocols rest on is measured here: this engine’s samples and an exact sum agree, and at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.1</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.1\%</annotation></semantics></math> the output error is 1.003 × <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>35</mn><msup><mi>p</mi><mn>3</mn></msup></mrow><annotation encoding="application/x-tex">35p^3</annotation></semantics></math>.</li>
 <li><strong>The floor plan:</strong> one of Litinski’s data blocks, tiles of <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><msup><mi>d</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">2d^2</annotation></semantics></math> qubits, every tile priced as an idle patch (the measured CNOT fails 0.75 to 0.93 times as often as its patches held idle, so this errs on the safe side).</li>
 <li><strong>Reaction:</strong> each Toffoli waits for the longer of its lattice-surgery steps and this project’s decoder latency plus a control delay.</li>
-<li><strong>Storage:</strong> surface patches, Gidney’s yoked codes, or gross-code modules.</li>
+<li><strong>Storage:</strong> surface patches, Gidney’s yoked codes, or gross-code modules, priced idle (reaching a stored qubit is not priced). Cultivation’s figures are Gidney’s at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.1</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.1\%</annotation></semantics></math>, and scaling its 150 rounds per CCZ at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi><mo>=</mo><mn>25</mn></mrow><annotation encoding="application/x-tex">d = 25</annotation></semantics></math> with d is this model’s assumption.</li>
 </ul>
 <table>
 <thead>

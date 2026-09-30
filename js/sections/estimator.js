@@ -92,9 +92,11 @@ export function initEstimator(root) {
     const key = input('preset').value;
     const preset = D.sources.algorithms[key];
     if (preset) {
+      // Shown rounded, computed exact, so the page gives the README's numbers for a preset.
       input('qubits').value = preset.qubits;
       input('toffolis').value = String(Math.round(Math.log10(preset.toffolis) * 10) / 10);
       input('hot').value = preset.hot ?? preset.qubits;
+      return { qubits: preset.qubits, hot: preset.hot ?? preset.qubits, toffolis: preset.toffolis };
     }
     const qubits = Math.max(1, Number(input('qubits').value) || 1);
     return { qubits, hot: Math.min(qubits, Math.max(1, Number(input('hot').value) || qubits)), toffolis: 10 ** Number(input('toffolis').value) };

@@ -286,8 +286,23 @@ TABLES = [
 ]
 
 
+def phrases():
+    """Numbers the README states in prose, each as the phrase it must contain, from the model."""
+    V = estimate_json()["validation"]
+    first = V["rsa"][0]
+    surface = next(r for r in V["rsa"] if r["label"].startswith("surface"))
+    return [
+        f"it lands within {first['qubitRatio']:.1f} times his\n  897,864 qubits and {first['timeRatio']:.1f} times his 12.07 hours per shot",
+        f"costs over {math.floor(surface['qubitRatio'])}\n  times the qubits",
+        f"about {round(V['epsAt25'] / 1e-15, -1):.0f} times his 10⁻¹⁵",
+    ]
+
+
 def main():
     readme = (ROOT / "README.md").read_text()
+    missing = [ph for ph in phrases() if ph not in readme]
+    for ph in missing:
+        print(f"README prose out of date: expected {ph!r}")
     out, stale = readme, []
     for name, header, fn in TABLES:
         body = "\n".join(fn()) + "\n"
@@ -303,7 +318,7 @@ def main():
     if "--check" in sys.argv:
         for name in stale:
             print(f"README table out of date: {name}")
-        return 1 if stale else 0
+        return 1 if stale or missing else 0
     if "--write" in sys.argv:
         (ROOT / "README.md").write_text(out)
         print(f"rewrote {len(stale)} table(s): {', '.join(stale) or 'none'}")

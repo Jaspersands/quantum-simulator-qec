@@ -1222,9 +1222,11 @@ that price real algorithms report. Every number read from a paper is in
 | 0.3% | 6.7e-03 | 2.5e-03 | 7.8e-04 | 2.9e-04 | 1.2e-04 |
 | 0.5% | 1.7e-02 | 1.0e-02 | 6.1e-03 | 4.1e-03 | 2.8e-03 |
 
-- **Magic states.** Either Gidney's cultivation factory (T states to 10⁻⁷, 8T-to-CCZ at
-  28 p_T², a 3 × 4-patch factory making a CCZ every 150 rounds at d = 25; characterized at
-  p ≤ 0.1%), or the cheapest of Litinski's distillation protocols (Quantum 3, 205, Table 1) that
+- **Magic states.** Either Gidney's cultivation factory, or the cheapest of Litinski's
+  distillation protocols. Cultivation makes T states to 10⁻⁷ and CCZs from them at 28 p_T², in a
+  3 × 4-patch factory making a CCZ every 150 rounds at d = 25. Its figures are Gidney's at
+  p = 0.1%, used for any lower p. Scaling the 150 rounds with d is this model's assumption.
+  Litinski's protocols come from Quantum 3, 205, Table 1: the cheapest (Quantum 3, 205, Table 1) that
   meets the error each Toffoli may spend. Half the budget goes to magic states, and there are as
   many factories as keep up.
 - **The floor plan.** One of Litinski's data blocks (Quantum 3, 128, Sec. 2): compact (1.5n + 3
@@ -1236,7 +1238,9 @@ that price real algorithms report. Every number read from a paper is in
   as a power law) plus a control delay (10 µs by default).
 - **Storage** for idle qubits: surface-code patches, Gidney's yoked surface codes (430 qubits
   each at 10⁻¹⁵ per round), or gross-code modules (12 logical qubits on 288, plus Cross et al.'s
-  103 ancillas, at the error per cycle section 13 measured).
+  103 ancillas, at the error per cycle section 13 measured). Storage is priced idle. Reaching a
+  stored qubit is not priced: for the gross code that is a logical measurement, which section 13
+  measured at 4 to 9 times a memory's failures.
 - **Our own check of the distillation law** (`tools/distill.py`). The 15-to-1 protocol, twirled
   T-state errors against the [[15, 1, 3]] code's X checks, sampled by this engine (50 million
   shots per p) agrees with an exact sum over all 2¹⁵ error patterns. At p = 0.1% the output

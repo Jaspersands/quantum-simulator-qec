@@ -2049,8 +2049,10 @@
         per magic state, one CCZ or four T states, of d cycles each) and its reaction, divided by the Toffolis in flight.
         This project's decoder latency is the p99 of one window's decode, measured at d = 3, 5 and 7 and extrapolated as
         a power law: at the distances large algorithms need, it is milliseconds, and it sets the run time. A tile is
-        2d² physical qubits, as Litinski counts them; cultivation is characterized at p ≤ 0.1% only, and with Willow's
-        noise the factories are taken as at p = 0.1%.</p>
+        2d² physical qubits, as Litinski counts them. Cultivation's figures are Gidney's at p = 0.1%, used for any
+        lower p, and its 150 rounds per CCZ at d = 25 are scaled with d here. With Willow's noise the factories are
+        taken as at p = 0.1%. Storage is priced idle: reaching a stored qubit is not (for the gross code, a logical
+        measurement, section 13).</p>
     </div>
   </figure>
 

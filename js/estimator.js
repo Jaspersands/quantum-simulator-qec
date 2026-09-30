@@ -135,6 +135,7 @@ export function factoryFor(kind, p, d, target, sources) {
     const c = sources.cultivation;
     const error = c.ccz_error_per_t2 * c.t_error ** 2;
     if (p > c.p_max * (1 + 1e-9) || error > target) return null;
+    // Gidney gives 150 rounds per CCZ at d = 25; scaling it with d is this model's assumption.
     return {
       kind, name: 'cultivation, 8T-to-CCZ', qubits: c.patches * 2 * (d + 1) ** 2,
       cyclesPerState: (c.rounds_per_ccz_at_d25 * d) / 25, errorPerToffoli: error, statesPerToffoli: 1,
@@ -159,7 +160,7 @@ export function factoryWhyNot(kind, p, target, sources) {
   const sci = (x) => { const [m, e] = x.toExponential(1).split('e'); return `${m} × 10${sup(e.replace('+', ''))}`; };
   if (kind === 'cultivation') {
     const c = sources.cultivation;
-    if (p > c.p_max * (1 + 1e-9)) return `cultivation is characterized at p ≤ ${c.p_max * 100}% only`;
+    if (p > c.p_max * (1 + 1e-9)) return `cultivation is characterized at p = ${c.p_max * 100}%, not above`;
     return `cultivation's CCZ error, ${sci(c.ccz_error_per_t2 * c.t_error ** 2)}, is more than the ${sci(target)} per Toffoli this budget allows`;
   }
   const top = Math.max(...sources.litinski_factories.map((r) => r.p_phys));
@@ -170,14 +171,15 @@ export function factoryWhyNot(kind, p, target, sources) {
 /**
  * Seconds a decode of one window takes at distance d: the measured p99
  * ({d: microseconds}, section 12's parallel windows with correlated matching)
- * at the smallest measured distance at least d, or beyond them a power law
- * through the two largest; `overrideUs`, when given, instead.
+ * at the smallest measured distance at least d (never less than at any
+ * smaller one, so it cannot fall with d), or beyond them a power law through
+ * the two largest; `overrideUs`, when given, instead.
  */
 export function latencyAt(d, measured, overrideUs = null) {
   if (overrideUs != null) return overrideUs * 1e-6;
   const ds = Object.keys(measured).map(Number).sort((a, b) => a - b);
   const at = ds.find((x) => x >= d);
-  if (at != null) return measured[at] * 1e-6;
+  if (at != null) return Math.max(...ds.filter((x) => x <= at).map((x) => measured[x])) * 1e-6;
   const [a, b] = ds.slice(-2);
   const slope = Math.log(measured[b] / measured[a]) / Math.log(b / a);
   return measured[b] * (d / b) ** slope * 1e-6;
@@ -220,7 +222,8 @@ export function estimateFull(algorithm, o, sources, maxD = 201) {
       : storage === 'gross' ? modules * cycles * (o.grossPerCycle ?? 0) : 0;
     const memory = tiles * cycles * eps(d);
     const magic = algorithm.toffolis * factory.errorPerToffoli;
-    // Storage and magic states do not improve with d, and the run only lengthens: past the budget here, past it everywhere.
+    // Storage and magic states do not improve with d, and the run only lengthens (steps grow with d, and
+    // latencyAt never falls): past the budget here, past it everywhere.
     if (storageFailure + magic > o.budget) {
       return {
         error: `${storage === 'yoked' ? `yoked storage at ${sources.yoked.error_per_round} per round` : 'gross-code storage'} would `
@@ -231,7 +234,7 @@ export function estimateFull(algorithm, o, sources, maxD = 201) {
     }
     if (memory + storageFailure + magic > o.budget) continue;
     const perFactory = 1 / (factory.cyclesPerState * o.cycleSeconds);
-    const factories = Math.ceil(factory.statesPerToffoli / perToffoli / perFactory - 1e-9);
+    const factories = Math.max(1, Math.ceil(factory.statesPerToffoli / perToffoli / perFactory - 1e-9));
     const storageQubits = storage === 'yoked' ? cold * sources.yoked.qubits_per_logical
       : storage === 'gross' ? modules * (sources.gross_module.qubits + sources.gross_module.ancillas) : 0;
     const qubits = { block: tiles * tileQubits(d), factories: factories * factory.qubits, storage: storageQubits };
