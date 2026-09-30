@@ -419,15 +419,16 @@ async function runCnotRecorded(fig) {
     ]);
   });
   fill($('[data-seq-rows]', fig), seq);
-  const zzz = [3, 5, 7].map((d) => pct(P[`product/d${d}/n3/p0.003`].rate_any)).join(', ');
+  const line3 = [3, 5, 7].map((d) => pct(P[`line/d${d}/n3/p0.003`].rate_any)).join(', ');
   const w = ['z', 'x'].map((i) => P[`windowed/cnot/d5/p0.003/${i}`]);
   $('[data-cnot-fit-foot]', fig).textContent = `† Measured natively on ${doc.machine.cpu} by tools/surgery.py programs (engine `
     + `${doc.engine_commit}): the whole program sampled by the bit-parallel sampler and decoded by correlated matching (plain `
     + 'in its own column) on this engine\'s error model, which equals Stim\'s fault for fault; each point stops at 1,500 '
     + 'shots with an observable wrong; T = d merged rounds per merge. "Three patches idle as long" holds three patches as '
     + 'memories for the CNOT\'s 4d rounds. Merges in a row: k Z⊗Z measurements on two patches, and the failure per merge '
-    + 'fitted through ln(1 − P) against k, which is a straight line: each merge adds the same risk. Three patches merged at '
-    + `once (Z⊗Z⊗Z) fail ${zzz} at d = 3, 5, 7 and p = 0.3%. Window-decoded (parallel windows, correlated), the d = 5 CNOT `
+    + 'fitted through ln(1 − P) against k, which is a straight line: each merge adds the same risk. Three patches merged in '
+    + 'a row at once measure Z₁Z₂ and Z₂Z₃ together (the merged patch holds one logical qubit, so not the product Z₁Z₂Z₃), '
+    + `and fail ${line3} at d = 3, 5, 7 and p = 0.3%. Window-decoded (parallel windows, correlated), the d = 5 CNOT `
     + `fails ${pct(w[0].windowed_rate_any)} and ${pct(w[1].windowed_rate_any)} against ${pct(w[0].rate_any)} and `
     + `${pct(w[1].rate_any)} decoded whole.`;
   status.textContent = 'Loaded.';
@@ -442,7 +443,9 @@ export function initSurgery(root, compute) {
   if (!diagram || !fitFig || !cnotFig || !cnotFitFig || !liveFig) return;
   initDiagram(diagram);
   initCnot(cnotFig);
-  whenNear([fitFig, cnotFitFig, liveFig], () => runRecorded(fitFig).catch(() => {})
-    .then(() => runCnotRecorded(cnotFitFig)).catch(() => {})
+  // A recorded figure that fails to draw says so, and the rest still run.
+  const failed = (status) => (error) => { status.textContent = `Failed to draw: ${error.message}`; };
+  whenNear([fitFig, cnotFitFig, liveFig], () => runRecorded(fitFig).catch(failed($('[data-ls-fit-status]', fitFig)))
+    .then(() => runCnotRecorded(cnotFitFig).catch(failed($('[data-cnot-fit-status]', cnotFitFig))))
     .then(() => runLive(liveFig, compute)));
 }

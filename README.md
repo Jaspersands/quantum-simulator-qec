@@ -977,15 +977,16 @@ rounds T, correlated matching.
 - **Correlated matching matters here too.** At d = 7, p = 0.2%, T = d it fails 0.28% of the time
   against plain matching's 0.71%.
 
-### Programs: a logical CNOT, merges in a row, and a three-patch product
+### Programs: a logical CNOT, merges in a row, and three patches merged at once
 
 One measurement is not yet a computation. `src/surgery.rs` compiles lattice-surgery **programs**:
 patches on a grid of tiles, each step one of prepare, rounds, merge, split, and measure.
-- A horizontal line of patches merges to measure Z⊗…⊗Z, its seam prepared in |+⟩ and split by
-  reading it in X.
-- A vertical line merges to measure X⊗…⊗X, its seam prepared in |0⟩ and split by reading it in Z.
+- A horizontal line of patches merges to measure each neighbouring pair's Z⊗Z, its seams prepared
+  in |+⟩ and split by reading them in X.
+- A vertical line merges to measure each pair's X⊗X, its seams prepared in |0⟩ and split by
+  reading them in Z.
 - Observables are written as terms: a patch's logical along a chosen line of its final readout, a
-  merge's outcome, and a merge's seam records on a line.
+  merge's outcome on one seam, and a merge's seam records on a line.
 
 The Z⊗Z experiment above is now a seven-step program, and compiles to the same circuits byte for
 byte (28 of them, held to fingerprints taken before the compiler existed).
@@ -997,7 +998,7 @@ and target T in an L.
 3. A is read out in Z (m₃).
 
 What is left is CNOT from C to T, up to Paulis fixed by the three outcomes, which are tracked, not
-applied. Two input pairs together fix its action on Z_C, Z_T, X_C and X_T:
+applied. Two input pairs measure how often it fails, in Z and in X:
 - **|0⟩|0⟩ in:** the observables are Z_C, and Z_T ⊕ Z_A ⊕ m₁ with the A–T seam's Z records on that
   column.
 - **|+⟩|+⟩ in:** they are X_T, and X_C X_T ⊕ m₂ with the C–A seam's X record.
@@ -1013,6 +1014,18 @@ applied. Two input pairs together fix its action on Z_C, Z_T, X_C and X_T:
   compared itself with its stale value. It now starts over, as if measured for the first time.
 - **The frames are exercised.** The CNOT's merge outcomes come out −1 in about half of noiseless
   shots, so a wrong frame could not hide.
+- **The CNOT is a CNOT.** |0⟩|0⟩ and |+⟩|+⟩ are left alone by the identity too, so three more
+  noiseless programs pin the gate. |+⟩|0⟩ must come out a Bell pair: Z_C Z_T and X_C X_T each fixed
+  once the frame is applied. |0⟩|+⟩ must come out as it went in. With the two pairs above, this
+  fixes the images of Z_C, Z_T, X_C and X_T as a CNOT's, up to signs. The test has teeth: Z_T alone
+  after |+⟩|0⟩, which the identity would leave fixed, is refused as random.
+- **A line is not a product.** Three patches merged in a row become one patch holding one logical
+  qubit, so the merge measures Z₁Z₂ and Z₂Z₃, two parities, not the product Z₁Z₂Z₃. A first
+  version called it a product; review caught it, and each seam now has its own outcome. A true
+  product needs an ancilla region along every patch, which a rectangle of tiles cannot be.
+- **A seam split and merged again at once.** A check keeping its support while its seam qubits are
+  read and prepared again, with no round between, takes those readings into its comparison (or
+  starts over if their basis is not its own). Found in review; a test holds it.
 - **Against Stim and PyMatching.** Every single fault of every program is corrected at d = 3. Each
   program's error model equals Stim's fault for fault, and PyMatching and ours agree on every shot
   but ties (`tools/surgery.py check`, run in CI).
@@ -1037,8 +1050,8 @@ it, three patches held as memories for the CNOT's 4d rounds:
   operation, is if anything pessimistic.
 - **Correlated matching matters most here.** At d = 7, p = 0.3%, plain matching fails 11.5% against
   correlated's 5.6%.
-- **Windows keep up.** Decoded by parallel windows at d = 5, p = 0.3%, it fails 11.27% and 12.88%
-  against 11.27% and 12.70% decoded whole.
+- **Window decoding loses almost nothing.** Decoded by parallel windows at d = 5, p = 0.3%, it fails
+  11.27% and 12.88% against 11.27% and 12.70% decoded whole.
 
 **Merges in a row.** k Z⊗Z measurements on the same two patches, each over d merged rounds:
 
@@ -1049,7 +1062,8 @@ it, three patches held as memories for the CNOT's 4d rounds:
 
 ln(1 − P) is a straight line in k: each merge adds the same risk, on top of the fixed rounds before
 and after. That is the sum-of-parts law a resource estimate assumes, measured. **Three patches
-merged at once** (Z⊗Z⊗Z) fail 17.97%, 9.34% and 4.61% at d = 3, 5, 7 and p = 0.3%.
+merged at once**, measuring Z₁Z₂ and Z₂Z₃ together, fail 18.04%, 9.36% and 4.61% at d = 3, 5, 7
+and p = 0.3%.
 
 ## What it would take: a resource estimate from the measured Λ
 

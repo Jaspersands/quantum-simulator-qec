@@ -968,69 +968,6 @@
     0.21435267689923934
    ]
   },
-  "product/d3/n3/p0.003": {
-   "kind": "product",
-   "d": 3,
-   "n": 3,
-   "merged": 3,
-   "p": 0.003,
-   "matcher": "correlated",
-   "shots": 16384,
-   "failures": {
-    "any": 2944,
-    "L0": 1323,
-    "L1": 947,
-    "L2": 870,
-    "L3": 938
-   },
-   "rate_any": 0.1796875,
-   "interval_any": [
-    0.1738839150506332,
-    0.18564125878311924
-   ]
-  },
-  "product/d5/n3/p0.003": {
-   "kind": "product",
-   "d": 5,
-   "n": 3,
-   "merged": 5,
-   "p": 0.003,
-   "matcher": "correlated",
-   "shots": 16384,
-   "failures": {
-    "any": 1531,
-    "L0": 597,
-    "L1": 476,
-    "L2": 495,
-    "L3": 503
-   },
-   "rate_any": 0.09344482421875,
-   "interval_any": [
-    0.08908285493206212,
-    0.0979974009571576
-   ]
-  },
-  "product/d7/n3/p0.003": {
-   "kind": "product",
-   "d": 7,
-   "n": 3,
-   "merged": 7,
-   "p": 0.003,
-   "matcher": "correlated",
-   "shots": 49152,
-   "failures": {
-    "any": 2266,
-    "L0": 899,
-    "L1": 746,
-    "L2": 684,
-    "L3": 763
-   },
-   "rate_any": 0.046101888020833336,
-   "interval_any": [
-    0.04428315327345067,
-    0.047991568353937766
-   ]
-  },
   "windowed/cnot/d5/p0.003/z": {
    "kind": "windowed",
    "d": 5,
@@ -1088,13 +1025,79 @@
     0.12374197322271845,
     0.13400042526373018
    ]
+  },
+  "line/d3/n3/p0.003": {
+   "kind": "line",
+   "d": 3,
+   "n": 3,
+   "merged": 3,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 2955,
+    "L0": 1047,
+    "L1": 1082,
+    "L2": 947,
+    "L3": 870,
+    "L4": 938
+   },
+   "rate_any": 0.18035888671875,
+   "interval_any": [
+    0.17454658614207078,
+    0.18632104635933197
+   ]
+  },
+  "line/d5/n3/p0.003": {
+   "kind": "line",
+   "d": 5,
+   "n": 3,
+   "merged": 5,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 16384,
+   "failures": {
+    "any": 1534,
+    "L0": 517,
+    "L1": 506,
+    "L2": 476,
+    "L3": 495,
+    "L4": 503
+   },
+   "rate_any": 0.0936279296875,
+   "interval_any": [
+    0.08926200590131599,
+    0.09818437507908111
+   ]
+  },
+  "line/d7/n3/p0.003": {
+   "kind": "line",
+   "d": 7,
+   "n": 3,
+   "merged": 7,
+   "p": 0.003,
+   "matcher": "correlated",
+   "shots": 49152,
+   "failures": {
+    "any": 2268,
+    "L0": 773,
+    "L1": 794,
+    "L2": 746,
+    "L3": 684,
+    "L4": 763
+   },
+   "rate_any": 0.046142578125,
+   "interval_any": [
+    0.04432306201539742,
+    0.04803303346034355
+   ]
   }
  },
- "engine_commit": "03112ee",
+ "engine_commit": "2a3d837",
  "machine": {
   "cpu": "Apple M2 Pro",
   "cores": 10
  },
  "note": "Lattice-surgery programs (src/surgery.rs), SD6, sampled by the batch sampler and decoded on the engine's own model; 'any' is a shot with any observable wrong",
- "generated": "2026-09-28"
+ "generated": "2026-09-30"
 }

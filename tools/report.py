@@ -401,7 +401,7 @@ def build_values(F):
     ratios = [PG[f"cnot/d{d}/T{d}/p{p}/{i}/correlated"]["rate_any"] / idle[(d, p)] for d in (3, 5, 7) for p in (0.002, 0.003) for i in "zx"]
     v["ls.cnot_ratio"] = f"{min(ratios):.2f} to {max(ratios):.2f}"
     v["ls.cnot_d7"] = pct(PG["cnot/d7/T7/p0.002/z/correlated"]["rate_any"], 2)
-    v["ls.zzz"] = ", ".join(pct(PG[f"product/d{d}/n3/p0.003"]["rate_any"], 2) for d in (3, 5, 7))
+    v["ls.line3"] = ", ".join(pct(PG[f"line/d{d}/n3/p0.003"]["rate_any"], 2) for d in (3, 5, 7))
 
     # The resource estimate, by the page's own model (js/estimator.js via tools/estimate.mjs).
     est_path = BUILD / "estimate.json"
