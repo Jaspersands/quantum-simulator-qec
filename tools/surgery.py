@@ -5,7 +5,7 @@ also has stim and pymatching:
 
     python tools/surgery.py check    # error models against Stim's, matching against PyMatching's
     python tools/surgery.py run      # failure rates against merged rounds -> data/surgery/results.json
-    python tools/surgery.py programs # the CNOT, repeated Z⊗Z, Z⊗Z⊗Z -> data/surgery/programs.json
+    python tools/surgery.py programs # the CNOT, repeated Z⊗Z, three in a row -> data/surgery/programs.json
 
 The experiment (src/surgery.rs): two rotated distance-d patches in |0>_L, d
 rounds apart, the seam prepared in |+> and T rounds of the merged patch, the
@@ -56,7 +56,7 @@ def check_cases(quick):
             cases.append((f"CNOT d={d} T={d} inputs {inputs}", sq.surgery_cnot(d, d, 0.003, inputs), d * 100 + 7))
             cases.append((f"X⊗X d={d} T={d} basis {inputs}", sq.surgery_vertical(d, d, 0.003, inputs), d * 100 + 11))
         cases.append((f"Z⊗Z three times d={d} T={d}", sq.surgery_repeated(d, 3, d, 0.003), d * 100 + 13))
-        cases.append((f"Z⊗Z⊗Z d={d} T={d}", sq.surgery_product(d, 3, d, 0.003), d * 100 + 17))
+        cases.append((f"three in a row d={d} T={d}", sq.surgery_line(d, 3, d, 0.003), d * 100 + 17))
     return cases
 
 
@@ -191,8 +191,9 @@ def program_points():
             pts.append((f"repeated/d{d}/k{k}/p0.003", dict(kind="repeated", d=d, k=k, merged=d, p=0.003, matcher="correlated"),
                         sq.surgery_repeated(d, k, d, 0.003), True, None))
     for d in (3, 5, 7):
-        pts.append((f"product/d{d}/n3/p0.003", dict(kind="product", d=d, n=3, merged=d, p=0.003, matcher="correlated"),
-                    sq.surgery_product(d, 3, d, 0.003), True, None))
+        # Three patches merged in a row: Z1Z2 and Z2Z3 at once (not Z1Z2Z3).
+        pts.append((f"line/d{d}/n3/p0.003", dict(kind="line", d=d, n=3, merged=d, p=0.003, matcher="correlated"),
+                    sq.surgery_line(d, 3, d, 0.003), True, None))
     for inputs in ("z", "x"):
         pts.append((f"windowed/cnot/d5/p0.003/{inputs}", dict(kind="windowed", d=5, merged=5, p=0.003, inputs=inputs, matcher="correlated", commit=5, buffer=5),
                     sq.surgery_cnot(5, 5, 0.003, inputs), True, (5, 5)))

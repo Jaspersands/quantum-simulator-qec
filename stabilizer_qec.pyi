@@ -214,16 +214,20 @@ def surgery_cnot(d: int, merged: int, p: float, inputs: Literal["z", "x"] = "z")
     ``merged`` rounds), then X_A X_T, then A read out in Z; d rounds apart
     before and after; SD6 noise ``p``. ``inputs`` "z": |0>|0>, L0 = Z_C and
     L1 = Z_T with its Pauli frame. "x": |+>|+>, L0 = X_T and L1 = X_C X_T with
-    its frame. The two together fix the CNOT's action on Z_C, Z_T, X_C, X_T."""
+    its frame. Both pairs are fixed points of the CNOT (and of the identity):
+    they measure how often it fails in Z and in X. The engine's tests pin
+    the action itself with |+>|0> and |0>|+> inputs."""
 
 def surgery_repeated(d: int, k: int, merged: int, p: float) -> str:
     """``k`` Z⊗Z measurements in a row on two patches in |0>|0>, each merged
     ``merged`` rounds and followed by one round apart: observables each
     outcome (L0 .. L{k-1}), then Z1 and Z2."""
 
-def surgery_product(d: int, n: int, merged: int, p: float) -> str:
-    """Z⊗...⊗Z on ``n`` patches in a row, all in |0>, merged at once:
-    observables the outcome (L0), then each patch's Z."""
+def surgery_line(d: int, n: int, merged: int, p: float) -> str:
+    """``n`` patches in a row, all in |0>, merged at once: each neighbouring
+    pair's Z⊗Z measured together. The merged patch holds one logical qubit,
+    so this takes n - 1 parities, not the n-body product Z⊗...⊗Z.
+    Observables each seam's outcome (L0 .. L{n-2}), then each patch's Z."""
 
 def surgery_vertical(d: int, merged: int, p: float, basis: Literal["z", "x"] = "x") -> str:
     """The X⊗X mirror of ``surgery_circuit``: two patches one above the other,

@@ -755,11 +755,12 @@ fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<Strin
     Ok(crate::surgery::repeated(d, k, merged, p).circuit().map_err(err)?.to_stim())
 }
 
-/// Z⊗…⊗Z on n patches in a row, merged at once (see `surgery::product`):
-/// observables the outcome, then each patch's Z.
+/// n patches in a row, all in |0>, merged at once (see `surgery::line`):
+/// each neighbouring pair's Z⊗Z, n − 1 parities. Observables each seam's
+/// outcome, then each patch's Z.
 #[pyfunction]
-fn surgery_product(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
-    Ok(crate::surgery::product(d, n, merged, p).circuit().map_err(err)?.to_stim())
+fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
+    Ok(crate::surgery::line(d, n, merged, p).circuit().map_err(err)?.to_stim())
 }
 
 /// The X⊗X mirror of `surgery_circuit` (see `surgery::vertical`): "x", the
@@ -798,7 +799,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(surgery_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_cnot, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_repeated, m)?)?;
-    m.add_function(wrap_pyfunction!(surgery_product, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_line, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_vertical, m)?)?;
     Ok(())
 }
