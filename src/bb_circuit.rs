@@ -249,6 +249,33 @@ impl Writer {
         out
     }
 
+    /// Checks that end here, their whole support just read out in their own
+    /// basis (a flux check when its edge qubits are read in Z at the split):
+    /// each of `detect`'s type measured in the last cycle is compared with
+    /// the parity of those readings.
+    pub fn retire(&mut self, checks: &[Check]) {
+        for ch in checks {
+            let basis = if ch.x_type { Basis::X } else { Basis::Z };
+            if basis != self.detect {
+                continue;
+            }
+            let Some(last) = self.last.get(&ch.key).filter(|l| l.cycle + 1 == self.cycle) else { continue };
+            let reads: Option<Vec<usize>> = ch
+                .support
+                .iter()
+                .map(|q| match self.measured.get(q) {
+                    Some(&(r, b)) if b == basis && r > last.rec => Some(r),
+                    _ => None,
+                })
+                .collect();
+            if let Some(mut targets) = reads {
+                targets.push(last.rec);
+                let recs = targets.iter().map(|&r| self.lookback(r)).collect();
+                self.c.push(Instr::Detector { coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64], recs });
+            }
+        }
+    }
+
     /// After the data are read out in `basis` (`readout`: qubit to record),
     /// each check of that type in `cyc` measured in the last cycle is
     /// compared with the parity of its support, and with the records of any
@@ -543,6 +570,8 @@ pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize,
     }
     w.c.push(Instr::Tick);
     let split = w.measure(Basis::Z, &edges);
+    // The flux checks end with their edges read: their last value is those readings' parity.
+    w.retire(&merged_c.checks[2 * h + g.support.len()..]);
     w.remove_data(&edges);
     for _ in 0..post {
         w.cycle(&memory);
@@ -673,6 +702,21 @@ mod tests {
                 M2d::new(&logical_measurement(&code, &g, basis, 1, 2, 0, 0.0).unwrap()).unwrap_or_else(|e| panic!("{name} {basis:?}, post 0: {e}"));
             }
         }
+    }
+
+    /// At the split, each flux check's last value is compared with its edge
+    /// qubits' readings: one more detector per flux check in the Z basis
+    /// than the checks that go on being measured give, none in X.
+    #[test]
+    fn retired_flux_checks_close_their_comparisons() {
+        let (code, g) = gauged("f");
+        let count = |basis, merged| M2d::new(&logical_measurement(&code, &g, basis, 1, merged, 1, 0.0).unwrap()).unwrap().num_detectors;
+        let h = code.half();
+        // Z basis: each merged cycle adds the Z checks and the flux checks; the split adds the flux checks once more.
+        assert_eq!(count(Basis::Z, 3) - count(Basis::Z, 2), h + g.flux.len());
+        assert_eq!(count(Basis::Z, 2), 5 * h + 2 * g.flux.len() + g.flux.len());
+        // X basis: each merged cycle adds the X checks and the Gauss-law checks after the first; nothing at the split.
+        assert_eq!(count(Basis::X, 3) - count(Basis::X, 2), h + g.support.len());
     }
 
     /// With one merged cycle, one measurement error on a Gauss-law ancilla
