@@ -155,7 +155,8 @@ export function factoryFor(kind, p, d, target, sources) {
 
 /** Why no factory of `kind` serves noise p at `target` error per Toffoli, in words. */
 export function factoryWhyNot(kind, p, target, sources) {
-  const sci = (x) => x.toExponential(1).replace('e', ' × 10^');
+  const sup = (t) => t.replace('-', '⁻').replace(/\d/g, (c) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[c]);
+  const sci = (x) => { const [m, e] = x.toExponential(1).split('e'); return `${m} × 10${sup(e.replace('+', ''))}`; };
   if (kind === 'cultivation') {
     const c = sources.cultivation;
     if (p > c.p_max * (1 + 1e-9)) return `cultivation is characterized at p ≤ ${c.p_max * 100}% only`;

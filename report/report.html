@@ -16,7 +16,7 @@
   <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
-  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>6d77432</code></p>
+  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>36e42ac</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -30,7 +30,7 @@
 <li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 82 µs mean latency on 2 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
 <li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits.</li>
 <li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails 1.03% of the time at d = 7 and p = 0.2%, and 0.75 to 0.93 times as often as its three patches held idle for as long.</li>
-<li><strong>What it would take.</strong> Put together, the measurements say a thousand logical qubits running a billion operations need about 41 million physical qubits at Willow’s Λ, and 10 million at Λ = 4.</li>
+<li><strong>What it would take.</strong> A model with magic-state factories, Litinski’s floor plans, reaction time and storage lands within 1.6 times Gidney’s RSA-2048 qubits and 1.1 times his time on his assumptions. On this project’s measured decoder, reaction time dominates; on Willow’s measured Λ, a thousand logical qubits running a billion operations need about 41 million physical qubits.</li>
 </ol>
 </section>
 <nav class="toc" aria-label="Contents">
@@ -1843,16 +1843,257 @@
 </tbody>
 </table>
 <h2 data-number="4.9" id="what-it-would-take"><span class="header-section-number">4.9</span> What it would take</h2>
-<p>Each section above measures one ingredient of a quantum computer’s cost, and a simple model puts them together:</p>
+<p>Each section above measures one ingredient of a quantum computer’s cost. The estimate puts them together with what the papers that price real algorithms report. Every number it reads from a paper is recorded with its page or table.</p>
 <ul>
-<li>Logical error per cycle falls from the measured <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ε</mi><mn>7</mn></msub><annotation encoding="application/x-tex">\varepsilon_7</annotation></semantics></math> by Λ for every two steps of distance.</li>
-<li>Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it fails with probability about <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mi>d</mi><mspace width="0.167em"></mspace><msub><mi>ε</mi><mi>d</mi></msub></mrow><annotation encoding="application/x-tex">N d\,\varepsilon_d</annotation></semantics></math>. The measured CNOT fails 0.75 to 0.93 times as often as its patches held idle for as long, so this errs on the safe side.</li>
-<li>The distance is the smallest odd one that keeps the run within a 1% budget.</li>
-<li>The qubits are <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>N</mi><mo stretchy="false" form="prefix">(</mo><mn>2</mn><msup><mi>d</mi><mn>2</mn></msup><mo>−</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">N(2d^2 - 1)</annotation></semantics></math> with a routing overhead of 2.</li>
-<li>The time is d cycles of 1.1 µs per operation.</li>
-<li>The decoding cores are those measured to keep real time at d = 3, 5 and 7, extrapolated.</li>
+<li><strong>Algorithms:</strong> RSA-2048 (Gidney, 1,409 logical qubits, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>6.5</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">6.5 \times 10^9</annotation></semantics></math> Toffolis), FeMoco by tensor hypercontraction (Lee et al.), and three illustrations.</li>
+<li><strong>Logical error per patch per cycle,</strong> measured here under uniform SD6 noise and fitted as <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>ε</mi><mo>=</mo><mn>0.048</mn><mspace width="0.167em"></mspace><mo stretchy="false" form="prefix">(</mo><mi>p</mi><mi>/</mi><mn>0.83</mn><mi>%</mi><msup><mo stretchy="false" form="postfix">)</mo><mrow><mo stretchy="false" form="prefix">(</mo><mi>d</mi><mo>+</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mn>2</mn></mrow></msup></mrow><annotation encoding="application/x-tex">\varepsilon = 0.048\,(p / 0.83\%)^{(d+1)/2}</annotation></semantics></math> (the free slope in <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>log</mo><mi>p</mi></mrow><annotation encoding="application/x-tex">\log p</annotation></semantics></math> is 1.03), or as measured on Willow.</li>
+<li><strong>Magic states</strong> from Gidney’s cultivation factory or the cheapest of Litinski’s distillation protocols, half the budget, as many factories as keep up. The 15-to-1 law those protocols rest on is measured here: this engine’s samples and an exact sum agree, and at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.1</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.1\%</annotation></semantics></math> the output error is 1.003 × <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>35</mn><msup><mi>p</mi><mn>3</mn></msup></mrow><annotation encoding="application/x-tex">35p^3</annotation></semantics></math>.</li>
+<li><strong>The floor plan:</strong> one of Litinski’s data blocks, tiles of <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><msup><mi>d</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">2d^2</annotation></semantics></math> qubits, every tile priced as an idle patch (the measured CNOT fails 0.75 to 0.93 times as often as its patches held idle, so this errs on the safe side).</li>
+<li><strong>Reaction:</strong> each Toffoli waits for the longer of its lattice-surgery steps and this project’s decoder latency plus a control delay.</li>
+<li><strong>Storage:</strong> surface patches, Gidney’s yoked codes, or gross-code modules.</li>
 </ul>
-<p>The sizes are illustrations of scale:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">p</th>
+<th style="text-align: right;">d = 3</th>
+<th style="text-align: right;">d = 5</th>
+<th style="text-align: right;">d = 7</th>
+<th style="text-align: right;">d = 9</th>
+<th style="text-align: right;">d = 11</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">0.1%</td>
+<td style="text-align: right;">9.5e-04</td>
+<td style="text-align: right;">9.8e-05</td>
+<td style="text-align: right;">8.5e-06</td>
+<td style="text-align: right;">8.3e-07</td>
+<td style="text-align: right;">7.4e-08</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">0.2%</td>
+<td style="text-align: right;">3.6e-03</td>
+<td style="text-align: right;">6.8e-04</td>
+<td style="text-align: right;">1.5e-04</td>
+<td style="text-align: right;">3.5e-05</td>
+<td style="text-align: right;">6.4e-06</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">0.3%</td>
+<td style="text-align: right;">6.7e-03</td>
+<td style="text-align: right;">2.5e-03</td>
+<td style="text-align: right;">7.8e-04</td>
+<td style="text-align: right;">2.9e-04</td>
+<td style="text-align: right;">1.2e-04</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">0.5%</td>
+<td style="text-align: right;">1.7e-02</td>
+<td style="text-align: right;">1.0e-02</td>
+<td style="text-align: right;">6.1e-03</td>
+<td style="text-align: right;">4.1e-03</td>
+<td style="text-align: right;">2.8e-03</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Checked against the sources.</strong> The first case is entirely Gidney’s: his ε, his schedule of 3.7 Toffolis per lattice-surgery step, yoked storage and his budget. Each case after it switches one option to this project’s.</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">case</th>
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">qubits (× source)</th>
+<th style="text-align: right;">time (× source)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">RSA-2048: Gidney’s assumptions, ε and schedule</td>
+<td style="text-align: right;">27</td>
+<td style="text-align: right;">1.4 million (1.57×)</td>
+<td style="text-align: right;">13 h (1.08×)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">RSA-2048: this engine’s measured ε instead</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">yoked storage at 1e-15 per round would fail 6.9% on its own even over the shortest run it could need (15 h), past the 6.7% budget</td>
+<td style="text-align: right;"></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">RSA-2048: one Toffoli per step instead</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">yoked storage at 1e-15 per round would fail 8.3% on its own even over the shortest run it could need (18 h), past the 6.7% budget</td>
+<td style="text-align: right;"></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">RSA-2048: surface-code storage instead of yoked</td>
+<td style="text-align: right;">27</td>
+<td style="text-align: right;">4.7 million (5.23×)</td>
+<td style="text-align: right;">13 h (1.08×)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">RSA-2048: this project’s decoder latency instead</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">yoked storage at 1e-15 per round would fail 13% on its own even over the shortest run it could need (27 h), past the 6.7% budget</td>
+<td style="text-align: right;"></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">FeMoco (Reiher): Lee et al.’s noise, distillation</td>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;">11 million (2.73×)</td>
+<td style="text-align: right;">8.6 days (2.86×)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">FeMoco (Reiher): cultivation instead</td>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;">11 million (2.75×)</td>
+<td style="text-align: right;">2.1 days (0.72×)</td>
+</tr>
+</tbody>
+</table>
+<p>On his assumptions the model lands within 1.6 times his qubits and 1.1 times his time. Surface storage instead of yoked costs 5.2 times the qubits. Everything that lengthens the run breaks his storage, whose error per round is fixed: this engine’s ε (at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>d</mi><mo>=</mo><mn>25</mn></mrow><annotation encoding="application/x-tex">d = 25</annotation></semantics></math>, 6 × 10⁻14 per round against his <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mn>10</mn><mrow><mo>−</mo><mn>15</mn></mrow></msup><annotation encoding="application/x-tex">10^{-15}</annotation></semantics></math>), one Toffoli per step, or this project’s decoder.</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">algorithm</th>
+<th style="text-align: left;">decoder</th>
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">qubits (block + factories + storage)</th>
+<th style="text-align: right;">per Toffoli</th>
+<th style="text-align: right;">run time</th>
+<th style="text-align: left;">bound</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">RSA-2048 (Gidney 2025)</td>
+<td style="text-align: left;">measured decoder</td>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;">9.9 million (9.8 million + 42,336 + 0)</td>
+<td style="text-align: right;">42.5 ms</td>
+<td style="text-align: right;">8.8 years</td>
+<td style="text-align: left;">reaction</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">RSA-2048 (Gidney 2025)</td>
+<td style="text-align: left;">decoder within the control delay</td>
+<td style="text-align: right;">33</td>
+<td style="text-align: right;">6.5 million (6.4 million + 166,464 + 0)</td>
+<td style="text-align: right;">33.0 µs</td>
+<td style="text-align: right;">2.5 days</td>
+<td style="text-align: left;">steps</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">FeMoco, Reiher Hamiltonian (Lee et al. 2021)</td>
+<td style="text-align: left;">measured decoder</td>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;">15 million (15 million + 42,336 + 0)</td>
+<td style="text-align: right;">42.5 ms</td>
+<td style="text-align: right;">7.1 years</td>
+<td style="text-align: left;">reaction</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">FeMoco, Reiher Hamiltonian (Lee et al. 2021)</td>
+<td style="text-align: left;">decoder within the control delay</td>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;">11 million (11 million + 186,624 + 0)</td>
+<td style="text-align: right;">35.0 µs</td>
+<td style="text-align: right;">2.1 days</td>
+<td style="text-align: left;">steps</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">FeMoco, Li Hamiltonian (Lee et al. 2021)</td>
+<td style="text-align: left;">measured decoder</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">cultivation’s CCZ error, 2.8 × 10⁻¹³, is more than the 1.6 × 10⁻¹³ per Toffoli this budget allows</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: left;"></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">FeMoco, Li Hamiltonian (Lee et al. 2021)</td>
+<td style="text-align: left;">decoder within the control delay</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">cultivation’s CCZ error, 2.8 × 10⁻¹³, is more than the 1.6 × 10⁻¹³ per Toffoli this budget allows</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: left;"></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Illustration: 100 qubits, 10⁶ Toffolis</td>
+<td style="text-align: left;">measured decoder</td>
+<td style="text-align: right;">29</td>
+<td style="text-align: right;">408,460 (386,860 + 21,600 + 0)</td>
+<td style="text-align: right;">13.9 ms</td>
+<td style="text-align: right;">3.8 h</td>
+<td style="text-align: left;">reaction</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Illustration: 100 qubits, 10⁶ Toffolis</td>
+<td style="text-align: left;">decoder within the control delay</td>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;">326,284 (243,340 + 82,944 + 0)</td>
+<td style="text-align: right;">23.0 µs</td>
+<td style="text-align: right;">23 s</td>
+<td style="text-align: left;">steps</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Illustration: 1,000 qubits, 10⁹ Toffolis</td>
+<td style="text-align: left;">measured decoder</td>
+<td style="text-align: right;">39</td>
+<td style="text-align: right;">6.4 million (6.4 million + 38,400 + 0)</td>
+<td style="text-align: right;">36.1 ms</td>
+<td style="text-align: right;">1.1 years</td>
+<td style="text-align: left;">reaction</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Illustration: 1,000 qubits, 10⁹ Toffolis</td>
+<td style="text-align: left;">decoder within the control delay</td>
+<td style="text-align: right;">31</td>
+<td style="text-align: right;">4.2 million (4.0 million + 147,456 + 0)</td>
+<td style="text-align: right;">31.0 µs</td>
+<td style="text-align: right;">8.6 h</td>
+<td style="text-align: left;">steps</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Illustration: 10,000 qubits, 10¹² Toffolis</td>
+<td style="text-align: left;">measured decoder</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">cultivation’s CCZ error, 2.8 × 10⁻¹³, is more than the 5.0 × 10⁻¹⁵ per Toffoli this budget allows</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: left;"></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Illustration: 10,000 qubits, 10¹² Toffolis</td>
+<td style="text-align: left;">decoder within the control delay</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">cultivation’s CCZ error, 2.8 × 10⁻¹³, is more than the 5.0 × 10⁻¹⁵ per Toffoli this budget allows</td>
+<td style="text-align: right;"></td>
+<td style="text-align: right;"></td>
+<td style="text-align: left;"></td>
+</tr>
+</tbody>
+</table>
+<p>Decoding is the other lever. This project’s decoder, extrapolated to the distances these algorithms need, takes tens of milliseconds per window, so every Toffoli waits for it. A decoder that finishes inside the control delay brings RSA-2048 from years to days.</p>
+<p><strong>Λ is the lever</strong> in the simple model of before, under the Λ measured on Willow:</p>
 <table style="width:100%;">
 <colgroup>
 <col style="width: 16%" />
@@ -1947,13 +2188,14 @@
 </tr>
 </tbody>
 </table>
-<p>At Willow’s measured Λ, a thousand logical qubits running a billion operations would need d = 101, 41 million physical qubits and 31 h. At Λ = 4 the same run needs d = 51 and 10 million. Λ is the lever. The decoders measured here, which differ by about 10% in Λ, move the answer far less than the hardware could.</p>
+<p>At Willow’s measured Λ, a thousand logical qubits running a billion operations would need d = 101, 41 million physical qubits and 31 h. At Λ = 4 the same run needs d = 51 and 10 million.</p>
 <h1 data-number="5" id="limits-and-next-steps"><span class="header-section-number">5</span> Limits and next steps</h1>
 <ul>
 <li><strong>The matcher.</strong> It is exact, and single-threaded it runs at 1.01 to 1.14 times PyMatching’s time plain and 0.91 to 1.01 times correlated. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
 <li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
-<li><strong>Memories and one operation.</strong> The gross code is simulated as a memory, and lattice surgery as a single Z⊗Z measurement between two patches. Logical operations on the gross code, and sequences of surgeries, are the next step up.</li>
-<li><strong>The estimate is a model.</strong> It takes lattice surgery as the only operation, ignores magic-state distillation and routing in detail, and extrapolates the decoding cost past d = 7. It is meant to show what the measured numbers imply, and how strongly they depend on Λ.</li>
+<li><strong>Logical operations, not algorithms.</strong> Lattice-surgery programs and the gross code’s logical measurement are simulated as single operations or short sequences; the estimate prices whole algorithms from them, with the rest read from the papers it cites.</li>
+<li><strong>The gross code’s measurement schedule is not optimised.</strong> It is correct by construction and its fault distance is only bounded above; Cross et al. optimise theirs.</li>
+<li><strong>The estimate is a model.</strong> It prices every tile as an idle patch, consumes Toffolis in sequence unless told otherwise, and extrapolates the decoder’s latency and cores past d = 7. It is meant to show what the measured numbers imply, and which of them the answer depends on.</li>
 </ul>
 <h1 data-number="6" id="reproducing-everything"><span class="header-section-number">6</span> Reproducing everything</h1>
 <p>Every number in this report is filled in by <code>tools/report.py</code> from these committed files:</p>

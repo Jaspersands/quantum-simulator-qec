@@ -35,9 +35,11 @@ abstract: |
      d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails
      {{ls.cnot_d7}} of the time at d = 7 and p = 0.2%, and {{ls.cnot_ratio}} times as often as its
      three patches held idle for as long.
-  8. **What it would take.** Put together, the measurements say a thousand logical qubits running a
-     billion operations need about {{est.medium.qubits}} physical qubits at Willow's Λ, and
-     {{est.lever.qubits}} at Λ = 4.
+  8. **What it would take.** A model with magic-state factories, Litinski's floor plans, reaction
+     time and storage lands within {{est.v_qubits}} times Gidney's RSA-2048 qubits and
+     {{est.v_time}} times his time on his assumptions. On this project's measured decoder, reaction
+     time dominates; on Willow's measured Λ, a thousand logical qubits running a billion operations
+     need about {{est.medium.qubits}} physical qubits.
 ---
 
 # Introduction
@@ -610,27 +612,53 @@ corrected at d = 3.
 
 ## What it would take
 
-Each section above measures one ingredient of a quantum computer's cost, and a simple model puts
-them together:
+Each section above measures one ingredient of a quantum computer's cost. The estimate puts them
+together with what the papers that price real algorithms report. Every number it reads from a
+paper is recorded with its page or table.
 
-- Logical error per cycle falls from the measured $\varepsilon_7$ by Λ for every two steps of
-  distance.
-- Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it
-  fails with probability about $N d\,\varepsilon_d$. The measured CNOT fails {{ls.cnot_ratio}} times
-  as often as its patches held idle for as long, so this errs on the safe side.
-- The distance is the smallest odd one that keeps the run within a 1% budget.
-- The qubits are $N(2d^2 - 1)$ with a routing overhead of 2.
-- The time is d cycles of 1.1 µs per operation.
-- The decoding cores are those measured to keep real time at d = 3, 5 and 7, extrapolated.
+- **Algorithms:** RSA-2048 (Gidney, 1,409 logical qubits, $6.5 \times 10^9$ Toffolis), FeMoco by
+  tensor hypercontraction (Lee et al.), and three illustrations.
+- **Logical error per patch per cycle,** measured here under uniform SD6 noise and fitted as
+  $\varepsilon = {{est.fit_A}}\,(p / {{est.fit_pth}})^{(d+1)/2}$ (the free slope in $\log p$ is
+  {{est.fit_slope}}), or as measured on Willow.
+- **Magic states** from Gidney's cultivation factory or the cheapest of Litinski's distillation
+  protocols, half the budget, as many factories as keep up. The 15-to-1 law those protocols rest
+  on is measured here: this engine's samples and an exact sum agree, and at $p = 0.1\%$ the
+  output error is {{est.distill_ratio}} × $35p^3$.
+- **The floor plan:** one of Litinski's data blocks, tiles of $2d^2$ qubits, every tile priced as
+  an idle patch (the measured CNOT fails {{ls.cnot_ratio}} times as often as its patches held idle,
+  so this errs on the safe side).
+- **Reaction:** each Toffoli waits for the longer of its lattice-surgery steps and this project's
+  decoder latency plus a control delay.
+- **Storage:** surface patches, Gidney's yoked codes, or gross-code modules.
 
-The sizes are illustrations of scale:
+{{table:est_noise}}
+
+**Checked against the sources.** The first case is entirely Gidney's: his ε, his schedule of
+{{est.gidney_parallel}} Toffolis per lattice-surgery step, yoked storage and his budget. Each case
+after it switches one option to this project's.
+
+{{table:est_valid}}
+
+On his assumptions the model lands within {{est.v_qubits}} times his qubits and {{est.v_time}}
+times his time. Surface storage instead of yoked costs {{est.v_surface}} times the qubits.
+Everything that lengthens the run breaks his storage, whose error per round is fixed: this
+engine's ε (at $d = 25$, {{est.eps25}} per round against his $10^{-15}$), one Toffoli per step, or
+this project's decoder.
+
+{{table:est_full}}
+
+Decoding is the other lever. This project's decoder, extrapolated to the distances these
+algorithms need, takes tens of milliseconds per window, so every Toffoli waits for it. A decoder
+that finishes inside the control delay brings RSA-2048 from years to days.
+
+**Λ is the lever** in the simple model of before, under the Λ measured on Willow:
 
 {{table:estimate}}
 
 At Willow's measured Λ, a thousand logical qubits running a billion operations would need
 d = {{est.medium.d}}, {{est.medium.qubits}} physical qubits and {{est.medium.time}}. At Λ = 4 the
-same run needs d = {{est.lever.d}} and {{est.lever.qubits}}. Λ is the lever. The decoders measured
-here, which differ by about 10% in Λ, move the answer far less than the hardware could.
+same run needs d = {{est.lever.d}} and {{est.lever.qubits}}.
 
 # Limits and next steps
 
@@ -640,12 +668,14 @@ here, which differ by about 10% in Λ, move the answer far less than the hardwar
 - **Latency is scheduled, not served.** The latency figures schedule decode times measured
   natively on one machine. They leave out the transport of syndromes from a quantum computer to
   the decoder, and they are not a claim about any particular control system.
-- **Memories and one operation.** The gross code is simulated as a memory, and lattice surgery as a
-  single Z⊗Z measurement between two patches. Logical operations on the gross code, and sequences
-  of surgeries, are the next step up.
-- **The estimate is a model.** It takes lattice surgery as the only operation, ignores magic-state
-  distillation and routing in detail, and extrapolates the decoding cost past d = 7. It is meant to
-  show what the measured numbers imply, and how strongly they depend on Λ.
+- **Logical operations, not algorithms.** Lattice-surgery programs and the gross code's logical
+  measurement are simulated as single operations or short sequences; the estimate prices whole
+  algorithms from them, with the rest read from the papers it cites.
+- **The gross code's measurement schedule is not optimised.** It is correct by construction and
+  its fault distance is only bounded above; Cross et al. optimise theirs.
+- **The estimate is a model.** It prices every tile as an idle patch, consumes Toffolis in
+  sequence unless told otherwise, and extrapolates the decoder's latency and cores past d = 7. It
+  is meant to show what the measured numbers imply, and which of them the answer depends on.
 
 # Reproducing everything
 

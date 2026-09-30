@@ -355,6 +355,17 @@ test('the gauging data Figure 16 draws agree with the torus: each edge is a Z ch
 
 const SOURCES = JSON.parse(readFileSync(new URL('../data/estimate/sources.json', import.meta.url), 'utf8'));
 
+test('estimator: the uniform-noise law fits this engine\'s own points, and holds its form', () => {
+  const doc = JSON.parse(readFileSync(new URL('../data/estimate/noise.json', import.meta.url), 'utf8'));
+  const { A, pth } = doc.fit;
+  for (const q of Object.values(doc.points).filter((x) => x.failures >= 20)) {
+    const ratio = epsilonUniform(q.d, q.p, { A, pth }) / q.eps;
+    assert.ok(ratio > 1 / 3 && ratio < 3, `d = ${q.d}, p = ${q.p}: fit ${ratio.toFixed(2)} times the measured ε`);
+  }
+  assert.ok(Math.abs(doc.fit.free_slope - 1) < 0.1, 'with the slope in log p free, it comes out near 1');
+  assert.ok(epsilonUniform(25, 1e-3, { A, pth }) < epsilonUniform(23, 1e-3, { A, pth }), 'below threshold, ε falls with d');
+});
+
 test('estimator: Litinski\'s data blocks reproduce his worked examples', () => {
   // A Game of Surface Codes, Sec. 2 and 4: 100 qubits in 153, 204 and 231 tiles; 226 tiles at d = 13 are 76,400 qubits.
   assert.equal(BLOCKS.compact.tiles(100), 153);
