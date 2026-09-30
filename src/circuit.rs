@@ -237,11 +237,19 @@ pub(crate) fn split_instruction(line: &str) -> Result<(String, Vec<f64>, Vec<&st
     Ok((name, args, rest.split_whitespace().collect()))
 }
 
+/// The largest qubit index Stim accepts (its targets keep 24 bits for it).
+const MAX_QUBIT: u32 = (1 << 24) - 1;
+
+fn qubit(t: &str, name: &str) -> Result<u32, String> {
+    match t.parse::<u32>() {
+        Ok(q) if q <= MAX_QUBIT => Ok(q),
+        Ok(q) => Err(format!("{name}: qubit {q} is beyond the largest index, {MAX_QUBIT}")),
+        Err(_) => Err(format!("{name}: bad qubit target '{t}'")),
+    }
+}
+
 fn qubit_targets(tokens: &[&str], name: &str) -> Result<Vec<u32>, String> {
-    tokens
-        .iter()
-        .map(|t| t.parse::<u32>().map_err(|_| format!("{name}: bad qubit target '{t}'")))
-        .collect()
+    tokens.iter().map(|t| qubit(t, name)).collect()
 }
 
 fn pair_targets(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> {
@@ -262,7 +270,7 @@ fn pair_targets(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> 
 
 /// `sweep[k] q` pairs: a sweep bit controlling an X on a qubit.
 fn sweep_pairs(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> {
-    if tokens.len() % 2 != 0 {
+    if !tokens.len().is_multiple_of(2) {
         return Err(format!("{name}: targets must come in pairs, got {}", tokens.len()));
     }
     tokens
@@ -272,9 +280,9 @@ fn sweep_pairs(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> {
                 .strip_prefix("sweep[")
                 .and_then(|s| s.strip_suffix(']'))
                 .and_then(|s| s.parse::<u32>().ok())
+                .filter(|&k| k <= MAX_QUBIT)
                 .ok_or_else(|| format!("{name}: a sweep-controlled pair needs 'sweep[k] q', got '{} {}'", c[0], c[1]))?;
-            let q = c[1].parse::<u32>().map_err(|_| format!("{name}: bad qubit target '{}'", c[1]))?;
-            Ok((bit, q))
+            Ok((bit, qubit(c[1], name)?))
         })
         .collect()
 }
@@ -603,5 +611,8 @@ mod tests {
     fn records_before_the_first_measurement_are_errors() {
         let c = Circuit::parse("M 0\nDETECTOR rec[-2]").unwrap();
         assert!(c.resolve().unwrap_err().contains("rec[-2]"));
+        assert!(Circuit::parse("M 16777215").is_ok());
+        assert!(Circuit::parse("M 4000000000").unwrap_err().contains("beyond the largest index"));
+        assert!(Circuit::parse("CX sweep[4000000000] 0").is_err());
     }
 }

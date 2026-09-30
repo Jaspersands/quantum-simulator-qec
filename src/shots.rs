@@ -23,7 +23,7 @@ pub fn write_b8(shots: &[Vec<bool>], num_bits: usize) -> Vec<u8> {
 
 pub fn read_b8(bytes: &[u8], num_bits: usize) -> Result<Vec<Vec<bool>>, String> {
     let stride = num_bits.div_ceil(8);
-    if stride == 0 || bytes.len() % stride != 0 {
+    if stride == 0 || !bytes.len().is_multiple_of(stride) {
         return Err(format!("{} bytes is not a whole number of {num_bits}-bit shots", bytes.len()));
     }
     Ok(bytes

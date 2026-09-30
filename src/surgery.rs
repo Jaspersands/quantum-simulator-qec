@@ -407,7 +407,7 @@ impl Program {
     /// The program as a circuit, with its detectors and observables.
     pub fn circuit(&self) -> Result<Circuit, String> {
         let d = self.d;
-        if d < 3 || d % 2 == 0 {
+        if d < 3 || d.is_multiple_of(2) {
             return Err(format!("lattice surgery needs an odd distance of at least 3, not {d}"));
         }
         if self.tiles.is_empty() || self.tiles.iter().any(|&(i, j)| i < 0 || j < 0) {
@@ -1105,7 +1105,8 @@ mod tests {
     /// that do not exist are refused, not compiled into something else.
     #[test]
     fn malformed_programs_are_errors() {
-        let cases: [(&str, fn(&mut Program)); 5] = [
+        type Spoil = fn(&mut Program);
+        let cases: [(&str, Spoil); 5] = [
             ("lines", |p| p.observables.push(vec![Term::Seam { merge: 1, patch: 2, line: 3 }])),
             ("not in merge", |p| p.observables.push(vec![Term::Seam { merge: 1, patch: 0, line: 0 }])),
             ("no seam 1", |p| p.observables.push(vec![Term::Outcome { merge: 0, seam: 1 }])),

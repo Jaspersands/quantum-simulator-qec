@@ -52,7 +52,7 @@ fn random_small(rng: &mut Xorshift) -> (usize, Vec<TestEdge>, String) {
     while edges.len() < target && tries < 1000 {
         tries += 1;
         let a = (rng.next_u64() % nd as u64) as u32;
-        let b = if rng.next_u64() % 3 == 0 { None } else { Some((rng.next_u64() % nd as u64) as u32) };
+        let b = if rng.next_u64().is_multiple_of(3) { None } else { Some((rng.next_u64() % nd as u64) as u32) };
         if b == Some(a) {
             continue;
         }
@@ -89,7 +89,7 @@ fn matches_brute_force_on_small_graphs() {
     for trial in 0..3000 {
         let (nd, edges, text) = random_small(&mut rng);
         let dec = decoder(&text);
-        let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64() % 2 == 0).collect();
+        let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64().is_multiple_of(2)).collect();
         let mut scratch = Scratch::new(dec.graph());
         match (brute_force(&edges, &defects), dec.graph().decode_checked(&mut scratch, &defects)) {
             (None, Err(DecodeError::Unmatchable)) => unmatchable += 1,
@@ -110,7 +110,7 @@ fn random_graph(rng: &mut Xorshift, nodes: usize, boundary: f64) -> String {
     for d in 0..nodes {
         text.push_str(&format!("detector D{d}\n"));
     }
-    let obs = |rng: &mut Xorshift| if rng.next_u64() % 4 == 0 { " L0" } else { "" };
+    let obs = |rng: &mut Xorshift| if rng.next_u64().is_multiple_of(4) { " L0" } else { "" };
     for u in 0..nodes {
         for _ in 0..2 {
             let v = (rng.next_u64() % nodes as u64) as usize;
@@ -139,7 +139,7 @@ fn agrees_with_the_dense_matcher_on_random_graphs() {
         let boundary = [0.0, 0.1, 0.5][(rng.next_u64() % 3) as usize];
         let text = random_graph(&mut rng, nodes, boundary);
         let dec = decoder(&text);
-        let defects: Vec<u32> = (0..nodes as u32).filter(|_| rng.next_u64() % 3 == 0).collect();
+        let defects: Vec<u32> = (0..nodes as u32).filter(|_| rng.next_u64().is_multiple_of(3)).collect();
         let mut scratch = Scratch::new(dec.graph());
         match (dec.graph().decode_checked(&mut scratch, &defects), dec.decode_dense(&defects)) {
             (Ok(s), Ok(d)) => {
@@ -160,7 +160,7 @@ fn one_scratch_decodes_many_shots() {
     let dec = decoder(&text);
     let mut scratch = Scratch::new(dec.graph());
     for _ in 0..500 {
-        let defects: Vec<u32> = (0..30).filter(|_| rng.next_u64() % 3 == 0).collect();
+        let defects: Vec<u32> = (0..30).filter(|_| rng.next_u64().is_multiple_of(3)).collect();
         let a = dec.graph().decode(&mut scratch, &defects).map(|p| p.iweight);
         let b = dec.graph().decode(&mut Scratch::new(dec.graph()), &defects).map(|p| p.iweight);
         assert_eq!(a, b);

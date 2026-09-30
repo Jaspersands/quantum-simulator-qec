@@ -482,7 +482,7 @@ mod tests {
         let mut out = String::new();
         for line in text.lines() {
             let head = line.split(['(', ' ']).next().unwrap_or("");
-            let b = u8::from(rng.next_u64() % 32 == 0);
+            let b = u8::from(rng.next_u64().is_multiple_of(32));
             let args_end = line.find(')').map(|i| i + 1);
             let targets = args_end.map(|i| line[i..].trim()).unwrap_or("");
             match head {

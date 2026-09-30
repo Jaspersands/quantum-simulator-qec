@@ -119,6 +119,9 @@ impl DenseScratch {
     }
 }
 
+/// Merged graph edges (u, v, probability, observables), and how many conflicts were counted.
+pub(crate) type MergedEdges = (Vec<(u32, u32, f64, u64)>, usize);
+
 /// The model's graph-like pieces as merged edges `(u, v, p, observables)`,
 /// sorted, with `v == num_detectors` standing for the boundary, and the number
 /// of conflicting parallel edges. Parallel edges with the same observables
@@ -126,7 +129,7 @@ impl DenseScratch {
 /// different observables the more probable one is kept and the conflict is
 /// counted: for any code of distance three or more that count is zero, since a
 /// conflict is a weight-two logical operator.
-pub(crate) fn merged_edges(dem: &Dem) -> Result<(Vec<(u32, u32, f64, u64)>, usize), String> {
+pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
     let boundary = dem.num_detectors as u32;
     let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
     let mut conflicts = 0usize;
@@ -457,7 +460,7 @@ mod tests {
             let mut seen = HashSet::new();
             while edges.len() < 2 * nd {
                 let a = (rng.next_u64() % nd as u64) as u32;
-                let b = if rng.next_u64() % 3 == 0 { None } else { Some((rng.next_u64() % nd as u64) as u32) };
+                let b = if rng.next_u64().is_multiple_of(3) { None } else { Some((rng.next_u64() % nd as u64) as u32) };
                 if b == Some(a) {
                     continue;
                 }
@@ -485,7 +488,7 @@ mod tests {
                 text.push_str(&format!("detector D{d}\n"));
             }
             let dec = DemDecoder::new(&Dem::parse(&text).unwrap()).unwrap();
-            let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64() % 2 == 0).collect();
+            let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64().is_multiple_of(2)).collect();
             let brute = brute_force(&edges, &defects);
             for (name, got) in [("sparse", dec.decode(&defects)), ("dense", dec.decode_dense(&defects))] {
                 match (&brute, got) {

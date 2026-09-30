@@ -1,8 +1,14 @@
-//! Python bindings for the cross-check harness (`tools/xcheck.py`).
+//! The Python package's bindings (`stabilizer_qec`): circuits and error models, sampling,
+//! plain, correlated and windowed matching, streams, BP and BP+OSD, belief-matching, the
+//! bivariate bicycle codes and their logical operations, and lattice surgery.
 //!
 //! Shots cross the boundary as bytes in Stim's b8 layout (numpy's
 //! `packbits(..., bitorder="little")`), and predictions come back as
 //! little-endian u64 and f64 arrays, so no numpy crate is needed on this side.
+
+// PyO3's #[pyfunction] expansion converts each PyResult's error into PyErr, which clippy
+// flags on every binding as a useless conversion; it is the macro's, not this code's.
+#![allow(clippy::useless_conversion)]
 
 use std::time::Instant;
 
@@ -606,6 +612,10 @@ fn bb_matrices(code: &str) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Ve
 /// `cycles` depth-8 syndrome cycles under circuit noise `p`, as Stim text.
 #[pyfunction]
 fn bb_memory_circuit(code: &str, cycles: usize, p: f64) -> PyResult<String> {
+    if cycles == 0 {
+        return Err(err("a memory needs at least one cycle".into()));
+    }
+    crate::memory::probability(p).map_err(err)?;
     Ok(bb_code(code)?.memory_z(cycles, p))
 }
 
@@ -687,6 +697,10 @@ fn bb_gauging(
 /// writer (in "z" it is `bb_memory_circuit`'s model), as Stim text.
 #[pyfunction]
 fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
+    if cycles == 0 {
+        return Err(err("a memory needs at least one cycle".into()));
+    }
+    crate::memory::probability(p).map_err(err)?;
     Ok(crate::bb_circuit::memory(&bb_code(code)?, basis_of(basis)?, cycles, p).to_stim())
 }
 
@@ -698,6 +712,7 @@ fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> Py
 #[pyfunction]
 #[pyo3(signature = (operator, basis, pre, merged, post, p, expanded=false))]
 fn bb_logical_measurement_circuit(operator: &str, basis: &str, pre: usize, merged: usize, post: usize, p: f64, expanded: bool) -> PyResult<String> {
+    crate::memory::probability(p).map_err(err)?;
     let (code, g) = gauged(operator, expanded)?;
     let c = crate::bb_circuit::logical_measurement(&code, &g, basis_of(basis)?, pre, merged, post, p).map_err(err)?;
     Ok(c.to_stim())
