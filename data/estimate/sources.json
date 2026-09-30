@@ -1,0 +1,215 @@
+{
+ "note": "Every number the estimate takes from a paper, with its reference. Transcribed 2026-09-30.",
+ "algorithms": {
+  "rsa2048": {
+   "label": "RSA-2048 (Gidney 2025)",
+   "qubits": 1409,
+   "hot": 129,
+   "toffolis": 6500000000.0,
+   "reference": {
+    "qubits": 897864,
+    "hours_per_shot": 12.07,
+    "days_expected": 4.96,
+    "d": 25,
+    "factories": 6,
+    "p": 0.001,
+    "cycle_us": 1,
+    "reaction_us": 10
+   },
+   "cite": "Gidney, How to factor 2048 bit RSA integers with less than a million noisy qubits, arXiv:2505.15917: 1,409 logical qubits at most (Table 4: m = 1,280 in cold storage, the rest hot); 6.5e9 Toffolis (Table 5, n = 2048); 897,864 physical qubits and 12.07 hours per shot (cost section)."
+  },
+  "femoco_reiher": {
+   "label": "FeMoco, Reiher Hamiltonian (Lee et al. 2021)",
+   "qubits": 2142,
+   "toffolis": 5300000000.0,
+   "reference": {
+    "qubits": 4000000.0,
+    "days": 3,
+    "d": 31,
+    "factories": 4,
+    "p": 0.001,
+    "cycle_us": 1
+   },
+   "cite": "Lee et al., Even more efficient quantum computations of chemistry through tensor hypercontraction, PRX Quantum 2, 030305, arXiv:2011.03494: Table III (THC, 2,142 logical qubits, 5.3e9 Toffolis); Fig. 10 and p. 31 (1,908 patches at d = 31, about four million qubits, 3 days)."
+  },
+  "femoco_li": {
+   "label": "FeMoco, Li Hamiltonian (Lee et al. 2021)",
+   "qubits": 2196,
+   "toffolis": 32000000000.0,
+   "cite": "Lee et al. 2021, Table III (THC, 2,196 logical qubits, 3.2e10 Toffolis)."
+  },
+  "small": {
+   "label": "Illustration: 100 qubits, 10⁶ Toffolis",
+   "qubits": 100,
+   "toffolis": 1000000.0,
+   "illustration": true
+  },
+  "medium": {
+   "label": "Illustration: 1,000 qubits, 10⁹ Toffolis",
+   "qubits": 1000,
+   "toffolis": 1000000000.0,
+   "illustration": true
+  },
+  "large": {
+   "label": "Illustration: 10,000 qubits, 10¹² Toffolis",
+   "qubits": 10000,
+   "toffolis": 1000000000000.0,
+   "illustration": true
+  }
+ },
+ "litinski_factories": [
+  {
+   "name": "(15-to-1)7,3,3",
+   "p_phys": 0.0001,
+   "p_out": 4.4e-08,
+   "qubits": 810,
+   "cycles": 18.1,
+   "qubitcycles": 14600,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)9,3,3",
+   "p_phys": 0.0001,
+   "p_out": 9.3e-10,
+   "qubits": 1150,
+   "cycles": 18.1,
+   "qubitcycles": 20700,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)11,5,5",
+   "p_phys": 0.0001,
+   "p_out": 1.9e-11,
+   "qubits": 2070,
+   "cycles": 30.0,
+   "qubitcycles": 62000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^4 9,3,3 × (20-to-4)15,7,9",
+   "p_phys": 0.0001,
+   "p_out": 2.4e-15,
+   "qubits": 16400,
+   "cycles": 90.3,
+   "qubitcycles": 371000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^4 9,3,3 × (15-to-1)25,9,9",
+   "p_phys": 0.0001,
+   "p_out": 6.3e-25,
+   "qubits": 18600,
+   "cycles": 67.8,
+   "qubitcycles": 1260000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^4 7,3,3 × (8-to-CCZ)15,7,9",
+   "p_phys": 0.0001,
+   "p_out": 7.2e-14,
+   "qubits": 12400,
+   "cycles": 36.1,
+   "qubitcycles": 447000,
+   "ccz": true
+  },
+  {
+   "name": "(15-to-1)17,7,7",
+   "p_phys": 0.001,
+   "p_out": 4.5e-08,
+   "qubits": 4620,
+   "cycles": 42.6,
+   "qubitcycles": 197000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^6 13,5,5 × (20-to-4)23,11,13",
+   "p_phys": 0.001,
+   "p_out": 1.4e-10,
+   "qubits": 43300,
+   "cycles": 130,
+   "qubitcycles": 1410000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^4 13,5,5 × (20-to-4)27,13,15",
+   "p_phys": 0.001,
+   "p_out": 2.6e-11,
+   "qubits": 46800,
+   "cycles": 157,
+   "qubitcycles": 1840000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^6 11,5,5 × (15-to-1)25,11,11",
+   "p_phys": 0.001,
+   "p_out": 2.7e-12,
+   "qubits": 30700,
+   "cycles": 82.5,
+   "qubitcycles": 2540000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^6 13,5,5 × (15-to-1)29,11,13",
+   "p_phys": 0.001,
+   "p_out": 3.3e-14,
+   "qubits": 39100,
+   "cycles": 97.5,
+   "qubitcycles": 3810000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^6 17,7,7 × (15-to-1)41,17,17",
+   "p_phys": 0.001,
+   "p_out": 4.5e-20,
+   "qubits": 73400,
+   "cycles": 128,
+   "qubitcycles": 9370000,
+   "ccz": false
+  },
+  {
+   "name": "(15-to-1)^6 13,7,7 × (8-to-CCZ)25,15,15",
+   "p_phys": 0.001,
+   "p_out": 5.2e-11,
+   "qubits": 47000,
+   "cycles": 60.0,
+   "qubitcycles": 2820000,
+   "ccz": true
+  }
+ ],
+ "litinski_factories_cite": "Litinski, Magic state distillation: not as costly as you think, Quantum 3, 205 (2019), arXiv:1905.06903, Table 1 (p. 2). Qubits include measurement ancillas; qubitcycles are per output state.",
+ "cultivation": {
+  "p_max": 0.001,
+  "t_error": 1e-07,
+  "t_qubit_rounds": 30000,
+  "ccz_error_per_t2": 28,
+  "patches": 12,
+  "rounds_per_ccz_at_d25": 150,
+  "cite": "Gidney 2025 (arXiv:2505.15917), magic-state section: T states cultivated to 1e-7 for 30,000 qubit·rounds at p = 1e-3 (Gidney, Shutty and Jones, arXiv:2409.17595); 8T-to-CCZ with error 28 p_T²; a factory of 3 × 4 hot patches making one CCZ per 150 rounds at d = 25."
+ },
+ "yoked": {
+  "qubits_per_logical": 430,
+  "error_per_round": 1e-15,
+  "cite": "Gidney 2025: cold storage in yoked surface codes, 430 physical qubits per logical qubit at 1e-15 per round (p = 1e-3)."
+ },
+ "blocks": {
+  "compact": {
+   "tiles": "1.5n + 3",
+   "steps": 9
+  },
+  "intermediate": {
+   "tiles": "2n + 4",
+   "steps": 5
+  },
+  "fast": {
+   "tiles": "2n + sqrt(8n) + 1",
+   "steps": 1
+  },
+  "cite": "Litinski, A Game of Surface Codes, Quantum 3, 128 (2019), arXiv:1808.02892, Sec. 2 (pp. 7-9): tiles for n data qubits and time steps (of d cycles) to consume a magic state; a tile is 2d² physical qubits, as his examples count them (226 tiles at d = 13: 76,400 qubits)."
+ },
+ "gross_module": {
+  "logical": 12,
+  "qubits": 288,
+  "ancillas": 103,
+  "cite": "Bravyi et al. 2024 (the gross code, 288 qubits for 12 logical); Cross et al. 2024, arXiv:2407.18393 (103 ancilla qubits to measure its logical operators)."
+ }
+}

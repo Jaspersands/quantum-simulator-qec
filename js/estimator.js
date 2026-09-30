@@ -96,6 +96,133 @@ export function estimate(algorithm, model, { budget, overhead = 2, cycleSeconds 
   };
 }
 
+/* -- The fuller model: factories, floor plans, reaction time, storage ----- */
+
+/**
+ * ε per patch per cycle at distance d under uniform circuit noise p, from the
+ * law fitted to this engine's own SD6 simulations (data/estimate/noise.json):
+ * ε = A (p / p_th)^((d + 1) / 2).
+ */
+export function epsilonUniform(d, p, { A, pth }) {
+  return A * (p / pth) ** ((d + 1) / 2);
+}
+
+/**
+ * Litinski's data blocks (A Game of Surface Codes, Sec. 2): tiles for n data
+ * qubits, and time steps of d cycles to consume one magic state.
+ */
+export const BLOCKS = {
+  compact: { label: 'compact', tiles: (n) => 1.5 * n + 3, steps: 9 },
+  intermediate: { label: 'intermediate', tiles: (n) => 2 * n + 4, steps: 5 },
+  fast: { label: 'fast', tiles: (n) => 2 * n + Math.sqrt(8 * n) + 1, steps: 1 },
+};
+
+/** Physical qubits in one tile at distance d, as Litinski counts them: 2d². */
+export const tileQubits = (d) => 2 * d * d;
+
+/**
+ * The factory that supplies a Toffoli's magic states at physical error p,
+ * keeping each Toffoli's share of error at most `target`, or null when none
+ * applies. Cultivation is Gidney's (2025): T states cultivated to 1e-7,
+ * 8T-to-CCZ at 28 p_T², a factory of 3 × 4 patches making one CCZ per 150
+ * rounds at d = 25 (scaled with d), tabulated at p ≤ 0.1% only. Distillation
+ * is the cheapest of Litinski's protocols (2019, Table 1), from the rows
+ * tabulated at the smallest noise at least p; a CCZ row supplies a Toffoli,
+ * a T row four.
+ */
+export function factoryFor(kind, p, d, target, sources) {
+  if (kind === 'cultivation') {
+    const c = sources.cultivation;
+    const error = c.ccz_error_per_t2 * c.t_error ** 2;
+    if (p > c.p_max * (1 + 1e-9) || error > target) return null;
+    return {
+      kind, name: 'cultivation, 8T-to-CCZ', qubits: c.patches * 2 * (d + 1) ** 2,
+      cyclesPerState: (c.rounds_per_ccz_at_d25 * d) / 25, errorPerToffoli: error, statesPerToffoli: 1,
+    };
+  }
+  const tabulated = [...new Set(sources.litinski_factories.map((r) => r.p_phys))].sort((a, b) => a - b);
+  const at = tabulated.find((x) => x >= p * (1 - 1e-9));
+  if (at == null) return null;
+  const per = (r) => (r.ccz ? 1 : 4);
+  const fits = sources.litinski_factories.filter((r) => r.p_phys === at && per(r) * r.p_out <= target);
+  if (!fits.length) return null;
+  const best = fits.sort((a, b) => a.qubitcycles * per(a) - b.qubitcycles * per(b))[0];
+  return {
+    kind, name: best.name, qubits: best.qubits, cyclesPerState: best.qubitcycles / best.qubits,
+    errorPerToffoli: per(best) * best.p_out, statesPerToffoli: per(best),
+  };
+}
+
+/**
+ * Seconds a decode of one window takes at distance d: the measured p99
+ * ({d: microseconds}, section 12's parallel windows with correlated matching)
+ * at the smallest measured distance at least d, or beyond them a power law
+ * through the two largest; `overrideUs`, when given, instead.
+ */
+export function latencyAt(d, measured, overrideUs = null) {
+  if (overrideUs != null) return overrideUs * 1e-6;
+  const ds = Object.keys(measured).map(Number).sort((a, b) => a - b);
+  const at = ds.find((x) => x >= d);
+  if (at != null) return measured[at] * 1e-6;
+  const [a, b] = ds.slice(-2);
+  const slope = Math.log(measured[b] / measured[a]) / Math.log(b / a);
+  return measured[b] * (d / b) ** slope * 1e-6;
+}
+
+/**
+ * The fuller estimate. Options: `noise` ({kind: 'uniform', p, fit} or
+ * {kind: 'measured', p, model}), `budget`, `block`, `factory`, `storage`
+ * ('surface' | 'yoked' | 'gross'), `cycleSeconds`, `controlSeconds`,
+ * `latency` ({d: µs}) or `latencyOverrideUs`, `parallel` (Toffolis in
+ * flight), `grossPerCycle` (a gross module's error per cycle at this p), `cores`.
+ *
+ * Half the budget goes to magic states, which fixes the factory. Each
+ * Toffoli takes the larger of its Clifford steps (block steps × states × d
+ * cycles) and its reaction (decoder latency plus control delay), divided by
+ * the Toffolis in flight; factories are as many as keep up. Every tile is
+ * priced as an idle patch for the whole run, which errs on the safe side
+ * (section 14's CNOT fails less often than its patches held idle). The
+ * distance is the smallest odd d that meets the budget.
+ */
+export function estimateFull(algorithm, o, sources, maxD = 201) {
+  const storage = o.storage ?? 'surface';
+  const cold = storage === 'surface' ? 0 : Math.max(0, algorithm.qubits - (algorithm.hot ?? algorithm.qubits));
+  const hot = algorithm.qubits - cold;
+  const block = BLOCKS[o.block ?? 'fast'];
+  const tiles = Math.ceil(block.tiles(hot));
+  const eps = (d) => (o.noise.kind === 'uniform' ? epsilonUniform(d, o.noise.p, o.noise.fit) : epsilonAt(d, o.noise.model));
+  const target = o.budget / 2 / algorithm.toffolis;
+  const modules = Math.ceil(cold / sources.gross_module.logical);
+  if (storage === 'gross' && cold > 0 && !(o.grossPerCycle > 0)) return { error: 'the gross code is measured at p = 0.2% to 0.6% only' };
+  for (let d = 3; d <= maxD; d += 2) {
+    const factory = factoryFor(o.factory, o.noise.p, d, target, sources);
+    if (!factory) return { error: `no ${o.factory} factory is tabulated for this noise and budget` };
+    const clifford = block.steps * factory.statesPerToffoli * d * o.cycleSeconds;
+    const reaction = latencyAt(d, o.latency ?? {}, o.latencyOverrideUs) + o.controlSeconds;
+    const perToffoli = Math.max(clifford, reaction) / (o.parallel ?? 1);
+    const seconds = algorithm.toffolis * perToffoli;
+    const cycles = seconds / o.cycleSeconds;
+    const storageFailure = storage === 'yoked' ? cold * cycles * sources.yoked.error_per_round
+      : storage === 'gross' ? modules * cycles * (o.grossPerCycle ?? 0) : 0;
+    const memory = tiles * cycles * eps(d);
+    const magic = algorithm.toffolis * factory.errorPerToffoli;
+    if (memory + storageFailure + magic > o.budget) continue;
+    const perFactory = 1 / (factory.cyclesPerState * o.cycleSeconds);
+    const factories = Math.ceil(factory.statesPerToffoli / perToffoli / perFactory - 1e-9);
+    const storageQubits = storage === 'yoked' ? cold * sources.yoked.qubits_per_logical
+      : storage === 'gross' ? modules * (sources.gross_module.qubits + sources.gross_module.ancillas) : 0;
+    const qubits = { block: tiles * tileQubits(d), factories: factories * factory.qubits, storage: storageQubits };
+    qubits.total = qubits.block + qubits.factories + qubits.storage;
+    return {
+      d, tiles, hot, cold, epsilon: eps(d), qubits, seconds, perToffoli, clifford, reaction,
+      bound: clifford >= reaction ? 'clifford' : 'reaction', factory, factories,
+      failure: { memory, storage: storageFailure, magic, total: memory + storageFailure + magic },
+      cores: o.cores ? decodingCores(d, { qubits: tiles }, o.cores) : null,
+    };
+  }
+  return { error: `no distance up to ${maxD} meets the budget` };
+}
+
 /** 3.2e7 → "32 million"; 4.1e9 → "4.1 billion"; 12,345 → "12,345". */
 export function bigNumber(x) {
   const scaled = (v, unit) => `${v >= 100 ? Math.round(v).toLocaleString('en-US') : v.toPrecision(2)} ${unit}`;
