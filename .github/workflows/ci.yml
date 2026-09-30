@@ -84,3 +84,6 @@ jobs:
       - name: Lattice surgery against Stim and PyMatching
         if: matrix.os == 'ubuntu-latest'
         run: python tools/surgery.py check --quick
+      - name: The gross code's logical measurement against Stim and ldpc
+        if: matrix.os == 'ubuntu-latest'
+        run: python tools/gross_ops.py check --quick
