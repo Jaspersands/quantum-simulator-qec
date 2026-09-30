@@ -206,6 +206,66 @@ def gross_logical():
     return rows
 
 
+_ESTIMATE = None
+
+
+def estimate_json():
+    """tools/estimate.mjs's output: the page's own model, run once per invocation."""
+    global _ESTIMATE
+    if _ESTIMATE is None:
+        import json as _json
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "estimate.json"
+            subprocess.run(["node", "tools/estimate.mjs", "--json", str(out)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+            _ESTIMATE = _json.loads(out.read_text())
+    return _ESTIMATE
+
+
+def estimate_full():
+    rows = []
+    for r in estimate_json()["full"]:
+        if "error" in r["text"]:
+            rows.append(f"| {r['label']} | {r['variant']} | — | {r['text']['error']} | | | |")
+        else:
+            t = r["text"]
+            rows.append(f"| {r['label']} | {r['variant']} | {r['d']} | {t['qubits']} ({t['block']} + {t['factories']} + {t['storage']}) | "
+                        f"{t['perToffoli']} | {t['seconds']} | {'steps' if r['bound'] == 'clifford' else 'reaction'} |")
+    return rows
+
+
+def estimate_validation():
+    rows = []
+    for group, who in (("rsa", "RSA-2048"), ("femoco", "FeMoco (Reiher)")):
+        for r in estimate_json()["validation"][group]:
+            if "error" in r["text"]:
+                rows.append(f"| {who}: {r['label']} | — | {r['text']['error']} | |")
+            else:
+                rows.append(f"| {who}: {r['label']} | {r['d']} | {r['text']['qubits']} ({r['qubitRatio']:.2f}×) | "
+                            f"{r['text']['seconds']} ({r['timeRatio']:.2f}×) |")
+    return rows
+
+
+def estimate_lambda():
+    labels = {"small": "100 qubits × 10⁶ operations", "medium": "1,000 qubits × 10⁹ operations", "large": "10,000 qubits × 10¹² operations"}
+    names = {"ours": "ours, correlated matching", "libra": "Google's Libra", "belief": "ours, belief-matching"}
+    return [f"| {labels[r['preset']]} | {r['lambda']:.2f} ({names[r['source']]}) | {r['d']} | {r['text']['physical']} | "
+            f"{r['text']['seconds']} | {r['text']['cores']} |" for r in estimate_json()["rows"]]
+
+
+def estimate_noise():
+    doc = load("data/estimate/noise.json")
+    rows = []
+    for p in (0.001, 0.002, 0.003, 0.005):
+        cells = []
+        for d in (3, 5, 7, 9, 11):
+            q = doc["points"].get(f"d{d}/p{p}")
+            cells.append("—" if not q else f"{q['eps']:.1e}" + ("" if q["failures"] >= 20 else " *"))
+        rows.append(f"| {p * 100:.1f}% | " + " | ".join(cells) + " |")
+    return rows
+
+
 # Each table's header row (as a regex), and the function giving its body.
 TABLES = [
     ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
@@ -219,11 +279,30 @@ TABLES = [
     ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
     ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
     ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
+    ("estimate noise", r"\| p \| d = 3 \| d = 5 \| d = 7 \| d = 9 \| d = 11 \|", estimate_noise),
+    ("estimate validation", r"\| case \| d \| physical qubits \(× source\) \| time \(× source\) \|", estimate_validation),
+    ("estimate full", r"\| algorithm \| decoder \| d \| physical qubits \(block \+ factories \+ storage\) \| per Toffoli \| run time \| bound \|", estimate_full),
+    ("estimate lambda", r"\| algorithm \| Λ \(from\) \| d \| physical qubits \| run time \| decoding cores \|", estimate_lambda),
 ]
+
+
+def phrases():
+    """Numbers the README states in prose, each as the phrase it must contain, from the model."""
+    V = estimate_json()["validation"]
+    first = V["rsa"][0]
+    surface = next(r for r in V["rsa"] if r["label"].startswith("surface"))
+    return [
+        f"it lands within {first['qubitRatio']:.1f} times his\n  897,864 qubits and {first['timeRatio']:.1f} times his 12.07 hours per shot",
+        f"costs over {math.floor(surface['qubitRatio'])}\n  times the qubits",
+        f"about {round(V['epsAt25'] / 1e-15, -1):.0f} times his 10⁻¹⁵",
+    ]
 
 
 def main():
     readme = (ROOT / "README.md").read_text()
+    missing = [ph for ph in phrases() if ph not in readme]
+    for ph in missing:
+        print(f"README prose out of date: expected {ph!r}")
     out, stale = readme, []
     for name, header, fn in TABLES:
         body = "\n".join(fn()) + "\n"
@@ -239,7 +318,7 @@ def main():
     if "--check" in sys.argv:
         for name in stale:
             print(f"README table out of date: {name}")
-        return 1 if stale else 0
+        return 1 if stale or missing else 0
     if "--write" in sys.argv:
         (ROOT / "README.md").write_text(out)
         print(f"rewrote {len(stale)} table(s): {', '.join(stale) or 'none'}")

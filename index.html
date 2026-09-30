@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-09-30c">
+<link rel="stylesheet" href="css/styles.css?v=2026-09-30k">
 </head>
 <body>
 
@@ -1917,43 +1917,40 @@
 
   <div class="prose">
     <p>
-      Everything above measures one ingredient of a quantum computer's cost:
+      Everything above measures one ingredient of a quantum computer's cost. Put together with what the papers that
+      price real algorithms report, they answer the question that matters: for an algorithm, how many physical
+      qubits, and how long? The model prices what dominates real estimates:
     </p>
     <ul>
-      <li>how fast logical error falls with distance on Google's own chip (Λ, section 11);</li>
-      <li>how many cores keep decoding up in real time (section 12);</li>
-      <li>how many rounds one lattice-surgery operation takes (section 14).</li>
+      <li><strong>magic states</strong>, from Gidney's cultivation factory or the cheapest of Litinski's distillation
+        protocols, sized to keep up with the Toffolis;</li>
+      <li><strong>a floor plan</strong>, one of Litinski's three data blocks, trading tiles against steps per Toffoli;</li>
+      <li><strong>the reaction</strong> each Toffoli waits for: this project's measured decoder latency (section 12),
+        extrapolated, plus a control delay;</li>
+      <li><strong>storage</strong> for idle qubits: surface-code patches, Gidney's yoked codes, or gross-code modules
+        (section 13);</li>
+      <li>logical error per patch per cycle, measured here under uniform noise, or as measured on Willow.</li>
     </ul>
     <p>
-      Put together, they answer the question that matters: for an algorithm of a given size, how
-      many physical qubits, and how long? The model is deliberately simple:
-    </p>
-    <ul>
-      <li>logical error per cycle falls from the measured <span class="mono">ε</span> at d = 7 by
-        <span class="mono">Λ</span> for every two steps of distance;</li>
-      <li>every operation takes d merged rounds, with every patch exposed (the logical CNOT of section 14 fails
-        less often than its patches held idle for as long, so this errs on the safe side);</li>
-      <li>the distance is the smallest that keeps the whole run inside its failure budget.</li>
-    </ul>
-    <p>
-      What it cannot hide is how much Λ matters.
+      Every tile is priced as an idle patch for the whole run, which errs on the safe side: section 14's logical CNOT
+      fails less often than its patches held idle. Each input is measured by this project or read from a cited paper,
+      with the page and table in <span class="mono">data/estimate/sources.json</span>.
     </p>
   </div>
 
   <figure class="figure" data-est>
     <figcaption class="figure__cap">
       <span class="figure__num">Figure 23</span>
-      <span class="figure__title">qubits and hours, from the measured Λ</span>
-      <span class="figure__meta">surface code, lattice surgery</span>
+      <span class="figure__title">what an algorithm would take</span>
+      <span class="figure__meta">factories, floor plans, reaction time</span>
     </figcaption>
     <div class="figure__body">
       <div class="rig">
         <div class="rig__stage">
-          <canvas data-est-plot data-aspect="0.62"></canvas>
-          <div class="legend" data-est-legend></div>
+          <div data-est-bars></div>
           <div class="table-wrap">
-            <table class="xcheck hw">
-              <caption class="visually-hidden">The estimate for the chosen algorithm and Λ</caption>
+            <table class="xcheck hw est-out">
+              <caption class="visually-hidden">The estimate for the chosen algorithm and options</caption>
               <tbody data-est-out></tbody>
             </table>
           </div>
@@ -1962,23 +1959,77 @@
           <div class="field">
             <label class="field__label" for="est-preset">Algorithm</label>
             <select id="est-preset" data-est-preset>
-              <option value="small">Small: 100 qubits, 10⁶ operations</option>
-              <option value="medium" selected>Medium: 1,000 qubits, 10⁹ operations</option>
-              <option value="large">Large: 10,000 qubits, 10¹² operations</option>
+              <option value="rsa2048" selected>RSA-2048 (Gidney 2025)</option>
+              <option value="femoco_reiher">FeMoco, Reiher (Lee et al.)</option>
+              <option value="femoco_li">FeMoco, Li (Lee et al.)</option>
+              <option value="small">Illustration: 100 qubits, 10⁶ Toffolis</option>
+              <option value="medium">Illustration: 1,000 qubits, 10⁹ Toffolis</option>
+              <option value="large">Illustration: 10,000 qubits, 10¹² Toffolis</option>
               <option value="custom">Custom</option>
             </select>
           </div>
           <div class="field">
             <label class="field__label" for="est-qubits">Logical qubits</label>
-            <input id="est-qubits" type="number" min="1" step="1" value="1000" data-est-qubits>
+            <input id="est-qubits" type="number" min="1" step="1" value="1409" data-est-qubits>
           </div>
           <div class="field">
-            <label class="field__label" for="est-ops">Logical operations</label>
-            <select id="est-ops" data-est-ops>
-              <option value="4">10⁴</option><option value="6">10⁶</option><option value="8">10⁸</option>
-              <option value="9" selected>10⁹</option><option value="10">10¹⁰</option><option value="12">10¹²</option>
-              <option value="14">10¹⁴</option>
+            <label class="field__label" for="est-hot">Of them active (the rest stored)</label>
+            <input id="est-hot" type="number" min="1" step="1" value="129" data-est-hot>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-toffolis">Toffolis, log₁₀</label>
+            <input id="est-toffolis" type="number" min="3" max="15" step="0.1" value="9.8" data-est-toffolis>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-noise">Noise</label>
+            <select id="est-noise" data-est-noise>
+              <option value="0.0005">uniform, p = 0.05% (fitted here)</option>
+              <option value="0.001" selected>uniform, p = 0.1% (fitted here)</option>
+              <option value="0.002">uniform, p = 0.2% (fitted here)</option>
+              <option value="willow:ours">Willow, our correlated matching</option>
+              <option value="willow:libra">Willow, Google's Libra</option>
+              <option value="willow:belief">Willow, our belief-matching</option>
             </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-factory">Magic states</label>
+            <select id="est-factory" data-est-factory>
+              <option value="cultivation" selected>cultivation (Gidney)</option>
+              <option value="distillation">distillation (Litinski)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-block">Data block</label>
+            <select id="est-block" data-est-block>
+              <option value="compact">compact: 1.5n + 3 tiles, 9 steps</option>
+              <option value="intermediate">intermediate: 2n + 4 tiles, 5 steps</option>
+              <option value="fast" selected>fast: 2n + √8n + 1 tiles, 1 step</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-storage">Idle storage</label>
+            <select id="est-storage" data-est-storage>
+              <option value="surface" selected>surface-code patches</option>
+              <option value="yoked">yoked surface codes (Gidney)</option>
+              <option value="gross">gross-code modules</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-decoder">Decoder latency</label>
+            <select id="est-decoder" data-est-decoder>
+              <option value="measured" selected>this project's, measured (section 12)</option>
+              <option value="0">none beyond the control delay</option>
+              <option value="10">10 µs</option>
+              <option value="100">100 µs</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-control">Control delay, microseconds</label>
+            <input id="est-control" type="number" min="0" step="1" value="10" data-est-control>
+          </div>
+          <div class="field">
+            <label class="field__label" for="est-parallel">Toffolis in flight</label>
+            <input id="est-parallel" type="number" min="1" max="100" step="0.1" value="1" data-est-parallel>
           </div>
           <div class="field">
             <label class="field__label" for="est-budget">Failure budget, whole run</label>
@@ -1987,48 +2038,60 @@
             </select>
           </div>
           <div class="field">
-            <label class="field__label" for="est-source">Measured Λ from</label>
-            <select id="est-source" data-est-source>
-              <option value="ours" selected>Willow, our correlated matching</option>
-              <option value="libra">Willow, Google's Libra</option>
-              <option value="belief">Willow, our belief-matching</option>
-              <option value="custom">Custom Λ (ε from ours)</option>
-            </select>
-          </div>
-          <div class="field field--inert">
-            <label class="field__label" for="est-lambda">Custom Λ</label>
-            <input id="est-lambda" type="number" min="1.05" max="10" step="0.05" value="3" disabled data-est-lambda>
-          </div>
-          <div class="field">
-            <label class="field__label" for="est-overhead">Routing overhead</label>
-            <input id="est-overhead" type="number" min="1" max="10" step="0.5" value="2" data-est-overhead>
-            <span class="field__hint">Physical qubits per patch qubit, for the bus lattice surgery needs.</span>
-          </div>
-          <div class="field">
             <label class="field__label" for="est-cycle">Cycle time, microseconds</label>
-            <input id="est-cycle" type="number" min="0.1" step="0.1" value="1.1" data-est-cycle>
+            <input id="est-cycle" type="number" min="0.1" step="0.1" value="1" data-est-cycle>
           </div>
         </div>
       </div>
       <p class="status" role="status" data-est-status>Loads when you scroll here.</p>
-      <p class="note">Λ and ε at d = 7 are fitted here from the same Willow counts as Figure 9 (belief-matching from its
-        10,000-shot run). Each logical operation takes d merged rounds, the point from which Figure 19's merge
-        failures stop falling, and fails with probability about N · d · ε_d. The cores come from Figure 11's
-        parallel windows with correlated matching, extrapolated beyond d = 7 through d = 5 and 7. The presets are
-        illustrations of scale, not particular algorithms.</p>
+      <p class="note">Half the budget goes to magic states, which picks the factory; the distance is the smallest odd d
+        that keeps the rest within budget. Each Toffoli takes the larger of its lattice-surgery steps (the block's steps
+        per magic state, one CCZ or four T states, of d cycles each) and its reaction, divided by the Toffolis in flight.
+        This project's decoder latency is the p99 of one window's decode, measured at d = 3, 5 and 7 and extrapolated as
+        a power law: at the distances large algorithms need, it is milliseconds, and it sets the run time. A tile is
+        2d² physical qubits, as Litinski counts them. Cultivation's figures are Gidney's at p = 0.1%, used for any
+        lower p, and its 150 rounds per CCZ at d = 25 are scaled with d here. With Willow's noise the factories are
+        taken as at p = 0.1%. Storage is priced idle: reaching a stored qubit is not (for the gross code, a logical
+        measurement, section 13).</p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-est-valid>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 24</span>
+      <span class="figure__title">checked against the sources</span>
+      <span class="figure__meta">RSA-2048 and FeMoco</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw est-out">
+          <caption class="visually-hidden">The model against Gidney's RSA-2048 and Lee et al.'s FeMoco estimates</caption>
+          <thead>
+            <tr>
+              <th scope="col">Case</th>
+              <th scope="col" class="num">d</th>
+              <th scope="col" class="num">Qubits (× source)</th>
+              <th scope="col" class="num">Time (× source)</th>
+              <th scope="col" class="num">Bound</th>
+            </tr>
+          </thead>
+          <tbody data-est-valid-rows></tbody>
+        </table>
+      </div>
+      <p class="note" data-est-valid-note></p>
     </div>
   </figure>
 
   <figure class="figure" data-est-grid>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 24</span>
-      <span class="figure__title">three sizes, three measured Λ</span>
-      <span class="figure__meta">1% failure budget, routing overhead 2, cycles of 1.1 microseconds</span>
+      <span class="figure__num">Figure 25</span>
+      <span class="figure__title">Λ is the lever</span>
+      <span class="figure__meta">the simple model under the Λ measured on Willow</span>
     </figcaption>
     <div class="figure__body">
       <div class="table-wrap">
         <table class="xcheck hw">
-          <caption class="visually-hidden">Distance, physical qubits, run time and decoding cores for three algorithm sizes under each measured Λ</caption>
+          <caption class="visually-hidden">Distance, physical qubits, run time and decoding cores for three sizes under each Λ measured on Willow</caption>
           <thead>
             <tr>
               <th scope="col">Algorithm, Λ</th>
@@ -2041,6 +2104,9 @@
           <tbody data-est-grid-rows></tbody>
         </table>
       </div>
+      <p class="note">The simple model of before: N patches of 2d² − 1 with a routing overhead of 2, every operation d
+        merged rounds of Willow's 1.1 µs cycle, and ε falling from the value measured at d = 7 by the measured Λ. At
+        Λ ≈ 2, even a small algorithm needs d ≈ 70; each doubling of Λ cuts the qubits about fourfold.</p>
     </div>
   </figure>
 
@@ -2054,6 +2120,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-09-30c"></script>
+<script type="module" src="js/main.js?v=2026-09-30k"></script>
 </body>
 </html>

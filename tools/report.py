@@ -461,6 +461,21 @@ def build_values(F):
     v["est.medium.time"] = medium["text"]["seconds"]
     v["est.lever.d"] = str(E["lever"]["d"])
     v["est.lever.qubits"] = E["lever"]["text"]["physical"]
+    # The fuller model, its validation, and the inputs measured here.
+    t["est_noise"] = table(["p", "d = 3", "d = 5", "d = 7", "d = 9", "d = 11"], [cells(r) for r in readme_tables.estimate_noise()], "lrrrrr")
+    t["est_valid"] = table(["case", "d", "qubits (× source)", "time (× source)"], [cells(r) for r in readme_tables.estimate_validation()], "lrrr")
+    t["est_full"] = table(["algorithm", "decoder", "d", "qubits (block + factories + storage)", "per Toffoli", "run time", "bound"],
+                          [cells(r) for r in readme_tables.estimate_full()], "llrrrrl")
+    fit = E["fit"]
+    v["est.fit_A"], v["est.fit_pth"] = f"{fit['A']:.3f}", f"{fit['pth'] * 100:.2f}\\%"
+    v["est.fit_slope"] = f"{fit['free_slope']:.2f}"
+    V = E["validation"]
+    v["est.gidney_parallel"] = f"{V['rsaToffolisPerPeriod']:.1f}"
+    v["est.v_qubits"], v["est.v_time"] = f"{V['rsa'][0]['qubitRatio']:.1f}", f"{V['rsa'][0]['timeRatio']:.1f}"
+    v["est.v_surface"] = f"{next(r for r in V['rsa'] if r['label'].startswith('surface'))['qubitRatio']:.1f}"
+    v["est.eps25"] = f"{V['epsAt25']:.0e}".replace("e-", " × 10⁻").replace("⁻0", "⁻")
+    D = load("data/estimate/distill.json")
+    v["est.distill_ratio"] = f"{next(q for q in D['points'] if q['p'] == 0.001)['output_over_35p3']:.3f}"
     return v, t
 
 

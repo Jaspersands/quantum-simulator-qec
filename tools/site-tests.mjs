@@ -12,7 +12,7 @@ import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { surgeryLayout, cnotLayout } from '../js/surgery-geometry.js';
-import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom } from '../js/estimator.js';
+import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom, epsilonUniform, BLOCKS, tileQubits, factoryFor, latencyAt, estimateFull } from '../js/estimator.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -351,6 +351,83 @@ test('the gauging data Figure 16 draws agree with the torus: each edge is a Z ch
       if (construction === 'expanded') assert.ok(op.worst_cut[0] >= op.worst_cut[1], `${label}: Cheeger constant at least 1`);
     }
   }
+});
+
+const SOURCES = JSON.parse(readFileSync(new URL('../data/estimate/sources.json', import.meta.url), 'utf8'));
+
+test('estimator: the uniform-noise law fits this engine\'s own points, and holds its form', () => {
+  const doc = JSON.parse(readFileSync(new URL('../data/estimate/noise.json', import.meta.url), 'utf8'));
+  const { A, pth } = doc.fit;
+  for (const q of Object.values(doc.points).filter((x) => x.failures >= 20)) {
+    const ratio = epsilonUniform(q.d, q.p, { A, pth }) / q.eps;
+    assert.ok(ratio > 1 / 3 && ratio < 3, `d = ${q.d}, p = ${q.p}: fit ${ratio.toFixed(2)} times the measured ε`);
+  }
+  assert.ok(Math.abs(doc.fit.free_slope - 1) < 0.1, 'with the slope in log p free, it comes out near 1');
+  assert.ok(epsilonUniform(25, 1e-3, { A, pth }) < epsilonUniform(23, 1e-3, { A, pth }), 'below threshold, ε falls with d');
+});
+
+test('estimator: Litinski\'s data blocks reproduce his worked examples', () => {
+  // A Game of Surface Codes, Sec. 2 and 4: 100 qubits in 153, 204 and 231 tiles; 226 tiles at d = 13 are 76,400 qubits.
+  assert.equal(BLOCKS.compact.tiles(100), 153);
+  assert.equal(BLOCKS.intermediate.tiles(100), 204);
+  // His formula gives 229.3 for the fast block; his drawn layout (Fig. 23a) has 231.
+  assert.ok(Math.abs(BLOCKS.fast.tiles(100) - 231) <= 2);
+  assert.ok(Math.abs((204 + 22) * tileQubits(13) - 76400) / 76400 < 0.001);
+  assert.deepEqual([BLOCKS.compact.steps, BLOCKS.intermediate.steps, BLOCKS.fast.steps], [9, 5, 1]);
+});
+
+test('estimator: factories, cultivation and distillation, as the sources give them', () => {
+  const c = factoryFor('cultivation', 1e-3, 25, 1e-10, SOURCES);
+  assert.equal(c.qubits, 12 * 2 * 26 ** 2);
+  assert.equal(c.cyclesPerState, 150);
+  assert.ok(Math.abs(c.errorPerToffoli - 2.8e-13) < 1e-20);
+  assert.equal(factoryFor('cultivation', 2e-3, 25, 1e-10, SOURCES), null, 'cultivation is tabulated at p <= 0.1% only');
+  // Distillation at p = 0.1%: the cheapest row per Toffoli that meets the target.
+  const dist = factoryFor('distillation', 1e-3, 25, 1e-10, SOURCES);
+  const rows = SOURCES.litinski_factories.filter((r) => r.p_phys === 1e-3);
+  const cost = (r) => r.qubitcycles * (r.ccz ? 1 : 4);
+  const best = rows.filter((r) => (r.ccz ? 1 : 4) * r.p_out <= 1e-10).sort((a, b) => cost(a) - cost(b))[0];
+  assert.equal(dist.name, best.name);
+  assert.ok(Math.abs(dist.cyclesPerState - best.qubitcycles / best.qubits) < 1e-9);
+  assert.equal(factoryFor('distillation', 2e-3, 25, 1e-10, SOURCES), null, 'no table above p = 0.1%');
+  // At p = 0.05% the 0.1% rows are used (the tabulated noise at least p).
+  assert.equal(factoryFor('distillation', 5e-4, 25, 1e-10, SOURCES).name, dist.name);
+});
+
+test('estimator: decoder latency is the measured p99, extrapolated as a power law', () => {
+  const measured = { 3: 10, 5: 47, 7: 139 };
+  assert.equal(latencyAt(5, measured), 47e-6);
+  assert.equal(latencyAt(7, measured), 139e-6);
+  const slope = Math.log(139 / 47) / Math.log(7 / 5);
+  assert.ok(Math.abs(latencyAt(25, measured) - 139e-6 * (25 / 7) ** slope) < 1e-12);
+  assert.ok(Math.abs(latencyAt(25, measured, 10) - 10e-6) < 1e-15, 'an override in microseconds');
+});
+
+test('estimator: the full model meets its budget at the smallest distance, and moves the right way', () => {
+  const fit = { A: 0.03, pth: 0.0054 };
+  const base = { noise: { kind: 'uniform', p: 1e-3, fit }, budget: 0.01, block: 'fast', factory: 'cultivation', storage: 'surface',
+    cycleSeconds: 1e-6, controlSeconds: 10e-6, latencyOverrideUs: 0, parallel: 1 };
+  const alg = { qubits: 1000, toffolis: 1e9 };
+  const r = estimateFull(alg, base, SOURCES);
+  assert.ok(r.failure.total <= 0.01);
+  const smaller = estimateFull(alg, { ...base, budget: 1e9 }, SOURCES);
+  assert.ok(smaller.d <= r.d);
+  // Run time is Toffolis times the larger of the Clifford step and the reaction.
+  const clifford = BLOCKS.fast.steps * r.d * 1e-6;
+  assert.ok(Math.abs(r.seconds - 1e9 * Math.max(clifford, 10e-6)) / r.seconds < 1e-9);
+  assert.equal(r.bound, clifford >= 10e-6 ? 'clifford' : 'reaction');
+  // Qubits add up, and factories keep up with consumption.
+  assert.equal(r.qubits.total, r.qubits.block + r.qubits.factories + r.qubits.storage);
+  assert.ok(r.factories * (1 / (r.factory.cyclesPerState * 1e-6)) >= 1 / (r.seconds / 1e9) - 1e-9);
+  // Yoked storage puts the cold qubits at 430 each and shrinks the block. (Its error per round is fixed at
+  // Gidney's 1e-15, so a long enough run cannot meet the budget: 900 cold qubits for 4e10 cycles spend 3.6%.)
+  assert.ok(estimateFull({ qubits: 1000, hot: 100, toffolis: 1e9 }, { ...base, storage: 'yoked' }, SOURCES).error);
+  const yoked = estimateFull({ qubits: 1000, hot: 100, toffolis: 1e8 }, { ...base, storage: 'yoked' }, SOURCES);
+  assert.equal(yoked.qubits.storage, 900 * 430);
+  assert.ok(yoked.qubits.block < r.qubits.block);
+  // Parallel Toffolis divide the run time.
+  const par = estimateFull(alg, { ...base, parallel: 4 }, SOURCES);
+  assert.ok(Math.abs(par.seconds * 4 - estimateFull(alg, { ...base, parallel: 1, budget: 0.01 }, SOURCES).seconds) / r.seconds < 0.5);
 });
 
 test('estimator: the model reproduces what it is given, and moves the right way', () => {

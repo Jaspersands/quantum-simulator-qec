@@ -1196,23 +1196,110 @@ and after. That is the sum-of-parts law a resource estimate assumes, measured. *
 merged at once**, measuring Z₁Z₂ and Z₂Z₃ together, fail 18.04%, 9.36% and 4.61% at d = 3, 5, 7
 and p = 0.3%.
 
-## What it would take: a resource estimate from the measured Λ
+## What it would take: a resource estimate
 
-Every section above measures one ingredient of a quantum computer's cost. `js/estimator.js` (section
-15 of the site, and `node tools/estimate.mjs`) puts them together:
-- **Λ and ε at d = 7**, fitted from Google's Willow counts: our correlated matching, Google's Libra, or
-  our belief-matching.
-- **Every operation takes d merged rounds** of lattice surgery, the point from which the merge
-  outcome's failure rate stops falling. Every patch is exposed for those rounds, so one operation
-  fails with probability about N · d · ε_d. The logical CNOT measured above fails 0.75 to 0.93
-  times as often as its patches held idle for as long, so this errs on the safe side.
-- **The distance** is the smallest odd d that keeps the whole run within its failure budget (1% here).
-- **Qubits** are N · (2d² − 1) times a routing overhead of 2.
-- **Time** is d rounds of Willow's 1.1 µs cycle per operation.
-- **Decoding cores** are those that keep real-time decoding up at d = 3, 5, 7 (parallel windows,
-  correlated), extrapolated beyond d = 7.
+Every section above measures one ingredient of a quantum computer's cost. `js/estimator.js`
+(section 15 of the site, and `node tools/estimate.mjs`) puts them together with what the papers
+that price real algorithms report. Every number read from a paper is in
+`data/estimate/sources.json` with its page or table.
 
-The sizes are illustrations of scale, not particular algorithms:
+**The model:**
+- **Algorithms.**
+  - RSA-2048: 1,409 logical qubits (1,280 of them idle input), 6.5 × 10⁹ Toffolis, from Gidney
+    (arXiv:2505.15917, Tables 4 and 5).
+  - FeMoco by tensor hypercontraction, from Lee et al. (arXiv:2011.03494, Table III): 2,142
+    qubits and 5.3 × 10⁹ Toffolis (Reiher), and 2,196 and 3.2 × 10¹⁰ (Li).
+  - Three illustrative sizes.
+- **Logical error per patch per cycle.** Measured here under uniform SD6 noise, or as measured on
+  Willow (section 11). The uniform law is fitted to this engine's own simulations of the rotated
+  code (`tools/estimate_noise.py`: d = 3 to 11, p = 0.1% to 0.5%, correlated matching; ε per
+  round, * where fewer than 20 failures):
+
+| p | d = 3 | d = 5 | d = 7 | d = 9 | d = 11 |
+|---|---|---|---|---|---|
+| 0.1% | 9.5e-04 | 9.8e-05 | 8.5e-06 | 8.3e-07 | 7.4e-08 |
+| 0.2% | 3.6e-03 | 6.8e-04 | 1.5e-04 | 3.5e-05 | 6.4e-06 |
+| 0.3% | 6.7e-03 | 2.5e-03 | 7.8e-04 | 2.9e-04 | 1.2e-04 |
+| 0.5% | 1.7e-02 | 1.0e-02 | 6.1e-03 | 4.1e-03 | 2.8e-03 |
+
+- **Magic states.** Either Gidney's cultivation factory, or the cheapest of Litinski's
+  distillation protocols. Cultivation makes T states to 10⁻⁷ and CCZs from them at 28 p_T², in a
+  3 × 4-patch factory making a CCZ every 150 rounds at d = 25. Its figures are Gidney's at
+  p = 0.1%, used for any lower p. Scaling the 150 rounds with d is this model's assumption.
+  Litinski's protocols come from Quantum 3, 205, Table 1: the cheapest (Quantum 3, 205, Table 1) that
+  meets the error each Toffoli may spend. Half the budget goes to magic states, and there are as
+  many factories as keep up.
+- **The floor plan.** One of Litinski's data blocks (Quantum 3, 128, Sec. 2): compact (1.5n + 3
+  tiles, 9 steps per magic state), intermediate (2n + 4, 5) or fast (2n + √(8n) + 1, 1). A tile
+  is 2d² physical qubits, and every tile is priced as an idle patch for the whole run. That errs
+  on the safe side: the logical CNOT measured above fails less often than its patches held idle.
+- **Reaction.** Each Toffoli waits for the longer of its lattice-surgery steps and its reaction.
+  The reaction is this project's decoder latency (section 12's p99 for one window, extrapolated
+  as a power law) plus a control delay (10 µs by default).
+- **Storage** for idle qubits: surface-code patches, Gidney's yoked surface codes (430 qubits
+  each at 10⁻¹⁵ per round), or gross-code modules (12 logical qubits on 288, plus Cross et al.'s
+  103 ancillas, at the error per cycle section 13 measured). Storage is priced idle. Reaching a
+  stored qubit is not priced: for the gross code that is a logical measurement, which section 13
+  measured at 4 to 9 times a memory's failures.
+- **Our own check of the distillation law** (`tools/distill.py`). The 15-to-1 protocol, twirled
+  T-state errors against the [[15, 1, 3]] code's X checks, sampled by this engine (50 million
+  shots per p) agrees with an exact sum over all 2¹⁵ error patterns. At p = 0.1% the output
+  error is 1.003 × 35p³, and the acceptance is 1 − 15p to first order.
+
+**Checked against the sources.** The first case is entirely Gidney's: his ε (10⁻¹⁵ per round at
+d = 25), his schedule (3.7 Toffolis per 25 µs lattice-surgery step), yoked storage, and a 6.7%
+failure budget per shot. Each case after it switches one option to this project's.
+
+| case | d | physical qubits (× source) | time (× source) |
+|---|---|---|---|
+| RSA-2048: Gidney's assumptions, ε and schedule | 27 | 1.4 million (1.57×) | 13 h (1.08×) |
+| RSA-2048: this engine's measured ε instead | — | yoked storage at 1e-15 per round would fail 6.9% on its own even over the shortest run it could need (15 h), past the 6.7% budget | |
+| RSA-2048: one Toffoli per step instead | — | yoked storage at 1e-15 per round would fail 8.3% on its own even over the shortest run it could need (18 h), past the 6.7% budget | |
+| RSA-2048: surface-code storage instead of yoked | 27 | 4.7 million (5.23×) | 13 h (1.08×) |
+| RSA-2048: this project's decoder latency instead | — | yoked storage at 1e-15 per round would fail 13% on its own even over the shortest run it could need (27 h), past the 6.7% budget | |
+| FeMoco (Reiher): Lee et al.'s noise, distillation | 35 | 11 million (2.73×) | 8.6 days (2.86×) |
+| FeMoco (Reiher): cultivation instead | 35 | 11 million (2.75×) | 2.1 days (0.72×) |
+
+- **The model reproduces Gidney's estimate.** On his assumptions, it lands within 1.6 times his
+  897,864 qubits and 1.1 times his 12.07 hours per shot.
+- **Storage is the biggest single choice.** Surface-code storage instead of yoked costs over 5
+  times the qubits.
+- **Everything that lengthens the run breaks his storage.** This engine's ε at p = 0.1%
+  (extrapolated to d = 25, about 60 times his 10⁻¹⁵) forces a larger d, and larger steps. So does
+  one Toffoli per step, and so does this project's decoder. Yoked storage, fixed at 10⁻¹⁵ per
+  round, then exceeds the budget on its own.
+- **FeMoco lands within 3 times Lee et al.'s** four million qubits and three days. The fast
+  block's 2n tiles and this engine's ε put it above them.
+
+**Real algorithms**, with the page's defaults (uniform 0.1% by this engine's fit, cultivation, the
+fast block, surface storage, a 10 µs control delay), and with this project's decoder or with
+decoding inside the control delay:
+
+| algorithm | decoder | d | physical qubits (block + factories + storage) | per Toffoli | run time | bound |
+|---|---|---|---|---|---|---|
+| RSA-2048 (Gidney 2025) | measured decoder | 41 | 9.9 million (9.8 million + 42,336 + 0) | 42.5 ms | 8.8 years | reaction |
+| RSA-2048 (Gidney 2025) | decoder within the control delay | 33 | 6.5 million (6.4 million + 166,464 + 0) | 33.0 µs | 2.5 days | steps |
+| FeMoco, Reiher Hamiltonian (Lee et al. 2021) | measured decoder | 41 | 15 million (15 million + 42,336 + 0) | 42.5 ms | 7.1 years | reaction |
+| FeMoco, Reiher Hamiltonian (Lee et al. 2021) | decoder within the control delay | 35 | 11 million (11 million + 186,624 + 0) | 35.0 µs | 2.1 days | steps |
+| FeMoco, Li Hamiltonian (Lee et al. 2021) | measured decoder | — | cultivation's CCZ error, 2.8 × 10⁻¹³, is more than the 1.6 × 10⁻¹³ per Toffoli this budget allows | | | |
+| FeMoco, Li Hamiltonian (Lee et al. 2021) | decoder within the control delay | — | cultivation's CCZ error, 2.8 × 10⁻¹³, is more than the 1.6 × 10⁻¹³ per Toffoli this budget allows | | | |
+| Illustration: 100 qubits, 10⁶ Toffolis | measured decoder | 29 | 408,460 (386,860 + 21,600 + 0) | 13.9 ms | 3.8 h | reaction |
+| Illustration: 100 qubits, 10⁶ Toffolis | decoder within the control delay | 23 | 326,284 (243,340 + 82,944 + 0) | 23.0 µs | 23 s | steps |
+| Illustration: 1,000 qubits, 10⁹ Toffolis | measured decoder | 39 | 6.4 million (6.4 million + 38,400 + 0) | 36.1 ms | 1.1 years | reaction |
+| Illustration: 1,000 qubits, 10⁹ Toffolis | decoder within the control delay | 31 | 4.2 million (4.0 million + 147,456 + 0) | 31.0 µs | 8.6 h | steps |
+| Illustration: 10,000 qubits, 10¹² Toffolis | measured decoder | — | cultivation's CCZ error, 2.8 × 10⁻¹³, is more than the 5.0 × 10⁻¹⁵ per Toffoli this budget allows | | | |
+| Illustration: 10,000 qubits, 10¹² Toffolis | decoder within the control delay | — | cultivation's CCZ error, 2.8 × 10⁻¹³, is more than the 5.0 × 10⁻¹⁵ per Toffoli this budget allows | | | |
+
+- **Decoding is the other lever.** This project's decoder, extrapolated to the distances these
+  algorithms need, takes tens of milliseconds per window. That makes every Toffoli wait for it,
+  and RSA-2048 would take years. A decoder that finishes inside the control delay brings it to
+  days. The extrapolation is long (measured at d ≤ 7), but so is the gap.
+- **Cultivation has a floor.** Its 2.8 × 10⁻¹³ per CCZ is more than a 3.2 × 10¹⁰-Toffoli run can
+  afford at a 1% budget, so the Li FeMoco and the largest illustration need distillation.
+
+**Λ is the lever**, in the simple model of before: N patches of 2d² − 1 with a routing overhead of
+2, every operation d merged rounds of Willow's 1.1 µs cycle, and ε falling by the Λ measured on
+Willow. The sizes are illustrations of scale:
 
 | algorithm | Λ (from) | d | physical qubits | run time | decoding cores |
 |---|---|---|---|---|---|
@@ -1226,12 +1313,10 @@ The sizes are illustrations of scale, not particular algorithms:
 | 10,000 qubits × 10¹² operations | 2.04 (Google's Libra) | 119 | 566 million | 4.1 years | 27 million |
 | 10,000 qubits × 10¹² operations | 1.81 (ours, belief-matching) | 143 | 818 million | 5.0 years | 40 million |
 
-- **Λ ≈ 2 is not enough for anything large.** Even the small size needs d ≈ 70, because every factor
-  of 10 in ε costs about 7 more steps of distance at Λ = 2.
-- **Λ is the lever.** At Λ = 4 the medium size would need d = 51 and 10 million physical qubits. Doubling Λ cuts the qubits fourfold. The decoders measured here, Λ from 1.81 to 2.04,
-  move the medium size between 35 and 49 million.
-- **Decoding scales with it.** Real-time decoding at these distances needs cores in the millions: an
-  extrapolation, but not a small one.
+- **Λ ≈ 2 is not enough for anything large.** Even the small size needs d ≈ 70, because every
+  factor of 10 in ε costs about 7 more steps of distance at Λ = 2.
+- **Doubling Λ cuts the qubits about fourfold.** At Λ = 4 the medium size would need d = 51 and
+  10 million physical qubits.
 
 ## Technical report
 
