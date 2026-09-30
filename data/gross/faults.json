@@ -1,0 +1,167 @@
+{
+ "circuits": {
+  "memory/x": {
+   "found": [
+    {
+     "observable": 0,
+     "value": 15,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 1,
+     "value": 16,
+     "lower": 3,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 2,
+     "value": 12,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    }
+   ],
+   "upper": 12
+  },
+  "f/minimal/x": {
+   "found": [
+    {
+     "observable": 1,
+     "value": 19,
+     "lower": 3,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 2,
+     "value": 13,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 3,
+     "value": 13,
+     "lower": 3,
+     "exact": false,
+     "seconds": 120.1
+    }
+   ],
+   "upper": 13
+  },
+  "f/expanded/x": {
+   "found": [
+    {
+     "observable": 1,
+     "value": 20,
+     "lower": 3,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 2,
+     "value": 12,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 3,
+     "value": 12,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    }
+   ],
+   "upper": 12
+  },
+  "memory/z": {
+   "found": [
+    {
+     "observable": 0,
+     "value": 12,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 1,
+     "value": 15,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 2,
+     "value": 12,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    }
+   ],
+   "upper": 12
+  },
+  "f/minimal/z": {
+   "found": [
+    {
+     "observable": 0,
+     "value": 11,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 1,
+     "value": 10,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 2,
+     "value": 10,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    }
+   ],
+   "upper": 10
+  },
+  "f/expanded/z": {
+   "found": [
+    {
+     "observable": 0,
+     "value": 13,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 1,
+     "value": 11,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    },
+    {
+     "observable": 2,
+     "value": 12,
+     "lower": 2,
+     "exact": false,
+     "seconds": 120.1
+    }
+   ],
+   "upper": 11
+  }
+ },
+ "engine_commit": "5a7c17e",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "generated": "2026-09-30",
+ "note": "The fewest faults of each circuit's error model found to flip an observable and fire no detector, by integer programming (HiGHS) within a time cap per observable: an upper bound on the circuit's fault distance, exact where the solver proved it. X basis: X logicals 1-3 (not the outcome, whose distance is time-like); Z basis: Z logicals 0-2. One memory cycle before and after, two merged cycles."
+}

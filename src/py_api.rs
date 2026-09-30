@@ -609,6 +609,100 @@ fn bb_memory_circuit(code: &str, cycles: usize, p: f64) -> PyResult<String> {
     Ok(bb_code(code)?.memory_z(cycles, p))
 }
 
+/// Every automorphism of a bivariate bicycle code, a shift x^a y^b of both
+/// halves with or without the ZX-duality, and its action on the logical
+/// qubits: (a, b, dual, the 24 × 24 matrix's rows as column lists; row i
+/// is the image of basis element i, X logicals then Z logicals, in the
+/// basis `bb_matrices` gives).
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn bb_automorphisms(code: &str) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usize>>)>> {
+    use crate::bb_auto::Automorphism;
+    let c = bb_code(code)?;
+    let mut out = Vec::new();
+    for a in 0..c.l {
+        for b in 0..c.m {
+            for dual in [false, true] {
+                let m = c.logical_action(Automorphism { shift: (a, b), dual }).map_err(err)?;
+                out.push((a, b, dual, (0..m.rows).map(|r| m.row_ones(r)).collect()));
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn gauged(operator: &str, expanded: bool) -> PyResult<(crate::bb::BbCode, crate::bb_gauge::Gauging)> {
+    let code = crate::bb::BbCode::gross();
+    let support = crate::bb::gross_operator(operator).map_err(err)?;
+    let g = if expanded { crate::bb_gauge::Gauging::expanded(&code, &support) } else { crate::bb_gauge::Gauging::new(&code, &support) };
+    Ok((code, g.map_err(err)?))
+}
+
+/// The gauging ancilla system that measures a gross-code logical X
+/// ("f" = X(f, 0), "gh" = X(g, h), "f+gh" their product): Cross et al.'s
+/// minimal system, or with `expanded` edges added until its Cheeger constant
+/// is at least 1. Returns (support, edges (the Z checks touching it), the
+/// added edges as vertex pairs, each edge's ends (indices into support), each
+/// vertex's edges, the flux checks (edge indices), the deformed H_X' and H_Z'
+/// as rows over data then edge qubits, the merged cycle's ticks, the worst
+/// cut (|δU|, |U|)).
+#[pyfunction]
+#[pyo3(signature = (operator, expanded=false))]
+#[allow(clippy::type_complexity)]
+fn bb_gauging(
+    operator: &str,
+    expanded: bool,
+) -> PyResult<(
+    Vec<usize>,
+    Vec<usize>,
+    Vec<(usize, usize)>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    usize,
+    (usize, usize),
+)> {
+    let (code, g) = gauged(operator, expanded)?;
+    let (hx, hz) = g.deformed(&code);
+    let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect::<Vec<_>>();
+    let ticks = crate::bb_circuit::merged_cycle(&code, &g).ticks.len();
+    let (b, u) = g.cheeger();
+    Ok((
+        g.support.clone(),
+        g.edges.clone(),
+        g.extra.clone(),
+        g.incidence.clone(),
+        g.gauss.clone(),
+        g.flux.clone(),
+        rows(&hx),
+        rows(&hz),
+        ticks,
+        (b, u.len()),
+    ))
+}
+
+/// A memory of a bivariate bicycle code in either basis, by the cycle
+/// writer (in "z" it is `bb_memory_circuit`'s model), as Stim text.
+#[pyfunction]
+fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
+    Ok(crate::bb_circuit::memory(&bb_code(code)?, basis_of(basis)?, cycles, p).to_stim())
+}
+
+/// The gauging measurement of a gross-code logical X (see `bb_gauging`) as
+/// Stim text: `pre` memory cycles, `merged` cycles of the deformed code,
+/// `post` memory cycles, the data read in `basis`. "x": L0 the outcome,
+/// L1-L12 the X logicals; "z": the 11 Z logicals that commute with it.
+/// `expanded` uses the expanded ancilla system (see `bb_gauging`).
+#[pyfunction]
+#[pyo3(signature = (operator, basis, pre, merged, post, p, expanded=false))]
+fn bb_logical_measurement_circuit(operator: &str, basis: &str, pre: usize, merged: usize, post: usize, p: f64, expanded: bool) -> PyResult<String> {
+    let (code, g) = gauged(operator, expanded)?;
+    let c = crate::bb_circuit::logical_measurement(&code, &g, basis_of(basis)?, pre, merged, post, p).map_err(err)?;
+    Ok(c.to_stim())
+}
+
 fn osd_method(name: &str, order: usize) -> PyResult<crate::osd::OsdMethod> {
     use crate::osd::OsdMethod;
     match name {
@@ -796,6 +890,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bb_memory_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bposd_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_bposd, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_automorphisms, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_gauging, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_memory_basis_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_logical_measurement_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_cnot, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_repeated, m)?)?;

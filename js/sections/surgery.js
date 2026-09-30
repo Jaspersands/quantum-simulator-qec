@@ -2,12 +2,12 @@
  * Section 14 — lattice surgery: two patches merged to measure Z⊗Z, and a
  * logical CNOT built from two such measurements.
  *
- * Figure 16 draws the Z⊗Z experiment phase by phase at d = 5. Figure 17
+ * Figure 18 draws the Z⊗Z experiment phase by phase at d = 5. Figure 19
  * reads what tools/surgery.py measured natively: how often the merge outcome
  * is wrong against the number of merged rounds T (data/surgery/results.json).
- * Figure 18 draws the CNOT's program step by step, and Figure 19 reads its
+ * Figure 20 draws the CNOT's program step by step, and Figure 21 reads its
  * measured failure, beside three patches held idle as long, and the law of
- * merges done in a row (data/surgery/programs.json). Figure 20 samples and
+ * merges done in a row (data/surgery/programs.json). Figure 22 samples and
  * matches the Z⊗Z experiment and the CNOT here.
  */
 

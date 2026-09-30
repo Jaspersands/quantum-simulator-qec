@@ -1,0 +1,33 @@
+{
+ "engine_commit": "dfb0da0",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "generated": "2026-09-30",
+ "note": "Automorphisms of the gross code: shifts x^a y^b of both halves, with and without the ZX-duality, recomputed with numpy and ldpc's GF(2) rank and compared with the engine's bit for bit",
+ "maps": 144,
+ "all_equal_engine": true,
+ "order": 72,
+ "closed": true,
+ "trivial_shifts": [
+  [
+   0,
+   0
+  ],
+  [
+   6,
+   0
+  ]
+ ],
+ "families": {
+  "f": {
+   "span": 6,
+   "classes": 36
+  },
+  "gh": {
+   "span": 6,
+   "classes": 36
+  }
+ }
+}

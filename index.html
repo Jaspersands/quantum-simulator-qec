@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-09-30">
+<link rel="stylesheet" href="css/styles.css?v=2026-09-30c">
 </head>
 <body>
 
@@ -1634,6 +1634,102 @@
     </div>
   </figure>
 
+  <div class="prose">
+    <p>
+      A memory is half of a computer. The gross code computes two ways. <strong>Automorphisms</strong>: every shift
+      <span class="mono">x^a y^b</span> of both halves of the data maps the code to itself, and so does Bravyi et al.'s
+      ZX-duality, so each is a logical Clifford gate that adds no checks. The engine computes each one's action on the
+      12 logical qubits exactly, over GF(2). <strong>Logical measurements</strong>: to measure a weight-12 logical
+      <span class="mono">X̄</span>, Cross, He, Rall and Yoder attach an ancilla system (the gauging construction of
+      Williamson and Yoder). Every Z check touching the operator becomes an edge between the operator's qubits, with an
+      ancilla qubit of its own; a Gauss-law check per qubit multiplies to <span class="mono">X̄</span>. Their paper gives
+      the construction but no edge lists, so the engine builds it and checks it: the deformed code's distance is
+      computed exactly, the circuit's error model equals Stim's, and BP+OSD agrees with <span class="mono">ldpc</span>.
+    </p>
+  </div>
+
+  <figure class="figure" data-gl-gauging>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 16</span>
+      <span class="figure__title">measuring a logical operator</span>
+      <span class="figure__meta">the gauging ancilla system, on the torus</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="segmented" role="radiogroup" aria-label="Operator" data-gl-ops></div>
+      <div class="segmented gl-cons" role="radiogroup" aria-label="Construction" data-gl-cons></div>
+      <canvas data-gl-canvas></canvas>
+      <div class="legend">
+        <span class="legend__item"><span class="legend__key legend__key--round legend__key--defect"></span>the operator's qubits</span>
+        <span class="legend__item"><span class="legend__key legend__key--z"></span>a Z check that touches them: an edge</span>
+        <span class="legend__item"><span class="legend__key legend__key--line legend__key--dashed legend__key--defect-line"></span>an added edge</span>
+      </div>
+      <p class="note" data-gl-note></p>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Each operator's ancilla system, minimal and expanded, and the distance of the code while it is measured</caption>
+          <thead>
+            <tr>
+              <th scope="col">Operator</th>
+              <th scope="col" class="num">Ancillas: edges + Gauss + flux</th>
+              <th scope="col" class="num">Heaviest flux</th>
+              <th scope="col" class="num">Ticks per cycle</th>
+              <th scope="col" class="num">Worst cut</th>
+              <th scope="col" class="num">Distance, X</th>
+              <th scope="col" class="num">Distance, Z</th>
+            </tr>
+          </thead>
+          <tbody data-gl-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-gl-status>Loads when you scroll here.</p>
+      <p class="note" data-gl-foot></p>
+    </div>
+  </figure>
+
+  <div class="prose">
+    <p>
+      The check finds a gap. Built on <span class="mono">X(f, 0)</span>, the minimal system leaves the code with
+      distance <strong>8</strong> while merged, not 12: its edges form two clusters of six joined by two edges, and
+      the Gauss-law checks on one cluster let a logical trade six data qubits for two edge qubits. For the product
+      <span class="mono">X(f, 0) X(g, h)</span>, which a CNOT needs, the distance falls to <strong>4</strong>. Adding
+      edges across the worst cut until every set of vertices has at least as many edges leaving it as it has vertices,
+      Williamson and Yoder's condition, gives distance 12 for all three operators, proven exactly. It costs 4 edges for
+      <span class="mono">X(f, 0)</span> and 14 for the product. This is for these operators: Cross et al.'s eight are
+      written in a notation that need not give <span class="mono">X(f, 0)</span>, and their shared system reports
+      distance 12.
+    </p>
+  </div>
+
+  <figure class="figure" data-gl-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 17</span>
+      <span class="figure__title">the logical measurement, measured</span>
+      <span class="figure__meta">† measured natively</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-gl-plot data-aspect="0.5"></canvas>
+      <div class="legend" data-gl-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">How often a gross-code logical measurement goes wrong, beside the memory of the same length</caption>
+          <thead>
+            <tr>
+              <th scope="col">Measurement, p = 0.3%</th>
+              <th scope="col" class="num">Shots</th>
+              <th scope="col" class="num">Anything wrong</th>
+              <th scope="col" class="num">The outcome wrong</th>
+              <th scope="col" class="num">Memory as long</th>
+              <th scope="col" class="num">÷ memory</th>
+            </tr>
+          </thead>
+          <tbody data-gl-rows2></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-gl-fit-status>Loads when you scroll here.</p>
+      <p class="note" data-gl-fit-foot></p>
+    </div>
+  </figure>
+
 </section>
 
 <section class="section" id="surgery">
@@ -1659,7 +1755,7 @@
 
   <figure class="figure" data-ls-diagram>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 16</span>
+      <span class="figure__num">Figure 18</span>
       <span class="figure__title">measuring Z₁Z₂ by merging</span>
       <span class="figure__meta">two d = 5 patches and their seam</span>
     </figcaption>
@@ -1678,7 +1774,7 @@
 
   <figure class="figure" data-ls-fit>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 17</span>
+      <span class="figure__num">Figure 19</span>
       <span class="figure__title">what the merged rounds buy</span>
       <span class="figure__meta">† measured natively</span>
     </figcaption>
@@ -1720,7 +1816,7 @@
 
   <figure class="figure" data-cnot-diagram>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 18</span>
+      <span class="figure__num">Figure 20</span>
       <span class="figure__title">a logical CNOT, step by step</span>
       <span class="figure__meta">control C, ancilla A, target T, d = 3</span>
     </figcaption>
@@ -1738,7 +1834,7 @@
 
   <figure class="figure" data-cnot-fit>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 19</span>
+      <span class="figure__num">Figure 21</span>
       <span class="figure__title">the CNOT, measured</span>
       <span class="figure__meta">† measured natively</span>
     </figcaption>
@@ -1784,7 +1880,7 @@
 
   <figure class="figure" data-ls-live>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 20</span>
+      <span class="figure__num">Figure 22</span>
       <span class="figure__title">lattice surgery, here</span>
       <span class="figure__meta">SD6, p = 0.3%, correlated matching</span>
     </figcaption>
@@ -1807,7 +1903,7 @@
       <p class="note">Each row on its own worker: batches of 64 shots of the whole program, sampled by the
         bit-parallel sampler and matched with correlated matching. Two merged rounds leave the outcome exposed to a
         pair of measurement errors on one seam check; d rounds make that as unlikely as any other failure. The CNOT
-        rows run the program of Figure 18, both input pairs, and count a shot with either observable wrong.</p>
+        rows run the program of Figure 20, both input pairs, and count a shot with either observable wrong.</p>
     </div>
   </figure>
 
@@ -1846,7 +1942,7 @@
 
   <figure class="figure" data-est>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 21</span>
+      <span class="figure__num">Figure 23</span>
       <span class="figure__title">qubits and hours, from the measured Λ</span>
       <span class="figure__meta">surface code, lattice surgery</span>
     </figcaption>
@@ -1916,7 +2012,7 @@
       </div>
       <p class="status" role="status" data-est-status>Loads when you scroll here.</p>
       <p class="note">Λ and ε at d = 7 are fitted here from the same Willow counts as Figure 9 (belief-matching from its
-        10,000-shot run). Each logical operation takes d merged rounds, the point from which Figure 17's merge
+        10,000-shot run). Each logical operation takes d merged rounds, the point from which Figure 19's merge
         failures stop falling, and fails with probability about N · d · ε_d. The cores come from Figure 11's
         parallel windows with correlated matching, extrapolated beyond d = 7 through d = 5 and 7. The presets are
         illustrations of scale, not particular algorithms.</p>
@@ -1925,7 +2021,7 @@
 
   <figure class="figure" data-est-grid>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 22</span>
+      <span class="figure__num">Figure 24</span>
       <span class="figure__title">three sizes, three measured Λ</span>
       <span class="figure__meta">1% failure budget, routing overhead 2, cycles of 1.1 microseconds</span>
     </figcaption>
@@ -1958,6 +2054,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-09-30"></script>
+<script type="module" src="js/main.js?v=2026-09-30c"></script>
 </body>
 </html>

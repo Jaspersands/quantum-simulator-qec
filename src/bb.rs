@@ -31,8 +31,8 @@ pub struct BbCode {
 /// The per-round order in which each check qubit meets its six neighbours
 /// (0-2: A₁-A₃ on the left data; 3-5: B₁-B₃ on the right), from the paper's
 /// published simulation code. `None` is a round the check spends idle.
-const SX: [Option<usize>; 7] = [None, Some(1), Some(4), Some(3), Some(5), Some(0), Some(2)];
-const SZ: [Option<usize>; 7] = [Some(3), Some(5), Some(0), Some(1), Some(2), Some(4), None];
+pub(crate) const SX: [Option<usize>; 7] = [None, Some(1), Some(4), Some(3), Some(5), Some(0), Some(2)];
+pub(crate) const SZ: [Option<usize>; 7] = [Some(3), Some(5), Some(0), Some(1), Some(2), Some(4), None];
 
 impl BbCode {
     /// The gross code, [[144, 12, 12]]: A = x³ + y + y², B = y³ + x + x² on a 12 × 6 torus.
@@ -55,9 +55,29 @@ impl BbCode {
     }
 
     /// The column where row `r` of the monomial's permutation matrix is set.
-    fn shift(&self, (i, j): Monomial, r: usize) -> usize {
+    pub(crate) fn shift(&self, (i, j): Monomial, r: usize) -> usize {
         let (u, v) = (r / self.m, r % self.m);
         ((u + i) % self.l) * self.m + (v + j) % self.m
+    }
+
+    /// The cell of g⁻¹: (−u mod ℓ, −v mod m).
+    pub(crate) fn invert(&self, cell: usize) -> usize {
+        let (u, v) = (cell / self.m, cell % self.m);
+        ((self.l - u) % self.l) * self.m + (self.m - v) % self.m
+    }
+
+    /// The support of X(p, q): the monomials of p on the left data, of q on
+    /// the right (a monomial named twice cancels).
+    pub fn poly_x(&self, left: &[Monomial], right: &[Monomial]) -> Vec<usize> {
+        let h = self.half();
+        let mut on = vec![false; 2 * h];
+        for &mono in left {
+            on[self.shift(mono, 0)] ^= true;
+        }
+        for &mono in right {
+            on[h + self.shift(mono, 0)] ^= true;
+        }
+        (0..2 * h).filter(|&q| on[q]).collect()
     }
 
     /// The row where column `c` of the monomial's permutation matrix is set.
@@ -230,6 +250,32 @@ impl BbCode {
             line(format!("OBSERVABLE_INCLUDE({k}) {}", targets.join(" ")));
         }
         out
+    }
+}
+
+/// Bravyi et al.'s weight-12 X logicals of the gross code, X(f, 0) and
+/// X(g, h) (Nature 627, 778, 2024, "logical operators"), and their product
+/// "f+gh", the joint measurement a CNOT between them needs. Supports as data
+/// indices (left 0..72, right 72..144).
+pub fn gross_operator(name: &str) -> Result<Vec<usize>, String> {
+    // f = 1 + x + x² + x³ + x⁶ + x⁷ + x⁸ + x⁹ + (x + x⁵ + x⁷ + x¹¹)y³
+    const F: [Monomial; 12] = [(0, 0), (1, 0), (2, 0), (3, 0), (6, 0), (7, 0), (8, 0), (9, 0), (1, 3), (5, 3), (7, 3), (11, 3)];
+    // g = x + x²y + (1 + x)y² + x²y³ + y⁴
+    const G: [Monomial; 6] = [(1, 0), (2, 1), (0, 2), (1, 2), (2, 3), (0, 4)];
+    // h = 1 + (1 + x)y + y² + (1 + x)y³
+    const H: [Monomial; 6] = [(0, 0), (0, 1), (1, 1), (0, 2), (0, 3), (1, 3)];
+    let code = BbCode::gross();
+    match name {
+        "f" => Ok(code.poly_x(&F, &[])),
+        "gh" => Ok(code.poly_x(&G, &H)),
+        "f+gh" => {
+            let mut on = vec![false; code.num_data()];
+            for q in code.poly_x(&F, &[]).into_iter().chain(code.poly_x(&G, &H)) {
+                on[q] ^= true;
+            }
+            Ok((0..code.num_data()).filter(|&q| on[q]).collect())
+        }
+        other => Err(format!("unknown gross-code operator '{other}' (f, gh or f+gh)")),
     }
 }
 

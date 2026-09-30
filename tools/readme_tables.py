@@ -165,6 +165,47 @@ def surgery_sequences():
     return rows
 
 
+GROSS_OPS = [("f", "X(f, 0)"), ("gh", "X(g, h)"), ("f+gh", "X(f, 0) X(g, h)")]
+
+
+def distance_text(d):
+    """12 when exact, "≥ 11" for a bound the integer program stopped at."""
+    return str(d["value"]) if d["exact"] else f"≥ {d['lower']}"
+
+
+def gross_gauging():
+    doc = load("data/gross/gauging.json")
+    rows = []
+    for key, label in GROSS_OPS:
+        for construction in ("minimal", "expanded"):
+            op = doc["operators"].get(key, {}).get(construction)
+            if not op:
+                continue
+            d = op["distance"]
+            rows.append(f"| {label} | {construction} | {op['ancillas']} ({op['edges']} + {op['gauss']} + {op['flux']}) | "
+                        f"{max(op['flux_weights'])} | {op['ticks']} | {op['worst_cut'][0]} / {op['worst_cut'][1]} | "
+                        f"{distance_text(d['x'])} | {distance_text(d['z'])} |")
+    return rows
+
+
+def gross_logical():
+    P = load("data/gross/logical.json")["points"]
+    pct = lambda x: f"{x * 100:.2f}%"
+    rows = []
+    for key, label in GROSS_OPS:
+        for construction in ("expanded", "minimal"):
+            for basis in ("x", "z"):
+                for T in (2, 4, 7, 12):
+                    q = P.get(f"{key}/{construction}/{basis}/T{T}/p0.003")
+                    if not q:
+                        continue
+                    m = P.get(f"memory/{basis}/R{q['pre'] + T + q['post']}/p0.003")
+                    outcome = pct(q["rate_first"]) if basis == "x" else "—"
+                    memory = pct(m["rate_any"]) if m else "—"
+                    rows.append(f"| {label} | {construction} | {basis.upper()} | {T} | {q['shots']:,} | {pct(q['rate_any'])} | {outcome} | {memory} |")
+    return rows
+
+
 # Each table's header row (as a regex), and the function giving its body.
 TABLES = [
     ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
@@ -176,6 +217,8 @@ TABLES = [
     ("surgery timing", r"\| d \| p \| T = 2 \| T = d \| T = 2d \| T = d, plain \| either patch, T = d \|", surgery_timing),
     ("surgery CNOT", r"\| d \| p \| Z inputs \| X inputs \| Z inputs, plain \| three patches idle as long \| CNOT ÷ idle \|", surgery_cnot),
     ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
+    ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
+    ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
 ]
 
 

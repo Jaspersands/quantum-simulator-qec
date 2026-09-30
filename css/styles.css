@@ -701,8 +701,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    quoted rather than fitted, are italic. */
 .hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
 .hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
-[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-cnot-canvas], [data-cnot-plot], [data-est-plot] { width: 100%; }
-[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend, [data-cnot-canvas] + .legend, [data-cnot-plot] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-cnot-canvas], [data-cnot-plot], [data-gl-canvas], [data-gl-plot], [data-est-plot] { width: 100%; }
+[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend, [data-cnot-canvas] + .legend, [data-cnot-plot] + .legend, [data-gl-canvas] + .legend, [data-gl-plot] + .legend { margin: var(--s3) 0 var(--s5); }
 [data-ls-phases] { margin-bottom: var(--s4); }
 [data-bb-canvas] { touch-action: none; cursor: crosshair; }
 /* The column heads carry ε and d, which the site's uppercase heads would turn
@@ -719,6 +719,9 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--line { width: 15px; height: 0; border: 0; border-top: 2px solid; }
 /* No fill: a colour key's background would show through the dashes' gaps. */
 .legend__key--line.legend__key--dashed { border-top-style: dashed; background: none; }
+.legend__key--defect-line { border-color: var(--defect); }
+/* A second control under the first. */
+.gl-cons { margin-top: var(--s2); }
 
 /* Legend keys mirror how the canvas renderer draws each mark. The glyph
    suffixes match the letters stamped on the qubits themselves, so the legend

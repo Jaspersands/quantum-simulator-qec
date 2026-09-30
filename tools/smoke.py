@@ -190,6 +190,15 @@ def main():
     if cn.num_observables != 2 or cn_errors != 0:
         fail("the lattice-surgery CNOT")
     print(f"ok 10. lattice-surgery CNOT: {cn.num_detectors} detectors, 256 shots decoded")
+
+    # 11. The gross code's logical measurement: Stim reads it; BP+OSD decodes Stim's shots.
+    gl = stim.Circuit(sq.bb_logical_measurement_circuit("f", "x", 1, 2, 1, 0.001))
+    gl_dem = sq.dem_from_circuit(str(gl), False)
+    gl_dets = gl.compile_detector_sampler(seed=11).sample(64)
+    _, gl_conv, _ = sq.decode_b8_bposd(gl_dem, np.packbits(gl_dets, axis=1, bitorder="little").tobytes(), 64, 100)
+    if gl.num_observables != 13 or len(gl_conv) != 64:
+        fail("the gross code's logical measurement")
+    print(f"ok 11. gross-code logical measurement: {gl.num_qubits} qubits, {gl.num_detectors} detectors, 64 shots decoded")
     print("all checks passed")
 
 

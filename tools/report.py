@@ -376,6 +376,48 @@ def build_values(F):
     t["gross_vs_surface"] = table(["p", "gross code, 288 qubits", "twelve d = 11 patches, 2,892 qubits", "ratio"], rows, "rrrr")
     v["g.ratio_range"] = f"{min(ratios):.1f} to {max(ratios):.1f}"
 
+    # Logical operations on the gross code: automorphisms and the gauging measurement.
+    import readme_tables  # noqa: E402  (one definition of these rows)
+    cells = lambda line: [c.strip() for c in line.strip("|").split("|")]
+    AU = load("data/gross/automorphisms.json")
+    GA = load("data/gross/gauging.json")
+    GL = load("data/gross/logical.json")["points"]
+    v["gl.order"] = str(AU["order"])
+    v["gl.span"] = str(AU["families"]["f"]["span"])
+    v["gl.classes"] = str(AU["families"]["f"]["classes"])
+    ops = GA["operators"]
+    fm, fx = ops["f"]["minimal"], ops["f"]["expanded"]
+    v["gl.anc_f"], v["gl.anc_fx"], v["gl.extra_f"] = str(fm["ancillas"]), str(fx["ancillas"]), str(fx["extra"])
+    v["gl.anc_fgh"], v["gl.anc_fghx"] = str(ops["f+gh"]["minimal"]["ancillas"]), str(ops["f+gh"]["expanded"]["ancillas"])
+    v["gl.flux_f"], v["gl.flux_fx"] = ", ".join(map(str, fm["flux_weights"])), str(max(fx["flux_weights"]))
+    v["gl.ticks_f"], v["gl.ticks_fx"] = str(fm["ticks"]), str(fx["ticks"])
+    v["gl.cut_f"] = f"{fm['worst_cut'][1]} vertices with {fm['worst_cut'][0]} edges leaving them"
+    dist = lambda op: f"{readme_tables.distance_text(op['distance']['x'])} in X and {readme_tables.distance_text(op['distance']['z'])} in Z"
+    v["gl.dist_f"], v["gl.dist_fx"] = dist(fm), dist(fx)
+    v["gl.code_d"] = readme_tables.distance_text(GA["code"]["distance"]["z"])
+    t["gross_gauging"] = table(["operator", "system", "ancillas (edges + Gauss + flux)", "heaviest flux", "ticks per cycle",
+                                "worst cut", "distance, X", "distance, Z"],
+                               [cells(r) for r in readme_tables.gross_gauging()], "llrrrrrr")
+    t["gross_logical"] = table(["operator", "system", "basis", "T", "shots", "anything wrong", "outcome wrong", "memory, same length"],
+                               [cells(r) for r in readme_tables.gross_logical()], "lllrrrrr")
+    for T in (2, 7, 12):
+        v[f"gl.outcome_T{T}"] = pct(GL[f"f/expanded/x/T{T}/p0.003"]["rate_first"], 2)
+    for b in ("x", "z"):
+        m = GL[f"memory/{b}/R19/p0.003"]["rate_any"]
+        for c, tag in (("expanded", ""), ("minimal", "m")):
+            v[f"gl.ratio_{b}{tag}"] = f"{GL[f'f/{c}/{b}/T7/p0.003']['rate_any'] / m:.1f}"
+    grow = lambda a, b, n: (GL[b]["rate_any"] - GL[a]["rate_any"]) / n * 100
+    v["gl.grow_merged"] = f"{grow('f/expanded/z/T2/p0.003', 'f/expanded/z/T12/p0.003', 10):.1f}%"
+    v["gl.grow_memory"] = f"{grow('memory/z/R14/p0.003', 'memory/z/R24/p0.003', 10):.3f}%"
+    q = GL["f/expanded/z/T12/p0.003"]
+    v["gl.bp_T12"] = f"{q['failures']['converged'] / q['shots'] * 100:.0f}%"
+    q = GL["memory/z/R24/p0.003"]
+    v["gl.bp_mem"] = f"{q['failures']['converged'] / q['shots'] * 100:.0f}%"
+    FA = load("data/gross/faults.json")["circuits"]
+    # A circuit whose search found nothing within its cap gives no bound.
+    found = lambda memory: [c["upper"] for k, c in FA.items() if k.startswith("memory") == memory and c["upper"] is not None]
+    v["gl.fault_merged"], v["gl.fault_memory"] = str(min(found(False))), str(min(found(True)))
+
     # Lattice surgery.
     S = load("data/surgery/results.json")["points"]
     rows = []
