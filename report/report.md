@@ -462,6 +462,72 @@ With a tenth of the qubits the gross code fails {{g.ratio_range}} times less oft
 measured. SD6 also puts noise on the surface code's Hadamards, which the bivariate bicycle circuit
 does not use, so the comparison slightly favours the gross code.
 
+**Computing on it.** A memory is half of a computer. The gross code computes two ways, and the
+engine builds both exactly.
+
+- **Automorphisms.** Every shift $x^a y^b$ of both halves of the data maps the code to itself, and
+  so does Bravyi et al.'s ZX-duality, so each is a logical Clifford gate that adds no checks. For
+  all 144 maps the engine checks this over GF(2) and computes the action on the 12 logical qubits
+  as a symplectic matrix; an independent numpy computation agrees bit for bit. The actions form a
+  group of order {{gl.order}}: $x^6$ acts as the identity, and the translates of each of Bravyi et
+  al.'s weight-12 logicals $X(f, 0)$ and $X(g, h)$ span a block of {{gl.span}} logical qubits
+  ({{gl.classes}} distinct classes) that every shift keeps.
+- **Logical measurement.** To measure a weight-12 logical $\bar X$, Cross, He, Rall and Yoder
+  attach an ancilla system, the gauging construction of Williamson and Yoder. The Z checks that
+  touch the operator become edges between its qubits, each with an ancilla qubit; a Gauss-law
+  check per qubit multiplies to $\bar X$; flux checks on the cycles fix the gauge. Their paper
+  gives the construction but no edge lists, so the engine builds it from the definition, and
+  checks it.
+
+**The minimal system loses distance.** Built on $X(f, 0)$, the minimal system uses {{gl.anc_f}}
+ancilla qubits, but the code while merged has distance {{gl.dist_f}}, exactly. The graph has a
+worst cut of {{gl.cut_f}}. The Gauss-law checks on those vertices multiply to X on them and on the
+edges leaving them, so a logical containing them can trade the one for the other and get shorter.
+Williamson and Yoder's condition is that every set of at most half the vertices has at least as
+many edges leaving it as it has vertices (a Cheeger constant of 1). Adding edges across the worst
+cut until it holds takes {{gl.extra_f}} edges for $X(f, 0)$: {{gl.anc_fx}} ancilla qubits, a
+heaviest flux check of {{gl.flux_fx}}, {{gl.ticks_fx}} ticks per merged cycle against the memory's
+8, and distance {{gl.dist_fx}}. The product $X(f, 0) X(g, h)$, the joint measurement a CNOT
+needs, fares worse minimal: 11 of its vertices have only 3 edges leaving them, and its distance
+falls to 4. Expanded, it keeps 12, with {{gl.anc_fghx}} ancillas against {{gl.anc_fgh}}.
+$X(g, h)$'s minimal system keeps 12 though its constant is 2/3: the condition is sufficient, not
+necessary.
+
+{{table:gross_gauging}}
+
+The worst cut is exact, over every set of at most half the vertices. The distances are exact, by
+integer programming: the lightest logical that anticommutes with each basis element of the other
+type. The same program finds the gross code's own distance {{gl.code_d}}.
+
+The circuit runs the paper's schedule for the original checks, with the new checks after them on
+every qubit they share, so every X and Z check pair measures correctly; the determinism check is
+the proof. Its error model equals Stim's fault for fault, and BP+OSD's corrections equal `ldpc`'s.
+Of 3,072 shots over the twelve circuits, 13 differed, 10 of them for the product's minimal system.
+BP's posteriors were bit-identical, but many are exactly equal, and `ldpc` orders equal columns
+with C++'s `std::sort`, whose order among equals is the standard library's. `ldpc` returns our exact correction once its columns are
+permuted, so those shots are ties, and the check counts any other difference as a failure.
+
+{{table:gross_logical}}
+
+- **The outcome needs rounds, as a lattice-surgery merge does.** With two merged cycles the
+  Gauss-law checks' last round has nothing after it to compare with, so a measurement error there
+  looks like one in the first round; the decoder must guess, and the outcome is wrong
+  {{gl.outcome_T2}} of the time. By seven cycles, Cross et al.'s choice, it is {{gl.outcome_T7}};
+  at twelve, {{gl.outcome_T12}}.
+- **The measurement costs a few times the memory.** At seven merged cycles a shot has anything
+  wrong {{gl.ratio_xm}} (minimal) to {{gl.ratio_x}} (expanded) times as often as the memory of the
+  same length in X, and {{gl.ratio_zm}} to {{gl.ratio_z}} times in Z. Cross et al. find 5 to 10
+  times at $p = 0.1\%$ with a schedule and decoder they optimise; here $p = 0.3\%$.
+- **At this noise, distance is not the limit.** The expanded system fails more often than the
+  minimal one in both bases: at $p = 0.3\%$ its extra qubits and longer cycle add more faults than
+  distance 12 over 8 removes. Which wins at lower noise is not measured here.
+- **The merged cycles are the costly part, and why is not settled.** In Z, failures grow by about
+  {{gl.grow_merged}} per merged cycle against {{gl.grow_memory}} per memory cycle, and BP settles
+  {{gl.bp_T12}} of shots at twelve merged cycles. An integer-programming search of each error
+  model found no undetectable logical fault lighter than {{gl.fault_merged}} in the merged circuits
+  ({{gl.fault_memory}} in the memory): upper bounds, not proofs. Before the flux checks closed
+  their comparisons at the split, the same search found one of 6 faults.
+
 ## Lattice surgery
 
 Two patches interact by **lattice surgery**:

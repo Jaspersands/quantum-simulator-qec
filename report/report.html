@@ -16,7 +16,7 @@
   <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
-  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>2a3d837</code></p>
+  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>5a7c17e</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -1351,6 +1351,292 @@
 </tbody>
 </table>
 <p>With a tenth of the qubits the gross code fails 2.6 to 9.3 times less often, at every p measured. SD6 also puts noise on the surface code’s Hadamards, which the bivariate bicycle circuit does not use, so the comparison slightly favours the gross code.</p>
+<p><strong>Computing on it.</strong> A memory is half of a computer. The gross code computes two ways, and the engine builds both exactly.</p>
+<ul>
+<li><strong>Automorphisms.</strong> Every shift <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>x</mi><mi>a</mi></msup><msup><mi>y</mi><mi>b</mi></msup></mrow><annotation encoding="application/x-tex">x^a y^b</annotation></semantics></math> of both halves of the data maps the code to itself, and so does Bravyi et al.’s ZX-duality, so each is a logical Clifford gate that adds no checks. For all 144 maps the engine checks this over GF(2) and computes the action on the 12 logical qubits as a symplectic matrix; an independent numpy computation agrees bit for bit. The actions form a group of order 72: <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>x</mi><mn>6</mn></msup><annotation encoding="application/x-tex">x^6</annotation></semantics></math> acts as the identity, and the translates of each of Bravyi et al.’s weight-12 logicals <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>f</mi><mo>,</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(f, 0)</annotation></semantics></math> and <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>g</mi><mo>,</mo><mi>h</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(g, h)</annotation></semantics></math> span a block of 6 logical qubits (36 distinct classes) that every shift keeps.</li>
+<li><strong>Logical measurement.</strong> To measure a weight-12 logical <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mi>X</mi><mo accent="true">‾</mo></mover><annotation encoding="application/x-tex">\bar X</annotation></semantics></math>, Cross, He, Rall and Yoder attach an ancilla system, the gauging construction of Williamson and Yoder. The Z checks that touch the operator become edges between its qubits, each with an ancilla qubit; a Gauss-law check per qubit multiplies to <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mi>X</mi><mo accent="true">‾</mo></mover><annotation encoding="application/x-tex">\bar X</annotation></semantics></math>; flux checks on the cycles fix the gauge. Their paper gives the construction but no edge lists, so the engine builds it from the definition, and checks it.</li>
+</ul>
+<p><strong>The minimal system loses distance.</strong> Built on <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>f</mi><mo>,</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(f, 0)</annotation></semantics></math>, the minimal system uses 37 ancilla qubits, but the code while merged has distance 8 in X and 12 in Z, exactly. The graph has a worst cut of 6 vertices with 2 edges leaving them. The Gauss-law checks on those vertices multiply to X on them and on the edges leaving them, so a logical containing them can trade the one for the other and get shorter. Williamson and Yoder’s condition is that every set of at most half the vertices has at least as many edges leaving it as it has vertices (a Cheeger constant of 1). Adding edges across the worst cut until it holds takes 4 edges for <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>f</mi><mo>,</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(f, 0)</annotation></semantics></math>: 45 ancilla qubits, a heaviest flux check of 5, 13 ticks per merged cycle against the memory’s 8, and distance 12 in X and 12 in Z. The product <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>f</mi><mo>,</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>g</mi><mo>,</mo><mi>h</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(f, 0) X(g, h)</annotation></semantics></math>, the joint measurement a CNOT needs, fares worse minimal: 11 of its vertices have only 3 edges leaving them, and its distance falls to 4. Expanded, it keeps 12, with 91 ancillas against 63. <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>g</mi><mo>,</mo><mi>h</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(g, h)</annotation></semantics></math>’s minimal system keeps 12 though its constant is 2/3: the condition is sufficient, not necessary.</p>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">operator</th>
+<th style="text-align: left;">system</th>
+<th style="text-align: right;">ancillas (edges + Gauss + flux)</th>
+<th style="text-align: right;">heaviest flux</th>
+<th style="text-align: right;">ticks per cycle</th>
+<th style="text-align: right;">worst cut</th>
+<th style="text-align: right;">distance, X</th>
+<th style="text-align: right;">distance, Z</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: right;">37 (18 + 12 + 7)</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">2 / 6</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: right;">45 (22 + 12 + 11)</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;">6 / 6</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(g, h)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: right;">37 (18 + 12 + 7)</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">4 / 6</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(g, h)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: right;">41 (20 + 12 + 9)</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;">6 / 6</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0) X(g, h)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: right;">63 (31 + 22 + 10)</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">3 / 11</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0) X(g, h)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: right;">91 (45 + 22 + 24)</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">8 / 8</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">12</td>
+</tr>
+</tbody>
+</table>
+<p>The worst cut is exact, over every set of at most half the vertices. The distances are exact, by integer programming: the lightest logical that anticommutes with each basis element of the other type. The same program finds the gross code’s own distance 12.</p>
+<p>The circuit runs the paper’s schedule for the original checks, with the new checks after them on every qubit they share, so every X and Z check pair measures correctly; the determinism check is the proof. Its error model equals Stim’s fault for fault, and BP+OSD’s corrections equal <code>ldpc</code>’s. Of 3,072 shots over the twelve circuits, 13 differed, 10 of them for the product’s minimal system. BP’s posteriors were bit-identical, but many are exactly equal, and <code>ldpc</code> orders equal columns with C++’s <code>std::sort</code>, whose order among equals is the standard library’s. <code>ldpc</code> returns our exact correction once its columns are permuted, so those shots are ties, and the check counts any other difference as a failure.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">operator</th>
+<th style="text-align: left;">system</th>
+<th style="text-align: left;">basis</th>
+<th style="text-align: right;">T</th>
+<th style="text-align: right;">shots</th>
+<th style="text-align: right;">anything wrong</th>
+<th style="text-align: right;">outcome wrong</th>
+<th style="text-align: right;">memory, same length</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">14.16%</td>
+<td style="text-align: right;">13.57%</td>
+<td style="text-align: right;">0.24%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4,096</td>
+<td style="text-align: right;">3.61%</td>
+<td style="text-align: right;">2.71%</td>
+<td style="text-align: right;">0.29%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">4,096</td>
+<td style="text-align: right;">2.56%</td>
+<td style="text-align: right;">0.71%</td>
+<td style="text-align: right;">0.30%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">4,096</td>
+<td style="text-align: right;">2.93%</td>
+<td style="text-align: right;">0.24%</td>
+<td style="text-align: right;">0.39%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">12,288</td>
+<td style="text-align: right;">0.84%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.30%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">6,144</td>
+<td style="text-align: right;">1.74%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.31%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">4,096</td>
+<td style="text-align: right;">3.64%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.42%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">5.96%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.37%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">13.53%</td>
+<td style="text-align: right;">13.28%</td>
+<td style="text-align: right;">0.24%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">6,144</td>
+<td style="text-align: right;">2.10%</td>
+<td style="text-align: right;">1.56%</td>
+<td style="text-align: right;">0.29%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">10,240</td>
+<td style="text-align: right;">1.22%</td>
+<td style="text-align: right;">0.31%</td>
+<td style="text-align: right;">0.30%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">6,144</td>
+<td style="text-align: right;">1.86%</td>
+<td style="text-align: right;">0.37%</td>
+<td style="text-align: right;">0.39%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">14,336</td>
+<td style="text-align: right;">0.74%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.30%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0)</td>
+<td style="text-align: left;">minimal</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">4,096</td>
+<td style="text-align: right;">2.69%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.42%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(g, h)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">6,144</td>
+<td style="text-align: right;">2.15%</td>
+<td style="text-align: right;">0.59%</td>
+<td style="text-align: right;">0.30%</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">X(f, 0) X(g, h)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">X</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">5.71%</td>
+<td style="text-align: right;">2.69%</td>
+<td style="text-align: right;">0.30%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">X(f, 0) X(g, h)</td>
+<td style="text-align: left;">expanded</td>
+<td style="text-align: left;">Z</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">2,048</td>
+<td style="text-align: right;">7.13%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0.42%</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The outcome needs rounds, as a lattice-surgery merge does.</strong> With two merged cycles the Gauss-law checks’ last round has nothing after it to compare with, so a measurement error there looks like one in the first round; the decoder must guess, and the outcome is wrong 13.57% of the time. By seven cycles, Cross et al.’s choice, it is 0.71%; at twelve, 0.24%.</li>
+<li><strong>The measurement costs a few times the memory.</strong> At seven merged cycles a shot has anything wrong 4.0 (minimal) to 8.4 (expanded) times as often as the memory of the same length in X, and 6.4 to 8.7 times in Z. Cross et al. find 5 to 10 times at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.1</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.1\%</annotation></semantics></math> with a schedule and decoder they optimise; here <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.3</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.3\%</annotation></semantics></math>.</li>
+<li><strong>At this noise, distance is not the limit.</strong> The expanded system fails more often than the minimal one in both bases: at <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.3</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.3\%</annotation></semantics></math> its extra qubits and longer cycle add more faults than distance 12 over 8 removes. Which wins at lower noise is not measured here.</li>
+<li><strong>The merged cycles are the costly part, and why is not settled.</strong> In Z, failures grow by about 0.5% per merged cycle against 0.008% per memory cycle, and BP settles 78% of shots at twelve merged cycles. An integer-programming search of each error model found no undetectable logical fault lighter than 10 in the merged circuits (12 in the memory): upper bounds, not proofs. Before the flux checks closed their comparisons at the split, the same search found one of 6 faults.</li>
+</ul>
 <h2 data-number="4.8" id="lattice-surgery"><span class="header-section-number">4.8</span> Lattice surgery</h2>
 <p>Two patches interact by <strong>lattice surgery</strong>:</p>
 <ol type="1">

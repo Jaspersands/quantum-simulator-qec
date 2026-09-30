@@ -1,5 +1,6 @@
 // Node tests for the pure site modules. Run: node tools/site-tests.mjs
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { poisson, footprintRate, layoutFor, chainsFromCorrection, pickPauli } from '../js/opener-math.js';
 import { planChunks } from '../js/stream.js';
 import { DISTANCES, SWEEP_PS, SWEEP_RUNS } from '../js/sweep-config.js';
@@ -323,6 +324,32 @@ test('the CNOT\'s geometry: its merges have the right checks, and X_A X_T is the
     for (const c of g.newCA) for (const [x, y] of c.support) zc.set(`${x},${y}`, (zc.get(`${x},${y}`) ?? 0) + 1);
     const oddX = [...zc].filter(([, n]) => n % 2 === 1).map(([k]) => Number(k.split(',')[0]));
     assert.deepEqual([...new Set(oddX)].sort((a, b) => a - b), [g.C.x1, g.A.x0]);
+  }
+});
+
+test('the gauging data Figure 16 draws agree with the torus: each edge is a Z check touching exactly its ends, or an added pair', () => {
+  const doc = JSON.parse(readFileSync(new URL('../data/gross/gauging.json', import.meta.url), 'utf8'));
+  const h = GROSS.l * GROSS.m;
+  for (const [name, systems] of Object.entries(doc.operators)) {
+    for (const [construction, op] of Object.entries(systems)) {
+      const label = `${name}, ${construction}`;
+      const support = new Set(op.support);
+      const touching = [];
+      for (let c = 0; c < h; c++) {
+        const on = bbNeighbours(GROSS, c, 'Z').map((nb) => dataIndex(GROSS, nb)).filter((d) => support.has(d));
+        if (on.length) touching.push([c, on.sort((a, b) => a - b)]);
+      }
+      assert.deepEqual(touching.map(([c]) => c), op.edge_checks, `${label}: the check edges are the Z checks touching the operator`);
+      touching.forEach(([, on], i) => {
+        const ends = op.incidence[i].map((v) => op.support[v]).sort((a, b) => a - b);
+        assert.deepEqual(ends, on, `${label}: edge ${i}'s ends`);
+      });
+      // Added edges follow the checks' edges, each a pair of the operator's qubits.
+      assert.equal(op.incidence.length, op.edge_checks.length + op.extra_edges.length, label);
+      op.extra_edges.forEach((pair, k) => assert.deepEqual(op.incidence[op.edge_checks.length + k], pair, `${label}: added edge ${k}`));
+      assert.equal(op.ancillas, op.edges + op.gauss + op.flux, label);
+      if (construction === 'expanded') assert.ok(op.worst_cut[0] >= op.worst_cut[1], `${label}: Cheeger constant at least 1`);
+    }
   }
 });
 

@@ -920,8 +920,134 @@ is 1 − (1 − p_L)¹² of a single patch's:
 
 With a tenth of the qubits, the gross code fails less often at every p measured, by 2.6 to 9.3 times.
 
+### Computing on the gross code: automorphisms and logical measurement
+
+A memory is half of a computer. IBM's architecture computes on the gross code two ways, and the
+engine builds both exactly (`src/bb_auto.rs`, `src/bb_gauge.rs`, `src/bb_circuit.rs`).
+
+**Automorphisms.** Every shift x^a y^b of both halves of the data maps the code to itself, and so
+does Bravyi et al.'s ZX-duality (left cell g to right g⁻¹ and back, X and Z exchanged). Each is
+therefore a logical Clifford gate that adds no checks.
+- For all 144 maps, the engine checks over GF(2) that the stabilizer group maps to itself, and
+  computes the action on the 12 logical qubits as a 24 × 24 symplectic matrix, every residual a
+  stabilizer. `tools/gross_ops.py auto` recomputes all 144 with numpy and `ldpc`'s GF(2) rank, and
+  they agree bit for bit.
+- The actions form a **group of order 72**: x⁶ acts as the identity, so the shifts give
+  Z₆ × Z₆, doubled by the duality.
+- Bravyi et al.'s weight-12 logicals X(f, 0) and X(g, h) each have 72 translates. They fall into
+  36 logical classes and span a 6-qubit block that every shift keeps: the two blocks of
+  six logical qubits of IBM's layout.
+
+**Logical measurement.** To measure a weight-12 logical X̄, Cross, He, Rall and Yoder
+(arXiv:2407.18393) attach an ancilla system, a mono-layer version of Williamson and Yoder's gauging
+measurement. Their paper gives the construction but no edge lists, so the engine builds it from the
+definition and checks it:
+- the Z checks touching the operator are edges between its qubits, one ancilla qubit each;
+- a Gauss-law X check per qubit (the qubit and its edges) multiplies to X̄;
+- each touched Z check gains its edge qubit;
+- flux Z checks on a light basis of the cycles fix the gauge.
+
+The deformed checks commute, and 11 logical qubits remain while merged.
+
+**The minimal system loses distance.** Built on X(f, 0), the code while merged has distance 8 in
+X, exactly, not 12. The edges form a 3-regular graph on the operator's 12 qubits made of two
+clusters of six joined by two edges. The Gauss-law checks on one cluster multiply to X on its six
+qubits and on the two edges leaving it, so a logical that contains the cluster can trade six data
+qubits for two edge qubits: 12 − 6 + 2 = 8. The product X(f, 0) X(g, h), the joint measurement a
+CNOT needs, is worse: its worst cut is 11 vertices with 3 edges leaving them, and distance 4.
+
+Williamson and Yoder's condition is that every set of at most half the vertices has at least as
+many edges leaving it as it has vertices (a Cheeger constant of 1). The engine finds the worst cut
+exactly (every set of at most half the vertices) and adds edges across it until the condition
+holds. That takes 4 edges for X(f, 0), 2 for X(g, h) and 14 for the product, and every expanded
+system has distance 12 in both types, exactly. X(g, h)'s minimal system keeps distance 12 even
+though its constant is 2/3: the condition is sufficient, not necessary.
+
+The circuit runs the paper's depth-8 schedule for the original checks. The flux checks read their
+edge qubits alongside it, and the Gauss-law checks come last on every qubit they share with a Z
+check, which makes every X–Z pair measurable together. The merged cycle takes 12 ticks for X(f, 0)
+(13 expanded) against the memory's 8.
+
+| operator | system | ancilla qubits (edges + Gauss + flux) | heaviest flux check | ticks per merged cycle | worst cut (edges out / vertices) | distance, X | distance, Z |
+|---|---|---|---|---|---|---|---|
+| X(f, 0) | minimal | 37 (18 + 12 + 7) | 8 | 12 | 2 / 6 | 8 | 12 |
+| X(f, 0) | expanded | 45 (22 + 12 + 11) | 5 | 13 | 6 / 6 | 12 | 12 |
+| X(g, h) | minimal | 37 (18 + 12 + 7) | 6 | 12 | 4 / 6 | 12 | 12 |
+| X(g, h) | expanded | 41 (20 + 12 + 9) | 5 | 13 | 6 / 6 | 12 | 12 |
+| X(f, 0) X(g, h) | minimal | 63 (31 + 22 + 10) | 11 | 16 | 3 / 11 | 4 | 12 |
+| X(f, 0) X(g, h) | expanded | 91 (45 + 22 + 24) | 9 | 15 | 8 / 8 | 12 | 12 |
+
+Distances are exact, by integer programming (`tools/gross_ops.py distance`, HiGHS): for each basis
+logical of the other type, the lightest operator that commutes with every check and anticommutes
+with it. The same program finds the gross code's own distance, 12 in both types. Cross et al.
+report 103 ancilla qubits for one system that measures eight operators, with fault distance 12
+from a schedule they optimise; each system here measures one operator.
+
+**Checked** (`tools/gross_ops.py check`, in CI):
+- Without noise every detector and observable is deterministic, in both bases, for all three
+  operators and both systems, reading out after memory cycles or right at the split.
+- A check whose whole support is read in its own basis closes its comparison with that reading:
+  the flux checks at the split. A first version left them open, one detector per flux check
+  short; the Z-basis measurements were retaken on the corrected circuits.
+- The error model equals Stim's fault for fault.
+- The cycle writer's plain memory equals `bb_memory_circuit`'s error model, mechanism for
+  mechanism.
+- BP+OSD's corrections equal `ldpc`'s on Stim's shots, but for ties: 13 of 3,072 shots differed
+  over the twelve circuits (three operators, two systems, two bases), 10 of them for the
+  product's minimal system. BP's posteriors were bit-identical, but many are exactly equal, and
+  `ldpc` orders equal columns with C++'s `std::sort`, whose order among equals is the standard
+  library's. `ldpc` returns our exact correction once its columns are permuted, so those shots are
+  ties, and the check fails on any other difference.
+
+**Measured** (`tools/gross_ops.py measure`): the data prepared, 6 memory cycles, T merged cycles, 6
+memory cycles, the data read. In the X basis the observables are the outcome and the 12 X
+logicals; in Z, the 11 Z logicals the measurement keeps, each carried through the edges. Circuit
+noise p = 0.3%, Bravyi et al.'s model, decoded by BP+OSD-CS of order 7 on the whole error model.
+Beside each point, the memory of the same length:
+
+| operator | system | basis | T | shots | anything wrong | outcome wrong | memory, same length |
+|---|---|---|---|---|---|---|---|
+| X(f, 0) | expanded | X | 2 | 2,048 | 14.16% | 13.57% | 0.24% |
+| X(f, 0) | expanded | X | 4 | 4,096 | 3.61% | 2.71% | 0.29% |
+| X(f, 0) | expanded | X | 7 | 4,096 | 2.56% | 0.71% | 0.30% |
+| X(f, 0) | expanded | X | 12 | 4,096 | 2.93% | 0.24% | 0.39% |
+| X(f, 0) | expanded | Z | 2 | 12,288 | 0.84% | — | 0.30% |
+| X(f, 0) | expanded | Z | 4 | 6,144 | 1.74% | — | 0.31% |
+| X(f, 0) | expanded | Z | 7 | 4,096 | 3.64% | — | 0.42% |
+| X(f, 0) | expanded | Z | 12 | 2,048 | 5.96% | — | 0.37% |
+| X(f, 0) | minimal | X | 2 | 2,048 | 13.53% | 13.28% | 0.24% |
+| X(f, 0) | minimal | X | 4 | 6,144 | 2.10% | 1.56% | 0.29% |
+| X(f, 0) | minimal | X | 7 | 10,240 | 1.22% | 0.31% | 0.30% |
+| X(f, 0) | minimal | X | 12 | 6,144 | 1.86% | 0.37% | 0.39% |
+| X(f, 0) | minimal | Z | 2 | 14,336 | 0.74% | — | 0.30% |
+| X(f, 0) | minimal | Z | 7 | 4,096 | 2.69% | — | 0.42% |
+| X(g, h) | expanded | X | 7 | 6,144 | 2.15% | 0.59% | 0.30% |
+| X(f, 0) X(g, h) | expanded | X | 7 | 2,048 | 5.71% | 2.69% | 0.30% |
+| X(f, 0) X(g, h) | expanded | Z | 7 | 2,048 | 7.13% | — | 0.42% |
+
+- **The outcome needs rounds, as a lattice-surgery merge does.** With two merged cycles the
+  Gauss-law checks' last round has nothing after it to compare with, so a measurement error there
+  looks like one in the first round. The decoder must guess, and the outcome is wrong 13.6% of the
+  time. By seven cycles it is 0.71%, and at twelve 0.24% (expanded system).
+- **The measurement costs 4 to 9 times the memory.** At seven merged cycles, a shot has anything
+  wrong 4.0 (minimal) to 8.4 (expanded) times as often as the memory of the same 19 cycles in X,
+  and 6.4 to 8.7 times in Z. The product operator costs 17 to 19 times. Cross et al. find 5 to 10
+  times at p = 0.1%, with a schedule and a decoder they optimise; here p = 0.3%.
+- **At this noise, distance is not the limit.** The expanded system fails more often than the
+  minimal one in both bases: at p = 0.3% its extra qubits and longer cycle add more faults than
+  distance 12 over 8 removes. Which wins at lower noise is not measured here.
+- **The merged cycles are the costly part, and why is not settled.** In Z, failures grow by about
+  0.5% per merged cycle, against 0.008% per memory cycle. BP settles 78% of shots at twelve merged
+  cycles, where it settles 98% of the memory's.
+- **No light undetectable faults were found.** An integer-programming search of each error model
+  (`tools/gross_ops.py fault`, two minutes per observable) found no undetectable logical fault
+  lighter than 10 in the merged circuits, against 12 in the memory. These are upper bounds, not
+  proofs. Before the flux checks closed their comparisons at the split, the same search found one
+  of 6 faults.
+
 **On the site**, section 13 draws the code on its torus (hover a check to see its six qubits). It
-plots these measurements, and runs BP+OSD on [[72, 12, 6]] in the browser.
+plots these measurements, runs BP+OSD on [[72, 12, 6]] in the browser, draws the ancilla system
+that measures a logical operator, and plots that measurement against its merged cycles.
 
 ## Lattice surgery
 
@@ -1577,7 +1703,7 @@ src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
 src/wasm_bb.rs        WASM exports for Figure 15: the [[72, 12, 6]] memory decoded by BP+OSD
-src/wasm_ls.rs        WASM exports for Figure 20: lattice-surgery programs sampled and matched
+src/wasm_ls.rs        WASM exports for Figure 22: lattice-surgery programs sampled and matched
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)
