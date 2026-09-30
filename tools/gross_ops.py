@@ -7,6 +7,7 @@ also has numpy, scipy, stim and ldpc:
     python tools/gross_ops.py distance    # the deformed codes' distances, exactly -> data/gross/gauging.json
     python tools/gross_ops.py check       # the circuits against Stim and ldpc (--quick: X(f, 0) only)
     python tools/gross_ops.py measure     # failure against merged cycles, beside the memory -> data/gross/logical.json
+    python tools/gross_ops.py fault       # upper bounds on circuit fault distance -> data/gross/faults.json
 
 auto: every shift x^a y^b of both halves of the gross code, with and without
 the ZX-duality, is built here with numpy, independently of src/bb_auto.rs,
@@ -246,10 +247,8 @@ def cmd_distance(args):
             write_json(path, doc)
             continue
         for construction in constructions:
-            if construction in doc["operators"].get(name, {}) and not args.redo:
-                continue
-            print(f"  {name}, {construction}", flush=True)
             support, edges, extra, incidence, gauss, flux, hxr, hzr, ticks, cut = sq.bb_gauging(name, construction == "expanded")
+            recorded = doc["operators"].get(name, {}).get(construction)
             n = 2 * H + len(incidence)
             hx, hz = dense(hxr, n), dense(hzr, n)
             degree = max(int(hx[:, q].sum() + hz[:, q].sum()) for q in range(n))
@@ -259,7 +258,12 @@ def cmd_distance(args):
                        ticks=ticks, max_degree=degree, logical_qubits=n - rank(hx) - rank(hz), worst_cut=list(cut),
                        support=support, edge_checks=edges, extra_edges=[list(e) for e in extra], incidence=incidence,
                        flux_cycles=flux)
-            rec["distance"] = distance(hx, hz, args.cap)
+            if recorded and not args.redo:
+                # The structure is refreshed (it is cheap and deterministic); the distance is kept.
+                rec["distance"] = recorded["distance"]
+            else:
+                print(f"  {name}, {construction}", flush=True)
+                rec["distance"] = distance(hx, hz, args.cap)
             doc["operators"].setdefault(name, {})[construction] = rec
             write_json(path, doc)
     return 0
@@ -346,6 +350,67 @@ def cmd_check(args):
                   f"order of tied posteriors (ldpc returns ours with its columns permuted), {unexplained} unexplained", flush=True)
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")
     return 0 if ok else 1
+
+
+# -- fault ------------------------------------------------------------------
+
+def lightest_logical_fault(text, observable, cap):
+    """The fewest faults of the circuit's error model that flip `observable` and
+    no detector, by integer programming: (value or None, lower bound, exact)."""
+    dem = stim.DetectorErrorModel(sq.dem_from_circuit(text, False))
+    cols, obs = [], []
+    for inst in dem.flattened():
+        if inst.type == "error":
+            ts = inst.targets_copy()
+            cols.append([t.val for t in ts if t.is_relative_detector_id()])
+            obs.append({t.val for t in ts if t.is_logical_observable_id()})
+    nd, nm = dem.num_detectors, len(cols)
+    rows = [i for c in cols for i in c] + [nd] * sum(observable in o for o in obs)
+    colix = [j for j, c in enumerate(cols) for _ in c] + [j for j, o in enumerate(obs) if observable in o]
+    a = csr_matrix((np.ones(len(rows)), (rows, colix)), shape=(nd + 1, nm))
+    cons = hstack([a, -2 * identity(nd + 1, format="csr")])
+    rhs = np.zeros(nd + 1)
+    rhs[-1] = 1
+    cost = np.concatenate([np.ones(nm), np.zeros(nd + 1)])
+    upper = np.concatenate([np.ones(nm), np.full(nd + 1, 64)])
+    res = milp(cost, constraints=LinearConstraint(cons, rhs, rhs), integrality=np.ones(nm + nd + 1), bounds=Bounds(0, upper),
+               options={"time_limit": cap})
+    value = None if res.x is None else int(round(res.fun))
+    exact = res.status == 0
+    bound = value if exact else int(math.ceil((getattr(res, "mip_dual_bound", 0) or 0) - 1e-6))
+    return value, bound, exact
+
+
+def cmd_fault(args):
+    """Upper bounds on circuit fault distance: the lightest undetectable logical
+    fault found for a few observables of the memory and of each merged system,
+    under the same effort, so they compare like for like."""
+    path = OUT / "faults.json"
+    doc = load_json(path, dict(circuits={}))
+    doc.update(engine_commit=engine_commit(), machine=machine(), generated=datetime.date.today().isoformat(),
+               note="The fewest faults of each circuit's error model found to flip an observable and fire no detector, by "
+                    "integer programming (HiGHS) within a time cap per observable: an upper bound on the circuit's fault "
+                    "distance, exact where the solver proved it. X basis: X logicals 1-3 (not the outcome, whose distance "
+                    "is time-like); Z basis: Z logicals 0-2. One memory cycle before and after, two merged cycles.")
+    cases = []
+    for basis in ("x", "z"):
+        cases.append((f"memory/{basis}", sq.bb_memory_basis_circuit("gross", basis, 4, 0.003)))
+        for construction in CONSTRUCTIONS:
+            cases.append((f"f/{construction}/{basis}", sq.bb_logical_measurement_circuit("f", basis, 1, 2, 1, 0.003, construction == "expanded")))
+    for key, text in cases:
+        if key in doc["circuits"] and not args.redo:
+            continue
+        first = 1 if key.endswith("/x") and not key.startswith("memory") else 0
+        found = []
+        for j in range(first, first + 3):
+            t0 = time.perf_counter()
+            v, b, e = lightest_logical_fault(text, j, args.cap)
+            found.append(dict(observable=j, value=v, lower=b, exact=e, seconds=round(time.perf_counter() - t0, 1)))
+            print(f"  {key} L{j}: {v} (lower bound {b}, exact {e})", flush=True)
+        values = [f["value"] for f in found if f["value"] is not None]
+        doc["circuits"][key] = dict(found=found, upper=min(values) if values else None)
+        write_json(path, doc)
+    return 0
 
 
 # -- measure -----------------------------------------------------------------
@@ -439,17 +504,17 @@ def cmd_measure(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("command", choices=["auto", "distance", "check", "measure"])
+    ap.add_argument("command", choices=["auto", "distance", "check", "measure", "fault"])
     ap.add_argument("--quick", action="store_true", help="check: X(f, 0) only, fewer shots")
     ap.add_argument("--operator", choices=["code"] + OPERATORS, help="distance: one operator only")
     ap.add_argument("--construction", choices=CONSTRUCTIONS, help="distance: one construction only")
     ap.add_argument("--redo", action="store_true", help="distance: recompute entries already recorded")
-    ap.add_argument("--cap", type=float, default=7200.0, help="distance: seconds per integer program")
+    ap.add_argument("--cap", type=float, default=7200.0, help="distance, fault: seconds per integer program")
     ap.add_argument("--shot-cap", type=int, default=200_000)
     ap.add_argument("--time-cap", type=float, default=1800.0, help="measure: seconds per point")
     ap.add_argument("--target", type=int, default=100, help="measure: failures per point")
     args = ap.parse_args()
-    return {"auto": cmd_auto, "distance": cmd_distance, "check": cmd_check, "measure": cmd_measure}[args.command](args)
+    return {"auto": cmd_auto, "distance": cmd_distance, "check": cmd_check, "measure": cmd_measure, "fault": cmd_fault}[args.command](args)
 
 
 if __name__ == "__main__":

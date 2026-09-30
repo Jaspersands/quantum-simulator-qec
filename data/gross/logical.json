@@ -1,0 +1,679 @@
+{
+ "points": {
+  "f/minimal/x/T2/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "basis": "x",
+   "merged": 2,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 2048,
+   "failures": {
+    "any": 277,
+    "first": 272,
+    "rest": 8,
+    "converged": 1941
+   },
+   "rate_any": 0.13525390625,
+   "interval_any": [
+    0.12112304835293498,
+    0.1507505699614612
+   ],
+   "rate_first": 0.1328125,
+   "interval_first": [
+    0.1187993573366235,
+    0.14820059041762806
+   ],
+   "decode_seconds": 37.8,
+   "construction": "minimal"
+  },
+  "f/minimal/x/T4/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "basis": "x",
+   "merged": 4,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 6144,
+   "failures": {
+    "any": 129,
+    "first": 96,
+    "rest": 45,
+    "converged": 5522
+   },
+   "rate_any": 0.02099609375,
+   "interval_any": [
+    0.017699029008719676,
+    0.02489178855561054
+   ],
+   "rate_first": 0.015625,
+   "interval_first": [
+    0.012812764680177965,
+    0.019042577851744135
+   ],
+   "decode_seconds": 218.6,
+   "construction": "minimal"
+  },
+  "f/minimal/x/T7/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "basis": "x",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 10240,
+   "failures": {
+    "any": 125,
+    "first": 32,
+    "rest": 117,
+    "converged": 8780
+   },
+   "rate_any": 0.01220703125,
+   "interval_any": [
+    0.010255620939777983,
+    0.01452430146745643
+   ],
+   "rate_first": 0.003125,
+   "interval_first": [
+    0.0022145303055594702,
+    0.004408141407755581
+   ],
+   "decode_seconds": 608.7,
+   "construction": "minimal"
+  },
+  "f/minimal/x/T12/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "basis": "x",
+   "merged": 12,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 6144,
+   "failures": {
+    "any": 114,
+    "first": 23,
+    "rest": 114,
+    "converged": 4843
+   },
+   "rate_any": 0.0185546875,
+   "interval_any": [
+    0.015468842492789514,
+    0.022242213693173377
+   ],
+   "rate_first": 0.0037434895833333335,
+   "interval_first": [
+    0.0024958317905465705,
+    0.005611338699987862
+   ],
+   "decode_seconds": 663.2,
+   "construction": "minimal"
+  },
+  "f/expanded/x/T2/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "x",
+   "merged": 2,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 2048,
+   "failures": {
+    "any": 290,
+    "first": 278,
+    "rest": 14,
+    "converged": 1864
+   },
+   "rate_any": 0.1416015625,
+   "interval_any": [
+    0.12717206283421748,
+    0.15737309893655463
+   ],
+   "rate_first": 0.1357421875,
+   "interval_first": [
+    0.12158798019210457,
+    0.1512603722343205
+   ],
+   "decode_seconds": 58.6
+  },
+  "f/expanded/x/T4/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "x",
+   "merged": 4,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 4096,
+   "failures": {
+    "any": 148,
+    "first": 111,
+    "rest": 57,
+    "converged": 3523
+   },
+   "rate_any": 0.0361328125,
+   "interval_any": [
+    0.0308383736626463,
+    0.04229654940364973
+   ],
+   "rate_first": 0.027099609375,
+   "interval_first": [
+    0.022552645233011336,
+    0.03253280001931256
+   ],
+   "decode_seconds": 199.4
+  },
+  "f/expanded/x/T7/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "x",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 4096,
+   "failures": {
+    "any": 105,
+    "first": 29,
+    "rest": 89,
+    "converged": 3251
+   },
+   "rate_any": 0.025634765625,
+   "interval_any": [
+    0.021221073118102337,
+    0.030937429786009867
+   ],
+   "rate_first": 0.007080078125,
+   "interval_first": [
+    0.0049341783924761375,
+    0.010149721434287903
+   ],
+   "decode_seconds": 359.6
+  },
+  "f/expanded/x/T12/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "x",
+   "merged": 12,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 4096,
+   "failures": {
+    "any": 120,
+    "first": 10,
+    "rest": 120,
+    "converged": 2962
+   },
+   "rate_any": 0.029296875,
+   "interval_any": [
+    0.024557021825162548,
+    0.03491883694947889
+   ],
+   "rate_first": 0.00244140625,
+   "interval_first": [
+    0.001326675146839334,
+    0.004488573910587665
+   ],
+   "decode_seconds": 603.3
+  },
+  "gh/expanded/x/T7/p0.003": {
+   "kind": "measure",
+   "operator": "gh",
+   "construction": "expanded",
+   "basis": "x",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 6144,
+   "failures": {
+    "any": 132,
+    "first": 36,
+    "rest": 109,
+    "converged": 4961
+   },
+   "rate_any": 0.021484375,
+   "interval_any": [
+    0.018146639702891192,
+    0.02542013013711249
+   ],
+   "rate_first": 0.005859375,
+   "interval_first": [
+    0.004235473202759604,
+    0.00810082381569318
+   ],
+   "decode_seconds": 495.4
+  },
+  "f+gh/expanded/x/T7/p0.003": {
+   "kind": "measure",
+   "operator": "f+gh",
+   "construction": "expanded",
+   "basis": "x",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 2048,
+   "failures": {
+    "any": 117,
+    "first": 55,
+    "rest": 72,
+    "converged": 1087
+   },
+   "rate_any": 0.05712890625,
+   "interval_any": [
+    0.047881489593535734,
+    0.06803467079623314
+   ],
+   "rate_first": 0.02685546875,
+   "interval_first": [
+    0.020690429479014297,
+    0.03479221596496149
+   ],
+   "decode_seconds": 433.2
+  },
+  "memory/x/R14/p0.003": {
+   "kind": "memory",
+   "basis": "x",
+   "cycles": 14,
+   "p": 0.003,
+   "shots": 43008,
+   "failures": {
+    "any": 103,
+    "first": 47,
+    "rest": 103,
+    "converged": 41810
+   },
+   "rate_any": 0.002394903273809524,
+   "interval_any": [
+    0.0019752740047669255,
+    0.0029034196803693086
+   ],
+   "rate_first": 0.0010928199404761905,
+   "interval_first": [
+    0.0008219688620663967,
+    0.0014527907473896188
+   ],
+   "decode_seconds": 458.5
+  },
+  "memory/x/R16/p0.003": {
+   "kind": "memory",
+   "basis": "x",
+   "cycles": 16,
+   "p": 0.003,
+   "shots": 34816,
+   "failures": {
+    "any": 102,
+    "first": 37,
+    "rest": 102,
+    "converged": 33768
+   },
+   "rate_any": 0.0029296875,
+   "interval_any": [
+    0.0024141890067670272,
+    0.0035548674406350772
+   ],
+   "rate_first": 0.0010627297794117646,
+   "interval_first": [
+    0.000771143706147987,
+    0.001464409255126828
+   ],
+   "decode_seconds": 435.0
+  },
+  "memory/x/R19/p0.003": {
+   "kind": "memory",
+   "basis": "x",
+   "cycles": 19,
+   "p": 0.003,
+   "shots": 34816,
+   "failures": {
+    "any": 106,
+    "first": 39,
+    "rest": 106,
+    "converged": 33507
+   },
+   "rate_any": 0.003044577205882353,
+   "interval_any": [
+    0.0025181262803950335,
+    0.0036806842276918272
+   ],
+   "rate_first": 0.001120174632352941,
+   "interval_first": [
+    0.00081957821778208,
+    0.0015308517738351131
+   ],
+   "decode_seconds": 631.7
+  },
+  "memory/x/R24/p0.003": {
+   "kind": "memory",
+   "basis": "x",
+   "cycles": 24,
+   "p": 0.003,
+   "shots": 26624,
+   "failures": {
+    "any": 105,
+    "first": 43,
+    "rest": 105,
+    "converged": 25333
+   },
+   "rate_any": 0.003943810096153846,
+   "interval_any": [
+    0.003259167544931142,
+    0.004771584748563047
+   ],
+   "rate_first": 0.0016150841346153845,
+   "interval_first": [
+    0.0011993368520021189,
+    0.002174635449230137
+   ],
+   "decode_seconds": 776.4
+  },
+  "memory/z/R14/p0.003": {
+   "kind": "memory",
+   "basis": "z",
+   "cycles": 14,
+   "p": 0.003,
+   "shots": 34816,
+   "failures": {
+    "any": 103,
+    "first": 51,
+    "rest": 103,
+    "converged": 33906
+   },
+   "rate_any": 0.002958409926470588,
+   "interval_any": [
+    0.0024401535089704184,
+    0.0035863414536028756
+   ],
+   "rate_first": 0.00146484375,
+   "interval_first": [
+    0.0011143813488546407,
+    0.0019253108248168216
+   ],
+   "decode_seconds": 336.2
+  },
+  "memory/z/R16/p0.003": {
+   "kind": "memory",
+   "basis": "z",
+   "cycles": 16,
+   "p": 0.003,
+   "shots": 34816,
+   "failures": {
+    "any": 108,
+    "first": 52,
+    "rest": 108,
+    "converged": 33751
+   },
+   "rate_any": 0.0031020220588235292,
+   "interval_any": [
+    0.0025701723411342588,
+    0.00374351519729498
+   ],
+   "rate_first": 0.0014935661764705881,
+   "interval_first": [
+    0.0011392234148601822,
+    0.0019579072739824687
+   ],
+   "decode_seconds": 444.5
+  },
+  "memory/z/R19/p0.003": {
+   "kind": "memory",
+   "basis": "z",
+   "cycles": 19,
+   "p": 0.003,
+   "shots": 24576,
+   "failures": {
+    "any": 103,
+    "first": 61,
+    "rest": 102,
+    "converged": 23637
+   },
+   "rate_any": 0.004191080729166667,
+   "interval_any": [
+    0.003457222588717752,
+    0.005079919489529004
+   ],
+   "rate_first": 0.0024820963541666665,
+   "interval_first": [
+    0.0019329471907219159,
+    0.003186760334163029
+   ],
+   "decode_seconds": 434.6
+  },
+  "memory/z/R24/p0.003": {
+   "kind": "memory",
+   "basis": "z",
+   "cycles": 24,
+   "p": 0.003,
+   "shots": 28672,
+   "failures": {
+    "any": 107,
+    "first": 61,
+    "rest": 106,
+    "converged": 27361
+   },
+   "rate_any": 0.0037318638392857145,
+   "interval_any": [
+    0.0030894756385498787,
+    0.004507218576695055
+   ],
+   "rate_first": 0.0021275111607142855,
+   "interval_first": [
+    0.0016567548557602793,
+    0.0027316638611292717
+   ],
+   "decode_seconds": 817.3
+  },
+  "f/minimal/z/T2/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "minimal",
+   "basis": "z",
+   "merged": 2,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 14336,
+   "failures": {
+    "any": 106,
+    "first": 51,
+    "rest": 106,
+    "converged": 13701
+   },
+   "rate_any": 0.007393973214285714,
+   "interval_any": [
+    0.00611754026454916,
+    0.008934341480086011
+   ],
+   "rate_first": 0.0035574776785714285,
+   "interval_first": [
+    0.002706941302117166,
+    0.004674004942086814
+   ],
+   "decode_seconds": 234.8
+  },
+  "f/minimal/z/T7/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "minimal",
+   "basis": "z",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 4096,
+   "failures": {
+    "any": 110,
+    "first": 59,
+    "rest": 110,
+    "converged": 3634
+   },
+   "rate_any": 0.02685546875,
+   "interval_any": [
+    0.022330445294658927,
+    0.03226717623296302
+   ],
+   "rate_first": 0.014404296875,
+   "interval_first": [
+    0.011183763013358631,
+    0.018534848554463895
+   ],
+   "decode_seconds": 200.9
+  },
+  "f/expanded/z/T2/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "z",
+   "merged": 2,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 12288,
+   "failures": {
+    "any": 103,
+    "first": 51,
+    "rest": 101,
+    "converged": 11717
+   },
+   "rate_any": 0.008382161458333334,
+   "interval_any": [
+    0.0069167507486981245,
+    0.010154865273428293
+   ],
+   "rate_first": 0.004150390625,
+   "interval_first": [
+    0.0031582922711303777,
+    0.005452427216175739
+   ],
+   "decode_seconds": 200.5
+  },
+  "f/expanded/z/T4/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "z",
+   "merged": 4,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 6144,
+   "failures": {
+    "any": 107,
+    "first": 66,
+    "rest": 107,
+    "converged": 5639
+   },
+   "rate_any": 0.017415364583333332,
+   "interval_any": [
+    0.01443305536350019,
+    0.02100077884589128
+   ],
+   "rate_first": 0.0107421875,
+   "interval_first": [
+    0.008452948002576045,
+    0.013642871772611392
+   ],
+   "decode_seconds": 181.5
+  },
+  "f/expanded/z/T7/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "z",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 4096,
+   "failures": {
+    "any": 149,
+    "first": 83,
+    "rest": 148,
+    "converged": 3544
+   },
+   "rate_any": 0.036376953125,
+   "interval_any": [
+    0.03106381529311373,
+    0.04255893149788425
+   ],
+   "rate_first": 0.020263671875,
+   "interval_first": [
+    0.01637676171563671,
+    0.025049619245032604
+   ],
+   "decode_seconds": 225.0
+  },
+  "f/expanded/z/T12/p0.003": {
+   "kind": "measure",
+   "operator": "f",
+   "construction": "expanded",
+   "basis": "z",
+   "merged": 12,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 2048,
+   "failures": {
+    "any": 122,
+    "first": 54,
+    "rest": 122,
+    "converged": 1591
+   },
+   "rate_any": 0.0595703125,
+   "interval_any": [
+    0.05012030306908821,
+    0.07066952788082526
+   ],
+   "rate_first": 0.0263671875,
+   "interval_first": [
+    0.02026459390033228,
+    0.03424331743161459
+   ],
+   "decode_seconds": 216.3
+  },
+  "f+gh/expanded/z/T7/p0.003": {
+   "kind": "measure",
+   "operator": "f+gh",
+   "construction": "expanded",
+   "basis": "z",
+   "merged": 7,
+   "pre": 6,
+   "post": 6,
+   "p": 0.003,
+   "shots": 2048,
+   "failures": {
+    "any": 146,
+    "first": 72,
+    "rest": 144,
+    "converged": 1547
+   },
+   "rate_any": 0.0712890625,
+   "interval_any": [
+    0.06092922187460246,
+    0.0832542277640051
+   ],
+   "rate_first": 0.03515625,
+   "interval_first": [
+    0.028009994980769906,
+    0.044043130367697525
+   ],
+   "decode_seconds": 188.5
+  }
+ },
+ "engine_commit": "1ba041f",
+ "machine": {
+  "cpu": "Apple M2 Pro",
+  "cores": 10
+ },
+ "note": "The gauging measurement of gross-code logical X operators (src/bb_circuit.rs), Bravyi et al.'s circuit noise, sampled by the bit-parallel sampler and decoded by BP+OSD-CS of order 7 (10,000 min-sum iterations) on the undecomposed error model. 'first' is L0: the outcome in the X basis; 'rest' the other observables",
+ "generated": "2026-09-30"
+}
