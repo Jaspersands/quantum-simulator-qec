@@ -153,6 +153,19 @@ export function factoryFor(kind, p, d, target, sources) {
   };
 }
 
+/** Why no factory of `kind` serves noise p at `target` error per Toffoli, in words. */
+export function factoryWhyNot(kind, p, target, sources) {
+  const sci = (x) => x.toExponential(1).replace('e', ' × 10^');
+  if (kind === 'cultivation') {
+    const c = sources.cultivation;
+    if (p > c.p_max * (1 + 1e-9)) return `cultivation is characterized at p ≤ ${c.p_max * 100}% only`;
+    return `cultivation's CCZ error, ${sci(c.ccz_error_per_t2 * c.t_error ** 2)}, is more than the ${sci(target)} per Toffoli this budget allows`;
+  }
+  const top = Math.max(...sources.litinski_factories.map((r) => r.p_phys));
+  if (p > top * (1 + 1e-9)) return `no distillation protocol is tabulated above p = ${top * 100}%`;
+  return `no tabulated distillation protocol reaches ${sci(target)} per Toffoli`;
+}
+
 /**
  * Seconds a decode of one window takes at distance d: the measured p99
  * ({d: microseconds}, section 12's parallel windows with correlated matching)
@@ -196,7 +209,7 @@ export function estimateFull(algorithm, o, sources, maxD = 201) {
   if (storage === 'gross' && cold > 0 && !(o.grossPerCycle > 0)) return { error: 'the gross code is measured at p = 0.2% to 0.6% only' };
   for (let d = 3; d <= maxD; d += 2) {
     const factory = factoryFor(o.factory, o.noise.p, d, target, sources);
-    if (!factory) return { error: `no ${o.factory} factory is tabulated for this noise and budget` };
+    if (!factory) return { error: factoryWhyNot(o.factory, o.noise.p, target, sources) };
     const clifford = block.steps * factory.statesPerToffoli * d * o.cycleSeconds;
     const reaction = latencyAt(d, o.latency ?? {}, o.latencyOverrideUs) + o.controlSeconds;
     const perToffoli = Math.max(clifford, reaction) / (o.parallel ?? 1);
@@ -206,6 +219,15 @@ export function estimateFull(algorithm, o, sources, maxD = 201) {
       : storage === 'gross' ? modules * cycles * (o.grossPerCycle ?? 0) : 0;
     const memory = tiles * cycles * eps(d);
     const magic = algorithm.toffolis * factory.errorPerToffoli;
+    // Storage and magic states do not improve with d, and the run only lengthens: past the budget here, past it everywhere.
+    if (storageFailure + magic > o.budget) {
+      return {
+        error: `${storage === 'yoked' ? `yoked storage at ${sources.yoked.error_per_round} per round` : 'gross-code storage'} would `
+          + `fail ${(storageFailure * 100).toPrecision(2)}% on its own even over the shortest run (${duration(seconds)}), past the `
+          + `${(o.budget * 100).toPrecision(2)}% budget`,
+        seconds, storageFailure,
+      };
+    }
     if (memory + storageFailure + magic > o.budget) continue;
     const perFactory = 1 / (factory.cyclesPerState * o.cycleSeconds);
     const factories = Math.ceil(factory.statesPerToffoli / perToffoli / perFactory - 1e-9);
