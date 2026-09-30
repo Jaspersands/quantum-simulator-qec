@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 
 use crate::bb::{BbCode, SX, SZ};
+use crate::bb_gauge::Gauging;
 use crate::circuit::{Basis, Circuit, Instr};
 
 /// A check a cycle measures: its ancilla, its type, the qubits it reads in
@@ -354,6 +355,233 @@ pub fn memory(code: &BbCode, basis: Basis, cycles: usize, p: f64) -> Circuit {
     Circuit { instrs: w.c }
 }
 
+/// Qubits the gauging adds after `memory_z`'s 4h: edge qubits, then the
+/// Gauss-law ancillas, then the flux ancillas.
+struct Added {
+    base: u32,
+    edges: u32,
+    vertices: u32,
+}
+
+impl Added {
+    fn new(code: &BbCode, g: &Gauging) -> Added {
+        Added { base: 4 * code.half() as u32, edges: g.edges.len() as u32, vertices: g.support.len() as u32 }
+    }
+    fn edge(&self, i: usize) -> u32 {
+        self.base + i as u32
+    }
+    fn gauss(&self, v: usize) -> u32 {
+        self.base + self.edges + v as u32
+    }
+    fn flux(&self, j: usize) -> u32 {
+        self.base + self.edges + self.vertices + j as u32
+    }
+}
+
+/// Where a data qubit is drawn (left data of cell (u, v) at (2u + 1, 2v), right at (2u, 2v + 1)).
+fn data_pos(code: &BbCode, d: usize) -> (f64, f64) {
+    let h = code.half();
+    let (u, v) = (((d % h) / code.m) as f64, ((d % h) % code.m) as f64);
+    if d < h {
+        (2.0 * u + 1.0, 2.0 * v)
+    } else {
+        (2.0 * u, 2.0 * v + 1.0)
+    }
+}
+
+/// Place each (check, qubit) CNOT at the first tick from `from` where
+/// neither the check's ancilla nor the qubit has one yet; ticks are added as
+/// needed. Returns the last tick used, if any.
+fn first_fit(ticks: &mut Vec<Tick>, checks: &[Check], pairs: &[(usize, u32)], from: usize) -> Option<usize> {
+    let mut last = None;
+    for &(ci, q) in pairs {
+        let mut t = from;
+        loop {
+            if ticks.len() <= t {
+                ticks.resize(t + 1, Tick::default());
+            }
+            let clash = ticks[t].cnots.iter().any(|&(c2, q2)| q2 == q || checks[c2].anc == checks[ci].anc);
+            if !clash {
+                ticks[t].cnots.push((ci, q));
+                last = Some(last.map_or(t, |l: usize| l.max(t)));
+                break;
+            }
+            t += 1;
+        }
+    }
+    last
+}
+
+/// A cycle of the deformed code. Checks: the code's X checks (0..h), its Z
+/// checks (h..2h; those of C₀ read their edge qubit last), the Gauss-law
+/// checks (2h + v), the flux checks (2h + V + j). Ticks 0-6 are the paper's
+/// cycle, and alongside them the flux checks read their edge qubits (from
+/// tick 0) and each C₀ check reads its edge qubit (tick 6); each Gauss-law
+/// check reads its data qubit from tick 7; every Z-type check is read out;
+/// then the Gauss-law checks read their edges.
+///
+/// That order is what makes the checks measurable together: on every qubit
+/// an X check and a Z check share, the Z check acts first (data: ticks 0-5
+/// against 7 on; edges: tick 6 and the flux ticks against the Gauss ticks
+/// after them), so each pair's CNOTs commute past each other as a whole.
+/// The determinism tests are the proof.
+pub fn merged_cycle(code: &BbCode, g: &Gauging) -> Cycle {
+    let h = code.half();
+    let nv = g.support.len();
+    let q = Added::new(code, g);
+    let mut checks = code_checks(code);
+    for (i, &c) in g.edges.iter().enumerate() {
+        checks[h + c].support.push(q.edge(i));
+    }
+    for (v, es) in g.gauss.iter().enumerate() {
+        let d = g.support[v];
+        let (x, y) = data_pos(code, d);
+        let support = std::iter::once((h + d) as u32).chain(es.iter().map(|&e| q.edge(e))).collect();
+        checks.push(Check { key: 2 * h + v, anc: q.gauss(v), x_type: true, support, pos: (x + 0.25, y + 0.25) });
+    }
+    for (j, cycle) in g.flux.iter().enumerate() {
+        let support = cycle.iter().map(|&e| q.edge(e)).collect();
+        checks.push(Check { key: 2 * h + nv + j, anc: q.flux(j), x_type: false, support, pos: (-1.0 - j as f64, -1.0) });
+    }
+    let gauss_checks: Vec<usize> = (2 * h..2 * h + nv).collect();
+    let z_type: Vec<usize> = (h..2 * h).chain(2 * h + nv..checks.len()).collect();
+
+    let mut ticks = vec![Tick::default(); 8];
+    ticks[0].prepare_x = (0..h).chain(gauss_checks.iter().copied()).collect();
+    for (t, tick) in ticks.iter_mut().enumerate().take(7) {
+        if let Some(k) = SX[t] {
+            tick.cnots.extend((0..h).map(|c| (c, checks[c].support[k])));
+        }
+        if let Some(k) = SZ[t] {
+            tick.cnots.extend((0..h).map(|c| (h + c, checks[h + c].support[k])));
+        }
+    }
+    ticks[6].cnots.extend(g.edges.iter().enumerate().map(|(i, &c)| (h + c, q.edge(i))));
+    ticks[7].measure_x = (0..h).collect();
+    let mut early: Vec<(usize, u32)> = Vec::new();
+    for (j, cycle) in g.flux.iter().enumerate() {
+        early.extend(cycle.iter().map(|&e| (2 * h + nv + j, q.edge(e))));
+    }
+    early.extend((0..nv).map(|v| (2 * h + v, (h + g.support[v]) as u32)));
+    let flux_pairs = g.flux.iter().map(Vec::len).sum::<usize>();
+    // Flux checks touch only edge qubits, idle until tick 6, so they start
+    // at tick 0; Z-type checks need no order among themselves.
+    let last_flux = first_fit(&mut ticks, &checks, &early[..flux_pairs], 0);
+    first_fit(&mut ticks, &checks, &early[flux_pairs..], 7);
+    let read_z = last_flux.map_or(7, |t| (t + 1).max(7));
+    if ticks.len() <= read_z {
+        ticks.resize(read_z + 1, Tick::default());
+    }
+    ticks[read_z].measure_z = z_type.clone();
+    let mut late: Vec<(usize, u32)> = Vec::new();
+    for (v, es) in g.gauss.iter().enumerate() {
+        late.extend(es.iter().map(|&e| (2 * h + v, q.edge(e))));
+    }
+    let last = first_fit(&mut ticks, &checks, &late, read_z).unwrap_or(read_z).max(7);
+    ticks.truncate(last + 1);
+    ticks[last].measure_x.extend(gauss_checks);
+    ticks[last].prepare_z = z_type;
+    Cycle { checks, ticks }
+}
+
+/// Measure the logical X operator `g` gauges. The data are prepared in
+/// `basis` and held for `pre` memory cycles; the edge qubits are prepared in
+/// |0⟩ and the deformed code measured for `merged` cycles; the edge qubits
+/// are read in Z; `post` memory cycles follow and the data are read in
+/// `basis`. Detectors are the checks of `basis`'s type.
+///
+/// Observables. X basis: L0 the outcome, the product of the Gauss-law
+/// checks in the first merged cycle, which with the data in |+⟩ is +1; then
+/// the code's 12 X logicals, which the measurement keeps. Z basis: the 11 Z
+/// logicals that commute with the operator (the one that does not is made
+/// random), each with its route through the edges read at the split.
+pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize, merged: usize, post: usize, p: f64) -> Result<Circuit, String> {
+    if merged == 0 {
+        return Err("a logical measurement needs at least one merged cycle".into());
+    }
+    let h = code.half();
+    let q = Added::new(code, g);
+    let data: Vec<u32> = (h as u32..3 * h as u32).collect();
+    let mut w = Writer::new(p, basis, data.clone());
+    memory_coords(code, &mut w);
+    let hz_pos = |c: usize| (2.0 * (c / code.m) as f64 + 1.0, 2.0 * (c % code.m) as f64 + 1.0);
+    for (i, &c) in g.edges.iter().enumerate() {
+        let (x, y) = hz_pos(c);
+        w.c.push(Instr::QubitCoords { coords: vec![x + 0.5, y + 0.5], qubits: vec![q.edge(i)] });
+    }
+    for (v, &d) in g.support.iter().enumerate() {
+        let (x, y) = data_pos(code, d);
+        w.c.push(Instr::QubitCoords { coords: vec![x + 0.25, y + 0.25], qubits: vec![q.gauss(v)] });
+    }
+    for j in 0..g.flux.len() {
+        w.c.push(Instr::QubitCoords { coords: vec![-1.0 - j as f64, -1.0], qubits: vec![q.flux(j)] });
+    }
+
+    w.prepare(basis, &data);
+    w.prepare_ancillas_z(&(3 * h as u32..4 * h as u32).collect::<Vec<_>>());
+    let memory = memory_cycle(code);
+    let merged_c = merged_cycle(code, g);
+    for _ in 0..pre {
+        w.cycle(&memory);
+    }
+    w.c.push(Instr::Tick);
+    let edges: Vec<u32> = (0..g.edges.len()).map(|i| q.edge(i)).collect();
+    w.prepare(Basis::Z, &edges);
+    w.prepare_ancillas_z(&(0..g.flux.len()).map(|j| q.flux(j)).collect::<Vec<_>>());
+    w.add_data(&edges);
+    let mut outcome = Vec::new();
+    for k in 0..merged {
+        let recs = w.cycle(&merged_c);
+        if k == 0 {
+            outcome = (0..g.support.len()).map(|v| recs[2 * h + v].expect("every Gauss-law check is read")).collect();
+        }
+    }
+    w.c.push(Instr::Tick);
+    let split = w.measure(Basis::Z, &edges);
+    w.remove_data(&edges);
+    for _ in 0..post {
+        w.cycle(&memory);
+    }
+    w.c.push(Instr::Tick);
+    let recs = w.measure(basis, &data);
+    let readout: HashMap<u32, usize> = data.iter().copied().zip(recs).collect();
+    w.final_detectors(&memory, basis, &readout)?;
+
+    let on_data = |support: &[usize]| support.iter().map(|&d| readout[&((h + d) as u32)]).collect::<Vec<usize>>();
+    let (lx, lz) = code.logicals();
+    match basis {
+        Basis::X => {
+            w.observable(0, &outcome);
+            for k in 0..lx.rows {
+                w.observable(1 + k as u32, &on_data(&lx.row_ones(k)));
+            }
+        }
+        Basis::Z => {
+            let odd = |z: &[usize]| z.iter().filter(|d| g.support.contains(d)).count() % 2 == 1;
+            let rows: Vec<Vec<usize>> = (0..lz.rows).map(|k| lz.row_ones(k)).collect();
+            let pivot = rows.iter().position(|z| odd(z)).ok_or("every Z logical commutes with the operator: it is a stabilizer")?;
+            let mut index = 0;
+            for (k, z) in rows.iter().enumerate().filter(|&(k, _)| k != pivot) {
+                let z: Vec<usize> = if odd(z) {
+                    let mut on = vec![false; 2 * h];
+                    for &d in z.iter().chain(&rows[pivot]) {
+                        on[d] ^= true;
+                    }
+                    (0..2 * h).filter(|&d| on[d]).collect()
+                } else {
+                    z.clone()
+                };
+                let route = g.edges_for(&z).map_err(|e| format!("Z logical {k}: {e}"))?;
+                let mut recs = on_data(&z);
+                recs.extend(route.iter().map(|&e| split[e]));
+                w.observable(index, &recs);
+                index += 1;
+            }
+        }
+    }
+    Ok(Circuit { instrs: w.c })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +619,62 @@ mod tests {
         let code = BbCode::gross();
         let m = M2d::new(&memory(&code, Basis::X, 3, 0.0)).unwrap();
         assert_eq!((m.num_detectors, m.num_observables), (code.half() * 4, 12));
+    }
+    fn gauged(name: &str) -> (BbCode, Gauging) {
+        let code = BbCode::gross();
+        let g = Gauging::new(&code, &crate::bb::gross_operator(name).unwrap()).unwrap();
+        (code, g)
+    }
+
+    /// Each tick of the merged cycle uses every qubit at most once.
+    #[test]
+    fn the_merged_cycle_is_a_schedule() {
+        for name in ["f", "f+gh"] {
+            let (code, g) = gauged(name);
+            let cyc = merged_cycle(&code, &g);
+            eprintln!("{name}: {} ticks", cyc.ticks.len());
+            for (t, tick) in cyc.ticks.iter().enumerate() {
+                let mut seen = std::collections::HashSet::new();
+                for &(ch, q) in &tick.cnots {
+                    assert!(seen.insert(cyc.checks[ch].anc), "{name}, tick {t}: an ancilla twice");
+                    assert!(seen.insert(q), "{name}, tick {t}: qubit {q} twice");
+                }
+            }
+        }
+    }
+
+    /// Without noise every detector and observable is deterministic, in both
+    /// bases, for all three operators: the schedule measures what it should,
+    /// the outcome is X̄, and each Z logical's route through the edges is right.
+    #[test]
+    fn the_logical_measurement_is_deterministic() {
+        for name in ["f", "gh", "f+gh"] {
+            let (code, g) = gauged(name);
+            for (basis, obs) in [(Basis::X, 13), (Basis::Z, 11)] {
+                let c = logical_measurement(&code, &g, basis, 1, 2, 1, 0.0).unwrap();
+                let m = M2d::new(&c).unwrap_or_else(|e| panic!("{name} {basis:?}: {e}"));
+                assert_eq!(m.num_observables, obs, "{name} {basis:?}");
+            }
+            // Read out right after the split too: the checks that lost their
+            // edge qubit take its reading into their last comparison.
+            for basis in [Basis::X, Basis::Z] {
+                M2d::new(&logical_measurement(&code, &g, basis, 1, 2, 0, 0.0).unwrap()).unwrap_or_else(|e| panic!("{name} {basis:?}, post 0: {e}"));
+            }
+        }
+    }
+
+    /// With one merged cycle, one measurement error on a Gauss-law ancilla
+    /// flips the outcome unseen, and the error-model builder refuses the
+    /// circuit; with two, no single fault flips an observable unseen.
+    #[test]
+    fn the_outcome_needs_two_merged_cycles() {
+        let (code, g) = gauged("f");
+        let build = |merged| Dem::from_circuit_undecomposed(&logical_measurement(&code, &g, Basis::X, 1, merged, 1, 0.001).unwrap());
+        assert!(build(1).unwrap_err().contains("undetectable"));
+        let dem = build(2).unwrap();
+        assert_eq!(dem.num_observables, 13);
+        let (code, g) = gauged("f");
+        let z = Dem::from_circuit_undecomposed(&logical_measurement(&code, &g, Basis::Z, 1, 2, 1, 0.001).unwrap()).unwrap();
+        assert_eq!(z.num_observables, 11);
     }
 }
