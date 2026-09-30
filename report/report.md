@@ -32,7 +32,9 @@ abstract: |
      surface-code patches, on a tenth of the qubits.
   7. **Lattice surgery.** A Z⊗Z measurement between two patches, written as one circuit and equal to
      Stim's model, shows the timing law directly: the merge outcome's failure rate stops falling at
-     d merged rounds.
+     d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails
+     {{ls.cnot_d7}} of the time at d = 7 and p = 0.2%, and {{ls.cnot_ratio}} times as often as its
+     three patches held idle for as long.
   8. **What it would take.** Put together, the measurements say a thousand logical qubits running a
      billion operations need about {{est.medium.qubits}} physical qubits at Willow's Λ, and
      {{est.lever.qubits}} at Λ = 4.
@@ -491,6 +493,39 @@ rounds T:
   patch of the same size. This is the textbook "d rounds per lattice surgery", measured, and it is
   the clock the resource estimate below uses.
 
+**Programs.** The engine compiles lattice-surgery programs: patches on a grid of tiles, merged
+along a line (side by side to measure Z⊗Z, one above the other for X⊗X), split and read out, under
+the same detector rule. Observables are written as terms (a patch's logical along a line, a merge's
+outcome, a merge's seam records), and the reference simulation checks every one is deterministic.
+The Z⊗Z experiment above is one such program, and compiles to the same circuits byte for byte.
+
+The **logical CNOT** puts control C, an ancilla A in $|+\rangle$ and target T in an L.
+
+1. $Z_C Z_A$ is measured ($m_1$).
+2. $X_A X_T$ is measured ($m_2$).
+3. A is read out in Z ($m_3$).
+
+The Pauli corrections the outcomes fix are tracked, not applied. Two checks mattered:
+
+- **A refused frame.** The reference simulation refused a first frame for the $|+\rangle|+\rangle$
+  inputs. $m_2$ reads X on A's last row, so $X_C X_A$ must be taken along that row.
+- **A stale comparison.** A second merge exposed a detector-rule case: a seam check measured again
+  after skipping rounds compared itself with a stale value. It now starts over.
+
+Every program's error model equals Stim's fault for fault, and every single fault of each is
+corrected at d = 3.
+
+{{table:surgery_cnot}}
+
+- **Cheaper than holding the patches.** The CNOT fails {{ls.cnot_ratio}} times as often as its
+  three patches held as memories for its 4d rounds. The resource estimate's model, every patch
+  exposed for every operation, is if anything pessimistic.
+- **Merges add up.** $k$ Z⊗Z measurements in a row fail with $\ln(1-P)$ linear in $k$: each merge
+  adds the same risk, the sum-of-parts law an estimate assumes.
+- **Products.** Three patches merged at once (Z⊗Z⊗Z) fail {{ls.zzz}} at d = 3, 5, 7 and p = 0.3%.
+
+{{table:surgery_seq}}
+
 ## What it would take
 
 Each section above measures one ingredient of a quantum computer's cost, and a simple model puts
@@ -499,7 +534,8 @@ them together:
 - Logical error per cycle falls from the measured $\varepsilon_7$ by Λ for every two steps of
   distance.
 - Every operation is a lattice-surgery step of d merged rounds, with every patch exposed, so it
-  fails with probability about $N d\,\varepsilon_d$.
+  fails with probability about $N d\,\varepsilon_d$. The measured CNOT fails {{ls.cnot_ratio}} times
+  as often as its patches held idle for as long, so this errs on the safe side.
 - The distance is the smallest odd one that keeps the run within a 1% budget.
 - The qubits are $N(2d^2 - 1)$ with a routing overhead of 2.
 - The time is d cycles of 1.1 µs per operation.

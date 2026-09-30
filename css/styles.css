@@ -117,6 +117,8 @@ body {
 
 canvas { display: block; max-width: 100%; }
 img { max-width: 100%; height: auto; }
+/* A subscript that does not open up the line it sits in (a step label's height stays its neighbours'). */
+sub { font-size: 0.75em; line-height: 0; position: relative; vertical-align: baseline; bottom: -0.25em; }
 
 :focus-visible { outline: none; box-shadow: var(--focus); }
 
@@ -524,7 +526,8 @@ input[type="number"] { cursor: text; }
 .btn-row { display: flex; flex-direction: column; gap: var(--s2); }
 
 /* Segmented control — for small mutually exclusive choices */
-.segmented { display: flex; border: var(--rule-w) solid var(--rule); box-shadow: var(--lift-1); }
+/* Options wrap to a second row only when their labels do not fit on one (a phone). */
+.segmented { display: flex; flex-wrap: wrap; border: var(--rule-w) solid var(--rule); box-shadow: var(--lift-1); }
 .segmented__opt { flex: 1; position: relative; }
 .segmented__opt input { position: absolute; opacity: 0; pointer-events: none; }
 .segmented__opt span {
@@ -698,8 +701,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    quoted rather than fitted, are italic. */
 .hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
 .hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
-[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-est-plot] { width: 100%; }
-[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-cnot-canvas], [data-cnot-plot], [data-est-plot] { width: 100%; }
+[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend, [data-cnot-canvas] + .legend, [data-cnot-plot] + .legend { margin: var(--s3) 0 var(--s5); }
 [data-ls-phases] { margin-bottom: var(--s4); }
 [data-bb-canvas] { touch-action: none; cursor: crosshair; }
 /* The column heads carry ε and d, which the site's uppercase heads would turn
@@ -714,7 +717,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key { width: 11px; height: 11px; border: 1px solid var(--ink); flex: none; }
 .legend__key--round { border-radius: 50%; }
 .legend__key--line { width: 15px; height: 0; border: 0; border-top: 2px solid; }
-.legend__key--line.legend__key--dashed { border-top-style: dashed; }
+/* No fill: a colour key's background would show through the dashes' gaps. */
+.legend__key--line.legend__key--dashed { border-top-style: dashed; background: none; }
 
 /* Legend keys mirror how the canvas renderer draws each mark. The glyph
    suffixes match the letters stamped on the qubits themselves, so the legend

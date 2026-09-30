@@ -966,6 +966,7 @@ rounds T, correlated matching.
 | 7 | 0.3% | 15.34% | 1.62% | 1.60% | 3.21% | 2.99% |
 | 3 | 0.2% | 7.31% | 3.23% | 2.90% | 3.59% | 5.65% |
 | 5 | 0.2% | 7.61% | 1.02% | 0.94% | 1.65% | 1.85% |
+| 7 | 0.2% | 9.97% | 0.28% | 0.27% | 0.71% | 0.54% |
 
 - **T = 2 is a trap that grows with the code.** A pair of measurement errors on one seam check,
   in consecutive rounds, flips the outcome unseen, and a bigger code has more seam checks. At
@@ -976,6 +977,80 @@ rounds T, correlated matching.
 - **Correlated matching matters here too.** At d = 7, p = 0.2%, T = d it fails 0.28% of the time
   against plain matching's 0.71%.
 
+### Programs: a logical CNOT, merges in a row, and a three-patch product
+
+One measurement is not yet a computation. `src/surgery.rs` compiles lattice-surgery **programs**:
+patches on a grid of tiles, each step one of prepare, rounds, merge, split, and measure.
+- A horizontal line of patches merges to measure Z⊗…⊗Z, its seam prepared in |+⟩ and split by
+  reading it in X.
+- A vertical line merges to measure X⊗…⊗X, its seam prepared in |0⟩ and split by reading it in Z.
+- Observables are written as terms: a patch's logical along a chosen line of its final readout, a
+  merge's outcome, and a merge's seam records on a line.
+
+The Z⊗Z experiment above is now a seven-step program, and compiles to the same circuits byte for
+byte (28 of them, held to fingerprints taken before the compiler existed).
+
+**The CNOT** (Horsman, Fowler, Devitt and Van Meter; Litinski) puts control C, an ancilla A in |+⟩
+and target T in an L.
+1. Z_C Z_A is measured (m₁), C and A side by side.
+2. X_A X_T is measured (m₂), A above T.
+3. A is read out in Z (m₃).
+
+What is left is CNOT from C to T, up to Paulis fixed by the three outcomes, which are tracked, not
+applied. Two input pairs together fix its action on Z_C, Z_T, X_C and X_T:
+- **|0⟩|0⟩ in:** the observables are Z_C, and Z_T ⊕ Z_A ⊕ m₁ with the A–T seam's Z records on that
+  column.
+- **|+⟩|+⟩ in:** they are X_T, and X_C X_T ⊕ m₂ with the C–A seam's X record.
+
+**How the programs are checked:**
+- **Frames by the reference simulation.** Every detector and observable of every program is
+  deterministic without noise; the reference simulation refuses any that is not. It refused the
+  first X frame, which took X_C X_A along the ancilla's first row: m₂ reads X on A's last row, and
+  the rows differ by checks whose values are not fixed. The frame now uses the last row, and a site
+  test holds the geometry to it.
+- **A detector-rule case, found by the second merge.** A check measured again after skipping a
+  round (a seam check of an earlier merge, whose seam has since been read and prepared again)
+  compared itself with its stale value. It now starts over, as if measured for the first time.
+- **The frames are exercised.** The CNOT's merge outcomes come out −1 in about half of noiseless
+  shots, so a wrong frame could not hide.
+- **Against Stim and PyMatching.** Every single fault of every program is corrected at d = 3. Each
+  program's error model equals Stim's fault for fault, and PyMatching and ours agree on every shot
+  but ties (`tools/surgery.py check`, run in CI).
+
+**The CNOT, measured** (`tools/surgery.py programs`: T = d, correlated matching unless marked;
+"any wrong" is a shot with either observable wrong; Z inputs are |0⟩|0⟩, X inputs |+⟩|+⟩). Beside
+it, three patches held as memories for the CNOT's 4d rounds:
+
+| d | p | Z inputs | X inputs | Z inputs, plain | three patches idle as long | CNOT ÷ idle |
+|---|---|---|---|---|---|---|
+| 3 | 0.2% | 10.66% | 11.46% | 11.47% | 13.07% | 0.82 |
+| 5 | 0.2% | 3.54% | 3.85% | 5.98% | 4.50% | 0.79 |
+| 7 | 0.2% | 1.03% | 1.12% | 2.61% | 1.37% | 0.75 |
+| 3 | 0.3% | 19.45% | 22.20% | 21.53% | 24.00% | 0.81 |
+| 5 | 0.3% | 11.11% | 12.06% | 16.93% | 14.34% | 0.77 |
+| 7 | 0.3% | 5.60% | 6.42% | 11.45% | 7.11% | 0.79 |
+
+- **It falls with distance, below threshold.** At p = 0.2%: 10.7%, 3.5% and 1.0% at d = 3, 5, 7.
+- **It costs less than holding its three patches.** It fails 0.75 to 0.93 times as often as three
+  patches idle for as long. The ancilla is read out early, and each observable spans fewer patch
+  rounds than three whole memories. So the resource estimate's model, every patch exposed for every
+  operation, is if anything pessimistic.
+- **Correlated matching matters most here.** At d = 7, p = 0.3%, plain matching fails 11.5% against
+  correlated's 5.6%.
+- **Windows keep up.** Decoded by parallel windows at d = 5, p = 0.3%, it fails 11.27% and 12.88%
+  against 11.27% and 12.70% decoded whole.
+
+**Merges in a row.** k Z⊗Z measurements on the same two patches, each over d merged rounds:
+
+| d | k = 1 | k = 2 | k = 4 | k = 8 | per merge |
+|---|---|---|---|---|---|
+| 3 | 12.30% | 16.97% | 27.40% | 42.78% | 5.96% |
+| 5 | 6.56% | 8.86% | 12.65% | 20.81% | 2.33% |
+
+ln(1 − P) is a straight line in k: each merge adds the same risk, on top of the fixed rounds before
+and after. That is the sum-of-parts law a resource estimate assumes, measured. **Three patches
+merged at once** (Z⊗Z⊗Z) fail 17.97%, 9.34% and 4.61% at d = 3, 5, 7 and p = 0.3%.
+
 ## What it would take: a resource estimate from the measured Λ
 
 Every section above measures one ingredient of a quantum computer's cost. `js/estimator.js` (section
@@ -984,7 +1059,8 @@ Every section above measures one ingredient of a quantum computer's cost. `js/es
   our belief-matching.
 - **Every operation takes d merged rounds** of lattice surgery, the point from which the merge
   outcome's failure rate stops falling. Every patch is exposed for those rounds, so one operation
-  fails with probability about N · d · ε_d.
+  fails with probability about N · d · ε_d. The logical CNOT measured above fails 0.75 to 0.93
+  times as often as its patches held idle for as long, so this errs on the safe side.
 - **The distance** is the smallest odd d that keeps the whole run within its failure budget (1% here).
 - **Qubits** are N · (2d² − 1) times a routing overhead of 2.
 - **Time** is d rounds of Willow's 1.1 µs cycle per operation.
@@ -1487,7 +1563,7 @@ src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
 src/wasm_bb.rs        WASM exports for Figure 15: the [[72, 12, 6]] memory decoded by BP+OSD
-src/wasm_ls.rs        WASM exports for Figure 18: lattice surgery sampled and matched
+src/wasm_ls.rs        WASM exports for Figure 20: lattice-surgery programs sampled and matched
 src/lib.rs            PyO3 module and the WASM C-ABI interface
 
 index.html            the explainer (structure only)

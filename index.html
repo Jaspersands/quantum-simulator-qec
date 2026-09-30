@@ -1706,9 +1706,85 @@
     </div>
   </figure>
 
-  <figure class="figure" data-ls-live>
+  <div class="prose">
+    <p>
+      One measurement is not yet a computation. The engine compiles lattice-surgery <strong>programs</strong>: patches on
+      a grid of tiles, merged along a line (side by side to measure <span class="mono">Z⊗Z</span>, one above the other
+      for <span class="mono">X⊗X</span>), split, and read out, with the same detector rule throughout. The first program
+      anyone asks for is the <strong>logical CNOT</strong>, built from an ancilla patch and two joint measurements. Its
+      corrections are Paulis fixed by the three outcomes, tracked in software; the engine's reference simulation checks
+      that every observable, frame included, is deterministic, and it was right to: a first frame taken along the wrong
+      row of the ancilla was refused.
+    </p>
+  </div>
+
+  <figure class="figure" data-cnot-diagram>
     <figcaption class="figure__cap">
       <span class="figure__num">Figure 18</span>
+      <span class="figure__title">a logical CNOT, step by step</span>
+      <span class="figure__meta">control C, ancilla A, target T, d = 3</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="segmented" role="radiogroup" aria-label="Step" data-cnot-steps></div>
+      <canvas data-cnot-canvas></canvas>
+      <div class="legend">
+        <span class="legend__item"><span class="legend__key legend__key--xplaq"></span>X check</span>
+        <span class="legend__item"><span class="legend__key legend__key--zplaq"></span>Z check</span>
+        <span class="legend__item"><span class="legend__key legend__key--round legend__key--defect"></span>seam in use</span>
+      </div>
+      <p class="note" data-cnot-note></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-cnot-fit>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 19</span>
+      <span class="figure__title">the CNOT, measured</span>
+      <span class="figure__meta">† measured natively</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-cnot-plot data-aspect="0.5"></canvas>
+      <div class="legend" data-cnot-legend></div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">How often a logical CNOT has any observable wrong, against distance and noise</caption>
+          <thead>
+            <tr>
+              <th scope="col">Any observable wrong</th>
+              <th scope="col" class="num">|0⟩|0⟩ in</th>
+              <th scope="col" class="num">|+⟩|+⟩ in</th>
+              <th scope="col" class="num">|0⟩|0⟩, plain</th>
+              <th scope="col" class="num">Three patches idle as long</th>
+              <th scope="col" class="num">CNOT ÷ idle</th>
+            </tr>
+          </thead>
+          <tbody data-cnot-rows></tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Z⊗Z measurements in a row: how often any is wrong, and the failure each adds</caption>
+          <thead>
+            <tr>
+              <th scope="col">Z⊗Z k times, p = 0.3%</th>
+              <th scope="col" class="num">k = 1</th>
+              <th scope="col" class="num">k = 2</th>
+              <th scope="col" class="num">k = 4</th>
+              <th scope="col" class="num">k = 8</th>
+              <th scope="col" class="num">Per merge</th>
+            </tr>
+          </thead>
+          <tbody data-seq-rows></tbody>
+        </table>
+      </div>
+      <p class="status" role="status" data-cnot-fit-status>Loads when you scroll here.</p>
+      <p class="note" data-cnot-fit-foot></p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-ls-live>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 20</span>
       <span class="figure__title">lattice surgery, here</span>
       <span class="figure__meta">SD6, p = 0.3%, correlated matching</span>
     </figcaption>
@@ -1718,9 +1794,9 @@
           <caption class="visually-hidden">Lattice surgery sampled and matched in this tab</caption>
           <thead>
             <tr>
-              <th scope="col">Experiment</th>
+              <th scope="col">Program, and what is counted</th>
               <th scope="col" class="num">Shots</th>
-              <th scope="col" class="num">Merge outcome wrong</th>
+              <th scope="col" class="num">Wrong</th>
               <th scope="col" class="num">Per shot, one core</th>
             </tr>
           </thead>
@@ -1728,9 +1804,10 @@
         </table>
       </div>
       <p class="status" role="status" data-ls-live-status>Runs when you scroll here.</p>
-      <p class="note">Each row on its own worker: batches of 64 shots of the whole experiment, sampled by the
+      <p class="note">Each row on its own worker: batches of 64 shots of the whole program, sampled by the
         bit-parallel sampler and matched with correlated matching. Two merged rounds leave the outcome exposed to a
-        pair of measurement errors on one seam check; d rounds make that as unlikely as any other failure.</p>
+        pair of measurement errors on one seam check; d rounds make that as unlikely as any other failure. The CNOT
+        rows run the program of Figure 18, both input pairs, and count a shot with either observable wrong.</p>
     </div>
   </figure>
 
@@ -1758,7 +1835,8 @@
     <ul>
       <li>logical error per cycle falls from the measured <span class="mono">ε</span> at d = 7 by
         <span class="mono">Λ</span> for every two steps of distance;</li>
-      <li>every operation takes d merged rounds, with every patch exposed;</li>
+      <li>every operation takes d merged rounds, with every patch exposed (the logical CNOT of section 14 fails
+        less often than its patches held idle for as long, so this errs on the safe side);</li>
       <li>the distance is the smallest that keeps the whole run inside its failure budget.</li>
     </ul>
     <p>
@@ -1768,7 +1846,7 @@
 
   <figure class="figure" data-est>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 19</span>
+      <span class="figure__num">Figure 21</span>
       <span class="figure__title">qubits and hours, from the measured Λ</span>
       <span class="figure__meta">surface code, lattice surgery</span>
     </figcaption>
@@ -1847,7 +1925,7 @@
 
   <figure class="figure" data-est-grid>
     <figcaption class="figure__cap">
-      <span class="figure__num">Figure 20</span>
+      <span class="figure__num">Figure 22</span>
       <span class="figure__title">three sizes, three measured Λ</span>
       <span class="figure__meta">1% failure budget, routing overhead 2, cycles of 1.1 microseconds</span>
     </figcaption>

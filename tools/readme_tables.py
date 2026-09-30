@@ -121,6 +121,50 @@ def latency():
     return rows
 
 
+def surgery_timing():
+    pts = load("data/surgery/results.json")["points"]
+    rows = []
+    for p in (0.003, 0.002):
+        for d in (3, 5, 7):
+            get = lambda T, m="correlated": pts.get(f"d{d}/T{T}/p{p}/{m}")
+            cells = [get(2), get(d), get(2 * d), get(d, "plain")]
+            if not all(cells):
+                continue
+            f = lambda q, k="outcome": f"{q['rate_' + k] * 100:.2f}%"
+            rows.append(f"| {d} | {p * 100:.1f}% | {f(cells[0])} | {f(cells[1])} | {f(cells[2])} | {f(cells[3])} | {f(cells[1], 'patches')} |")
+    return rows
+
+
+def surgery_cnot():
+    P = load("data/surgery/programs.json")["points"]
+    rows = []
+    for p in (0.002, 0.003):
+        for d in (3, 5, 7):
+            z, x = P[f"cnot/d{d}/T{d}/p{p}/z/correlated"], P[f"cnot/d{d}/T{d}/p{p}/x/correlated"]
+            plain = P[f"cnot/d{d}/T{d}/p{p}/z/plain"]
+            idle = 1 - (1 - P[f"memory/d{d}/R{4 * d}/p{p}"]["rate_any"]) ** 3
+            rows.append(f"| {d} | {p * 100:.1f}% | {z['rate_any'] * 100:.2f}% | {x['rate_any'] * 100:.2f}% | "
+                        f"{plain['rate_any'] * 100:.2f}% | {idle * 100:.2f}% | {z['rate_any'] / idle:.2f} |")
+    return rows
+
+
+def per_merge(points):
+    """The failure each merge adds: a least-squares line through ln(1 - P) against k."""
+    xs = [q["k"] for q in points]; ys = [math.log(1 - q["rate_any"]) for q in points]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+    return 1 - math.exp(slope)
+
+
+def surgery_sequences():
+    P = load("data/surgery/programs.json")["points"]
+    rows = []
+    for d in (3, 5):
+        pts = [P[f"repeated/d{d}/k{k}/p0.003"] for k in (1, 2, 4, 8)]
+        rows.append(f"| {d} | " + " | ".join(f"{q['rate_any'] * 100:.2f}%" for q in pts) + f" | {per_merge(pts) * 100:.2f}% |")
+    return rows
+
+
 # Each table's header row (as a regex), and the function giving its body.
 TABLES = [
     ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
@@ -129,6 +173,9 @@ TABLES = [
     ("cross-check, correlated", r"\| code \| d \| p \| PyMatching correlated \|[^\n]*", xcheck_corr),
     ("matcher speed", r"\| d \| p \| dense \| sparse \| PyMatching \|", speed),
     ("latency", r"\| stream \| decoder \| window decode \| keeps up on \| mean latency \| p99 \|", latency),
+    ("surgery timing", r"\| d \| p \| T = 2 \| T = d \| T = 2d \| T = d, plain \| either patch, T = d \|", surgery_timing),
+    ("surgery CNOT", r"\| d \| p \| Z inputs \| X inputs \| Z inputs, plain \| three patches idle as long \| CNOT ÷ idle \|", surgery_cnot),
+    ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
 ]
 
 
