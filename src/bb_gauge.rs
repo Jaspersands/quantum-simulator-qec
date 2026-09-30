@@ -104,7 +104,10 @@ impl Gauging {
 
     /// The worst cut, exactly: over every set U of at most half the vertices,
     /// the one minimising |δU| / |U| (the smallest such U on ties), where δU
-    /// is the edges with an odd number of ends in U. The Gauss-law checks on
+    /// is the edges with an odd number of ends in U. For a graph that is the
+    /// edges leaving U, and |δU| ≥ |U| throughout is Williamson and Yoder's
+    /// Cheeger condition; for hyperedges (the product operator's) it is its
+    /// generalisation, the count that decides how a logical's weight changes. The Gauss-law checks on
     /// U multiply to X on U and on δU, so a logical containing U can trade
     /// |U| data qubits for |δU| edge qubits. Returns (|δU|, U).
     pub fn cheeger(&self) -> (usize, Vec<usize>) {

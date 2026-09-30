@@ -489,7 +489,10 @@ cut until it holds takes {{gl.extra_f}} edges for $X(f, 0)$: {{gl.anc_fx}} ancil
 heaviest flux check of {{gl.flux_fx}}, {{gl.ticks_fx}} ticks per merged cycle against the memory's
 8, and distance {{gl.dist_fx}}. The product $X(f, 0) X(g, h)$, the joint measurement a CNOT
 needs, fares worse minimal: 11 of its vertices have only 3 edges leaving them, and its distance
-falls to 4. Expanded, it keeps 12, with {{gl.anc_fghx}} ancillas against {{gl.anc_fgh}}.
+falls to 4. Expanded, it keeps 12, with {{gl.anc_fghx}} ancillas against {{gl.anc_fgh}}. (For its
+four-ended hyperedges, an edge leaves a set when an odd number of its ends lie in it.) This is for
+these operators: Cross et al.'s eight are written in a notation that need not give $X(f, 0)$, and
+their shared system reports distance 12.
 $X(g, h)$'s minimal system keeps 12 though its constant is 2/3: the condition is sufficient, not
 necessary.
 
@@ -523,10 +526,12 @@ permuted, so those shots are ties, and the check counts any other difference as 
   distance 12 over 8 removes. Which wins at lower noise is not measured here.
 - **The merged cycles are the costly part, and why is not settled.** In Z, failures grow by about
   {{gl.grow_merged}} per merged cycle against {{gl.grow_memory}} per memory cycle, and BP settles
-  {{gl.bp_T12}} of shots at twelve merged cycles. An integer-programming search of each error
-  model found no undetectable logical fault lighter than {{gl.fault_merged}} in the merged circuits
-  ({{gl.fault_memory}} in the memory): upper bounds, not proofs. Before the flux checks closed
-  their comparisons at the split, the same search found one of 6 faults.
+  {{gl.bp_T12}} of shots at twelve merged cycles against {{gl.bp_mem}} for the memory of the same
+  length. An integer-programming search of each error model finds undetectable logical faults of
+  {{gl.fault_merged}} faults in the merged circuits and {{gl.fault_memory}} in the memory: the fault
+  distance is at most that. The search proves no lower bound, and did not reach the memory's own
+  bound of 10 that Bravyi et al. report. Before the flux checks closed their comparisons at the
+  split, the same search found one of 6 faults.
 
 ## Lattice surgery
 

@@ -321,6 +321,7 @@ async function runGauging(fig) {
   const show = () => {
     const op = system(chosen, cons);
     if (!op) {
+      drawTorus(canvas, GROSS, []);
       note.textContent = `${opLabel(chosen)}, ${cons}: not recorded yet.`;
       return;
     }

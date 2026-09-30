@@ -326,8 +326,23 @@ def bposd_matches(text, shots, seed):
     return same, ties, shots - same - ties
 
 
-def cmd_check(args):
+def recorded_structure_matches():
+    """The systems gauging.json records (and the page draws) are the ones the engine builds now."""
+    doc = load_json(OUT / "gauging.json", dict(operators={}))
     ok = True
+    for name, systems in doc["operators"].items():
+        for construction, rec in systems.items():
+            support, edges, extra, incidence, gauss, flux, _, _, ticks, cut = sq.bb_gauging(name, construction == "expanded")
+            same = (rec["support"] == support and rec["edge_checks"] == edges and rec["extra_edges"] == [list(e) for e in extra]
+                    and rec["incidence"] == incidence and rec["flux_cycles"] == flux and rec["ticks"] == ticks
+                    and rec["worst_cut"] == list(cut))
+            ok &= same
+            print(f"  {'ok ' if same else 'BAD'} {name} {construction}: the recorded system is the engine's", flush=True)
+    return ok
+
+
+def cmd_check(args):
+    ok = recorded_structure_matches()
     ops = ["f"] if args.quick else OPERATORS
     shots = 64 if args.quick else 256
     for name in ops:

@@ -955,9 +955,13 @@ clusters of six joined by two edges. The Gauss-law checks on one cluster multipl
 qubits and on the two edges leaving it, so a logical that contains the cluster can trade six data
 qubits for two edge qubits: 12 − 6 + 2 = 8. The product X(f, 0) X(g, h), the joint measurement a
 CNOT needs, is worse: its worst cut is 11 vertices with 3 edges leaving them, and distance 4.
+This is for these operators. Cross et al.'s eight operators are written in a notation that need
+not give X(f, 0), and their shared system reports distance 12.
 
 Williamson and Yoder's condition is that every set of at most half the vertices has at least as
-many edges leaving it as it has vertices (a Cheeger constant of 1). The engine finds the worst cut
+many edges leaving it as it has vertices (a Cheeger constant of 1). For the product, some edges
+are hyperedges of four ends; an edge counts as leaving a set when an odd number of its ends lie in
+it, since that is when the Gauss-law checks on the set leave X on its qubit. The engine finds the worst cut
 exactly (every set of at most half the vertices) and adds edges across it until the condition
 holds. That takes 4 edges for X(f, 0), 2 for X(g, h) and 14 for the product, and every expanded
 system has distance 12 in both types, exactly. X(g, h)'s minimal system keeps distance 12 even
@@ -1038,11 +1042,12 @@ Beside each point, the memory of the same length:
   distance 12 over 8 removes. Which wins at lower noise is not measured here.
 - **The merged cycles are the costly part, and why is not settled.** In Z, failures grow by about
   0.5% per merged cycle, against 0.008% per memory cycle. BP settles 78% of shots at twelve merged
-  cycles, where it settles 98% of the memory's.
-- **No light undetectable faults were found.** An integer-programming search of each error model
-  (`tools/gross_ops.py fault`, two minutes per observable) found no undetectable logical fault
-  lighter than 10 in the merged circuits, against 12 in the memory. These are upper bounds, not
-  proofs. Before the flux checks closed their comparisons at the split, the same search found one
+  cycles, against 95% for the memory of the same 24 cycles.
+- **Fault distance, bounded above only.** An integer-programming search of each error model
+  (`tools/gross_ops.py fault`, two minutes per observable) finds undetectable logical faults of 10
+  faults in the merged circuits and 12 in the memory. So the fault distance is at most that; the
+  search proves no lower bound, and it did not reach the memory's own bound of 10 that Bravyi et al.
+  report. Before the flux checks closed their comparisons at the split, the same search found one
   of 6 faults.
 
 **On the site**, section 13 draws the code on its torus (hover a check to see its six qubits). It

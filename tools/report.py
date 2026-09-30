@@ -411,9 +411,12 @@ def build_values(F):
     v["gl.grow_memory"] = f"{grow('memory/z/R14/p0.003', 'memory/z/R24/p0.003', 10):.3f}%"
     q = GL["f/expanded/z/T12/p0.003"]
     v["gl.bp_T12"] = f"{q['failures']['converged'] / q['shots'] * 100:.0f}%"
+    q = GL["memory/z/R24/p0.003"]
+    v["gl.bp_mem"] = f"{q['failures']['converged'] / q['shots'] * 100:.0f}%"
     FA = load("data/gross/faults.json")["circuits"]
-    v["gl.fault_merged"] = str(min(FA[k]["upper"] for k in FA if not k.startswith("memory")))
-    v["gl.fault_memory"] = str(min(FA[k]["upper"] for k in FA if k.startswith("memory")))
+    # A circuit whose search found nothing within its cap gives no bound.
+    found = lambda memory: [c["upper"] for k, c in FA.items() if k.startswith("memory") == memory and c["upper"] is not None]
+    v["gl.fault_merged"], v["gl.fault_memory"] = str(min(found(False))), str(min(found(True)))
 
     # Lattice surgery.
     S = load("data/surgery/results.json")["points"]
