@@ -15,9 +15,10 @@ logical qubits computed in the basis `bb_matrices` gives. It must equal the
 engine's bit for bit, for all 144 maps. The group order, the shifts acting
 trivially, and the two families of translates are recomputed here too.
 
-distance: the distance of the deformed code while each operator is measured
-(and of the gross code itself, the method's own check), exactly, by integer
-programming (scipy's HiGHS). For each logical of the other type in a basis,
+distance: the distance of the deformed code while each operator is measured,
+for Cross et al.'s minimal ancilla system and for the expanded one (edges
+added until its Cheeger constant is at least 1), and of the gross code itself
+(the method's own check), exactly, by integer programming (scipy's HiGHS). For each logical of the other type in a basis,
 the lightest operator commuting with the checks and anticommuting with it;
 the least of those is the distance, since every nontrivial logical
 anticommutes with some basis element. A solve that hits the time cap is
@@ -28,8 +29,9 @@ fault, Stim finds the noiseless circuit deterministic, and BP+OSD's
 corrections equal ldpc's BpOsdDecoder's on Stim's shots, but for shots where
 the two differ only by the order of tied BP posteriors (see bposd_matches).
 
-measure: the measurement against merged cycles T, and the memory of the same
-length, sampled by this engine and decoded by BP+OSD-CS of order 7.
+measure: the measurement against merged cycles T (the expanded system, and the
+minimal one for comparison), and the memory of the same length, sampled by
+this engine and decoded by BP+OSD-CS of order 7.
 """
 
 import argparse
@@ -56,6 +58,7 @@ OUT = ROOT / "data" / "gross"
 L, M = 12, 6
 H = L * M
 OPERATORS = ["f", "gh", "f+gh"]
+CONSTRUCTIONS = ["minimal", "expanded"]
 BATCH = 2_048
 
 
@@ -224,28 +227,41 @@ def distance(hx, hz, cap):
 def cmd_distance(args):
     path = OUT / "gauging.json"
     doc = load_json(path, dict(operators={}))
+    # Entries written before there were two constructions are the minimal ones.
+    for name, rec in list(doc["operators"].items()):
+        if "distance" in rec:
+            doc["operators"][name] = dict(minimal=rec)
     doc.update(engine_commit=engine_commit(), machine=machine(), generated=datetime.date.today().isoformat(),
                note="The gauging ancilla system of each operator (Cross et al.'s mono-layer construction, built from its "
                     "definition), and the deformed code's distance by integer programming (HiGHS), exact unless marked")
     names = [args.operator] if args.operator else ["code"] + OPERATORS
+    constructions = [args.construction] if args.construction else CONSTRUCTIONS
     for name in names:
-        print(f"  {name}", flush=True)
         if name == "code":
+            if "code" in doc and not args.redo:
+                continue
+            print("  code", flush=True)
             hx, hz, _, _ = code_matrices()
             doc["code"] = dict(distance=distance(hx, hz, args.cap))
-        else:
-            support, edges, incidence, gauss, flux, hxr, hzr, ticks = sq.bb_gauging(name)
-            n = 2 * H + len(edges)
+            write_json(path, doc)
+            continue
+        for construction in constructions:
+            if construction in doc["operators"].get(name, {}) and not args.redo:
+                continue
+            print(f"  {name}, {construction}", flush=True)
+            support, edges, extra, incidence, gauss, flux, hxr, hzr, ticks, cut = sq.bb_gauging(name, construction == "expanded")
+            n = 2 * H + len(incidence)
             hx, hz = dense(hxr, n), dense(hzr, n)
             degree = max(int(hx[:, q].sum() + hz[:, q].sum()) for q in range(n))
             degree = max(degree, int(hx.sum(axis=1).max()), int(hz.sum(axis=1).max()))
-            rec = dict(weight=len(support), edges=len(edges), gauss=len(support), flux=len(flux),
-                       ancillas=len(edges) + len(support) + len(flux), flux_weights=[len(f) for f in flux],
-                       ticks=ticks, max_degree=degree, logical_qubits=n - rank(hx) - rank(hz),
-                       support=support, edge_checks=edges, incidence=incidence, flux_cycles=flux)
+            rec = dict(weight=len(support), edges=len(incidence), extra=len(extra), gauss=len(support), flux=len(flux),
+                       ancillas=len(incidence) + len(support) + len(flux), flux_weights=[len(f) for f in flux],
+                       ticks=ticks, max_degree=degree, logical_qubits=n - rank(hx) - rank(hz), worst_cut=list(cut),
+                       support=support, edge_checks=edges, extra_edges=[list(e) for e in extra], incidence=incidence,
+                       flux_cycles=flux)
             rec["distance"] = distance(hx, hz, args.cap)
-            doc["operators"][name] = rec
-        write_json(path, doc)
+            doc["operators"].setdefault(name, {})[construction] = rec
+            write_json(path, doc)
     return 0
 
 
@@ -311,18 +327,19 @@ def cmd_check(args):
     ops = ["f"] if args.quick else OPERATORS
     shots = 64 if args.quick else 256
     for name in ops:
-        for basis in ("x", "z"):
-            text = sq.bb_logical_measurement_circuit(name, basis, 1, 2, 1, 0.003)
+        for construction, basis in [(c, b) for c in CONSTRUCTIONS for b in ("x", "z")]:
+            expanded = construction == "expanded"
+            text = sq.bb_logical_measurement_circuit(name, basis, 1, 2, 1, 0.003, expanded)
             circuit = stim.Circuit(text)
             ours = mechanisms(stim.DetectorErrorModel(sq.dem_from_circuit(text, False)))
             theirs = mechanisms(circuit.detector_error_model(decompose_errors=False))
             worst = max((abs(ours[k] - theirs[k]) / theirs[k] for k in theirs if k in ours), default=0.0)
-            noiseless = stim.Circuit(sq.bb_logical_measurement_circuit(name, basis, 1, 2, 1, 0.0))
+            noiseless = stim.Circuit(sq.bb_logical_measurement_circuit(name, basis, 1, 2, 1, 0.0, expanded))
             det, obs = noiseless.compile_detector_sampler(seed=1).sample(64, separate_observables=True)
             same, ties, unexplained = bposd_matches(text, shots, seed=len(name) * 10 + (basis == "x"))
             good = set(ours) == set(theirs) and worst < 1e-9 and not det.any() and not obs.any() and unexplained == 0
             ok &= good
-            print(f"  {'ok ' if good else 'BAD'} {name} {basis}: {circuit.num_qubits} qubits, {circuit.num_detectors} detectors, "
+            print(f"  {'ok ' if good else 'BAD'} {name} {construction} {basis}: {circuit.num_qubits} qubits, {circuit.num_detectors} detectors, "
                   f"{circuit.num_observables} observables, {len(theirs)} mechanisms (ours {len(ours)}, "
                   f"{len(set(ours) ^ set(theirs))} one-sided, worst Δp/p {worst:.1e}); noiseless all zero: "
                   f"{not det.any() and not obs.any()}; BP+OSD-CS7 equals ldpc on {same} of {shots} shots, {ties} differ by the "
@@ -347,20 +364,26 @@ PRE = POST = 6
 
 
 def points():
-    """(key, metadata, Stim text)."""
+    """(key, metadata, Stim text). The expanded system throughout, and the
+    minimal one for X(f, 0), the operator whose minimal system loses distance."""
     pts = []
     p = 0.003
     lengths = set()
+
+    def measure(op, construction, basis, T):
+        key = f"{op}/{construction}/{basis}/T{T}/p{p}"
+        meta = dict(kind="measure", operator=op, construction=construction, basis=basis, merged=T, pre=PRE, post=POST, p=p)
+        lengths.add(PRE + T + POST)
+        pts.append((key, meta, lambda: sq.bb_logical_measurement_circuit(op, basis, PRE, T, POST, p, construction == "expanded")))
+
+    for construction in CONSTRUCTIONS:
+        for basis in ("x", "z"):
+            for T in (2, 4, 7, 12):
+                if construction == "expanded" or basis == "x" or T in (2, 7):
+                    measure("f", construction, basis, T)
+    measure("gh", "expanded", "x", 7)
     for basis in ("x", "z"):
-        for T in (2, 3, 4, 7, 12):
-            pts.append((f"f/{basis}/T{T}/p{p}", dict(kind="measure", operator="f", basis=basis, merged=T, pre=PRE, post=POST, p=p),
-                        lambda b=basis, T=T: sq.bb_logical_measurement_circuit("f", b, PRE, T, POST, p)))
-            lengths.add(PRE + T + POST)
-    pts.append((f"gh/x/T7/p{p}", dict(kind="measure", operator="gh", basis="x", merged=7, pre=PRE, post=POST, p=p),
-                lambda: sq.bb_logical_measurement_circuit("gh", "x", PRE, 7, POST, p)))
-    for basis in ("x", "z"):
-        pts.append((f"f+gh/{basis}/T7/p{p}", dict(kind="measure", operator="f+gh", basis=basis, merged=7, pre=PRE, post=POST, p=p),
-                    lambda b=basis: sq.bb_logical_measurement_circuit("f+gh", b, PRE, 7, POST, p)))
+        measure("f+gh", "expanded", basis, 7)
     for basis in ("x", "z"):
         for R in sorted(lengths):
             pts.append((f"memory/{basis}/R{R}/p{p}", dict(kind="memory", basis=basis, cycles=R, p=p),
@@ -419,10 +442,12 @@ def main():
     ap.add_argument("command", choices=["auto", "distance", "check", "measure"])
     ap.add_argument("--quick", action="store_true", help="check: X(f, 0) only, fewer shots")
     ap.add_argument("--operator", choices=["code"] + OPERATORS, help="distance: one operator only")
+    ap.add_argument("--construction", choices=CONSTRUCTIONS, help="distance: one construction only")
+    ap.add_argument("--redo", action="store_true", help="distance: recompute entries already recorded")
     ap.add_argument("--cap", type=float, default=7200.0, help="distance: seconds per integer program")
-    ap.add_argument("--shot-cap", type=int, default=400_000)
+    ap.add_argument("--shot-cap", type=int, default=200_000)
     ap.add_argument("--time-cap", type=float, default=1800.0, help="measure: seconds per point")
-    ap.add_argument("--target", type=int, default=200, help="measure: failures per point")
+    ap.add_argument("--target", type=int, default=100, help="measure: failures per point")
     args = ap.parse_args()
     return {"auto": cmd_auto, "distance": cmd_distance, "check": cmd_check, "measure": cmd_measure}[args.command](args)
 

@@ -216,26 +216,34 @@ def bb_automorphisms(code: Literal["gross", "72"]) -> list[tuple[int, int, bool,
     ``bb_matrices`` gives them)."""
 
 def bb_gauging(
-    operator: Literal["f", "gh", "f+gh"],
-) -> tuple[list[int], list[int], list[list[int]], list[list[int]], list[list[int]], list[list[int]], list[list[int]], int]:
+    operator: Literal["f", "gh", "f+gh"], expanded: bool = False
+) -> tuple[
+    list[int], list[int], list[tuple[int, int]], list[list[int]], list[list[int]], list[list[int]],
+    list[list[int]], list[list[int]], int, tuple[int, int],
+]:
     """The gauging ancilla system that measures a gross-code logical X:
-    "f" = X(f, 0), "gh" = X(g, h), "f+gh" their product. Returns (support,
-    edges (the Z checks touching it), each edge's ends as indices into
-    support, each vertex's edges, the flux checks as edge lists, the deformed
-    H_X' and H_Z' rows over data then edge qubits, the merged cycle's ticks)."""
+    "f" = X(f, 0), "gh" = X(g, h), "f+gh" their product. Cross et al.'s
+    minimal (mono-layer) system, or with ``expanded`` edges added until its
+    Cheeger constant is at least 1. Returns (support, edges (the Z checks
+    touching it), the added edges as vertex pairs, each edge's ends as indices
+    into support, each vertex's edges, the flux checks as edge lists, the
+    deformed H_X' and H_Z' rows over data then edge qubits, the merged
+    cycle's ticks, the worst cut (|dU|, |U|))."""
 
 def bb_memory_basis_circuit(code: Literal["gross", "72"], basis: Literal["z", "x"], cycles: int, p: float) -> str:
     """A memory in either basis by the cycle writer, as Stim text; in "z" its
     error model equals ``bb_memory_circuit``'s."""
 
 def bb_logical_measurement_circuit(
-    operator: Literal["f", "gh", "f+gh"], basis: Literal["z", "x"], pre: int, merged: int, post: int, p: float
+    operator: Literal["f", "gh", "f+gh"], basis: Literal["z", "x"], pre: int, merged: int, post: int, p: float,
+    expanded: bool = False,
 ) -> str:
     """The gauging measurement of a gross-code logical X as Stim text:
     ``pre`` memory cycles, ``merged`` cycles of the deformed code, ``post``
     memory cycles, the data read in ``basis``. "x": L0 the outcome, L1-L12
     the X logicals. "z": the 11 Z logicals that commute with the operator,
-    each routed through the edge qubits read at the split."""
+    each routed through the edge qubits read at the split. ``expanded`` uses
+    the expanded ancilla system (see ``bb_gauging``)."""
 
 def surgery_cnot(d: int, merged: int, p: float, inputs: Literal["z", "x"] = "z") -> str:
     """A logical CNOT by lattice surgery, as Stim text: control C, an ancilla

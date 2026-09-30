@@ -631,28 +631,56 @@ fn bb_automorphisms(code: &str) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usi
     Ok(out)
 }
 
-fn gauged(operator: &str) -> PyResult<(crate::bb::BbCode, crate::bb_gauge::Gauging)> {
+fn gauged(operator: &str, expanded: bool) -> PyResult<(crate::bb::BbCode, crate::bb_gauge::Gauging)> {
     let code = crate::bb::BbCode::gross();
     let support = crate::bb::gross_operator(operator).map_err(err)?;
-    let g = crate::bb_gauge::Gauging::new(&code, &support).map_err(err)?;
-    Ok((code, g))
+    let g = if expanded { crate::bb_gauge::Gauging::expanded(&code, &support) } else { crate::bb_gauge::Gauging::new(&code, &support) };
+    Ok((code, g.map_err(err)?))
 }
 
 /// The gauging ancilla system that measures a gross-code logical X
-/// ("f" = X(f, 0), "gh" = X(g, h), "f+gh" their product): (support, edges
-/// (the Z checks touching it), each edge's ends (indices into support), each
-/// vertex's edges, the flux checks (edge indices), the deformed H_X' and
-/// H_Z' as rows over data then edge qubits, the merged cycle's ticks).
+/// ("f" = X(f, 0), "gh" = X(g, h), "f+gh" their product): Cross et al.'s
+/// minimal system, or with `expanded` edges added until its Cheeger constant
+/// is at least 1. Returns (support, edges (the Z checks touching it), the
+/// added edges as vertex pairs, each edge's ends (indices into support), each
+/// vertex's edges, the flux checks (edge indices), the deformed H_X' and H_Z'
+/// as rows over data then edge qubits, the merged cycle's ticks, the worst
+/// cut (|δU|, |U|)).
 #[pyfunction]
+#[pyo3(signature = (operator, expanded=false))]
 #[allow(clippy::type_complexity)]
 fn bb_gauging(
     operator: &str,
-) -> PyResult<(Vec<usize>, Vec<usize>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, usize)> {
-    let (code, g) = gauged(operator)?;
+    expanded: bool,
+) -> PyResult<(
+    Vec<usize>,
+    Vec<usize>,
+    Vec<(usize, usize)>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    usize,
+    (usize, usize),
+)> {
+    let (code, g) = gauged(operator, expanded)?;
     let (hx, hz) = g.deformed(&code);
     let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect::<Vec<_>>();
     let ticks = crate::bb_circuit::merged_cycle(&code, &g).ticks.len();
-    Ok((g.support.clone(), g.edges.clone(), g.incidence.clone(), g.gauss.clone(), g.flux.clone(), rows(&hx), rows(&hz), ticks))
+    let (b, u) = g.cheeger();
+    Ok((
+        g.support.clone(),
+        g.edges.clone(),
+        g.extra.clone(),
+        g.incidence.clone(),
+        g.gauss.clone(),
+        g.flux.clone(),
+        rows(&hx),
+        rows(&hz),
+        ticks,
+        (b, u.len()),
+    ))
 }
 
 /// A memory of a bivariate bicycle code in either basis, by the cycle
@@ -666,9 +694,11 @@ fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> Py
 /// Stim text: `pre` memory cycles, `merged` cycles of the deformed code,
 /// `post` memory cycles, the data read in `basis`. "x": L0 the outcome,
 /// L1-L12 the X logicals; "z": the 11 Z logicals that commute with it.
+/// `expanded` uses the expanded ancilla system (see `bb_gauging`).
 #[pyfunction]
-fn bb_logical_measurement_circuit(operator: &str, basis: &str, pre: usize, merged: usize, post: usize, p: f64) -> PyResult<String> {
-    let (code, g) = gauged(operator)?;
+#[pyo3(signature = (operator, basis, pre, merged, post, p, expanded=false))]
+fn bb_logical_measurement_circuit(operator: &str, basis: &str, pre: usize, merged: usize, post: usize, p: f64, expanded: bool) -> PyResult<String> {
+    let (code, g) = gauged(operator, expanded)?;
     let c = crate::bb_circuit::logical_measurement(&code, &g, basis_of(basis)?, pre, merged, post, p).map_err(err)?;
     Ok(c.to_stim())
 }

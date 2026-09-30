@@ -27,7 +27,10 @@ pub struct Gauging {
     pub support: Vec<usize>,
     /// C₀: the Z checks touching V₀, sorted. Edge qubit i belongs to check `edges[i]`.
     pub edges: Vec<usize>,
-    /// Per edge, its ends: indices into `support`.
+    /// Edges added for expansion, between two vertices (indices into
+    /// `support`), belonging to no check: edge qubits `edges.len()` onwards.
+    pub extra: Vec<(usize, usize)>,
+    /// Per edge (the checks' then the added ones), its ends: indices into `support`.
     pub incidence: Vec<Vec<usize>>,
     /// Per vertex, its edges: indices into `edges`.
     pub gauss: Vec<Vec<usize>>,
@@ -49,10 +52,79 @@ impl Gauging {
         if let Some(i) = incidence.iter().position(|e| e.len() % 2 == 1) {
             return Err(format!("Z check {} meets the operator in an odd number of qubits: it is not a logical X", edges[i]));
         }
-        let gauss = (0..support.len()).map(|v| (0..edges.len()).filter(|&e| incidence[e].contains(&v)).collect()).collect();
-        let mut g = Gauging { support, edges, incidence, gauss, flux: Vec::new() };
-        g.flux = g.min_weight_cycles()?;
+        let mut g = Gauging { support, edges, extra: Vec::new(), incidence, gauss: Vec::new(), flux: Vec::new() };
+        g.finish()?;
         Ok(g)
+    }
+
+    /// The minimal system plus edges, added until every set U of at most half
+    /// the vertices has |δU| ≥ |U| (a Cheeger constant of at least 1,
+    /// Williamson and Yoder's condition for the merged code to keep the
+    /// code's distance). Each round takes the worst set and joins a vertex in
+    /// it to one outside, the pair of least total degree not already joined.
+    pub fn expanded(code: &BbCode, support: &[usize]) -> Result<Gauging, String> {
+        let mut g = Gauging::new(code, support)?;
+        for _ in 0..64 {
+            let (b, u) = g.cheeger();
+            if b >= u.len() {
+                g.finish()?;
+                return Ok(g);
+            }
+            let degree = |v: usize| g.gauss[v].len();
+            let joined = |x: usize, y: usize| g.incidence.iter().any(|e| e.len() == 2 && e.contains(&x) && e.contains(&y));
+            let outside: Vec<usize> = (0..g.support.len()).filter(|v| !u.contains(v)).collect();
+            let pair = u
+                .iter()
+                .flat_map(|&x| outside.iter().map(move |&y| (x, y)))
+                .filter(|&(x, y)| !joined(x, y))
+                .min_by_key(|&(x, y)| (degree(x) + degree(y), x, y))
+                .ok_or("no pair left to join across the worst cut")?;
+            g.extra.push(pair);
+            g.incidence.push(vec![pair.0, pair.1]);
+            g.gauss = g.vertex_edges();
+        }
+        Err("64 added edges did not reach a Cheeger constant of 1".into())
+    }
+
+    /// Per-vertex edges and the flux checks, from `incidence`.
+    fn finish(&mut self) -> Result<(), String> {
+        self.gauss = self.vertex_edges();
+        self.flux = self.min_weight_cycles()?;
+        Ok(())
+    }
+
+    fn vertex_edges(&self) -> Vec<Vec<usize>> {
+        (0..self.support.len()).map(|v| (0..self.num_edges()).filter(|&e| self.incidence[e].contains(&v)).collect()).collect()
+    }
+
+    /// Edge qubits: one per check touching the operator, one per added edge.
+    pub fn num_edges(&self) -> usize {
+        self.incidence.len()
+    }
+
+    /// The worst cut, exactly: over every set U of at most half the vertices,
+    /// the one minimising |δU| / |U| (the smallest such U on ties), where δU
+    /// is the edges with an odd number of ends in U. The Gauss-law checks on
+    /// U multiply to X on U and on δU, so a logical containing U can trade
+    /// |U| data qubits for |δU| edge qubits. Returns (|δU|, U).
+    pub fn cheeger(&self) -> (usize, Vec<usize>) {
+        let n = self.support.len();
+        assert!(n <= 26, "{n} vertices are too many to enumerate");
+        let masks: Vec<u32> = self.incidence.iter().map(|e| e.iter().fold(0u32, |m, &v| m | 1 << v)).collect();
+        let (mut best_b, mut best_u) = (usize::MAX, 0u32);
+        for u in 1u32..(1 << n) {
+            let k = u.count_ones() as usize;
+            if 2 * k > n {
+                continue;
+            }
+            let b = masks.iter().filter(|&&m| (m & u).count_ones() % 2 == 1).count();
+            let (bk, kk) = (best_b.saturating_mul(k), b * best_u.count_ones().max(1) as usize);
+            if best_b == usize::MAX || kk < bk || (kk == bk && k < best_u.count_ones() as usize) {
+                best_b = b;
+                best_u = u;
+            }
+        }
+        (best_b, (0..n).filter(|&v| best_u >> v & 1 == 1).collect())
     }
 
     /// F: the Z checks of C₀ restricted to V₀, edges × vertices.
@@ -60,15 +132,40 @@ impl Gauging {
         BitMatrix::from_rows(self.support.len(), &self.incidence)
     }
 
-    /// A minimum-weight basis of the cycle space {s : sᵀF = 0}: every vector
-    /// of the space, lightest first, kept when independent of those kept.
-    /// The greedy basis of a linear matroid is a minimum-weight one.
+    /// A light basis of the cycle space {s : sᵀF = 0}, lightest first. Up to
+    /// 2²⁰ vectors, every vector of the space, lightest first, kept when
+    /// independent of those kept: the greedy basis of a linear matroid is a
+    /// minimum-weight one. Beyond that, a basis reduced greedily (a vector is
+    /// replaced by its sum with another while that is lighter), which is
+    /// light but not proven minimal.
     fn min_weight_cycles(&self) -> Result<Vec<Vec<usize>>, String> {
         let space = self.restricted().transpose().kernel();
-        if space.rows > 16 {
-            return Err(format!("{} independent cycles are too many to enumerate", space.rows));
+        let ne = self.num_edges();
+        if space.rows > 20 {
+            let mut basis: Vec<Vec<bool>> = (0..space.rows).map(|r| (0..ne).map(|e| space.get(r, e)).collect()).collect();
+            let weight = |v: &[bool]| v.iter().filter(|&&x| x).count();
+            loop {
+                let mut improved = false;
+                for i in 0..basis.len() {
+                    for j in 0..basis.len() {
+                        if i == j {
+                            continue;
+                        }
+                        let sum: Vec<bool> = basis[i].iter().zip(&basis[j]).map(|(a, b)| a ^ b).collect();
+                        if weight(&sum) < weight(&basis[i]) {
+                            basis[i] = sum;
+                            improved = true;
+                        }
+                    }
+                }
+                if !improved {
+                    break;
+                }
+            }
+            let mut out: Vec<Vec<usize>> = basis.iter().map(|v| (0..ne).filter(|&e| v[e]).collect()).collect();
+            out.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+            return Ok(out);
         }
-        let ne = self.edges.len();
         let mut all: Vec<Vec<usize>> = (1u32..(1 << space.rows))
             .map(|mask| {
                 let mut on = vec![false; ne];
@@ -100,7 +197,7 @@ impl Gauging {
     /// C₀ with their edge qubit, then the flux checks.
     pub fn deformed(&self, code: &BbCode) -> (BitMatrix, BitMatrix) {
         let (hx, hz, n) = (code.hx(), code.hz(), code.num_data());
-        let cols = n + self.edges.len();
+        let cols = n + self.num_edges();
         let mut x: Vec<Vec<usize>> = (0..hx.rows).map(|r| hx.row_ones(r)).collect();
         for (v, es) in self.gauss.iter().enumerate() {
             x.push(std::iter::once(self.support[v]).chain(es.iter().map(|e| n + e)).collect());
@@ -118,7 +215,7 @@ impl Gauging {
     /// the operator passes through the merge as itself times Z on these
     /// edges, which then commutes with every Gauss-law check.
     pub fn edges_for(&self, z: &[usize]) -> Result<Vec<usize>, String> {
-        let ne = self.edges.len();
+        let ne = self.num_edges();
         let rows: Vec<Vec<usize>> = (0..self.support.len())
             .map(|v| {
                 let mut row = self.gauss[v].clone();
@@ -140,7 +237,7 @@ impl Gauging {
 
     /// Ancilla qubits added: one per edge, per Gauss-law check, per flux check.
     pub fn ancillas(&self) -> usize {
-        self.edges.len() + self.support.len() + self.flux.len()
+        self.num_edges() + self.support.len() + self.flux.len()
     }
 }
 
@@ -176,7 +273,7 @@ mod tests {
             }
             let got: Vec<usize> = (0..n).filter(|&q| product[q]).collect();
             assert_eq!(got, l, "{name}: the Gauss-law checks multiply to L");
-            assert_eq!(g.flux.len(), g.edges.len() - g.restricted().rank(), "{name}: a flux check per independent cycle");
+            assert_eq!(g.flux.len(), g.num_edges() - g.restricted().rank(), "{name}: a flux check per independent cycle");
         }
     }
 
@@ -192,6 +289,33 @@ mod tests {
         }
         let (_, g, _) = gauged("f");
         assert!(g.gauss.iter().all(|es| es.len() == 3), "every vertex of X(f, 0)'s graph has degree 3");
+    }
+
+    /// X(f, 0)'s graph is two clusters of six joined by two edges: its
+    /// Cheeger constant is 1/3, and multiplying by the Gauss-law checks on one
+    /// cluster trades six data qubits for two edge qubits, which is how the
+    /// merged code's X distance falls to 8. X(g, h)'s is 2/3. The expanded
+    /// systems add edges until every set of at most half the vertices has at
+    /// least as many boundary edges as vertices (Williamson and Yoder's
+    /// condition), and remain valid gaugings.
+    #[test]
+    fn expansion_brings_the_cheeger_constant_to_one() {
+        let code = BbCode::gross();
+        for (name, minimal) in [("f", (2, 6)), ("gh", (4, 6))] {
+            let l = gross_operator(name).unwrap();
+            let g = Gauging::new(&code, &l).unwrap();
+            let (b, u) = g.cheeger();
+            assert_eq!((b, u.len()), minimal, "{name}: the worst cut of the minimal system");
+            let x = Gauging::expanded(&code, &l).unwrap();
+            let (b, u) = x.cheeger();
+            eprintln!("{name}: {} extra edges, worst cut {b}/{}", x.extra.len(), u.len());
+            assert!(b >= u.len() && !x.extra.is_empty(), "{name}: expanded to a Cheeger constant of at least 1");
+            let (hx, hz) = x.deformed(&code);
+            assert!(hx.mul(&hz.transpose()).is_zero(), "{name}: the expanded checks commute");
+            assert_eq!(hx.cols - hx.rank() - hz.rank(), 11, "{name}: 11 logical qubits while merged");
+            assert_eq!(x.ancillas(), x.num_edges() + x.support.len() + x.flux.len());
+            assert_eq!(x.flux.len(), x.num_edges() - x.restricted().rank(), "{name}: a flux check per independent cycle");
+        }
     }
 
     /// The flux basis is the lightest one, lightest first.

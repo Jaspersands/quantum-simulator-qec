@@ -365,7 +365,7 @@ struct Added {
 
 impl Added {
     fn new(code: &BbCode, g: &Gauging) -> Added {
-        Added { base: 4 * code.half() as u32, edges: g.edges.len() as u32, vertices: g.support.len() as u32 }
+        Added { base: 4 * code.half() as u32, edges: g.num_edges() as u32, vertices: g.support.len() as u32 }
     }
     fn edge(&self, i: usize) -> u32 {
         self.base + i as u32
@@ -509,6 +509,11 @@ pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize,
         let (x, y) = hz_pos(c);
         w.c.push(Instr::QubitCoords { coords: vec![x + 0.5, y + 0.5], qubits: vec![q.edge(i)] });
     }
+    // An added edge sits between its two vertices (as drawn, not across the torus).
+    for (k, &(a, b)) in g.extra.iter().enumerate() {
+        let ((xa, ya), (xb, yb)) = (data_pos(code, g.support[a]), data_pos(code, g.support[b]));
+        w.c.push(Instr::QubitCoords { coords: vec![(xa + xb) / 2.0, (ya + yb) / 2.0], qubits: vec![q.edge(g.edges.len() + k)] });
+    }
     for (v, &d) in g.support.iter().enumerate() {
         let (x, y) = data_pos(code, d);
         w.c.push(Instr::QubitCoords { coords: vec![x + 0.25, y + 0.25], qubits: vec![q.gauss(v)] });
@@ -525,7 +530,7 @@ pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize,
         w.cycle(&memory);
     }
     w.c.push(Instr::Tick);
-    let edges: Vec<u32> = (0..g.edges.len()).map(|i| q.edge(i)).collect();
+    let edges: Vec<u32> = (0..g.num_edges()).map(|i| q.edge(i)).collect();
     w.prepare(Basis::Z, &edges);
     w.prepare_ancillas_z(&(0..g.flux.len()).map(|j| q.flux(j)).collect::<Vec<_>>());
     w.add_data(&edges);
@@ -644,12 +649,19 @@ mod tests {
     }
 
     /// Without noise every detector and observable is deterministic, in both
-    /// bases, for all three operators: the schedule measures what it should,
-    /// the outcome is X̄, and each Z logical's route through the edges is right.
+    /// bases, for all three operators and both constructions: the schedule
+    /// measures what it should, the outcome is X̄, and each Z logical's route
+    /// through the edges (added edges included) is right.
     #[test]
     fn the_logical_measurement_is_deterministic() {
-        for name in ["f", "gh", "f+gh"] {
-            let (code, g) = gauged(name);
+        let code = BbCode::gross();
+        let systems = ["f", "gh", "f+gh"].into_iter().flat_map(|name| {
+            let l = crate::bb::gross_operator(name).unwrap();
+            [(name, Gauging::new(&code, &l).unwrap()), (name, Gauging::expanded(&code, &l).unwrap())]
+        });
+        for (name, g) in systems {
+            let name = format!("{name} (+{} edges)", g.extra.len());
+            let code = BbCode::gross();
             for (basis, obs) in [(Basis::X, 13), (Basis::Z, 11)] {
                 let c = logical_measurement(&code, &g, basis, 1, 2, 1, 0.0).unwrap();
                 let m = M2d::new(&c).unwrap_or_else(|e| panic!("{name} {basis:?}: {e}"));
