@@ -9,7 +9,8 @@
 //   p = 0.1% (this engine's own fit), and its validation against Gidney's RSA-2048 and Lee et al.'s
 //   FeMoco, each ratio's reason found by switching one option.
 import { readFile, writeFile } from 'node:fs/promises';
-import { estimate, distanceFor, physicalQubits, bigNumber, duration, modelFrom, coresFrom, estimateFull } from '../js/estimator.js';
+import { estimate, distanceFor, physicalQubits, bigNumber, duration, modelFrom, coresFrom, estimateFull, latencyFrom, defaultOptions,
+  validationCases, gidneyParallel } from '../js/estimator.js';
 
 const root = new URL('../data/', import.meta.url);
 const load = async (path) => JSON.parse(await readFile(new URL(path, root), 'utf8'));
@@ -48,18 +49,12 @@ lever.text = { physical: bigNumber(lever.physical) };
 // -- The fuller model ---------------------------------------------------------
 const sources = await load('estimate/sources.json');
 const fit = (await load('estimate/noise.json')).fit;
-// Section 12's measured p99 window decode, parallel windows with correlated matching, per d.
-const latency = {};
-for (const s of latencyDoc.streams) if (s.mode === 'parallel' && s.matcher === 'correlated') latency[s.d] = s.window_us.p99;
-
-/** The page's defaults: uniform 0.1% (this engine's fit), cultivation, fast block, surface storage, this project's decoder. */
-export const DEFAULTS = {
-  noise: { kind: 'uniform', p: 1e-3, fit }, budget: 0.01, block: 'fast', factory: 'cultivation', storage: 'surface',
-  cycleSeconds: 1e-6, controlSeconds: 10e-6, latency, parallel: 1, cores,
-};
+const latency = latencyFrom(latencyDoc);
+const DEFAULTS = defaultOptions(fit, latency, cores);
 const text = (r) => r.error ? { error: r.error } : ({
   qubits: bigNumber(r.qubits.total), block: bigNumber(r.qubits.block), factories: bigNumber(r.qubits.factories),
-  storage: bigNumber(r.qubits.storage), seconds: duration(r.seconds), perToffoli: `${(r.perToffoli * 1e6).toPrecision(3)} µs`,
+  storage: bigNumber(r.qubits.storage), seconds: duration(r.seconds),
+  perToffoli: r.perToffoli < 1e-3 ? `${(r.perToffoli * 1e6).toPrecision(3)} µs` : `${(r.perToffoli * 1e3).toPrecision(3)} ms`,
   cores: r.cores == null ? '—' : bigNumber(r.cores),
 });
 const ALGS = ['rsa2048', 'femoco_reiher', 'femoco_li', 'small', 'medium', 'large'];
@@ -72,39 +67,13 @@ for (const key of ALGS) {
   }
 }
 
-// Validation. Gidney's assumptions: uniform 0.1%, 1 µs cycles, a 10 µs reaction that includes decoding,
-// cultivation, a 6.7% failure budget per shot (93.3% succeed), cold qubits yoked, and his schedule's
-// parallelism: 6.5e9 Toffolis in 12.07 h is this many per d = 25 lattice-surgery period of 25 µs.
-const rsa = sources.algorithms.rsa2048;
-const perPeriod = (rsa.toffolis * 25e-6) / (rsa.reference.hours_per_shot * 3600);
-// His ε: 1e-15 per patch per round at d = 25, falling tenfold per two steps of distance at p = 0.1%,
-// that is ε = 0.01 (p / 1%)^((d + 1)/2). The first case is entirely his; each after it switches one
-// option to this project's, so each change in the ratios has one named cause.
-const hisEps = { kind: 'uniform', p: 1e-3, fit: { A: 0.01, pth: 0.01 } };
-const gidney = { ...DEFAULTS, noise: hisEps, budget: 0.067, storage: 'yoked', latencyOverrideUs: 0, parallel: perPeriod };
-const cases = [
-  ['Gidney\'s assumptions, ε and schedule', gidney],
-  ['this engine\'s measured ε instead', { ...gidney, noise: DEFAULTS.noise }],
-  ['one Toffoli per step instead', { ...gidney, parallel: 1 }],
-  ['surface-code storage instead of yoked', { ...gidney, storage: 'surface' }],
-  ['this project\'s decoder latency instead', { ...gidney, latencyOverrideUs: null }],
-];
-const validation = { rsa: [], femoco: [], rsaToffolisPerPeriod: perPeriod };
-for (const [label, o] of cases) {
-  const r = estimateFull(rsa, o, sources);
-  validation.rsa.push({ label, ...r, text: text(r),
-    qubitRatio: r.error ? null : r.qubits.total / rsa.reference.qubits,
-    timeRatio: r.error ? null : r.seconds / 3600 / rsa.reference.hours_per_shot });
-}
-// Our measured ε at p = 0.1%, extrapolated to Gidney's d = 25, against his 1e-15 per round.
-validation.epsAt25 = fit.A * (1e-3 / fit.pth) ** 13;
-const fem = sources.algorithms.femoco_reiher;
-for (const [label, o] of [['Lee et al.\'s noise, distillation', { ...DEFAULTS, factory: 'distillation', latencyOverrideUs: 0 }],
-  ['cultivation instead', { ...DEFAULTS, latencyOverrideUs: 0 }]]) {
-  const r = estimateFull(fem, o, sources);
-  validation.femoco.push({ label, ...r, text: text(r),
-    qubitRatio: r.error ? null : r.qubits.total / fem.reference.qubits,
-    timeRatio: r.error ? null : r.seconds / 86400 / fem.reference.days });
+// Validation: one shared definition with the page (js/estimator.js, validationCases).
+const perPeriod = gidneyParallel(sources);
+const validation = { rsa: [], femoco: [], rsaToffolisPerPeriod: perPeriod, epsAt25: fit.A * (1e-3 / fit.pth) ** 13 };
+for (const c of validationCases(sources, DEFAULTS)) {
+  const r = estimateFull(c.algorithm, c.options, sources);
+  validation[c.group].push({ label: c.label, ...r, text: text(r),
+    qubitRatio: r.error ? null : r.qubits.total / c.reference.qubits, timeRatio: r.error ? null : r.seconds / c.reference.seconds });
 }
 
 // -- Output ---------------------------------------------------------------------

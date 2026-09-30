@@ -831,3 +831,18 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
   font-size: var(--t-small);
   margin: var(--s5) 0;
 }
+
+/* Section 15's bars: where the qubits go, and what each Toffoli waits for. */
+.est-bar { margin: 0 0 var(--s4); }
+.est-bar__label { font-family: var(--font-mono); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); margin-bottom: var(--s1); }
+.est-bar__row { margin-bottom: var(--s2); }
+.est-bar__track { display: flex; height: 14px; border: var(--rule-w) solid var(--rule); background: var(--surface); }
+.est-bar__part { display: block; height: 100%; }
+.est-bar__part--block { background: var(--x); }
+.est-bar__part--factories { background: var(--defect); }
+.est-bar__part--storage { background: var(--z); }
+.est-bar__part--reaction { background: var(--ink-3); }
+.est-bar__legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); margin-top: var(--s1); font-size: var(--t-small); color: var(--ink-2); }
+.est-bar__swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
+/* Its answers are sentences as much as numbers: they wrap. */
+.est-out td.num, .est-out td { white-space: normal; }

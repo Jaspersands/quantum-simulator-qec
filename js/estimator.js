@@ -223,7 +223,7 @@ export function estimateFull(algorithm, o, sources, maxD = 201) {
     if (storageFailure + magic > o.budget) {
       return {
         error: `${storage === 'yoked' ? `yoked storage at ${sources.yoked.error_per_round} per round` : 'gross-code storage'} would `
-          + `fail ${(storageFailure * 100).toPrecision(2)}% on its own even over the shortest run (${duration(seconds)}), past the `
+          + `fail ${(storageFailure * 100).toPrecision(2)}% on its own even over the shortest run it could need (${duration(seconds)}), past the `
           + `${(o.budget * 100).toPrecision(2)}% budget`,
         seconds, storageFailure,
       };
@@ -244,6 +244,55 @@ export function estimateFull(algorithm, o, sources, maxD = 201) {
   }
   return { error: `no distance up to ${maxD} meets the budget` };
 }
+
+/** Section 12's measured p99 window decode per d (µs), parallel windows with correlated matching. */
+export function latencyFrom(latencyDoc) {
+  const out = {};
+  for (const s of latencyDoc.streams) if (s.mode === 'parallel' && s.matcher === 'correlated') out[s.d] = s.window_us.p99;
+  return out;
+}
+
+/**
+ * The page's defaults: uniform noise p = 0.1% by this engine's fit, cultivation, the fast block,
+ * surface storage, 1 µs cycles, a 10 µs control delay, this project's decoder latency.
+ */
+export function defaultOptions(fit, latency, cores) {
+  return {
+    noise: { kind: 'uniform', p: 1e-3, fit }, budget: 0.01, block: 'fast', factory: 'cultivation', storage: 'surface',
+    cycleSeconds: 1e-6, controlSeconds: 10e-6, latency, latencyOverrideUs: null, parallel: 1, cores,
+  };
+}
+
+/**
+ * The validation against the sources: RSA-2048 entirely under Gidney's assumptions, ε and schedule
+ * first, then each option switched to this project's; FeMoco under Lee et al.'s noise. Returns
+ * [{group, label, algorithm, options, reference: {qubits, seconds}}].
+ */
+export function validationCases(sources, defaults) {
+  const rsa = sources.algorithms.rsa2048;
+  const perPeriod = (rsa.toffolis * 25e-6) / (rsa.reference.hours_per_shot * 3600);
+  // His ε: 1e-15 per patch per round at d = 25, tenfold per two steps of d at p = 0.1%.
+  const his = { kind: 'uniform', p: 1e-3, fit: { A: 0.01, pth: 0.01 } };
+  const gidney = { ...defaults, noise: his, budget: 0.067, storage: 'yoked', latencyOverrideUs: 0, parallel: perPeriod };
+  const rsaRef = { qubits: rsa.reference.qubits, seconds: rsa.reference.hours_per_shot * 3600 };
+  const fem = sources.algorithms.femoco_reiher;
+  const femRef = { qubits: fem.reference.qubits, seconds: fem.reference.days * 86400 };
+  return [
+    { group: 'rsa', label: "Gidney's assumptions, ε and schedule", algorithm: rsa, options: gidney, reference: rsaRef },
+    { group: 'rsa', label: "this engine's measured ε instead", algorithm: rsa, options: { ...gidney, noise: defaults.noise }, reference: rsaRef },
+    { group: 'rsa', label: 'one Toffoli per step instead', algorithm: rsa, options: { ...gidney, parallel: 1 }, reference: rsaRef },
+    { group: 'rsa', label: 'surface-code storage instead of yoked', algorithm: rsa, options: { ...gidney, storage: 'surface' }, reference: rsaRef },
+    { group: 'rsa', label: "this project's decoder latency instead", algorithm: rsa, options: { ...gidney, latencyOverrideUs: null }, reference: rsaRef },
+    { group: 'femoco', label: "Lee et al.'s noise, distillation", algorithm: fem, options: { ...defaults, factory: 'distillation', latencyOverrideUs: 0 }, reference: femRef },
+    { group: 'femoco', label: 'cultivation instead', algorithm: fem, options: { ...defaults, latencyOverrideUs: 0 }, reference: femRef },
+  ];
+}
+
+/** Gidney's schedule: Toffolis per d = 25 lattice-surgery period of 25 µs. */
+export const gidneyParallel = (sources) => {
+  const rsa = sources.algorithms.rsa2048;
+  return (rsa.toffolis * 25e-6) / (rsa.reference.hours_per_shot * 3600);
+};
 
 /** 3.2e7 → "32 million"; 4.1e9 → "4.1 billion"; 12,345 → "12,345". */
 export function bigNumber(x) {
