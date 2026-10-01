@@ -12,7 +12,10 @@ import warnings as _warnings
 from importlib.metadata import PackageNotFoundError as _NotFound
 from importlib.metadata import version as _version
 
-from . import _core
+from . import _core, surgery
+from ._circuit import Circuit, DetectorErrorModel, DetectorSampler, MeasurementsToDetectionEventsConverter
+from ._codes import Automorphism, BivariateBicycleCode, Gauging, StreamResult, memory_circuit, stream_memory
+from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -68,4 +71,24 @@ def __dir__():
     return sorted(set(globals()) | set(__all__))
 
 
-__all__: list[str] = ["__version__"]
+__all__ = [
+    "Automorphism",
+    "BeliefMatching",
+    "BivariateBicycleCode",
+    "BpDecoder",
+    "BpOsd",
+    "BpOsdDecoder",
+    "Circuit",
+    "DetectorErrorModel",
+    "DetectorSampler",
+    "Gauging",
+    "Matching",
+    "MeasurementsToDetectionEventsConverter",
+    "StreamResult",
+    "Window",
+    "WindowMatching",
+    "__version__",
+    "memory_circuit",
+    "stream_memory",
+    "surgery",
+]

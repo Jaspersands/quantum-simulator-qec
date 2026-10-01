@@ -109,7 +109,8 @@ pub(crate) fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, nu
 }
 
 /// Window decoding of b8 shots: per shot (observables or u64::MAX where a window refused, the
-/// defects its commits left unexplained, each window's decode seconds when `timings`).
+/// defects its commits left unexplained, each window's decode seconds when `timings`, whether
+/// a window refused).
 pub(crate) fn window_shots(
     wd: &WindowDecoder,
     packed: &[u8],
@@ -118,7 +119,7 @@ pub(crate) fn window_shots(
     correlated: bool,
     threads: usize,
     timings: bool,
-) -> Vec<(u64, usize, Vec<f64>)> {
+) -> Vec<(u64, usize, Vec<f64>, bool)> {
     let stride = nd.div_ceil(8);
     let nw = wd.windows.len();
     parallel(num_shots, threads, |range| {
@@ -147,7 +148,7 @@ pub(crate) fn window_shots(
                     }
                 }
                 let unexplained = if failed { 0 } else { live.iter().filter(|&&b| b).count() };
-                (if failed { u64::MAX } else { obs }, unexplained, times)
+                (if failed { u64::MAX } else { obs }, unexplained, times, failed)
             })
             .collect()
     })
@@ -512,8 +513,9 @@ impl PyWindowMatcher {
         window_info(&self.wd)
     }
 
-    /// (observables as u64 per shot (u64::MAX where a window refused), the defects left
-    /// unexplained, each window's decode seconds per shot as f64 when `timings`).
+    /// (observables as u64 per shot, the defects left unexplained, each window's decode
+    /// seconds per shot as f64 when `timings`, the shots a window refused).
+    #[allow(clippy::type_complexity)]
     fn decode_batch<'py>(
         &self,
         py: Python<'py>,
@@ -521,14 +523,15 @@ impl PyWindowMatcher {
         shots: usize,
         threads: usize,
         timings: bool,
-    ) -> PyResult<(Bound<'py, PyBytes>, usize, Bound<'py, PyBytes>)> {
+    ) -> PyResult<(Bound<'py, PyBytes>, usize, Bound<'py, PyBytes>, Vec<usize>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let (wd, correlated) = (&self.wd, self.correlated);
         let out = py.allow_threads(|| window_shots(wd, packed, nd, shots, correlated, threads, timings));
         let unexplained = out.iter().map(|x| x.1).sum();
         let times = le_f64(out.iter().flat_map(|x| x.2.iter().copied()));
-        Ok((PyBytes::new_bound(py, &le_u64(out.iter().map(|x| x.0))), unexplained, PyBytes::new_bound(py, &times)))
+        let failed = out.iter().enumerate().filter(|(_, x)| x.3).map(|(s, _)| s).collect();
+        Ok((PyBytes::new_bound(py, &le_u64(out.iter().map(|x| x.0))), unexplained, PyBytes::new_bound(py, &times), failed))
     }
 }
 
