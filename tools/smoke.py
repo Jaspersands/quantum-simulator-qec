@@ -31,7 +31,7 @@ import numpy as np
 import pymatching
 import stim
 
-import stabilizer_qec as sq
+import stabilizer_qec._core as sq
 
 SHOTS = 20_000
 ONE = np.uint64(1)

@@ -27,7 +27,7 @@ pip install stabilizer-qec
 
 The package is one abi3 wheel for every CPython from 3.9 on, for Linux (x86_64 and aarch64), macOS
 (universal2) and Windows. PyPI has the latest tagged release; functions added since then (every one
-is in `stabilizer_qec.pyi`) need a build from source:
+is in the package's type stubs) need a build from source:
 
 ```bash
 pip install maturin
@@ -44,7 +44,7 @@ pred, _, errors, seconds = sq.decode_b8_own(text, dets, 100_000, threads=0, corr
 failures = ((np.frombuffer(pred, "<u8") & 1) != (np.frombuffer(obs, np.uint8) & 1)).sum()
 ```
 
-- **Types.** The whole API is typed and documented in `stabilizer_qec.pyi`, which the wheel carries.
+- **Types.** The package is typed (`py.typed`); the extension's stub is `python/stabilizer_qec/_core.pyi`.
 - **Checks.** `python tools/smoke.py`, run from outside the repository, checks an installed wheel
   against Stim and PyMatching end to end: the error model, raw measurements to detection events
   bit for bit, the sampler, plain and correlated matching, windows, and a stream.
@@ -1885,7 +1885,7 @@ tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page dr
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
-stabilizer_qec.pyi      the Python API, typed and documented
+python/stabilizer_qec/  the Python package: the public API over the extension, _core, and its stub
 .github/workflows/      CI on every push; wheels and PyPI publishing on a tag
 
 run_benchmarks.py       phenomenological threshold benchmarks

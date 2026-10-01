@@ -14,7 +14,7 @@ import argparse, hashlib, json, pathlib, sys, time
 import numpy as np
 import pymatching
 import stim
-import stabilizer_qec as sq
+import stabilizer_qec._core as sq
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))

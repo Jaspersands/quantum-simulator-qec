@@ -32,7 +32,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import google as G  # noqa: E402
-import stabilizer_qec as sq  # noqa: E402
+import stabilizer_qec._core as sq  # noqa: E402
 from realtime import engine_commit, load_json, machine, write_json  # noqa: E402
 
 OUT = G.ROOT / "data" / "belief"

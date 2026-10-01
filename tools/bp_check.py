@@ -32,7 +32,7 @@ import stim
 from beliefmatching import BeliefMatching, detector_error_model_to_check_matrices
 from ldpc import BpDecoder
 
-import stabilizer_qec as sq
+import stabilizer_qec._core as sq
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "belief"

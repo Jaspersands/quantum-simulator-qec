@@ -35,7 +35,7 @@ import stim
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
-import stabilizer_qec as sq  # noqa: E402
+import stabilizer_qec._core as sq  # noqa: E402
 from xcheck import check_model, graph, rel  # noqa: E402
 
 ZIPS = {

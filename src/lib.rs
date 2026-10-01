@@ -89,8 +89,11 @@ impl PyRotatedSurfaceCode {
     }
 }
 
+/// The extension, `stabilizer_qec._core`: the engine's bindings. The public
+/// package (python/stabilizer_qec) is built on it.
 #[cfg(feature = "python")]
 #[pymodule]
+#[pyo3(name = "_core")]
 fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRotatedSurfaceCode>()?;
     py_api::register(m)?;
