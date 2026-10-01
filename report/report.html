@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</title>
-<meta name="description" content="Technical report on stabilizer-qec: a Rust surface-code simulator and decoder, verified against Stim and PyMatching, run on Google’s Willow and Sycamore data, and decoded in real time.">
+<meta name="description" content="Technical report on stabilizer-qec: a Rust surface-code simulator and decoder, verified against Stim and PyMatching, run on Google’s Willow and Sycamore data, decoded in real time, extended to IBM’s gross code and lattice surgery, and used for a resource estimate.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231c1d1f'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='5' cy='11' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='11' r='1.6' fill='%23c0392b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
@@ -15,8 +16,8 @@
 <header class="masthead">
   <p class="kicker">Technical report · stabilizer-qec 0.3.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
-  <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD, and lattice surgery</p>
-  <p class="byline">Jasper Sands · 30 September 2026 · commit <code>f84f2a4</code></p>
+  <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
+  <p class="byline">Jasper Sands · 1 October 2026 · commit <code>d2dced3</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -28,7 +29,7 @@
 <li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91. Its belief-matching reproduces <code>ldpc</code>’s posteriors bit for bit, and makes Sycamore’s d = 5 beat d = 3 as Google’s does (Λ = 1.016 [1.01, 1.02]).</li>
 <li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.88 µs a shot at d = 7, against Stim’s 1.33 µs.</li>
 <li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 82 µs mean latency on 2 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
-<li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits.</li>
+<li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked but ties, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits. The logical action of each of its automorphisms is computed exactly. Its gauging measurement of a logical operator, built from the definition, loses distance: on <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>f</mi><mo>,</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(f, 0)</annotation></semantics></math> the code while merged has distance 8 in X and 12 in Z, until 4 added edges restore 12.</li>
 <li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails 1.03% of the time at d = 7 and p = 0.2%, and 0.75 to 0.93 times as often as its three patches held idle for as long.</li>
 <li><strong>What it would take.</strong> A model with magic-state factories, Litinski’s floor plans, reaction time and storage lands within 1.6 times Gidney’s RSA-2048 qubits and 1.1 times his time on his assumptions. On this project’s measured decoder, reaction time dominates; on Willow’s measured Λ, a thousand logical qubits running a billion operations need about 41 million physical qubits.</li>
 </ol>
@@ -2203,7 +2204,11 @@
 <li><code>data/xcheck/reference.json</code>: the cross-check;</li>
 <li><code>data/sweeps/</code>: thresholds;</li>
 <li><code>data/google-results/</code>: Google’s data, decoded;</li>
-<li><code>data/realtime/</code>: latency, the million-round stream, and windowed accuracy.</li>
+<li><code>data/belief/</code>: BP and belief-matching, and their exact checks;</li>
+<li><code>data/realtime/</code>: latency, the million-round stream, and windowed accuracy;</li>
+<li><code>data/gross/</code>: the gross code’s memory, its checks, automorphisms, gauging and logical measurement;</li>
+<li><code>data/surgery/</code>: lattice surgery’s timing law and programs;</li>
+<li><code>data/estimate/</code>: the noise fit, distillation and sources the estimate rests on.</li>
 </ul>
 <p>The report fails to build if a value it quotes is missing. To regenerate the data:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv <span class="kw">&amp;&amp;</span> <span class="ex">.venv/bin/pip</span> install stim pymatching numpy maturin</span>
@@ -2213,9 +2218,15 @@
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/realtime.py latency             <span class="co"># window latency on Willow</span></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/realtime.py million             <span class="co"># a million rounds</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/realtime.py accuracy            <span class="co"># windowed against global</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> tools/lambda.mjs                                  <span class="co"># every fit</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
-<p>The package installs with <code>pip install stabilizer-qec</code> once published, or from a wheel built by <code>maturin build</code>. Software: Stim 1.16.0, PyMatching 2.4.0. Google’s datasets are CC BY 4.0 (Google Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.</p>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/belief.py sycamore              <span class="co"># belief-matching (and willow)</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/gross.py                        <span class="co"># the gross code&#39;s memory</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/gross_ops.py distance           <span class="co"># and auto, measure, fault</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/surgery.py run                  <span class="co"># and programs</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/estimate_noise.py               <span class="co"># the estimate&#39;s noise fit</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/distill.py                      <span class="co"># 15-to-1 distillation</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> tools/lambda.mjs                                  <span class="co"># every fit</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
+<p>The package installs with <code>pip install stabilizer-qec</code>, or from a wheel built by <code>maturin build</code>. Software: Stim 1.16.0, PyMatching 2.4.0. Google’s datasets are CC BY 4.0 (Google Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.</p>
 </main>
 </body>
 </html>

@@ -2,24 +2,32 @@
 
 [![CI](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml/badge.svg)](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml)
 
-A Rust stabilizer circuit simulator and decoder for rotated surface codes and XZZX codes.
-Compiles to WebAssembly for an interactive browser explainer, and to PyO3 Python bindings
-(`stabilizer_qec`) for Monte Carlo threshold benchmarking. It reads and writes Stim's circuit and
-error-model formats, and it agrees with Stim and PyMatching on every check in
-[Checked against Stim and PyMatching](#checked-against-stim-and-pymatching).
+A Rust stabilizer circuit simulator and decoder. It covers rotated and XZZX surface codes, IBM's
+bivariate bicycle codes (the gross code) and lattice surgery between surface-code patches, and it
+reads and writes Stim's circuit and error-model formats. It agrees with Stim and PyMatching on every
+check in [Checked against Stim and PyMatching](#checked-against-stim-and-pymatching), and it decodes
+Google's Willow and Sycamore hardware data. It compiles to WebAssembly for an interactive browser
+explainer, and to a typed Python package, [`stabilizer-qec`](https://pypi.org/project/stabilizer-qec/).
 
 The website walks through surface-code error correction in order: errors, syndromes, decoding,
-spacetime, threshold. Each interactive figure is driven by the real engine running locally, and
-every number on the page is computed in the reader's browser on load.
+spacetime and the threshold, then how the engine is checked, Google's hardware, real-time decoding,
+the gross code, lattice surgery and a resource estimate. Its figures run the engine in the reader's
+browser. The few results that need tools a browser lacks, or hours of native compute, are drawn
+from the committed data and marked †.
 
 **The technical report** ([web](https://qcompiler.jaspersands.com/report/report.html),
-[PDF](report/report.pdf)) covers the engine, how it is checked, and what it measures, in about
-ten pages. Every number in it is filled in from the committed data (see
-[Technical report](#technical-report)).
+[PDF](report/report.pdf)) covers the engine, how it is checked, and what it measures. Every number
+in it is filled in from the committed data (see [Technical report](#technical-report)).
 
 ## Install
 
-The Python package is one abi3 wheel for every CPython from 3.9 on:
+```bash
+pip install stabilizer-qec
+```
+
+The package is one abi3 wheel for every CPython from 3.9 on, for Linux (x86_64 and aarch64), macOS
+(universal2) and Windows. PyPI has the latest tagged release; functions added since then (every one
+is in `stabilizer_qec.pyi`) need a build from source:
 
 ```bash
 pip install maturin
@@ -43,16 +51,8 @@ failures = ((np.frombuffer(pred, "<u8") & 1) != (np.frombuffer(obs, np.uint8) & 
 - **Where it has been checked.** Wheels built here install and pass from fresh virtualenvs on
   Python 3.13 and 3.9, arm64 and x86_64 (a universal2 build), and from the source distribution.
 
-**Publishing to PyPI is prepared, not performed.** `.github/workflows/wheels.yml` builds wheels for
-Linux (x86_64 and aarch64, manylinux), macOS (universal2) and Windows, and an sdist, on any `v*`
-tag. It publishes them by PyPI's trusted publishing, which needs three steps from the account
-owner:
-1. Register `stabilizer-qec` on PyPI.
-2. Add this repository as its trusted publisher: workflow `wheels.yml`, environment `pypi`.
-3. Create the `pypi` environment in the repository's settings.
-
-Then `git tag v0.2.0 && git push --tags` publishes. Until then the publish job fails and nothing
-leaves the repository.
+**Releases.** On any `v*` tag, `.github/workflows/wheels.yml` builds the wheels and an sdist and
+publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment `pypi`).
 
 ## Continuous integration
 
@@ -62,9 +62,13 @@ leaves the repository.
   (`tools/wasm-smoke.mjs`: Willow's raw measurements must hash to Google's detection events, then
   decode, and a stream must window-decode). The committed engine, the one the site serves, runs
   the same check.
-- the site's tests and the palette's contrast check;
+- the site's tests, the palette's contrast check, and the README's tables against the data they
+  come from (`tools/readme_tables.py --check`);
 - the Python package built, installed and smoke-tested against Stim and PyMatching on Linux, macOS
-  and Windows, with the quick cross-check on Linux.
+  and Windows. On Linux it also runs the quick forms of the cross-check, BP and belief-matching
+  against `ldpc` and `beliefmatching`, the gross code and BP+OSD against Bravyi et al., Stim and
+  `ldpc`, lattice surgery against Stim and PyMatching, and the gross code's logical measurement
+  against Stim and `ldpc`.
 
 ## Key Features
 
@@ -93,11 +97,22 @@ leaves the repository.
 - **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
   against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
   a million-round stream that keeps up on 4 cores at d = 5.
+- **IBM's gross code**: the bivariate bicycle codes [[144, 12, 12]] and [[72, 12, 6]] with Bravyi et
+  al.'s depth-8 syndrome cycle, decoded by BP+OSD whose corrections equal `ldpc`'s but for ties. On
+  it, every automorphism's logical action computed exactly, and the gauging measurement of a logical
+  operator built from Cross et al.'s definition, with its distance proven by integer programming.
+- **Lattice surgery**: surface-code patches merged and split as one circuit, its error model equal
+  to Stim's, and programs compiled from such steps: a logical CNOT, merges in a row, and lines of
+  patches merged at once.
+- **A resource estimate**: magic-state factories, Litinski's floor plans, reaction time from this
+  decoder's measured latency, and storage options, priced on noise and decoding measured here and
+  checked against Gidney's RSA-2048 and Lee et al.'s FeMoco estimates.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
-  at the top of the page runs the engine live, every figure is driven by it, the threshold table is
-  plotted as it is measured, and the bench streams its estimate.
-- **Python package** (`stabilizer-qec`, one abi3 wheel, typed): circuits, error models, sampling,
-  plain and correlated matching, window decoding and streams, from Python (see [Install](#install)).
+  at the top of the page runs the engine live, the interactive figures are driven by it, the
+  threshold table is plotted as it is measured, and the bench streams its estimate.
+- **Python package** (`stabilizer-qec` on PyPI, one abi3 wheel, typed): circuits, error models,
+  sampling, plain, correlated and belief matching, BP+OSD, window decoding and streams, the gross
+  code and lattice surgery, from Python (see [Install](#install)).
 
 ## A note on quoted figures
 
@@ -111,9 +126,9 @@ where a number is close enough to the noise floor for it to matter.
 ## Checked against Stim and PyMatching
 
 Stim and PyMatching are the tools the field uses to simulate and decode surface codes, and the
-first question anyone asks of a new simulator is whether it agrees with them. Until now this
-engine had only been checked against itself. It now has a general circuit path, and on that path
-it agrees with both tools on every check below, down to floating-point rounding.
+first question anyone asks of a new simulator is whether it agrees with them. This engine began
+checked only against itself. It now has a general circuit path, and on that path it agrees with
+both tools on every check below, down to floating-point rounding.
 
 **The general path.**
 
@@ -232,7 +247,7 @@ failures the memory-Z experiment would see.
 Weighting by probability roughly halves the logical error rate at d = 5 and 7. At d = 3 and the
 lowest p the two are within noise. This is a finding about the decoder rather than the physics, and
 it suggests the circuit-level thresholds quoted below are partly a property of unit-weight matching.
-How much is a question for the next decoder work.
+How much is not measured here: those thresholds were not rerun with the weighted decoder.
 
 **6. Every single fault is corrected.** The exhaustive check from section 7 below now runs on the new
 path too: every mechanism of every model, decoded alone, predicts its own logical flip. That covers
@@ -1765,8 +1780,10 @@ than assumed.
 
 ```
 src/tableau.rs        symplectic tableau and Clifford operations
+src/simulator.rs      a stabilizer simulator on the tableau
 src/surface_code.rs   rotated and XZZX lattices, noise models, error generation
 src/decoder.rs        Union-Find cluster growth and peeling
+src/blossom.rs        exact minimum-weight perfect matching (Edmonds' blossom), with hard ceilings
 src/circuit_model.rs  detector error model derived from the extraction circuit, CSS and non-CSS
 src/circuit.rs        circuits in Stim's text format: parse, emit, flatten, resolve records
 src/dem.rs            detector error models: built backwards from any circuit, decomposed as
@@ -1777,6 +1794,7 @@ src/batch_sampler.rs  the same, 64 shots per word, REPEAT without flattening
 src/shots.rs          Stim's 01 and b8 detection-event formats
 src/memory.rs         rotated and XZZX memory experiments as circuits, engine noise and SD6
 src/equivalence.rs    test: the old per-code circuit and the general one are the same circuit
+src/fixtures.rs       circuit texts shared by several modules' tests
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
@@ -1784,25 +1802,40 @@ src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's a
 src/belief.rs         belief-matching, as the authors' beliefmatching package does it
 src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows
 src/bb.rs             bivariate bicycle codes (the gross code), their logicals, the depth-8 memory
+src/bb_auto.rs        their automorphisms, and each one's action on the logical qubits, exactly
+src/bb_gauge.rs       the gauging ancilla system that measures a logical operator, minimal or expanded
+src/bb_circuit.rs     circuits on them beyond the memory: any checks on any schedule, and on it
+                      the logical measurement
 src/osd.rs            BP+OSD: OSD-0, OSD-E and OSD-CS on BP's posteriors
-src/surgery.rs        lattice surgery: two patches merged across a seam to measure Z⊗Z
+src/surgery.rs        lattice surgery: patches on a grid of tiles merged and split by a program of
+                      steps, compiled to one circuit; Z⊗Z and X⊗X, the logical CNOT, lines of patches
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
 src/stream.rs         streams too long to model, decoded window by window from a template
-src/py_api.rs         PyO3 bindings: sampling, decoding, windows and streams
+src/py_api.rs         PyO3 bindings: circuits, sampling, decoding, windows and streams, the gross
+                      code and lattice surgery
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
 src/wasm_bb.rs        WASM exports for Figure 15: the [[72, 12, 6]] memory decoded by BP+OSD
 src/wasm_ls.rs        WASM exports for Figure 22: lattice-surgery programs sampled and matched
 src/lib.rs            PyO3 module and the WASM C-ABI interface
+examples/matcher_profile.rs  the sparse matcher run natively, for a profiler or a timing table
 
 index.html            the explainer (structure only)
 css/styles.css        design tokens, then base, then components
+js/main.js            wiring: the main-thread engine for the lattice figures, the pool for the rest
 js/engine.js          typed wrapper over the WASM exports
+js/dom.js             small DOM helpers, and running a figure's work when it scrolls near
+js/nav.js             the contents rail and its scroll-spy
+js/opener.js          the live patch under the hero; js/opener-math.js its pure helpers
+js/ambient.js         a slow heartbeat for read-only figures, while on screen
+js/patterns.js        error patterns the interactive figures click in
 js/channel.js         the noise channel, shared by the figures and the engine
 js/channel-view.js    the logical channel drawn as the Bloch sphere's image
 js/worker.js          Monte Carlo worker (own engine instance)
 js/pool.js            a pool of workers, one per core but one; js/pool-merge.js combines their parts
+js/stream.js          chunking for a streamed Monte Carlo run
+js/meter.js           a strip chart of a streamed run's estimate settling
 js/compute.js         worker RPC, Wilson intervals, threshold collapse fit
 js/lattice.js         canvas renderer for a code patch, 2D and spacetime
 js/plot.js            canvas plotting primitive
@@ -1817,8 +1850,10 @@ js/surgery-geometry.js lattice surgery's layout, for section 14's drawing
 js/estimator.js       the resource estimate's model and its inputs, for section 15
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
+tools/matcher_bench.py  the matcher's speed against PyMatching, and a fingerprint of its decisions
 tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
-data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
+tools/independent_toric.mjs  an independent toric-code simulator in plain JS, sharing no engine code
+tools/toric_exponent.mjs     the critical exponent on it, with an approximate and an exact matcher
 tools/google.py         Google's Willow and Sycamore data: check, decode, summarise, extract
 tools/lambda.mjs        the fits for every decoder, printed; the README's tables come from it
 tools/realtime.py       window decoders' accuracy, latency, and the million-round stream
@@ -1826,20 +1861,30 @@ tools/bp_check.py       BP and belief-matching against ldpc and beliefmatching, 
 tools/belief.py         belief-matching on all of Sycamore and Willow; BP iterations
 tools/bb_check.py       the bivariate bicycle codes and BP+OSD against Bravyi et al., Stim and ldpc
 tools/gross.py          the gross code's logical error per cycle, and the surface code beside it
-tools/surgery.py        lattice surgery against Stim and PyMatching, and its timing law
+tools/gross_ops.py      the gross code's automorphisms, gauging distances and logical measurement
+tools/surgery.py        lattice surgery against Stim and PyMatching, its timing law, and programs
+tools/estimate_noise.py the surface code's error per round under uniform noise, fitted
+tools/distill.py        the 15-to-1 distillation law, measured
 tools/estimate.mjs      the resource estimate from the committed data
+tools/readme_tables.py  the README's tables, generated from the data (--check in CI)
+data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
+data/matcher/           the matcher's timings and fingerprints
+data/sweeps/            the SD6 threshold sweeps
 data/belief/            belief-matching's results and the oracle check
-data/gross/             the gross code's results and checks
-data/surgery/           lattice surgery's timing law
+data/gross/             the gross code's results and checks, automorphisms, gauging, measurement
+data/surgery/           lattice surgery's golden circuit, timing law and programs
+data/estimate/          the estimate's noise fit, distillation law and sources
 data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
 
 tools/smoke.py          an installed wheel checked end to end against Stim and PyMatching
 tools/wasm-smoke.mjs    the WASM engine driven in Node through the page's wrappers
+tools/site-tests.mjs    Node tests for the site's pure modules
+tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page draws
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
-pyproject.toml          the Python package (maturin; one abi3 wheel)
+pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
 stabilizer_qec.pyi      the Python API, typed and documented
 .github/workflows/      CI on every push; wheels and PyPI publishing on a tag
 

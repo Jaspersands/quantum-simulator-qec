@@ -364,7 +364,8 @@ async function runGauging(fig) {
     + `logical qubits form a group of order ${auto.order}; ${trivial.join(', ')} acts as the identity. The translates of `
     + `X(f, 0) span a block of ${auto.families.f.span} logical qubits and those of X(g, h) another of `
     + `${auto.families.gh.span}, each block kept by every shift. The worst cut is exact, over every set of at most half `
-    + 'the vertices. Distances of the code while merged are exact, by integer programming, unless marked as a bound'
+    + 'the vertices. † Distances of the code while merged are computed natively (tools/gross_ops.py distance, engine '
+    + `${gauging.engine_commit}), exact, by integer programming, unless marked as a bound`
     + (code ? `; the same program finds the gross code's own distance ${distanceText(code.x)} (X) and ${distanceText(code.z)} (Z).` : '.');
   status.textContent = 'Loaded.';
 }

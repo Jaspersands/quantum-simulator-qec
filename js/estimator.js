@@ -201,6 +201,8 @@ export function latencyAt(d, measured, overrideUs = null) {
  * distance is the smallest odd d that meets the budget.
  */
 export function estimateFull(algorithm, o, sources, maxD = 201) {
+  if (!(Number.isFinite(algorithm.toffolis) && algorithm.toffolis >= 1)) return { error: 'an algorithm needs a finite number of Toffolis, at least one' };
+  if (!(Number.isFinite(algorithm.qubits) && algorithm.qubits >= 1)) return { error: 'an algorithm needs a finite number of logical qubits, at least one' };
   const storage = o.storage ?? 'surface';
   const cold = storage === 'surface' ? 0 : Math.max(0, algorithm.qubits - (algorithm.hot ?? algorithm.qubits));
   const hot = algorithm.qubits - cold;

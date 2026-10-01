@@ -5,10 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Keeping a Qubit Alive: an interactive surface-code simulator</title>
 <meta name="description" content="An interactive explanation of quantum error correction, running a real Rust stabilizer simulator compiled to WebAssembly in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231c1d1f'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='5' cy='11' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='11' r='1.6' fill='%23c0392b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-09-30k">
+<link rel="stylesheet" href="css/styles.css?v=2026-10-01a">
 </head>
 <body>
 
@@ -57,7 +58,9 @@
   <p class="hero__lede">
     A qubit cannot be copied and cannot be looked at, so both of the things that make classical
     error correction easy are off the table. <strong>Quantum error correction is the workaround.</strong>
-    Everything below is a real stabilizer simulator running in your browser, not a recording of one.
+    The figures below run a real stabilizer simulator in your browser, not a recording of one. The few
+    results that need tools a browser lacks, or hours of native compute, are drawn from recorded data
+    and marked&nbsp;†.
     How the engine works, how it is checked, and what it measures on Google's hardware data are in the
     <a href="report/report.html">technical report</a> (<a href="report/report.pdf">PDF</a>).
   </p>
@@ -961,10 +964,12 @@
 
   <div class="prose">
     <p>
-      Nothing of ours is precomputed. Every number was produced by a Rust stabilizer simulator
-      compiled to WebAssembly and executed on your machine while you read. The one exception is
-      marked: Figure 8 checks this engine against Stim and PyMatching, the tools the field uses,
-      and PyMatching's side of that check was recorded, because it does not run in a browser.
+      Up to here, nothing was precomputed. Every number was produced by a Rust stabilizer simulator
+      compiled to WebAssembly and executed on your machine while you read. From here on, some results
+      are recorded, and each is marked †: Figure 8 checks this engine against Stim and PyMatching, the
+      tools the field uses, which do not run in a browser, and the later sections quote runs of hours
+      or of millions of shots made natively. Each recorded figure names the tool that reproduces it, and
+      each of those sections also has a figure that runs the same engine here.
     </p>
     <p class="note">
       Unless they say otherwise, figures quoted below were measured at bias
@@ -1652,7 +1657,7 @@
     <figcaption class="figure__cap">
       <span class="figure__num">Figure 16</span>
       <span class="figure__title">measuring a logical operator</span>
-      <span class="figure__meta">the gauging ancilla system, on the torus</span>
+      <span class="figure__meta">the gauging ancilla system, on the torus · † computed natively</span>
     </figcaption>
     <div class="figure__body">
       <div class="segmented" role="radiogroup" aria-label="Operator" data-gl-ops></div>
@@ -1674,8 +1679,8 @@
               <th scope="col" class="num">Heaviest flux</th>
               <th scope="col" class="num">Ticks per cycle</th>
               <th scope="col" class="num">Worst cut</th>
-              <th scope="col" class="num">Distance, X</th>
-              <th scope="col" class="num">Distance, Z</th>
+              <th scope="col" class="num">Distance, X †</th>
+              <th scope="col" class="num">Distance, Z †</th>
             </tr>
           </thead>
           <tbody data-gl-rows></tbody>
@@ -2120,6 +2125,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-09-30k"></script>
+<script type="module" src="js/main.js?v=2026-10-01a"></script>
 </body>
 </html>
