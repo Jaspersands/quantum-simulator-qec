@@ -37,12 +37,15 @@ pub mod frame_sampler;
 pub mod batch_sampler;
 pub mod shots;
 pub mod memory;
+pub mod parallel;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
 mod equivalence;
 #[cfg(feature = "python")]
 mod py_api;
+#[cfg(feature = "python")]
+mod py_objects;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
 #[cfg(not(feature = "python"))]
@@ -97,6 +100,7 @@ impl PyRotatedSurfaceCode {
 fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRotatedSurfaceCode>()?;
     py_api::register(m)?;
+    py_objects::register(m)?;
     Ok(())
 }
 

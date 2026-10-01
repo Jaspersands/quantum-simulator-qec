@@ -462,6 +462,26 @@ impl BatchSampler {
         st.obs
     }
 
+    /// `shots` shots as b8 rows (detectors, observables), batch `first + k` drawn from a stream
+    /// of its own, seeded by `seed` and the batch's index alone: the shots do not depend on how
+    /// many threads drew them, and a later call continues where an earlier one stopped.
+    pub fn sample_seeded(&self, seed: u64, first: u64, shots: usize, threads: usize) -> (Vec<u8>, Vec<u8>) {
+        let parts = crate::parallel::parallel(shots.div_ceil(64), threads, |range| {
+            let (mut dets, mut obs) = (Vec::new(), Vec::new());
+            for b in range {
+                let mut rng = Xorshift::new(batch_seed(seed, first + b as u64));
+                self.sample(&mut rng).write_b8((shots - b * 64).min(64), &mut dets, &mut obs);
+            }
+            vec![(dets, obs)]
+        });
+        let (mut dets, mut obs) = (Vec::new(), Vec::new());
+        for (d, o) in parts {
+            dets.extend(d);
+            obs.extend(o);
+        }
+        (dets, obs)
+    }
+
     /// 64 shots' detectors and observables.
     pub fn sample(&self, rng: &mut Xorshift) -> Batch {
         // Capped: a loop of a trillion detectors may still be run through `run`.
@@ -469,6 +489,18 @@ impl BatchSampler {
         let observables = self.run(rng, &mut |_, w| detectors.push(w));
         Batch { detectors, observables }
     }
+}
+
+fn splitmix64(mut z: u64) -> u64 {
+    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// The seed of batch `b`'s stream, from the sampler's seed and the batch alone.
+fn batch_seed(seed: u64, b: u64) -> u64 {
+    splitmix64(seed ^ splitmix64(b ^ 0x632B_E59B_D9B4_E019))
 }
 
 #[cfg(test)]
@@ -682,5 +714,30 @@ mod tests {
             let new_us = t.elapsed().as_secs_f64() * 1e6 / (shots / 64 * 64) as f64;
             println!("d = {d}: FrameSampler {old_us:.2} us/shot, batch {new_us:.3} us/shot, {:.0}x", old_us / new_us);
         }
+    }
+
+    fn sd6() -> BatchSampler {
+        use crate::memory::{generate, CodeKind, NoiseModel};
+        BatchSampler::new(&generate(CodeKind::Rotated, 3, 3, NoiseModel::Sd6 { p: 0.02 }, Basis::Z).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn seeded_shots_do_not_depend_on_threads() {
+        let s = sd6();
+        let one = s.sample_seeded(7, 0, 1000, 1);
+        for threads in [2, 3, 8] {
+            assert_eq!(s.sample_seeded(7, 0, 1000, threads), one, "{threads} threads");
+        }
+        assert_ne!(s.sample_seeded(8, 0, 1000, 1), one, "another seed draws other shots");
+        assert_eq!(one.0.len(), 1000 * s.num_detectors.div_ceil(8));
+    }
+
+    #[test]
+    fn seeded_calls_continue_batch_by_batch() {
+        let s = sd6();
+        let whole = s.sample_seeded(3, 0, 128, 4);
+        let (a, b) = (s.sample_seeded(3, 0, 64, 1), s.sample_seeded(3, 1, 64, 1));
+        assert_eq!([a.0, b.0].concat(), whole.0);
+        assert_eq!([a.1, b.1].concat(), whole.1);
     }
 }
