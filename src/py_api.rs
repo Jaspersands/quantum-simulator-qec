@@ -90,7 +90,7 @@ fn decode_packed<'py>(
     let corr = correlated.then(|| decoder.correlations());
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
-    if packed.len() != stride * num_shots {
+    if stride.checked_mul(num_shots) != Some(packed.len()) {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
     let threads = resolve_threads(threads, num_shots);
@@ -335,7 +335,7 @@ fn decode_b8_window<'py>(
     let wd = WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode).map_err(err)?;
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
-    if packed.len() != stride * num_shots {
+    if stride.checked_mul(num_shots) != Some(packed.len()) {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
     let nw = wd.windows.len();
@@ -546,7 +546,7 @@ fn decode_b8_belief<'py>(
     let bm = BeliefMatching::from_dem(&dem, bp_method(method, ms_scale)?, max_iter).map_err(err)?;
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
-    if packed.len() != stride * num_shots {
+    if stride.checked_mul(num_shots) != Some(packed.len()) {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
     let threads = resolve_threads(threads, num_shots);
@@ -793,7 +793,7 @@ fn decode_b8_bposd<'py>(
         .map_err(err)?;
     let nd = dem.num_detectors;
     let stride = nd.div_ceil(8);
-    if packed.len() != stride * num_shots {
+    if stride.checked_mul(num_shots) != Some(packed.len()) {
         return Err(err(format!("{} bytes is not {num_shots} shots of {nd} detectors", packed.len())));
     }
     let threads = resolve_threads(threads, num_shots);

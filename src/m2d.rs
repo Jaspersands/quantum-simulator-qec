@@ -209,7 +209,7 @@ impl M2d {
     /// events, and observable flips.
     pub fn convert_b8(&self, meas: &[u8], sweeps: &[u8], num_shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
         let (ms, ss) = (self.num_measurements.div_ceil(8), self.num_sweep_bits.div_ceil(8));
-        if meas.len() != ms * num_shots || sweeps.len() != ss * num_shots {
+        if ms.checked_mul(num_shots) != Some(meas.len()) || ss.checked_mul(num_shots) != Some(sweeps.len()) {
             return Err(format!(
                 "{} + {} bytes is not {num_shots} shots of {} measurements and {} sweep bits",
                 meas.len(),

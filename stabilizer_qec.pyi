@@ -8,6 +8,15 @@ little-endian ``f64``; read them with ``numpy.frombuffer(b, "<u8")`` and
 ``numpy.frombuffer(b, "<f8")``.
 
 ``threads = 0`` means every core.
+
+Bad input raises ``ValueError``. Qubit indices stop at ``2**24 - 1``, as in
+Stim. The error model, the frame sampler (``sample_b8``) and m2d hold a
+circuit unrolled, so they refuse one whose ``REPEAT`` blocks expand past
+``2**24`` instructions and targets (``sample_b8_batch`` runs loops without
+unrolling them); m2d's reference run also keeps a dense tableau, of at most
+16,384 qubits. Generated
+memories, gross-code circuits and lattice-surgery programs are written out
+round by round, up to 10,000 rounds or cycles.
 """
 
 from __future__ import annotations
