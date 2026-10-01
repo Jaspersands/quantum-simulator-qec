@@ -128,9 +128,18 @@ fn evaluate(detectors: &[Vec<usize>], observables: &[Vec<usize>], rec: &[bool]) 
     (dets, obs)
 }
 
+/// A dense tableau of n qubits takes about n² / 2 bytes: 128 MiB at this size.
+const MAX_QUBITS: usize = 1 << 14;
+
 impl M2d {
     pub fn new(circuit: &Circuit) -> Result<M2d, String> {
         let res = circuit.resolve()?;
+        if res.num_qubits > MAX_QUBITS {
+            return Err(format!(
+                "{} qubits: the reference run keeps a dense tableau, which holds at most {MAX_QUBITS}",
+                res.num_qubits
+            ));
+        }
         let (detectors, observables) = (res.detectors.clone(), res.observables.clone());
         let clear = vec![false; res.num_sweep_bits];
         let (ref_det, ref_obs) = evaluate(&detectors, &observables, &run(&res, &clear, 1));
@@ -271,6 +280,12 @@ mod tests {
             fired_before += usize::from(m.convert(&meas, &[false; 9]).0.iter().any(|&b| b));
         }
         assert!(fired_before > 30, "{fired_before}");
+    }
+
+    #[test]
+    fn circuits_too_wide_for_the_tableau_are_refused() {
+        let err = M2d::new(&Circuit::parse("M 16384").unwrap()).err().unwrap_or_default();
+        assert!(err.contains("dense tableau"), "{err}");
     }
 
     #[test]

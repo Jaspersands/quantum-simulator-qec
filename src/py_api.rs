@@ -588,6 +588,19 @@ fn decode_b8_belief<'py>(
     Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), PyBytes::new_bound(py, &conv), errors, seconds))
 }
 
+/// A gross-code circuit is written out cycle by cycle: at least one cycle
+/// (`least`), and no more in all (`total`) than a flat memory's rounds.
+fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
+    let most = crate::memory::MAX_FLAT_ROUNDS;
+    if least == 0 {
+        Err(err("a memory needs at least one cycle".into()))
+    } else if total > most {
+        Err(err(format!("{total} cycles: at most {most} are written out cycle by cycle")))
+    } else {
+        Ok(())
+    }
+}
+
 fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
     match name {
         "gross" | "144" => Ok(crate::bb::BbCode::gross()),
@@ -612,9 +625,7 @@ fn bb_matrices(code: &str) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Ve
 /// `cycles` depth-8 syndrome cycles under circuit noise `p`, as Stim text.
 #[pyfunction]
 fn bb_memory_circuit(code: &str, cycles: usize, p: f64) -> PyResult<String> {
-    if cycles == 0 {
-        return Err(err("a memory needs at least one cycle".into()));
-    }
+    bb_cycles(cycles, cycles)?;
     crate::memory::probability(p).map_err(err)?;
     Ok(bb_code(code)?.memory_z(cycles, p))
 }
@@ -697,9 +708,7 @@ fn bb_gauging(
 /// writer (in "z" it is `bb_memory_circuit`'s model), as Stim text.
 #[pyfunction]
 fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
-    if cycles == 0 {
-        return Err(err("a memory needs at least one cycle".into()));
-    }
+    bb_cycles(cycles, cycles)?;
     crate::memory::probability(p).map_err(err)?;
     Ok(crate::bb_circuit::memory(&bb_code(code)?, basis_of(basis)?, cycles, p).to_stim())
 }
@@ -712,6 +721,8 @@ fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> Py
 #[pyfunction]
 #[pyo3(signature = (operator, basis, pre, merged, post, p, expanded=false))]
 fn bb_logical_measurement_circuit(operator: &str, basis: &str, pre: usize, merged: usize, post: usize, p: f64, expanded: bool) -> PyResult<String> {
+    // A merge of no cycles is refused below, with its own message.
+    bb_cycles(pre.saturating_add(merged).saturating_add(post).max(1), merged.max(1))?;
     crate::memory::probability(p).map_err(err)?;
     let (code, g) = gauged(operator, expanded)?;
     let c = crate::bb_circuit::logical_measurement(&code, &g, basis_of(basis)?, pre, merged, post, p).map_err(err)?;
@@ -869,6 +880,9 @@ fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<Strin
 /// outcome, then each patch's Z.
 #[pyfunction]
 fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
+    if n < 2 {
+        return Err(err(format!("a line merge needs at least two patches, not {n}")));
+    }
     Ok(crate::surgery::line(d, n, merged, p).circuit().map_err(err)?.to_stim())
 }
 

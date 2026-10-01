@@ -241,6 +241,11 @@ pub fn generate(kind: CodeKind, d: usize, rounds: usize, noise: NoiseModel, basi
     if rounds == 0 {
         return Err("a memory experiment needs at least one round".into());
     }
+    if rounds > MAX_FLAT_ROUNDS {
+        return Err(format!(
+            "{rounds} rounds: at most {MAX_FLAT_ROUNDS} are written out round by round"
+        ));
+    }
     match noise {
         NoiseModel::Current { p, eta } => {
             probability(p)?;
@@ -252,6 +257,9 @@ pub fn generate(kind: CodeKind, d: usize, rounds: usize, noise: NoiseModel, basi
     }
     Ok(memory_circuit(&patch_for(kind, d, basis)?, rounds, noise))
 }
+
+/// The most rounds `generate` writes out without a loop.
+pub const MAX_FLAT_ROUNDS: usize = 10_000;
 
 /// A noise strength must be a probability (NaN is not).
 pub fn probability(p: f64) -> Result<(), String> {

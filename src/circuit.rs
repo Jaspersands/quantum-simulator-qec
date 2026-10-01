@@ -117,6 +117,13 @@ impl Circuit {
     }
 
     pub fn resolve(&self) -> Result<Resolved, String> {
+        let size = unrolled_size(&self.instrs);
+        if size > MAX_UNROLLED {
+            return Err(format!(
+                "the circuit unrolls to {size} instructions and targets, more than the {MAX_UNROLLED} \
+                 this engine holds: it expands every REPEAT block"
+            ));
+        }
         let flat = self.flattened().instrs;
         let mut num_qubits = 0usize;
         let mut m = 0usize;
@@ -419,6 +426,20 @@ fn parse_line(line: &str) -> Result<Instr, String> {
     })
 }
 
+/// The most instructions plus targets `resolve` will unroll a circuit into.
+const MAX_UNROLLED: u64 = 1 << 24;
+
+/// Instructions plus targets once every REPEAT block is expanded, saturating.
+fn unrolled_size(instrs: &[Instr]) -> u64 {
+    instrs.iter().fold(0u64, |n, ins| {
+        n.saturating_add(match ins {
+            Instr::Repeat { count, body } => count.saturating_mul(unrolled_size(body)),
+            Instr::Detector { recs, .. } | Instr::Observable { recs, .. } => 1 + recs.len() as u64,
+            other => 1 + other.qubits().len() as u64,
+        })
+    })
+}
+
 fn flatten_into(instrs: &[Instr], out: &mut Vec<Instr>, shift: &mut Vec<f64>) {
     let shifted = |c: &[f64], s: &[f64]| -> Vec<f64> {
         c.iter().enumerate().map(|(i, v)| v + s.get(i).copied().unwrap_or(0.0)).collect()
@@ -614,5 +635,17 @@ mod tests {
         assert!(Circuit::parse("M 16777215").is_ok());
         assert!(Circuit::parse("M 4000000000").unwrap_err().contains("beyond the largest index"));
         assert!(Circuit::parse("CX sweep[4000000000] 0").is_err());
+    }
+
+    #[test]
+    fn loops_too_large_to_unroll_are_errors() {
+        // Nested counts that overflow u64 when multiplied must saturate, not wrap.
+        let huge = "REPEAT 4000000000 {\n REPEAT 4000000000 {\n REPEAT 4000000000 {\n TICK\n }\n }\n}";
+        for text in ["REPEAT 4000000000 {\n TICK\n}", "REPEAT 100000000 {\n M 0\n}", huge] {
+            let err = Circuit::parse(text).unwrap().resolve().unwrap_err();
+            assert!(err.contains("REPEAT"), "{text}: {err}");
+        }
+        let fits = Circuit::parse("REPEAT 1000 {\n M 0 1\n DETECTOR rec[-1] rec[-2]\n}").unwrap();
+        assert_eq!(fits.resolve().unwrap().detectors.len(), 1000);
     }
 }
