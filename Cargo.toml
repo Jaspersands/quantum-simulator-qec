@@ -1,6 +1,6 @@
 [package]
 name = "stabilizer_qec"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Surface-code simulation and decoding: Stim-format circuits and error models, exact sparse-blossom and correlated matching, a bit-parallel sampler, and window decoders."
 license = "MIT"
