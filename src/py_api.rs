@@ -667,6 +667,7 @@ fn decode_b8_bposd<'py>(
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, basis="z", pre=None, post=None))]
 fn surgery_circuit(d: usize, merged: usize, p: f64, basis: &str, pre: Option<usize>, post: Option<usize>) -> PyResult<String> {
+    crate::surgery::check_size(d, 2, merged.saturating_add(pre.unwrap_or(d)).saturating_add(post.unwrap_or(d))).map_err(err)?;
     let basis = match basis {
         "z" => Basis::Z,
         "x" => Basis::X,
@@ -691,6 +692,7 @@ fn basis_of(name: &str) -> PyResult<Basis> {
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, inputs="z"))]
 fn surgery_cnot(d: usize, merged: usize, p: f64, inputs: &str) -> PyResult<String> {
+    crate::surgery::check_size(d, 4, merged.saturating_mul(2)).map_err(err)?;
     Ok(crate::surgery::cnot(d, merged, p, basis_of(inputs)?).circuit().map_err(err)?.to_stim())
 }
 
@@ -698,6 +700,7 @@ fn surgery_cnot(d: usize, merged: usize, p: f64, inputs: &str) -> PyResult<Strin
 /// `surgery::repeated`): observables each outcome, then Z1 and Z2.
 #[pyfunction]
 fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<String> {
+    crate::surgery::check_size(d, 2, k.saturating_mul(merged.saturating_add(2))).map_err(err)?;
     Ok(crate::surgery::repeated(d, k, merged, p).circuit().map_err(err)?.to_stim())
 }
 
@@ -706,8 +709,12 @@ fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<Strin
 /// outcome, then each patch's Z.
 #[pyfunction]
 fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
+    crate::surgery::check_size(d, n, merged).map_err(err)?;
     if n < 2 {
         return Err(err(format!("a line merge needs at least two patches, not {n}")));
+    }
+    if n > 32 {
+        return Err(err(format!("{n} patches have {} observables (each seam and each patch); at most 64 are supported", 2 * n - 1)));
     }
     Ok(crate::surgery::line(d, n, merged, p).circuit().map_err(err)?.to_stim())
 }
@@ -717,6 +724,7 @@ fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, basis="x"))]
 fn surgery_vertical(d: usize, merged: usize, p: f64, basis: &str) -> PyResult<String> {
+    crate::surgery::check_size(d, 2, merged).map_err(err)?;
     Ok(crate::surgery::vertical(d, merged, p, basis_of(basis)?).circuit().map_err(err)?.to_stim())
 }
 
