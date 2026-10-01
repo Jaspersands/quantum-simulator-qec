@@ -406,6 +406,39 @@ enum Life {
 /// The most rounds (and other steps) a program is written out for.
 const MAX_ROUNDS: usize = 10_000;
 
+/// About how many qubits `tiles` tiles at distance `d` take: 2(d + 1)² each, saturating.
+fn qubits_for(d: usize, tiles: u64) -> u64 {
+    tiles.saturating_mul(2).saturating_mul((d as u64).saturating_add(1).saturating_pow(2))
+}
+
+/// Refuse, before a program is built, sizes it could never be written for: more qubits than
+/// Stim can index, or more rounds than are written out. The program constructors allocate in
+/// proportion to their patches and steps, so the bindings call this first.
+pub fn check_size(d: usize, tiles: usize, rounds: usize) -> Result<(), String> {
+    let qubits = qubits_for(d, tiles as u64);
+    if qubits > 1 << 24 {
+        return Err(format!("{tiles} patches at distance {d} need more qubits than Stim can index"));
+    }
+    if rounds > MAX_ROUNDS {
+        return Err(format!("{rounds} rounds and steps: at most {MAX_ROUNDS} are written out"));
+    }
+    // Every program holds its patches d rounds before and after, besides `rounds`.
+    check_volume(qubits, rounds.saturating_add(d.saturating_mul(2)))
+}
+
+/// The most qubit-rounds a program is written out for: past this an error model, which holds
+/// a circuit unrolled, would refuse it anyway.
+const MAX_VOLUME: u64 = 1 << 24;
+
+fn check_volume(qubits: u64, rounds: usize) -> Result<(), String> {
+    if qubits.saturating_mul(rounds as u64) > MAX_VOLUME {
+        return Err(format!(
+            "about {qubits} qubits over {rounds} rounds: more than the {MAX_VOLUME} qubit-rounds a program is written out for"
+        ));
+    }
+    Ok(())
+}
+
 impl Program {
     /// The program as a circuit, with its detectors and observables.
     pub fn circuit(&self) -> Result<Circuit, String> {
@@ -420,7 +453,7 @@ impl Program {
         // The grid's qubits, about 2(d + 1)² a tile, must fit Stim's qubit
         // indices, and the circuit, written out round by round, memory.
         let grid = |t: fn(&(i32, i32)) -> i32| self.tiles.iter().map(t).max().unwrap() as u64 + 1;
-        let qubits = (grid(|t| t.0) * grid(|t| t.1)).saturating_mul(2 * (d as u64 + 1).saturating_pow(2));
+        let qubits = qubits_for(d, grid(|t| t.0).saturating_mul(grid(|t| t.1)));
         if qubits > 1 << 24 {
             return Err(format!("the program's grid of tiles at distance {d} needs more qubits than Stim can index"));
         }
@@ -428,6 +461,7 @@ impl Program {
         if rounds > MAX_ROUNDS {
             return Err(format!("the program runs {rounds} rounds and steps, more than the {MAX_ROUNDS} written out"));
         }
+        check_volume(qubits, rounds)?;
         let n = self.tiles.len();
         for a in 0..n {
             if self.tiles[a + 1..].contains(&self.tiles[a]) {

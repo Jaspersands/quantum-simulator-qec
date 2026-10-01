@@ -105,7 +105,8 @@ def test_any_circuit_text(text):
     assert sq.Circuit(str(c)) == c
     # Loops are unrolled for an error model: a million passes is legitimate work, and slow.
     counts = [int(m) for m in re.findall(r"REPEAT\s+(\d+)", text)]
-    modest = all(k <= 1000 for k in counts)
+    # So are a circuit's per-qubit arrays: qubit 16,777,215 costs 16.7 million of them.
+    modest = math.prod(counts) <= 10_000 and c.num_qubits <= 4096  # nested loops multiply
     for decompose in (False, True) if modest else ():
         try:
             dem = c.detector_error_model(decompose_errors=decompose)
@@ -138,7 +139,7 @@ def test_any_model_text(text):
         dem = sq.DetectorErrorModel(text)
     except ALLOWED:
         return
-    if dem.num_errors > 10_000:  # a large repeat block, unrolled: fine, but slow to decode
+    if dem.num_errors > 10_000 or dem.num_detectors > 100_000:  # large, legitimately: slow to decode
         return
     assert sq.DetectorErrorModel(str(dem)).num_errors <= dem.num_errors
     shots = np.zeros((2, dem.num_detectors), dtype=bool)
