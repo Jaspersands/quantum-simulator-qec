@@ -45,3 +45,24 @@ def test_panics_become_runtime_errors():
 
     with pytest.raises(RuntimeError, match="internal error"):
         call(boom)
+
+
+def test_huge_integers_are_value_errors():
+    with pytest.raises(ValueError):
+        sq.surgery.line(3, n=2**70, merged=3, p=0.001)
+    with pytest.raises(ValueError):
+        sq.memory_circuit(distance=2**64, rounds=3, p=0.001)
+
+
+def test_huge_and_odd_numbers_are_value_or_type_errors():
+    import math
+
+    for p in (10**400, math.nan, -math.inf):
+        with pytest.raises(ValueError):
+            sq.memory_circuit(distance=3, rounds=3, p=p)
+    with pytest.raises(ValueError):
+        sq.memory_circuit(distance=3, rounds=3, p=0.001, noise="current", eta=10**400)
+    with pytest.raises(TypeError):
+        sq.memory_circuit(distance=3, rounds=3, p="0.001")
+    with pytest.raises(ValueError):
+        sq.BpDecoder([[1, 1]], error_rate=1.5)

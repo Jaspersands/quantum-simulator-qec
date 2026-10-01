@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+import sys
 from typing import Any, Callable, TypeVar
 
 import numpy as np
@@ -40,7 +41,13 @@ def count(value: Any, name: str, least: int = 0) -> int:
     value = int(value)
     if value < least:
         raise ValueError(f"{name} must be at least {least}, not {value}")
+    if value > _SIZE_MAX:
+        raise ValueError(f"{name} = {value} is larger than this platform's sizes allow ({_SIZE_MAX})")
     return value
+
+
+# The largest usize, which the extension's counts are.
+_SIZE_MAX = 2 * sys.maxsize + 1
 
 
 def seed_of(seed: Any) -> int:
@@ -53,11 +60,23 @@ def seed_of(seed: Any) -> int:
     return seed
 
 
-def probability(p: Any, name: str = "p") -> float:
+def real(value: Any, name: str) -> float:
+    """A finite number argument."""
+    if isinstance(value, (str, bytes)):
+        raise TypeError(f"{name} must be a number, not {type(value).__name__}")
     try:
-        p = float(p)
+        x = float(value)
+    except OverflowError:
+        raise ValueError(f"{name} is too large for a float") from None
     except (TypeError, ValueError):
-        raise TypeError(f"{name} must be a number, not {type(p).__name__}") from None
+        raise TypeError(f"{name} must be a number, not {type(value).__name__}") from None
+    if x != x or x in (float("inf"), float("-inf")):
+        raise ValueError(f"{name} must be finite, not {x}")
+    return x
+
+
+def probability(p: Any, name: str = "p") -> float:
+    p = real(p, name)
     if not 0.0 <= p <= 1.0:
         raise ValueError(f"{name} = {p} is outside [0, 1]")
     return p

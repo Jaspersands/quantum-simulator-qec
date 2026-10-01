@@ -9,7 +9,7 @@ import numpy as np
 
 from . import _core
 from ._circuit import DetectorErrorModel
-from ._util import call, count, rows_to_b8, u64_to_rows
+from ._util import call, count, probability, real, rows_to_b8, u64_to_rows
 
 ModelLike = Union[DetectorErrorModel, str, Any]
 
@@ -112,7 +112,7 @@ class BeliefMatching(_DemDecoder):
         bp_method: str = "product_sum",
         ms_scaling_factor: float = 1.0,
     ) -> None:
-        self._x = call(_core.BeliefMatcher, _model(model)._d, count(max_bp_iters, "max_bp_iters"), bp_method, float(ms_scaling_factor))
+        self._x = call(_core.BeliefMatcher, _model(model)._d, count(max_bp_iters, "max_bp_iters"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
 
     def decode_batch(
         self,
@@ -157,7 +157,7 @@ class BpOsd(_DemDecoder):
             _model(model)._d,
             count(max_iter, "max_iter"),
             bp_method,
-            float(ms_scaling_factor),
+            real(ms_scaling_factor, "ms_scaling_factor"),
             osd_method,
             count(osd_order, "osd_order"),
         )
@@ -262,8 +262,12 @@ def _channel(n: int, error_rate: Any, error_channel: Any) -> list:
     if (error_rate is None) == (error_channel is None):
         raise ValueError("give exactly one of error_rate and error_channel")
     if error_channel is None:
-        return [float(error_rate)] * n
-    ch = [float(p) for p in np.asarray(error_channel, dtype=float).ravel()]
+        return [probability(error_rate, "error_rate")] * n
+    try:
+        raw = np.asarray(error_channel, dtype=float).ravel()
+    except (TypeError, ValueError, OverflowError):
+        raise TypeError("error_channel must be a list of probabilities") from None
+    ch = [probability(p, "error_channel entries") for p in raw]
     if len(ch) != n:
         raise ValueError(f"error_channel has {len(ch)} entries for {n} columns")
     return ch
@@ -293,7 +297,7 @@ class BpDecoder:
         ms_scaling_factor: float = 1.0,
     ) -> None:
         self._m, self._n, cols = _columns(pcm)
-        self._x = call(_core.Bp, self._m, cols, _channel(self._n, error_rate, error_channel), count(max_iter, "max_iter"), bp_method, float(ms_scaling_factor))
+        self._x = call(_core.Bp, self._m, cols, _channel(self._n, error_rate, error_channel), count(max_iter, "max_iter"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
         self.converge = False
         self.iter = 0
         self.log_prob_ratios = np.zeros(self._n)
@@ -331,7 +335,7 @@ class BpOsdDecoder:
             _channel(self._n, error_rate, error_channel),
             count(max_iter, "max_iter"),
             bp_method,
-            float(ms_scaling_factor),
+            real(ms_scaling_factor, "ms_scaling_factor"),
             osd_method,
             count(osd_order, "osd_order"),
         )

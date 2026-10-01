@@ -10,7 +10,7 @@ import numpy as np
 from . import _core
 from ._circuit import Circuit
 from ._decoders import Window
-from ._util import call, count, probability, seed_of
+from ._util import call, count, probability, real, seed_of
 
 _CODES = ("rotated", "xzzx")
 _BASES = ("z", "x")
@@ -43,7 +43,7 @@ def memory_circuit(
     _choice(code, _CODES, "code")
     _choice(noise, ("sd6", "current"), "noise")
     _choice(basis, _BASES, "basis")
-    text = call(_core.generate_circuit, code, count(distance, "distance"), count(rounds, "rounds"), noise, probability(p), float(eta), basis)
+    text = call(_core.generate_circuit, code, count(distance, "distance"), count(rounds, "rounds"), noise, probability(p), real(eta, "eta"), basis)
     return Circuit(text)
 
 
