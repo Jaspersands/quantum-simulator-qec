@@ -4,6 +4,30 @@ All notable changes to `stabilizer-qec`. The project follows [semantic versionin
 from 1.0: until then a minor release may change the API, and says so here. Anything deprecated
 warns for at least one minor release before it goes.
 
+## 0.7.0 — 2026-10-02
+
+### Added
+
+- Measurement feedback and sweep-controlled gates: `CX`, `CY`, `CZ`, `XCZ` and `YCZ` with a
+  measurement record (`rec[-k]`) or sweep bit as the Z-type control, mixed with ordinary pairs.
+- `HERALDED_ERASE` and `HERALDED_PAULI_CHANNEL_1`.
+- `Circuit.detector_error_model(approximate_disjoint_errors=...)`, Stim's option (`False`,
+  `True` or a threshold): `PAULI_CHANNEL_2`, `ELSE_CORRELATED_ERROR` chains, heralded errors and
+  a `PAULI_CHANNEL_1` with no independent equivalent enter an error model approximately, case
+  by case, exactly as Stim approximates them.
+- A workflow that publishes the Rust crate to crates.io by trusted publishing.
+
+### Changed
+
+- The Rust crate's `python` feature is off by default (maturin turns it on), so a Rust project
+  gets the engine alone. The crate is versioned on its own and stays below 1.0; the Python
+  package is the stable interface.
+
+### Fixed
+
+- An invalid record target (`CY 2 rec[-0]`) was re-parsed without end and overflowed the stack;
+  it is a `ValueError`.
+
 ## 0.6.0 — 2026-10-01
 
 ### Added

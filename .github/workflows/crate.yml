@@ -1,0 +1,45 @@
+# The Rust crate to crates.io on a version tag, by trusted publishing: crates.io trusts this
+# repository's workflow "crate.yml" (set in the crate's settings on crates.io), and the job
+# exchanges GitHub's OIDC token for a short-lived crates.io token. No secret is stored.
+#
+# The crate is versioned on its own (Cargo.toml) and stays below 1.0; a tag whose Cargo.toml
+# version is already on crates.io publishes nothing. The job runs once the repository variable
+# CRATES_IO_TRUSTED_PUBLISHING is "true", which is set after the trusted publisher is added.
+name: Crate
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: vars.CRATES_IO_TRUSTED_PUBLISHING == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Is this version already on crates.io?
+        id: version
+        run: |
+          v=$(cargo metadata --no-deps --format-version 1 | python3 -c "import json, sys; print(json.load(sys.stdin)['packages'][0]['version'])")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if curl -sf -A "stabilizer-qec release (github.com/Jaspersands/quantum-simulator-qec)" "https://crates.io/api/v1/crates/stabilizer_qec/$v" > /dev/null; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::stabilizer_qec $v is already on crates.io"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: rust-lang/crates-io-auth-action@v1
+        if: steps.version.outputs.published == 'false'
+        id: auth
+      - name: Publish
+        if: steps.version.outputs.published == 'false'
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

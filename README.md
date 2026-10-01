@@ -109,9 +109,11 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
   gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
   (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
-  inverted targets, `MPP`, `MXX`/`MYY`/`MZZ`, `SPP`, correlated errors, `PAULI_CHANNEL_2` and
-  `MPAD`. Checked against Stim on random circuits that use every gate: error models fault for
-  fault, raw measurements converted bit for bit, detection rates within noise.
+  inverted targets, `MPP`, `MXX`/`MYY`/`MZZ`, `SPP`, correlated and heralded errors,
+  `PAULI_CHANNEL_2`, measurement feedback (`CX rec[-1] q`) and sweep bits, `MPAD`, and Stim's
+  `approximate_disjoint_errors`. Checked against Stim on random circuits that use every gate:
+  error models fault for fault, decomposed and not, raw measurements converted bit for bit,
+  detection rates within noise.
 - **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
   million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.

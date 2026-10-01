@@ -33,10 +33,11 @@ over: `Circuit`, `compile_detector_sampler` and `separate_observables` are Stim'
 `Circuit` reads Stim's circuit language: every Clifford gate (H, S and CX natively, the other
 46 one- and two-qubit gates as their exact decompositions), resets and measurements in all
 three bases with inverted targets (`!q`), Pauli-product measurements and rotations (`MPP`,
-`MXX`, `MYY`, `MZZ`, `SPP`), the Pauli, depolarizing and correlated noise channels
-(`X_ERROR` ... `PAULI_CHANNEL_2`, `E`, `ELSE_CORRELATED_ERROR`), `MPAD`, detectors,
-observables, coordinates, `TICK` and `REPEAT`. Heralded errors and classically controlled
-gates other than `CX sweep[k]` are refused with a `ValueError`.
+`MXX`, `MYY`, `MZZ`, `SPP`), every noise channel (`X_ERROR` ... `PAULI_CHANNEL_2`, `E`,
+`ELSE_CORRELATED_ERROR`, `HERALDED_ERASE`, `HERALDED_PAULI_CHANNEL_1`), measurement feedback
+and sweep bits (`CX rec[-1] q`, `CZ sweep[k] q`), `MPAD`, detectors, observables,
+coordinates, `TICK` and `REPEAT`. Channels whose cases are disjoint enter an error model only
+with `approximate_disjoint_errors`, as in Stim.
 
 Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 `BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
