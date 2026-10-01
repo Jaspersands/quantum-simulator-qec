@@ -237,7 +237,7 @@ pub(crate) fn split_instruction(line: &str) -> Result<(String, Vec<f64>, Vec<&st
             if a.is_empty() {
                 continue;
             }
-            args.push(a.parse::<f64>().map_err(|_| format!("{name}: bad argument '{a}'"))?);
+            args.push(a.parse::<f64>().ok().filter(|v| v.is_finite()).ok_or_else(|| format!("{name}: bad argument '{a}'"))?);
         }
         rest = inner[close + 1..].trim_start();
     }
@@ -635,6 +635,9 @@ mod tests {
         assert!(Circuit::parse("M 16777215").is_ok());
         assert!(Circuit::parse("M 4000000000").unwrap_err().contains("beyond the largest index"));
         assert!(Circuit::parse("CX sweep[4000000000] 0").is_err());
+        for arg in ["nan", "inf", "-inf", "1e400"] {
+            assert!(Circuit::parse(&format!("DETECTOR({arg}) rec[-1]")).is_err(), "{arg}");
+        }
     }
 
     #[test]

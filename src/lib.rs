@@ -38,6 +38,8 @@ pub mod batch_sampler;
 pub mod shots;
 pub mod memory;
 pub mod parallel;
+#[doc(hidden)]
+pub mod fuzzing;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]

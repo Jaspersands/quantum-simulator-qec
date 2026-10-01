@@ -954,7 +954,8 @@ impl Dem {
         let mut pos = 0usize;
         let mut offset = 0u64;
         let mut shift = Vec::new();
-        parse_dem_block(&lines, &mut pos, false, &mut dem, &mut offset, &mut shift)?;
+        let mut budget = MAX_UNROLLED_LINES;
+        parse_dem_block(&lines, &mut pos, false, &mut dem, &mut offset, &mut shift, &mut budget)?;
         dem.detector_coords.resize(dem.num_detectors, Vec::new());
         Ok(dem)
     }
@@ -969,6 +970,13 @@ fn toggle_det(v: &mut Vec<u32>, d: u32) {
     }
 }
 
+/// The most lines a model's `repeat` blocks may unroll into.
+const MAX_UNROLLED_LINES: u64 = 1 << 24;
+
+/// The largest detector index a model may name, after shifts.
+const MAX_DETECTOR: u64 = (1 << 24) - 1;
+
+#[allow(clippy::too_many_arguments)]
 fn parse_dem_block(
     lines: &[&str],
     pos: &mut usize,
@@ -976,6 +984,7 @@ fn parse_dem_block(
     dem: &mut Dem,
     offset: &mut u64,
     shift: &mut Vec<f64>,
+    budget: &mut u64,
 ) -> Result<(), String> {
     while *pos < lines.len() {
         let lineno = *pos + 1;
@@ -984,6 +993,11 @@ fn parse_dem_block(
         if line.is_empty() {
             continue;
         }
+        // Every line read, and every pass through a block, spends one unit of the budget.
+        if *budget == 0 {
+            return Err(format!("line {lineno}: the model's repeat blocks unroll past {MAX_UNROLLED_LINES} lines"));
+        }
+        *budget -= 1;
         if line == "}" {
             if nested {
                 return Ok(());
@@ -1003,12 +1017,20 @@ fn parse_dem_block(
             if count == 0 {
                 // Walk the body to find its end without applying it.
                 let mut skip = Dem::default();
-                let (mut o, mut s) = (0u64, Vec::new());
-                parse_dem_block(lines, pos, true, &mut skip, &mut o, &mut s)?;
+                let (mut o, mut s, mut b) = (0u64, Vec::new(), MAX_UNROLLED_LINES);
+                parse_dem_block(lines, pos, true, &mut skip, &mut o, &mut s, &mut b)?;
+                continue;
             }
-            for _ in 0..count {
+            // The first pass measures the body; the rest must fit what is left.
+            let before = *budget;
+            parse_dem_block(lines, pos, true, dem, offset, shift, budget)?;
+            let per_pass = (before - *budget).max(1);
+            if per_pass.saturating_mul(count - 1) > *budget {
+                return Err(format!("line {lineno}: the model's repeat blocks unroll past {MAX_UNROLLED_LINES} lines"));
+            }
+            for _ in 1..count {
                 *pos = start;
-                parse_dem_block(lines, pos, true, dem, offset, shift)?;
+                parse_dem_block(lines, pos, true, dem, offset, shift, budget)?;
             }
             continue;
         }
@@ -1024,7 +1046,7 @@ fn parse_dem_block(
                     if *t == "^" {
                         pieces.push(Piece::default());
                     } else if let Some(d) = t.strip_prefix('D') {
-                        let d = d.parse::<u64>().map_err(|_| bad(t))? + *offset;
+                        let d = detector_index(d, *offset).ok_or_else(|| bad(t))?;
                         dem.num_detectors = dem.num_detectors.max(d as usize + 1);
                         toggle_det(&mut pieces.last_mut().unwrap().detectors, d as u32);
                     } else if let Some(l) = t.strip_prefix('L') {
@@ -1059,8 +1081,7 @@ fn parse_dem_block(
             }
             "DETECTOR" => {
                 for t in &tokens {
-                    let d = t.strip_prefix('D').and_then(|d| d.parse::<u64>().ok()).ok_or_else(|| bad(t))? + *offset;
-                    let d = d as usize;
+                    let d = t.strip_prefix('D').and_then(|d| detector_index(d, *offset)).ok_or_else(|| bad(t))? as usize;
                     dem.num_detectors = dem.num_detectors.max(d + 1);
                     if dem.detector_coords.len() <= d {
                         dem.detector_coords.resize(d + 1, Vec::new());
@@ -1072,6 +1093,9 @@ fn parse_dem_block(
             "LOGICAL_OBSERVABLE" => {
                 for t in &tokens {
                     let l = t.strip_prefix('L').and_then(|l| l.parse::<usize>().ok()).ok_or_else(|| bad(t))?;
+                    if l >= 64 {
+                        return Err(format!("line {lineno}: at most 64 observables are supported"));
+                    }
                     dem.num_observables = dem.num_observables.max(l + 1);
                 }
             }
@@ -1083,7 +1107,10 @@ fn parse_dem_block(
                     *a += b;
                 }
                 for t in &tokens {
-                    *offset += t.parse::<u64>().map_err(|_| bad(t))?;
+                    let by = t.parse::<u64>().map_err(|_| bad(t))?;
+                    *offset = offset.checked_add(by).filter(|&o| o <= MAX_DETECTOR + 1).ok_or_else(|| {
+                        format!("line {lineno}: shift_detectors moves past detector {MAX_DETECTOR}, the largest index")
+                    })?;
                 }
             }
             _ => return Err(format!("line {lineno}: unsupported instruction '{name}'")),
@@ -1093,6 +1120,11 @@ fn parse_dem_block(
         return Err("unterminated repeat block".into());
     }
     Ok(())
+}
+
+/// Detector `D{text}` after a shift of `offset`, if it is a number within the largest index.
+fn detector_index(text: &str, offset: u64) -> Option<u64> {
+    text.parse::<u64>().ok()?.checked_add(offset).filter(|&d| d <= MAX_DETECTOR)
 }
 
 /* -- Comparison ------------------------------------------------------------ */
