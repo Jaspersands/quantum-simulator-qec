@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 
 import numpy as np
 import pytest
@@ -116,7 +117,10 @@ def test_any_circuit_text(text):
             except ALLOWED:
                 continue
             survives(decoder.decode_batch, dets)
-    if c.num_qubits <= 256 and c.num_measurements <= 2048:
+    # Sampling runs loops without unrolling them, so a billion-pass loop is a billion passes:
+    # real work, not a fault. Only modest loops are sampled here.
+    counts = [int(m) for m in re.findall(r"REPEAT\s+(\d+)", text)]
+    if c.num_qubits <= 256 and c.num_measurements <= 2048 and all(k <= 1000 for k in counts):
         d = c.compile_detector_sampler(seed=1).sample(70, threads=2)
         assert d.shape == (70, c.num_detectors)
         try:

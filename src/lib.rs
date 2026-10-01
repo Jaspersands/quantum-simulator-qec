@@ -18,6 +18,7 @@ pub mod decoder;
 pub mod surface_code;
 pub mod circuit_model;
 pub mod circuit;
+pub mod gates;
 pub mod dem;
 pub mod dem_decoder;
 pub mod sparse;

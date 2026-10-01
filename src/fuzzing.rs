@@ -178,8 +178,14 @@ impl Inputs {
     }
 
     fn line(&mut self, depth: u32) -> String {
-        const ONE: &[&str] = &["H", "X", "Y", "Z", "I", "R", "RX", "RZ", "M", "MX", "MZ", "MR", "MRX", "MRZ", "S", "MY", "SQRT_X"];
-        const TWO: &[&str] = &["CX", "CNOT", "ZCX", "CZ", "ZCZ", "CY", "SWAP"];
+        const ONE: &[&str] = &[
+            "H", "X", "Y", "Z", "I", "R", "RX", "RZ", "RY", "M", "MX", "MZ", "MY", "MR", "MRX", "MRZ", "MRY", "S", "S_DAG",
+            "SQRT_X", "SQRT_Y_DAG", "H_XY", "C_XYZ", "C_ZNYX", "I_ERROR", "MPAD", "HERALDED_ERASE",
+        ];
+        const TWO: &[&str] = &[
+            "CX", "CNOT", "ZCX", "CZ", "ZCZ", "CY", "XCY", "YCZ", "SWAP", "ISWAP", "ISWAP_DAG", "CXSWAP", "SQRT_YY", "II", "MXX",
+            "MYY", "MZZ", "PAULI_CHANNEL_2",
+        ];
         const NOISE1: &[&str] = &["X_ERROR", "Y_ERROR", "Z_ERROR", "DEPOLARIZE1"];
         match self.below(16) {
             0..=3 => format!("{} {}", self.pick(ONE), self.targets(false)),
@@ -196,6 +202,20 @@ impl Inputs {
             ),
             12 => format!("OBSERVABLE_INCLUDE({}) rec[-{}]", self.pick(&["0", "1", "63", "64", "-1", "2.5"]), 1 + self.below(3)),
             13 => format!("{}({}, {}) {}", self.pick(&["QUBIT_COORDS", "SHIFT_COORDS"]), self.number(), self.number(), self.targets(false)),
+            14 if self.below(2) == 0 => {
+                let product = |s: &mut Self| {
+                    (0..1 + s.below(3))
+                        .map(|_| format!("{}{}{}", if s.below(4) == 0 { "!" } else { "" }, s.pick(&["X", "Y", "Z", "W"]), s.below(5)))
+                        .collect::<Vec<_>>()
+                        .join("*")
+                };
+                match self.below(4) {
+                    0 => format!("MPP({}) {} {}", self.probability(), product(self), product(self)),
+                    1 => format!("{} {}", self.pick(&["SPP", "SPP_DAG"]), product(self)),
+                    2 => format!("{}({}) {}", self.pick(&["E", "ELSE_CORRELATED_ERROR"]), self.probability(), product(self).replace('*', " ")),
+                    _ => format!("PAULI_CHANNEL_2({}) 0 1", (0..15).map(|_| self.probability()).collect::<Vec<_>>().join(", ")),
+                }
+            }
             14 => self.pick(&["TICK", "", "# a comment", "  ", "}", "{"]).to_string(),
             _ if depth < 3 => {
                 let count = match self.below(6) {

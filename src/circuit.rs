@@ -49,6 +49,23 @@ pub enum Instr {
     ShiftCoords(Vec<f64>),
     Tick,
     Repeat { count: u64, body: Vec<Instr> },
+    /// `S`: the phase gate. With H and CX it generates every Clifford gate.
+    S(Vec<u32>),
+    /// A gate of Stim's that the engine runs as its exact decomposition into its own
+    /// instructions (`gates.rs` for the unitary ones; the Y basis, Pauli products and inverted
+    /// targets built here): printed as `line`, run as `body`, which records exactly as many
+    /// measurements as the gate does.
+    Gate { line: String, body: Vec<Instr> },
+    /// `E` (`CORRELATED_ERROR`), and `ELSE_CORRELATED_ERROR` when `chained`: with probability
+    /// `p`, the Pauli product `paulis`; a chained one only where no earlier error of its chain
+    /// fired.
+    Correlated { p: f64, paulis: Vec<(u32, Pauli)>, chained: bool },
+    /// `PAULI_CHANNEL_2`: on each pair, one of the 15 non-identity two-qubit Paulis, with
+    /// probabilities in Stim's order (IX, IY, IZ, XI, XX, ..., ZZ; the first letter is the
+    /// first qubit's).
+    PauliChannel2 { probs: Vec<f64>, pairs: Vec<(u32, u32)> },
+    /// `MPAD`: measurement records of fixed values, each flipped with probability `flip`.
+    Pad { flip: f64, values: Vec<bool> },
 }
 
 impl Instr {
@@ -67,7 +84,10 @@ impl Instr {
             Instr::Cx(pairs) | Instr::Cz(pairs) | Instr::Depolarize2 { pairs, .. } => {
                 pairs.iter().flat_map(|&(a, b)| [a, b]).collect()
             }
-            Instr::Repeat { body, .. } => body.iter().flat_map(|i| i.qubits()).collect(),
+            Instr::Repeat { body, .. } | Instr::Gate { body, .. } => body.iter().flat_map(|i| i.qubits()).collect(),
+            Instr::S(qubits) => qubits.clone(),
+            Instr::Correlated { paulis, .. } => paulis.iter().map(|&(q, _)| q).collect(),
+            Instr::PauliChannel2 { pairs, .. } => pairs.iter().flat_map(|&(a, b)| [a, b]).collect(),
             _ => Vec::new(),
         }
     }
@@ -144,6 +164,7 @@ impl Circuit {
             }
             match ins {
                 Instr::Measure { qubits, .. } => m += qubits.len(),
+                Instr::Pad { values, .. } => m += values.len(),
                 Instr::SweepX(pairs) => {
                     for &(k, _) in pairs {
                         sweeps = sweeps.max(k as usize + 1);
@@ -372,7 +393,29 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             }
             let flip = if args.is_empty() { 0.0 } else { prob(0)? };
             let basis = if name.contains('X') { Basis::X } else { Basis::Z };
-            Instr::Measure { basis, reset: name.starts_with("MR"), flip, qubits: qubit_targets(&t, &name)? }
+            let reset = name.starts_with("MR");
+            if !t.iter().any(|x| x.starts_with('!')) {
+                Instr::Measure { basis, reset, flip, qubits: qubit_targets(&t, &name)? }
+            } else {
+                // An inverted result: the Pauli that flips this basis's outcome before the
+                // measurement, and again after it unless a reset follows.
+                let flipper = if basis == Basis::Z { 1 } else { 2 };
+                let mut body = Vec::new();
+                for tok in &t {
+                    let (q, inverted) = match tok.strip_prefix('!') {
+                        Some(q) => (qubit(q, &name)?, true),
+                        None => (qubit(tok, &name)?, false),
+                    };
+                    if inverted {
+                        body.push(Instr::Pauli { pauli: flipper, qubits: vec![q] });
+                    }
+                    body.push(Instr::Measure { basis, reset, flip, qubits: vec![q] });
+                    if inverted && !reset {
+                        body.push(Instr::Pauli { pauli: flipper, qubits: vec![q] });
+                    }
+                }
+                Instr::Gate { line: gate_line(&name, &args, &t), body }
+            }
         }
         "X_ERROR" | "Y_ERROR" | "Z_ERROR" => {
             exactly(1)?;
@@ -422,8 +465,255 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             }
             Instr::Tick
         }
-        _ => return Err(format!("unsupported instruction '{name}'")),
+        "S" | "SQRT_Z" => {
+            none()?;
+            Instr::S(qubit_targets(&t, &name)?)
+        }
+        "MY" | "MRY" | "MPP" | "MXX" | "MYY" | "MZZ" => {
+            if args.len() > 1 {
+                return Err(format!("{name} takes at most one argument"));
+            }
+            let flip = if args.is_empty() { 0.0 } else { prob(0)? };
+            Instr::Gate { line: gate_line(&name, &args, &t), body: pauli_measurements(&name, flip, &t)? }
+        }
+        "RY" => {
+            none()?;
+            let body = qubit_targets(&t, &name)?.into_iter().flat_map(reset_y).collect();
+            Instr::Gate { line: gate_line(&name, &args, &t), body }
+        }
+        "SPP" | "SPP_DAG" => {
+            none()?;
+            let mut body = Vec::new();
+            for (product, inverted) in pauli_products(&t, &name)? {
+                // The -1 eigenspace phased by i (SPP), or by -i; a negated product swaps them.
+                let dag = (name == "SPP_DAG") != inverted;
+                let q0 = product[0].0;
+                let phase = if dag { vec![Instr::S(vec![q0]), Instr::S(vec![q0]), Instr::S(vec![q0])] } else { vec![Instr::S(vec![q0])] };
+                body.extend(around_product(&product, phase));
+            }
+            Instr::Gate { line: gate_line(&name, &args, &t), body }
+        }
+        "E" | "CORRELATED_ERROR" | "ELSE_CORRELATED_ERROR" => {
+            exactly(1)?;
+            let mut paulis = Vec::new();
+            for tok in &t {
+                let code = tok.chars().next().and_then(pauli_code).filter(|&c| c != 0);
+                let (Some(code), Some(q)) = (code, tok.get(1..)) else {
+                    return Err(format!("{name}: bad Pauli target '{tok}'"));
+                };
+                let q = qubit(q, &name)?;
+                if paulis.iter().any(|&(o, _)| o == q) {
+                    return Err(format!("{name}: qubit {q} appears twice"));
+                }
+                paulis.push((q, code));
+            }
+            Instr::Correlated { p: prob(0)?, paulis, chained: name == "ELSE_CORRELATED_ERROR" }
+        }
+        "PAULI_CHANNEL_2" => {
+            exactly(15)?;
+            let probs = (0..15).map(prob).collect::<Result<Vec<_>, _>>()?;
+            if probs.iter().sum::<f64>() > 1.0 + 1e-12 {
+                return Err(format!("{name}: probabilities sum to more than 1"));
+            }
+            Instr::PauliChannel2 { probs, pairs: pair_targets(&t, &name)? }
+        }
+        "MPAD" => {
+            if args.len() > 1 {
+                return Err(format!("{name} takes at most one argument"));
+            }
+            let flip = if args.is_empty() { 0.0 } else { prob(0)? };
+            let values = t
+                .iter()
+                .map(|v| match *v {
+                    "0" => Ok(false),
+                    "1" => Ok(true),
+                    other => Err(format!("{name}: a padded record is 0 or 1, not '{other}'")),
+                })
+                .collect::<Result<_, _>>()?;
+            Instr::Pad { flip, values }
+        }
+        "I_ERROR" | "II_ERROR" | "II" => {
+            for i in 0..args.len() {
+                prob(i)?;
+            }
+            if name == "II" || name == "II_ERROR" {
+                pair_targets(&t, &name)?;
+            } else {
+                qubit_targets(&t, &name)?;
+            }
+            Instr::Gate { line: gate_line(&name, &args, &t), body: Vec::new() }
+        }
+        _ => match crate::gates::find(&name) {
+            Some(def) => {
+                none()?;
+                let qs = qubit_targets(&t, &name)?;
+                if def.arity == 2 {
+                    pair_targets(&t, &name)?;
+                }
+                let mut body = Vec::new();
+                for slots in qs.chunks(def.arity as usize) {
+                    body.extend(def.steps.iter().map(|step| match *step {
+                        crate::gates::Step::H(i) => Instr::H(vec![slots[i as usize]]),
+                        crate::gates::Step::S(i) => Instr::S(vec![slots[i as usize]]),
+                        crate::gates::Step::Cx(i, j) => Instr::Cx(vec![(slots[i as usize], slots[j as usize])]),
+                    }));
+                }
+                Instr::Gate { line: gate_line(&name, &args, &t), body }
+            }
+            None => return Err(format!("unsupported instruction '{name}'")),
+        },
     })
+}
+
+/// A line as written, for printing a gate the engine runs decomposed.
+fn gate_line(name: &str, args: &[f64], t: &[&str]) -> String {
+    format!("{} {}", with_args(name, args), t.join(" ")).trim_end().to_string()
+}
+
+/// Stim's letter for a Pauli as the engine's code: X 1, Z 2, Y 3 (I 0).
+fn pauli_code(c: char) -> Option<Pauli> {
+    match c.to_ascii_uppercase() {
+        'I' => Some(0),
+        'X' => Some(1),
+        'Z' => Some(2),
+        'Y' => Some(3),
+        _ => None,
+    }
+}
+
+/// `MPP`-style targets: products such as `X0*!Y1*Z2`, each with its qubits and whether an odd
+/// number of its factors are negated.
+/// A Pauli product: each factor's qubit and Pauli, and whether the product is negated.
+type Product = (Vec<(u32, Pauli)>, bool);
+
+fn pauli_products(t: &[&str], name: &str) -> Result<Vec<Product>, String> {
+    let mut out = Vec::new();
+    for tok in t {
+        let mut product = Vec::new();
+        let mut inverted = false;
+        for factor in tok.split('*') {
+            let factor = match factor.strip_prefix('!') {
+                Some(f) => {
+                    inverted = !inverted;
+                    f
+                }
+                None => factor,
+            };
+            let code = factor.chars().next().and_then(pauli_code).filter(|&c| c != 0);
+            let (Some(code), Some(q)) = (code, factor.get(1..)) else {
+                return Err(format!("{name}: bad Pauli product '{tok}'"));
+            };
+            let q = qubit(q, name)?;
+            if product.iter().any(|&(o, _)| o == q) {
+                return Err(format!("{name}: the product '{tok}' names qubit {q} twice"));
+            }
+            product.push((q, code));
+        }
+        out.push((product, inverted));
+    }
+    Ok(out)
+}
+
+/// The basis change taking a Pauli on `q` to Z (X: H; Y: S† then H), as instructions.
+fn to_z(q: u32, p: Pauli) -> Vec<Instr> {
+    match p {
+        1 => vec![Instr::H(vec![q])],
+        3 => vec![Instr::S(vec![q]), Instr::S(vec![q]), Instr::S(vec![q]), Instr::H(vec![q])],
+        _ => Vec::new(),
+    }
+}
+
+/// Its inverse (X: H; Y: H then S).
+fn from_z(q: u32, p: Pauli) -> Vec<Instr> {
+    match p {
+        1 => vec![Instr::H(vec![q])],
+        3 => vec![Instr::H(vec![q]), Instr::S(vec![q])],
+        _ => Vec::new(),
+    }
+}
+
+/// `middle` (acting on the product's first qubit, as Z) conjugated into the product: each
+/// factor turned to Z, the others' parity gathered onto the first qubit by CX, `middle`, and
+/// all of it undone. Measuring Z there measures the product; phasing it phases the product.
+fn around_product(product: &[(u32, Pauli)], middle: Vec<Instr>) -> Vec<Instr> {
+    let q0 = product[0].0;
+    let mut body: Vec<Instr> = product.iter().flat_map(|&(q, p)| to_z(q, p)).collect();
+    body.extend(product[1..].iter().map(|&(q, _)| Instr::Cx(vec![(q, q0)])));
+    body.extend(middle);
+    body.extend(product[1..].iter().rev().map(|&(q, _)| Instr::Cx(vec![(q, q0)])));
+    body.extend(product.iter().rev().flat_map(|&(q, p)| from_z(q, p)));
+    body
+}
+
+/// A reset to |+i⟩, Y's +1 eigenstate: |0⟩, then H, then S.
+fn reset_y(q: u32) -> Vec<Instr> {
+    vec![Instr::Reset { basis: Basis::Z, qubits: vec![q] }, Instr::H(vec![q]), Instr::S(vec![q])]
+}
+
+/// The Y-basis and Pauli-product measurements, each one record: `MY` and `MRY` on qubits,
+/// `MPP` on products, `MXX`, `MYY` and `MZZ` on pairs; `!` inverts a result.
+fn pauli_measurements(name: &str, flip: f64, t: &[&str]) -> Result<Vec<Instr>, String> {
+    let products: Vec<Product> = match name {
+        "MPP" => pauli_products(t, name)?,
+        "MY" | "MRY" => t
+            .iter()
+            .map(|tok| {
+                let (q, inverted) = match tok.strip_prefix('!') {
+                    Some(q) => (q, true),
+                    None => (*tok, false),
+                };
+                Ok((vec![(qubit(q, name)?, 3)], inverted))
+            })
+            .collect::<Result<_, String>>()?,
+        _ => {
+            let p = pauli_code(name.as_bytes()[1] as char).unwrap_or(2);
+            if !t.len().is_multiple_of(2) {
+                return Err(format!("{name}: targets must come in pairs, got {}", t.len()));
+            }
+            t.chunks(2)
+                .map(|pair| {
+                    let mut inverted = false;
+                    let mut qs = Vec::new();
+                    for tok in pair {
+                        let q = match tok.strip_prefix('!') {
+                            Some(q) => {
+                                inverted = !inverted;
+                                q
+                            }
+                            None => tok,
+                        };
+                        qs.push(qubit(q, name)?);
+                    }
+                    if qs[0] == qs[1] {
+                        return Err(format!("{name}: a pair cannot act twice on qubit {}", qs[0]));
+                    }
+                    Ok((vec![(qs[0], p), (qs[1], p)], inverted))
+                })
+                .collect::<Result<_, String>>()?
+        }
+    };
+    let reset = name == "MRY";
+    let mut body = Vec::new();
+    for (product, inverted) in products {
+        let q0 = product[0].0;
+        let mut middle = Vec::new();
+        if inverted {
+            middle.push(Instr::Pauli { pauli: 1, qubits: vec![q0] });
+        }
+        middle.push(Instr::Measure { basis: Basis::Z, reset, flip, qubits: vec![q0] });
+        if inverted && !reset {
+            middle.push(Instr::Pauli { pauli: 1, qubits: vec![q0] });
+        }
+        if reset {
+            // MRY: the record taken, the qubit goes to |+i⟩ (|0⟩ from the reset, then H, S).
+            body.extend(to_z(q0, 3));
+            body.extend(middle);
+            body.extend([Instr::H(vec![q0]), Instr::S(vec![q0])]);
+        } else {
+            body.extend(around_product(&product, middle));
+        }
+    }
+    Ok(body)
 }
 
 /// The most instructions plus targets `resolve` will unroll a circuit into.
@@ -451,6 +741,7 @@ fn flatten_into(instrs: &[Instr], out: &mut Vec<Instr>, shift: &mut Vec<f64>) {
                     flatten_into(body, out, shift);
                 }
             }
+            Instr::Gate { body, .. } => flatten_into(body, out, shift),
             Instr::ShiftCoords(s) => {
                 if shift.len() < s.len() {
                     shift.resize(s.len(), 0.0);
@@ -538,6 +829,19 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
             }
             Instr::ShiftCoords(c) => with_args("SHIFT_COORDS", c),
             Instr::Tick => "TICK".to_string(),
+            Instr::S(q) => format!("S {}", join_q(q)),
+            Instr::Gate { line, .. } => line.clone(),
+            Instr::Correlated { p, paulis, chained } => {
+                let name = if *chained { "ELSE_CORRELATED_ERROR" } else { "E" };
+                let targets: Vec<String> = paulis.iter().map(|&(q, c)| format!("{}{q}", ["I", "X", "Z", "Y"][c as usize])).collect();
+                format!("{} {}", with_args(name, &[*p]), targets.join(" "))
+            }
+            Instr::PauliChannel2 { probs, pairs } => format!("{} {}", with_args("PAULI_CHANNEL_2", probs), join_pairs(pairs)),
+            Instr::Pad { flip, values } => {
+                let args: &[f64] = if *flip > 0.0 { std::slice::from_ref(flip) } else { &[] };
+                let v: Vec<&str> = values.iter().map(|&b| if b { "1" } else { "0" }).collect();
+                format!("{} {}", with_args("MPAD", args), v.join(" "))
+            }
             Instr::Repeat { count, body } => {
                 let _ = writeln!(s, "{indent}REPEAT {count} {{");
                 emit(body, &format!("{indent}    "), s);
@@ -590,15 +894,16 @@ mod tests {
 
     #[test]
     fn unsupported_instructions_are_named_with_their_line() {
-        let e = Circuit::parse("R 0\nS 0\n").unwrap_err();
-        assert!(e.contains("line 2") && e.contains("'S'"), "{e}");
+        let e = Circuit::parse("R 0\nHERALDED_ERASE(0.1) 0\n").unwrap_err();
+        assert!(e.contains("line 2") && e.contains("'HERALDED_ERASE'"), "{e}");
     }
 
     #[test]
     fn malformed_targets_are_errors() {
         assert!(Circuit::parse("CX 0 1 2").unwrap_err().contains("pairs"));
         assert!(Circuit::parse("CX 0 0").is_err());
-        assert!(Circuit::parse("M !0").is_err());
+        assert!(Circuit::parse("M !!0").is_err());
+        assert!(Circuit::parse("M !0").is_ok());
         assert!(Circuit::parse("X_ERROR(1.5) 0").is_err());
         assert!(Circuit::parse("REPEAT 2 {\nH 0\n").is_err());
     }

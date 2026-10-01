@@ -20,3 +20,5 @@ __pycache__/
 /fuzz/corpus
 /fuzz/artifacts
 /fuzz/Cargo.lock
+.venv-g/
+/target-g
