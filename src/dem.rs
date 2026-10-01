@@ -386,6 +386,50 @@ impl Dem {
                         std::mem::swap(&mut sx[q as usize], &mut sz[q as usize]);
                     }
                 }
+                // S takes X to Y and keeps Z: an X before it is a Y after.
+                Instr::S(qubits) => {
+                    for &q in qubits.iter().rev() {
+                        let q = q as usize;
+                        let from_z = sz[q].clone();
+                        xor_into(&mut sx[q], &from_z);
+                    }
+                }
+                Instr::Pad { flip, values } => {
+                    for _ in values.iter().rev() {
+                        m -= 1;
+                        if *flip > 0.0 {
+                            let origin = Origin { instr: idx, name: "MPAD flip", a: 0, b: None, pauli: (1, 0) };
+                            b.add(*flip, vec![rec_sym[m].clone()], origin);
+                        }
+                    }
+                }
+                // One fault: the whole product, which the global pass splits if it is wider
+                // than a pair.
+                Instr::Correlated { p, paulis, chained: false } => {
+                    let mut sym = space.zero();
+                    for &(q, pauli) in paulis {
+                        if pauli & 1 != 0 {
+                            xor_into(&mut sym, &sx[q as usize]);
+                        }
+                        if pauli & 2 != 0 {
+                            xor_into(&mut sym, &sz[q as usize]);
+                        }
+                    }
+                    let (a, pa) = paulis.first().copied().unwrap_or((0, 0));
+                    let (bq, pb) = paulis.get(1).copied().map_or((None, 0), |(q, p)| (Some(q), p));
+                    b.add(*p, vec![sym], Origin { instr: idx, name: "correlated error", a, b: bq, pauli: (pa, pb) });
+                }
+                // Stim's error analysis refuses these too, unless told to approximate.
+                Instr::Correlated { chained: true, .. } => {
+                    return Err(format!(
+                        "ELSE_CORRELATED_ERROR (instruction {idx}): its cases are not independent faults, so an error model cannot hold it exactly"
+                    ));
+                }
+                Instr::PauliChannel2 { .. } => {
+                    return Err(format!(
+                        "PAULI_CHANNEL_2 (instruction {idx}): its 15 cases are not independent faults, so an error model cannot hold it exactly"
+                    ));
+                }
                 Instr::Cx(pairs) => {
                     for &(c, t) in pairs.iter().rev() {
                         let (c, t) = (c as usize, t as usize);
@@ -474,7 +518,9 @@ impl Dem {
                 | Instr::Tick
                 | Instr::Pauli { .. }
                 | Instr::SweepX(_)
-                | Instr::Repeat { .. } => {}
+                // Loops and gates are flattened away before the walk.
+                | Instr::Repeat { .. }
+                | Instr::Gate { .. } => {}
             }
         }
 

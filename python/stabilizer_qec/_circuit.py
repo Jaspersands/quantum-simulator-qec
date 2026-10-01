@@ -15,10 +15,13 @@ class Circuit:
     """A stabilizer circuit in Stim's circuit language.
 
     Build one from Stim text, a ``stim.Circuit``, or another ``Circuit``; ``str()`` gives the
-    text back. The engine reads the part of the language it simulates: resets, H, CX and CZ,
-    the Pauli gates, Z- and X-basis measurements (with or without reset, and with a flip
-    probability), the Pauli, depolarizing and single-qubit Pauli channels, detectors,
-    observables, coordinates, ``TICK`` and ``REPEAT``. Anything else raises ``ValueError``.
+    text back as written. Every Clifford gate of Stim's is read (H, S and CX natively, the
+    rest as their exact decompositions), with resets and measurements in all three bases,
+    inverted targets (``!q``), Pauli-product measurements and rotations (``MPP``, ``MXX``,
+    ``MYY``, ``MZZ``, ``SPP``, ``SPP_DAG``), the Pauli, depolarizing and correlated noise
+    channels, ``MPAD``, detectors, observables, coordinates, ``TICK`` and ``REPEAT``.
+    Heralded errors and classically controlled gates other than ``CX sweep[k]`` raise
+    ``ValueError``.
 
     >>> c = Circuit("R 0 1\\nH 0\\nCX 0 1\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
     >>> c.num_qubits, c.num_measurements, c.num_detectors

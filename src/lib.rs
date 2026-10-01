@@ -1,3 +1,4 @@
+#![doc = include_str!("../docs/crate.md")]
 // The WASM surface is a C ABI: every export takes raw pointers that originate
 // from our own `wasm_create_session` and are handed straight back by the JS
 // wrapper, which is the only caller. Marking two dozen `extern "C"` entry points
@@ -18,6 +19,7 @@ pub mod decoder;
 pub mod surface_code;
 pub mod circuit_model;
 pub mod circuit;
+pub mod gates;
 pub mod dem;
 pub mod dem_decoder;
 pub mod sparse;

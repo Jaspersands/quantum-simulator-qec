@@ -63,6 +63,8 @@ impl FrameSampler {
         let mut x = vec![false; nq];
         let mut z: Vec<bool> = (0..nq).map(|_| rng.next_u64() & 1 == 1).collect();
         let mut rec = Vec::with_capacity(self.num_measurements);
+        // Whether the current chain of correlated errors has fired.
+        let mut chain = false;
         for ins in &self.instrs {
             match ins {
                 Instr::Reset { basis, qubits } => {
@@ -175,7 +177,51 @@ impl FrameSampler {
                         }
                     }
                 }
-                _ => {}
+                Instr::S(qubits) => {
+                    for &q in qubits {
+                        let q = q as usize;
+                        z[q] ^= x[q];
+                    }
+                }
+                Instr::Correlated { p, paulis, chained } => {
+                    let fires = rng.next_f64() < *p && !(*chained && chain);
+                    chain = if *chained { chain || fires } else { fires };
+                    if fires {
+                        for &(q, pauli) in paulis {
+                            apply(&mut x, &mut z, q as usize, pauli);
+                        }
+                    }
+                }
+                Instr::PauliChannel2 { probs, pairs } => {
+                    for &(a, b) in pairs {
+                        let u = rng.next_f64();
+                        let mut acc = 0.0;
+                        if let Some(k) = probs.iter().position(|p| {
+                            acc += p;
+                            u < acc
+                        }) {
+                            const CODE: [u8; 4] = [0, 1, 3, 2];
+                            apply(&mut x, &mut z, a as usize, CODE[(k + 1) / 4]);
+                            apply(&mut x, &mut z, b as usize, CODE[(k + 1) % 4]);
+                        }
+                    }
+                }
+                Instr::Pad { flip, values } => {
+                    for _ in values {
+                        rec.push(*flip > 0.0 && rng.next_f64() < *flip);
+                    }
+                }
+                // Signs, annotations and ticks leave a frame alone; loops and gates are
+                // flattened away.
+                Instr::Pauli { .. }
+                | Instr::SweepX(_)
+                | Instr::Detector { .. }
+                | Instr::Observable { .. }
+                | Instr::QubitCoords { .. }
+                | Instr::ShiftCoords(_)
+                | Instr::Tick
+                | Instr::Repeat { .. }
+                | Instr::Gate { .. } => {}
             }
         }
         let parity = |recs: &[usize]| recs.iter().fold(false, |acc, &m| acc ^ rec[m]);

@@ -17,6 +17,8 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
   syndrome cycle of Bravyi et al. (Nature 627, 778, 2024).
 - On the gross code, every automorphism's action on the logical qubits, and the gauging measurement
   of a logical operator as a circuit, its error model equal to Stim's.
+- Stim's whole Clifford language (every gate, all three bases, `MPP`, `SPP`, correlated noise),
+  checked against Stim on random circuits that use every gate.
 - Lattice surgery as single circuits, their error models equal to Stim's: Z⊗Z and X⊗X merges, a
   logical CNOT, merges in a row, and lines of patches merged at once.
 

@@ -1,7 +1,6 @@
 """Circuits the engine writes: surface-code memories, IBM's bivariate bicycle codes and their
 logical operations, and the streamed million-round memory."""
 
-from __future__ import annotations
 
 from typing import NamedTuple
 

@@ -87,6 +87,14 @@ enum Op {
     ShiftCoords(Vec<f64>),
     Observable(u32, Vec<u32>),
     Repeat(u64, Vec<Op>),
+    S(Vec<u32>),
+    /// `E` / `ELSE_CORRELATED_ERROR`: the product on the lanes that fire; a chained one fires
+    /// only on lanes where its chain has not.
+    Correlated { noise: Noise, paulis: Vec<(u32, u8)>, chained: bool },
+    /// `PAULI_CHANNEL_2`: the lanes any case fires on, then one case each by its share.
+    PauliChannel2 { any: Noise, cumulative: Vec<f64>, pairs: Vec<(u32, u32)> },
+    /// `MPAD`: records that, relative to the noiseless run, hold only their flips.
+    Pad { flip: Noise, count: usize },
 }
 
 fn compile(instrs: &[Instr]) -> Vec<Op> {
@@ -115,6 +123,23 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
             Instr::ShiftCoords(shift) => Op::ShiftCoords(shift.clone()),
             Instr::Observable { index, recs } => Op::Observable(*index, recs.clone()),
             Instr::Repeat { count, body } => Op::Repeat(*count, compile(body)),
+            Instr::S(q) => Op::S(q.clone()),
+            Instr::Gate { body, .. } => {
+                out.extend(compile(body));
+                continue;
+            }
+            Instr::Correlated { p, paulis, chained } => {
+                Op::Correlated { noise: Noise::new(*p), paulis: paulis.clone(), chained: *chained }
+            }
+            Instr::PauliChannel2 { probs, pairs } => {
+                let total: f64 = probs.iter().sum();
+                let cumulative = probs.iter().scan(0.0, |acc, p| {
+                    *acc += p;
+                    Some(*acc)
+                });
+                Op::PauliChannel2 { any: Noise::new(total), cumulative: cumulative.collect(), pairs: pairs.clone() }
+            }
+            Instr::Pad { flip, values } => Op::Pad { flip: Noise::new(*flip), count: values.len() },
             // Pauli gates and sweep-controlled X only flip signs, which a frame
             // relative to the noiseless run does not carry; annotations and
             // ticks do nothing.
@@ -157,6 +182,13 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 qubits.iter().for_each(|&q| touch(s, q));
                 s.measurements = s.measurements.saturating_add(qubits.len() as u64);
             }
+            Op::S(qubits) => qubits.iter().for_each(|&q| touch(s, q)),
+            Op::Correlated { paulis, .. } => paulis.iter().for_each(|&(q, _)| touch(s, q)),
+            Op::PauliChannel2 { pairs, .. } => pairs.iter().for_each(|&(a, b)| {
+                touch(s, a);
+                touch(s, b)
+            }),
+            Op::Pad { count, .. } => s.measurements = s.measurements.saturating_add(*count as u64),
             Op::ShiftCoords(_) => {}
             Op::Detector(recs, _) | Op::Observable(_, recs) => {
                 for &k in recs {
@@ -265,6 +297,8 @@ struct State {
     det: usize,
     obs: Vec<u64>,
     shift: Vec<f64>,
+    /// The lanes where the current chain of correlated errors has fired.
+    chain: u64,
 }
 
 impl State {
@@ -417,6 +451,52 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     exec(body, st, rng, sink);
                 }
             }
+            Op::S(qubits) => {
+                for &q in qubits {
+                    let q = q as usize;
+                    st.z[q] ^= st.x[q];
+                }
+            }
+            Op::Correlated { noise, paulis, chained } => {
+                let mut w = bernoulli(rng, *noise);
+                if *chained {
+                    w &= !st.chain;
+                    st.chain |= w;
+                } else {
+                    st.chain = w;
+                }
+                for &(q, pauli) in paulis {
+                    if pauli & 1 != 0 {
+                        st.x[q as usize] ^= w;
+                    }
+                    if pauli & 2 != 0 {
+                        st.z[q as usize] ^= w;
+                    }
+                }
+            }
+            Op::PauliChannel2 { any, cumulative, pairs } => {
+                let total = *cumulative.last().unwrap_or(&0.0);
+                for &(a, b) in pairs {
+                    let mut w = bernoulli(rng, *any);
+                    while w != 0 {
+                        let lane = w.trailing_zeros();
+                        w &= w - 1;
+                        let u = rng.next_f64() * total;
+                        // Case k + 1 in Stim's order: first qubit's Pauli k / 4, second's k % 4,
+                        // each I, X, Y, Z.
+                        let k = cumulative.iter().position(|&c| u < c).unwrap_or(14) + 1;
+                        const CODE: [u64; 4] = [0, 1, 3, 2];
+                        st.pauli_on_lane(a as usize, lane, CODE[k / 4]);
+                        st.pauli_on_lane(b as usize, lane, CODE[k % 4]);
+                    }
+                }
+            }
+            Op::Pad { flip, count } => {
+                for _ in 0..*count {
+                    st.ring[st.m & st.mask] = bernoulli(rng, *flip);
+                    st.m += 1;
+                }
+            }
         }
     }
 }
@@ -457,6 +537,7 @@ impl BatchSampler {
             det: 0,
             obs: vec![0; self.num_observables],
             shift: Vec::new(),
+            chain: 0,
         };
         exec(&self.ops, &mut st, rng, sink);
         st.obs

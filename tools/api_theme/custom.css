@@ -1,0 +1,23 @@
+/* The site's type and palette (css/styles.css) on pdoc's layout. */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Lora:wght@600;700&family=Inter:wght@400;500;600&display=swap");
+:root {
+  --pdoc-background: #f4f2ec;
+  --text: #1c1d1f;
+  --muted: #6b6d71;
+  --link: #2f5fd0;
+  --link-hover: #1f47a8;
+  --code: #fffefb;
+  --active: #ded9cd;
+  --accent: #faf8f2;
+  --accent2: #ded9cd;
+  --nav-hover: rgba(28, 29, 31, 0.06);
+  --name: #c0392b;
+  --def: #2f5fd0;
+  --annotation: #4a4c50;
+}
+html, body { background: var(--pdoc-background); }
+body { font-family: Inter, system-ui, sans-serif; color: var(--text); }
+h1, h2, h3, h4 { font-family: Lora, Georgia, serif; font-weight: 700; letter-spacing: -0.01em; }
+code, pre, .pdoc-code { font-family: "JetBrains Mono", ui-monospace, monospace; }
+nav.pdoc { background: #faf8f2; border-right: 1px solid #ded9cd; }
+.pdoc .docstring pre, .pdoc pre { border: 1px solid #ded9cd; border-radius: 4px; }

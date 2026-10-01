@@ -4,6 +4,29 @@ All notable changes to `stabilizer-qec`. The project follows [semantic versionin
 from 1.0: until then a minor release may change the API, and says so here. Anything deprecated
 warns for at least one minor release before it goes.
 
+## 0.6.0 — 2026-10-01
+
+### Added
+
+- Stim's whole Clifford language. `S` is a primitive; the other 46 unitary one- and two-qubit
+  gates (`S_DAG`, the square roots, the `H_` and `C_` families, `CY` and the `XC`/`YC` family,
+  `SWAP`, `ISWAP`, `CXSWAP`, `CZSWAP`, `SQRT_XX`/`YY`/`ZZ`, ...) run as the shortest H/S/CX
+  sequences whose tableaus equal Stim's, signs included. Y-basis resets and measurements
+  (`RY`, `MY`, `MRY`), inverted targets (`!q`) on every measurement, `MPP`, `MXX`, `MYY`,
+  `MZZ`, `SPP`, `SPP_DAG`, `E` / `CORRELATED_ERROR`, `ELSE_CORRELATED_ERROR`,
+  `PAULI_CHANNEL_2`, `MPAD`, `I_ERROR`, `II_ERROR` and `II`. Every gate prints as written. As
+  in Stim, an error model refuses `ELSE_CORRELATED_ERROR` and `PAULI_CHANNEL_2`; the samplers
+  run them.
+- A guide and API reference at qcompiler.jaspersands.com/api/, built from the docstrings, whose
+  examples the test suite runs.
+- The Rust crate is ready for crates.io (metadata, a README, docs.rs settings, Rust 1.87 or
+  later, checked in CI).
+
+### Changed
+
+- The m2d reference run and the frame sampler match every instruction by name, so none can be
+  skipped silently.
+
 ## 0.5.0 — 2026-10-01
 
 The interface 1.0 will keep. The 0.4 functions still work, with a `DeprecationWarning` naming

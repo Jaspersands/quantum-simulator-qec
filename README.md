@@ -51,8 +51,9 @@ pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
 cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Circuit, Stim-readable
 ```
 
-- **Types.** The package is typed (`py.typed`), and every public object is documented in its
-  docstrings.
+- **Docs.** A guide and the full reference at
+  [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
+  builds it from the docstrings, whose examples the tests run). The package is typed.
 - **Promises.** A seed gives the same shots on any machine and any number of threads. Bad input
   raises `ValueError` or `TypeError`; an engine bug raises `RuntimeError`. The 0.4 functions still
   work, with a `DeprecationWarning` naming their replacement, until 1.0 (see
@@ -105,6 +106,12 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
+- **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
+  gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
+  (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
+  inverted targets, `MPP`, `MXX`/`MYY`/`MZZ`, `SPP`, correlated errors, `PAULI_CHANNEL_2` and
+  `MPAD`. Checked against Stim on random circuits that use every gate: error models fault for
+  fault, raw measurements converted bit for bit, detection rates within noise.
 - **Google's hardware data**: every Willow and Sycamore surface-code memory experiment (27.5
   million shots), rebuilt from raw measurements bit for bit and decoded with plain and correlated
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
@@ -1803,6 +1810,7 @@ src/decoder.rs        Union-Find cluster growth and peeling
 src/blossom.rs        exact minimum-weight perfect matching (Edmonds' blossom), with hard ceilings
 src/circuit_model.rs  detector error model derived from the extraction circuit, CSS and non-CSS
 src/circuit.rs        circuits in Stim's text format: parse, emit, flatten, resolve records
+src/gates.rs          Stim's other Clifford gates as exact H/S/CX sequences (tools/gen_gates.py)
 src/dem.rs            detector error models: built backwards from any circuit, decomposed as
                       Stim decomposes, read and written in Stim's .dem format, compared
 src/dem_decoder.rs    probability-weighted exact matching over any detector error model
@@ -1905,7 +1913,9 @@ tools/report.py         the technical report: values, tables and figures from da
 report/                 the report's source, template, figures, and the built HTML and PDF
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
 python/stabilizer_qec/  the Python package: the public API over the extension, _core, and its stub
-tests/                  the package's test suite (pytest, Hypothesis)
+tests/                  the package's test suite (pytest, Hypothesis), and every gate against Stim
+api/                    the Python guide and reference, built by tools/api_docs.py (pdoc)
+docs/crate.md           the Rust crate's README
 fuzz/                   cargo-fuzz targets and their seed inputs
 CHANGELOG.md            what changed in each release
 .github/workflows/      CI on every push; wheels and PyPI publishing on a tag

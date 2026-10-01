@@ -106,8 +106,23 @@ fn run(res: &Resolved, sweeps: &[bool], seed: u64) -> Vec<bool> {
                     }
                 }
             }
-            // Noise channels, annotations and ticks: the run is noiseless.
-            _ => {}
+            Instr::S(qubits) => qubits.iter().for_each(|&q| sim.apply_s(q as usize)),
+            Instr::Pad { values, .. } => rec.extend(values.iter().copied()),
+            // Noise channels, annotations and ticks: the run is noiseless. Loops and gates are
+            // flattened away.
+            Instr::PauliError { .. }
+            | Instr::Depolarize1 { .. }
+            | Instr::Depolarize2 { .. }
+            | Instr::PauliChannel1 { .. }
+            | Instr::PauliChannel2 { .. }
+            | Instr::Correlated { .. }
+            | Instr::Detector { .. }
+            | Instr::Observable { .. }
+            | Instr::QubitCoords { .. }
+            | Instr::ShiftCoords(_)
+            | Instr::Tick
+            | Instr::Repeat { .. }
+            | Instr::Gate { .. } => {}
         }
     }
     rec
