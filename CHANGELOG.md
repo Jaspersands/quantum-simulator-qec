@@ -44,6 +44,12 @@ their replacement, and go in 1.0.
   overflowed in correlated matching's path tracing and panicked.
 - Circuit arguments that are not finite (`DETECTOR(nan)`, `inf`) are refused; a NaN coordinate
   made a circuit unequal to itself.
+- Lattice-surgery programs check their size before they are built: distance 2⁶⁴ − 1 wrapped the
+  qubit estimate to zero, and huge line or repeated merges allocated before any check. A
+  program is held to Stim's qubit indices, 10,000 rounds and 2²⁴ qubit-rounds; a line to 32
+  patches. Window schedules check `commit + 2 buffer` without overflow.
+- Integers too large for the platform and numbers too large for a double raised
+  `OverflowError`; they are `ValueError`s.
 
 ### Deprecated
 
