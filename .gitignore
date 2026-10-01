@@ -12,3 +12,11 @@ __pycache__/
 .venv-f/
 /target-f
 /target-prof
+/python/stabilizer_qec/*.so
+/python/stabilizer_qec/*.pyd
+.hypothesis/
+.pytest_cache/
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/fuzz/Cargo.lock

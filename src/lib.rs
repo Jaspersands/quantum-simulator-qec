@@ -37,12 +37,17 @@ pub mod frame_sampler;
 pub mod batch_sampler;
 pub mod shots;
 pub mod memory;
+pub mod parallel;
+#[doc(hidden)]
+pub mod fuzzing;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
 mod equivalence;
 #[cfg(feature = "python")]
 mod py_api;
+#[cfg(feature = "python")]
+mod py_objects;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
 #[cfg(not(feature = "python"))]
@@ -89,11 +94,15 @@ impl PyRotatedSurfaceCode {
     }
 }
 
+/// The extension, `stabilizer_qec._core`: the engine's bindings. The public
+/// package (python/stabilizer_qec) is built on it.
 #[cfg(feature = "python")]
 #[pymodule]
+#[pyo3(name = "_core")]
 fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRotatedSurfaceCode>()?;
     py_api::register(m)?;
+    py_objects::register(m)?;
     Ok(())
 }
 

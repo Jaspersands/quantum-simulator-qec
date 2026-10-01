@@ -178,7 +178,8 @@ pub fn check_schedule(commit: usize, buffer: usize, mode: Mode) -> Result<(), St
     if mode == Mode::Parallel && buffer == 0 {
         return Err("parallel windows need a buffer of at least one layer".into());
     }
-    if commit + 2 * buffer > u32::MAX as usize {
+    let span = buffer.checked_mul(2).and_then(|b| b.checked_add(commit));
+    if span.is_none_or(|s| s > u32::MAX as usize) {
         return Err(format!("commit {commit} and buffer {buffer} are too large"));
     }
     Ok(())

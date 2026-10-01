@@ -29,7 +29,7 @@ import stim
 from ldpc import BpOsdDecoder
 from scipy.sparse import csc_matrix
 
-import stabilizer_qec as sq
+import stabilizer_qec._core as sq
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "gross"

@@ -1,5 +1,5 @@
 import time
-import stabilizer_qec
+import stabilizer_qec._core as stabilizer_qec
 import numpy as np
 import matplotlib.pyplot as plt
 

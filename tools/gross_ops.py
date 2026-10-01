@@ -50,7 +50,7 @@ from scipy.optimize import Bounds, LinearConstraint, milp
 from scipy.sparse import csc_matrix, csr_matrix, hstack, identity
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import stabilizer_qec as sq  # noqa: E402
+import stabilizer_qec._core as sq  # noqa: E402
 from bb_check import mechanisms  # noqa: E402
 from realtime import engine_commit, load_json, machine, write_json  # noqa: E402
 

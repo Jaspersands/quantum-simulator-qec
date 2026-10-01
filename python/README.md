@@ -21,24 +21,29 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
   logical CNOT, merges in a row, and lines of patches merged at once.
 
 ```python
-import numpy as np, stabilizer_qec as sq
+import stabilizer_qec as sq
 
-text = sq.generate_circuit("rotated", 5, 5, "sd6", 0.004)      # Stim-format circuit
-dets, obs, _ = sq.sample_b8_batch(text, 100_000, seed=1)         # b8 rows
-pred, _, errors, seconds = sq.decode_b8_own(text, dets, 100_000, threads=0, correlated=True)
-failures = ((np.frombuffer(pred, "<u8") & 1) != (np.frombuffer(obs, np.uint8) & 1)).sum()
+circuit = sq.memory_circuit(distance=5, rounds=5, p=0.004)               # a d = 5 SD6 memory
+dets, obs = circuit.compile_detector_sampler(seed=1).sample(100_000, separate_observables=True, threads=0)
+dem = circuit.detector_error_model(decompose_errors=True)
+pred = sq.Matching(dem, enable_correlations=True).decode_batch(dets, threads=0)
+print((pred != obs).any(axis=1).mean())                                  # logical error rate
 ```
 
 The gross code, decoded by BP+OSD:
 
 ```python
-circuit = sq.bb_memory_circuit("gross", 12, 0.003)               # [[144, 12, 12]], 12 cycles
-dem = sq.dem_from_circuit(circuit)                               # each fault its own column
-dets, obs, _ = sq.sample_b8_batch(circuit, 2_000, seed=1)
-pred, converged, seconds = sq.decode_b8_bposd(dem, dets, 2_000)  # BP+OSD-CS, order 7
-truth = np.frombuffer(obs, np.uint8).reshape(-1, 2).view("<u2")[:, 0]
-failures = (np.frombuffer(pred, "<u8") != truth).sum()           # any of the 12 logicals wrong
+gross = sq.BivariateBicycleCode("gross")                                 # [[144, 12, 12]], 12 cycles
+c = gross.memory_circuit(12, 0.003)
+dets, obs = c.compile_detector_sampler(seed=2).sample(2_000, separate_observables=True)
+pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
+print((pred != obs).any(axis=1).mean())                                  # any of the 12 logicals wrong
 ```
+
+The names follow Stim (`Circuit`, `compile_detector_sampler`, `separate_observables`),
+PyMatching (`Matching`, `decode_batch`, `enable_correlations`) and `ldpc` (`BpDecoder`,
+`BpOsdDecoder`, `error_channel`). A seed gives the same shots on any machine and thread count.
+See the [changelog](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/CHANGELOG.md).
 
 The explainer, its figures running the engine in the browser, is at
 <https://qcompiler.jaspersands.com>, with a technical report. The source and the full write-up are at

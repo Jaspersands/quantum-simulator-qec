@@ -1,0 +1,30 @@
+[package]
+name = "stabilizer_qec-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+stabilizer_qec = { path = "..", default-features = false }
+
+# Its own workspace, so the library's builds never pick it up.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "circuit"
+path = "fuzz_targets/circuit.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dem"
+path = "fuzz_targets/dem.rs"
+test = false
+doc = false
+bench = false

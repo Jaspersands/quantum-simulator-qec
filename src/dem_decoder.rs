@@ -37,10 +37,18 @@ pub fn int_weight(wf: f64) -> i64 {
 
 /// An edge of probability `p`: its weight ln((1 − p)/p), and that weight as
 /// `int_weight`. The one definition both matchers build their graphs from.
+///
+/// Where (1 − p)/p overflows (p subnormal), taken as ln(1 − p) − ln p, which stays finite;
+/// and capped at `MAX_WEIGHT`, so a rule of probability 0 (correlated matching's) is merely
+/// very heavy and sums of weights cannot overflow.
 pub fn edge_weight(p: f64) -> (f64, i64) {
-    let wf = ((1.0 - p) / p).ln();
+    let ratio = (1.0 - p) / p;
+    let wf = if ratio.is_finite() { ratio.ln() } else { (1.0 - p).ln() - p.ln() }.min(MAX_WEIGHT);
     (wf, int_weight(wf))
 }
+
+/// The heaviest edge, above ln((1 − p)/p) for every positive f64 p (at most about 745).
+const MAX_WEIGHT: f64 = 1000.0;
 
 /// Cost of a pairing with no path. Dominates any real path, and stays far enough
 /// below the blossom's own infinity that sums of 512 of them cannot overflow.
@@ -412,6 +420,18 @@ impl DemDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn subnormal_probabilities_weigh_finitely() {
+        for p in [5e-324, 1e-320, 1e-310] {
+            let (wf, w) = edge_weight(p);
+            assert!(wf.is_finite() && wf > 700.0 && w > 0, "{p}: {wf}");
+        }
+        assert_eq!(edge_weight(0.0).0, MAX_WEIGHT);
+        let dem = Dem::parse("error(1e-320) D0 D1\nerror(0.1) D1\nerror(0.1) D0").unwrap();
+        let dec = DemDecoder::new(&dem).unwrap();
+        assert!(dec.decode_correlated(&[0, 1]).is_ok());
+    }
     use crate::circuit::Circuit;
     use crate::fixtures::REP3;
     use crate::surface_code::Xorshift;

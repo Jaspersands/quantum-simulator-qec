@@ -35,7 +35,7 @@ import numpy as np
 import pymatching
 import stim
 
-import stabilizer_qec as sq
+import stabilizer_qec._core as sq
 
 if not hasattr(sq, "generate_circuit"):
     sys.exit(f"{sq.__file__} is an old build without the cross-check bindings; "
