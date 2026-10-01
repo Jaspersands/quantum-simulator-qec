@@ -24,7 +24,7 @@ use std::collections::hash_map::Entry as Slot;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
-use crate::circuit::{fmt_args, split_instruction, Basis, Circuit, Instr};
+use crate::circuit::{fmt_args, split_instruction, Basis, Circuit, Control, Instr};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Piece {
@@ -301,7 +301,16 @@ fn nondeterministic(space: &Space, coords: &[Vec<f64>], sym: &[u64], q: usize, w
 
 impl Dem {
     pub fn from_circuit(circuit: &Circuit) -> Result<Dem, String> {
-        Dem::build(circuit, true)
+        Dem::build(circuit, true, None)
+    }
+
+    /// Either model, with Stim's `approximate_disjoint_errors`: `None` refuses channels whose
+    /// cases are disjoint rather than independent (PAULI_CHANNEL_2, ELSE_CORRELATED_ERROR,
+    /// the heralded errors, and PAULI_CHANNEL_1 where no independent equivalent exists);
+    /// `Some(t)` approximates each case as an independent fault, refusing a channel with an
+    /// argument above `t` (`Some(1.0)` is Stim's `True`).
+    pub fn from_circuit_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>) -> Result<Dem, String> {
+        Dem::build(circuit, decompose, approximate)
     }
 
     /// The model without splitting faults into graph-like pieces: one
@@ -310,10 +319,10 @@ impl Dem {
     /// more checks has (a fault of one or two detectors keeps itself as its
     /// one piece).
     pub fn from_circuit_undecomposed(circuit: &Circuit) -> Result<Dem, String> {
-        Dem::build(circuit, false)
+        Dem::build(circuit, false, None)
     }
 
-    fn build(circuit: &Circuit, decompose: bool) -> Result<Dem, String> {
+    fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>) -> Result<Dem, String> {
         let res = circuit.resolve()?;
         let nd = res.detectors.len();
         let no = res.observables.len();
@@ -336,6 +345,25 @@ impl Dem {
         let mut sx = vec![space.zero(); nq];
         let mut sz = vec![space.zero(); nq];
         let mut b = Builder { space, index: HashMap::new(), entries: Vec::new() };
+        // A channel of disjoint cases is allowed only approximately, as in Stim.
+        // As in Stim, a channel with at most one case of nonzero probability needs no
+        // approximation when `single` allows it.
+        let approximated = |name: &str, args: &[f64], idx: usize, single: bool| -> Result<(), String> {
+            if single && args.iter().filter(|&&p| p > 0.0).count() <= 1 {
+                return Ok(());
+            }
+            match approximate {
+                None => Err(format!(
+                    "{name} (instruction {idx}): its cases are disjoint, not independent faults; an error model holds it only with approximate_disjoint_errors"
+                )),
+                Some(t) => match args.iter().find(|&&p| p > t) {
+                    Some(p) => Err(format!("{name} (instruction {idx}) has a probability ({p}) above the approximate_disjoint_errors threshold ({t})")),
+                    None => Ok(()),
+                },
+            }
+        };
+        // The ELSE_CORRELATED_ERRORs met walking backwards, until their E.
+        let mut chain: Vec<(f64, Vec<u64>, Origin)> = Vec::new();
         let mut m = res.num_measurements;
         let coords = &res.detector_coords;
 
@@ -404,8 +432,9 @@ impl Dem {
                     }
                 }
                 // One fault: the whole product, which the global pass splits if it is wider
-                // than a pair.
-                Instr::Correlated { p, paulis, chained: false } => {
+                // than a pair. An ELSE waits for its chain's E: its probability is its own times
+                // the chance no earlier case of the chain fired.
+                Instr::Correlated { p, paulis, chained } => {
                     let mut sym = space.zero();
                     for &(q, pauli) in paulis {
                         if pauli & 1 != 0 {
@@ -417,19 +446,84 @@ impl Dem {
                     }
                     let (a, pa) = paulis.first().copied().unwrap_or((0, 0));
                     let (bq, pb) = paulis.get(1).copied().map_or((None, 0), |(q, p)| (Some(q), p));
-                    b.add(*p, vec![sym], Origin { instr: idx, name: "correlated error", a, b: bq, pauli: (pa, pb) });
+                    let name = if *chained { "ELSE_CORRELATED_ERROR" } else { "correlated error" };
+                    let origin = Origin { instr: idx, name, a, b: bq, pauli: (pa, pb) };
+                    if *chained {
+                        if idx == 0 || !matches!(res.instrs[idx - 1], Instr::Correlated { .. }) {
+                            return Err(format!(
+                                "ELSE_CORRELATED_ERROR (instruction {idx}) is not preceded by E or another ELSE_CORRELATED_ERROR"
+                            ));
+                        }
+                        chain.push((*p, sym, origin));
+                    } else {
+                        if !chain.is_empty() {
+                            // Stim checks the threshold against each case's actual probability.
+                            approximated("ELSE_CORRELATED_ERROR", &[], idx, false)?;
+                        }
+                        let mut none_yet = 1.0 - p;
+                        let mut cases = vec![(*p, sym, origin)];
+                        for (q, sym, origin) in chain.drain(..).rev() {
+                            cases.push((q * none_yet, sym, origin));
+                            none_yet *= 1.0 - q;
+                        }
+                        let t = approximate.unwrap_or(1.0);
+                        if let Some((actual, ..)) = cases.iter().find(|c| cases.len() > 1 && c.0 > t) {
+                            return Err(format!(
+                                "an E / ELSE_CORRELATED_ERROR chain (instruction {idx}) has a case of probability {actual}, above the approximate_disjoint_errors threshold ({t})"
+                            ));
+                        }
+                        for (p, sym, origin) in cases {
+                            b.add(p, vec![sym], origin);
+                        }
+                    }
                 }
-                // Stim's error analysis refuses these too, unless told to approximate.
-                Instr::Correlated { chained: true, .. } => {
-                    return Err(format!(
-                        "ELSE_CORRELATED_ERROR (instruction {idx}): its cases are not independent faults, so an error model cannot hold it exactly"
-                    ));
+                Instr::PauliChannel2 { probs, pairs } => {
+                    approximated("PAULI_CHANNEL_2", probs, idx, true)?;
+                    for &(qa, qb) in pairs {
+                        let (a, bq) = (qa as usize, qb as usize);
+                        // Stim's basis: the second qubit's X and Z errors, then the first's.
+                        let combos = channel_combinations(&space, &[sx[bq].clone(), sz[bq].clone(), sx[a].clone(), sz[a].clone()]);
+                        // Case k + 1 in Stim's order: the first qubit's Pauli (k + 1) / 4, the
+                        // second's (k + 1) % 4, each I, X, Y, Z, as bits (X 1, Z 2).
+                        const BITS: [usize; 4] = [0b00, 0b01, 0b11, 0b10];
+                        let cases = probs.iter().enumerate().map(|(k, &p)| {
+                            let combo = BITS[(k + 1) % 4] | (BITS[(k + 1) / 4] << 2);
+                            (p, combos[combo - 1].clone())
+                        });
+                        let origin = Origin { instr: idx, name: "PAULI_CHANNEL_2", a: qa, b: Some(qb), pauli: (0, 0) };
+                        add_disjoint(&mut b, &space, cases, origin);
+                    }
                 }
-                Instr::PauliChannel2 { .. } => {
-                    return Err(format!(
-                        "PAULI_CHANNEL_2 (instruction {idx}): its 15 cases are not independent faults, so an error model cannot hold it exactly"
-                    ));
+                Instr::Heralded { erase, args, probs, qubits } => {
+                    let name = if *erase { "HERALDED_ERASE" } else { "HERALDED_PAULI_CHANNEL_1" };
+                    approximated(name, args, idx, !*erase)?;
+                    for &q in qubits.iter().rev() {
+                        m -= 1;
+                        let qi = q as usize;
+                        // Stim's basis: the Z error, the X error, the herald.
+                        let combos = channel_combinations(&space, &[sz[qi].clone(), sx[qi].clone(), rec_sym[m].clone()]);
+                        // The herald with I, X, Y or Z.
+                        let cases = [(probs[0], 0b100), (probs[1], 0b110), (probs[2], 0b111), (probs[3], 0b101)]
+                            .map(|(p, k): (f64, usize)| (p, combos[k - 1].clone()));
+                        let origin = Origin { instr: idx, name: "heralded error", a: q, b: None, pauli: (0, 0) };
+                        add_disjoint(&mut b, &space, cases.into_iter(), origin);
+                    }
                 }
+                // An error flipping the controlling record also flips the Pauli here.
+                Instr::Feedback { pauli, control: Control::Rec(k), qubit } => {
+                    let a = m - *k as usize;
+                    let q = *qubit as usize;
+                    if pauli & 1 != 0 {
+                        let from = sx[q].clone();
+                        xor_into(&mut rec_sym[a], &from);
+                    }
+                    if pauli & 2 != 0 {
+                        let from = sz[q].clone();
+                        xor_into(&mut rec_sym[a], &from);
+                    }
+                }
+                // A sweep bit moves only the noiseless reference.
+                Instr::Feedback { control: Control::Sweep(_), .. } => {}
                 Instr::Cx(pairs) => {
                     for &(c, t) in pairs.iter().rev() {
                         let (c, t) = (c as usize, t as usize);
@@ -479,6 +573,17 @@ impl Dem {
                             let origin = Origin { instr: idx, name: "DEPOLARIZE1", a: q, b: None, pauli: (pauli, 0) };
                             b.add(q1, pieces, origin);
                         }
+                    }
+                }
+                Instr::PauliChannel1 { px, py, pz, qubits } if pauli_channel_1_independent(*px, *py, *pz).is_err() => {
+                    // No independent equivalent: approximately, each case its own fault.
+                    approximated("PAULI_CHANNEL_1", &[*px, *py, *pz], idx, true)?;
+                    for &q in qubits {
+                        let qi = q as usize;
+                        let combos = channel_combinations(&space, &[sx[qi].clone(), sz[qi].clone()]);
+                        let cases = [(*px, combos[0].clone()), (*pz, combos[1].clone()), (*py, combos[2].clone())];
+                        let origin = Origin { instr: idx, name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (0, 0) };
+                        add_disjoint(&mut b, &space, cases.into_iter(), origin);
                     }
                 }
                 Instr::PauliChannel1 { px, py, pz, qubits } => {
@@ -752,6 +857,26 @@ fn or(a: &[u64], b: &[u64]) -> Vec<u64> {
 
 fn and_not(a: &[u64], b: &[u64]) -> Vec<u64> {
     a.iter().zip(b).map(|(x, y)| x & !y).collect()
+}
+
+/// The cases of one disjoint channel, approximated as independent faults the way Stim does:
+/// cases with the same symptom (they never fire together) summed, each sum one fault, split
+/// into the pieces of its first case.
+fn add_disjoint(b: &mut Builder, space: &Space, cases: impl Iterator<Item = (f64, Vec<Vec<u64>>)>, origin: Origin) {
+    let mut groups: Vec<(Vec<u64>, f64, Vec<Vec<u64>>)> = Vec::new();
+    for (p, pieces) in cases {
+        let mut sym = space.zero();
+        for piece in &pieces {
+            xor_into(&mut sym, piece);
+        }
+        match groups.iter_mut().find(|g| g.0 == sym) {
+            Some(g) => g.1 += p,
+            None => groups.push((sym, p, pieces)),
+        }
+    }
+    for (_, p, pieces) in groups {
+        b.add(p, pieces, origin);
+    }
 }
 
 /// Stim's `decompose_helper_add_error_combinations`. For a channel with basis

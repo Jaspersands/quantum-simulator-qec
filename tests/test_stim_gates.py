@@ -42,6 +42,27 @@ def random_unitary(rng, n, layers):
     return out
 
 
+def disjoint_noise(rng, n):
+    """Channels whose cases are disjoint: heralded errors (each herald read by a detector),
+    PAULI_CHANNEL_2, and E chains with ELSE_CORRELATED_ERROR."""
+    kind = rng.integers(3)
+    if kind == 0:
+        q = rng.integers(n)
+        if rng.random() < 0.5:
+            return [f"HERALDED_ERASE(0.05) {q}", "DETECTOR rec[-1]"]
+        return [f"HERALDED_PAULI_CHANNEL_1(0.01, 0.02, 0.03, 0.015) {q}", "DETECTOR rec[-1]"]
+    if kind == 1:
+        a, b = rng.choice(n, size=2, replace=False)
+        probs = rng.dirichlet(np.ones(16))[:15] * 0.1
+        return ["PAULI_CHANNEL_2(" + ", ".join(f"{p:.5f}" for p in probs) + f") {a} {b}"]
+    lines = []
+    for k in range(rng.integers(2, 4)):
+        qs = rng.choice(n, size=rng.integers(1, 3), replace=False)
+        name = "E" if k == 0 else "ELSE_CORRELATED_ERROR"
+        lines.append(f"{name}({rng.choice([0.03, 0.05, 0.08])}) " + " ".join(f"{'XYZ'[rng.integers(3)]}{q}" for q in qs))
+    return lines
+
+
 def noise(rng, n, correlated):
     out = []
     for _ in range(rng.integers(1, 3)):
@@ -76,10 +97,14 @@ def stabilizer_measurements(rng, prefix, n):
         else:
             out.append(f"MPP{flip} {inv}" + "*".join(f"{p}{q}" for q, p in support))
         out.append("DETECTOR rec[-1]")
+        if rng.random() < 0.6:
+            # Feedback on the outcome just taken: deterministic, so its detectors stay so.
+            q = rng.integers(n)
+            out.append(rng.choice([f"CX rec[-1] {q}", f"CY rec[-1] {q}", f"CZ rec[-1] {q}", f"CZ {q} rec[-1]", f"XCZ {q} rec[-1]", f"YCZ {q} rec[-1]"]))
     return out
 
 
-def random_case(seed, n=4, layers=12, correlated=True):
+def random_case(seed, n=4, layers=12, correlated=True, disjoint=False):
     rng = np.random.default_rng(seed)
     u = random_unitary(rng, n, layers)
     noisy, prefix = [], [f"R {' '.join(map(str, range(n)))}"]
@@ -88,6 +113,8 @@ def random_case(seed, n=4, layers=12, correlated=True):
         prefix.append(line)
         if k % 3 == 2:
             noisy.extend(noise(rng, n, correlated))
+            if disjoint:
+                noisy.extend(disjoint_noise(rng, n))
     lines = [prefix[0]] + noisy
     lines += stabilizer_measurements(rng, prefix, n)
     lines += [str(stim.Circuit("\n".join(u)).inverse())]
@@ -128,6 +155,55 @@ def test_random_circuits_against_stim(seed):
     assert np.abs((r1 - r2) / sigma).max() < 5.5
 
 
+@pytest.mark.parametrize("seed", range(40))
+def test_disjoint_channels_approximated_as_stim_approximates(seed):
+    text = random_case(1000 + seed, disjoint=True)
+    ours, theirs = sq.Circuit(text), stim.Circuit(text)
+    assert sq.Circuit(str(ours)) == ours
+    with pytest.raises(ValueError, match="approximate_disjoint_errors"):
+        ours.detector_error_model()
+    for decompose in (False, True):
+        try:
+            want = theirs.detector_error_model(decompose_errors=decompose, approximate_disjoint_errors=True).flattened()
+        except ValueError:
+            continue  # a decomposition Stim cannot make either
+        got = ours.detector_error_model(decompose_errors=decompose, approximate_disjoint_errors=True)
+        a, b = canon(str(got)), canon(str(want))
+        assert set(a) == set(b)
+        for k in a:
+            assert a[k] == pytest.approx(b[k], rel=1e-9, abs=1e-15)
+    meas = theirs.compile_sampler(seed=seed).sample(300)
+    want = theirs.compile_m2d_converter().convert(measurements=meas, append_observables=True)
+    assert np.array_equal(ours.compile_m2d_converter().convert(measurements=meas, append_observables=True), want)
+    shots = 20_000
+    r1 = ours.compile_detector_sampler(seed=seed).sample(shots, append_observables=True).mean(axis=0)
+    r2 = theirs.compile_detector_sampler(seed=seed).sample(shots, append_observables=True).mean(axis=0)
+    sigma = np.sqrt((r1 * (1 - r1) + r2 * (1 - r2)) / shots) + 1e-9
+    assert np.abs((r1 - r2) / sigma).max() < 5.5
+
+
+def test_approximation_thresholds_as_stim():
+    text = "R 0 1\nPAULI_CHANNEL_2(" + ", ".join(["0.01"] * 14 + ["0.2"]) + ") 0 1\nM 0 1\nDETECTOR rec[-1]"
+    c = sq.Circuit(text)
+    with pytest.raises(ValueError, match="threshold"):
+        c.detector_error_model(approximate_disjoint_errors=0.1)
+    assert c.detector_error_model(approximate_disjoint_errors=0.3).num_errors > 0
+    with pytest.raises(ValueError, match="preceded"):
+        sq.Circuit("R 0\nE(0.1) X0\nTICK\nELSE_CORRELATED_ERROR(0.2) Z0\nM 0\nDETECTOR rec[-1]").detector_error_model(
+            approximate_disjoint_errors=True
+        )
+
+
+def test_sweep_controlled_gates():
+    text = "R 0 1 2\nCX sweep[0] 0\nCY sweep[1] 1\nCZ sweep[2] 2\nXCZ 2 sweep[3]\nM 0 1 2\n" + "\n".join(f"DETECTOR rec[-{k}]" for k in (1, 2, 3))
+    ours, theirs = sq.Circuit(text), stim.Circuit(text)
+    assert ours.num_sweep_bits == theirs.num_sweep_bits == 4
+    meas = theirs.compile_sampler(seed=3).sample(64)
+    sweeps = np.random.default_rng(3).random((64, 4)) < 0.5
+    want = theirs.compile_m2d_converter().convert(measurements=meas, sweep_bits=sweeps, separate_observables=False, append_observables=False)
+    assert np.array_equal(ours.compile_m2d_converter().convert(measurements=meas, sweep_bits=sweeps), want)
+
+
 @pytest.mark.parametrize("seed", range(8))
 def test_channels_error_models_refuse_are_sampled_as_stim_samples(seed):
     rng = np.random.default_rng(100 + seed)
@@ -166,6 +242,6 @@ def test_gate_lines_print_as_written():
 
 
 def test_unsupported_gates_say_so():
-    for text in ["HERALDED_ERASE(0.1) 0", "CY sweep[0] 1", "MPP X0*Z0", "E(0.1) X0 Y0", "MXX 0 0"]:
+    for text in ["HERALDED_ERASE(0.1, 0.2) 0", "CX 0 rec[-1]", "CX rec[-1] sweep[0]", "MPP X0*Z0", "E(0.1) X0 Y0", "MXX 0 0"]:
         with pytest.raises(ValueError):
             sq.Circuit(text)

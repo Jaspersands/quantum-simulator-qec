@@ -95,6 +95,11 @@ enum Op {
     PauliChannel2 { any: Noise, cumulative: Vec<f64>, pairs: Vec<(u32, u32)> },
     /// `MPAD`: records that, relative to the noiseless run, hold only their flips.
     Pad { flip: Noise, count: usize },
+    /// A Pauli on a qubit where a record (lookback) flipped relative to the noiseless run.
+    Feedback { pauli: u8, lookback: u32, qubit: u32 },
+    /// Heralded errors: per qubit, the herald record, and on the lanes it fires a Pauli by
+    /// its share (I, X, Y, Z).
+    Heralded { any: Noise, cumulative: [f64; 4], qubits: Vec<u32> },
 }
 
 fn compile(instrs: &[Instr]) -> Vec<Op> {
@@ -140,6 +145,20 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
                 Op::PauliChannel2 { any: Noise::new(total), cumulative: cumulative.collect(), pairs: pairs.clone() }
             }
             Instr::Pad { flip, values } => Op::Pad { flip: Noise::new(*flip), count: values.len() },
+            Instr::Feedback { pauli, control: crate::circuit::Control::Rec(k), qubit } => {
+                Op::Feedback { pauli: *pauli, lookback: *k, qubit: *qubit }
+            }
+            // A sweep bit moves only the noiseless reference, which a frame is relative to.
+            Instr::Feedback { control: crate::circuit::Control::Sweep(_), .. } => continue,
+            Instr::Heralded { probs, qubits, .. } => {
+                let mut cumulative = [0.0; 4];
+                let mut acc = 0.0;
+                for (c, p) in cumulative.iter_mut().zip(probs) {
+                    acc += p;
+                    *c = acc;
+                }
+                Op::Heralded { any: Noise::new(acc), cumulative, qubits: qubits.clone() }
+            }
             // Pauli gates and sweep-controlled X only flip signs, which a frame
             // relative to the noiseless run does not carry; annotations and
             // ticks do nothing.
@@ -189,6 +208,17 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 touch(s, b)
             }),
             Op::Pad { count, .. } => s.measurements = s.measurements.saturating_add(*count as u64),
+            Op::Heralded { qubits, .. } => {
+                qubits.iter().for_each(|&q| touch(s, q));
+                s.measurements = s.measurements.saturating_add(qubits.len() as u64);
+            }
+            Op::Feedback { lookback, qubit, .. } => {
+                touch(s, *qubit);
+                if *lookback == 0 || u64::from(*lookback) > s.measurements {
+                    return Err(format!("rec[-{lookback}] reaches before the first measurement"));
+                }
+                s.lookback = s.lookback.max(*lookback);
+            }
             Op::ShiftCoords(_) => {}
             Op::Detector(recs, _) | Op::Observable(_, recs) => {
                 for &k in recs {
@@ -488,6 +518,30 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                         const CODE: [u64; 4] = [0, 1, 3, 2];
                         st.pauli_on_lane(a as usize, lane, CODE[k / 4]);
                         st.pauli_on_lane(b as usize, lane, CODE[k % 4]);
+                    }
+                }
+            }
+            Op::Feedback { pauli, lookback, qubit } => {
+                let w = st.ring[(st.m - *lookback as usize) & st.mask];
+                if pauli & 1 != 0 {
+                    st.x[*qubit as usize] ^= w;
+                }
+                if pauli & 2 != 0 {
+                    st.z[*qubit as usize] ^= w;
+                }
+            }
+            Op::Heralded { any, cumulative, qubits } => {
+                for &q in qubits {
+                    let w = bernoulli(rng, *any);
+                    st.ring[st.m & st.mask] = w;
+                    st.m += 1;
+                    let mut lanes = w;
+                    while lanes != 0 {
+                        let lane = lanes.trailing_zeros();
+                        lanes &= lanes - 1;
+                        let u = rng.next_f64() * cumulative[3];
+                        let k = cumulative.iter().position(|&c| u < c).unwrap_or(3);
+                        st.pauli_on_lane(q as usize, lane, [0, 1, 3, 2][k]);
                     }
                 }
             }

@@ -181,7 +181,8 @@ fn max_sweep_bit(instrs: &[Instr]) -> usize {
         .iter()
         .map(|i| match i {
             Instr::SweepX(pairs) => pairs.iter().map(|&(k, _)| k as usize + 1).max().unwrap_or(0),
-            Instr::Repeat { body, .. } => max_sweep_bit(body),
+            Instr::Feedback { control: crate::circuit::Control::Sweep(k), .. } => *k as usize + 1,
+            Instr::Repeat { body, .. } | Instr::Gate { body, .. } => max_sweep_bit(body),
             _ => 0,
         })
         .max()
@@ -233,9 +234,11 @@ impl PyCircuit {
         self.circuit == other.circuit
     }
 
-    /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does.
-    fn detector_error_model(&self, decompose: bool) -> PyResult<PyDem> {
-        let dem = if decompose { Dem::from_circuit(&self.circuit) } else { Dem::from_circuit_undecomposed(&self.circuit) };
+    /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
+    /// and `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off).
+    #[pyo3(signature = (decompose, approximate=None))]
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>) -> PyResult<PyDem> {
+        let dem = Dem::from_circuit_with(&self.circuit, decompose, approximate);
         Ok(PyDem { dem: dem.map_err(err)?, pieces: decompose })
     }
 

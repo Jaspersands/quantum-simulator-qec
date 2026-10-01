@@ -206,6 +206,29 @@ impl FrameSampler {
                         }
                     }
                 }
+                // Relative to the noiseless run, a record's flip flips its Pauli; a sweep bit
+                // moves only the reference.
+                Instr::Feedback { pauli, control, qubit } => {
+                    if let crate::circuit::Control::Rec(k) = control {
+                        if rec[rec.len() - *k as usize] {
+                            apply(&mut x, &mut z, *qubit as usize, *pauli);
+                        }
+                    }
+                }
+                Instr::Heralded { probs, qubits, .. } => {
+                    for &q in qubits {
+                        let u = rng.next_f64();
+                        let mut acc = 0.0;
+                        let case = probs.iter().position(|p| {
+                            acc += p;
+                            u < acc
+                        });
+                        rec.push(case.is_some());
+                        if let Some(k) = case {
+                            apply(&mut x, &mut z, q as usize, [0, 1, 3, 2][k]);
+                        }
+                    }
+                }
                 Instr::Pad { flip, values } => {
                     for _ in values {
                         rec.push(*flip > 0.0 && rng.next_f64() < *flip);

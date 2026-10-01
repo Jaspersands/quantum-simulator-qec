@@ -66,6 +66,30 @@ pub enum Instr {
     PauliChannel2 { probs: Vec<f64>, pairs: Vec<(u32, u32)> },
     /// `MPAD`: measurement records of fixed values, each flipped with probability `flip`.
     Pad { flip: f64, values: Vec<bool> },
+    /// A classically controlled Pauli (`CX rec[-1] 3`, `CZ sweep[0] 2`, `XCZ 1 rec[-2]`):
+    /// `pauli` on `qubit` where the measurement record or sweep bit is 1.
+    Feedback { pauli: Pauli, control: Control, qubit: u32 },
+    /// `HERALDED_ERASE` and `HERALDED_PAULI_CHANNEL_1`: per qubit, a herald record that is 1
+    /// when the error fires, and then I, X, Y or Z with probabilities `probs` (which sum to
+    /// the herald's). `args` are the instruction's own, for printing.
+    Heralded { erase: bool, args: Vec<f64>, probs: [f64; 4], qubits: Vec<u32> },
+}
+
+/// What classically controls a `Feedback`: a measurement record (lookback, 1 is the latest)
+/// or a sweep bit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Control {
+    Rec(u32),
+    Sweep(u32),
+}
+
+impl std::fmt::Display for Control {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Control::Rec(k) => write!(f, "rec[-{k}]"),
+            Control::Sweep(k) => write!(f, "sweep[{k}]"),
+        }
+    }
 }
 
 impl Instr {
@@ -85,7 +109,8 @@ impl Instr {
                 pairs.iter().flat_map(|&(a, b)| [a, b]).collect()
             }
             Instr::Repeat { body, .. } | Instr::Gate { body, .. } => body.iter().flat_map(|i| i.qubits()).collect(),
-            Instr::S(qubits) => qubits.clone(),
+            Instr::S(qubits) | Instr::Heralded { qubits, .. } => qubits.clone(),
+            Instr::Feedback { qubit, .. } => vec![*qubit],
             Instr::Correlated { paulis, .. } => paulis.iter().map(|&(q, _)| q).collect(),
             Instr::PauliChannel2 { pairs, .. } => pairs.iter().flat_map(|&(a, b)| [a, b]).collect(),
             _ => Vec::new(),
@@ -165,6 +190,11 @@ impl Circuit {
             match ins {
                 Instr::Measure { qubits, .. } => m += qubits.len(),
                 Instr::Pad { values, .. } => m += values.len(),
+                Instr::Heralded { qubits, .. } => m += qubits.len(),
+                Instr::Feedback { control: Control::Rec(k), .. } => {
+                    absolute(*k, m)?;
+                }
+                Instr::Feedback { control: Control::Sweep(k), .. } => sweeps = sweeps.max(*k as usize + 1),
                 Instr::SweepX(pairs) => {
                     for &(k, _) in pairs {
                         sweeps = sweeps.max(k as usize + 1);
@@ -365,13 +395,22 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             none()?;
             Instr::H(qubit_targets(&t, &name)?)
         }
-        "CX" | "CNOT" | "ZCX" => {
+        // Every pair sweep-controlled, or none classical: the engine's own CX instructions.
+        "CX" | "CNOT" | "ZCX"
+            if t.chunks(2).all(|p| p[0].starts_with("sweep[")) || !t.iter().any(|x| x.starts_with("rec[") || x.starts_with("sweep[")) =>
+        {
             none()?;
             if t.iter().any(|x| x.starts_with("sweep[")) {
                 Instr::SweepX(sweep_pairs(&t, &name)?)
             } else {
                 Instr::Cx(pair_targets(&t, &name)?)
             }
+        }
+        "CX" | "CNOT" | "ZCX" | "CY" | "ZCY" | "CZ" | "ZCZ" | "XCZ" | "YCZ"
+            if t.iter().any(|x| x.starts_with("rec[") || x.starts_with("sweep[")) =>
+        {
+            none()?;
+            Instr::Gate { line: gate_line(&name, &args, &t), body: controlled_pairs(&name, &t)? }
         }
         "I" | "X" | "Y" | "Z" => {
             none()?;
@@ -532,6 +571,21 @@ fn parse_line(line: &str) -> Result<Instr, String> {
                 .collect::<Result<_, _>>()?;
             Instr::Pad { flip, values }
         }
+        "HERALDED_ERASE" | "HERALDED_PAULI_CHANNEL_1" => {
+            let erase = name == "HERALDED_ERASE";
+            exactly(if erase { 1 } else { 4 })?;
+            let probs = if erase {
+                let p = prob(0)?;
+                [p / 4.0; 4]
+            } else {
+                let v = [prob(0)?, prob(1)?, prob(2)?, prob(3)?];
+                if v.iter().sum::<f64>() > 1.0 + 1e-12 {
+                    return Err(format!("{name}: probabilities sum to more than 1"));
+                }
+                v
+            };
+            Instr::Heralded { erase, args: args.clone(), probs, qubits: qubit_targets(&t, &name)? }
+        }
         "I_ERROR" | "II_ERROR" | "II" => {
             for i in 0..args.len() {
                 prob(i)?;
@@ -563,6 +617,55 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             None => return Err(format!("unsupported instruction '{name}'")),
         },
     })
+}
+
+fn control(t: &str) -> Option<Control> {
+    if let Some(k) = t.strip_prefix("rec[-").and_then(|s| s.strip_suffix(']')).and_then(|s| s.parse::<u32>().ok()) {
+        return (k >= 1).then_some(Control::Rec(k));
+    }
+    let k = t.strip_prefix("sweep[").and_then(|s| s.strip_suffix(']')).and_then(|s| s.parse::<u32>().ok())?;
+    (k <= MAX_QUBIT).then_some(Control::Sweep(k))
+}
+
+/// A controlled gate's pairs, some with a measurement record or sweep bit as the control:
+/// those become `Feedback`, the rest the gate itself. Z-type controls only, as in Stim: the
+/// first of a pair for CX, CY and CZ, the second for XCZ and YCZ (either for CZ).
+fn controlled_pairs(name: &str, t: &[&str]) -> Result<Vec<Instr>, String> {
+    if !t.len().is_multiple_of(2) {
+        return Err(format!("{name}: targets must come in pairs, got {}", t.len()));
+    }
+    let (pauli, classical_first): (Pauli, bool) = match name {
+        "CX" | "CNOT" | "ZCX" => (1, true),
+        "CY" | "ZCY" => (3, true),
+        "CZ" | "ZCZ" => (2, true),
+        "XCZ" => (1, false),
+        _ => (3, false), // YCZ
+    };
+    let mut body = Vec::new();
+    for pair in t.chunks(2) {
+        let (a, b) = (control(pair[0]), control(pair[1]));
+        let fed = match (a, b) {
+            (Some(_), Some(_)) => return Err(format!("{name}: a pair cannot be two classical bits ('{} {}')", pair[0], pair[1])),
+            (Some(c), None) if classical_first || pauli == 2 => Some((c, qubit(pair[1], name)?)),
+            (None, Some(c)) if !classical_first || pauli == 2 => Some((c, qubit(pair[0], name)?)),
+            (None, None) if pair.iter().any(|x| x.starts_with("rec[") || x.starts_with("sweep[")) => {
+                return Err(format!("{name}: bad classical target in '{} {}'", pair[0], pair[1]));
+            }
+            (None, None) => None,
+            _ => return Err(format!("{name}: a classical bit can only be a Z-type control ('{} {}')", pair[0], pair[1])),
+        };
+        match fed {
+            Some((control, qubit)) => body.push(Instr::Feedback { pauli, control, qubit }),
+            None => {
+                let line = format!("{name} {} {}", pair[0], pair[1]);
+                match parse_line(&line)? {
+                    Instr::Gate { body: inner, .. } => body.extend(inner),
+                    other => body.push(other),
+                }
+            }
+        }
+    }
+    Ok(body)
 }
 
 /// A line as written, for printing a gate the engine runs decomposed.
@@ -837,6 +940,13 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                 format!("{} {}", with_args(name, &[*p]), targets.join(" "))
             }
             Instr::PauliChannel2 { probs, pairs } => format!("{} {}", with_args("PAULI_CHANNEL_2", probs), join_pairs(pairs)),
+            Instr::Feedback { pauli, control, qubit } => {
+                format!("{} {control} {qubit}", match pauli { 1 => "CX", 3 => "CY", _ => "CZ" })
+            }
+            Instr::Heralded { erase, args, qubits, .. } => {
+                let name = if *erase { "HERALDED_ERASE" } else { "HERALDED_PAULI_CHANNEL_1" };
+                format!("{} {}", with_args(name, args), join_q(qubits))
+            }
             Instr::Pad { flip, values } => {
                 let args: &[f64] = if *flip > 0.0 { std::slice::from_ref(flip) } else { &[] };
                 let v: Vec<&str> = values.iter().map(|&b| if b { "1" } else { "0" }).collect();
@@ -894,8 +1004,8 @@ mod tests {
 
     #[test]
     fn unsupported_instructions_are_named_with_their_line() {
-        let e = Circuit::parse("R 0\nHERALDED_ERASE(0.1) 0\n").unwrap_err();
-        assert!(e.contains("line 2") && e.contains("'HERALDED_ERASE'"), "{e}");
+        let e = Circuit::parse("R 0\nSQRT_W 0\n").unwrap_err();
+        assert!(e.contains("line 2") && e.contains("'SQRT_W'"), "{e}");
     }
 
     #[test]
@@ -924,11 +1034,18 @@ mod tests {
     }
 
     #[test]
-    fn sweep_bits_may_only_control_a_cx() {
+    fn classical_bits_are_z_type_controls() {
         assert!(Circuit::parse("CX 0 sweep[1]").is_err());
-        assert!(Circuit::parse("CX sweep[0] 1 2 3").is_err());
+        assert!(Circuit::parse("CX sweep[0] 1 2 3").is_ok());
         assert!(Circuit::parse("CX sweep[0] sweep[1]").is_err());
-        assert!(Circuit::parse("CZ sweep[0] 1").is_err());
+        assert!(Circuit::parse("CZ sweep[0] 1").is_ok());
+        assert!(Circuit::parse("CZ 1 sweep[0]").is_ok());
+        assert!(Circuit::parse("XCZ sweep[0] 1").is_err());
+        assert!(Circuit::parse("M 0\nCY rec[-1] 1").is_ok());
+        assert!(Circuit::parse("M 0\nCY rec[-2] 1").unwrap().resolve().is_err());
+        // An invalid record (rec[-0]) is an error, not a qubit to parse again forever.
+        assert!(Circuit::parse("CY 2 rec[-0]").is_err());
+        assert!(Circuit::parse("CZ sweep[x] 1").is_err());
         assert!(Circuit::parse("CX sweep[x] 1").is_err());
         assert!(Circuit::parse("X(0.1) 0").is_err());
     }

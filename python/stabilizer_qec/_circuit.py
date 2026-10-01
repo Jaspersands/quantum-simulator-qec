@@ -8,7 +8,7 @@ from typing import Any, Union
 import numpy as np
 
 from . import _core
-from ._util import b8_to_rows, call, count, pack_rows, rows_to_b8, seed_of, stride, text_of
+from ._util import b8_to_rows, call, count, pack_rows, real, rows_to_b8, seed_of, stride, text_of
 
 
 class Circuit:
@@ -18,10 +18,9 @@ class Circuit:
     text back as written. Every Clifford gate of Stim's is read (H, S and CX natively, the
     rest as their exact decompositions), with resets and measurements in all three bases,
     inverted targets (``!q``), Pauli-product measurements and rotations (``MPP``, ``MXX``,
-    ``MYY``, ``MZZ``, ``SPP``, ``SPP_DAG``), the Pauli, depolarizing and correlated noise
-    channels, ``MPAD``, detectors, observables, coordinates, ``TICK`` and ``REPEAT``.
-    Heralded errors and classically controlled gates other than ``CX sweep[k]`` raise
-    ``ValueError``.
+    ``MYY``, ``MZZ``, ``SPP``, ``SPP_DAG``), the Pauli, depolarizing, correlated and heralded
+    noise channels, ``MPAD``, measurement feedback and sweep bits (``CX rec[-1] q``,
+    ``CZ sweep[k] q``), detectors, observables, coordinates, ``TICK`` and ``REPEAT``.
 
     >>> c = Circuit("R 0 1\\nH 0\\nCX 0 1\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
     >>> c.num_qubits, c.num_measurements, c.num_detectors
@@ -74,11 +73,23 @@ class Circuit:
     def num_sweep_bits(self) -> int:
         return self._c.num_sweep_bits
 
-    def detector_error_model(self, *, decompose_errors: bool = False) -> "DetectorErrorModel":
+    def detector_error_model(
+        self, *, decompose_errors: bool = False, approximate_disjoint_errors: Union[bool, float] = False
+    ) -> "DetectorErrorModel":
         """The circuit's detector error model, built by walking it backwards, as Stim's error
         analyzer does. ``decompose_errors`` splits each fault into graph-like pieces (at most
-        two detectors each) the way Stim splits them, which matching needs."""
-        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors)))
+        two detectors each) the way Stim splits them, which matching needs.
+
+        ``approximate_disjoint_errors`` is Stim's: channels whose cases are disjoint rather
+        than independent (``PAULI_CHANNEL_2``, ``ELSE_CORRELATED_ERROR``, the heralded errors,
+        and a ``PAULI_CHANNEL_1`` with no independent equivalent) are refused unless it is set,
+        and then approximated case by case; a number refuses any such channel with a
+        probability above it."""
+        if isinstance(approximate_disjoint_errors, bool):
+            threshold = 1.0 if approximate_disjoint_errors else None
+        else:
+            threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
+        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold))
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
