@@ -23,6 +23,6 @@ let decoder = DemDecoder::new(&dem).unwrap();
 assert_eq!(decoder.decode(&[0]).unwrap().observables, 1);
 ```
 
-The Python package is the supported interface; the Rust API follows semantic versioning from
-1.0 but may change more freely before it. Build without the default `python` feature to use
-the crate alone: `stabilizer_qec = { version = "0.6", default-features = false }`.
+The Python package is the supported, stable interface. The crate is versioned on its own and
+stays below 1.0: its modules are the engine's internals, and a minor version may change them.
+The Python bindings sit behind the `python` feature, off by default.
