@@ -25,31 +25,42 @@ in it is filled in from the committed data (see [Technical report](#technical-re
 pip install stabilizer-qec
 ```
 
-The package is one abi3 wheel for every CPython from 3.9 on, for Linux (x86_64 and aarch64), macOS
-(universal2) and Windows. PyPI has the latest tagged release; functions added since then (every one
-is in the package's type stubs) need a build from source:
-
-```bash
-pip install maturin
-maturin build --out dist
-pip install dist/stabilizer_qec-*.whl
-```
+One abi3 wheel for every CPython from 3.9 on, for Linux (x86_64 and aarch64), macOS (universal2)
+and Windows; numpy is its one dependency. The names follow Stim, PyMatching and `ldpc`, so code
+written for them mostly carries over:
 
 ```python
-import numpy as np, stabilizer_qec as sq
+import stabilizer_qec as sq
 
-text = sq.generate_circuit("rotated", 5, 5, "sd6", 0.004)                 # a Stim circuit
-dets, obs, _ = sq.sample_b8_batch(text, 100_000, seed=1)                   # b8 rows
-pred, _, errors, seconds = sq.decode_b8_own(text, dets, 100_000, threads=0, correlated=True)
-failures = ((np.frombuffer(pred, "<u8") & 1) != (np.frombuffer(obs, np.uint8) & 1)).sum()
+circuit = sq.memory_circuit(distance=5, rounds=5, p=0.004)               # a d = 5 SD6 memory
+sampler = circuit.compile_detector_sampler(seed=1)                       # same shots on any machine
+dets, obs = sampler.sample(100_000, separate_observables=True, threads=0)
+dem = circuit.detector_error_model(decompose_errors=True)
+pred = sq.Matching(dem, enable_correlations=True).decode_batch(dets, threads=0)
+print((pred != obs).any(axis=1).mean())                                  # logical error rate
 ```
 
-- **Types.** The package is typed (`py.typed`); the extension's stub is `python/stabilizer_qec/_core.pyi`.
-- **Checks.** `python tools/smoke.py`, run from outside the repository, checks an installed wheel
-  against Stim and PyMatching end to end: the error model, raw measurements to detection events
-  bit for bit, the sampler, plain and correlated matching, windows, and a stream.
-- **Where it has been checked.** Wheels built here install and pass from fresh virtualenvs on
-  Python 3.13 and 3.9, arm64 and x86_64 (a universal2 build), and from the source distribution.
+Beyond the surface code, IBM's gross code decoded by BP+OSD, and a logical CNOT by lattice surgery:
+
+```python
+gross = sq.BivariateBicycleCode("gross")                                 # [[144, 12, 12]]
+c = gross.memory_circuit(12, 0.003)
+dets, obs = c.compile_detector_sampler(seed=2).sample(2_000, separate_observables=True)
+pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
+
+cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Circuit, Stim-readable
+```
+
+- **Types.** The package is typed (`py.typed`), and every public object is documented in its
+  docstrings.
+- **Promises.** A seed gives the same shots on any machine and any number of threads. Bad input
+  raises `ValueError` or `TypeError`; an engine bug raises `RuntimeError`. The 0.4 functions still
+  work, with a `DeprecationWarning` naming their replacement, until 1.0 (see
+  [CHANGELOG.md](CHANGELOG.md)).
+- **Tests.** `tests/` (pytest and Hypothesis) runs on Python 3.9 to 3.14 on Linux, macOS and
+  Windows, against Stim, PyMatching, `ldpc` and `beliefmatching` where they install.
+  `python tools/smoke.py`, run from outside the repository, checks an installed wheel end to end.
+- **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **Releases.** On any `v*` tag, `.github/workflows/wheels.yml` builds the wheels and an sdist and
 publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment `pypi`).
@@ -57,7 +68,9 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push and pull request:
-- the Rust tests;
+- the Rust tests, among them a randomized run of 20,000 generated and mutated circuits and
+  models through every parser, model builder, sampler and decoder, which may refuse an input
+  but never panic;
 - the WebAssembly engine, built fresh and driven in Node through the page's own wrappers
   (`tools/wasm-smoke.mjs`: Willow's raw measurements must hash to Google's detection events, then
   decode, and a stream must window-decode). The committed engine, the one the site serves, runs
@@ -68,7 +81,11 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   and Windows. On Linux it also runs the quick forms of the cross-check, BP and belief-matching
   against `ldpc` and `beliefmatching`, the gross code and BP+OSD against Bravyi et al., Stim and
   `ldpc`, lattice surgery against Stim and PyMatching, and the gross code's logical measurement
-  against Stim and `ldpc`.
+  against Stim and `ldpc`;
+- the test suite (`tests/`) against each platform's wheel on Python 3.9, 3.10, 3.11, 3.12, 3.13
+  and 3.14;
+- `cargo fuzz` on the circuit and model parsers and everything behind them, a minute each
+  (`fuzz/`; locally `cargo +nightly fuzz run circuit`).
 
 ## Key Features
 
@@ -1811,8 +1828,10 @@ src/surgery.rs        lattice surgery: patches on a grid of tiles merged and spl
                       steps, compiled to one circuit; Z⊗Z and X⊗X, the logical CNOT, lines of patches
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
 src/stream.rs         streams too long to model, decoded window by window from a template
-src/py_api.rs         PyO3 bindings: circuits, sampling, decoding, windows and streams, the gross
-                      code and lattice surgery
+src/py_objects.rs     the compiled objects the public Python API wraps, and the shot loops
+src/py_api.rs         the 0.4 PyO3 functions (deprecated at the top level, kept in _core)
+src/parallel.rs       work over shots, one contiguous range per thread
+src/fuzzing.rs        what the fuzzers drive: any text through every stage that reads it
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
@@ -1886,6 +1905,9 @@ tools/report.py         the technical report: values, tables and figures from da
 report/                 the report's source, template, figures, and the built HTML and PDF
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
 python/stabilizer_qec/  the Python package: the public API over the extension, _core, and its stub
+tests/                  the package's test suite (pytest, Hypothesis)
+fuzz/                   cargo-fuzz targets and their seed inputs
+CHANGELOG.md            what changed in each release
 .github/workflows/      CI on every push; wheels and PyPI publishing on a tag
 
 run_benchmarks.py       phenomenological threshold benchmarks

@@ -19,7 +19,9 @@ It generates a d = 5 SD6 memory, and checks that:
   6. a streamed memory explains every defect;
   7. belief-matching decodes every shot, no worse than plain matching;
   8. BP+OSD decodes the [[72, 12, 6]] bivariate bicycle memory, which Stim reads;
-  9. lattice surgery's circuit reads in Stim, and one merged round is refused.
+  9. lattice surgery's circuit reads in Stim, and one merged round is refused;
+ 10-11. the surgery CNOT and the gross code's logical measurement decode Stim's shots;
+ 12. the public API: seeds independent of threads, Matching as PyMatching, 0.4 names warning.
 It prints one line per check and exits non-zero on the first failure.
 """
 
@@ -199,6 +201,29 @@ def main():
     if gl.num_observables != 13 or len(gl_conv) != 64:
         fail("the gross code's logical measurement")
     print(f"ok 11. gross-code logical measurement: {gl.num_qubits} qubits, {gl.num_detectors} detectors, 64 shots decoded")
+
+    # 12. The public API: the same seed gives the same shots on 1 and 4 threads; matching on
+    # Stim's shots agrees with PyMatching but for ties; and the 0.4 names warn.
+    import warnings
+
+    import stabilizer_qec as pub
+
+    c = pub.memory_circuit(distance=5, rounds=5, p=0.004)
+    one = c.compile_detector_sampler(seed=3).sample(4096, threads=1)
+    if not np.array_equal(one, c.compile_detector_sampler(seed=3).sample(4096, threads=4)):
+        fail("the public sampler's shots depend on the thread count")
+    pub_dem = c.detector_error_model(decompose_errors=True)
+    s_dets, s_obs = stim.Circuit(str(c)).compile_detector_sampler(seed=4).sample(5000, separate_observables=True)
+    ours = pub.Matching(pub_dem).decode_batch(s_dets, threads=0)
+    theirs = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(str(pub_dem))).decode_batch(s_dets)
+    if (ours != theirs).any(axis=1).sum() > 10:
+        fail("the public Matching disagrees with PyMatching beyond ties")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pub.generate_circuit("rotated", 3, 3, "sd6", 0.001)
+    if not any(issubclass(w.category, DeprecationWarning) for w in caught):
+        fail("a 0.4 name did not warn")
+    print(f"ok 12. public API {pub.__version__}: seeds independent of threads, Matching = PyMatching on 5000 shots but for ties")
     print("all checks passed")
 
 
