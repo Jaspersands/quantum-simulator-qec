@@ -403,15 +403,30 @@ enum Life {
     Done,
 }
 
+/// The most rounds (and other steps) a program is written out for.
+const MAX_ROUNDS: usize = 10_000;
+
 impl Program {
     /// The program as a circuit, with its detectors and observables.
     pub fn circuit(&self) -> Result<Circuit, String> {
         let d = self.d;
-        if d < 3 || d % 2 == 0 {
+        if d < 3 || d.is_multiple_of(2) {
             return Err(format!("lattice surgery needs an odd distance of at least 3, not {d}"));
         }
         if self.tiles.is_empty() || self.tiles.iter().any(|&(i, j)| i < 0 || j < 0) {
             return Err("a program needs patches on tiles of non-negative column and row".into());
+        }
+        crate::memory::probability(self.p)?;
+        // The grid's qubits, about 2(d + 1)² a tile, must fit Stim's qubit
+        // indices, and the circuit, written out round by round, memory.
+        let grid = |t: fn(&(i32, i32)) -> i32| self.tiles.iter().map(t).max().unwrap() as u64 + 1;
+        let qubits = (grid(|t| t.0) * grid(|t| t.1)).saturating_mul(2 * (d as u64 + 1).saturating_pow(2));
+        if qubits > 1 << 24 {
+            return Err(format!("the program's grid of tiles at distance {d} needs more qubits than Stim can index"));
+        }
+        let rounds = self.steps.iter().fold(0usize, |n, s| n.saturating_add(if let Step::Rounds(k) = s { *k } else { 1 }));
+        if rounds > MAX_ROUNDS {
+            return Err(format!("the program runs {rounds} rounds and steps, more than the {MAX_ROUNDS} written out"));
         }
         let n = self.tiles.len();
         for a in 0..n {
@@ -1105,7 +1120,8 @@ mod tests {
     /// that do not exist are refused, not compiled into something else.
     #[test]
     fn malformed_programs_are_errors() {
-        let cases: [(&str, fn(&mut Program)); 5] = [
+        type Spoil = fn(&mut Program);
+        let cases: [(&str, Spoil); 5] = [
             ("lines", |p| p.observables.push(vec![Term::Seam { merge: 1, patch: 2, line: 3 }])),
             ("not in merge", |p| p.observables.push(vec![Term::Seam { merge: 1, patch: 0, line: 0 }])),
             ("no seam 1", |p| p.observables.push(vec![Term::Outcome { merge: 0, seam: 1 }])),

@@ -155,7 +155,7 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
             }
             Op::Measure { qubits, .. } => {
                 qubits.iter().for_each(|&q| touch(s, q));
-                s.measurements += qubits.len() as u64;
+                s.measurements = s.measurements.saturating_add(qubits.len() as u64);
             }
             Op::ShiftCoords(_) => {}
             Op::Detector(recs, _) | Op::Observable(_, recs) => {
@@ -166,7 +166,7 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                     s.lookback = s.lookback.max(k);
                 }
                 match op {
-                    Op::Detector(..) => s.detectors += 1,
+                    Op::Detector(..) => s.detectors = s.detectors.saturating_add(1),
                     Op::Observable(i, _) => {
                         if *i >= 64 {
                             return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
@@ -181,8 +181,9 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 let (m0, d0) = (s.measurements, s.detectors);
                 shape(body, s)?;
                 let (dm, dd) = (s.measurements - m0, s.detectors - d0);
-                s.measurements = m0 + dm * count;
-                s.detectors = d0 + dd * count;
+                let too_many = || format!("REPEAT {count}: the loop's measurements or detectors overflow a count");
+                s.measurements = dm.checked_mul(*count).and_then(|n| n.checked_add(m0)).ok_or_else(too_many)?;
+                s.detectors = dd.checked_mul(*count).and_then(|n| n.checked_add(d0)).ok_or_else(too_many)?;
             }
         }
     }
@@ -429,8 +430,8 @@ impl BatchSampler {
         Ok(BatchSampler {
             ops,
             num_qubits: s.qubits,
-            num_measurements: s.measurements as usize,
-            num_detectors: s.detectors as usize,
+            num_measurements: usize::try_from(s.measurements).map_err(|_| "too many measurements for this machine")?,
+            num_detectors: usize::try_from(s.detectors).map_err(|_| "too many detectors for this machine")?,
             num_observables: s.observables,
             ring_mask: ring - 1,
         })
@@ -463,7 +464,8 @@ impl BatchSampler {
 
     /// 64 shots' detectors and observables.
     pub fn sample(&self, rng: &mut Xorshift) -> Batch {
-        let mut detectors = Vec::with_capacity(self.num_detectors);
+        // Capped: a loop of a trillion detectors may still be run through `run`.
+        let mut detectors = Vec::with_capacity(self.num_detectors.min(1 << 24));
         let observables = self.run(rng, &mut |_, w| detectors.push(w));
         Batch { detectors, observables }
     }
@@ -482,7 +484,7 @@ mod tests {
         let mut out = String::new();
         for line in text.lines() {
             let head = line.split(['(', ' ']).next().unwrap_or("");
-            let b = u8::from(rng.next_u64() % 32 == 0);
+            let b = u8::from(rng.next_u64().is_multiple_of(32));
             let args_end = line.find(')').map(|i| i + 1);
             let targets = args_end.map(|i| line[i..].trim()).unwrap_or("");
             match head {
@@ -654,6 +656,9 @@ mod tests {
         assert!(BatchSampler::new(&Circuit::parse("M 0\nDETECTOR rec[-2]").unwrap()).is_err());
         assert!(BatchSampler::new(&Circuit::parse("REPEAT 3 {\n M 0\n DETECTOR rec[-2]\n}").unwrap()).is_err());
         assert!(BatchSampler::new(&Circuit::parse("M 0\nREPEAT 3 {\n M 0\n DETECTOR rec[-2]\n}").unwrap()).is_ok());
+        // Counts that overflow are errors, not wrapped numbers.
+        let nested = "REPEAT 4000000000 {\n REPEAT 4000000000 {\n REPEAT 4000000000 {\n M 0\n }\n }\n}";
+        assert!(BatchSampler::new(&Circuit::parse(nested).unwrap()).err().unwrap_or_default().contains("overflow"));
     }
 
     #[test]

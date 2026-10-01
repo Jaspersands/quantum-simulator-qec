@@ -1,11 +1,11 @@
 ---
 title: "A surface-code simulator and decoder, checked against Stim, PyMatching and Google's hardware"
-subtitle: "Exact, correlated and belief matching on Google's Willow and Sycamore data, window decoding at Willow's cycle, the gross code by BP+OSD, and lattice surgery"
+subtitle: "Exact, correlated and belief matching on Google's Willow and Sycamore data, window decoding at Willow's cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate"
 author: Jasper Sands
 date: "{{date}}"
 version: "{{version}}"
 commit: "{{commit}}"
-description: "Technical report on stabilizer-qec: a Rust surface-code simulator and decoder, verified against Stim and PyMatching, run on Google's Willow and Sycamore data, and decoded in real time."
+description: "Technical report on stabilizer-qec: a Rust surface-code simulator and decoder, verified against Stim and PyMatching, run on Google's Willow and Sycamore data, decoded in real time, extended to IBM's gross code and lattice surgery, and used for a resource estimate."
 abstract: |
   `stabilizer-qec` is a surface-code simulator and decoder written in Rust. It runs natively, from
   Python, and in a web browser. Its results come in eight parts.
@@ -28,8 +28,11 @@ abstract: |
      million-round stream at the same detection rate holds a {{m.corr.mean}} mean latency on
      {{m.corr.cores}} cores. Windowed decoding reaches the same Λ as global decoding ({{win.corr.lambda}}).
   6. **Beyond the surface code.** The IBM gross code, decoded by BP+OSD that equals `ldpc`'s on every
-     shot checked, keeps 12 logical qubits failing {{g.ratio_range}} times less often than twelve d = 11
-     surface-code patches, on a tenth of the qubits.
+     shot checked but ties, keeps 12 logical qubits failing {{g.ratio_range}} times less often than
+     twelve d = 11 surface-code patches, on a tenth of the qubits. The logical action of each of its
+     automorphisms is computed exactly. Its gauging measurement of a logical operator, built from
+     the definition, loses distance: on $X(f, 0)$ the code while merged has distance
+     {{gl.dist_f}}, until {{gl.extra_f}} added edges restore 12.
   7. **Lattice surgery.** A Z⊗Z measurement between two patches, written as one circuit and equal to
      Stim's model, shows the timing law directly: the merge outcome's failure rate stops falling at
      d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails
@@ -686,7 +689,11 @@ Every number in this report is filled in by `tools/report.py` from these committ
 - `data/xcheck/reference.json`: the cross-check;
 - `data/sweeps/`: thresholds;
 - `data/google-results/`: Google's data, decoded;
-- `data/realtime/`: latency, the million-round stream, and windowed accuracy.
+- `data/belief/`: BP and belief-matching, and their exact checks;
+- `data/realtime/`: latency, the million-round stream, and windowed accuracy;
+- `data/gross/`: the gross code's memory, its checks, automorphisms, gauging and logical measurement;
+- `data/surgery/`: lattice surgery's timing law and programs;
+- `data/estimate/`: the noise fit, distillation and sources the estimate rests on.
 
 The report fails to build if a value it quotes is missing. To regenerate the data:
 
@@ -698,10 +705,16 @@ VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --pr
 .venv/bin/python tools/realtime.py latency             # window latency on Willow
 .venv/bin/python tools/realtime.py million             # a million rounds
 .venv/bin/python tools/realtime.py accuracy            # windowed against global
+.venv/bin/python tools/belief.py sycamore              # belief-matching (and willow)
+.venv/bin/python tools/gross.py                        # the gross code's memory
+.venv/bin/python tools/gross_ops.py distance           # and auto, measure, fault
+.venv/bin/python tools/surgery.py run                  # and programs
+.venv/bin/python tools/estimate_noise.py               # the estimate's noise fit
+.venv/bin/python tools/distill.py                      # 15-to-1 distillation
 node tools/lambda.mjs                                  # every fit
 python3 tools/report.py                                # this report
 ```
 
-The package installs with `pip install stabilizer-qec` once published, or from a wheel built by
-`maturin build`. Software: Stim {{stim}}, PyMatching {{pymatching}}. Google's datasets are
-CC BY 4.0 (Google Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.
+The package installs with `pip install stabilizer-qec`, or from a wheel built by `maturin build`.
+Software: Stim {{stim}}, PyMatching {{pymatching}}. Google's datasets are CC BY 4.0 (Google
+Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.

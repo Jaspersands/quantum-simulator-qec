@@ -594,8 +594,7 @@ pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize,
             let odd = |z: &[usize]| z.iter().filter(|d| g.support.contains(d)).count() % 2 == 1;
             let rows: Vec<Vec<usize>> = (0..lz.rows).map(|k| lz.row_ones(k)).collect();
             let pivot = rows.iter().position(|z| odd(z)).ok_or("every Z logical commutes with the operator: it is a stabilizer")?;
-            let mut index = 0;
-            for (k, z) in rows.iter().enumerate().filter(|&(k, _)| k != pivot) {
+            for (index, (k, z)) in rows.iter().enumerate().filter(|&(k, _)| k != pivot).enumerate() {
                 let z: Vec<usize> = if odd(z) {
                     let mut on = vec![false; 2 * h];
                     for &d in z.iter().chain(&rows[pivot]) {
@@ -608,8 +607,7 @@ pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize,
                 let route = g.edges_for(&z).map_err(|e| format!("Z logical {k}: {e}"))?;
                 let mut recs = on_data(&z);
                 recs.extend(route.iter().map(|&e| split[e]));
-                w.observable(index, &recs);
-                index += 1;
+                w.observable(index as u32, &recs);
             }
         }
     }

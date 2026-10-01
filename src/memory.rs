@@ -241,7 +241,33 @@ pub fn generate(kind: CodeKind, d: usize, rounds: usize, noise: NoiseModel, basi
     if rounds == 0 {
         return Err("a memory experiment needs at least one round".into());
     }
+    if rounds > MAX_FLAT_ROUNDS {
+        return Err(format!(
+            "{rounds} rounds: at most {MAX_FLAT_ROUNDS} are written out round by round"
+        ));
+    }
+    match noise {
+        NoiseModel::Current { p, eta } => {
+            probability(p)?;
+            if !(eta.is_finite() && eta >= 0.0) {
+                return Err(format!("the bias {eta} is not a non-negative number"));
+            }
+        }
+        NoiseModel::Sd6 { p } => probability(p)?,
+    }
     Ok(memory_circuit(&patch_for(kind, d, basis)?, rounds, noise))
+}
+
+/// The most rounds `generate` writes out without a loop.
+pub const MAX_FLAT_ROUNDS: usize = 10_000;
+
+/// A noise strength must be a probability (NaN is not).
+pub fn probability(p: f64) -> Result<(), String> {
+    if (0.0..=1.0).contains(&p) {
+        Ok(())
+    } else {
+        Err(format!("the noise strength {p} is outside [0, 1]"))
+    }
 }
 
 pub fn memory_circuit(patch: &Patch, rounds: usize, noise: NoiseModel) -> Circuit {
@@ -259,6 +285,7 @@ pub fn generate_repeat(kind: CodeKind, d: usize, rounds: usize, p: f64, basis: B
     if rounds == 0 {
         return Err("a memory experiment needs at least one round".into());
     }
+    probability(p)?;
     Ok(sd6_circuit(&patch_for(kind, d, basis)?, rounds, p, true))
 }
 

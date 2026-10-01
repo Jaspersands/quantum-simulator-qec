@@ -15,8 +15,10 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
 - BP+OSD (OSD-0, OSD-E, OSD-CS), whose corrections equal `ldpc`'s `BpOsdDecoder`'s, and IBM's
   bivariate bicycle codes: the gross code [[144, 12, 12]] and [[72, 12, 6]], with the depth-8
   syndrome cycle of Bravyi et al. (Nature 627, 778, 2024).
-- Lattice surgery between two surface-code patches as a single circuit, its error model equal to
-  Stim's.
+- On the gross code, every automorphism's action on the logical qubits, and the gauging measurement
+  of a logical operator as a circuit, its error model equal to Stim's.
+- Lattice surgery as single circuits, their error models equal to Stim's: Z⊗Z and X⊗X merges, a
+  logical CNOT, merges in a row, and lines of patches merged at once.
 
 ```python
 import numpy as np, stabilizer_qec as sq
@@ -38,6 +40,6 @@ truth = np.frombuffer(obs, np.uint8).reshape(-1, 2).view("<u2")[:, 0]
 failures = (np.frombuffer(pred, "<u8") != truth).sum()           # any of the 12 logicals wrong
 ```
 
-The explainer, with every figure computed live in the browser, is at
-<https://qcompiler.jaspersands.com>. The source and the full write-up are at
+The explainer, its figures running the engine in the browser, is at
+<https://qcompiler.jaspersands.com>, with a technical report. The source and the full write-up are at
 <https://github.com/Jaspersands/quantum-simulator-qec>.

@@ -85,6 +85,13 @@ export function initEstimator(root) {
   const grid = $('[data-est-grid]', root);
   if (!fig || !valid || !grid) return;
   const input = (name) => $(`[data-est-${name}]`, fig);
+  // A typed value is held to the field's own min and max, as its spinner is.
+  const within = (name, fallback) => {
+    const field = input(name);
+    const v = Number(field.value);
+    if (field.value === '' || !Number.isFinite(v)) return fallback;
+    return Math.min(Number(field.max || Infinity), Math.max(Number(field.min || -Infinity), v));
+  };
   const status = $('[data-est-status]', fig);
   let D;
 
@@ -98,8 +105,9 @@ export function initEstimator(root) {
       input('hot').value = preset.hot ?? preset.qubits;
       return { qubits: preset.qubits, hot: preset.hot ?? preset.qubits, toffolis: preset.toffolis };
     }
-    const qubits = Math.max(1, Number(input('qubits').value) || 1);
-    return { qubits, hot: Math.min(qubits, Math.max(1, Number(input('hot').value) || qubits)), toffolis: 10 ** Number(input('toffolis').value) };
+    const qubits = Math.max(1, Math.round(Number(input('qubits').value)) || 1);
+    const hot = Math.min(qubits, Math.max(1, Math.round(Number(input('hot').value)) || qubits));
+    return { qubits, hot, toffolis: 10 ** within('toffolis', 9) };
   }
 
   function options() {
@@ -115,11 +123,11 @@ export function initEstimator(root) {
     o.block = input('block').value;
     o.storage = input('storage').value;
     o.budget = Number(input('budget').value);
-    o.cycleSeconds = Math.max(0.01, Number(input('cycle').value) || 1) * 1e-6;
+    o.cycleSeconds = within('cycle', 1) * 1e-6;
     o.controlSeconds = Math.max(0, Number(input('control').value) || 0) * 1e-6;
     const decoder = input('decoder').value;
     o.latencyOverrideUs = decoder === 'measured' ? null : Number(decoder);
-    o.parallel = Math.max(1, Number(input('parallel').value) || 1);
+    o.parallel = within('parallel', 1);
     const g = D.gross.points[`gross/${o.noise.p}`];
     o.grossPerCycle = g ? g.results.bposd_cs7.pl_cycle : null;
     return o;

@@ -77,7 +77,7 @@ impl BbCode {
             let image: Vec<usize> = from.iter().map(|&q| map[q]).collect();
             let is_x = was_x != a.dual;
             let (pair, basis, stabilizers, rank, offset) = if is_x { (&lz, &lx, &hx, rx, 0) } else { (&lx, &lz, &hz, rz, k) };
-            let mut residual = BitMatrix::from_rows(self.num_data(), &[image.clone()]);
+            let mut residual = BitMatrix::from_rows(self.num_data(), std::slice::from_ref(&image));
             for j in 0..k {
                 if parity(&image, &pair.row_ones(j)) {
                     out.set(i, offset + j, true);
@@ -136,7 +136,7 @@ impl BbCode {
             let mut reps: Vec<&Vec<usize>> = Vec::new();
             for t in &translates {
                 let same = reps.iter().any(|r| {
-                    let mut diff = BitMatrix::from_rows(self.num_data(), &[t.clone()]);
+                    let mut diff = BitMatrix::from_rows(self.num_data(), std::slice::from_ref(t));
                     for &q in r.iter() {
                         diff.flip(0, q);
                     }
@@ -175,7 +175,7 @@ mod tests {
         for (name, weight) in [("f", 12), ("gh", 12), ("f+gh", 22)] {
             let s = gross_operator(name).unwrap();
             assert_eq!(s.len(), weight, "{name}");
-            let row = BitMatrix::from_rows(code.num_data(), &[s.clone()]);
+            let row = BitMatrix::from_rows(code.num_data(), std::slice::from_ref(&s));
             assert!(hz.mul(&row.transpose()).is_zero(), "{name} commutes with the Z checks");
             assert_eq!(hx.stack(&row).rank(), hx.rank() + 1, "{name} is not a stabilizer");
         }

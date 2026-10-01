@@ -128,9 +128,18 @@ fn evaluate(detectors: &[Vec<usize>], observables: &[Vec<usize>], rec: &[bool]) 
     (dets, obs)
 }
 
+/// A dense tableau of n qubits takes about n² / 2 bytes: 128 MiB at this size.
+const MAX_QUBITS: usize = 1 << 14;
+
 impl M2d {
     pub fn new(circuit: &Circuit) -> Result<M2d, String> {
         let res = circuit.resolve()?;
+        if res.num_qubits > MAX_QUBITS {
+            return Err(format!(
+                "{} qubits: the reference run keeps a dense tableau, which holds at most {MAX_QUBITS}",
+                res.num_qubits
+            ));
+        }
         let (detectors, observables) = (res.detectors.clone(), res.observables.clone());
         let clear = vec![false; res.num_sweep_bits];
         let (ref_det, ref_obs) = evaluate(&detectors, &observables, &run(&res, &clear, 1));
@@ -200,7 +209,7 @@ impl M2d {
     /// events, and observable flips.
     pub fn convert_b8(&self, meas: &[u8], sweeps: &[u8], num_shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
         let (ms, ss) = (self.num_measurements.div_ceil(8), self.num_sweep_bits.div_ceil(8));
-        if meas.len() != ms * num_shots || sweeps.len() != ss * num_shots {
+        if ms.checked_mul(num_shots) != Some(meas.len()) || ss.checked_mul(num_shots) != Some(sweeps.len()) {
             return Err(format!(
                 "{} + {} bytes is not {num_shots} shots of {} measurements and {} sweep bits",
                 meas.len(),
@@ -271,6 +280,12 @@ mod tests {
             fired_before += usize::from(m.convert(&meas, &[false; 9]).0.iter().any(|&b| b));
         }
         assert!(fired_before > 30, "{fired_before}");
+    }
+
+    #[test]
+    fn circuits_too_wide_for_the_tableau_are_refused() {
+        let err = M2d::new(&Circuit::parse("M 16384").unwrap()).err().unwrap_or_default();
+        assert!(err.contains("dense tableau"), "{err}");
     }
 
     #[test]

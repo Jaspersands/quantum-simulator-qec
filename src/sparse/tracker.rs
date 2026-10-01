@@ -114,7 +114,7 @@ mod tests {
             let mut heap = std::collections::BinaryHeap::new();
             let mut now = 0i64;
             for _ in 0..2000 {
-                if rng.next_u64() % 3 != 0 || heap.is_empty() {
+                if !rng.next_u64().is_multiple_of(3) || heap.is_empty() {
                     // Bursts at the current time, and jumps of every scale.
                     let dt = match rng.next_u64() % 4 {
                         0 => 0,
@@ -122,7 +122,7 @@ mod tests {
                         2 => (rng.next_u64() % 100_000) as i64,
                         _ => (rng.next_u64() % (1 << 40)) as i64,
                     };
-                    let item = if rng.next_u64() % 2 == 0 {
+                    let item = if rng.next_u64().is_multiple_of(2) {
                         Item::Node((rng.next_u64() % 50) as u32)
                     } else {
                         Item::Region((rng.next_u64() % 50) as u32)

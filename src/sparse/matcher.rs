@@ -139,7 +139,7 @@ impl<'a> Solver<'a> {
             let a = &mut self.s.alt[x as usize];
             let (inner, outer, io, off_path) = (a.inner, a.outer, a.inner_to_outer, a.mark != on_path);
             a.alive = false;
-            stack.extend(a.children.drain(..));
+            stack.append(&mut a.children);
             if inner != NONE {
                 if off_path {
                     self.set_match(inner, outer, io);
@@ -293,7 +293,7 @@ impl<'a> Solver<'a> {
         self.s.regions[b as usize].dead = true;
         self.s.regions[b as usize].children.clear();
 
-        let forward = ((i_out + k - i_in) % k) % 2 == 0;
+        let forward = ((i_out + k - i_in) % k).is_multiple_of(2);
         let mut path = vec![i_in];
         let mut edges = Vec::new();
         let mut j = i_in;
