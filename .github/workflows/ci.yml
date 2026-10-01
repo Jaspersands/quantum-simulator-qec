@@ -45,6 +45,14 @@ jobs:
       - name: The committed engine, the one the site serves
         run: node tools/wasm-smoke.mjs stabilizer_qec.wasm
 
+  msrv:
+    name: The oldest Rust the crate supports (1.87)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.87
+      - run: cargo check --no-default-features --lib
+
   wheel:
     name: Wheel and checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -75,6 +83,9 @@ jobs:
         shell: bash
         working-directory: ${{ runner.temp }}
         run: python "$GITHUB_WORKSPACE/tools/smoke.py"
+      - name: The gate table is what Stim's tableaus give
+        if: matrix.os == 'ubuntu-latest'
+        run: python tools/gen_gates.py --check
       - name: Quick cross-check against Stim and PyMatching
         if: matrix.os == 'ubuntu-latest'
         run: python tools/xcheck.py --quick

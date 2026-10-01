@@ -1,11 +1,70 @@
-"""A quantum error-correction simulator and decoder, in Rust.
+"""A quantum error-correction simulator and decoder, in Rust: Stim's circuit and error-model
+formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP and BP+OSD,
+window decoding, IBM's bivariate bicycle codes and lattice surgery. It agrees with Stim,
+PyMatching, `ldpc` and `beliefmatching` on every check in its test suite.
 
-Circuits and detector error models in Stim's formats, a bit-parallel sampler, exact and
-correlated matching, belief-matching, BP and BP+OSD, window decoding, IBM's bivariate bicycle
-codes and lattice surgery. See https://qcompiler.jaspersands.com/api/ for the guide and the
-reference.
+    pip install stabilizer-qec
+
+## Getting started
+
+A memory experiment, sampled and decoded:
+
+>>> import stabilizer_qec as sq
+>>> circuit = sq.memory_circuit(distance=3, rounds=3, p=0.001)
+>>> circuit.num_detectors, circuit.num_observables
+(24, 1)
+>>> sampler = circuit.compile_detector_sampler(seed=7)
+>>> dets, obs = sampler.sample(10_000, separate_observables=True)
+>>> dets.shape, dets.dtype
+((10000, 24), dtype('bool'))
+>>> dem = circuit.detector_error_model(decompose_errors=True)
+>>> predictions = sq.Matching(dem).decode_batch(dets)
+>>> failures = int((predictions != obs).any(axis=1).sum())
+>>> 0 <= failures < 100
+True
+
+The names follow the tools this is checked against, so code written for them mostly carries
+over: `Circuit`, `compile_detector_sampler` and `separate_observables` are Stim's; `Matching`,
+`decode_batch` and `enable_correlations` are PyMatching's; `BpDecoder`, `BpOsdDecoder`,
+`error_channel` and `osd_order` are `ldpc`'s.
+
+## Circuits
+
+`Circuit` reads Stim's circuit language: every Clifford gate (H, S and CX natively, the other
+46 one- and two-qubit gates as their exact decompositions), resets and measurements in all
+three bases with inverted targets (`!q`), Pauli-product measurements and rotations (`MPP`,
+`MXX`, `MYY`, `MZZ`, `SPP`), the Pauli, depolarizing and correlated noise channels
+(`X_ERROR` ... `PAULI_CHANNEL_2`, `E`, `ELSE_CORRELATED_ERROR`), `MPAD`, detectors,
+observables, coordinates, `TICK` and `REPEAT`. Heralded errors and classically controlled
+gates other than `CX sweep[k]` are refused with a `ValueError`.
+
+Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
+`BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
+`surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`
+(a million rounds, window-decoded as they stream).
+
+## Shots
+
+Shots are numpy arrays: one row per shot, `bool` per detector, or bit-packed `uint8` rows
+(bit k of a row in byte k // 8, at position k % 8: `numpy.packbits(..., bitorder="little")`),
+the layout Stim and PyMatching use. Predictions are `uint8` 0/1 per observable.
+
+## Promises
+
+- **Seeds reproduce.** A sampler's shots depend only on its seed and on how many it has drawn,
+  not on the machine or the number of threads (`threads=0` is every core).
+- **Errors are errors.** Bad input raises `ValueError` (or `TypeError` for a wrong type); an
+  engine bug raises `RuntimeError` asking for a report, never a crash.
+- **Limits.** Qubit indices up to 2**24 - 1, as in Stim. An error model or m2d holds a circuit
+  unrolled, up to 2**24 instructions and targets; the sampler runs loops without unrolling
+  them. Generated circuits are written out round by round, up to 10,000 rounds.
+- **Stability.** From 1.0, semantic versioning; until then a minor release may change the API
+  and says so in the changelog. The 0.4 functions still work, each warning
+  `DeprecationWarning` with its replacement, until 1.0.
+
+The explainer: https://qcompiler.jaspersands.com. The source, the technical report and the
+changelog: https://github.com/Jaspersands/quantum-simulator-qec.
 """
-
 from __future__ import annotations
 
 import warnings as _warnings
