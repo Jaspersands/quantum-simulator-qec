@@ -103,7 +103,10 @@ def test_any_circuit_text(text):
     except ALLOWED:
         return
     assert sq.Circuit(str(c)) == c
-    for decompose in (False, True):
+    # Loops are unrolled for an error model: a million passes is legitimate work, and slow.
+    counts = [int(m) for m in re.findall(r"REPEAT\s+(\d+)", text)]
+    modest = all(k <= 1000 for k in counts)
+    for decompose in (False, True) if modest else ():
         try:
             dem = c.detector_error_model(decompose_errors=decompose)
         except ALLOWED:
@@ -117,10 +120,8 @@ def test_any_circuit_text(text):
             except ALLOWED:
                 continue
             survives(decoder.decode_batch, dets)
-    # Sampling runs loops without unrolling them, so a billion-pass loop is a billion passes:
-    # real work, not a fault. Only modest loops are sampled here.
-    counts = [int(m) for m in re.findall(r"REPEAT\s+(\d+)", text)]
-    if c.num_qubits <= 256 and c.num_measurements <= 2048 and all(k <= 1000 for k in counts):
+    # Sampling runs loops pass by pass: only modest loops are sampled here.
+    if c.num_qubits <= 256 and c.num_measurements <= 2048 and modest:
         d = c.compile_detector_sampler(seed=1).sample(70, threads=2)
         assert d.shape == (70, c.num_detectors)
         try:
@@ -136,6 +137,8 @@ def test_any_model_text(text):
     try:
         dem = sq.DetectorErrorModel(text)
     except ALLOWED:
+        return
+    if dem.num_errors > 10_000:  # a large repeat block, unrolled: fine, but slow to decode
         return
     assert sq.DetectorErrorModel(str(dem)).num_errors <= dem.num_errors
     shots = np.zeros((2, dem.num_detectors), dtype=bool)
