@@ -1,9 +1,8 @@
 # Wheels for PyPI, built on a version tag (v*) or by hand.
 #
-# Building runs anywhere. Publishing runs only on a tag, and only once the
-# project is registered on PyPI with this repository as a trusted publisher
-# (PyPI → project → Publishing → add GitHub, workflow "wheels.yml",
-# environment "pypi"); until then the publish job fails without effect.
+# Building runs anywhere. Publishing runs only on a tag, by PyPI's trusted
+# publishing: stabilizer-qec trusts this repository's workflow "wheels.yml"
+# in environment "pypi".
 name: Wheels
 
 on:
