@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
-
 import pytest
 
 import stabilizer_qec as sq
@@ -15,18 +13,11 @@ def test_public_names_resolve():
     assert sq.__version__.count(".") >= 2
 
 
-@pytest.mark.parametrize("name", sorted(sq._DEPRECATED))
-def test_deprecated_names_warn_and_still_work(name):
-    with pytest.warns(DeprecationWarning, match=name):
-        obj = getattr(sq, name)
-    assert obj is getattr(sq._core, name)
-
-
-def test_deprecated_function_still_runs():
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        text = sq.generate_circuit("rotated", 3, 3, "sd6", 0.001)
-    assert sq.Circuit(text).num_detectors == 24
+@pytest.mark.parametrize("name", sorted(sq._REMOVED))
+def test_removed_names_say_what_replaced_them(name):
+    with pytest.raises(AttributeError, match="removed in 1.0; use"):
+        getattr(sq, name)
+    assert getattr(sq._core, name) is not None  # still in the extension, for the tools
 
 
 def test_unknown_names_are_attribute_errors():

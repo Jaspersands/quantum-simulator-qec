@@ -59,16 +59,17 @@ the layout Stim and PyMatching use. Predictions are `uint8` 0/1 per observable.
 - **Limits.** Qubit indices up to 2**24 - 1, as in Stim. An error model or m2d holds a circuit
   unrolled, up to 2**24 instructions and targets; the sampler runs loops without unrolling
   them. Generated circuits are written out round by round, up to 10,000 rounds.
-- **Stability.** From 1.0, semantic versioning; until then a minor release may change the API
-  and says so in the changelog. The 0.4 functions still work, each warning
-  `DeprecationWarning` with its replacement, until 1.0.
+- **Stability.** Semantic versioning: everything importable from `stabilizer_qec` without a
+  leading underscore keeps working, with the same meaning, through every 1.x release. A name
+  is deprecated (with a `DeprecationWarning` naming its replacement) for at least one minor
+  release before a major release removes it. `stabilizer_qec._core` is the engine's
+  extension, used by the repository's own tools, and carries no such promise.
 
 The explainer: https://qcompiler.jaspersands.com. The source, the technical report and the
 changelog: https://github.com/Jaspersands/quantum-simulator-qec.
 """
 from __future__ import annotations
 
-import warnings as _warnings
 from importlib.metadata import PackageNotFoundError as _NotFound
 from importlib.metadata import version as _version
 
@@ -82,8 +83,9 @@ try:
 except _NotFound:  # pragma: no cover - running from a source tree without metadata
     __version__ = "0+unknown"
 
-# The 0.4 interface: each name still works through 0.x, warns, and goes in 1.0.
-_DEPRECATED = {
+# The 0.4 interface, removed in 1.0: each old name points to what replaced it. The repository's
+# tools use the extension directly, as stabilizer_qec._core, which is not part of the API.
+_REMOVED = {
     "generate_circuit": "memory_circuit(...)",
     "dem_from_circuit": "Circuit(text).detector_error_model(decompose_errors=...)",
     "circuit_to_stim": "str(Circuit(text))",
@@ -116,15 +118,10 @@ _DEPRECATED = {
 
 
 def __getattr__(name: str):
-    replacement = _DEPRECATED.get(name)
+    replacement = _REMOVED.get(name)
     if replacement is None:
         raise AttributeError(f"module 'stabilizer_qec' has no attribute {name!r}")
-    _warnings.warn(
-        f"stabilizer_qec.{name} is deprecated and will be removed in 1.0; use {replacement}",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return getattr(_core, name)
+    raise AttributeError(f"stabilizer_qec.{name} was removed in 1.0; use {replacement}")
 
 
 def __dir__():

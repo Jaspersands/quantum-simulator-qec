@@ -386,7 +386,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 0.7.0</footer>
+            <footer>stabilizer-qec 1.0.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -466,9 +466,11 @@ engine bug raises <code>RuntimeError</code> asking for a report, never a crash.<
 <li><strong>Limits.</strong> Qubit indices up to 2<strong>24 - 1, as in Stim. An error model or m2d holds a circuit
 unrolled, up to 2</strong>24 instructions and targets; the sampler runs loops without unrolling
 them. Generated circuits are written out round by round, up to 10,000 rounds.</li>
-<li><strong>Stability.</strong> From 1.0, semantic versioning; until then a minor release may change the API
-and says so in the changelog. The 0.4 functions still work, each warning
-<code>DeprecationWarning</code> with its replacement, until 1.0.</li>
+<li><strong>Stability.</strong> Semantic versioning: everything importable from <code><a href="">stabilizer_qec</a></code> without a
+leading underscore keeps working, with the same meaning, through every 1.x release. A name
+is deprecated (with a <code>DeprecationWarning</code> naming its replacement) for at least one minor
+release before a major release removes it. <code>stabilizer_qec._core</code> is the engine's
+extension, used by the repository's own tools, and carries no such promise.</li>
 </ul>
 
 <p>The explainer: <a href="https://qcompiler.jaspersands.com">https://qcompiler.jaspersands.com</a>. The source, the technical report and the
@@ -1859,7 +1861,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;0.7.0&#39;</span>
+<span class="default_value">&#39;1.0.0&#39;</span>
 
         
     </div>

@@ -1,8 +1,28 @@
 # Changelog
 
-All notable changes to `stabilizer-qec`. The project follows [semantic versioning](https://semver.org)
-from 1.0: until then a minor release may change the API, and says so here. Anything deprecated
-warns for at least one minor release before it goes.
+All notable changes to `stabilizer-qec`. The Python package follows
+[semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
+minor release before a major release removes it. The Rust crate is versioned on its own.
+
+## 1.0.0 — 2026-10-02
+
+The first stable release. From here, semantic versioning: everything importable from
+`stabilizer_qec` without a leading underscore keeps working, with the same meaning, through
+every 1.x release; anything to be removed is deprecated for at least one minor release first.
+A seed's shots stay the same within 1.x unless a release says otherwise.
+
+### Removed
+
+- The 0.4 functions and classes at the top level (`generate_circuit`, `sample_b8_batch`,
+  `decode_b8`, `bb_*`, `surgery_*`, `Decoder`, `RotatedSurfaceCode`, ...), deprecated since 0.5.
+  Each now raises an `AttributeError` naming its replacement. The extension keeps them as
+  `stabilizer_qec._core`, which the repository's tools use and which is not part of the API.
+
+### Changed
+
+- The Python package is versioned on its own (`pyproject.toml`); the Rust crate stays below
+  1.0 (`Cargo.toml`), its modules being the engine's internals.
+- Development status: Production/Stable.
 
 ## 0.7.0 — 2026-10-02
 
