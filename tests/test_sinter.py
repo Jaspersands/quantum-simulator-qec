@@ -58,11 +58,20 @@ def test_belief_matching_and_bposd_run_under_sinter():
 
 
 def test_postselection_discards_as_sinter_discards():
-    t = task(p=0.004, postselection_mask=np.packbits(np.arange(24) < 4, bitorder="little"))
-    stats = sinter.collect(num_workers=1, tasks=[t], decoders=["pymatching", "sq_sim_matching"], custom_decoders=sq_sinter.samplers(), max_shots=20_000, max_errors=10**9)
-    by = {s.decoder: s.discards / s.shots for s in stats}
-    sigma = np.sqrt(by["pymatching"] * (1 - by["pymatching"]) / 20_000)
-    assert by["pymatching"] > 0.01 and abs(by["sq_sim_matching"] - by["pymatching"]) < 6 * sigma
+    # The reference is the rate Stim's own shots fire a postselected detector. (Not sinter's
+    # "pymatching" path: some sinter versions mis-size its predictions when a small ramp-up
+    # batch is discarded whole.)
+    mask = np.arange(24) < 4
+    t = task(p=0.004, postselection_mask=np.packbits(mask, bitorder="little"))
+    stats = sinter.collect(num_workers=1, tasks=[t], decoders=["sq_sim_matching"], custom_decoders=sq_sinter.samplers(), max_shots=20_000, max_errors=10**9)
+    (s,) = stats
+    want = t.circuit.compile_detector_sampler(seed=5).sample(100_000)[:, mask].any(axis=1).mean()
+    sigma = np.sqrt(want * (1 - want) * (1 / s.shots + 1 / 100_000))
+    assert s.shots >= 20_000 and want > 0.01 and abs(s.discards / s.shots - want) < 6 * sigma
+    # A batch discarded whole is still a batch.
+    compiled = sq_sinter.Sampler("matching").compiled_sampler_for_task(task(p=0.004, postselection_mask=np.packbits(np.ones(24, bool), bitorder="little")))
+    out = compiled.sample(64)
+    assert out.shots == 64 and out.errors == 0 and out.discards >= 0
 
 
 def test_predict_observables_through_files_matches_decoding_here():
