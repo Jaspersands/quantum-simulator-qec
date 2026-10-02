@@ -55,9 +55,10 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
   builds it from the docstrings, whose examples the tests run). The package is typed.
 - **Promises.** A seed gives the same shots on any machine and any number of threads. Bad input
-  raises `ValueError` or `TypeError`; an engine bug raises `RuntimeError`. The 0.4 functions still
-  work, with a `DeprecationWarning` naming their replacement, until 1.0 (see
-  [CHANGELOG.md](CHANGELOG.md)).
+  raises `ValueError` or `TypeError`; an engine bug raises `RuntimeError`. From 1.0, semantic
+  versioning: the public API (everything in `stabilizer_qec` without a leading underscore) keeps
+  working through every 1.x release, and anything removed is deprecated first (see
+  [CHANGELOG.md](CHANGELOG.md)). The Rust crate is versioned on its own and stays below 1.0.
 - **Tests.** `tests/` (pytest and Hypothesis) runs on Python 3.9 to 3.14 on Linux, macOS and
   Windows, against Stim, PyMatching, `ldpc` and `beliefmatching` where they install.
   `python tools/smoke.py`, run from outside the repository, checks an installed wheel end to end.
@@ -1839,7 +1840,7 @@ src/surgery.rs        lattice surgery: patches on a grid of tiles merged and spl
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
 src/stream.rs         streams too long to model, decoded window by window from a template
 src/py_objects.rs     the compiled objects the public Python API wraps, and the shot loops
-src/py_api.rs         the 0.4 PyO3 functions (deprecated at the top level, kept in _core)
+src/py_api.rs         the extension's own functions (stabilizer_qec._core), which the tools use
 src/parallel.rs       work over shots, one contiguous range per thread
 src/fuzzing.rs        what the fuzzers drive: any text through every stage that reads it
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6

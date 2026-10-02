@@ -98,8 +98,9 @@ def build_values(F):
     ref = load("data/xcheck/reference.json")
     v["date"] = datetime.date.today().strftime("%-d %B %Y")
     v["commit"] = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    cargo = (ROOT / "Cargo.toml").read_text()
-    v["version"] = re.search(r'^version = "([^"]+)"', cargo, re.M).group(1)
+    # The Python package's version: the report describes the package (the crate has its own).
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    v["version"] = re.search(r'^version = "([^"]+)"', pyproject, re.M).group(1)
     v["stim"] = ref["stim"]
     v["pymatching"] = ref["pymatching"]
 
