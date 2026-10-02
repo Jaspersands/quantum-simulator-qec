@@ -4,7 +4,13 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## Unreleased
+## 1.2.0 — 2026-10-02
+
+The Python package and the Rust crate both at 1.2.0: circuits built in code, error models
+with their loops folded as Stim folds them (long memories that 1.1 refused now build in a
+tenth of a second), the crate level with the Python package, and wheels for free-threaded
+Python, musl Linux and Windows on ARM.
+
 
 ### Added
 

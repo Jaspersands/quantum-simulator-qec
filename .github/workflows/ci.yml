@@ -154,32 +154,39 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-    env:
-      # Fail rather than quietly turn the GIL back on, should an import need it.
-      PYTHON_GIL: "0"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
+        id: py
         with:
           python-version: "3.14t"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # The free-threaded interpreter, by its path: on some runners `python` is the GIL build.
       - name: Build and install the free-threaded wheel
         shell: bash
+        env:
+          PY: ${{ steps.py.outputs.python-path }}
         run: |
-          python -m pip install --upgrade pip maturin
-          maturin build --out dist -i python
+          "$PY" -c "import sysconfig; assert sysconfig.get_config_var('Py_GIL_DISABLED'), 'not a free-threaded interpreter'"
+          "$PY" -m venv .venv-ft
+          VPY=$(ls .venv-ft/bin/python 2>/dev/null || echo .venv-ft/Scripts/python.exe)
+          echo "VPY=$PWD/$VPY" >> "$GITHUB_ENV"
+          "$VPY" -m pip install --upgrade pip maturin
+          "$VPY" -m maturin build --out dist -i "$VPY"
           ls dist
-          python -m pip install dist/*.whl pytest hypothesis
-          python -c "import sys, stabilizer_qec; assert not sys._is_gil_enabled(), 'the GIL came back on'; print(stabilizer_qec.__version__)"
+          "$VPY" -m pip install dist/*.whl pytest hypothesis
+          # Fail rather than quietly turn the GIL back on, should an import need it.
+          PYTHON_GIL=0 "$VPY" -c "import sys, stabilizer_qec; assert not sys._is_gil_enabled(), 'the GIL came back on'; print(stabilizer_qec.__version__)"
       - name: Install the reference packages that build for it (tests skip the rest)
         shell: bash
         run: |
           for p in stim pymatching scipy; do
-            python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for free-threaded Python on ${{ matrix.os }}"
+            "$VPY" -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for free-threaded Python on ${{ matrix.os }}"
           done
-      - name: Tests
-        run: python -m pytest tests -q
+      - name: Tests, the GIL held off
+        shell: bash
+        run: PYTHON_GIL=0 "$VPY" -m pytest tests -q
 
   fuzz:
     name: Fuzzing

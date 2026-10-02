@@ -166,6 +166,15 @@
                                 <a class="function" href="#Circuit.from_file">from_file</a>
                         </li>
                         <li>
+                                <a class="function" href="#Circuit.copy">copy</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.append">append</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.append_from_stim_program_text">append_from_stim_program_text</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#Circuit.num_qubits">num_qubits</a>
                         </li>
                         <li>
@@ -209,6 +218,9 @@
                         </li>
                         <li>
                                 <a class="variable" href="#DetectorErrorModel.num_errors">num_errors</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DetectorErrorModel.flattened">flattened</a>
                         </li>
                 </ul>
 
@@ -387,7 +399,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.1.0</footer>
+            <footer>stabilizer-qec 1.2.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -448,6 +460,10 @@ measurement records, and of Pauli targets: <code>OBSERVABLE_INCLUDE(0) X0 Z1</co
 whose cases are disjoint enter an error model only with <code>approximate_disjoint_errors</code>, as in
 Stim.</p>
 
+<p>Or build one in code, as in Stim: <code>append</code> an instruction at a time (targets as qubit
+indices, strings such as <code>"rec[-1]"</code>, or <code>stim.GateTarget</code>s), <code>+</code> one circuit after another,
+and <code>*</code> one into a <code>REPEAT</code> block.</p>
+
 <p>Circuits written for you: <code><a href="#memory_circuit">memory_circuit</a></code> (rotated and XZZX surface codes),
 <code><a href="#BivariateBicycleCode">BivariateBicycleCode</a></code> (the gross code and [[72, 12, 6]], with their logical operations), the
 <code>surgery</code> module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and <code><a href="#stream_memory">stream_memory</a></code>
@@ -487,9 +503,12 @@ stats = sinter.collect(tasks=tasks, decoders=["sq_matching", "pymatching"],
 not on the machine or the number of threads (<code>threads=0</code> is every core).</li>
 <li><strong>Errors are errors.</strong> Bad input raises <code>ValueError</code> (or <code>TypeError</code> for a wrong type); an
 engine bug raises <code>RuntimeError</code> asking for a report, never a crash.</li>
-<li><strong>Limits.</strong> Qubit indices up to 2<strong>24 - 1, as in Stim. An error model or m2d holds a circuit
-unrolled, up to 2</strong>24 instructions and targets; the sampler runs loops without unrolling
-them. Generated circuits are written out round by round, up to 10,000 rounds.</li>
+<li><strong>Limits.</strong> Qubit indices up to 2<strong>24 - 1, as in Stim. An error model folds the loops that
+repeat, as Stim folds them, so a d = 11 memory of 10,000 rounds is analysed in a tenth of a
+second; a decoder unrolls its model, up to 2</strong>24 faults and declarations. The m2d converter
+holds a circuit unrolled, up to 2**24 instructions and targets; the sampler runs loops
+without unrolling them. Generated circuits are written out round by round, up to 10,000
+rounds.</li>
 <li><strong>Stability.</strong> Semantic versioning: everything importable from <code><a href="">stabilizer_qec</a></code> without a
 leading underscore keeps working, with the same meaning, through every 1.x release. A name
 is deprecated (with a <code>DeprecationWarning</code> naming its replacement) for at least one minor
@@ -1001,6 +1020,22 @@ coordinates, <code>TICK</code>, <code>REPEAT</code>, and instruction tags (<code
 <span class="go">(2, 2, 1)</span>
 </code></pre>
 </div>
+
+<p>Or build one in code, as in Stim: <code><a href="#Circuit.append">append</a></code> an instruction at a time, <code>+</code> one circuit
+after another, <code>*</code> a circuit into a <code>REPEAT</code> block. A piece may read measurements made
+before it (a round comparing with the last); sampling or analysing a circuit that reads
+before its first measurement is the error.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">cycle</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cycle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"CX"</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cycle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"MR"</span><span class="p">,</span> <span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="mf">0.01</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cycle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"DETECTOR"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"rec[-1]"</span><span class="p">,</span> <span class="s2">"rec[-2]"</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">memory</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">(</span><span class="s2">"R 0 1 2</span><span class="se">\n</span><span class="s2">CX 0 2 1 2</span><span class="se">\n</span><span class="s2">MR 2"</span><span class="p">)</span> <span class="o">+</span> <span class="n">cycle</span> <span class="o">*</span> <span class="mi">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">memory</span><span class="o">.</span><span class="n">num_measurements</span><span class="p">,</span> <span class="n">memory</span><span class="o">.</span><span class="n">num_detectors</span>
+<span class="go">(11, 10)</span>
+</code></pre>
+</div>
 </div>
 
 
@@ -1028,6 +1063,70 @@ coordinates, <code>TICK</code>, <code>REPEAT</code>, and instruction tags (<code
     <a class="headerlink" href="#Circuit.from_file"></a>
     
             <div class="docstring"><p>Read a <code>.stim</code> file.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.copy" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">copy</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.copy"></a>
+    
+            <div class="docstring"><p>A copy, to change without changing this one.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.append" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">append</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">name</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n"><a href="#Circuit">Circuit</a></span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="n">targets</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">arg</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">tag</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.append"></a>
+    
+            <div class="docstring"><p>Append one instruction, as Stim's <code><a href="#Circuit.append">Circuit.append</a></code>: its name (any instruction of
+the language but <code>REPEAT</code>), its targets, its argument or arguments (probabilities,
+coordinates, an observable's index), and optionally Stim's tag.</p>
+
+<p>A target is a qubit index, a string as Stim writes targets (<code>"!3"</code>, <code>"rec[-1]"</code>,
+<code>"sweep[0]"</code>, <code>"X3"</code>, <code>"*"</code> joining Pauli targets into a product), or a
+<code>stim.GateTarget</code>; <code>targets</code> is one of them or a list. <code>name</code> may instead be a
+<code><a href="#Circuit">Circuit</a></code>, or a <code>stim.Circuit</code>, <code>stim.CircuitInstruction</code> or
+<code>stim.CircuitRepeatBlock</code>, appended whole. An instruction the language does not allow
+raises <code>ValueError</code> and leaves the circuit as it was.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"H"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"MPP"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"X0"</span><span class="p">,</span> <span class="s2">"*"</span><span class="p">,</span> <span class="s2">"Z1"</span><span class="p">],</span> <span class="mf">0.01</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">"parity"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+<span class="go">H 0</span>
+<span class="go">MPP[parity](0.01) X0*Z1</span>
+</code></pre>
+</div>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.append_from_stim_program_text" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">append_from_stim_program_text</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">text</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.append_from_stim_program_text"></a>
+    
+            <div class="docstring"><p>Append Stim's circuit text: any number of instructions and <code>REPEAT</code> blocks.</p>
 </div>
 
 
@@ -1095,7 +1194,7 @@ coordinates, <code>TICK</code>, <code>REPEAT</code>, and instruction tags (<code
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">approximate_disjoint_errors</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">approximate_disjoint_errors</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">flatten_loops</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
 
         
     </div>
@@ -1104,6 +1203,10 @@ coordinates, <code>TICK</code>, <code>REPEAT</code>, and instruction tags (<code
             <div class="docstring"><p>The circuit's detector error model, built by walking it backwards, as Stim's error
 analyzer does. <code>decompose_errors</code> splits each fault into graph-like pieces (at most
 two detectors each) the way Stim splits them, which matching needs.</p>
+
+<p>Loops that repeat are folded into <code>repeat</code> blocks, as Stim folds them, so a long
+memory's model costs one period of its loop; <code>flatten_loops</code> walks every pass and
+writes none (<code><a href="#DetectorErrorModel.flattened">DetectorErrorModel.flattened</a></code> unrolls a folded one).</p>
 
 <p><code>approximate_disjoint_errors</code> is Stim's: channels whose cases are disjoint rather
 than independent (<code>PAULI_CHANNEL_2</code>, <code>ELSE_CORRELATED_ERROR</code>, the heralded errors,
@@ -1160,7 +1263,9 @@ shots on any machine and any number of threads; <code>None</code> draws a seed.<
             <div class="docstring"><p>A detector error model in Stim's format: independent faults, each with a probability,
 the detectors it flips and the observables it flips.</p>
 
-<p>Build one from Stim text, a <code>stim.DetectorErrorModel</code>, or <code><a href="#Circuit.detector_error_model">Circuit.detector_error_model</a></code>.</p>
+<p>Build one from Stim text, a <code>stim.DetectorErrorModel</code>, or <code><a href="#Circuit.detector_error_model">Circuit.detector_error_model</a></code>.
+It is held as written, <code>repeat</code> blocks and all, and counted through its loops; a decoder
+made from it unrolls it once.</p>
 </div>
 
 
@@ -1222,7 +1327,23 @@ the detectors it flips and the observables it flips.</p>
     </div>
     <a class="headerlink" href="#DetectorErrorModel.num_errors"></a>
     
-            <div class="docstring"><p>The number of faults (<code>error</code> lines).</p>
+            <div class="docstring"><p>The number of faults (<code>error</code> lines), counted through loops.</p>
+</div>
+
+
+                            </div>
+                            <div id="DetectorErrorModel.flattened" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">flattened</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DetectorErrorModel.flattened"></a>
+    
+            <div class="docstring"><p>The model without <code>repeat</code> blocks or <code>shift_detectors</code>, as Stim's <code><a href="#DetectorErrorModel.flattened">flattened</a></code>:
+every detector absolute, every coordinate shifted.</p>
 </div>
 
 
@@ -1888,7 +2009,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;1.1.0&#39;</span>
+<span class="default_value">&#39;1.2.0&#39;</span>
 
         
     </div>
