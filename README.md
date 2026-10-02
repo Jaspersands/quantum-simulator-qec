@@ -58,11 +58,24 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   raises `ValueError` or `TypeError`; an engine bug raises `RuntimeError`. From 1.0, semantic
   versioning: the public API (everything in `stabilizer_qec` without a leading underscore) keeps
   working through every 1.x release, and anything removed is deprecated first (see
-  [CHANGELOG.md](CHANGELOG.md)). The Rust crate is versioned on its own and stays below 1.0.
+  [CHANGELOG.md](CHANGELOG.md)). The Rust crate is versioned on its own, with the same promise
+  for its documented API.
 - **Tests.** `tests/` (pytest and Hypothesis) runs on Python 3.9 to 3.14 on Linux, macOS and
   Windows, against Stim, PyMatching, `ldpc` and `beliefmatching` where they install.
   `python tools/smoke.py`, run from outside the repository, checks an installed wheel end to end.
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
+
+**From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
+(1.0, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+
+```rust
+use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
+
+let circuit = memory_circuit(SurfaceCode::Rotated, 5, 5, Noise::Sd6 { p: 0.004 }, Basis::Z)?;
+let samples = circuit.detector_sampler(7)?.sample(10_000, 0);
+let dem = circuit.detector_error_model(&DemOptions::new().decompose_errors(true))?;
+let predictions = Matching::with_correlations(&dem)?.decode_batch(&samples.detectors, 0)?;
+```
 
 **Releases.** On any `v*` tag, `.github/workflows/wheels.yml` builds the wheels and an sdist and
 publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment `pypi`).
@@ -1839,7 +1852,10 @@ src/surgery.rs        lattice surgery: patches on a grid of tiles merged and spl
                       steps, compiled to one circuit; Z⊗Z and X⊗X, the logical CNOT, lines of patches
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
 src/stream.rs         streams too long to model, decoded window by window from a template
-src/py_objects.rs     the compiled objects the public Python API wraps, and the shot loops
+src/api/              the crate's stable Rust API, re-exported at its root
+src/batch.rs          the loops over shots that the Python bindings and the Rust API share
+src/wasm_session.rs   the WebAssembly session behind the explainer's first sections
+src/py_objects.rs     the compiled objects the public Python API wraps
 src/py_api.rs         the extension's own functions (stabilizer_qec._core), which the tools use
 src/parallel.rs       work over shots, one contiguous range per thread
 src/fuzzing.rs        what the fuzzers drive: any text through every stage that reads it

@@ -20,7 +20,8 @@ use crate::circuit::{Basis, Circuit};
 use crate::dem::Dem;
 use crate::dem_decoder::{DemDecoder, Prediction};
 use crate::frame_sampler::FrameSampler;
-use crate::py_objects::{belief_shots, bposd_shots, check_rows, match_shots, window_info, window_shots};
+use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots};
+use crate::py_objects::check_rows;
 use crate::memory::{generate, CodeKind, NoiseModel};
 use crate::shots::{pack_row, read_b8, write_01};
 use crate::surface_code::Xorshift;
@@ -446,17 +447,8 @@ fn decode_b8_belief<'py>(
     Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), PyBytes::new_bound(py, &conv), errors, seconds))
 }
 
-/// A gross-code circuit is written out cycle by cycle: at least one cycle
-/// (`least`), and no more in all (`total`) than a flat memory's rounds.
 fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
-    let most = crate::memory::MAX_FLAT_ROUNDS;
-    if least == 0 {
-        Err(err("a memory needs at least one cycle".into()))
-    } else if total > most {
-        Err(err(format!("{total} cycles: at most {most} are written out cycle by cycle")))
-    } else {
-        Ok(())
-    }
+    crate::bb::check_cycles(total, least).map_err(err)
 }
 
 fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
@@ -667,14 +659,8 @@ fn decode_b8_bposd<'py>(
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, basis="z", pre=None, post=None))]
 fn surgery_circuit(d: usize, merged: usize, p: f64, basis: &str, pre: Option<usize>, post: Option<usize>) -> PyResult<String> {
-    crate::surgery::check_size(d, 2, merged.saturating_add(pre.unwrap_or(d)).saturating_add(post.unwrap_or(d))).map_err(err)?;
-    let basis = match basis {
-        "z" => Basis::Z,
-        "x" => Basis::X,
-        other => return Err(err(format!("unknown basis '{other}'"))),
-    };
-    let s = crate::surgery::Surgery { d, pre: pre.unwrap_or(d), merged, post: post.unwrap_or(d), basis, p };
-    Ok(s.circuit().map_err(err)?.to_stim())
+    let basis = basis_of(basis)?;
+    Ok(crate::surgery::zz_circuit(d, pre.unwrap_or(d), merged, post.unwrap_or(d), p, basis).map_err(err)?.to_stim())
 }
 
 fn basis_of(name: &str) -> PyResult<Basis> {
@@ -692,16 +678,14 @@ fn basis_of(name: &str) -> PyResult<Basis> {
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, inputs="z"))]
 fn surgery_cnot(d: usize, merged: usize, p: f64, inputs: &str) -> PyResult<String> {
-    crate::surgery::check_size(d, 4, merged.saturating_mul(2)).map_err(err)?;
-    Ok(crate::surgery::cnot(d, merged, p, basis_of(inputs)?).circuit().map_err(err)?.to_stim())
+    Ok(crate::surgery::cnot_circuit(d, merged, p, basis_of(inputs)?).map_err(err)?.to_stim())
 }
 
 /// k Z⊗Z measurements in a row on two patches in |0>|0> (see
 /// `surgery::repeated`): observables each outcome, then Z1 and Z2.
 #[pyfunction]
 fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<String> {
-    crate::surgery::check_size(d, 2, k.saturating_mul(merged.saturating_add(2))).map_err(err)?;
-    Ok(crate::surgery::repeated(d, k, merged, p).circuit().map_err(err)?.to_stim())
+    Ok(crate::surgery::repeated_circuit(d, k, merged, p).map_err(err)?.to_stim())
 }
 
 /// n patches in a row, all in |0>, merged at once (see `surgery::line`):
@@ -709,14 +693,7 @@ fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<Strin
 /// outcome, then each patch's Z.
 #[pyfunction]
 fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
-    crate::surgery::check_size(d, n, merged).map_err(err)?;
-    if n < 2 {
-        return Err(err(format!("a line merge needs at least two patches, not {n}")));
-    }
-    if n > 32 {
-        return Err(err(format!("{n} patches have {} observables (each seam and each patch); at most 64 are supported", 2 * n - 1)));
-    }
-    Ok(crate::surgery::line(d, n, merged, p).circuit().map_err(err)?.to_stim())
+    Ok(crate::surgery::line_circuit(d, n, merged, p).map_err(err)?.to_stim())
 }
 
 /// The X⊗X mirror of `surgery_circuit` (see `surgery::vertical`): "x", the
@@ -724,8 +701,7 @@ fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, basis="x"))]
 fn surgery_vertical(d: usize, merged: usize, p: f64, basis: &str) -> PyResult<String> {
-    crate::surgery::check_size(d, 2, merged).map_err(err)?;
-    Ok(crate::surgery::vertical(d, merged, p, basis_of(basis)?).circuit().map_err(err)?.to_stim())
+    Ok(crate::surgery::xx_circuit(d, merged, p, basis_of(basis)?).map_err(err)?.to_stim())
 }
 
 /// b8 rows of `num_bits` bits as Stim's 01 text.

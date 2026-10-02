@@ -34,6 +34,20 @@ pub struct BbCode {
 pub(crate) const SX: [Option<usize>; 7] = [None, Some(1), Some(4), Some(3), Some(5), Some(0), Some(2)];
 pub(crate) const SZ: [Option<usize>; 7] = [Some(3), Some(5), Some(0), Some(1), Some(2), Some(4), None];
 
+
+/// A bivariate bicycle circuit is written out cycle by cycle: at least `least` cycles of the
+/// part that needs them, and no more in all (`total`) than a flat memory's rounds.
+pub fn check_cycles(total: usize, least: usize) -> Result<(), String> {
+    let most = crate::memory::MAX_FLAT_ROUNDS;
+    if least == 0 {
+        Err("a memory needs at least one cycle".into())
+    } else if total > most {
+        Err(format!("{total} cycles: at most {most} are written out cycle by cycle"))
+    } else {
+        Ok(())
+    }
+}
+
 impl BbCode {
     /// The gross code, [[144, 12, 12]]: A = x³ + y + y², B = y³ + x + x² on a 12 × 6 torus.
     pub fn gross() -> BbCode {

@@ -1,15 +1,16 @@
-# The Rust crate to crates.io on a version tag, by trusted publishing: crates.io trusts this
+# The Rust crate to crates.io on a crate tag, by trusted publishing: crates.io trusts this
 # repository's workflow "crate.yml" (set in the crate's settings on crates.io), and the job
 # exchanges GitHub's OIDC token for a short-lived crates.io token. No secret is stored.
 #
-# The crate is versioned on its own (Cargo.toml) and stays below 1.0; a tag whose Cargo.toml
+# The crate is versioned on its own (Cargo.toml) and released on its own tags, crate-v1.2.3, so
+# it never shares a tag with the Python package (v1.2.3, wheels.yml). A tag whose Cargo.toml
 # version is already on crates.io publishes nothing. The job runs once the repository variable
 # CRATES_IO_TRUSTED_PUBLISHING is "true", which is set after the trusted publisher is added.
 name: Crate
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["crate-v*"]
   workflow_dispatch:
     inputs:
       check_auth:

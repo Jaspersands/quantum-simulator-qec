@@ -27,8 +27,12 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - name: Rust tests
+      - name: Rust tests (the engine, the crate's API as a dependent uses it, and its doc examples)
         run: cargo test --release --no-default-features
+      - name: The crate's documentation builds without warnings
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
       - name: Build the WebAssembly engine
         run: cargo build --release --target wasm32-unknown-unknown --no-default-features
       - uses: actions/setup-node@v5
@@ -45,13 +49,20 @@ jobs:
       - name: The committed engine, the one the site serves
         run: node tools/wasm-smoke.mjs stabilizer_qec.wasm
 
+  semver:
+    name: The crate's API against its last release (cargo-semver-checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+
   msrv:
     name: The oldest Rust the crate supports (1.87)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.87
-      - run: cargo check --no-default-features --lib
+      - run: cargo check --lib --tests
 
   wheel:
     name: Wheel and checks (${{ matrix.os }})
