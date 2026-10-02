@@ -145,7 +145,7 @@ impl Writer {
 
     pub fn observable(&mut self, index: u32, recs: &[usize]) {
         let recs = recs.iter().map(|&r| self.lookback(r)).collect();
-        self.c.push(Instr::Observable { index, recs });
+        self.c.push(Instr::Observable { index, recs, paulis: Vec::new() });
     }
 
     /// Measure checks' ancillas in the checks' basis, and give each its detector.

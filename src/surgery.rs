@@ -735,7 +735,7 @@ impl Program {
                     }
                 }
             }
-            w.c.push(Instr::Observable { index: index as u32, recs });
+            w.c.push(Instr::Observable { index: index as u32, recs, paulis: Vec::new() });
         }
         Ok(Circuit { instrs: w.c })
     }

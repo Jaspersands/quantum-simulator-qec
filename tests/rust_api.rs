@@ -151,3 +151,23 @@ fn generated_circuits() {
     assert!(lattice_surgery::repeated_zz(3, 2, 2, 0.002).is_ok());
     assert!(lattice_surgery::xx_measurement(3, 3, 0.002, Basis::Z).is_ok());
 }
+
+#[test]
+fn stim_tags_and_pauli_observables() {
+    let text = "R[init] 0 1\nH 1\nX_ERROR[noise](0.1) 0\nOBSERVABLE_INCLUDE[l](0) Z0 !X1\nM 0\nDETECTOR[d] rec[-1]";
+    let c: Circuit = text.parse().unwrap();
+    assert_eq!(c.to_string().trim(), text);
+    assert_eq!((c.num_qubits(), c.num_observables()), (2, 1));
+    let dem = c.detector_error_model(&DemOptions::new()).unwrap();
+    let printed = dem.to_string();
+    for line in ["detector[d] D0", "logical_observable[l] L0", "error[noise](0.1) D0 L0"] {
+        assert!(printed.contains(line), "{printed}");
+    }
+    assert_eq!(printed.parse::<DetectorErrorModel>().unwrap().to_string(), printed);
+    let samples = c.detector_sampler(3).unwrap().sample(4000, 1);
+    let both = (0..4000).filter(|&s| samples.detectors.get(s, 0) && samples.observables.get(s, 0)).count();
+    assert!((300..500).contains(&both), "{both}");
+    // A Pauli observable the state does not fix is refused, as Stim refuses it.
+    let random: Circuit = "R 0\nOBSERVABLE_INCLUDE(0) X0\nM 0\nDETECTOR rec[-1]".parse().unwrap();
+    assert!(random.detector_error_model(&DemOptions::new()).unwrap_err().message().contains("not deterministic"));
+}

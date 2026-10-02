@@ -85,7 +85,9 @@ enum Op {
     /// coordinate as written, with its index: its time, before shifts.
     Detector(Vec<u32>, Option<(usize, f64)>),
     ShiftCoords(Vec<f64>),
-    Observable(u32, Vec<u32>),
+    /// An observable's records (lookbacks), and its Pauli targets: the frame's Pauli there
+    /// flips it where it anticommutes with one.
+    Observable(u32, Vec<u32>, Vec<(u32, u8)>),
     Repeat(u64, Vec<Op>),
     S(Vec<u32>),
     /// `E` / `ELSE_CORRELATED_ERROR`: the product on the lanes that fire; a chained one fires
@@ -126,8 +128,10 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
                 Op::Detector(recs.clone(), coords.last().map(|&t| (coords.len() - 1, t)))
             }
             Instr::ShiftCoords(shift) => Op::ShiftCoords(shift.clone()),
-            Instr::Observable { index, recs } => Op::Observable(*index, recs.clone()),
-            Instr::Repeat { count, body } => Op::Repeat(*count, compile(body)),
+            Instr::Observable { index, recs, paulis } => {
+                Op::Observable(*index, recs.clone(), paulis.iter().map(|&(q, p, _)| (q, p)).collect())
+            }
+            Instr::Repeat { count, body, .. } => Op::Repeat(*count, compile(body)),
             Instr::S(q) => Op::S(q.clone()),
             Instr::Gate { body, .. } => {
                 out.extend(compile(body));
@@ -220,7 +224,7 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 s.lookback = s.lookback.max(*lookback);
             }
             Op::ShiftCoords(_) => {}
-            Op::Detector(recs, _) | Op::Observable(_, recs) => {
+            Op::Detector(recs, _) | Op::Observable(_, recs, _) => {
                 for &k in recs {
                     if k == 0 || u64::from(k) > s.measurements {
                         return Err(format!("rec[-{k}] reaches before the first measurement"));
@@ -229,7 +233,8 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 }
                 match op {
                     Op::Detector(..) => s.detectors = s.detectors.saturating_add(1),
-                    Op::Observable(i, _) => {
+                    Op::Observable(i, _, paulis) => {
+                        paulis.iter().for_each(|&(q, _)| touch(s, q));
                         if *i >= 64 {
                             return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
                         }
@@ -471,9 +476,19 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     *a += b;
                 }
             }
-            Op::Observable(i, recs) => {
+            Op::Observable(i, recs, paulis) => {
                 for &k in recs {
                     st.obs[*i as usize] ^= st.ring[(st.m - k as usize) & st.mask];
+                }
+                // An X target anticommutes with the frame's Z part, a Z target with its X part.
+                for &(q, p) in paulis {
+                    let q = q as usize;
+                    if p & 1 != 0 {
+                        st.obs[*i as usize] ^= st.z[q];
+                    }
+                    if p & 2 != 0 {
+                        st.obs[*i as usize] ^= st.x[q];
+                    }
                 }
             }
             Op::Repeat(count, body) => {
