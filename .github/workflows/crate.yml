@@ -11,6 +11,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      check_auth:
+        description: "Exchange a token with crates.io by trusted publishing, without publishing"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,7 +41,7 @@ jobs:
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: rust-lang/crates-io-auth-action@v1
-        if: steps.version.outputs.published == 'false'
+        if: steps.version.outputs.published == 'false' || inputs.check_auth
         id: auth
       - name: Publish
         if: steps.version.outputs.published == 'false'
