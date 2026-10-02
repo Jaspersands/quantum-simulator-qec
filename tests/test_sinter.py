@@ -15,6 +15,13 @@ pytest.importorskip("pymatching")
 
 from stabilizer_qec import sinter as sq_sinter  # noqa: E402
 
+try:
+    # sinter 1.15 asserts its error counts are Python ints, which numpy 2.5's count_nonzero no
+    # longer returns: there sinter fails with any decoder, its own included.
+    sinter.AnonTaskStats(shots=1, errors=np.count_nonzero(np.array([True])))
+except AssertionError:
+    pytest.skip(f"sinter {sinter.__version__} cannot count errors with numpy {np.__version__}", allow_module_level=True)
+
 
 def task(d=3, p=0.006, **kwargs):
     c = stim.Circuit.generated("surface_code:rotated_memory_z", distance=d, rounds=d, after_clifford_depolarization=p, before_measure_flip_probability=p, after_reset_flip_probability=p)
