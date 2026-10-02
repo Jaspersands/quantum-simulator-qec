@@ -65,6 +65,7 @@ impl FrameSampler {
         let mut rec = Vec::with_capacity(self.num_measurements);
         // Whether the current chain of correlated errors has fired.
         let mut chain = false;
+        let mut pauli_obs = 0u64;
         for ins in &self.instrs {
             match ins {
                 Instr::Reset { basis, qubits } => {
@@ -236,10 +237,18 @@ impl FrameSampler {
                 }
                 // Signs, annotations and ticks leave a frame alone; loops and gates are
                 // flattened away.
+                // A Pauli target reads the frame: X anticommutes with its Z part, Z with its X.
+                Instr::Observable { index, paulis, .. } => {
+                    for &(q, p, _) in paulis {
+                        let q = q as usize;
+                        if (p & 1 != 0 && z[q]) != (p & 2 != 0 && x[q]) {
+                            pauli_obs ^= 1u64 << index;
+                        }
+                    }
+                }
                 Instr::Pauli { .. }
                 | Instr::SweepX(_)
                 | Instr::Detector { .. }
-                | Instr::Observable { .. }
                 | Instr::QubitCoords { .. }
                 | Instr::ShiftCoords(_)
                 | Instr::Tick
@@ -249,7 +258,7 @@ impl FrameSampler {
         }
         let parity = |recs: &[usize]| recs.iter().fold(false, |acc, &m| acc ^ rec[m]);
         let detectors = self.detectors.iter().map(|r| parity(r)).collect();
-        let mut observables = 0u64;
+        let mut observables = pauli_obs;
         for (k, r) in self.observables.iter().enumerate() {
             if parity(r) {
                 observables |= 1u64 << k;

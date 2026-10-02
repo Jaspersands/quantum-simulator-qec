@@ -23,6 +23,7 @@
 use std::collections::hash_map::Entry as Slot;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
+use std::sync::Arc;
 
 use crate::circuit::{fmt_args, split_instruction, Basis, Circuit, Control, Instr};
 
@@ -43,6 +44,9 @@ pub struct Mechanism {
     /// symptom but split differently are separate mechanisms, each with its own
     /// probability, as in Stim's decomposed models.
     pub pieces: Vec<Piece>,
+    /// The Stim tag of the instruction the fault came from (empty for none). Faults with
+    /// different tags stay separate mechanisms, as in Stim.
+    pub tag: String,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -51,6 +55,10 @@ pub struct Dem {
     pub num_observables: usize,
     pub detector_coords: Vec<Vec<f64>>,
     pub mechanisms: Vec<Mechanism>,
+    /// Detector tags, by detector; shorter than the detectors when the last have none.
+    pub detector_tags: Vec<String>,
+    /// Observable tags, by observable; shorter likewise.
+    pub observable_tags: Vec<String>,
 }
 
 /* -- Channel conversion ---------------------------------------------------- */
@@ -188,6 +196,7 @@ struct Entry {
     /// as they do in Stim's decomposed models.
     variants: Vec<Variant>,
     origin: Origin,
+    tag: Option<Arc<str>>,
 }
 
 struct Variant {
@@ -224,8 +233,11 @@ impl Variant {
 
 struct Builder {
     space: Space,
-    index: HashMap<Vec<u64>, usize>,
+    /// Faults are merged by symptom and tag.
+    index: HashMap<(Vec<u64>, Option<Arc<str>>), usize>,
     entries: Vec<Entry>,
+    /// The tag of the instruction being walked.
+    tag: Option<Arc<str>>,
 }
 
 impl Builder {
@@ -264,7 +276,8 @@ impl Builder {
         if is_zero(&sym) {
             return;
         }
-        match self.index.get(&sym) {
+        let key = (sym, self.tag.clone());
+        match self.index.get(&key) {
             Some(&i) => {
                 let e = &mut self.entries[i];
                 e.p = xor_prob(e.p, p);
@@ -279,9 +292,10 @@ impl Builder {
                 }
             }
             None => {
-                self.index.insert(sym.clone(), self.entries.len());
+                let sym = key.0.clone();
+                self.index.insert(key, self.entries.len());
                 let variant = Variant { pieces, p, order, more_orders: Vec::new() };
-                self.entries.push(Entry { sym, p, variants: vec![variant], origin });
+                self.entries.push(Entry { sym, p, variants: vec![variant], origin, tag: self.tag.clone() });
             }
         }
     }
@@ -344,7 +358,7 @@ impl Dem {
         let nq = res.num_qubits;
         let mut sx = vec![space.zero(); nq];
         let mut sz = vec![space.zero(); nq];
-        let mut b = Builder { space, index: HashMap::new(), entries: Vec::new() };
+        let mut b = Builder { space, index: HashMap::new(), entries: Vec::new(), tag: None };
         // A channel of disjoint cases is allowed only approximately, as in Stim.
         // As in Stim, a channel with at most one case of nonzero probability needs no
         // approximation when `single` allows it.
@@ -381,6 +395,7 @@ impl Dem {
         let reset_name = |basis: Basis| if basis == Basis::Z { "a Z-basis reset" } else { "an X-basis reset" };
 
         for (idx, ins) in res.instrs.iter().enumerate().rev() {
+            b.tag = res.tag(idx).cloned();
             match ins {
                 Instr::Reset { basis, qubits } => {
                     for &q in qubits.iter().rev() {
@@ -616,8 +631,20 @@ impl Dem {
                         }
                     }
                 }
+                // A Pauli target: errors before it that anticommute with it flip the
+                // observable, a Z component an X target and an X component a Z target.
+                Instr::Observable { index, paulis, .. } => {
+                    for &(q, pauli, _) in paulis {
+                        let q = q as usize;
+                        if pauli & 1 != 0 {
+                            toggle(&mut sz[q], nd + *index as usize);
+                        }
+                        if pauli & 2 != 0 {
+                            toggle(&mut sx[q], nd + *index as usize);
+                        }
+                    }
+                }
                 Instr::Detector { .. }
-                | Instr::Observable { .. }
                 | Instr::QubitCoords { .. }
                 | Instr::ShiftCoords(_)
                 | Instr::Tick
@@ -655,11 +682,13 @@ impl Dem {
                     } else {
                         Vec::new()
                     };
-                    Mechanism { p: e.p, detectors, observables, pieces }
+                    Mechanism { p: e.p, detectors, observables, pieces, tag: e.tag.as_deref().unwrap_or("").to_string() }
                 })
                 .collect();
-            mechanisms.sort_by(|a, b| a.detectors.cmp(&b.detectors).then(a.observables.cmp(&b.observables)));
-            return Ok(Dem { num_detectors: nd, num_observables: no, detector_coords: res.detector_coords, mechanisms });
+            mechanisms.sort_by(|a, b| {
+                a.detectors.cmp(&b.detectors).then(a.observables.cmp(&b.observables)).then(a.tag.cmp(&b.tag))
+            });
+            return Ok(Dem::assemble(&res, mechanisms));
         }
 
         // The global pass, as Stim runs it when the circuit is done: every
@@ -713,15 +742,41 @@ impl Dem {
                     None => grouped.push((final_pieces, *p)),
                 }
             }
+            let tag = e.tag.as_deref().unwrap_or("");
             for (pieces, p) in grouped {
-                mechanisms.push(Mechanism { p, detectors: detectors.clone(), observables, pieces });
+                mechanisms.push(Mechanism { p, detectors: detectors.clone(), observables, pieces, tag: tag.to_string() });
             }
         }
         mechanisms.sort_by(|a, b| {
-            a.detectors.cmp(&b.detectors).then(a.observables.cmp(&b.observables)).then(a.pieces.cmp(&b.pieces))
+            a.detectors
+                .cmp(&b.detectors)
+                .then(a.observables.cmp(&b.observables))
+                .then(a.tag.cmp(&b.tag))
+                .then(a.pieces.cmp(&b.pieces))
         });
 
-        Ok(Dem { num_detectors: nd, num_observables: no, detector_coords: res.detector_coords, mechanisms })
+        Ok(Dem::assemble(&res, mechanisms))
+    }
+
+    /// A built model: the circuit's detectors, observables and their tags, and `mechanisms`.
+    fn assemble(res: &crate::circuit::Resolved, mechanisms: Vec<Mechanism>) -> Dem {
+        let mut detector_tags = Vec::new();
+        for (d, t) in &res.detector_tags {
+            detector_tags.resize(d + 1, String::new());
+            detector_tags[*d] = t.to_string();
+        }
+        let mut observable_tags = res.observable_tags.clone();
+        while observable_tags.last().is_some_and(|t| t.is_empty()) {
+            observable_tags.pop();
+        }
+        Dem {
+            num_detectors: res.detectors.len(),
+            num_observables: res.observables.len(),
+            detector_coords: res.detector_coords.clone(),
+            mechanisms,
+            detector_tags,
+            observable_tags,
+        }
     }
 }
 
@@ -1095,15 +1150,26 @@ fn push_targets(s: &mut String, dets: &[u32], obs: u64) {
 impl Dem {
     pub fn to_stim(&self, with_pieces: bool) -> String {
         let mut s = String::new();
+        let tagged = |t: &str| if t.is_empty() { String::new() } else { format!("[{t}]") };
         for (i, c) in self.detector_coords.iter().enumerate() {
+            let tag = tagged(self.detector_tags.get(i).map_or("", |t| t.as_str()));
             if c.is_empty() {
-                let _ = writeln!(s, "detector D{i}");
+                let _ = writeln!(s, "detector{tag} D{i}");
             } else {
-                let _ = writeln!(s, "detector({}) D{i}", fmt_args(c));
+                let _ = writeln!(s, "detector{tag}({}) D{i}", fmt_args(c));
+            }
+        }
+        // Observables no fault flips are declared, so the model keeps its count; tagged ones,
+        // so it keeps their tags.
+        let flipped = self.mechanisms.iter().fold(0u64, |acc, m| acc | m.observables);
+        for k in 0..self.num_observables.min(64) {
+            let tag = self.observable_tags.get(k).map_or("", |t| t.as_str());
+            if !tag.is_empty() || (flipped >> k) & 1 == 0 {
+                let _ = writeln!(s, "logical_observable{} L{k}", tagged(tag));
             }
         }
         for m in &self.mechanisms {
-            let _ = write!(s, "error({})", m.p);
+            let _ = write!(s, "error{}({})", tagged(&m.tag), m.p);
             if with_pieces && !m.pieces.is_empty() {
                 for (k, piece) in m.pieces.iter().enumerate() {
                     if k > 0 {
@@ -1159,7 +1225,7 @@ fn parse_dem_block(
 ) -> Result<(), String> {
     while *pos < lines.len() {
         let lineno = *pos + 1;
-        let line = lines[*pos].split('#').next().unwrap_or("").trim();
+        let line = crate::circuit::strip_comment(lines[*pos]).trim();
         *pos += 1;
         if line.is_empty() {
             continue;
@@ -1176,14 +1242,15 @@ fn parse_dem_block(
             return Err(format!("line {lineno}: unmatched '}}'"));
         }
         if let Some(rest) = line.strip_suffix('{') {
-            let mut parts = rest.split_whitespace();
-            if !parts.next().unwrap_or("").eq_ignore_ascii_case("repeat") {
+            let (name, _tag, args, parts) = split_instruction(rest).map_err(|e| format!("line {lineno}: {e}"))?;
+            if name != "REPEAT" {
                 return Err(format!("line {lineno}: only repeat opens a block"));
             }
-            let count: u64 = parts
-                .next()
-                .and_then(|s| s.parse().ok())
-                .ok_or_else(|| format!("line {lineno}: repeat needs a count"))?;
+            let count: u64 = match (args.is_empty(), parts.as_slice()) {
+                (true, [n]) => n.parse().ok(),
+                _ => None,
+            }
+            .ok_or_else(|| format!("line {lineno}: repeat needs a count"))?;
             let start = *pos;
             if count == 0 {
                 // Walk the body to find its end without applying it.
@@ -1205,7 +1272,7 @@ fn parse_dem_block(
             }
             continue;
         }
-        let (name, args, tokens) = split_instruction(line).map_err(|e| format!("line {lineno}: {e}"))?;
+        let (name, tag, args, tokens) = split_instruction(line).map_err(|e| format!("line {lineno}: {e}"))?;
         let bad = |t: &str| format!("line {lineno}: bad target '{t}'");
         match name.as_str() {
             "ERROR" => {
@@ -1248,7 +1315,7 @@ fn parse_dem_block(
                 } else {
                     Vec::new()
                 };
-                dem.mechanisms.push(Mechanism { p: args[0], detectors, observables, pieces });
+                dem.mechanisms.push(Mechanism { p: args[0], detectors, observables, pieces, tag: tag.to_string() });
             }
             "DETECTOR" => {
                 for t in &tokens {
@@ -1259,6 +1326,12 @@ fn parse_dem_block(
                     }
                     dem.detector_coords[d] =
                         args.iter().enumerate().map(|(i, v)| v + shift.get(i).copied().unwrap_or(0.0)).collect();
+                    if !tag.is_empty() {
+                        if dem.detector_tags.len() <= d {
+                            dem.detector_tags.resize(d + 1, String::new());
+                        }
+                        dem.detector_tags[d] = tag.to_string();
+                    }
                 }
             }
             "LOGICAL_OBSERVABLE" => {
@@ -1268,6 +1341,12 @@ fn parse_dem_block(
                         return Err(format!("line {lineno}: at most 64 observables are supported"));
                     }
                     dem.num_observables = dem.num_observables.max(l + 1);
+                    if !tag.is_empty() {
+                        if dem.observable_tags.len() <= l {
+                            dem.observable_tags.resize(l + 1, String::new());
+                        }
+                        dem.observable_tags[l] = tag.to_string();
+                    }
                 }
             }
             "SHIFT_DETECTORS" => {

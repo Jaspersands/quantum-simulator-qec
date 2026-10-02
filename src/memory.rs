@@ -355,7 +355,7 @@ fn final_readout(patch: &Patch, c: &mut Vec<Instr>, m: &mut usize, last: &[usize
         c.push(Instr::Detector { coords: vec![x as f64, y as f64, t], recs });
     }
     let recs = patch.observable.iter().map(|&q| lookback(*m, at[q as usize])).collect();
-    c.push(Instr::Observable { index: 0, recs });
+    c.push(Instr::Observable { index: 0, recs, paulis: Vec::new() });
 }
 
 /* -- Current: the engine's own model, gate for gate ------------------------ */
@@ -533,7 +533,7 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
     let mut c = head;
     let (last, t_final) = if fold {
         body.push(Instr::ShiftCoords(vec![0.0, 0.0, 1.0]));
-        c.push(Instr::Repeat { count: (rounds - 1) as u64, body });
+        c.push(Instr::Repeat { count: (rounds - 1) as u64, body, tag: String::new() });
         // Every round measured; the final readout's detectors are written at
         // t = 2, which the rounds - 1 shifts carry to rounds + 1.
         m = na * rounds;

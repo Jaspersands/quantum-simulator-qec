@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="generator" content="pdoc 16.0.0"/>
-    <title>stabilizer_qec.surgery API documentation</title>
+    <title>stabilizer_qec.sinter API documentation</title>
             <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&#39;http://www.w3.org/2000/svg&#39; viewBox=&#39;0 0 16 16&#39;%3E%3Crect width=&#39;16&#39; height=&#39;16&#39; rx=&#39;3&#39; fill=&#39;%231c1d1f&#39;/%3E%3Ccircle cx=&#39;5&#39; cy=&#39;5&#39; r=&#39;1.6&#39; fill=&#39;%23f4f2ec&#39;/%3E%3Ccircle cx=&#39;11&#39; cy=&#39;5&#39; r=&#39;1.6&#39; fill=&#39;%23f4f2ec&#39;/%3E%3Ccircle cx=&#39;5&#39; cy=&#39;11&#39; r=&#39;1.6&#39; fill=&#39;%23f4f2ec&#39;/%3E%3Ccircle cx=&#39;11&#39; cy=&#39;11&#39; r=&#39;1.6&#39; fill=&#39;%23c0392b&#39;/%3E%3C/svg%3E"/>
 
     <style>/*! * Bootstrap Reboot v5.0.0 (https://getbootstrap.com/) * Copyright 2011-2021 The Bootstrap Authors * Copyright 2011-2021 Twitter, Inc. * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE) * Forked from Normalize.css, licensed MIT (https://github.com/necolas/normalize.css/blob/master/LICENSE.md) */*,::after,::before{box-sizing:border-box}@media (prefers-reduced-motion:no-preference){:root{scroll-behavior:smooth}}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";font-size:1rem;font-weight:400;line-height:1.5;color:#212529;background-color:#fff;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}hr{margin:1rem 0;color:inherit;background-color:currentColor;border:0;opacity:.25}hr:not([size]){height:1px}h1,h2,h3,h4,h5,h6{margin-top:0;margin-bottom:.5rem;font-weight:500;line-height:1.2}h1{font-size:calc(1.375rem + 1.5vw)}@media (min-width:1200px){h1{font-size:2.5rem}}h2{font-size:calc(1.325rem + .9vw)}@media (min-width:1200px){h2{font-size:2rem}}h3{font-size:calc(1.3rem + .6vw)}@media (min-width:1200px){h3{font-size:1.75rem}}h4{font-size:calc(1.275rem + .3vw)}@media (min-width:1200px){h4{font-size:1.5rem}}h5{font-size:1.25rem}h6{font-size:1rem}p{margin-top:0;margin-bottom:1rem}abbr[data-bs-original-title],abbr[title]{-webkit-text-decoration:underline dotted;text-decoration:underline dotted;cursor:help;-webkit-text-decoration-skip-ink:none;text-decoration-skip-ink:none}address{margin-bottom:1rem;font-style:normal;line-height:inherit}ol,ul{padding-left:2rem}dl,ol,ul{margin-top:0;margin-bottom:1rem}ol ol,ol ul,ul ol,ul ul{margin-bottom:0}dt{font-weight:700}dd{margin-bottom:.5rem;margin-left:0}blockquote{margin:0 0 1rem}b,strong{font-weight:bolder}small{font-size:.875em}mark{padding:.2em;background-color:#fcf8e3}sub,sup{position:relative;font-size:.75em;line-height:0;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}a{color:#0d6efd;text-decoration:underline}a:hover{color:#0a58ca}a:not([href]):not([class]),a:not([href]):not([class]):hover{color:inherit;text-decoration:none}code,kbd,pre,samp{font-family:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:1em;direction:ltr;unicode-bidi:bidi-override}pre{display:block;margin-top:0;margin-bottom:1rem;overflow:auto;font-size:.875em}pre code{font-size:inherit;color:inherit;word-break:normal}code{font-size:.875em;color:#d63384;word-wrap:break-word}a>code{color:inherit}kbd{padding:.2rem .4rem;font-size:.875em;color:#fff;background-color:#212529;border-radius:.2rem}kbd kbd{padding:0;font-size:1em;font-weight:700}figure{margin:0 0 1rem}img,svg{vertical-align:middle}table{caption-side:bottom;border-collapse:collapse}caption{padding-top:.5rem;padding-bottom:.5rem;color:#6c757d;text-align:left}th{text-align:inherit;text-align:-webkit-match-parent}tbody,td,tfoot,th,thead,tr{border-color:inherit;border-style:solid;border-width:0}label{display:inline-block}button{border-radius:0}button:focus:not(:focus-visible){outline:0}button,input,optgroup,select,textarea{margin:0;font-family:inherit;font-size:inherit;line-height:inherit}button,select{text-transform:none}[role=button]{cursor:pointer}select{word-wrap:normal}select:disabled{opacity:1}[list]::-webkit-calendar-picker-indicator{display:none}[type=button],[type=reset],[type=submit],button{-webkit-appearance:button}[type=button]:not(:disabled),[type=reset]:not(:disabled),[type=submit]:not(:disabled),button:not(:disabled){cursor:pointer}::-moz-focus-inner{padding:0;border-style:none}textarea{resize:vertical}fieldset{min-width:0;padding:0;margin:0;border:0}legend{float:left;width:100%;padding:0;margin-bottom:.5rem;font-size:calc(1.275rem + .3vw);line-height:inherit}@media (min-width:1200px){legend{font-size:1.5rem}}legend+*{clear:left}::-webkit-datetime-edit-day-field,::-webkit-datetime-edit-fields-wrapper,::-webkit-datetime-edit-hour-field,::-webkit-datetime-edit-minute,::-webkit-datetime-edit-month-field,::-webkit-datetime-edit-text,::-webkit-datetime-edit-year-field{padding:0}::-webkit-inner-spin-button{height:auto}[type=search]{outline-offset:-2px;-webkit-appearance:textfield}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-color-swatch-wrapper{padding:0}::file-selector-button{font:inherit}::-webkit-file-upload-button{font:inherit;-webkit-appearance:button}output{display:inline-block}iframe{border:0}summary{display:list-item;cursor:pointer}progress{vertical-align:baseline}[hidden]{display:none!important}</style>
@@ -32,19 +32,52 @@
             <h2>API Documentation</h2>
                 <ul class="memberlist">
             <li>
-                    <a class="function" href="#zz_measurement">zz_measurement</a>
+                    <a class="variable" href="#KINDS">KINDS</a>
             </li>
             <li>
-                    <a class="function" href="#xx_measurement">xx_measurement</a>
+                    <a class="class" href="#Decoder">Decoder</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Decoder.__init__">Decoder</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Decoder.kind">kind</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Decoder.options">options</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Decoder.compile_decoder_for_dem">compile_decoder_for_dem</a>
+                        </li>
+                </ul>
+
             </li>
             <li>
-                    <a class="function" href="#cnot">cnot</a>
+                    <a class="class" href="#Sampler">Sampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Sampler.__init__">Sampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Sampler.kind">kind</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Sampler.options">options</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Sampler.compiled_sampler_for_task">compiled_sampler_for_task</a>
+                        </li>
+                </ul>
+
             </li>
             <li>
-                    <a class="function" href="#repeated_zz">repeated_zz</a>
+                    <a class="function" href="#decoders">decoders</a>
             </li>
             <li>
-                    <a class="function" href="#line">line</a>
+                    <a class="function" href="#samplers">samplers</a>
+            </li>
+            <li>
+                    <a class="function" href="#sinter_decoders">sinter_decoders</a>
             </li>
     </ul>
 
@@ -61,97 +94,249 @@
     <main class="pdoc">
             <section class="module-info">
                     <h1 class="modulename">
-<a href="./../stabilizer_qec.html">stabilizer_qec</a><wbr>.surgery    </h1>
+<a href="./../stabilizer_qec.html">stabilizer_qec</a><wbr>.sinter    </h1>
 
-                        <div class="docstring"><p>Lattice surgery on rotated surface-code patches (Horsman, Fowler, Devitt and Van Meter
-2012), each operation written as one circuit with SD6 noise at <code>p</code>: patches prepared, held,
-merged across a seam for <code>merged</code> rounds, split, held and read out. Every function returns
-a <code>Circuit</code> whose error model equals Stim's for the same text.</p>
+                        <div class="docstring"><p>This package's decoders, and its whole engine, inside sinter's Monte Carlo sweeps.</p>
+
+<p>sinter (Stim's companion for threshold and logical-error-rate sweeps) samples a task's circuit
+with Stim and decodes the shots with a decoder it names. <code><a href="#decoders">decoders()</a></code> gives it this
+package's decoders under names of their own; <code><a href="#samplers">samplers()</a></code> gives it samplers that run the
+whole pipeline here, sampling included::</p>
+
+<pre><code>import sinter
+from stabilizer_qec import sinter as sq_sinter
+
+stats = sinter.collect(
+    tasks=tasks,
+    decoders=["sq_matching", "sq_belief_matching", "pymatching"],
+    custom_decoders={**sq_sinter.decoders(), **sq_sinter.samplers()},
+    num_workers=8,
+    max_shots=100_000,
+)
+</code></pre>
+
+<p>or <code>sinter collect --custom_decoders_module_function "<a href="">stabilizer_qec.sinter</a>:sinter_decoders"</code>
+from the command line. <code>Decoder(kind, **options)</code> and <code>Sampler(kind, **options)</code> make
+others: the options are the decoder class's (<code>Decoder("bposd", osd_order=10)</code>).</p>
+
+<p>The decoder kinds are <code>"matching"</code> (<code>Matching</code>), <code>"correlated_matching"</code> (<code>Matching</code>
+with <code>enable_correlations</code>), <code>"belief_matching"</code> (<code>BeliefMatching</code>) and <code>"bposd"</code>
+(<code>BpOsd</code>, for codes whose faults flip three or more detectors, such as the bivariate bicycle
+codes). Requires sinter.</p>
 </div>
 
                 
                 
                 
             </section>
-                <section id="zz_measurement">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">zz_measurement</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">basis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'z'</span>,</span><span class="param">	<span class="n">pre</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">post</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span>:</span></span>
+                <section id="KINDS">
+                    <div class="attr variable">
+            <span class="name">KINDS</span>        =
+<span class="default_value">(&#39;matching&#39;, &#39;correlated_matching&#39;, &#39;belief_matching&#39;, &#39;bposd&#39;)</span>
 
         
     </div>
-    <a class="headerlink" href="#zz_measurement"></a>
+    <a class="headerlink" href="#KINDS"></a>
     
-            <div class="docstring"><p>Z⊗Z on two patches side by side, merged across a column of seam qubits. With
-<code>basis="z"</code> both start in |0⟩ and the observables are the outcome Z₁Z₂ (L0), Z₁ and Z₂;
-with <code>"x"</code>, both in |+⟩ and the observable is X₁X₂, which the measurement keeps.
-<code>pre</code> and <code>post</code> rounds apart default to <code>distance</code>.</p>
+    
+
+                </section>
+                <section id="Decoder">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">Decoder</span><wbr>(<span class="base">sinter._decoding._decoding_decoder_class.Decoder</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#Decoder"></a>
+    
+            <div class="docstring"><p>A sinter decoder: shots Stim sampled, decoded by one of this package's decoders on the
+task's detector error model. <code><a href="#Decoder.options">options</a></code> go to the decoder's class.</p>
+</div>
+
+
+                            <div id="Decoder.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Decoder</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'matching'</span>, </span><span class="param"><span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Decoder.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Decoder.kind" class="classattr">
+                                <div class="attr variable">
+            <span class="name">kind</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Decoder.kind"></a>
+    
+    
+
+                            </div>
+                            <div id="Decoder.options" class="classattr">
+                                <div class="attr variable">
+            <span class="name">options</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Decoder.options"></a>
+    
+    
+
+                            </div>
+                            <div id="Decoder.compile_decoder_for_dem" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_decoder_for_dem</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">dem</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">stabilizer_qec</span><span class="o">.</span><span class="n">sinter</span><span class="o">.</span><span class="n">_CompiledDecoder</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Decoder.compile_decoder_for_dem"></a>
+    
+            <div class="docstring"><p>Creates a decoder preconfigured for the given detector error model.</p>
+
+<p>This method is optional to implement. By default, it will raise a
+NotImplementedError. When sampling, sinter will attempt to use this
+method first and otherwise fallback to using <code><a href="#Decoder.decode_via_files">decode_via_files</a></code>.</p>
+
+<p>The idea is that the preconfigured decoder amortizes the cost of
+configuration over more calls. This makes smaller batch sizes efficient,
+reducing the amount of memory used for storing each batch, improving
+overall efficiency.</p>
+
+<p>Args:
+    dem: A detector error model for the samples that will need to be
+        decoded. What to configure the decoder to decode.</p>
+
+<p>Returns:
+    An instance of <code>sinter.CompiledDecoder</code> that can be used to invoke
+    the preconfigured decoder.</p>
+
+<p>Raises:
+    NotImplementedError: This <code>sinter.Decoder</code> doesn't support compiling
+        for a dem.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="Sampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">Sampler</span><wbr>(<span class="base">sinter._decoding._sampler.Sampler</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#Sampler"></a>
+    
+            <div class="docstring"><p>A sinter sampler running the whole pipeline in this package: the task's circuit read,
+sampled, its error model built, and decoded. Postselection masks are honoured as sinter
+honours them. <code><a href="#Sampler.options">options</a></code> go to the decoder's class.</p>
+</div>
+
+
+                            <div id="Sampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Sampler</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'matching'</span>, </span><span class="param"><span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Sampler.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Sampler.kind" class="classattr">
+                                <div class="attr variable">
+            <span class="name">kind</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Sampler.kind"></a>
+    
+    
+
+                            </div>
+                            <div id="Sampler.options" class="classattr">
+                                <div class="attr variable">
+            <span class="name">options</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Sampler.options"></a>
+    
+    
+
+                            </div>
+                            <div id="Sampler.compiled_sampler_for_task" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compiled_sampler_for_task</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">task</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">stabilizer_qec</span><span class="o">.</span><span class="n">sinter</span><span class="o">.</span><span class="n">_CompiledSampler</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Sampler.compiled_sampler_for_task"></a>
+    
+            <div class="docstring"><p>Creates, configures, and returns an object for sampling the task.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="decoders">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decoders</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoders"></a>
+    
+            <div class="docstring"><p><code>{"sq_matching": Decoder("matching"), "sq_correlated_matching": ..., ...}</code>: every
+kind, decoding the shots Stim samples.</p>
 </div>
 
 
                 </section>
-                <section id="xx_measurement">
+                <section id="samplers">
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">xx_measurement</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">basis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'x'</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span>:</span></span>
+        <span class="name">samplers</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
 
         
     </div>
-    <a class="headerlink" href="#xx_measurement"></a>
+    <a class="headerlink" href="#samplers"></a>
     
-            <div class="docstring"><p>X⊗X, the mirror of <code><a href="#zz_measurement">zz_measurement</a></code>: two patches one above the other, merged across a
-row of seam qubits. <code>"x"</code>: the outcome and each patch's X; <code>"z"</code>: Z₁Z₂.</p>
+            <div class="docstring"><p><code>{"sq_sim_matching": Sampler("matching"), ...}</code>: every kind, with the sampling done
+here too.</p>
 </div>
 
 
                 </section>
-                <section id="cnot">
+                <section id="sinter_decoders">
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">cnot</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">inputs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'z'</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span>:</span></span>
+        <span class="name">sinter_decoders</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
 
         
     </div>
-    <a class="headerlink" href="#cnot"></a>
+    <a class="headerlink" href="#sinter_decoders"></a>
     
-            <div class="docstring"><p>A logical CNOT by surgery: control, an ancilla in |+⟩ and target in an L; Z_C Z_A, then
-X_A X_T, then the ancilla read in Z. <code>inputs="z"</code>: |0⟩|0⟩, observables Z_C and Z_T with
-its Pauli frame; <code>"x"</code>: |+⟩|+⟩, observables X_T and X_C X_T with its frame.</p>
-</div>
-
-
-                </section>
-                <section id="repeated_zz">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">repeated_zz</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">k</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#repeated_zz"></a>
-    
-            <div class="docstring"><p><code>k</code> Z⊗Z measurements in a row on two patches in |0⟩|0⟩, each of <code>merged</code> rounds and
-followed by a round apart. Observables: each outcome, then Z₁ and Z₂.</p>
-</div>
-
-
-                </section>
-                <section id="line">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">line</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">n</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#line"></a>
-    
-            <div class="docstring"><p><code>n</code> patches in a row, all in |0⟩, merged at once: each neighbouring pair's Z⊗Z, n − 1
-parities (not the n-body product). Observables: each seam's outcome, then each patch's Z.</p>
+            <div class="docstring"><p>Both, for <code>sinter collect --custom_decoders_module_function
+"<a href="">stabilizer_qec.sinter</a>:sinter_decoders"</code>.</p>
 </div>
 
 

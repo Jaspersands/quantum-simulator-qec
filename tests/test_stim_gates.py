@@ -9,6 +9,8 @@ converted differently, or detection rates apart from Stim's."""
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 
@@ -104,13 +106,27 @@ def stabilizer_measurements(rng, prefix, n):
     return out
 
 
-def random_case(seed, n=4, layers=12, correlated=True, disjoint=False):
+def pauli_observable(rng, prefix):
+    """An observable of Pauli targets: a stabilizer of the state `prefix` prepares, so its value
+    is deterministic, some targets inverted."""
+    sim = stim.TableauSimulator()
+    sim.do(stim.Circuit("\n".join(prefix)))
+    for s in rng.permutation(sim.canonical_stabilizers()):
+        targets = [f"{'!' if rng.random() < 0.3 else ''}{'_XYZ'[p]}{q}" for q, p in enumerate(s) if p]
+        if targets:
+            return f"OBSERVABLE_INCLUDE(1) {' '.join(targets)}"
+    return "TICK"
+
+
+def random_case(seed, n=4, layers=12, correlated=True, disjoint=False, paulis=False):
     rng = np.random.default_rng(seed)
     u = random_unitary(rng, n, layers)
     noisy, prefix = [], [f"R {' '.join(map(str, range(n)))}"]
     for k, line in enumerate(u):
         noisy.append(line)
         prefix.append(line)
+        if paulis and k == len(u) // 2:
+            noisy.append(pauli_observable(rng, prefix))
         if k % 3 == 2:
             noisy.extend(noise(rng, n, correlated))
             if disjoint:
@@ -180,6 +196,95 @@ def test_disjoint_channels_approximated_as_stim_approximates(seed):
     r2 = theirs.compile_detector_sampler(seed=seed).sample(shots, append_observables=True).mean(axis=0)
     sigma = np.sqrt((r1 * (1 - r1) + r2 * (1 - r2)) / shots) + 1e-9
     assert np.abs((r1 - r2) / sigma).max() < 5.5
+
+
+TAGS = ["noise", "a#b", "with space", "k=1,2", "x(y)"]
+
+
+def same_as_stims(ours, theirs):
+    """Our circuit prints as Stim's, but for `M(0)`, which we print as the `M` it is."""
+    norm = lambda c: re.sub(r"(M[A-Z]*(?:\[[^\]]*\])?)\(0\)", r"\1", str(c))
+    return norm(stim.Circuit(str(ours))) == norm(theirs)
+
+
+def tagged(rng, text):
+    """`text` with Stim tags on about half its instructions."""
+    out = []
+    for line in text.split("\n"):
+        name = re.match(r"\s*[A-Z0-9_]*", line).end()
+        if name and rng.random() < 0.5 and not line.strip().startswith("}"):
+            line = f"{line[:name]}[{rng.choice(TAGS)}]{line[name:]}"
+        out.append(line)
+    return "\n".join(out)
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_tags_print_and_reach_the_error_model_as_in_stim(seed):
+    text = tagged(np.random.default_rng(seed), random_case(2000 + seed))
+    ours, theirs = sq.Circuit(text), stim.Circuit(text)
+    assert same_as_stims(ours, theirs)
+    assert sq.Circuit(str(ours)) == ours
+    got, want = str(ours.detector_error_model()), str(theirs.detector_error_model().flattened())
+    a, b = canon(got), canon(want)
+    assert set(a) == set(b)
+    for k in a:
+        assert a[k] == pytest.approx(b[k], rel=1e-9, abs=1e-15)
+    declared = lambda t: {x.strip() for x in t.splitlines() if x.strip().startswith(("detector[", "logical_observable["))}
+    assert declared(got) == declared(want)
+    assert sq.DetectorErrorModel(got).num_errors == ours.detector_error_model().num_errors
+    meas = theirs.compile_sampler(seed=seed).sample(100)
+    want = theirs.compile_m2d_converter().convert(measurements=meas, append_observables=True)
+    assert np.array_equal(ours.compile_m2d_converter().convert(measurements=meas, append_observables=True), want)
+
+
+def test_tagged_loops_and_annotations():
+    text = str(sq.memory_circuit(distance=3, rounds=4, p=0.01))
+    text = text.replace("REPEAT", "REPEAT[rounds]").replace("DETECTOR(", "DETECTOR[check](").replace("SHIFT_COORDS(", "SHIFT_COORDS[t](")
+    text = text.replace("OBSERVABLE_INCLUDE(", "OBSERVABLE_INCLUDE[logical](")
+    ours, theirs = sq.Circuit(text), stim.Circuit(text)
+    assert same_as_stims(ours, theirs)
+    got, want = str(ours.detector_error_model(decompose_errors=True)), str(theirs.detector_error_model(decompose_errors=True).flattened())
+    from conftest import assert_same_model
+
+    assert_same_model(got, want)
+    lines = lambda t, p: sorted(x.strip() for x in t.splitlines() if x.strip().startswith(p))
+    assert lines(got, "detector[check]") == lines(want, "detector[check]") and len(lines(got, "detector[check]")) == 32
+    assert "logical_observable[logical] L0" in got
+    # A tag is kept as written, and a tag's '#' is not a comment.
+    assert str(sq.Circuit("H[a#b] 0 # comment")).strip() == "H[a#b] 0"
+    assert str(sq.Circuit("H[] 0")).strip() == "H 0"
+    for bad in ["H [x] 0", "H[x 0", "H[a]b 0"]:
+        with pytest.raises(ValueError):
+            sq.Circuit(bad)
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_pauli_observables_as_in_stim(seed):
+    text = random_case(3000 + seed, paulis=True)
+    ours, theirs = sq.Circuit(text), stim.Circuit(text)
+    assert same_as_stims(ours, theirs)
+    assert ours.num_observables == theirs.num_observables
+    a = canon(str(ours.detector_error_model()))
+    b = canon(str(theirs.detector_error_model().flattened()))
+    assert set(a) == set(b)
+    for k in a:
+        assert a[k] == pytest.approx(b[k], rel=1e-9, abs=1e-15)
+    meas = theirs.compile_sampler(seed=seed).sample(100)
+    want = theirs.compile_m2d_converter().convert(measurements=meas, append_observables=True)
+    assert np.array_equal(ours.compile_m2d_converter().convert(measurements=meas, append_observables=True), want)
+    shots = 20_000
+    r1 = ours.compile_detector_sampler(seed=seed).sample(shots, append_observables=True).mean(axis=0)
+    r2 = theirs.compile_detector_sampler(seed=seed).sample(shots, append_observables=True).mean(axis=0)
+    sigma = np.sqrt((r1 * (1 - r1) + r2 * (1 - r2)) / shots) + 1e-9
+    assert np.abs((r1 - r2) / sigma).max() < 5.5
+
+
+def test_pauli_observables_must_be_deterministic():
+    with pytest.raises(ValueError, match="not deterministic"):
+        sq.Circuit("R 0\nOBSERVABLE_INCLUDE(0) X0\nM 0\nDETECTOR rec[-1]").detector_error_model()
+    for bad in ["OBSERVABLE_INCLUDE(0) X0*Z1", "OBSERVABLE_INCLUDE(0) W0", "OBSERVABLE_INCLUDE(0) !rec[-1]"]:
+        with pytest.raises(ValueError):
+            sq.Circuit("M 0 1\n" + bad)
 
 
 def test_approximation_thresholds_as_stim():

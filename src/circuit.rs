@@ -14,6 +14,7 @@
 //! nobody asked.
 
 use std::fmt::Write as _;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Basis {
@@ -44,18 +45,24 @@ pub enum Instr {
     PauliChannel1 { px: f64, py: f64, pz: f64, qubits: Vec<u32> },
     /// `recs` are lookbacks: 1 is `rec[-1]`.
     Detector { coords: Vec<f64>, recs: Vec<u32> },
-    Observable { index: u32, recs: Vec<u32> },
+    /// `recs` as for a detector; `paulis` are Pauli targets (`X3`, `!Z0`): the observable
+    /// takes in that Pauli's value at this point of the circuit, which errors before it that
+    /// anticommute with it flip. `true` marks an inverted target.
+    Observable { index: u32, recs: Vec<u32>, paulis: Vec<(u32, Pauli, bool)> },
     QubitCoords { coords: Vec<f64>, qubits: Vec<u32> },
     ShiftCoords(Vec<f64>),
     Tick,
-    Repeat { count: u64, body: Vec<Instr> },
+    /// `tag` is Stim's instruction tag (`REPEAT[tag] 5 {`), empty for none.
+    Repeat { count: u64, body: Vec<Instr>, tag: String },
     /// `S`: the phase gate. With H and CX it generates every Clifford gate.
     S(Vec<u32>),
     /// A gate of Stim's that the engine runs as its exact decomposition into its own
     /// instructions (`gates.rs` for the unitary ones; the Y basis, Pauli products and inverted
     /// targets built here): printed as `line`, run as `body`, which records exactly as many
-    /// measurements as the gate does.
-    Gate { line: String, body: Vec<Instr> },
+    /// measurements as the gate does. A tagged instruction (`H[tag] 0`, Stim's tags, which
+    /// change nothing it does) is a gate too: `tag` holds the tag, carried to the error model,
+    /// and `body` the instruction untagged.
+    Gate { line: String, body: Vec<Instr>, tag: String },
     /// `E` (`CORRELATED_ERROR`), and `ELSE_CORRELATED_ERROR` when `chained`: with probability
     /// `p`, the Pauli product `paulis`; a chained one only where no earlier error of its chain
     /// fired.
@@ -112,6 +119,7 @@ impl Instr {
             Instr::S(qubits) | Instr::Heralded { qubits, .. } => qubits.clone(),
             Instr::Feedback { qubit, .. } => vec![*qubit],
             Instr::Correlated { paulis, .. } => paulis.iter().map(|&(q, _)| q).collect(),
+            Instr::Observable { paulis, .. } => paulis.iter().map(|&(q, ..)| q).collect(),
             Instr::PauliChannel2 { pairs, .. } => pairs.iter().flat_map(|&(a, b)| [a, b]).collect(),
             _ => Vec::new(),
         }
@@ -137,6 +145,19 @@ pub struct Resolved {
     pub detector_coords: Vec<Vec<f64>>,
     /// Absolute measurement indices each observable accumulates.
     pub observables: Vec<Vec<usize>>,
+    /// The tagged instructions of `instrs`, by index, in order.
+    pub tags: Vec<(usize, Arc<str>)>,
+    /// Each tagged detector's tag, by detector, in order.
+    pub detector_tags: Vec<(usize, Arc<str>)>,
+    /// Each observable's tag: the first `OBSERVABLE_INCLUDE` of it with one.
+    pub observable_tags: Vec<String>,
+}
+
+impl Resolved {
+    /// Instruction `idx`'s tag, if it has one.
+    pub fn tag(&self, idx: usize) -> Option<&Arc<str>> {
+        self.tags.binary_search_by_key(&idx, |t| t.0).ok().map(|i| &self.tags[i].1)
+    }
 }
 
 impl Circuit {
@@ -153,7 +174,8 @@ impl Circuit {
         s
     }
 
-    /// REPEAT blocks expanded, SHIFT_COORDS folded into the coordinates they move.
+    /// REPEAT blocks expanded, SHIFT_COORDS folded into the coordinates they move. Gates stay
+    /// whole, as in Stim's `flattened`.
     pub fn flattened(&self) -> Circuit {
         let mut out = Vec::new();
         let mut shift = Vec::new();
@@ -169,7 +191,12 @@ impl Circuit {
                  this engine holds: it expands every REPEAT block"
             ));
         }
-        let flat = self.flattened().instrs;
+        let mut flat = Vec::new();
+        let mut tags = Vec::new();
+        expand_gates(&self.flattened().instrs, None, &mut flat, &mut tags);
+        let mut detector_tags = Vec::new();
+        let mut observable_tags: Vec<String> = Vec::new();
+        let mut next_tag = 0usize;
         let mut num_qubits = 0usize;
         let mut m = 0usize;
         let mut sweeps = 0usize;
@@ -183,10 +210,17 @@ impl Circuit {
                 Ok(m - k as usize)
             }
         };
-        for ins in &flat {
+        for (idx, ins) in flat.iter().enumerate() {
             for q in ins.qubits() {
                 num_qubits = num_qubits.max(q as usize + 1);
             }
+            let tag = match tags.get(next_tag) {
+                Some((i, t)) if *i == idx => {
+                    next_tag += 1;
+                    Some(t)
+                }
+                _ => None,
+            };
             match ins {
                 Instr::Measure { qubits, .. } => m += qubits.len(),
                 Instr::Pad { values, .. } => m += values.len(),
@@ -202,16 +236,23 @@ impl Circuit {
                 }
                 Instr::Detector { coords, recs } => {
                     let abs = recs.iter().map(|&k| absolute(k, m)).collect::<Result<Vec<_>, _>>()?;
+                    if let Some(t) = tag {
+                        detector_tags.push((detectors.len(), Arc::clone(t)));
+                    }
                     detectors.push(abs);
                     detector_coords.push(coords.clone());
                 }
-                Instr::Observable { index, recs } => {
+                Instr::Observable { index, recs, .. } => {
                     let i = *index as usize;
                     if i >= 64 {
                         return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
                     }
                     if observables.len() <= i {
                         observables.resize(i + 1, Vec::new());
+                        observable_tags.resize(i + 1, String::new());
+                    }
+                    if let Some(t) = tag.filter(|_| observable_tags[i].is_empty()) {
+                        observable_tags[i] = t.to_string();
                     }
                     for &k in recs {
                         observables[i].push(absolute(k, m)?);
@@ -228,6 +269,9 @@ impl Circuit {
             detectors,
             detector_coords,
             observables,
+            tags,
+            detector_tags,
+            observable_tags,
         })
     }
 }
@@ -236,7 +280,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
     let mut out = Vec::new();
     while *pos < lines.len() {
         let lineno = *pos + 1;
-        let line = lines[*pos].split('#').next().unwrap_or("").trim();
+        let line = strip_comment(lines[*pos]).trim();
         *pos += 1;
         if line.is_empty() {
             continue;
@@ -248,17 +292,17 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
             return Err(format!("line {lineno}: unmatched '}}'"));
         }
         if let Some(rest) = line.strip_suffix('{') {
-            let mut parts = rest.split_whitespace();
-            let name = parts.next().unwrap_or("");
-            if !name.eq_ignore_ascii_case("REPEAT") {
+            let (name, tag, args, parts) = split_instruction(rest).map_err(|e| format!("line {lineno}: {e}"))?;
+            if name != "REPEAT" {
                 return Err(format!("line {lineno}: only REPEAT opens a block, got '{name}'"));
             }
-            let count: u64 = parts
-                .next()
-                .and_then(|s| s.parse().ok())
-                .ok_or_else(|| format!("line {lineno}: REPEAT needs a count"))?;
+            let count: u64 = match (args.is_empty(), parts.as_slice()) {
+                (true, [n]) => n.parse().ok(),
+                _ => None,
+            }
+            .ok_or_else(|| format!("line {lineno}: REPEAT needs a count"))?;
             let body = parse_block(lines, pos, true)?;
-            out.push(Instr::Repeat { count, body });
+            out.push(Instr::Repeat { count, body, tag: tag.to_string() });
             continue;
         }
         out.push(parse_line(line).map_err(|e| format!("line {lineno}: {e}"))?);
@@ -269,17 +313,51 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
     Ok(out)
 }
 
-/// Split `NAME(a, b) t1 t2` into its name (upper-cased), arguments and targets.
+/// A line without its comment: from the first `#` outside brackets (a tag may hold one).
+pub(crate) fn strip_comment(line: &str) -> &str {
+    let mut depth = 0usize;
+    for (i, c) in line.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            '#' if depth == 0 => return &line[..i],
+            _ => {}
+        }
+    }
+    line
+}
+
+/// Where a line's instruction name ends.
+fn name_end(line: &str) -> usize {
+    line.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(line.len())
+}
+
+/// An instruction line's name, tag, arguments and targets.
+pub(crate) type Split<'a> = (String, &'a str, Vec<f64>, Vec<&'a str>);
+
+/// Split `NAME[tag](a, b) t1 t2` into its name (upper-cased), tag (empty for none), arguments
+/// and targets. The tag is kept as written, Stim's escapes (`\B`, `\C`, `\n`, `\r`) included.
 /// Shared with the `.dem` reader, whose lines have the same shape.
-pub(crate) fn split_instruction(line: &str) -> Result<(String, Vec<f64>, Vec<&str>), String> {
-    let name_end = line
-        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-        .unwrap_or(line.len());
+pub(crate) fn split_instruction(line: &str) -> Result<Split<'_>, String> {
+    let name_end = name_end(line);
     if name_end == 0 {
         return Err(format!("expected an instruction name in '{line}'"));
     }
     let name = line[..name_end].to_ascii_uppercase();
-    let mut rest = line[name_end..].trim_start();
+    let mut rest = &line[name_end..];
+    let mut tag = "";
+    if let Some(inner) = rest.strip_prefix('[') {
+        let close = inner.find(']').ok_or_else(|| format!("{name}: unclosed '[' in its tag"))?;
+        if inner[..close].contains(['\n', '\r']) {
+            return Err(format!("{name}: a tag cannot span lines"));
+        }
+        tag = &inner[..close];
+        rest = &inner[close + 1..];
+        if rest.starts_with(|c: char| !(c.is_whitespace() || c == '(')) {
+            return Err(format!("{name}[{tag}]: the tag must be followed by arguments or a space"));
+        }
+    }
+    let mut rest = rest.trim_start();
     let mut args = Vec::new();
     if let Some(inner) = rest.strip_prefix('(') {
         let close = inner.find(')').ok_or_else(|| format!("{name}: unclosed '('"))?;
@@ -292,7 +370,7 @@ pub(crate) fn split_instruction(line: &str) -> Result<(String, Vec<f64>, Vec<&st
         }
         rest = inner[close + 1..].trim_start();
     }
-    Ok((name, args, rest.split_whitespace().collect()))
+    Ok((name, tag, args, rest.split_whitespace().collect()))
 }
 
 /// The largest qubit index Stim accepts (its targets keep 24 bits for it).
@@ -359,7 +437,36 @@ fn rec_targets(tokens: &[&str], name: &str) -> Result<Vec<u32>, String> {
 }
 
 fn parse_line(line: &str) -> Result<Instr, String> {
-    let (name, args, t) = split_instruction(line)?;
+    let (name, tag, args, t) = split_instruction(line)?;
+    let ins = parse_instruction(&name, &args, &t)?;
+    Ok(tagged(ins, tag))
+}
+
+/// `inner` with Stim's tag `tag` (none if empty): printed with `[tag]` after its name, run as
+/// itself.
+pub(crate) fn tagged(inner: Instr, tag: &str) -> Instr {
+    if tag.is_empty() {
+        return inner;
+    }
+    let splice = |line: &str| {
+        let end = name_end(line);
+        format!("{}[{tag}]{}", &line[..end], &line[end..])
+    };
+    match inner {
+        Instr::Gate { line, body, .. } => Instr::Gate { line: splice(&line), body, tag: tag.to_string() },
+        Instr::Repeat { count, body, .. } => Instr::Repeat { count, body, tag: tag.to_string() },
+        other => {
+            let mut line = String::new();
+            emit(std::slice::from_ref(&other), "", &mut line);
+            Instr::Gate { line: splice(line.trim_end()), body: vec![other], tag: tag.to_string() }
+        }
+    }
+}
+
+fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, String> {
+    let name = name.to_string();
+    let args = args.to_vec();
+    let t = t.to_vec();
     let none = || -> Result<(), String> {
         if args.is_empty() {
             Ok(())
@@ -410,7 +517,7 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             if t.iter().any(|x| x.starts_with("rec[") || x.starts_with("sweep[")) =>
         {
             none()?;
-            Instr::Gate { line: gate_line(&name, &args, &t), body: controlled_pairs(&name, &t)? }
+            Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body: controlled_pairs(&name, &t)? }
         }
         "I" | "X" | "Y" | "Z" => {
             none()?;
@@ -453,7 +560,7 @@ fn parse_line(line: &str) -> Result<Instr, String> {
                         body.push(Instr::Pauli { pauli: flipper, qubits: vec![q] });
                     }
                 }
-                Instr::Gate { line: gate_line(&name, &args, &t), body }
+                Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body }
             }
         }
         "X_ERROR" | "Y_ERROR" | "Z_ERROR" => {
@@ -488,7 +595,24 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             if i < 0.0 || i.fract() != 0.0 {
                 return Err(format!("{name}: observable index must be a non-negative integer"));
             }
-            Instr::Observable { index: i as u32, recs: rec_targets(&t, &name)? }
+            let mut recs = Vec::new();
+            let mut paulis = Vec::new();
+            for tok in &t {
+                if tok.starts_with("rec[") {
+                    recs.extend(rec_targets(&[tok], &name)?);
+                    continue;
+                }
+                let (body, inverted) = match tok.strip_prefix('!') {
+                    Some(b) => (b, true),
+                    None => (*tok, false),
+                };
+                let code = body.chars().next().and_then(pauli_code).filter(|&c| c != 0);
+                let (Some(code), Some(q)) = (code, body.get(1..)) else {
+                    return Err(format!("{name}: bad target '{tok}': a record (rec[-k]) or a Pauli (X3, !Z0)"));
+                };
+                paulis.push((qubit(q, &name)?, code, inverted));
+            }
+            Instr::Observable { index: i as u32, recs, paulis }
         }
         "QUBIT_COORDS" => Instr::QubitCoords { coords: args.clone(), qubits: qubit_targets(&t, &name)? },
         "SHIFT_COORDS" => {
@@ -513,12 +637,12 @@ fn parse_line(line: &str) -> Result<Instr, String> {
                 return Err(format!("{name} takes at most one argument"));
             }
             let flip = if args.is_empty() { 0.0 } else { prob(0)? };
-            Instr::Gate { line: gate_line(&name, &args, &t), body: pauli_measurements(&name, flip, &t)? }
+            Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body: pauli_measurements(&name, flip, &t)? }
         }
         "RY" => {
             none()?;
             let body = qubit_targets(&t, &name)?.into_iter().flat_map(reset_y).collect();
-            Instr::Gate { line: gate_line(&name, &args, &t), body }
+            Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body }
         }
         "SPP" | "SPP_DAG" => {
             none()?;
@@ -530,7 +654,7 @@ fn parse_line(line: &str) -> Result<Instr, String> {
                 let phase = if dag { vec![Instr::S(vec![q0]), Instr::S(vec![q0]), Instr::S(vec![q0])] } else { vec![Instr::S(vec![q0])] };
                 body.extend(around_product(&product, phase));
             }
-            Instr::Gate { line: gate_line(&name, &args, &t), body }
+            Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body }
         }
         "E" | "CORRELATED_ERROR" | "ELSE_CORRELATED_ERROR" => {
             exactly(1)?;
@@ -595,7 +719,7 @@ fn parse_line(line: &str) -> Result<Instr, String> {
             } else {
                 qubit_targets(&t, &name)?;
             }
-            Instr::Gate { line: gate_line(&name, &args, &t), body: Vec::new() }
+            Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body: Vec::new() }
         }
         _ => match crate::gates::find(&name) {
             Some(def) => {
@@ -612,7 +736,7 @@ fn parse_line(line: &str) -> Result<Instr, String> {
                         crate::gates::Step::Cx(i, j) => Instr::Cx(vec![(slots[i as usize], slots[j as usize])]),
                     }));
                 }
-                Instr::Gate { line: gate_line(&name, &args, &t), body }
+                Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body }
             }
             None => return Err(format!("unsupported instruction '{name}'")),
         },
@@ -826,8 +950,9 @@ const MAX_UNROLLED: u64 = 1 << 24;
 fn unrolled_size(instrs: &[Instr]) -> u64 {
     instrs.iter().fold(0u64, |n, ins| {
         n.saturating_add(match ins {
-            Instr::Repeat { count, body } => count.saturating_mul(unrolled_size(body)),
-            Instr::Detector { recs, .. } | Instr::Observable { recs, .. } => 1 + recs.len() as u64,
+            Instr::Repeat { count, body, .. } => count.saturating_mul(unrolled_size(body)),
+            Instr::Detector { recs, .. } => 1 + recs.len() as u64,
+            Instr::Observable { recs, paulis, .. } => 1 + (recs.len() + paulis.len()) as u64,
             other => 1 + other.qubits().len() as u64,
         })
     })
@@ -839,12 +964,20 @@ fn flatten_into(instrs: &[Instr], out: &mut Vec<Instr>, shift: &mut Vec<f64>) {
     };
     for ins in instrs {
         match ins {
-            Instr::Repeat { count, body } => {
+            Instr::Repeat { count, body, .. } => {
                 for _ in 0..*count {
                     flatten_into(body, out, shift);
                 }
             }
-            Instr::Gate { body, .. } => flatten_into(body, out, shift),
+            // A tagged annotation moves with the coordinates, and keeps its tag.
+            Instr::Gate { body, tag, .. }
+                if !tag.is_empty()
+                    && matches!(body.as_slice(), [Instr::Detector { .. } | Instr::QubitCoords { .. } | Instr::ShiftCoords(_)]) =>
+            {
+                let mut inner = Vec::new();
+                flatten_into(body, &mut inner, shift);
+                out.extend(inner.into_iter().map(|i| tagged(i, tag)));
+            }
             Instr::ShiftCoords(s) => {
                 if shift.len() < s.len() {
                     shift.resize(s.len(), 0.0);
@@ -860,6 +993,25 @@ fn flatten_into(instrs: &[Instr], out: &mut Vec<Instr>, shift: &mut Vec<f64>) {
                 out.push(Instr::QubitCoords { coords: shifted(coords, shift), qubits: qubits.clone() })
             }
             other => out.push(other.clone()),
+        }
+    }
+}
+
+/// Gates replaced by their bodies, each instruction from a tagged one noted in `tags` by its
+/// index in `out`.
+fn expand_gates(instrs: &[Instr], tag: Option<&Arc<str>>, out: &mut Vec<Instr>, tags: &mut Vec<(usize, Arc<str>)>) {
+    for ins in instrs {
+        match ins {
+            Instr::Gate { body, tag: own, .. } => {
+                let own = (!own.is_empty()).then(|| Arc::<str>::from(own.as_str()));
+                expand_gates(body, own.as_ref().or(tag), out, tags);
+            }
+            other => {
+                if let Some(t) = tag {
+                    tags.push((out.len(), Arc::clone(t)));
+                }
+                out.push(other.clone());
+            }
         }
     }
 }
@@ -926,7 +1078,13 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                 format!("{} {}", with_args("PAULI_CHANNEL_1", &[*px, *py, *pz]), join_q(qubits))
             }
             Instr::Detector { coords, recs } => format!("{} {}", with_args("DETECTOR", coords), join_recs(recs)),
-            Instr::Observable { index, recs } => format!("OBSERVABLE_INCLUDE({index}) {}", join_recs(recs)),
+            Instr::Observable { index, recs, paulis } => {
+                let mut targets = join_recs(recs);
+                for &(q, p, inverted) in paulis {
+                    let _ = write!(targets, " {}{}{q}", if inverted { "!" } else { "" }, ["I", "X", "Z", "Y"][p as usize]);
+                }
+                format!("OBSERVABLE_INCLUDE({index}) {}", targets.trim_start())
+            }
             Instr::QubitCoords { coords, qubits } => {
                 format!("{} {}", with_args("QUBIT_COORDS", coords), join_q(qubits))
             }
@@ -952,8 +1110,9 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                 let v: Vec<&str> = values.iter().map(|&b| if b { "1" } else { "0" }).collect();
                 format!("{} {}", with_args("MPAD", args), v.join(" "))
             }
-            Instr::Repeat { count, body } => {
-                let _ = writeln!(s, "{indent}REPEAT {count} {{");
+            Instr::Repeat { count, body, tag } => {
+                let tag = if tag.is_empty() { String::new() } else { format!("[{tag}]") };
+                let _ = writeln!(s, "{indent}REPEAT{tag} {count} {{");
                 emit(body, &format!("{indent}    "), s);
                 let _ = writeln!(s, "{indent}}}");
                 continue;

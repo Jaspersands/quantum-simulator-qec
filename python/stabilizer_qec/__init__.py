@@ -35,9 +35,11 @@ over: `Circuit`, `compile_detector_sampler` and `separate_observables` are Stim'
 three bases with inverted targets (`!q`), Pauli-product measurements and rotations (`MPP`,
 `MXX`, `MYY`, `MZZ`, `SPP`), every noise channel (`X_ERROR` ... `PAULI_CHANNEL_2`, `E`,
 `ELSE_CORRELATED_ERROR`, `HERALDED_ERASE`, `HERALDED_PAULI_CHANNEL_1`), measurement feedback
-and sweep bits (`CX rec[-1] q`, `CZ sweep[k] q`), `MPAD`, detectors, observables,
-coordinates, `TICK` and `REPEAT`. Channels whose cases are disjoint enter an error model only
-with `approximate_disjoint_errors`, as in Stim.
+and sweep bits (`CX rec[-1] q`, `CZ sweep[k] q`), `MPAD`, detectors, observables (of
+measurement records, and of Pauli targets: `OBSERVABLE_INCLUDE(0) X0 Z1`), coordinates, `TICK`,
+`REPEAT`, and instruction tags (`H[tag] 0`), which reach the error model as in Stim. Channels
+whose cases are disjoint enter an error model only with `approximate_disjoint_errors`, as in
+Stim.
 
 Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 `BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
@@ -49,6 +51,26 @@ Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 Shots are numpy arrays: one row per shot, `bool` per detector, or bit-packed `uint8` rows
 (bit k of a row in byte k // 8, at position k % 8: `numpy.packbits(..., bitorder="little")`),
 the layout Stim and PyMatching use. Predictions are `uint8` 0/1 per observable.
+
+## Many processes, and sinter
+
+Circuits, error models, converters and decoders pickle and copy, so they cross into
+`multiprocessing` and `concurrent.futures` workers (a decoder is rebuilt there from its model
+and options). A sampler does not: send the circuit and a seed.
+
+`stabilizer_qec.sinter` puts the decoders into [sinter](https://pypi.org/project/sinter/)'s
+sweeps, decoding the shots Stim samples (`sq_matching`, `sq_correlated_matching`,
+`sq_belief_matching`, `sq_bposd`) or running the whole pipeline here (`sq_sim_matching`, ...):
+
+    import sinter
+    from stabilizer_qec import sinter as sq_sinter
+
+    stats = sinter.collect(tasks=tasks, decoders=["sq_matching", "pymatching"],
+                           custom_decoders=sq_sinter.sinter_decoders(), num_workers=8,
+                           max_shots=100_000)
+
+From the command line: `sinter collect ... --decoders sq_matching
+--custom_decoders_module_function "stabilizer_qec.sinter:sinter_decoders"`.
 
 ## Promises
 

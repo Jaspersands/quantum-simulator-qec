@@ -62,12 +62,14 @@ def lines(draw, depth=0):
             st.sampled_from(
                 ["TICK", "", "# comment", "}", "SHIFT_COORDS(0, 1)", "QUBIT_COORDS(1, 2) 0", "CX rec[-1] 2", "CZ 1 rec[-2]",
                  "XCZ 0 sweep[1]", "CY rec[-0] 1", "HERALDED_ERASE(0.1) 0 1", "HERALDED_PAULI_CHANNEL_1(0.1, 0.1, 0, 0.1) 2",
-                 "E(0.1) X0\nELSE_CORRELATED_ERROR(0.2) Z1"]
+                 "E(0.1) X0\nELSE_CORRELATED_ERROR(0.2) Z1", "H[t] 0", "M[a#b](0.1) 1", "DETECTOR[d](1) rec[-1]",
+                 "OBSERVABLE_INCLUDE(0) X0 !Z1", "OBSERVABLE_INCLUDE[o](1) rec[-1] Y2", "H[unclosed 0", "X[] 1", "H[x]y 0"]
             )
         )
     count = draw(st.one_of(st.integers(0, 4).map(str), st.just("1000000000"), numbers))
     body = "\n".join(draw(st.lists(lines(depth + 1), min_size=1, max_size=3)))
-    return f"REPEAT {count} {{\n{body}\n}}"
+    tag = draw(st.sampled_from(["", "", "[loop]", "[]"]))
+    return f"REPEAT{tag} {count} {{\n{body}\n}}"
 
 
 circuits = st.lists(lines(), min_size=1, max_size=10).map(lambda ls: "R 0 1 2 3\nM 0 1\n" + "\n".join(ls))
@@ -79,13 +81,13 @@ def dems(draw):
     for _ in range(draw(st.integers(1, 8))):
         kind = draw(st.integers(0, 5))
         if kind == 0:
-            out.append(f"detector({draw(numbers)}) D{draw(st.integers(0, 6))}")
+            out.append(f"detector{draw(st.sampled_from(['', '[d]']))}({draw(numbers)}) D{draw(st.integers(0, 6))}")
         elif kind == 1:
-            out.append(f"logical_observable L{draw(st.sampled_from(['0', '1', '63', '64']))}")
+            out.append(f"logical_observable{draw(st.sampled_from(['', '[o]']))} L{draw(st.sampled_from(['0', '1', '63', '64']))}")
         elif kind == 2:
             out.append(f"shift_detectors {draw(numbers)}")
         elif kind == 3:
-            out.append(f"repeat {draw(numbers)} {{\nerror(0.1) D0 D1\nshift_detectors 2\n}}")
+            out.append(f"repeat {draw(numbers)} {{\nerror[t](0.1) D0 D1\nshift_detectors[s] 2\n}}")
         else:
             pieces = [
                 " ".join(draw(st.lists(st.one_of(st.integers(0, 7).map(lambda d: f"D{d}"), st.integers(0, 2).map(lambda o: f"L{o}")), min_size=1, max_size=3)))
@@ -110,7 +112,7 @@ def test_any_circuit_text(text):
         return
     assert sq.Circuit(str(c)) == c
     # Loops are unrolled for an error model: a million passes is legitimate work, and slow.
-    counts = [int(m) for m in re.findall(r"REPEAT\s+(\d+)", text)]
+    counts = [int(m) for m in re.findall(r"REPEAT(?:\[[^\]]*\])?\s+(\d+)", text)]
     # So are a circuit's per-qubit arrays: qubit 16,777,215 costs 16.7 million of them.
     modest = math.prod(counts) <= 10_000 and c.num_qubits <= 4096  # nested loops multiply
     for decompose in (False, True) if modest else ():
@@ -148,7 +150,8 @@ def test_any_model_text(text):
         return
     if dem.num_errors > 10_000 or dem.num_detectors > 100_000:  # large, legitimately: slow to decode
         return
-    assert sq.DetectorErrorModel(str(dem)).num_errors <= dem.num_errors
+    again = sq.DetectorErrorModel(str(dem))
+    assert again.num_errors <= dem.num_errors and again.num_observables == dem.num_observables
     shots = np.zeros((2, dem.num_detectors), dtype=bool)
     shots[1, ::2] = True
     for make in (lambda: sq.Matching(dem), lambda: sq.BpOsd(dem, max_iter=5, osd_order=2), lambda: sq.WindowMatching(dem, commit=1, buffer=1)):

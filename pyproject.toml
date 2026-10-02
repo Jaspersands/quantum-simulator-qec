@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "stabilizer-qec"
 # The Python package is versioned on its own; the Rust crate has its own version (Cargo.toml).
-version = "1.0.0"
+version = "1.1.0"
 description = "A quantum error-correction simulator and decoder in Rust: circuits and error models in Stim's formats, exact sparse-blossom, correlated and belief matching, BP+OSD for IBM's gross code, lattice surgery, and window decoders for real time."
 readme = "python/README.md"
 license = { file = "LICENSE" }
@@ -30,6 +30,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
     "Typing :: Typed",
 ]
+
+[project.optional-dependencies]
+# For stabilizer_qec.sinter: this package's decoders and engine in sinter's sweeps.
+sinter = ["sinter>=1.14", "stim>=1.14"]
 
 [project.urls]
 Homepage = "https://qcompiler.jaspersands.com"

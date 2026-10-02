@@ -4,6 +4,42 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 1.1.0 — 2026-10-02
+
+The Python package and the Rust crate both at 1.1.0. The crate gains the circuit-language
+additions below (its API is unchanged); the rest is the Python package's.
+
+
+### Added
+
+- Stim's instruction tags: `H[tag] 0`, `REPEAT[tag] 5 {`, `DETECTOR[tag](1, 2) rec[-1]`, on
+  every instruction. Tags change nothing a circuit does, print back as written, and reach the
+  error model as Stim carries them: `error[tag](p)` for faults of tagged noise (faults with
+  different tags kept apart), `detector[tag]` and `logical_observable[tag]`. Error models read
+  tags too. A `#` inside a tag is not a comment.
+- Pauli targets in `OBSERVABLE_INCLUDE` (`OBSERVABLE_INCLUDE(0) X0 !Z3 rec[-1]`): the observable
+  takes in the Pauli's value at that point, so errors before it that anticommute with it flip
+  it. In error models and both samplers, as in Stim; a Pauli observable the state does not fix
+  is refused as Stim refuses it, and raw measurements convert as Stim converts them.
+
+- `stabilizer_qec.sinter`: the decoders in [sinter](https://pypi.org/project/sinter/)'s
+  Monte Carlo sweeps. `sinter_decoders()` names them for `custom_decoders` (and for
+  `sinter collect --custom_decoders_module_function "stabilizer_qec.sinter:sinter_decoders"`):
+  `sq_matching`, `sq_correlated_matching`, `sq_belief_matching` and `sq_bposd` decode the shots
+  Stim samples; `sq_sim_matching` and its kin are sinter samplers running the whole pipeline
+  here, postselection included. `Decoder(kind, **options)` and `Sampler(kind, **options)` make
+  others. A `sinter` extra installs sinter and Stim.
+- Pickling and copying (`pickle`, `copy`, `multiprocessing`, `concurrent.futures`):
+  `Circuit` and `DetectorErrorModel` as their text; the converter and every decoder as what
+  they were made from, rebuilt on the other side (`BpDecoder` and `BpOsdDecoder` keep their
+  last run's results). A `DetectorSampler` refuses with a `TypeError` saying why: a copy would
+  restart its stream, so send the circuit and a seed instead.
+
+### Fixed
+
+- A printed error model declares observables no fault flips (`logical_observable L1`), so it
+  reads back with the same number of observables.
+
 ## Rust crate 1.0.0 — 2026-10-02
 
 The crate (`stabilizer_qec` on crates.io, released on `crate-v*` tags) gets a designed, stable
