@@ -137,3 +137,79 @@ pub fn window_info(wd: &WindowDecoder) -> Vec<WindowInfo> {
         .collect()
 }
 
+
+/// A streamed memory's outcome (see `stream_shots`).
+pub struct StreamOutcome {
+    pub failures: usize,
+    pub shots: usize,
+    /// Defects a window's commits left unexplained: an engine bug if ever nonzero.
+    pub unexplained: usize,
+    /// The first stream of each batch's per-window decode seconds, batch after batch.
+    pub times: Vec<f64>,
+    pub windows: Vec<WindowInfo>,
+    pub seconds: f64,
+}
+
+/// An SD6 memory of `rounds` rounds, sampled round by round and window-decoded as it streams,
+/// in `batches` batches of 64 shots across `threads`: each batch seeded from `seed` and its
+/// index, so the failures do not depend on the threads.
+#[allow(clippy::too_many_arguments)]
+pub fn stream_shots(
+    kind: crate::memory::CodeKind,
+    d: usize,
+    p: f64,
+    rounds: usize,
+    commit: usize,
+    buffer: usize,
+    mode: crate::window::Mode,
+    correlated: bool,
+    batches: usize,
+    seed: u64,
+    threads: usize,
+) -> Result<StreamOutcome, String> {
+    use crate::circuit::Basis;
+    use crate::stream::{run_stream, StreamDecoder};
+    use crate::surface_code::Xorshift;
+    use std::time::Instant;
+    let dec = StreamDecoder::new(kind, d, p, Basis::Z, commit, buffer, mode, rounds)?;
+    let plan = dec.plan(rounds)?;
+    let circuit = crate::memory::generate_repeat(kind, d, rounds, p, Basis::Z)?;
+    let sampler = crate::batch_sampler::BatchSampler::new(&circuit)?;
+    let threads = crate::parallel::resolve_threads(threads, batches);
+    let start = Instant::now();
+    // Per thread: failures, defects left unexplained, and window times.
+    type Part = Result<(usize, usize, Vec<f64>), String>;
+    let parts: Vec<Part> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..threads)
+            .map(|t| {
+                let (dec, plan, sampler) = (&dec, &plan, &sampler);
+                scope.spawn(move || {
+                    let clock_origin = Instant::now();
+                    let clock = move || clock_origin.elapsed().as_secs_f64();
+                    let mut scratches = dec.scratches();
+                    let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
+                    for b in (t..batches).step_by(threads) {
+                        let mut rng = Xorshift::new(seed ^ (b as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                        let (pred, truth, u, ts) = run_stream(dec, plan, sampler, &mut rng, correlated, &mut scratches, Some(&clock))
+                            .map_err(|e| format!("{e:?}"))?;
+                        failures += pred.iter().enumerate().filter(|(lane, &p)| ((p ^ (truth >> lane)) & 1) == 1).count();
+                        unexplained += u;
+                        times.extend(ts);
+                    }
+                    Ok((failures, unexplained, times))
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().expect("stream thread panicked")).collect()
+    });
+    let seconds = start.elapsed().as_secs_f64();
+    let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
+    for part in parts {
+        let (f, u, t) = part?;
+        failures += f;
+        unexplained += u;
+        times.extend(t);
+    }
+    let windows = plan.specs.iter().zip(&plan.deps).map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone())).collect();
+    Ok(StreamOutcome { failures, shots: batches * 64, unexplained, times, windows, seconds })
+}

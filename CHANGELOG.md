@@ -32,6 +32,12 @@ minor release before a major release removes it. The Rust crate is versioned on 
   unrolling, and are counted through their loops. A decoder unrolls its model once, up to
   2²⁴ faults and declarations.
 
+- The crate catches up with the Python package: `BivariateBicycleCode::automorphisms` (each
+  shift's and duality's action on the logical qubits, as `Automorphism`s),
+  `BivariateBicycleCode::gauging` (the ancilla system measuring a gross-code logical, as a
+  `Gauging`), and `stream_memory` (a memory streamed round by round and window-decoded, as a
+  `StreamResult`). The Python package and the crate now share the streaming loop.
+
 ### Changed
 
 - A built model prints as Stim prints one: errors first in each stretch, then detector

@@ -277,7 +277,17 @@ pub struct WindowOptions {
     correlations: bool,
 }
 
+impl Window {
+    pub(crate) fn from_info((a, b, c0, c1, phase, waits_for): crate::batch::WindowInfo) -> Window {
+        Window { first_layer: a, end_layer: b, commit_start: c0, commit_end: c1, phase, waits_for }
+    }
+}
+
 impl WindowOptions {
+    pub(crate) fn parts(self) -> (usize, usize, WindowMode, bool) {
+        (self.commit, self.buffer, self.mode, self.correlations)
+    }
+
     /// Windows that commit `commit` rounds with `buffer` rounds on either side, run in `mode`,
     /// plain matching.
     pub fn new(commit: usize, buffer: usize, mode: WindowMode) -> WindowOptions {
@@ -334,7 +344,7 @@ impl WindowMatching {
     pub fn windows(&self) -> Vec<Window> {
         window_info(&self.inner)
             .into_iter()
-            .map(|(a, b, c0, c1, phase, waits_for)| Window { first_layer: a, end_layer: b, commit_start: c0, commit_end: c1, phase, waits_for })
+            .map(Window::from_info)
             .collect()
     }
 

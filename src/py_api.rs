@@ -323,7 +323,6 @@ fn stream_decode<'py>(
     seed: u64,
     threads: usize,
 ) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<WindowInfo>, f64)> {
-    use crate::stream::{run_stream, StreamDecoder};
     use crate::window::Mode;
     let kind = match code {
         "rotated" => CodeKind::Rotated,
@@ -335,49 +334,9 @@ fn stream_decode<'py>(
         "parallel" => Mode::Parallel,
         other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
     };
-    let dec = StreamDecoder::new(kind, d, p, Basis::Z, commit, buffer, mode, rounds).map_err(err)?;
-    let plan = dec.plan(rounds).map_err(err)?;
-    let circuit = crate::memory::generate_repeat(kind, d, rounds, p, Basis::Z).map_err(err)?;
-    let sampler = crate::batch_sampler::BatchSampler::new(&circuit).map_err(err)?;
-    let threads = resolve_threads(threads, batches);
-    let start = Instant::now();
-    let parts: Vec<Result<(usize, usize, Vec<f64>), String>> = py.allow_threads(|| {
-        std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..threads)
-                .map(|t| {
-                    let (dec, plan, sampler) = (&dec, &plan, &sampler);
-                    scope.spawn(move || {
-                        let clock_origin = Instant::now();
-                        let clock = move || clock_origin.elapsed().as_secs_f64();
-                        let mut scratches = dec.scratches();
-                        let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
-                        for b in (t..batches).step_by(threads) {
-                            let mut rng = Xorshift::new(seed ^ (b as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
-                            let (pred, truth, u, ts) =
-                                run_stream(dec, plan, sampler, &mut rng, correlated, &mut scratches, Some(&clock))
-                                    .map_err(|e| format!("{e:?}"))?;
-                            failures += pred.iter().enumerate().filter(|(lane, &p)| ((p ^ (truth >> lane)) & 1) == 1).count();
-                            unexplained += u;
-                            times.extend(ts);
-                        }
-                        Ok((failures, unexplained, times))
-                    })
-                })
-                .collect();
-            handles.into_iter().map(|h| h.join().expect("stream thread panicked")).collect()
-        })
-    });
-    let seconds = start.elapsed().as_secs_f64();
-    let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
-    for part in parts {
-        let (f, u, t) = part.map_err(err)?;
-        failures += f;
-        unexplained += u;
-        times.extend(t);
-    }
-    let info = plan.specs.iter().zip(&plan.deps).map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone())).collect();
-    let bytes: Vec<u8> = times.iter().flat_map(|x| x.to_le_bytes()).collect();
-    Ok((failures, batches * 64, unexplained, PyBytes::new_bound(py, &bytes), info, seconds))
+    let out = py.allow_threads(|| crate::batch::stream_shots(kind, d, p, rounds, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
+    let bytes: Vec<u8> = out.times.iter().flat_map(|x| x.to_le_bytes()).collect();
+    Ok((out.failures, out.shots, out.unexplained, PyBytes::new_bound(py, &bytes), out.windows, out.seconds))
 }
 
 fn bp_method(method: &str, ms_scale: f64) -> PyResult<crate::bp::Method> {

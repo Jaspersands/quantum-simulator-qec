@@ -21,16 +21,19 @@ assert!(failures < 1_000);
 ```
 
 - **Circuits**: [`Circuit`] reads Stim's circuit language (every Clifford gate, all three bases,
-  Pauli products, every noise channel, measurement feedback, `REPEAT`) and prints it back;
-  [`Circuit::detector_error_model`] builds the error model Stim's analyzer builds, fault for
-  fault; [`DetectorSampler`] samples 64 shots to a word, reproducibly from a seed on any number
+  Pauli products, every noise channel, measurement feedback, `REPEAT`, tags, Pauli
+  observables) and prints it back, or is built in code ([`Circuit::append`] with [`Target`]s,
+  `+`, `*`); [`Circuit::detector_error_model`] builds the error model Stim's analyzer builds,
+  fault for fault, its loops folded as Stim folds them (a d = 11 memory of 10,000 rounds in a
+  tenth of a second); [`DetectorSampler`] samples 64 shots to a word, reproducibly from a seed on any number
   of threads; [`MeasurementConverter`] turns raw records into detection events.
 - **Decoders** on an error model: [`Matching`] (exact, sparse blossom; plain or correlated, as
   fast as PyMatching), [`BeliefMatching`], [`BpOsd`], [`WindowMatching`]. On a check matrix:
   [`BpDecoder`] and [`BpOsdDecoder`], equal to `ldpc`'s. All `Send + Sync`.
-- **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`BivariateBicycleCode`] (the
-  gross code and its logical measurement), [`lattice_surgery`] (Z⊗Z and X⊗X merges, a logical
-  CNOT).
+- **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`stream_memory`] (a million
+  rounds, window-decoded as they stream), [`BivariateBicycleCode`] (the gross code, its
+  automorphisms' logical action, and the gauging measurement of its logicals),
+  [`lattice_surgery`] (Z⊗Z and X⊗X merges, a logical CNOT).
 
 Shots are [`BitTable`]s, bit-packed as Stim's `b8` format. Every fallible call returns
 [`Error`]; none panics on bad input.
