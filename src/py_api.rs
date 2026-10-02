@@ -20,6 +20,7 @@ use crate::circuit::{Basis, Circuit};
 use crate::dem::Dem;
 use crate::dem_decoder::{DemDecoder, Prediction};
 use crate::frame_sampler::FrameSampler;
+use crate::py_objects::bits;
 use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots};
 use crate::py_objects::check_rows;
 use crate::memory::{generate, CodeKind, NoiseModel};
@@ -89,12 +90,12 @@ fn decode_packed<'py>(
     let nd = dem.num_detectors;
     check_rows(packed.len(), nd.div_ceil(8), num_shots, nd, "detectors")?;
     let start = Instant::now();
-    let out = py.allow_threads(|| match_shots(graph, corr, packed, nd, num_shots, threads));
+    let out = py.detach(|| match_shots(graph, corr, packed, nd, num_shots, threads));
     let seconds = start.elapsed().as_secs_f64();
     let errors = out.iter().filter(|(_, w)| w.is_nan()).count();
     let preds: Vec<u8> = out.iter().flat_map(|(o, _)| o.to_le_bytes()).collect();
     let weights: Vec<u8> = out.iter().flat_map(|(_, w)| w.to_le_bytes()).collect();
-    Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), errors, seconds))
+    Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), errors, seconds))
 }
 
 /// Decode with a model someone else wrote, pieces and all (Stim's decomposed
@@ -189,7 +190,7 @@ fn sample_b8<'py>(
         let bits: Vec<bool> = (0..no).map(|k| (shot.observables >> k) & 1 == 1).collect();
         pack_row(&bits, &mut obs);
     }
-    Ok((PyBytes::new_bound(py, &dets), PyBytes::new_bound(py, &obs)))
+    Ok((PyBytes::new(py, &dets), PyBytes::new(py, &obs)))
 }
 
 /// Raw measurements and sweep bits (b8) to detection events and observable
@@ -204,8 +205,8 @@ fn m2d_b8<'py>(
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
     let m = crate::m2d::M2d::new(&c).map_err(err)?;
-    let (d, o) = py.allow_threads(|| m.convert_b8(meas, sweeps, num_shots)).map_err(err)?;
-    Ok((PyBytes::new_bound(py, &d), PyBytes::new_bound(py, &o)))
+    let (d, o) = py.detach(|| m.convert_b8(meas, sweeps, num_shots)).map_err(err)?;
+    Ok((PyBytes::new(py, &d), PyBytes::new(py, &o)))
 }
 
 /// A circuit through this engine's parser and printer.
@@ -232,7 +233,7 @@ fn sample_b8_batch<'py>(
     let threads = resolve_threads(threads, batches);
     let per = batches.div_ceil(threads);
     let start = Instant::now();
-    let parts: Vec<(Vec<u8>, Vec<u8>)> = py.allow_threads(|| {
+    let parts: Vec<(Vec<u8>, Vec<u8>)> = py.detach(|| {
         std::thread::scope(|scope| {
             let handles: Vec<_> = (0..threads)
                 .map(|t| {
@@ -257,7 +258,7 @@ fn sample_b8_batch<'py>(
         dets.extend(d);
         obs.extend(o);
     }
-    Ok((PyBytes::new_bound(py, &dets), PyBytes::new_bound(py, &obs), seconds))
+    Ok((PyBytes::new(py, &dets), PyBytes::new(py, &obs), seconds))
 }
 
 /// Window decoding of b8 shots. Returns the predictions (u64 per shot,
@@ -292,11 +293,11 @@ fn decode_b8_window<'py>(
     let wd = WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode).map_err(err)?;
     let nd = dem.num_detectors;
     check_rows(packed.len(), nd.div_ceil(8), num_shots, nd, "detectors")?;
-    let out = py.allow_threads(|| window_shots(&wd, packed, nd, num_shots, correlated, threads, timings));
+    let out = py.detach(|| window_shots(&wd, packed, nd, num_shots, correlated, threads, timings));
     let preds: Vec<u8> = out.iter().flat_map(|x| x.0.to_le_bytes()).collect();
     let unexplained = out.iter().map(|x| x.1).sum();
     let times: Vec<u8> = out.iter().flat_map(|x| x.2.iter().flat_map(|t| t.to_le_bytes())).collect();
-    Ok((PyBytes::new_bound(py, &preds), unexplained, PyBytes::new_bound(py, &times), window_info(&wd)))
+    Ok((PyBytes::new(py, &preds), unexplained, PyBytes::new(py, &times), window_info(&wd)))
 }
 
 /// A long SD6 memory decoded as it streams: `batches` × 64 streams of
@@ -334,9 +335,9 @@ fn stream_decode<'py>(
         "parallel" => Mode::Parallel,
         other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
     };
-    let out = py.allow_threads(|| crate::batch::stream_shots(kind, d, p, rounds, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
+    let out = py.detach(|| crate::batch::stream_shots(kind, d, p, rounds, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
     let bytes: Vec<u8> = out.times.iter().flat_map(|x| x.to_le_bytes()).collect();
-    Ok((out.failures, out.shots, out.unexplained, PyBytes::new_bound(py, &bytes), out.windows, out.seconds))
+    Ok((out.failures, out.shots, out.unexplained, PyBytes::new(py, &bytes), out.windows, out.seconds))
 }
 
 fn bp_method(method: &str, ms_scale: f64) -> PyResult<crate::bp::Method> {
@@ -362,14 +363,14 @@ fn bp_decode(
     max_iter: usize,
     method: &str,
     ms_scale: f64,
-) -> PyResult<(Vec<u8>, Vec<f64>, bool, usize)> {
+) -> PyResult<(Vec<u32>, Vec<f64>, bool, usize)> {
     let bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
     if syndrome.len() != num_checks {
         return Err(err(format!("{} syndrome bits for {num_checks} checks", syndrome.len())));
     }
     let mut w = bp.work();
     let out = bp.decode(&syndrome, bp_method(method, ms_scale)?, max_iter, &mut w);
-    Ok((w.hard, w.llr, out.converged, out.iterations))
+    Ok((bits(&w.hard), w.llr, out.converged, out.iterations))
 }
 
 /// Belief-matching of b8 shots on a decomposed model, as `beliefmatching`
@@ -397,13 +398,13 @@ fn decode_b8_belief<'py>(
     let nd = dem.num_detectors;
     check_rows(packed.len(), nd.div_ceil(8), num_shots, nd, "detectors")?;
     let start = Instant::now();
-    let out = py.allow_threads(|| belief_shots(&bm, packed, nd, num_shots, threads));
+    let out = py.detach(|| belief_shots(&bm, packed, nd, num_shots, threads));
     let seconds = start.elapsed().as_secs_f64();
     let preds: Vec<u8> = out.iter().flat_map(|x| x.0.to_le_bytes()).collect();
     let weights: Vec<u8> = out.iter().flat_map(|x| x.1.to_le_bytes()).collect();
     let conv: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
     let errors = out.iter().filter(|x| x.2 == 2).count();
-    Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &weights), PyBytes::new_bound(py, &conv), errors, seconds))
+    Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), PyBytes::new(py, &conv), errors, seconds))
 }
 
 fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
@@ -563,7 +564,7 @@ fn bposd_decode(
     ms_scale: f64,
     osd: &str,
     osd_order: usize,
-) -> PyResult<(Vec<u8>, bool, usize)> {
+) -> PyResult<(Vec<u32>, bool, usize)> {
     use crate::osd::BpOsd;
     let dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, ms_scale)?, max_iter, osd_method(osd, osd_order)?)
         .map_err(err)?;
@@ -572,7 +573,7 @@ fn bposd_decode(
     }
     let mut w = dec.work();
     let out = dec.decode(&syndrome, &mut w);
-    Ok((w.correction, out.converged, out.iterations))
+    Ok((bits(&w.correction), out.converged, out.iterations))
 }
 
 /// BP+OSD of b8 shots on an undecomposed error model: each fault a column,
@@ -603,11 +604,11 @@ fn decode_b8_bposd<'py>(
     let nd = dem.num_detectors;
     check_rows(packed.len(), nd.div_ceil(8), num_shots, nd, "detectors")?;
     let start = Instant::now();
-    let out = py.allow_threads(|| bposd_shots(&dec, &obs, packed, nd, num_shots, threads));
+    let out = py.detach(|| bposd_shots(&dec, &obs, packed, nd, num_shots, threads));
     let seconds = start.elapsed().as_secs_f64();
     let preds: Vec<u8> = out.iter().flat_map(|x| x.0.to_le_bytes()).collect();
     let conv: Vec<u8> = out.iter().map(|x| x.1).collect();
-    Ok((PyBytes::new_bound(py, &preds), PyBytes::new_bound(py, &conv), seconds))
+    Ok((PyBytes::new(py, &preds), PyBytes::new(py, &conv), seconds))
 }
 
 /// Lattice surgery as a circuit (Stim text): two rotated distance-`d` patches,
