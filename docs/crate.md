@@ -1,28 +1,44 @@
 # stabilizer_qec
 
-A quantum error-correction simulator and decoder in Rust, the engine behind the
+A quantum error-correction simulator and decoder: circuits and detector error models in Stim's
+formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP and BP+OSD,
+window decoding, IBM's bivariate bicycle codes and lattice surgery. It is the engine behind the
 [`stabilizer-qec`](https://pypi.org/project/stabilizer-qec/) Python package and the
-[interactive explainer](https://qcompiler.jaspersands.com).
-
-- Circuits in Stim's language (`circuit`), every Clifford gate included, and detector error
-  models built by walking a circuit backwards (`dem`), equal to Stim's fault for fault.
-- A bit-parallel sampler, 64 shots to a word, that runs `REPEAT` blocks without unrolling them
-  (`batch_sampler`), and raw measurements to detection events (`m2d`).
-- Exact matching by sparse blossom and correlated matching (`dem_decoder`, `sparse`), as fast
-  as PyMatching; belief propagation and belief-matching (`bp`, `belief`); BP+OSD (`osd`).
-- Window decoders and streams for real-time decoding (`window`, `stream`).
-- IBM's bivariate bicycle codes and their logical operations (`bb`, `bb_auto`, `bb_gauge`,
-  `bb_circuit`), and lattice surgery (`surgery`).
+[interactive explainer](https://qcompiler.jaspersands.com), and it agrees with Stim, PyMatching,
+`ldpc` and `beliefmatching` on every check in its test suite.
 
 ```rust
-use stabilizer_qec::{circuit::Circuit, dem::Dem, dem_decoder::DemDecoder};
+use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
 
-let circuit = Circuit::parse("R 0 1\nX_ERROR(0.1) 0\nM 0 1\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-2]").unwrap();
-let dem = Dem::from_circuit(&circuit).unwrap();
-let decoder = DemDecoder::new(&dem).unwrap();
-assert_eq!(decoder.decode(&[0]).unwrap().observables, 1);
+// A distance-5 surface-code memory under circuit noise, sampled and decoded.
+let circuit = memory_circuit(SurfaceCode::Rotated, 5, 5, Noise::Sd6 { p: 0.004 }, Basis::Z)?;
+let samples = circuit.detector_sampler(7)?.sample(10_000, 0); // 0 threads: every core
+let dem = circuit.detector_error_model(&DemOptions::new().decompose_errors(true))?;
+let predictions = Matching::with_correlations(&dem)?.decode_batch(&samples.detectors, 0)?;
+let failures = (0..10_000).filter(|&s| predictions[s].flips(0) != samples.observables.get(s, 0)).count();
+assert!(failures < 1_000);
+# Ok::<(), stabilizer_qec::Error>(())
 ```
 
-The Python package is the supported, stable interface. The crate is versioned on its own and
-stays below 1.0: its modules are the engine's internals, and a minor version may change them.
-The Python bindings sit behind the `python` feature, off by default.
+- **Circuits**: [`Circuit`] reads Stim's circuit language (every Clifford gate, all three bases,
+  Pauli products, every noise channel, measurement feedback, `REPEAT`) and prints it back;
+  [`Circuit::detector_error_model`] builds the error model Stim's analyzer builds, fault for
+  fault; [`DetectorSampler`] samples 64 shots to a word, reproducibly from a seed on any number
+  of threads; [`MeasurementConverter`] turns raw records into detection events.
+- **Decoders** on an error model: [`Matching`] (exact, sparse blossom; plain or correlated, as
+  fast as PyMatching), [`BeliefMatching`], [`BpOsd`], [`WindowMatching`]. On a check matrix:
+  [`BpDecoder`] and [`BpOsdDecoder`], equal to `ldpc`'s. All `Send + Sync`.
+- **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`BivariateBicycleCode`] (the
+  gross code and its logical measurement), [`lattice_surgery`] (Z⊗Z and X⊗X merges, a logical
+  CNOT).
+
+Shots are [`BitTable`]s, bit-packed as Stim's `b8` format. Every fallible call returns
+[`Error`]; none panics on bad input.
+
+## Stability
+
+Semantic versioning from 1.0: the items in this documentation keep compiling, with the same
+meaning, through every 1.x release (checked by `cargo-semver-checks` in CI). The engine's own
+modules are public so the Python bindings, the site and the tools can reach them, but they are
+hidden from this documentation and carry no such promise. The Python bindings sit behind the
+`python` feature, off by default. The minimum supported Rust is 1.87.

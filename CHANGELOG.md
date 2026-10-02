@@ -4,6 +4,18 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Rust crate 1.0.0 — 2026-10-02
+
+The crate (`stabilizer_qec` on crates.io, released on `crate-v*` tags) gets a designed, stable
+API, re-exported at its root and mirroring the Python package's: `Circuit` and
+`DetectorErrorModel` (`FromStr` / `Display`), `DemOptions`, `DetectorSampler` and
+`MeasurementConverter` producing bit-packed `BitTable`s, the decoders `Matching`,
+`BeliefMatching`, `BpOsd`, `WindowMatching`, `BpDecoder` and `BpOsdDecoder` (all `Send + Sync`),
+`memory_circuit`, `BivariateBicycleCode`, the `lattice_surgery` module, and an `Error` type.
+Semantic versioning from here, checked by `cargo-semver-checks` in CI. The engine's modules stay
+public for the bindings and tools but are hidden from the documentation and outside the promise.
+Rust 1.87 or later.
+
 ## 1.0.0 — 2026-10-02
 
 The first stable release. From here, semantic versioning: everything importable from

@@ -231,6 +231,16 @@ impl DemDecoder {
         })
     }
 
+    /// The graph and, when `correlated`, correlated matching's rules, taken out to decode from
+    /// many threads at once (each with its own `Scratch`).
+    pub fn into_parts(self, correlated: bool) -> (SparseGraph, Option<Correlations>) {
+        if correlated {
+            self.correlations();
+        }
+        let corr = if correlated { self.corr.into_inner() } else { None };
+        (self.sparse, corr)
+    }
+
     pub fn decode_bools(&self, dets: &[bool]) -> Result<Prediction, DecodeError> {
         let defects: Vec<u32> = dets.iter().enumerate().filter(|(_, &b)| b).map(|(i, _)| i as u32).collect();
         self.decode(&defects)

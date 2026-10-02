@@ -426,6 +426,43 @@ pub fn check_size(d: usize, tiles: usize, rounds: usize) -> Result<(), String> {
     check_volume(qubits, rounds.saturating_add(d.saturating_mul(2)))
 }
 
+/// Z⊗Z on two patches side by side (see `Surgery`), checked for size before it is built.
+pub fn zz_circuit(d: usize, pre: usize, merged: usize, post: usize, p: f64, basis: Basis) -> Result<Circuit, String> {
+    check_size(d, 2, merged.saturating_add(pre).saturating_add(post))?;
+    Surgery { d, pre, merged, post, basis, p }.circuit()
+}
+
+/// X⊗X (see `vertical`), checked for size before it is built.
+pub fn xx_circuit(d: usize, merged: usize, p: f64, basis: Basis) -> Result<Circuit, String> {
+    check_size(d, 2, merged)?;
+    vertical(d, merged, p, basis).circuit()
+}
+
+/// The logical CNOT (see `cnot`), checked for size before it is built.
+pub fn cnot_circuit(d: usize, merged: usize, p: f64, inputs: Basis) -> Result<Circuit, String> {
+    check_size(d, 4, merged.saturating_mul(2))?;
+    cnot(d, merged, p, inputs).circuit()
+}
+
+/// `k` Z⊗Z measurements in a row (see `repeated`), checked for size before it is built.
+pub fn repeated_circuit(d: usize, k: usize, merged: usize, p: f64) -> Result<Circuit, String> {
+    check_size(d, 2, k.saturating_mul(merged.saturating_add(2)))?;
+    repeated(d, k, merged, p).circuit()
+}
+
+/// `n` patches merged in a row (see `line`), checked before it is built: at least two patches,
+/// and at most 32, since each seam and each patch is an observable.
+pub fn line_circuit(d: usize, n: usize, merged: usize, p: f64) -> Result<Circuit, String> {
+    if n < 2 {
+        return Err(format!("a line merge needs at least two patches, not {n}"));
+    }
+    if n > 32 {
+        return Err(format!("{n} patches have {} observables (each seam and each patch); at most 64 are supported", 2 * n - 1));
+    }
+    check_size(d, n, merged)?;
+    line(d, n, merged, p).circuit()
+}
+
 /// The most qubit-rounds a program is written out for: past this an error model, which holds
 /// a circuit unrolled, would refuse it anyway.
 const MAX_VOLUME: u64 = 1 << 24;
