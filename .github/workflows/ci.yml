@@ -83,7 +83,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip maturin
           maturin build --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheel-${{ matrix.os }}
           path: dist
@@ -207,7 +207,7 @@ jobs:
         run: |
           mkdir -p fuzz/corpus/dem && cp fuzz/seeds/dem/* fuzz/corpus/dem/
           cargo +nightly fuzz run dem fuzz/corpus/dem -- -max_total_time=60 -rss_limit_mb=4096 -timeout=120
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: fuzz-artifacts
