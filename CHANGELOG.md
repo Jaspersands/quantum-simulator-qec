@@ -18,6 +18,12 @@ minor release before a major release removes it. The Rust crate is versioned on 
   it. In error models and both samplers, as in Stim; a Pauli observable the state does not fix
   is refused as Stim refuses it, and raw measurements convert as Stim converts them.
 
+- Pickling and copying (`pickle`, `copy`, `multiprocessing`, `concurrent.futures`):
+  `Circuit` and `DetectorErrorModel` as their text; the converter and every decoder as what
+  they were made from, rebuilt on the other side (`BpDecoder` and `BpOsdDecoder` keep their
+  last run's results). A `DetectorSampler` refuses with a `TypeError` saying why: a copy would
+  restart its stream, so send the circuit and a seed instead.
+
 ### Fixed
 
 - A printed error model declares observables no fault flips (`logical_observable L1`), so it

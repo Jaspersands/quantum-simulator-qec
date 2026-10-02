@@ -18,10 +18,23 @@ def _model(model: ModelLike) -> DetectorErrorModel:
     return model if isinstance(model, DetectorErrorModel) else DetectorErrorModel(model)
 
 
-class _DemDecoder:
-    """What every decoder on a detector error model shares: shots in, observable flips out."""
+def _rebuild(cls: type, args: tuple, kwargs: dict) -> Any:
+    return cls(*args, **kwargs)
 
-    __slots__ = ("_x",)
+
+class _DemDecoder:
+    """What every decoder on a detector error model shares: shots in, observable flips out.
+    Pickled (and copied, and sent to worker processes) as the model and options it was made
+    from, and rebuilt from them."""
+
+    __slots__ = ("_x", "_made_from")
+
+    def _made(self, model: DetectorErrorModel, **kwargs: Any) -> DetectorErrorModel:
+        self._made_from = ((model,), kwargs)
+        return model
+
+    def __reduce__(self) -> tuple:
+        return (_rebuild, (type(self), *self._made_from))
 
     @property
     def num_detectors(self) -> int:
@@ -69,7 +82,8 @@ class Matching(_DemDecoder):
     __slots__ = ()
 
     def __init__(self, model: ModelLike, *, enable_correlations: bool = False) -> None:
-        self._x = call(_core.Matcher, _model(model)._d, bool(enable_correlations))
+        model = self._made(_model(model), enable_correlations=enable_correlations)
+        self._x = call(_core.Matcher, model._d, bool(enable_correlations))
 
     @classmethod
     def from_detector_error_model(cls, model: ModelLike, *, enable_correlations: bool = False) -> "Matching":
@@ -112,7 +126,8 @@ class BeliefMatching(_DemDecoder):
         bp_method: str = "product_sum",
         ms_scaling_factor: float = 1.0,
     ) -> None:
-        self._x = call(_core.BeliefMatcher, _model(model)._d, count(max_bp_iters, "max_bp_iters"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
+        model = self._made(_model(model), max_bp_iters=max_bp_iters, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor)
+        self._x = call(_core.BeliefMatcher, model._d, count(max_bp_iters, "max_bp_iters"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
 
     def decode_batch(
         self,
@@ -152,9 +167,11 @@ class BpOsd(_DemDecoder):
         osd_method: str = "osd_cs",
         osd_order: int = 7,
     ) -> None:
+        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, osd_method=osd_method, osd_order=osd_order)
+        model = self._made(_model(model), **options)
         self._x = call(
             _core.DemBpOsd,
-            _model(model)._d,
+            model._d,
             count(max_iter, "max_iter"),
             bp_method,
             real(ms_scaling_factor, "ms_scaling_factor"),
@@ -212,7 +229,8 @@ class WindowMatching(_DemDecoder):
         mode: str = "parallel",
         enable_correlations: bool = False,
     ) -> None:
-        self._x = call(_core.WindowMatcher, _model(model)._d, count(commit, "commit"), count(buffer, "buffer"), mode, bool(enable_correlations))
+        model = self._made(_model(model), commit=commit, buffer=buffer, mode=mode, enable_correlations=enable_correlations)
+        self._x = call(_core.WindowMatcher, model._d, count(commit, "commit"), count(buffer, "buffer"), mode, bool(enable_correlations))
 
     @property
     def windows(self) -> list:
@@ -296,11 +314,17 @@ class BpDecoder:
         bp_method: str = "product_sum",
         ms_scaling_factor: float = 1.0,
     ) -> None:
+        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor))
         self._m, self._n, cols = _columns(pcm)
         self._x = call(_core.Bp, self._m, cols, _channel(self._n, error_rate, error_channel), count(max_iter, "max_iter"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
         self.converge = False
         self.iter = 0
         self.log_prob_ratios = np.zeros(self._n)
+
+    def __reduce__(self) -> tuple:
+        # Rebuilt from its matrix and options; the last decode's results come along.
+        state = {"converge": self.converge, "iter": self.iter, "log_prob_ratios": self.log_prob_ratios}
+        return (_rebuild, (type(self), *self._made_from), state)
 
     def decode(self, syndrome: Any) -> np.ndarray:
         """The hard decision (uint8 per column)."""
@@ -327,6 +351,8 @@ class BpOsdDecoder:
         osd_method: str = "osd_cs",
         osd_order: int = 7,
     ) -> None:
+        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, osd_method=osd_method, osd_order=osd_order)
+        self._made_from = ((pcm, error_rate, error_channel), options)
         self._m, self._n, cols = _columns(pcm)
         self._x = call(
             _core.BpOsd,
@@ -341,6 +367,9 @@ class BpOsdDecoder:
         )
         self.converge = False
         self.iter = 0
+
+    def __reduce__(self) -> tuple:
+        return (_rebuild, (type(self), *self._made_from), {"converge": self.converge, "iter": self.iter})
 
     def decode(self, syndrome: Any) -> np.ndarray:
         """The correction (uint8 per column)."""

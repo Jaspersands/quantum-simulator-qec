@@ -20,7 +20,10 @@ class Circuit:
     inverted targets (``!q``), Pauli-product measurements and rotations (``MPP``, ``MXX``,
     ``MYY``, ``MZZ``, ``SPP``, ``SPP_DAG``), the Pauli, depolarizing, correlated and heralded
     noise channels, ``MPAD``, measurement feedback and sweep bits (``CX rec[-1] q``,
-    ``CZ sweep[k] q``), detectors, observables, coordinates, ``TICK`` and ``REPEAT``.
+    ``CZ sweep[k] q``), detectors, observables (of records and of Pauli targets, ``X3``),
+    coordinates, ``TICK``, ``REPEAT``, and instruction tags (``H[tag] 0``).
+
+    Circuits pickle and copy as their text, so they can be sent to other processes.
 
     >>> c = Circuit("R 0 1\\nH 0\\nCX 0 1\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
     >>> c.num_qubits, c.num_measurements, c.num_detectors
@@ -48,6 +51,10 @@ class Circuit:
         if not isinstance(other, Circuit):
             return NotImplemented
         return self._c.__eq__(other._c)
+
+    def __reduce__(self) -> tuple:
+        # Pickled, copied and sent to other processes as its text.
+        return (Circuit, (str(self),))
 
     __hash__ = None  # type: ignore[assignment]
 
@@ -137,6 +144,9 @@ class DetectorErrorModel:
             return NotImplemented
         return str(self) == str(other)
 
+    def __reduce__(self) -> tuple:
+        return (DetectorErrorModel, (str(self),))
+
     __hash__ = None  # type: ignore[assignment]
 
     @property
@@ -163,6 +173,12 @@ class DetectorSampler:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._s = call(circuit._c.sampler, seed_of(seed))
+
+    def __reduce__(self) -> tuple:
+        raise TypeError(
+            "a DetectorSampler is a position in a stream of shots, which a copy would restart; "
+            "send the circuit and a seed, and compile a sampler where it is used"
+        )
 
     @property
     def num_detectors(self) -> int:
@@ -210,12 +226,16 @@ class MeasurementsToDetectionEventsConverter:
     each detector and observable compared with a noiseless reference run. Made by
     ``Circuit.compile_m2d_converter``."""
 
-    __slots__ = ("_m",)
+    __slots__ = ("_m", "_circuit")
 
     def __init__(self, circuit: Circuit) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._m = call(circuit._c.m2d)
+        self._circuit = circuit
+
+    def __reduce__(self) -> tuple:
+        return (MeasurementsToDetectionEventsConverter, (self._circuit,))
 
     @property
     def num_measurements(self) -> int:
