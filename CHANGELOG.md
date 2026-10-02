@@ -17,8 +17,29 @@ minor release before a major release removes it. The Rust crate is versioned on 
   `Target` and `Pauli` types, `append_tagged`, `append_text`, `append_circuit`, `repeated`, and
   the operators `+`, `+=`, `*`, `*=`. A failed append leaves the circuit unchanged.
 
+- Error models with their loops folded, as Stim folds them. The model is built by walking the
+  circuit's structure backwards with sparse sensitivity sets, finding where a loop's state
+  repeats (tortoise and hare, as Stim's error analyzer), and writing one period as a `repeat`
+  block. A d = 11 rotated memory of 10,000 rounds, which 1.0 refused, now builds in about 0.1 s
+  and prints in 15,000 lines, its structure (the `repeat` blocks, the declarations, and the
+  faults between them) equal to Stim's. Checked against Stim on its generated memories
+  (rotated, unrotated, repetition and color codes), nested and tagged loops, and random
+  circuits in loops.
+- `DetectorErrorModel.flattened()` (Python and Rust), Stim's: the model without `repeat`
+  blocks or `shift_detectors`. `Circuit.detector_error_model(flatten_loops=True)` (and
+  `DemOptions::flatten_loops`) walks every pass instead of folding.
+- Models are held as written, `repeat` blocks and all: Stim's folded models read without
+  unrolling, and are counted through their loops. A decoder unrolls its model once, up to
+  2²⁴ faults and declarations.
+
 ### Changed
 
+- A built model prints as Stim prints one: errors first in each stretch, then detector
+  declarations with coordinates, `logical_observable` only where needed, and loops folded.
+  Decoders take a model's faults in the order it is written, so a model, its text, and its
+  pickle decode alike. Within a fault, pieces are listed in sorted order, where Stim lists
+  them in the order they arose and so lists one fault once per order; the faults are the
+  same, and `num_errors` counts ours.
 - A circuit that reads a measurement record before its first measurement can now be made (it
   may be a piece of a larger circuit, a round comparing with the last); sampling it, building
   its error model or converting its measurements is the error, as in Stim. Counts are combined

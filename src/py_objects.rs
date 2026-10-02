@@ -119,11 +119,12 @@ impl PyCircuit {
     }
 
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
-    /// and `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off).
-    #[pyo3(signature = (decompose, approximate=None))]
-    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>) -> PyResult<PyDem> {
-        let dem = Dem::from_circuit_with(&self.circuit.inner, decompose, approximate);
-        Ok(PyDem { dem: dem.map_err(err)?, pieces: decompose })
+    /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
+    /// `flatten` writes it without folding its loops.
+    #[pyo3(signature = (decompose, approximate=None, flatten=false))]
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool) -> PyResult<PyDem> {
+        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten);
+        Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
     }
 
     fn sampler(&self, seed: u64) -> PyResult<PySampler> {
@@ -135,38 +136,48 @@ impl PyCircuit {
     }
 }
 
-/// A detector error model, parsed from Stim's text or built from a circuit.
+/// A detector error model, parsed from Stim's text or built from a circuit: the crate's, held
+/// folded and unrolled once for a decoder.
 #[pyclass(name = "Dem", module = "stabilizer_qec._core")]
 pub struct PyDem {
-    dem: Dem,
-    /// Print each fault's pieces (`^`): a decomposed model's.
-    pieces: bool,
+    dem: crate::api::DetectorErrorModel,
+}
+
+impl PyDem {
+    /// The model unrolled, for a decoder.
+    fn flat(&self) -> PyResult<&Dem> {
+        self.dem.flat().map_err(api_err)
+    }
 }
 
 #[pymethods]
 impl PyDem {
     #[new]
     fn new(text: &str) -> PyResult<Self> {
-        Ok(PyDem { dem: Dem::parse(text).map_err(err)?, pieces: true })
+        Ok(PyDem { dem: crate::api::DetectorErrorModel::parse(text).map_err(api_err)? })
     }
 
     #[getter]
     fn num_detectors(&self) -> usize {
-        self.dem.num_detectors
+        self.dem.num_detectors()
     }
 
     #[getter]
     fn num_observables(&self) -> usize {
-        self.dem.num_observables
+        self.dem.num_observables()
     }
 
     #[getter]
     fn num_errors(&self) -> usize {
-        self.dem.mechanisms.len()
+        self.dem.num_errors()
     }
 
     fn __str__(&self) -> String {
-        self.dem.to_stim(self.pieces)
+        self.dem.to_string()
+    }
+
+    fn flattened(&self) -> PyResult<PyDem> {
+        Ok(PyDem { dem: self.dem.flattened().map_err(api_err)? })
     }
 }
 
@@ -255,11 +266,12 @@ pub struct PyMatcher {
 impl PyMatcher {
     #[new]
     fn new(dem: &PyDem, correlated: bool) -> PyResult<Self> {
-        let dec = DemDecoder::new(&dem.dem).map_err(err)?;
+        let d = dem.flat()?;
+        let dec = DemDecoder::new(d).map_err(err)?;
         if correlated {
             dec.correlations();
         }
-        Ok(PyMatcher { dec, correlated, num_detectors: dem.dem.num_detectors, num_observables: dem.dem.num_observables })
+        Ok(PyMatcher { dec, correlated, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// (observables as u64 per shot, weights as f64 per shot, the shots with no matching).
@@ -307,8 +319,9 @@ pub struct PyBeliefMatcher {
 impl PyBeliefMatcher {
     #[new]
     fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64) -> PyResult<Self> {
-        let bm = BeliefMatching::from_dem(&dem.dem, bp_method(method, scale)?, max_iter).map_err(err)?;
-        Ok(PyBeliefMatcher { bm, num_detectors: dem.dem.num_detectors, num_observables: dem.dem.num_observables })
+        let d = dem.flat()?;
+        let bm = BeliefMatching::from_dem(d, bp_method(method, scale)?, max_iter).map_err(err)?;
+        Ok(PyBeliefMatcher { bm, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// (observables as u64, weights as f64 (NaN where BP converged), one byte per shot 1
@@ -352,7 +365,7 @@ impl PyDemBpOsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
     fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize) -> PyResult<Self> {
-        let d = &dem.dem;
+        let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
         let dec = BpOsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?)
@@ -392,8 +405,9 @@ impl PyWindowMatcher {
             "parallel" => Mode::Parallel,
             other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
         };
-        let wd = WindowDecoder::new(Model::new(&dem.dem).map_err(err)?, commit, buffer, mode).map_err(err)?;
-        Ok(PyWindowMatcher { wd, correlated, num_detectors: dem.dem.num_detectors, num_observables: dem.dem.num_observables })
+        let d = dem.flat()?;
+        let wd = WindowDecoder::new(Model::new(d).map_err(err)?, commit, buffer, mode).map_err(err)?;
+        Ok(PyWindowMatcher { wd, correlated, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     fn windows(&self) -> Vec<WindowInfo> {

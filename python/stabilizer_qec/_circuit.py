@@ -167,11 +167,19 @@ class Circuit:
         return self._c.num_sweep_bits
 
     def detector_error_model(
-        self, *, decompose_errors: bool = False, approximate_disjoint_errors: Union[bool, float] = False
+        self,
+        *,
+        decompose_errors: bool = False,
+        approximate_disjoint_errors: Union[bool, float] = False,
+        flatten_loops: bool = False,
     ) -> "DetectorErrorModel":
         """The circuit's detector error model, built by walking it backwards, as Stim's error
         analyzer does. ``decompose_errors`` splits each fault into graph-like pieces (at most
         two detectors each) the way Stim splits them, which matching needs.
+
+        Loops that repeat are folded into ``repeat`` blocks, as Stim folds them, so a long
+        memory's model costs one period of its loop; ``flatten_loops`` walks every pass and
+        writes none (``DetectorErrorModel.flattened`` unrolls a folded one).
 
         ``approximate_disjoint_errors`` is Stim's: channels whose cases are disjoint rather
         than independent (``PAULI_CHANNEL_2``, ``ELSE_CORRELATED_ERROR``, the heralded errors,
@@ -182,7 +190,7 @@ class Circuit:
             threshold = 1.0 if approximate_disjoint_errors else None
         else:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
-        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold))
+        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops)))
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
@@ -254,6 +262,8 @@ class DetectorErrorModel:
     the detectors it flips and the observables it flips.
 
     Build one from Stim text, a ``stim.DetectorErrorModel``, or ``Circuit.detector_error_model``.
+    It is held as written, ``repeat`` blocks and all, and counted through its loops; a decoder
+    made from it unrolls it once.
     """
 
     __slots__ = ("_d",)
@@ -299,8 +309,13 @@ class DetectorErrorModel:
 
     @property
     def num_errors(self) -> int:
-        """The number of faults (``error`` lines)."""
+        """The number of faults (``error`` lines), counted through loops."""
         return self._d.num_errors
+
+    def flattened(self) -> "DetectorErrorModel":
+        """The model without ``repeat`` blocks or ``shift_detectors``, as Stim's ``flattened``:
+        every detector absolute, every coordinate shifted."""
+        return DetectorErrorModel._wrap(call(self._d.flattened))
 
 
 class DetectorSampler:

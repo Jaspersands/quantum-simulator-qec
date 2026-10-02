@@ -34,6 +34,10 @@ pub mod gates;
 #[doc(hidden)]
 pub mod dem;
 #[doc(hidden)]
+pub mod dem_build;
+#[doc(hidden)]
+pub mod dem_program;
+#[doc(hidden)]
 pub mod dem_decoder;
 #[doc(hidden)]
 pub mod sparse;

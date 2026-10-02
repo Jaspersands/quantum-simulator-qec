@@ -6,6 +6,8 @@ use super::{BitTable, Error, Result};
 use crate::batch_sampler::{BatchSampler, Counts};
 use crate::circuit;
 use crate::dem::Dem;
+use crate::dem_program::{DemProgram, Stats};
+use std::sync::OnceLock;
 use crate::m2d::M2d;
 
 /// A stabilizer circuit in Stim's circuit language.
@@ -190,18 +192,23 @@ impl Circuit {
     }
 
     /// The circuit's detector error model, built by walking it backwards as Stim's error analyzer
-    /// does (see [`DemOptions`]).
+    /// does (see [`DemOptions`]). Its loops are folded into `repeat` blocks where they repeat,
+    /// as Stim folds them, so a long memory's model costs one period of the loop.
     ///
     /// ```
     /// use stabilizer_qec::{Circuit, DemOptions};
     ///
     /// let c: Circuit = "R 0\nX_ERROR(0.125) 0\nM 0\nDETECTOR rec[-1]".parse()?;
-    /// assert_eq!(c.detector_error_model(&DemOptions::new())?.to_string().trim(), "detector D0\nerror(0.125) D0");
+    /// assert_eq!(c.detector_error_model(&DemOptions::new())?.to_string().trim(), "error(0.125) D0");
+    /// let long: Circuit = "R 0\nREPEAT 1000000 {\n X_ERROR(0.01) 0\n MR 0\n DETECTOR rec[-1]\n}".parse()?;
+    /// let dem = long.detector_error_model(&DemOptions::new())?;
+    /// assert_eq!((dem.num_detectors(), dem.num_errors()), (1_000_000, 1_000_000));
+    /// assert!(dem.to_string().starts_with("repeat 999999 {"));
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn detector_error_model(&self, options: &DemOptions) -> Result<DetectorErrorModel> {
-        let dem = Dem::from_circuit_with(&self.inner, options.decompose_errors, options.approximate_disjoint_errors)?;
-        Ok(DetectorErrorModel { inner: dem, pieces: options.decompose_errors })
+        let program = crate::dem_build::build(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops)?;
+        Ok(DetectorErrorModel::from_program(program))
     }
 
     /// A sampler of detection events and observable flips, seeded: the same seed gives the same
@@ -309,6 +316,7 @@ impl fmt::Display for Circuit {
 pub struct DemOptions {
     decompose_errors: bool,
     approximate_disjoint_errors: Option<f64>,
+    flatten_loops: bool,
 }
 
 impl DemOptions {
@@ -332,36 +340,73 @@ impl DemOptions {
         self.approximate_disjoint_errors = threshold;
         self
     }
+
+    /// Stim's `flatten_loops`: walk every pass of every loop and write the model without
+    /// `repeat` blocks, rather than folding the loops that repeat (the default).
+    pub fn flatten_loops(mut self, yes: bool) -> DemOptions {
+        self.flatten_loops = yes;
+        self
+    }
 }
 
 /// A detector error model in Stim's format: independent faults, each with a probability, the
 /// detectors it flips and the observables it flips. Parse one from Stim's text, or build one
 /// with [`Circuit::detector_error_model`].
+///
+/// It is held as written, `repeat` blocks and all, and counted through its loops without
+/// unrolling them; a decoder made from it unrolls it once (up to 2²⁴ faults and declarations
+/// and detector 2²⁴ − 1, past which making the decoder is the error), taking its faults in the
+/// order they are written, so a model and its text decode alike.
 #[derive(Clone, Debug)]
 pub struct DetectorErrorModel {
-    pub(crate) inner: Dem,
-    pieces: bool,
+    program: DemProgram,
+    stats: Stats,
+    flat: OnceLock<std::result::Result<Dem, String>>,
 }
 
 impl DetectorErrorModel {
-    /// Parse Stim's detector-error-model text.
-    pub fn parse(text: &str) -> Result<DetectorErrorModel> {
-        Ok(DetectorErrorModel { inner: Dem::parse(text)?, pieces: true })
+    pub(crate) fn from_program(program: DemProgram) -> DetectorErrorModel {
+        DetectorErrorModel { stats: program.stats(), program, flat: OnceLock::new() }
     }
 
-    /// Detectors.
+    /// The model unrolled, for a decoder.
+    pub(crate) fn flat(&self) -> Result<&Dem> {
+        self.flat.get_or_init(|| self.program.to_dem()).as_ref().map_err(|e| Error::new(e.clone()))
+    }
+
+    /// Parse Stim's detector-error-model text.
+    pub fn parse(text: &str) -> Result<DetectorErrorModel> {
+        Ok(DetectorErrorModel::from_program(DemProgram::parse(text)?))
+    }
+
+    /// Detectors: one more than the largest index named, counted through loops.
     pub fn num_detectors(&self) -> usize {
-        self.inner.num_detectors
+        usize::try_from(self.stats.num_detectors).unwrap_or(usize::MAX)
     }
 
     /// Logical observables.
     pub fn num_observables(&self) -> usize {
-        self.inner.num_observables
+        self.stats.num_observables
     }
 
-    /// Faults (`error` lines).
+    /// Faults: `error` lines, counted through loops.
     pub fn num_errors(&self) -> usize {
-        self.inner.mechanisms.len()
+        usize::try_from(self.stats.num_errors).unwrap_or(usize::MAX)
+    }
+
+    /// The model without `repeat` blocks or `shift_detectors`, as Stim's `flattened`: every
+    /// detector absolute, every coordinate shifted. The error is a model that unrolls past 2²⁴
+    /// faults and declarations.
+    ///
+    /// ```
+    /// use stabilizer_qec::DetectorErrorModel;
+    ///
+    /// let folded: DetectorErrorModel = "repeat 2 {\n error(0.1) D0\n shift_detectors 1\n}".parse()?;
+    /// assert_eq!(folded.flattened()?.to_string(), "error(0.1) D0\nerror(0.1) D1\n");
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn flattened(&self) -> Result<DetectorErrorModel> {
+        Ok(DetectorErrorModel::from_program(self.program.flattened()?))
     }
 }
 
@@ -375,7 +420,7 @@ impl FromStr for DetectorErrorModel {
 
 impl fmt::Display for DetectorErrorModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.inner.to_stim(self.pieces))
+        f.write_str(&self.program.to_stim())
     }
 }
 

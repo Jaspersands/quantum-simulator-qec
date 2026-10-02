@@ -80,7 +80,7 @@ impl Matching {
     }
 
     fn build(dem: &DetectorErrorModel, correlated: bool) -> Result<Matching> {
-        let (graph, corr) = DemDecoder::new(&dem.inner)?.into_parts(correlated);
+        let (graph, corr) = DemDecoder::new(dem.flat()?)?.into_parts(correlated);
         Ok(Matching { graph, corr, num_detectors: dem.num_detectors(), num_observables: dem.num_observables() })
     }
 
@@ -192,7 +192,7 @@ impl BeliefMatching {
     /// Belief-matching with the given BP settings (the package's defaults are 20 iterations of
     /// product-sum).
     pub fn new(dem: &DetectorErrorModel, bp: BpOptions) -> Result<BeliefMatching> {
-        let inner = crate::belief::BeliefMatching::from_dem(&dem.inner, bp.method.engine(), bp.max_iter)?;
+        let inner = crate::belief::BeliefMatching::from_dem(dem.flat()?, bp.method.engine(), bp.max_iter)?;
         Ok(BeliefMatching { inner, num_detectors: dem.num_detectors() })
     }
 
@@ -233,7 +233,7 @@ pub struct BpOsd {
 impl BpOsd {
     /// BP+OSD with the given BP settings and OSD search.
     pub fn new(dem: &DetectorErrorModel, bp: BpOptions, osd: OsdMethod) -> Result<BpOsd> {
-        let d = &dem.inner;
+        let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
         let inner = crate::osd::BpOsd::new(d.num_detectors, columns, &priors, bp.method.engine(), bp.max_iter, osd.engine())?;
@@ -326,7 +326,7 @@ impl WindowMatching {
             WindowMode::Sliding => Mode::Sliding,
             WindowMode::Parallel => Mode::Parallel,
         };
-        let inner = WindowDecoder::new(Model::new(&dem.inner)?, options.commit, options.buffer, mode)?;
+        let inner = WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?;
         Ok(WindowMatching { inner, correlations: options.correlations, num_detectors: dem.num_detectors() })
     }
 
