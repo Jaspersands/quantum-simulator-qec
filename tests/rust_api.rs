@@ -2,8 +2,8 @@
 
 use stabilizer_qec::{
     lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpMethod, BpOptions,
-    BpOsd, BpOsdDecoder, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod,
-    SurfaceCode, WindowMatching, WindowMode, WindowOptions,
+    BpOsd, BpOsdDecoder, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
+    SurfaceCode, Target, WindowMatching, WindowMode, WindowOptions,
 };
 
 fn d5() -> Circuit {
@@ -170,4 +170,47 @@ fn stim_tags_and_pauli_observables() {
     // A Pauli observable the state does not fix is refused, as Stim refuses it.
     let random: Circuit = "R 0\nOBSERVABLE_INCLUDE(0) X0\nM 0\nDETECTOR rec[-1]".parse().unwrap();
     assert!(random.detector_error_model(&DemOptions::new()).unwrap_err().message().contains("not deterministic"));
+}
+
+#[test]
+fn circuits_built_in_code() {
+    use Target::{Combiner, Inverted, Qubit, Rec, Sweep};
+    let mut c = Circuit::new();
+    c.append("R", &[Qubit(0), Qubit(1), Qubit(2)], &[]).unwrap();
+    c.append_tagged("H", &[Qubit(0)], &[], "prep").unwrap();
+    c.append("CX", &[Qubit(0), Qubit(1), Sweep(3), Qubit(2)], &[]).unwrap();
+    c.append("MPP", &[Target::Pauli { pauli: Pauli::X, qubit: 0, inverted: false }, Combiner, Target::Pauli { pauli: Pauli::X, qubit: 1, inverted: true }], &[0.01])
+        .unwrap();
+    c.append("M", &[Inverted(2)], &[]).unwrap();
+    c.append("DETECTOR", &[Rec(2)], &[1.0, 2.0]).unwrap();
+    c.append("OBSERVABLE_INCLUDE", &[Rec(1)], &[0.0]).unwrap();
+    assert_eq!(
+        c.to_string(),
+        "R 0 1 2\nH[prep] 0\nCX 0 1 sweep[3] 2\nMPP(0.01) X0*!X1\nM !2\nDETECTOR(1, 2) rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]\n"
+    );
+    assert_eq!((c.num_qubits(), c.num_measurements(), c.num_detectors(), c.num_observables(), c.num_sweep_bits()), (3, 2, 1, 1, 4));
+    // A failed append leaves the circuit as it was.
+    let before = c.clone();
+    for (name, targets) in [("FOO", vec![Qubit(0)]), ("H\nM", vec![Qubit(0)]), ("CX", vec![Qubit(0)]), ("MPP", vec![Combiner]), ("REPEAT", vec![])] {
+        assert!(c.append(name, &targets, &[]).is_err(), "{name}");
+    }
+    assert!(c.append("X_ERROR", &[Qubit(0)], &[f64::NAN]).is_err());
+    assert!(c.append_tagged("H", &[Qubit(0)], &[], "a]b").is_err());
+    assert_eq!(c, before);
+    // A round reads the last round's record; the whole, not the piece, is what runs.
+    let mut round = Circuit::new();
+    round.append_text("CX 0 1\nMR 1\nDETECTOR rec[-1] rec[-2]").unwrap();
+    assert!(round.detector_sampler(1).is_err() && round.detector_error_model(&DemOptions::new()).is_err());
+    let first: Circuit = "R 0 1\nCX 0 1\nMR 1".parse().unwrap();
+    let memory = &first + &(&round * 20);
+    assert_eq!((memory.num_measurements(), memory.num_detectors()), (21, 20));
+    assert_eq!(memory.to_string().parse::<Circuit>().unwrap(), memory);
+    assert!(memory.detector_error_model(&DemOptions::new()).is_ok());
+    // Repeating a loop multiplies its count, as in Stim.
+    assert_eq!((&round * 20) * 3, &round * 60);
+    let mut grown = first.clone();
+    grown += &round;
+    grown *= 1;
+    assert_eq!(grown.num_detectors(), 1);
+    assert_eq!(round.repeated(0).unwrap(), Circuit::new());
 }

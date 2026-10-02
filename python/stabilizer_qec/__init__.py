@@ -41,6 +41,10 @@ measurement records, and of Pauli targets: `OBSERVABLE_INCLUDE(0) X0 Z1`), coord
 whose cases are disjoint enter an error model only with `approximate_disjoint_errors`, as in
 Stim.
 
+Or build one in code, as in Stim: `append` an instruction at a time (targets as qubit
+indices, strings such as `"rec[-1]"`, or `stim.GateTarget`s), `+` one circuit after another,
+and `*` one into a `REPEAT` block.
+
 Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 `BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
 `surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`

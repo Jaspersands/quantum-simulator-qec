@@ -1,9 +1,10 @@
 use std::fmt;
+use std::ops::{Add, AddAssign, Mul, MulAssign};
 use std::str::FromStr;
 
 use super::{BitTable, Error, Result};
-use crate::batch_sampler::BatchSampler;
-use crate::circuit::{self, Control, Instr};
+use crate::batch_sampler::{BatchSampler, Counts};
+use crate::circuit;
 use crate::dem::Dem;
 use crate::m2d::M2d;
 
@@ -13,8 +14,9 @@ use crate::m2d::M2d;
 /// prints it back as written. Every Clifford gate of Stim's is read (H, S and CX natively, the
 /// rest as their exact decompositions), with resets and measurements in all three bases,
 /// inverted targets, Pauli-product measurements and rotations, every noise channel,
-/// measurement feedback and sweep bits, `MPAD`, detectors, observables, coordinates, `TICK`
-/// and `REPEAT`. Counts are taken through `REPEAT` blocks without unrolling them.
+/// measurement feedback and sweep bits, `MPAD`, detectors, observables (of records and of Pauli
+/// targets), coordinates, `TICK`, `REPEAT` and instruction tags. Counts are taken through
+/// `REPEAT` blocks without unrolling them.
 ///
 /// ```
 /// use stabilizer_qec::Circuit;
@@ -24,70 +26,167 @@ use crate::m2d::M2d;
 /// assert_eq!(c.to_string().parse::<Circuit>()?, c);
 /// # Ok::<(), stabilizer_qec::Error>(())
 /// ```
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Circuits are also built in code, as in Stim: [`append`](Circuit::append) an instruction at
+/// a time, `+` one circuit after another, and `*` a circuit into a `REPEAT` block. A piece may
+/// read measurements made before it (a round's detectors comparing with the last round's);
+/// sampling or analysing a circuit that reads before its first measurement is the error.
+///
+/// ```
+/// use stabilizer_qec::{Circuit, Target};
+///
+/// let mut round = Circuit::new();
+/// round.append("CX", &[Target::Qubit(0), Target::Qubit(2), Target::Qubit(1), Target::Qubit(2)], &[])?;
+/// round.append("MR", &[Target::Qubit(2)], &[0.01])?;
+/// round.append("DETECTOR", &[Target::Rec(1), Target::Rec(2)], &[])?;
+/// let first: Circuit = "R 0 1 2\nCX 0 2 1 2\nMR 2".parse()?;
+/// let memory = &first + &(&round * 10);
+/// assert_eq!((memory.num_measurements(), memory.num_detectors()), (11, 10));
+/// assert!(memory.to_string().contains("REPEAT 10 {"));
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct Circuit {
     pub(crate) inner: circuit::Circuit,
-    num_qubits: usize,
-    num_measurements: usize,
-    num_detectors: usize,
-    num_observables: usize,
-    num_sweep_bits: usize,
+    counts: Counts,
 }
 
-fn max_sweep_bit(instrs: &[Instr]) -> usize {
-    instrs
-        .iter()
-        .map(|i| match i {
-            Instr::SweepX(pairs) => pairs.iter().map(|&(k, _)| k as usize + 1).max().unwrap_or(0),
-            Instr::Feedback { control: Control::Sweep(k), .. } => *k as usize + 1,
-            Instr::Repeat { body, .. } | Instr::Gate { body, .. } => max_sweep_bit(body),
-            _ => 0,
-        })
-        .max()
-        .unwrap_or(0)
+/// A target of an instruction, for [`Circuit::append`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Target {
+    /// A qubit (`3`).
+    Qubit(u32),
+    /// A qubit whose measurement result is inverted (`!3`).
+    Inverted(u32),
+    /// The measurement record this many measurements back (`rec[-1]` is `Rec(1)`, the latest).
+    Rec(u32),
+    /// A sweep bit (`sweep[0]`).
+    Sweep(u32),
+    /// A Pauli on a qubit (`X3`, or `!X3` when `inverted`), for `MPP`, `SPP`, `E` and
+    /// `OBSERVABLE_INCLUDE`.
+    Pauli {
+        /// The Pauli.
+        pauli: Pauli,
+        /// Its qubit.
+        qubit: u32,
+        /// Whether it is negated.
+        inverted: bool,
+    },
+    /// Joins the Pauli targets either side into one product (`X0*Z1`).
+    Combiner,
+}
+
+/// A single-qubit Pauli.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Pauli {
+    /// X.
+    X,
+    /// Y.
+    Y,
+    /// Z.
+    Z,
+}
+
+impl fmt::Display for Target {
+    /// The target as Stim writes it.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Target::Qubit(q) => write!(f, "{q}"),
+            Target::Inverted(q) => write!(f, "!{q}"),
+            Target::Rec(k) => write!(f, "rec[-{k}]"),
+            Target::Sweep(k) => write!(f, "sweep[{k}]"),
+            Target::Pauli { pauli, qubit, inverted } => {
+                let p = match pauli {
+                    Pauli::X => 'X',
+                    Pauli::Y => 'Y',
+                    Pauli::Z => 'Z',
+                };
+                write!(f, "{}{p}{qubit}", if inverted { "!" } else { "" })
+            }
+            Target::Combiner => f.write_str("*"),
+        }
+    }
 }
 
 impl Circuit {
+    /// The empty circuit.
+    pub fn new() -> Circuit {
+        Circuit::default()
+    }
+
     /// Parse Stim's circuit text.
     pub fn parse(text: &str) -> Result<Circuit> {
         Circuit::from_engine(circuit::Circuit::parse(text)?)
     }
 
     pub(crate) fn from_engine(inner: circuit::Circuit) -> Result<Circuit> {
-        let shape = BatchSampler::new(&inner)?;
-        Ok(Circuit {
-            num_qubits: inner.instrs.iter().flat_map(Instr::qubits).map(|q| q as usize + 1).max().unwrap_or(0),
-            num_measurements: shape.num_measurements,
-            num_detectors: shape.num_detectors,
-            num_observables: shape.num_observables,
-            num_sweep_bits: max_sweep_bit(&inner.instrs),
-            inner,
-        })
+        let counts = Counts::of(&inner.instrs)?;
+        fits(&counts)?;
+        Ok(Circuit { inner, counts })
+    }
+
+    /// Append one instruction: `name` (any of the circuit language's), its targets, and its
+    /// arguments (probabilities, coordinates, an observable's index). As Stim's
+    /// `Circuit.append`; an instruction the language does not allow is the error, and the
+    /// circuit is left as it was.
+    pub fn append(&mut self, name: &str, targets: &[Target], args: &[f64]) -> Result<()> {
+        self.append_tagged(name, targets, args, "")
+    }
+
+    /// [`append`](Circuit::append), with Stim's instruction tag (`H[tag] 0`).
+    pub fn append_tagged(&mut self, name: &str, targets: &[Target], args: &[f64], tag: &str) -> Result<()> {
+        let targets: Vec<String> = targets.iter().map(Target::to_string).collect();
+        let piece = Circuit::from_engine(circuit::Circuit::instruction(name, tag, args, &targets)?)?;
+        self.append_circuit(&piece)
+    }
+
+    /// Append Stim's circuit text, which may hold several instructions and `REPEAT` blocks.
+    pub fn append_text(&mut self, text: &str) -> Result<()> {
+        let piece = Circuit::parse(text)?;
+        self.append_circuit(&piece)
+    }
+
+    /// Append another circuit's instructions.
+    pub fn append_circuit(&mut self, other: &Circuit) -> Result<()> {
+        let counts = self.counts.then(other.counts)?;
+        fits(&counts)?;
+        self.inner.instrs.extend(other.inner.instrs.iter().cloned());
+        self.counts = counts;
+        Ok(())
+    }
+
+    /// `REPEAT count { self }`, as Stim's `circuit * count`: the empty circuit for 0, the
+    /// circuit itself for 1. The error is a count whose measurements or detectors overflow.
+    pub fn repeated(&self, count: u64) -> Result<Circuit> {
+        let counts = if count == 0 { Counts::default() } else { self.counts.times(count)? };
+        fits(&counts)?;
+        Ok(Circuit { inner: self.inner.repeated(count), counts })
     }
 
     /// One more than the largest qubit index any instruction names.
     pub fn num_qubits(&self) -> usize {
-        self.num_qubits
+        self.counts.qubits
     }
 
     /// Measurement records per shot.
     pub fn num_measurements(&self) -> usize {
-        self.num_measurements
+        self.counts.measurements as usize
     }
 
     /// Detectors per shot.
     pub fn num_detectors(&self) -> usize {
-        self.num_detectors
+        self.counts.detectors as usize
     }
 
     /// Logical observables.
     pub fn num_observables(&self) -> usize {
-        self.num_observables
+        self.counts.observables
     }
 
     /// Sweep bits the circuit reads (one more than the largest `sweep[k]`).
     pub fn num_sweep_bits(&self) -> usize {
-        self.num_sweep_bits
+        self.counts.sweep_bits
     }
 
     /// The circuit's detector error model, built by walking it backwards as Stim's error analyzer
@@ -116,6 +215,71 @@ impl Circuit {
     /// qubits.
     pub fn measurement_converter(&self) -> Result<MeasurementConverter> {
         Ok(MeasurementConverter { m2d: M2d::new(&self.inner)? })
+    }
+}
+
+/// Counts this machine can index.
+fn fits(c: &Counts) -> Result<()> {
+    if usize::try_from(c.measurements).is_err() || usize::try_from(c.detectors).is_err() {
+        return Err(Error::new("too many measurements or detectors for this machine"));
+    }
+    Ok(())
+}
+
+/// One circuit after another. Panics where [`Circuit::append_circuit`] would fail: when the
+/// measurements or detectors overflow a count.
+impl Add<&Circuit> for &Circuit {
+    type Output = Circuit;
+
+    fn add(self, rhs: &Circuit) -> Circuit {
+        let mut out = self.clone();
+        out += rhs;
+        out
+    }
+}
+
+/// One circuit after another (see `&Circuit + &Circuit`).
+impl Add<&Circuit> for Circuit {
+    type Output = Circuit;
+
+    fn add(mut self, rhs: &Circuit) -> Circuit {
+        self += rhs;
+        self
+    }
+}
+
+/// Append a circuit (see `&Circuit + &Circuit`).
+impl AddAssign<&Circuit> for Circuit {
+    fn add_assign(&mut self, rhs: &Circuit) {
+        if let Err(e) = self.append_circuit(rhs) {
+            panic!("{e}");
+        }
+    }
+}
+
+/// [`Circuit::repeated`]. Panics where it would fail: when the measurements or detectors
+/// overflow a count.
+impl Mul<u64> for &Circuit {
+    type Output = Circuit;
+
+    fn mul(self, count: u64) -> Circuit {
+        self.repeated(count).unwrap_or_else(|e| panic!("{e}"))
+    }
+}
+
+/// [`Circuit::repeated`] (see `&Circuit * u64`).
+impl Mul<u64> for Circuit {
+    type Output = Circuit;
+
+    fn mul(self, count: u64) -> Circuit {
+        &self * count
+    }
+}
+
+/// [`Circuit::repeated`], in place (see `&Circuit * u64`).
+impl MulAssign<u64> for Circuit {
+    fn mul_assign(&mut self, count: u64) {
+        *self = &*self * count;
     }
 }
 

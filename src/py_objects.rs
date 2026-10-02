@@ -13,7 +13,7 @@ use pyo3::types::PyBytes;
 
 use crate::batch_sampler::BatchSampler;
 use crate::belief::BeliefMatching;
-use crate::circuit::{Circuit, Instr};
+use crate::circuit::Circuit;
 use crate::dem::Dem;
 use crate::dem_decoder::DemDecoder;
 use crate::m2d::M2d;
@@ -43,78 +43,95 @@ fn le_f64(xs: impl IntoIterator<Item = f64>) -> Vec<u8> {
 
 /* -- Circuits and models --------------------------------------------------------- */
 
-fn max_sweep_bit(instrs: &[Instr]) -> usize {
-    instrs
-        .iter()
-        .map(|i| match i {
-            Instr::SweepX(pairs) => pairs.iter().map(|&(k, _)| k as usize + 1).max().unwrap_or(0),
-            Instr::Feedback { control: crate::circuit::Control::Sweep(k), .. } => *k as usize + 1,
-            Instr::Repeat { body, .. } | Instr::Gate { body, .. } => max_sweep_bit(body),
-            _ => 0,
-        })
-        .max()
-        .unwrap_or(0)
-}
-
-/// A parsed circuit, its counts taken through loops without unrolling them.
+/// A circuit, its counts taken through loops without unrolling them: the crate's `Circuit`,
+/// so the two APIs build, count and validate circuits alike.
 #[pyclass(name = "Circuit", module = "stabilizer_qec._core")]
 pub struct PyCircuit {
-    circuit: Circuit,
-    sampler: BatchSampler,
-    #[pyo3(get)]
-    num_qubits: usize,
-    #[pyo3(get)]
-    num_sweep_bits: usize,
+    circuit: crate::api::Circuit,
+}
+
+fn api_err(e: crate::api::Error) -> PyErr {
+    PyValueError::new_err(e.to_string())
 }
 
 #[pymethods]
 impl PyCircuit {
     #[new]
     fn new(text: &str) -> PyResult<Self> {
-        let circuit = Circuit::parse(text).map_err(err)?;
-        let sampler = BatchSampler::new(&circuit).map_err(err)?;
-        let num_qubits = circuit.instrs.iter().flat_map(Instr::qubits).map(|q| q as usize + 1).max().unwrap_or(0);
-        let num_sweep_bits = max_sweep_bit(&circuit.instrs);
-        Ok(PyCircuit { circuit, sampler, num_qubits, num_sweep_bits })
+        Ok(PyCircuit { circuit: crate::api::Circuit::parse(text).map_err(api_err)? })
+    }
+
+    #[getter]
+    fn num_qubits(&self) -> usize {
+        self.circuit.num_qubits()
+    }
+
+    #[getter]
+    fn num_sweep_bits(&self) -> usize {
+        self.circuit.num_sweep_bits()
     }
 
     #[getter]
     fn num_measurements(&self) -> usize {
-        self.sampler.num_measurements
+        self.circuit.num_measurements()
     }
 
     #[getter]
     fn num_detectors(&self) -> usize {
-        self.sampler.num_detectors
+        self.circuit.num_detectors()
     }
 
     #[getter]
     fn num_observables(&self) -> usize {
-        self.sampler.num_observables
+        self.circuit.num_observables()
     }
 
     fn __str__(&self) -> String {
-        self.circuit.to_stim()
+        self.circuit.to_string()
     }
 
     fn __eq__(&self, other: &PyCircuit) -> bool {
-        self.circuit == other.circuit
+        self.circuit.inner == other.circuit.inner
+    }
+
+    /// One instruction from its parts (targets as their text); the circuit is unchanged on an
+    /// error.
+    fn append_instruction(&mut self, name: &str, tag: &str, args: Vec<f64>, targets: Vec<String>) -> PyResult<()> {
+        let piece = Circuit::instruction(name, tag, &args, &targets).map_err(err)?;
+        let piece = crate::api::Circuit::from_engine(piece).map_err(api_err)?;
+        self.circuit.append_circuit(&piece).map_err(api_err)
+    }
+
+    fn append_text(&mut self, text: &str) -> PyResult<()> {
+        self.circuit.append_text(text).map_err(api_err)
+    }
+
+    fn append_circuit(&mut self, other: &PyCircuit) -> PyResult<()> {
+        self.circuit.append_circuit(&other.circuit).map_err(api_err)
+    }
+
+    fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
+        Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
+    }
+
+    fn copy(&self) -> PyCircuit {
+        PyCircuit { circuit: self.circuit.clone() }
     }
 
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
     /// and `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off).
     #[pyo3(signature = (decompose, approximate=None))]
     fn detector_error_model(&self, decompose: bool, approximate: Option<f64>) -> PyResult<PyDem> {
-        let dem = Dem::from_circuit_with(&self.circuit, decompose, approximate);
+        let dem = Dem::from_circuit_with(&self.circuit.inner, decompose, approximate);
         Ok(PyDem { dem: dem.map_err(err)?, pieces: decompose })
     }
 
     fn sampler(&self, seed: u64) -> PyResult<PySampler> {
-        Ok(PySampler { sampler: BatchSampler::new(&self.circuit).map_err(err)?, seed, next: 0 })
+        Ok(PySampler { sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?, seed, next: 0 })
     }
 
     fn m2d(&self) -> PyResult<PyM2d> {
-        Ok(PyM2d { m2d: M2d::new(&self.circuit).map_err(err)? })
+        Ok(PyM2d { m2d: M2d::new(&self.circuit.inner).map_err(err)? })
     }
 }
 

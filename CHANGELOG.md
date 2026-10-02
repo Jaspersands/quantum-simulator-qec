@@ -4,6 +4,26 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Unreleased
+
+### Added
+
+- Circuits built in code, as in Stim, in Python and in the crate. `Circuit.append(name,
+  targets, arg, tag=...)` takes an instruction a time: targets as qubit indices, Stim's target
+  text (`"rec[-1]"`, `"!3"`, `"X0"`, `"*"`) or `stim.GateTarget`s, and whole Stim circuits,
+  instructions and repeat blocks; `+` and `+=` join circuits, `*` and `*=` make a `REPEAT`
+  block (multiplying the count of a circuit that is one loop, as Stim does);
+  `append_from_stim_program_text` and `copy`. In Rust: `Circuit::new`, `append` with the new
+  `Target` and `Pauli` types, `append_tagged`, `append_text`, `append_circuit`, `repeated`, and
+  the operators `+`, `+=`, `*`, `*=`. A failed append leaves the circuit unchanged.
+
+### Changed
+
+- A circuit that reads a measurement record before its first measurement can now be made (it
+  may be a piece of a larger circuit, a round comparing with the last); sampling it, building
+  its error model or converting its measurements is the error, as in Stim. Counts are combined
+  piece by piece, so building a circuit an instruction at a time stays linear.
+
 ## 1.1.0 — 2026-10-02
 
 The Python package and the Rust crate both at 1.1.0. The crate gains the circuit-language

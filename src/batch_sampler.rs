@@ -176,7 +176,7 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
 
 /// Counts through repeats, the largest lookback, and a check that no lookback
 /// reaches before the first measurement (the first pass through a loop is the
-/// only one that could).
+/// only one that could), unless `lenient`.
 #[derive(Default)]
 struct Shape {
     measurements: u64,
@@ -184,6 +184,72 @@ struct Shape {
     observables: usize,
     qubits: usize,
     lookback: u32,
+    lenient: bool,
+}
+
+/// What a circuit holds, counted through its loops without unrolling them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Counts {
+    pub qubits: usize,
+    pub measurements: u64,
+    pub detectors: u64,
+    pub observables: usize,
+    pub sweep_bits: usize,
+}
+
+impl Counts {
+    /// A circuit's counts. Its lookbacks are not checked: a piece of a circuit may read records
+    /// made before it, and sampling or analysing the whole is what refuses one that reaches
+    /// before the first measurement.
+    pub fn of(instrs: &[Instr]) -> Result<Counts, String> {
+        let mut s = Shape { lenient: true, ..Shape::default() };
+        shape(&compile(instrs), &mut s)?;
+        Ok(Counts {
+            qubits: instrs.iter().flat_map(Instr::qubits).map(|q| q as usize + 1).max().unwrap_or(0),
+            measurements: s.measurements,
+            detectors: s.detectors,
+            observables: s.observables,
+            sweep_bits: max_sweep_bit(instrs),
+        })
+    }
+
+    /// The counts of this circuit followed by `next`.
+    pub fn then(self, next: Counts) -> Result<Counts, String> {
+        let overflow = || "the circuit's measurements or detectors overflow a count".to_string();
+        Ok(Counts {
+            qubits: self.qubits.max(next.qubits),
+            measurements: self.measurements.checked_add(next.measurements).ok_or_else(overflow)?,
+            detectors: self.detectors.checked_add(next.detectors).ok_or_else(overflow)?,
+            observables: self.observables.max(next.observables),
+            sweep_bits: self.sweep_bits.max(next.sweep_bits),
+        })
+    }
+
+    /// The counts of `REPEAT count { this }`.
+    pub fn times(self, count: u64) -> Result<Counts, String> {
+        let overflow = || format!("REPEAT {count}: the loop's measurements or detectors overflow a count");
+        Ok(Counts {
+            measurements: self.measurements.checked_mul(count).ok_or_else(overflow)?,
+            detectors: self.detectors.checked_mul(count).ok_or_else(overflow)?,
+            // As `of` counts a loop never run: its qubits and sweep bits named, its observables not.
+            observables: if count == 0 { 0 } else { self.observables },
+            ..self
+        })
+    }
+}
+
+/// One more than the largest sweep bit the instructions read.
+fn max_sweep_bit(instrs: &[Instr]) -> usize {
+    instrs
+        .iter()
+        .map(|i| match i {
+            Instr::SweepX(pairs) => pairs.iter().map(|&(k, _)| k as usize + 1).max().unwrap_or(0),
+            Instr::Feedback { control: crate::circuit::Control::Sweep(k), .. } => *k as usize + 1,
+            Instr::Repeat { body, .. } | Instr::Gate { body, .. } => max_sweep_bit(body),
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
@@ -218,7 +284,7 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
             }
             Op::Feedback { lookback, qubit, .. } => {
                 touch(s, *qubit);
-                if *lookback == 0 || u64::from(*lookback) > s.measurements {
+                if (*lookback == 0 || u64::from(*lookback) > s.measurements) && !s.lenient {
                     return Err(format!("rec[-{lookback}] reaches before the first measurement"));
                 }
                 s.lookback = s.lookback.max(*lookback);
@@ -226,7 +292,7 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
             Op::ShiftCoords(_) => {}
             Op::Detector(recs, _) | Op::Observable(_, recs, _) => {
                 for &k in recs {
-                    if k == 0 || u64::from(k) > s.measurements {
+                    if (k == 0 || u64::from(k) > s.measurements) && !s.lenient {
                         return Err(format!("rec[-{k}] reaches before the first measurement"));
                     }
                     s.lookback = s.lookback.max(k);

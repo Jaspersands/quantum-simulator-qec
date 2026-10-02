@@ -28,6 +28,19 @@ class Circuit:
     >>> c = Circuit("R 0 1\\nH 0\\nCX 0 1\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
     >>> c.num_qubits, c.num_measurements, c.num_detectors
     (2, 2, 1)
+
+    Or build one in code, as in Stim: ``append`` an instruction at a time, ``+`` one circuit
+    after another, ``*`` a circuit into a ``REPEAT`` block. A piece may read measurements made
+    before it (a round comparing with the last); sampling or analysing a circuit that reads
+    before its first measurement is the error.
+
+    >>> cycle = Circuit()
+    >>> cycle.append("CX", [0, 2, 1, 2])
+    >>> cycle.append("MR", [2], 0.01)
+    >>> cycle.append("DETECTOR", ["rec[-1]", "rec[-2]"])
+    >>> memory = Circuit("R 0 1 2\\nCX 0 2 1 2\\nMR 2") + cycle * 10
+    >>> memory.num_measurements, memory.num_detectors
+    (11, 10)
     """
 
     __slots__ = ("_c",)
@@ -55,6 +68,79 @@ class Circuit:
     def __reduce__(self) -> tuple:
         # Pickled, copied and sent to other processes as its text.
         return (Circuit, (str(self),))
+
+    def copy(self) -> "Circuit":
+        """A copy, to change without changing this one."""
+        out = Circuit.__new__(Circuit)
+        out._c = self._c.copy()
+        return out
+
+    def append(self, name: Union[str, "Circuit", Any], targets: Any = (), arg: Any = None, *, tag: str = "") -> None:
+        """Append one instruction, as Stim's ``Circuit.append``: its name (any instruction of
+        the language but ``REPEAT``), its targets, its argument or arguments (probabilities,
+        coordinates, an observable's index), and optionally Stim's tag.
+
+        A target is a qubit index, a string as Stim writes targets (``"!3"``, ``"rec[-1]"``,
+        ``"sweep[0]"``, ``"X3"``, ``"*"`` joining Pauli targets into a product), or a
+        ``stim.GateTarget``; ``targets`` is one of them or a list. ``name`` may instead be a
+        ``Circuit``, or a ``stim.Circuit``, ``stim.CircuitInstruction`` or
+        ``stim.CircuitRepeatBlock``, appended whole. An instruction the language does not allow
+        raises ``ValueError`` and leaves the circuit as it was.
+
+        >>> c = Circuit()
+        >>> c.append("H", 0)
+        >>> c.append("MPP", ["X0", "*", "Z1"], 0.01, tag="parity")
+        >>> print(c)
+        H 0
+        MPP[parity](0.01) X0*Z1
+        """
+        if isinstance(name, Circuit) or not isinstance(name, str):
+            if not (isinstance(targets, tuple) and targets == () and arg is None and tag == ""):
+                raise ValueError("a circuit or Stim object is appended whole, without targets, arg or tag")
+            if isinstance(name, Circuit):
+                call(self._c.append_circuit, name._c)
+            else:
+                call(self._c.append_text, _stim_text(name))
+            return
+        if not isinstance(tag, str):
+            raise TypeError(f"tag must be a str, not {type(tag).__name__}")
+        call(self._c.append_instruction, name, tag, _args(arg), _targets(targets))
+
+    def append_from_stim_program_text(self, text: str) -> None:
+        """Append Stim's circuit text: any number of instructions and ``REPEAT`` blocks."""
+        if not isinstance(text, str):
+            raise TypeError(f"text must be a str, not {type(text).__name__}")
+        call(self._c.append_text, text)
+
+    def __add__(self, other: object) -> "Circuit":
+        if not isinstance(other, Circuit):
+            return NotImplemented
+        out = self.copy()
+        out += other
+        return out
+
+    def __iadd__(self, other: object) -> "Circuit":
+        if not isinstance(other, Circuit):
+            return NotImplemented
+        call(self._c.append_circuit, other._c)
+        return self
+
+    def __mul__(self, repetitions: object) -> "Circuit":
+        """``REPEAT repetitions { self }``, as Stim's: nothing for 0, the circuit for 1."""
+        if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):
+            return NotImplemented
+        out = Circuit.__new__(Circuit)
+        out._c = call(self._c.repeated, count(repetitions, "repetitions"))
+        return out
+
+    __rmul__ = __mul__
+
+    def __imul__(self, repetitions: object) -> "Circuit":
+        out = self.__mul__(repetitions)
+        if out is NotImplemented:
+            return NotImplemented
+        self._c = out._c
+        return self
 
     __hash__ = None  # type: ignore[assignment]
 
@@ -107,6 +193,60 @@ class Circuit:
         """A converter from raw measurements (and sweep bits) to detection events, as
         ``stim m2d``. Its reference run keeps a dense tableau: at most 16,384 qubits."""
         return MeasurementsToDetectionEventsConverter(self)
+
+
+def _target(t: Any) -> str:
+    """A target as Stim writes it."""
+    if isinstance(t, bool):
+        raise TypeError("a target is a qubit index, a string such as 'rec[-1]', or a stim.GateTarget, not a bool")
+    if isinstance(t, (int, np.integer)):
+        if t < 0:
+            raise ValueError(f"qubit {t} is negative")
+        return str(int(t))
+    if isinstance(t, str):
+        return t
+    if hasattr(t, "is_combiner") and hasattr(t, "value"):  # a stim.GateTarget
+        if t.is_combiner:
+            return "*"
+        if t.is_measurement_record_target:
+            return f"rec[{t.value}]"
+        if t.is_sweep_bit_target:
+            return f"sweep[{t.value}]"
+        pauli = "X" if t.is_x_target else "Y" if t.is_y_target else "Z" if t.is_z_target else ""
+        return f"{'!' if t.is_inverted_result_target else ''}{pauli}{t.value}"
+    raise TypeError(f"a target is a qubit index, a string such as 'rec[-1]', or a stim.GateTarget, not {type(t).__name__}")
+
+
+def _targets(targets: Any) -> list:
+    if isinstance(targets, (str, int, np.integer)) or hasattr(targets, "is_combiner"):
+        return [_target(targets)]
+    try:
+        items = list(targets)
+    except TypeError:
+        raise TypeError(f"targets must be a target or a list of them, not {type(targets).__name__}") from None
+    return [_target(t) for t in items]
+
+
+def _args(arg: Any) -> list:
+    if arg is None:
+        return []
+    if isinstance(arg, (int, float, np.integer, np.floating)) and not isinstance(arg, bool):
+        return [real(arg, "arg")]
+    try:
+        items = list(arg)
+    except TypeError:
+        raise TypeError(f"arg must be a number or a list of numbers, not {type(arg).__name__}") from None
+    return [real(a, "arg") for a in items]
+
+
+def _stim_text(obj: Any) -> str:
+    """A stim.Circuit, CircuitInstruction or CircuitRepeatBlock as circuit text."""
+    if hasattr(obj, "repeat_count") and hasattr(obj, "body_copy"):
+        tag = getattr(obj, "tag", "")
+        return f"REPEAT{f'[{tag}]' if tag else ''} {obj.repeat_count} {{\n{obj.body_copy()}\n}}"
+    if type(obj).__module__.startswith("stim"):
+        return str(obj)
+    raise TypeError(f"cannot append a {type(obj).__name__}: give an instruction's name, a Circuit, or a Stim circuit, instruction or repeat block")
 
 
 class DetectorErrorModel:
