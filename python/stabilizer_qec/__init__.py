@@ -41,6 +41,10 @@ measurement records, and of Pauli targets: `OBSERVABLE_INCLUDE(0) X0 Z1`), coord
 whose cases are disjoint enter an error model only with `approximate_disjoint_errors`, as in
 Stim.
 
+Or build one in code, as in Stim: `append` an instruction at a time (targets as qubit
+indices, strings such as `"rec[-1]"`, or `stim.GateTarget`s), `+` one circuit after another,
+and `*` one into a `REPEAT` block.
+
 Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 `BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
 `surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`
@@ -78,9 +82,12 @@ From the command line: `sinter collect ... --decoders sq_matching
   not on the machine or the number of threads (`threads=0` is every core).
 - **Errors are errors.** Bad input raises `ValueError` (or `TypeError` for a wrong type); an
   engine bug raises `RuntimeError` asking for a report, never a crash.
-- **Limits.** Qubit indices up to 2**24 - 1, as in Stim. An error model or m2d holds a circuit
-  unrolled, up to 2**24 instructions and targets; the sampler runs loops without unrolling
-  them. Generated circuits are written out round by round, up to 10,000 rounds.
+- **Limits.** Qubit indices up to 2**24 - 1, as in Stim. An error model folds the loops that
+  repeat, as Stim folds them, so a d = 11 memory of 10,000 rounds is analysed in a tenth of a
+  second; a decoder unrolls its model, up to 2**24 faults and declarations. The m2d converter
+  holds a circuit unrolled, up to 2**24 instructions and targets; the sampler runs loops
+  without unrolling them. Generated circuits are written out round by round, up to 10,000
+  rounds.
 - **Stability.** Semantic versioning: everything importable from `stabilizer_qec` without a
   leading underscore keeps working, with the same meaning, through every 1.x release. A name
   is deprecated (with a `DeprecationWarning` naming its replacement) for at least one minor

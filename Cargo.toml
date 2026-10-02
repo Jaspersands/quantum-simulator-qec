@@ -1,6 +1,6 @@
 [package]
 name = "stabilizer_qec"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 description = "Quantum error-correction simulation and decoding: Stim-format circuits and error models, a bit-parallel sampler, sparse-blossom, correlated and belief matching, BP+OSD, window decoders, bivariate bicycle codes and lattice surgery."
 license = "MIT"
@@ -22,7 +22,7 @@ crate-type = ["cdylib", "rlib"]
 rand = { version = "0.8", optional = true }
 
 [dependencies.pyo3]
-version = "0.22"
+version = "0.29"
 features = ["extension-module", "abi3-py39"]
 optional = true
 

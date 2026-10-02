@@ -132,7 +132,11 @@ def test_any_circuit_text(text):
             survives(decoder.decode_batch, dets)
     # Sampling runs loops pass by pass: only modest loops are sampled here.
     if c.num_qubits <= 256 and c.num_measurements <= 2048 and modest:
-        d = c.compile_detector_sampler(seed=1).sample(70, threads=2)
+        try:
+            sampler = c.compile_detector_sampler(seed=1)
+        except ALLOWED:  # a record read before the first measurement: refused here, not built
+            return
+        d = sampler.sample(70, threads=2)
         assert d.shape == (70, c.num_detectors)
         try:
             conv = c.compile_m2d_converter()
@@ -140,6 +144,29 @@ def test_any_circuit_text(text):
             return
         meas = np.zeros((3, c.num_measurements), dtype=bool)
         survives(conv.convert, measurements=meas, sweep_bits=np.zeros((3, c.num_sweep_bits), dtype=bool))
+
+
+@given(st.lists(st.tuples(circuits, st.integers(0, 3), st.booleans()), min_size=1, max_size=4))
+def test_any_circuit_built_from_pieces(pieces):
+    # Built with +, * and append, a circuit counts and prints as its text parsed whole does.
+    built = sq.Circuit()
+    for text, n, in_place in pieces:
+        try:
+            piece = sq.Circuit(text)
+        except ALLOWED:
+            continue
+        try:
+            if in_place:
+                built += piece * n
+            else:
+                built = built + n * piece
+            built.append("TICK")
+        except ALLOWED:
+            continue
+    again = sq.Circuit(str(built))
+    assert again == built
+    counts = lambda c: (c.num_qubits, c.num_measurements, c.num_detectors, c.num_observables, c.num_sweep_bits)
+    assert counts(again) == counts(built)
 
 
 @given(dems())

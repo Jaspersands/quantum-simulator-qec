@@ -2,8 +2,8 @@
 
 use stabilizer_qec::{
     lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpMethod, BpOptions,
-    BpOsd, BpOsdDecoder, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod,
-    SurfaceCode, WindowMatching, WindowMode, WindowOptions,
+    BpOsd, BpOsdDecoder, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
+    SurfaceCode, Target, WindowMatching, WindowMode, WindowOptions,
 };
 
 fn d5() -> Circuit {
@@ -170,4 +170,91 @@ fn stim_tags_and_pauli_observables() {
     // A Pauli observable the state does not fix is refused, as Stim refuses it.
     let random: Circuit = "R 0\nOBSERVABLE_INCLUDE(0) X0\nM 0\nDETECTOR rec[-1]".parse().unwrap();
     assert!(random.detector_error_model(&DemOptions::new()).unwrap_err().message().contains("not deterministic"));
+}
+
+#[test]
+fn circuits_built_in_code() {
+    use Target::{Combiner, Inverted, Qubit, Rec, Sweep};
+    let mut c = Circuit::new();
+    c.append("R", &[Qubit(0), Qubit(1), Qubit(2)], &[]).unwrap();
+    c.append_tagged("H", &[Qubit(0)], &[], "prep").unwrap();
+    c.append("CX", &[Qubit(0), Qubit(1), Sweep(3), Qubit(2)], &[]).unwrap();
+    c.append("MPP", &[Target::Pauli { pauli: Pauli::X, qubit: 0, inverted: false }, Combiner, Target::Pauli { pauli: Pauli::X, qubit: 1, inverted: true }], &[0.01])
+        .unwrap();
+    c.append("M", &[Inverted(2)], &[]).unwrap();
+    c.append("DETECTOR", &[Rec(2)], &[1.0, 2.0]).unwrap();
+    c.append("OBSERVABLE_INCLUDE", &[Rec(1)], &[0.0]).unwrap();
+    assert_eq!(
+        c.to_string(),
+        "R 0 1 2\nH[prep] 0\nCX 0 1 sweep[3] 2\nMPP(0.01) X0*!X1\nM !2\nDETECTOR(1, 2) rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]\n"
+    );
+    assert_eq!((c.num_qubits(), c.num_measurements(), c.num_detectors(), c.num_observables(), c.num_sweep_bits()), (3, 2, 1, 1, 4));
+    // A failed append leaves the circuit as it was.
+    let before = c.clone();
+    for (name, targets) in [("FOO", vec![Qubit(0)]), ("H\nM", vec![Qubit(0)]), ("CX", vec![Qubit(0)]), ("MPP", vec![Combiner]), ("REPEAT", vec![])] {
+        assert!(c.append(name, &targets, &[]).is_err(), "{name}");
+    }
+    assert!(c.append("X_ERROR", &[Qubit(0)], &[f64::NAN]).is_err());
+    assert!(c.append_tagged("H", &[Qubit(0)], &[], "a]b").is_err());
+    assert_eq!(c, before);
+    // A round reads the last round's record; the whole, not the piece, is what runs.
+    let mut round = Circuit::new();
+    round.append_text("CX 0 1\nMR 1\nDETECTOR rec[-1] rec[-2]").unwrap();
+    assert!(round.detector_sampler(1).is_err() && round.detector_error_model(&DemOptions::new()).is_err());
+    let first: Circuit = "R 0 1\nCX 0 1\nMR 1".parse().unwrap();
+    let memory = &first + &(&round * 20);
+    assert_eq!((memory.num_measurements(), memory.num_detectors()), (21, 20));
+    assert_eq!(memory.to_string().parse::<Circuit>().unwrap(), memory);
+    assert!(memory.detector_error_model(&DemOptions::new()).is_ok());
+    // Repeating a loop multiplies its count, as in Stim.
+    assert_eq!((&round * 20) * 3, &round * 60);
+    let mut grown = first.clone();
+    grown += &round;
+    grown *= 1;
+    assert_eq!(grown.num_detectors(), 1);
+    assert_eq!(round.repeated(0).unwrap(), Circuit::new());
+}
+
+#[test]
+fn gross_code_automorphisms_gauging_and_streams() {
+    use stabilizer_qec::{stream_memory, Automorphism};
+    let gross = BivariateBicycleCode::gross();
+    let autos: Vec<Automorphism> = gross.automorphisms().unwrap();
+    assert_eq!(autos.len(), 144);
+    // Each action is invertible over GF(2): its 24 rows are independent.
+    for a in &autos {
+        let mut rows: Vec<u32> = a.action.iter().map(|r| r.iter().fold(0u32, |m, &i| m | 1 << i)).collect();
+        let mut rank = 0;
+        for bit in 0..24 {
+            if let Some(i) = (rank..rows.len()).find(|&i| rows[i] >> bit & 1 == 1) {
+                rows.swap(rank, i);
+                for j in 0..rows.len() {
+                    if j != rank && rows[j] >> bit & 1 == 1 {
+                        rows[j] ^= rows[rank];
+                    }
+                }
+                rank += 1;
+            }
+        }
+        assert_eq!(rank, 24, "{:?}", a.shift);
+    }
+    for (op, expanded) in [(GrossOperator::F, false), (GrossOperator::FTimesGh, true)] {
+        let g = gross.gauging(op, expanded).unwrap();
+        let n = 144 + g.incidence.len();
+        assert!(g.hx.iter().chain(&g.hz).flatten().all(|&q| q < n));
+        // Each edge meets the support an even number of times (twice, or four times for f·gh).
+        assert!(g.incidence.iter().all(|e| !e.is_empty() && e.len() % 2 == 0 && e.iter().all(|&v| v < g.support.len())));
+        if expanded {
+            assert!(g.worst_cut.0 >= g.worst_cut.1, "{:?}", g.worst_cut);
+        }
+    }
+    assert!(BivariateBicycleCode::bb72().gauging(GrossOperator::F, false).is_err());
+    // A stream's failures depend on its seed, not its threads.
+    let opts = WindowOptions::new(2, 2, WindowMode::Parallel);
+    let one = stream_memory(SurfaceCode::Rotated, 3, 300, 0.004, opts, 256, 9, 1).unwrap();
+    let four = stream_memory(SurfaceCode::Rotated, 3, 300, 0.004, opts, 256, 9, 4).unwrap();
+    assert_eq!((one.failures, one.shots), (four.failures, four.shots));
+    assert_eq!(one.window_seconds.len(), 4);
+    assert!(one.window_seconds.iter().all(|w| w.len() == one.windows.len()));
+    assert!(stream_memory(SurfaceCode::Rotated, 3, 0, 0.004, opts, 64, 1, 1).is_err());
 }

@@ -35,8 +35,13 @@ def test_from_file(tmp_path):
 def test_bad_circuits():
     with pytest.raises(ValueError, match="unsupported instruction"):
         sq.Circuit("FOO 0")
-    with pytest.raises(ValueError):
-        sq.Circuit("M 0\nDETECTOR rec[-2]")
+    # A circuit reading before its first measurement can be held (a piece of a larger one), but
+    # not sampled, analysed or converted.
+    early = sq.Circuit("M 0\nDETECTOR rec[-2]")
+    assert early.num_detectors == 1
+    for use in (early.detector_error_model, early.compile_detector_sampler, early.compile_m2d_converter):
+        with pytest.raises(ValueError, match="before the first measurement"):
+            use()
     with pytest.raises(TypeError):
         sq.Circuit(3)
 

@@ -168,6 +168,67 @@ impl Circuit {
         Ok(Circuit { instrs })
     }
 
+    /// One instruction, `name[tag](args) targets`, read as its line would be. The name is one
+    /// word, the tag one line without `]`, and each target one token (`3`, `!3`, `rec[-1]`,
+    /// `sweep[0]`, `X3`, or `*` joining the Pauli targets either side), so that no part can
+    /// smuggle in another instruction.
+    pub fn instruction(name: &str, tag: &str, args: &[f64], targets: &[String]) -> Result<Circuit, String> {
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err(format!("'{name}' is not an instruction name"));
+        }
+        if name.eq_ignore_ascii_case("REPEAT") {
+            return Err("a REPEAT block is appended as a circuit repeated, not as an instruction".into());
+        }
+        if tag.contains([']', '\n', '\r']) {
+            return Err(format!("{name}: a tag holds no ']' and no line break, got '{tag}'"));
+        }
+        if let Some(a) = args.iter().find(|a| !a.is_finite()) {
+            return Err(format!("{name}: argument {a} is not finite"));
+        }
+        let mut line = name.to_string();
+        if !tag.is_empty() {
+            let _ = write!(line, "[{tag}]");
+        }
+        if !args.is_empty() {
+            let _ = write!(line, "({})", fmt_args(args));
+        }
+        let mut glue = true;
+        for t in targets {
+            if t.is_empty() || t.contains(|c: char| c.is_whitespace() || "#{}".contains(c)) {
+                return Err(format!("{name}: '{t}' is not a target"));
+            }
+            if t == "*" {
+                line.push('*');
+                glue = true;
+            } else {
+                line.push_str(if glue && line.ends_with('*') { "" } else { " " });
+                line.push_str(t);
+                glue = false;
+            }
+        }
+        if line.ends_with('*') || line.contains(" *") {
+            return Err(format!("{name}: a '*' joins two targets"));
+        }
+        let c = Circuit::parse(&line)?;
+        if c.instrs.len() != 1 {
+            return Err(format!("'{line}' is not one instruction"));
+        }
+        Ok(c)
+    }
+
+    /// `REPEAT count { self }`, as Stim's `circuit * count`: nothing for 0, the circuit itself
+    /// for 1, and a circuit that is one untagged loop has its count multiplied.
+    pub fn repeated(&self, count: u64) -> Circuit {
+        match (count, self.instrs.as_slice()) {
+            (0, _) => Circuit::default(),
+            (1, _) => self.clone(),
+            (_, [Instr::Repeat { count: inner, body, tag }]) if tag.is_empty() && inner.checked_mul(count).is_some() => {
+                Circuit { instrs: vec![Instr::Repeat { count: inner * count, body: body.clone(), tag: String::new() }] }
+            }
+            _ => Circuit { instrs: vec![Instr::Repeat { count, body: self.instrs.clone(), tag: String::new() }] },
+        }
+    }
+
     pub fn to_stim(&self) -> String {
         let mut s = String::new();
         emit(&self.instrs, "", &mut s);

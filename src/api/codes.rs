@@ -1,4 +1,4 @@
-use super::{probability, Circuit, Error, Result};
+use super::{probability, Circuit, Error, Result, Window, WindowMode, WindowOptions};
 use crate::memory::{CodeKind, NoiseModel};
 
 /// A measurement or preparation basis.
@@ -86,6 +86,130 @@ pub enum GrossOperator {
     FTimesGh,
 }
 
+impl GrossOperator {
+    fn name(self) -> &'static str {
+        match self {
+            GrossOperator::F => "f",
+            GrossOperator::Gh => "gh",
+            GrossOperator::FTimesGh => "f+gh",
+        }
+    }
+}
+
+/// An automorphism of a bivariate bicycle code: the shift x^a y^b of both halves of the data,
+/// with or without the ZX-duality, and what it does to the logical qubits.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Automorphism {
+    /// (a, b): the shift x^a y^b.
+    pub shift: (usize, usize),
+    /// Whether it composes the shift with Bravyi et al.'s ZX-duality.
+    pub dual: bool,
+    /// Its action on the 2k logical basis elements (the X logicals, then the Z logicals, as
+    /// [`BivariateBicycleCode::logicals`] gives them): `action[i]` holds the basis elements
+    /// whose sum, over GF(2), is the image of element `i`.
+    pub action: Vec<Vec<usize>>,
+}
+
+/// The gauging ancilla system that measures a gross-code logical X (see
+/// [`BivariateBicycleCode::gauging`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Gauging {
+    /// The operator's data qubits: the graph's vertices.
+    pub support: Vec<usize>,
+    /// The Z checks touching the support, each an edge qubit.
+    pub edges: Vec<usize>,
+    /// The edges added for expansion, as pairs of vertices.
+    pub extra_edges: Vec<(usize, usize)>,
+    /// Each edge's two ends, as indices into `support`.
+    pub incidence: Vec<Vec<usize>>,
+    /// Each vertex's edges: its Gauss-law check.
+    pub gauss: Vec<Vec<usize>>,
+    /// The flux checks, as edge indices.
+    pub flux: Vec<Vec<usize>>,
+    /// The merged code's X checks, over the data qubits then the edge qubits.
+    pub hx: Vec<Vec<usize>>,
+    /// Its Z checks, likewise.
+    pub hz: Vec<Vec<usize>>,
+    /// The merged cycle's depth.
+    pub ticks: usize,
+    /// The sparsest cut: (edges leaving it, vertices in it).
+    pub worst_cut: (usize, usize),
+}
+
+/// A streamed memory's outcome (see [`stream_memory`]).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct StreamResult {
+    /// Shots whose observable was decoded wrongly.
+    pub failures: usize,
+    /// Shots run: the shots asked for, rounded up to a multiple of 64.
+    pub shots: usize,
+    /// For the first stream of each batch of 64, each window's decode time in seconds.
+    pub window_seconds: Vec<Vec<f64>>,
+    /// The windows.
+    pub windows: Vec<Window>,
+    /// The wall time.
+    pub seconds: f64,
+}
+
+/// A memory too long to model whole, sampled round by round and window-decoded as it streams:
+/// an SD6 memory at strength `p` of `rounds` rounds (a million is fine), Z basis, its windows'
+/// graphs built once from a short template. `shots` is rounded up to a multiple of 64; the
+/// same `seed` gives the same failures on any number of `threads` (0 is every core).
+///
+/// ```
+/// use stabilizer_qec::{stream_memory, SurfaceCode, WindowMode, WindowOptions};
+///
+/// let r = stream_memory(SurfaceCode::Rotated, 3, 200, 0.001, WindowOptions::new(2, 2, WindowMode::Parallel), 64, 1, 1)?;
+/// assert_eq!(r.shots, 64);
+/// assert!(r.failures < 64 && !r.windows.is_empty());
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+#[allow(clippy::too_many_arguments)]
+pub fn stream_memory(
+    code: SurfaceCode,
+    distance: usize,
+    rounds: usize,
+    p: f64,
+    windows: WindowOptions,
+    shots: usize,
+    seed: u64,
+    threads: usize,
+) -> Result<StreamResult> {
+    probability(p, "p")?;
+    if rounds == 0 {
+        return Err(Error::new("rounds must be at least 1"));
+    }
+    let kind = match code {
+        SurfaceCode::Rotated => CodeKind::Rotated,
+        SurfaceCode::Xzzx => CodeKind::Xzzx,
+    };
+    let (commit, buffer, mode, correlations) = windows.parts();
+    let mode = match mode {
+        WindowMode::Sliding => crate::window::Mode::Sliding,
+        WindowMode::Parallel => crate::window::Mode::Parallel,
+    };
+    let batches = shots.max(1).div_ceil(64);
+    let out = crate::batch::stream_shots(kind, distance, p, rounds, commit, buffer, mode, correlations, batches, seed, threads)?;
+    if out.unexplained > 0 {
+        return Err(Error::new(format!(
+            "internal error in stabilizer_qec: window commits left {} defects unexplained; please report it",
+            out.unexplained
+        )));
+    }
+    let windows: Vec<Window> = out.windows.into_iter().map(Window::from_info).collect();
+    let per = windows.len().max(1);
+    Ok(StreamResult {
+        failures: out.failures,
+        shots: out.shots,
+        window_seconds: out.times.chunks(per).map(<[f64]>::to_vec).collect(),
+        windows,
+        seconds: out.seconds,
+    })
+}
+
 /// One of IBM's bivariate bicycle codes (Bravyi et al., Nature 627, 778, 2024), with the paper's
 /// depth-8 syndrome cycle.
 ///
@@ -151,6 +275,74 @@ impl BivariateBicycleCode {
         Circuit::from_engine(c)
     }
 
+    /// Every automorphism the code's shifts give: x^a y^b for each `a < l`, `b < m`, with and
+    /// without Bravyi et al.'s ZX-duality, and its action on the logical qubits.
+    ///
+    /// ```
+    /// use stabilizer_qec::BivariateBicycleCode;
+    ///
+    /// let autos = BivariateBicycleCode::gross().automorphisms()?;
+    /// assert_eq!(autos.len(), 2 * 12 * 6);
+    /// let identity = &autos[0];
+    /// assert_eq!((identity.shift, identity.dual), ((0, 0), false));
+    /// assert!(identity.action.iter().enumerate().all(|(i, row)| row == &vec![i]));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn automorphisms(&self) -> Result<Vec<Automorphism>> {
+        use crate::bb_auto::Automorphism as Engine;
+        let mut out = Vec::with_capacity(2 * self.inner.l * self.inner.m);
+        for a in 0..self.inner.l {
+            for b in 0..self.inner.m {
+                for dual in [false, true] {
+                    let m = self.inner.logical_action(Engine { shift: (a, b), dual })?;
+                    out.push(Automorphism { shift: (a, b), dual, action: (0..m.rows).map(|r| m.row_ones(r)).collect() });
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// The ancilla system whose merged code measures a gross-code logical X (Williamson and
+    /// Yoder's gauging construction, as Cross, He, Rall and Yoder build it). `expanded` adds
+    /// edges until every set of at most half the vertices has as many edges leaving it as
+    /// vertices, which keeps the distance while it is measured.
+    ///
+    /// ```
+    /// use stabilizer_qec::{BivariateBicycleCode, GrossOperator};
+    ///
+    /// let g = BivariateBicycleCode::gross().gauging(GrossOperator::F, false)?;
+    /// assert_eq!(g.support.len(), 12);
+    /// assert_eq!(g.hx[0].len() > 0, true);
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn gauging(&self, operator: GrossOperator, expanded: bool) -> Result<Gauging> {
+        if !self.gross {
+            return Err(Error::new("logical measurements are built for the gross code only"));
+        }
+        let support = crate::bb::gross_operator(operator.name())?;
+        let g = if expanded {
+            crate::bb_gauge::Gauging::expanded(&self.inner, &support)
+        } else {
+            crate::bb_gauge::Gauging::new(&self.inner, &support)
+        }?;
+        let (hx, hz) = g.deformed(&self.inner);
+        let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect();
+        let ticks = crate::bb_circuit::merged_cycle(&self.inner, &g).ticks.len();
+        let (boundary, side) = g.cheeger();
+        Ok(Gauging {
+            support: g.support.clone(),
+            edges: g.edges.clone(),
+            extra_edges: g.extra.clone(),
+            incidence: g.incidence.clone(),
+            gauss: g.gauss.clone(),
+            flux: g.flux.clone(),
+            hx: rows(&hx),
+            hz: rows(&hz),
+            ticks,
+            worst_cut: (boundary, side.len()),
+        })
+    }
+
     /// The gauging measurement of a gross-code logical X (Cross, He, Rall and Yoder's
     /// construction): `pre` memory cycles, `merged` cycles of the deformed code, `post` memory
     /// cycles, the data read in `basis`. `expanded` adds edges until every set of at most half
@@ -171,12 +363,7 @@ impl BivariateBicycleCode {
         }
         crate::bb::check_cycles(pre.saturating_add(merged).saturating_add(post).max(1), merged)?;
         probability(p, "p")?;
-        let name = match operator {
-            GrossOperator::F => "f",
-            GrossOperator::Gh => "gh",
-            GrossOperator::FTimesGh => "f+gh",
-        };
-        let support = crate::bb::gross_operator(name)?;
+        let support = crate::bb::gross_operator(operator.name())?;
         let g = if expanded {
             crate::bb_gauge::Gauging::expanded(&self.inner, &support)
         } else {

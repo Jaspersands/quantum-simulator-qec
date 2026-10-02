@@ -80,7 +80,7 @@ impl Matching {
     }
 
     fn build(dem: &DetectorErrorModel, correlated: bool) -> Result<Matching> {
-        let (graph, corr) = DemDecoder::new(&dem.inner)?.into_parts(correlated);
+        let (graph, corr) = DemDecoder::new(dem.flat()?)?.into_parts(correlated);
         Ok(Matching { graph, corr, num_detectors: dem.num_detectors(), num_observables: dem.num_observables() })
     }
 
@@ -192,7 +192,7 @@ impl BeliefMatching {
     /// Belief-matching with the given BP settings (the package's defaults are 20 iterations of
     /// product-sum).
     pub fn new(dem: &DetectorErrorModel, bp: BpOptions) -> Result<BeliefMatching> {
-        let inner = crate::belief::BeliefMatching::from_dem(&dem.inner, bp.method.engine(), bp.max_iter)?;
+        let inner = crate::belief::BeliefMatching::from_dem(dem.flat()?, bp.method.engine(), bp.max_iter)?;
         Ok(BeliefMatching { inner, num_detectors: dem.num_detectors() })
     }
 
@@ -233,7 +233,7 @@ pub struct BpOsd {
 impl BpOsd {
     /// BP+OSD with the given BP settings and OSD search.
     pub fn new(dem: &DetectorErrorModel, bp: BpOptions, osd: OsdMethod) -> Result<BpOsd> {
-        let d = &dem.inner;
+        let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
         let inner = crate::osd::BpOsd::new(d.num_detectors, columns, &priors, bp.method.engine(), bp.max_iter, osd.engine())?;
@@ -277,7 +277,17 @@ pub struct WindowOptions {
     correlations: bool,
 }
 
+impl Window {
+    pub(crate) fn from_info((a, b, c0, c1, phase, waits_for): crate::batch::WindowInfo) -> Window {
+        Window { first_layer: a, end_layer: b, commit_start: c0, commit_end: c1, phase, waits_for }
+    }
+}
+
 impl WindowOptions {
+    pub(crate) fn parts(self) -> (usize, usize, WindowMode, bool) {
+        (self.commit, self.buffer, self.mode, self.correlations)
+    }
+
     /// Windows that commit `commit` rounds with `buffer` rounds on either side, run in `mode`,
     /// plain matching.
     pub fn new(commit: usize, buffer: usize, mode: WindowMode) -> WindowOptions {
@@ -326,7 +336,7 @@ impl WindowMatching {
             WindowMode::Sliding => Mode::Sliding,
             WindowMode::Parallel => Mode::Parallel,
         };
-        let inner = WindowDecoder::new(Model::new(&dem.inner)?, options.commit, options.buffer, mode)?;
+        let inner = WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?;
         Ok(WindowMatching { inner, correlations: options.correlations, num_detectors: dem.num_detectors() })
     }
 
@@ -334,7 +344,7 @@ impl WindowMatching {
     pub fn windows(&self) -> Vec<Window> {
         window_info(&self.inner)
             .into_iter()
-            .map(|(a, b, c0, c1, phase, waits_for)| Window { first_layer: a, end_layer: b, commit_start: c0, commit_end: c1, phase, waits_for })
+            .map(Window::from_info)
             .collect()
     }
 
