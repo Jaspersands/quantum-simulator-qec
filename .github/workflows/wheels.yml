@@ -14,21 +14,24 @@ permissions:
   contents: read
 
 jobs:
+  # One abi3 wheel per platform serves every CPython from 3.9; glibc (manylinux) and musl
+  # (Alpine, musllinux) Linux alike.
   linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         target: [x86_64, aarch64]
+        libc: [auto, musllinux_1_2]
     steps:
       - uses: actions/checkout@v5
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --out dist
-          manylinux: auto
+          manylinux: ${{ matrix.libc }}
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-${{ matrix.target }}
+          name: wheels-linux-${{ matrix.target }}-${{ matrix.libc }}
           path: dist
 
   macos:
@@ -45,19 +48,59 @@ jobs:
           path: dist
 
   windows:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - runner: windows-latest
+            target: x64
+          - runner: windows-11-arm
+            target: aarch64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          architecture: ${{ matrix.target == 'aarch64' && 'arm64' || 'x64' }}
       - uses: PyO3/maturin-action@v1
         with:
-          target: x64
+          target: ${{ matrix.target }}
           args: --out dist
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows
+          name: wheels-windows-${{ matrix.target }}
+          path: dist
+
+  # Free-threaded CPython has no stable ABI: a wheel of its own per version (cp314t).
+  free-threaded:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64
+            manylinux: "2_28"
+          - runner: ubuntu-latest
+            target: aarch64
+            manylinux: "2_28"
+          - runner: macos-latest
+            target: universal2-apple-darwin
+          - runner: windows-latest
+            target: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        if: runner.os != 'Linux'
+        with:
+          python-version: "3.14t"
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --out dist -i python3.14t
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-free-threaded-${{ matrix.runner }}-${{ matrix.target }}
           path: dist
 
   sdist:
@@ -75,7 +118,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, macos, windows, sdist]
+    needs: [linux, macos, windows, free-threaded, sdist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

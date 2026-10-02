@@ -118,6 +118,10 @@ def test_copies_are_independent_and_operators_do_not_mutate():
     e = a
     e += sq.Circuit("Z 0")
     assert e is a and str(a) == "H 0\nZ 0\n"
+    # A circuit added to itself, as Stim allows.
+    a += a
+    a.append(a)
+    assert str(a) == "H 0\nZ 0\n" * 4 and a.num_qubits == 1
 
 
 def test_bad_appends_change_nothing():

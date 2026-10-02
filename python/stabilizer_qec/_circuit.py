@@ -98,7 +98,8 @@ class Circuit:
             if not (isinstance(targets, tuple) and targets == () and arg is None and tag == ""):
                 raise ValueError("a circuit or Stim object is appended whole, without targets, arg or tag")
             if isinstance(name, Circuit):
-                call(self._c.append_circuit, name._c)
+                # A circuit appended to itself is appended as it was.
+                call(self._c.append_circuit, name._c.copy() if name._c is self._c else name._c)
             else:
                 call(self._c.append_text, _stim_text(name))
             return
@@ -122,7 +123,7 @@ class Circuit:
     def __iadd__(self, other: object) -> "Circuit":
         if not isinstance(other, Circuit):
             return NotImplemented
-        call(self._c.append_circuit, other._c)
+        call(self._c.append_circuit, other._c.copy() if other._c is self._c else other._c)
         return self
 
     def __mul__(self, repetitions: object) -> "Circuit":

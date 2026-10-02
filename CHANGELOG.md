@@ -38,8 +38,21 @@ minor release before a major release removes it. The Rust crate is versioned on 
   `Gauging`), and `stream_memory` (a memory streamed round by round and window-decoded, as a
   `StreamResult`). The Python package and the crate now share the streaming loop.
 
+- Wheels for free-threaded CPython 3.14 (cp314t), musl Linux (x86_64 and aarch64) and
+  Windows on ARM. The module declares it does not need the GIL, and every object can be
+  shared between threads: decoders decode from many threads at once, and threads sharing a
+  sampler draw disjoint batches of its stream. CI runs the suite on free-threaded 3.14.
+- `CITATION.cff`, `SECURITY.md`, `CONTRIBUTING.md`, and Dependabot for the workflows and the
+  crate's dependencies.
+
+### Fixed
+
+- Two threads sampling from one `DetectorSampler` no longer raise "Already mutably borrowed":
+  each call reserves its batches before it samples.
+
 ### Changed
 
+- PyO3 0.29 (from 0.22), for Python 3.14 and free threading.
 - A built model prints as Stim prints one: errors first in each stretch, then detector
   declarations with coordinates, `logical_observable` only where needed, and loops folded.
   Decoders take a model's faults in the order it is written, so a model, its text, and its

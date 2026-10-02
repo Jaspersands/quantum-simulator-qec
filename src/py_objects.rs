@@ -133,7 +133,7 @@ impl PyCircuit {
     }
 
     fn sampler(&self, seed: u64) -> PyResult<PySampler> {
-        Ok(PySampler { sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?, seed, next: 0 })
+        Ok(PySampler { sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
     }
 
     fn m2d(&self) -> PyResult<PyM2d> {
@@ -193,8 +193,9 @@ impl PyDem {
 pub struct PySampler {
     sampler: BatchSampler,
     seed: u64,
-    /// The next batch's index: the shots drawn so far, in batches of 64.
-    next: u64,
+    /// The next batch's index: the shots drawn so far, in batches of 64. Each call reserves
+    /// its batches before it samples, so threads sharing the sampler draw disjoint batches.
+    next: std::sync::atomic::AtomicU64,
 }
 
 #[pymethods]
@@ -211,10 +212,10 @@ impl PySampler {
 
     /// `shots` shots as b8 rows of detectors and of observables. A call that ends mid-batch
     /// discards the batch's other lanes; the next call starts a new batch.
-    fn sample<'py>(&mut self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
-        let (sampler, seed, first) = (&self.sampler, self.seed, self.next);
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
         let (d, o) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
-        self.next += shots.div_ceil(64) as u64;
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
     }
 }

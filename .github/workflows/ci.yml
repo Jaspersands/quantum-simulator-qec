@@ -147,6 +147,40 @@ jobs:
       - name: Tests
         run: python -m pytest tests -q
 
+  free-threaded:
+    name: Tests (free-threaded Python 3.14t, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      # Fail rather than quietly turn the GIL back on, should an import need it.
+      PYTHON_GIL: "0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14t"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and install the free-threaded wheel
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip maturin
+          maturin build --out dist -i python
+          ls dist
+          python -m pip install dist/*.whl pytest hypothesis
+          python -c "import sys, stabilizer_qec; assert not sys._is_gil_enabled(), 'the GIL came back on'; print(stabilizer_qec.__version__)"
+      - name: Install the reference packages that build for it (tests skip the rest)
+        shell: bash
+        run: |
+          for p in stim pymatching scipy; do
+            python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for free-threaded Python on ${{ matrix.os }}"
+          done
+      - name: Tests
+        run: python -m pytest tests -q
+
   fuzz:
     name: Fuzzing
     runs-on: ubuntu-latest
