@@ -386,7 +386,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 0.6.0</footer>
+            <footer>stabilizer-qec 0.7.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -439,10 +439,11 @@ over: <code><a href="#Circuit">Circuit</a></code>, <code>compile_detector_sample
 <p><code><a href="#Circuit">Circuit</a></code> reads Stim's circuit language: every Clifford gate (H, S and CX natively, the other
 46 one- and two-qubit gates as their exact decompositions), resets and measurements in all
 three bases with inverted targets (<code>!q</code>), Pauli-product measurements and rotations (<code>MPP</code>,
-<code>MXX</code>, <code>MYY</code>, <code>MZZ</code>, <code>SPP</code>), the Pauli, depolarizing and correlated noise channels
-(<code>X_ERROR</code> ... <code>PAULI_CHANNEL_2</code>, <code>E</code>, <code>ELSE_CORRELATED_ERROR</code>), <code>MPAD</code>, detectors,
-observables, coordinates, <code>TICK</code> and <code>REPEAT</code>. Heralded errors and classically controlled
-gates other than <code>CX sweep[k]</code> are refused with a <code>ValueError</code>.</p>
+<code>MXX</code>, <code>MYY</code>, <code>MZZ</code>, <code>SPP</code>), every noise channel (<code>X_ERROR</code> ... <code>PAULI_CHANNEL_2</code>, <code>E</code>,
+<code>ELSE_CORRELATED_ERROR</code>, <code>HERALDED_ERASE</code>, <code>HERALDED_PAULI_CHANNEL_1</code>), measurement feedback
+and sweep bits (<code>CX rec[-1] q</code>, <code>CZ sweep[k] q</code>), <code>MPAD</code>, detectors, observables,
+coordinates, <code>TICK</code> and <code>REPEAT</code>. Channels whose cases are disjoint enter an error model only
+with <code>approximate_disjoint_errors</code>, as in Stim.</p>
 
 <p>Circuits written for you: <code><a href="#memory_circuit">memory_circuit</a></code> (rotated and XZZX surface codes),
 <code><a href="#BivariateBicycleCode">BivariateBicycleCode</a></code> (the gross code and [[72, 12, 6]], with their logical operations), the
@@ -961,10 +962,9 @@ not converge. After <code><a href="#BpOsdDecoder.decode">decode</a></code>, <cod
 text back as written. Every Clifford gate of Stim's is read (H, S and CX natively, the
 rest as their exact decompositions), with resets and measurements in all three bases,
 inverted targets (<code>!q</code>), Pauli-product measurements and rotations (<code>MPP</code>, <code>MXX</code>,
-<code>MYY</code>, <code>MZZ</code>, <code>SPP</code>, <code>SPP_DAG</code>), the Pauli, depolarizing and correlated noise
-channels, <code>MPAD</code>, detectors, observables, coordinates, <code>TICK</code> and <code>REPEAT</code>.
-Heralded errors and classically controlled gates other than <code>CX sweep[k]</code> raise
-<code>ValueError</code>.</p>
+<code>MYY</code>, <code>MZZ</code>, <code>SPP</code>, <code>SPP_DAG</code>), the Pauli, depolarizing, correlated and heralded
+noise channels, <code>MPAD</code>, measurement feedback and sweep bits (<code>CX rec[-1] q</code>,
+<code>CZ sweep[k] q</code>), detectors, observables, coordinates, <code>TICK</code> and <code>REPEAT</code>.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">(</span><span class="s2">"R 0 1</span><span class="se">\n</span><span class="s2">H 0</span><span class="se">\n</span><span class="s2">CX 0 1</span><span class="se">\n</span><span class="s2">M 0 1</span><span class="se">\n</span><span class="s2">DETECTOR rec[-1] rec[-2]"</span><span class="p">)</span>
@@ -1066,7 +1066,7 @@ Heralded errors and classically controlled gates other than <code>CX sweep[k]</c
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">approximate_disjoint_errors</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
 
         
     </div>
@@ -1075,6 +1075,12 @@ Heralded errors and classically controlled gates other than <code>CX sweep[k]</c
             <div class="docstring"><p>The circuit's detector error model, built by walking it backwards, as Stim's error
 analyzer does. <code>decompose_errors</code> splits each fault into graph-like pieces (at most
 two detectors each) the way Stim splits them, which matching needs.</p>
+
+<p><code>approximate_disjoint_errors</code> is Stim's: channels whose cases are disjoint rather
+than independent (<code>PAULI_CHANNEL_2</code>, <code>ELSE_CORRELATED_ERROR</code>, the heralded errors,
+and a <code>PAULI_CHANNEL_1</code> with no independent equivalent) are refused unless it is set,
+and then approximated case by case; a number refuses any such channel with a
+probability above it.</p>
 </div>
 
 
@@ -1853,7 +1859,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;0.6.0&#39;</span>
+<span class="default_value">&#39;0.7.0&#39;</span>
 
         
     </div>

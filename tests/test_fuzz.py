@@ -58,7 +58,13 @@ def lines(draw, depth=0):
     if kind == 7:
         return f"OBSERVABLE_INCLUDE({draw(st.sampled_from(['0', '1', '63', '64', '-1']))}) rec[-{draw(st.integers(1, 3))}]"
     if kind == 8:
-        return draw(st.sampled_from(["TICK", "", "# comment", "}", "SHIFT_COORDS(0, 1)", "QUBIT_COORDS(1, 2) 0"]))
+        return draw(
+            st.sampled_from(
+                ["TICK", "", "# comment", "}", "SHIFT_COORDS(0, 1)", "QUBIT_COORDS(1, 2) 0", "CX rec[-1] 2", "CZ 1 rec[-2]",
+                 "XCZ 0 sweep[1]", "CY rec[-0] 1", "HERALDED_ERASE(0.1) 0 1", "HERALDED_PAULI_CHANNEL_1(0.1, 0.1, 0, 0.1) 2",
+                 "E(0.1) X0\nELSE_CORRELATED_ERROR(0.2) Z1"]
+            )
+        )
     count = draw(st.one_of(st.integers(0, 4).map(str), st.just("1000000000"), numbers))
     body = "\n".join(draw(st.lists(lines(depth + 1), min_size=1, max_size=3)))
     return f"REPEAT {count} {{\n{body}\n}}"
@@ -113,6 +119,7 @@ def test_any_circuit_text(text):
         except ALLOWED:
             continue
         assert sq.DetectorErrorModel(str(dem)).num_detectors <= max(dem.num_detectors, 1) + 0
+        survives(c.detector_error_model, decompose_errors=decompose, approximate_disjoint_errors=True)
         dets = np.zeros((2, dem.num_detectors), dtype=bool)
         dets[1, ::3] = True
         for make in (lambda: sq.Matching(dem), lambda: sq.Matching(dem, enable_correlations=True), lambda: sq.BeliefMatching(dem, max_bp_iters=3)):

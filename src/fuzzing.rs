@@ -216,6 +216,23 @@ impl Inputs {
                     _ => format!("PAULI_CHANNEL_2({}) 0 1", (0..15).map(|_| self.probability()).collect::<Vec<_>>().join(", ")),
                 }
             }
+            14 if self.below(2) == 0 => {
+                let q = self.below(5);
+                let control = self.pick(&["rec[-1]", "rec[-2]", "rec[-0]", "rec[-9]", "sweep[0]", "sweep[2]"]);
+                match self.below(4) {
+                    0 => format!("{} {control} {q}", self.pick(&["CX", "CY", "CZ"])),
+                    1 => format!("{} {q} {control}", self.pick(&["CZ", "XCZ", "YCZ", "CX"])),
+                    2 => format!("HERALDED_ERASE({}) {}", self.probability(), self.targets(false)),
+                    _ => format!(
+                        "HERALDED_PAULI_CHANNEL_1({}, {}, {}, {}) {}",
+                        self.probability(),
+                        self.probability(),
+                        self.probability(),
+                        self.probability(),
+                        self.targets(false)
+                    ),
+                }
+            }
             14 => self.pick(&["TICK", "", "# a comment", "  ", "}", "{"]).to_string(),
             _ if depth < 3 => {
                 let count = match self.below(6) {

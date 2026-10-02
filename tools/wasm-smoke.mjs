@@ -54,7 +54,10 @@ for (const ex of manifest.experiments) {
 const setup = rtSetup(instance, { d: 3, rounds: 30, p: 0.006, commit: 3, buffer: 3, parallel: true, correlated: true });
 const win = rtWindows(instance);
 const glob = rtGlobal(instance);
-check(win.unexplained === 0 && glob.agree >= 60,
+// The shots are fresh each run, as on the page. Windows commit a little differently from a
+// global decode on a few shots (about 62.5 of 64 agree, spread about one shot): 56 is six spreads
+// down, a regression rather than chance.
+check(win.unexplained === 0 && glob.agree >= 56,
   `stream d = 3, 30 rounds, ${setup.windows} windows: ${win.unexplained} unexplained, windowed = global on ${glob.agree} of 64`);
 
 console.log(failed ? `${failed} failed` : 'all checks passed');

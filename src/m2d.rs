@@ -108,6 +108,21 @@ fn run(res: &Resolved, sweeps: &[bool], seed: u64) -> Vec<bool> {
             }
             Instr::S(qubits) => qubits.iter().for_each(|&q| sim.apply_s(q as usize)),
             Instr::Pad { values, .. } => rec.extend(values.iter().copied()),
+            Instr::Feedback { pauli, control, qubit } => {
+                let on = match control {
+                    crate::circuit::Control::Rec(k) => rec[rec.len() - *k as usize],
+                    crate::circuit::Control::Sweep(k) => sweeps.get(*k as usize).copied().unwrap_or(false),
+                };
+                if on {
+                    match pauli {
+                        1 => sim.apply_x(*qubit as usize),
+                        2 => sim.apply_z(*qubit as usize),
+                        _ => sim.apply_y(*qubit as usize),
+                    }
+                }
+            }
+            // A herald never fires in the noiseless run.
+            Instr::Heralded { qubits, .. } => rec.extend(qubits.iter().map(|_| false)),
             // Noise channels, annotations and ticks: the run is noiseless. Loops and gates are
             // flattened away.
             Instr::PauliError { .. }
