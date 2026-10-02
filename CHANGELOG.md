@@ -18,6 +18,13 @@ minor release before a major release removes it. The Rust crate is versioned on 
   it. In error models and both samplers, as in Stim; a Pauli observable the state does not fix
   is refused as Stim refuses it, and raw measurements convert as Stim converts them.
 
+- `stabilizer_qec.sinter`: the decoders in [sinter](https://pypi.org/project/sinter/)'s
+  Monte Carlo sweeps. `sinter_decoders()` names them for `custom_decoders` (and for
+  `sinter collect --custom_decoders_module_function "stabilizer_qec.sinter:sinter_decoders"`):
+  `sq_matching`, `sq_correlated_matching`, `sq_belief_matching` and `sq_bposd` decode the shots
+  Stim samples; `sq_sim_matching` and its kin are sinter samplers running the whole pipeline
+  here, postselection included. `Decoder(kind, **options)` and `Sampler(kind, **options)` make
+  others. A `sinter` extra installs sinter and Stim.
 - Pickling and copying (`pickle`, `copy`, `multiprocessing`, `concurrent.futures`):
   `Circuit` and `DetectorErrorModel` as their text; the converter and every decoder as what
   they were made from, rebuilt on the other side (`BpDecoder` and `BpOsdDecoder` keep their

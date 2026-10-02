@@ -18,10 +18,12 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
 - On the gross code, every automorphism's action on the logical qubits, and the gauging measurement
   of a logical operator as a circuit, its error model equal to Stim's.
 - Stim's whole circuit language (every gate, all three bases, `MPP`, `SPP`, correlated and
-  heralded noise, measurement feedback), checked against Stim on random circuits that use
+  heralded noise, measurement feedback, instruction tags, Pauli-target observables), checked against Stim on random circuits that use
   every gate.
 - Lattice surgery as single circuits, their error models equal to Stim's: Z⊗Z and X⊗X merges, a
   logical CNOT, merges in a row, and lines of patches merged at once.
+- A [sinter](https://pypi.org/project/sinter/) adapter for threshold sweeps, and objects that
+  pickle for `multiprocessing`.
 
 ```python
 import stabilizer_qec as sq
@@ -41,6 +43,16 @@ c = gross.memory_circuit(12, 0.003)
 dets, obs = c.compile_detector_sampler(seed=2).sample(2_000, separate_observables=True)
 pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
 print((pred != obs).any(axis=1).mean())                                  # any of the 12 logicals wrong
+```
+
+In [sinter](https://pypi.org/project/sinter/)'s sweeps (`pip install "stabilizer-qec[sinter]"`):
+
+```python
+import sinter
+from stabilizer_qec import sinter as sq_sinter
+
+stats = sinter.collect(tasks=tasks, decoders=["sq_matching", "sq_belief_matching", "pymatching"],
+                       custom_decoders=sq_sinter.sinter_decoders(), num_workers=8, max_shots=100_000)
 ```
 
 The names follow Stim (`Circuit`, `compile_detector_sampler`, `separate_observables`),

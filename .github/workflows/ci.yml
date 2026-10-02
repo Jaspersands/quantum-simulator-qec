@@ -141,7 +141,7 @@ jobs:
       - name: Install the reference packages that build for this Python (tests skip the rest)
         shell: bash
         run: |
-          for p in stim pymatching ldpc beliefmatching scipy; do
+          for p in stim pymatching ldpc beliefmatching scipy sinter; do
             python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
           done
       - name: Tests

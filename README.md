@@ -51,6 +51,11 @@ pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
 cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Circuit, Stim-readable
 ```
 
+- **In sinter.** `pip install "stabilizer-qec[sinter]"`, then
+  `custom_decoders=stabilizer_qec.sinter.sinter_decoders()` puts the decoders into
+  [sinter](https://pypi.org/project/sinter/)'s threshold sweeps (`decoders=["sq_matching",
+  "sq_belief_matching", "sq_bposd", ...]`), or the whole pipeline with `sq_sim_matching` and
+  its kin. Circuits, models and decoders pickle, for `multiprocessing` and sinter's workers.
 - **Docs.** A guide and the full reference at
   [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
   builds it from the docstrings, whose examples the tests run). The package is typed.

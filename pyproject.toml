@@ -31,6 +31,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.optional-dependencies]
+# For stabilizer_qec.sinter: this package's decoders and engine in sinter's sweeps.
+sinter = ["sinter>=1.14", "stim>=1.14"]
+
 [project.urls]
 Homepage = "https://qcompiler.jaspersands.com"
 Repository = "https://github.com/Jaspersands/quantum-simulator-qec"
