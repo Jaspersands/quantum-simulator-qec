@@ -4,7 +4,11 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## Unreleased
+## 1.1.0 — 2026-10-02
+
+The Python package and the Rust crate both at 1.1.0. The crate gains the circuit-language
+additions below (its API is unchanged); the rest is the Python package's.
+
 
 ### Added
 

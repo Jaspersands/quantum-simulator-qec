@@ -32,7 +32,9 @@ def main() -> None:
         shutil.rmtree(OUT)
     subprocess.run(
         [
-            sys.executable, "-m", "pdoc", "stabilizer_qec",
+            # The sinter adapter is named too: it stays out of __all__, which a star import
+            # would otherwise make require sinter.
+            sys.executable, "-m", "pdoc", "stabilizer_qec", "stabilizer_qec.sinter",
             "--output-directory", str(OUT),
             "--docformat", "markdown",
             "--favicon", ICON,
