@@ -10,7 +10,7 @@
 
 use std::fmt::Write as _;
 
-use crate::circuit::{fmt_args, split_instruction, strip_comment};
+use crate::circuit::{split_instruction, strip_comment};
 use crate::dem::{xor_prob, Dem, Mechanism, Piece};
 
 /// An observable's target: its index with the top bit set, so that within a sorted list of
@@ -108,6 +108,35 @@ fn block_stats(instrs: &[DemInstr]) -> BlockStats {
     s
 }
 
+/// A number as Stim prints one in a model: C++'s default stream format at precision 16 (`%.16g`):
+/// sixteen significant digits, trailing zeros dropped, and an exponent below 10⁻⁴ or from
+/// 10¹⁶.
+pub fn fmt_g16(x: f64) -> String {
+    if x == 0.0 || !x.is_finite() {
+        return if x == 0.0 { "0".into() } else { format!("{x}") };
+    }
+    let sci = format!("{x:.15e}");
+    let (mantissa, exp) = sci.split_once('e').expect("an exponent");
+    let exp: i32 = exp.parse().expect("an integer exponent");
+    let trim = |t: &str| -> String {
+        if t.contains('.') {
+            t.trim_end_matches('0').trim_end_matches('.').to_string()
+        } else {
+            t.to_string()
+        }
+    };
+    if !(-4..16).contains(&exp) {
+        let sign = if exp < 0 { '-' } else { '+' };
+        format!("{}e{sign}{:02}", trim(mantissa), exp.abs())
+    } else {
+        trim(&format!("{x:.*}", (15 - exp) as usize))
+    }
+}
+
+fn g16_args(args: &[f64]) -> String {
+    args.iter().map(|&v| fmt_g16(v)).collect::<Vec<_>>().join(", ")
+}
+
 fn tagged(tag: &str) -> String {
     if tag.is_empty() {
         String::new()
@@ -119,7 +148,7 @@ fn tagged(tag: &str) -> String {
 fn with_args(name: &str, tag: &str, args: &[f64]) -> String {
     let mut s = format!("{name}{}", tagged(tag));
     if !args.is_empty() {
-        let _ = write!(s, "({})", fmt_args(args));
+        let _ = write!(s, "({})", g16_args(args));
     }
     s
 }
@@ -463,4 +492,30 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         return Err("unterminated repeat block".into());
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fmt_g16;
+
+    #[test]
+    fn numbers_print_as_stims_do() {
+        for (x, want) in [
+            (0.002596161128523834, "0.002596161128523834"),
+            (6.669779853440971e-05, "6.669779853440971e-05"),
+            (0.001, "0.001"),
+            (0.5, "0.5"),
+            (1.0, "1"),
+            (2.0, "2"),
+            (-1.5, "-1.5"),
+            (0.0, "0"),
+            (1e-300, "1e-300"),
+            (123456789.0, "123456789"),
+            (1e16, "1e+16"),
+            (0.0001, "0.0001"),
+            (0.00001, "1e-05"),
+        ] {
+            assert_eq!(fmt_g16(x), want, "{x}");
+        }
+    }
 }

@@ -71,7 +71,8 @@ def compare(text, **kwargs):
     got = ours.detector_error_model(**kwargs)
     assert shape(str(got)) == shape(str(want))
     assert (got.num_detectors, got.num_observables) == (want.num_detectors, want.num_observables)
-    assert got.num_errors <= want.num_errors
+    assert got.num_errors == want.num_errors
+    assert str(got).strip() == str(want).strip()
     assert shape(str(got.flattened())) == shape(str(want.flattened()))
     return got
 

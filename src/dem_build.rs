@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use crate::batch_sampler::Counts;
 use crate::circuit::{Basis, Circuit, Control, Instr};
-use crate::dem::{depolarize1_component, depolarize2_component, pauli_channel_1_independent, xor_prob};
+use crate::dem::{depolarize1_component, depolarize2_component, fused, pauli_channel_1_independent};
 use crate::dem_program::{DemInstr, DemProgram, OBS};
 
 /// Sorted, distinct targets: detectors by index, observables with the `OBS` bit.
@@ -127,25 +127,6 @@ fn shift_sym(s: &mut Sym, by: i128) {
     }
 }
 
-/// A piece's place among pieces as the flat model sorts them: its detectors, then its
-/// observables' mask.
-fn piece_key(s: &[u64]) -> (Vec<u64>, u64) {
-    (dets(s), obs_mask(s))
-}
-
-/// An error class's targets as Stim orders them: each piece's targets ascending, pieces joined
-/// by a separator that sorts after everything.
-fn stim_class_key(pieces: &[&Sym]) -> Vec<u64> {
-    let mut key = Vec::new();
-    for (k, x) in pieces.iter().enumerate() {
-        if k > 0 {
-            key.push(u64::MAX);
-        }
-        key.extend_from_slice(x);
-    }
-    key
-}
-
 /* -- The tracker ----------------------------------------------------------- */
 
 /// The walk's state: what an X or Z error on each qubit would flip, what each measurement yet
@@ -231,102 +212,67 @@ impl Origin {
     }
 }
 
-struct Entry {
-    sym: Sym,
-    /// Each distinct way a fault with this symptom was split into pieces, with its own
-    /// probability (see `dem.rs`).
-    variants: Vec<Variant>,
-    origin: Origin,
-    tag: Option<Arc<str>>,
-}
+/// Stim's separator between a fault's pieces, which sorts after every target.
+const SEP: u64 = u64::MAX;
 
-struct Variant {
-    pieces: Vec<Sym>,
+/// A fault class: its probability, accumulated as faults with its key arrive, and where its
+/// first fault came from.
+struct Class {
     p: f64,
-    order: Order,
-    more_orders: Vec<Order>,
+    origin: Origin,
 }
 
-/// An arrival order of a fault's pieces: the place among the sorted pieces of the j-th to
-/// arrive, in bits 4j..4j+4; `UNORDERED` beyond sixteen pieces.
-type Order = u64;
-const UNORDERED: Order = u64::MAX;
-
-impl Variant {
-    fn arrivals(&self) -> impl Iterator<Item = Vec<&Sym>> + '_ {
-        std::iter::once(self.order).chain(self.more_orders.iter().copied()).map(move |code| {
-            let n = self.pieces.len();
-            if code == UNORDERED {
-                return self.pieces.iter().collect();
-            }
-            (0..n).map(|j| &self.pieces[((code >> (4 * j)) & 15) as usize]).collect()
-        })
-    }
-}
-
-/// The error classes of one stretch of the walk, merged by symptom and tag.
+/// The fault classes of one stretch of the walk, as Stim keeps them: keyed by the pieces in
+/// the order they arose (joined by `SEP`) and the tag, in sorted order, each probability
+/// combined fault by fault in the order the walk meets them.
 #[derive(Default)]
 struct Window {
-    index: HashMap<(Sym, Option<Arc<str>>), usize>,
-    entries: Vec<Entry>,
+    classes: BTreeMap<(Vec<u64>, String), Class>,
 }
 
 impl Window {
-    fn add(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: Option<Arc<str>>) {
+    fn add(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>, decompose: bool) {
         if p <= 0.0 {
             return;
         }
-        let mut pieces: Vec<Sym> = pieces.into_iter().filter(|x| !x.is_empty()).collect();
-        let order = if pieces.len() <= 1 {
-            0
-        } else if pieces.len() > 16 {
-            pieces.sort();
-            UNORDERED
+        let key = if decompose {
+            let mut key = Vec::new();
+            for x in pieces.iter().filter(|x| !x.is_empty()) {
+                if !key.is_empty() {
+                    key.push(SEP);
+                }
+                key.extend_from_slice(x);
+            }
+            key
         } else {
-            let n = pieces.len();
-            let mut by_value = [0u8; 16];
-            for (j, slot) in by_value[..n].iter_mut().enumerate() {
-                *slot = j as u8;
-            }
-            by_value[..n].sort_by(|&a, &b| pieces[a as usize].cmp(&pieces[b as usize]));
-            let mut code: Order = 0;
-            for (place, &j) in by_value[..n].iter().enumerate() {
-                code |= (place as u64) << (4 * j as u64);
-            }
-            let mut arrived = std::mem::take(&mut pieces);
-            pieces = by_value[..n].iter().map(|&j| std::mem::take(&mut arrived[j as usize])).collect();
-            code
+            pieces.iter().fold(Sym::new(), |acc, x| xor(&acc, x))
         };
-        let mut sym = Sym::new();
-        for x in &pieces {
-            xor_into(&mut sym, x);
-        }
-        if sym.is_empty() {
+        if key.is_empty() {
             return;
         }
-        let key = (sym, tag);
-        match self.index.get(&key) {
-            Some(&i) => {
-                let e = &mut self.entries[i];
-                match e.variants.iter_mut().find(|v| v.pieces == pieces) {
-                    Some(v) => {
-                        v.p = xor_prob(v.p, p);
-                        if v.order != order && !v.more_orders.contains(&order) {
-                            v.more_orders.push(order);
-                        }
-                    }
-                    None => e.variants.push(Variant { pieces, p, order, more_orders: Vec::new() }),
-                }
-            }
-            None => {
-                let (sym, tag) = key.clone();
-                self.index.insert(key, self.entries.len());
-                let variant = Variant { pieces, p, order, more_orders: Vec::new() };
-                self.entries.push(Entry { sym, variants: vec![variant], origin, tag });
-            }
-        }
+        let tag = tag.as_deref().unwrap_or("").to_string();
+        let c = self.classes.entry((key, tag)).or_insert(Class { p: 0.0, origin });
+        c.p = join(c.p, p);
     }
 }
+
+/// A class's probability after another independent fault of probability `p` joins it, as
+/// Stim computes `old·(1 − p) + (1 − old)·p` (rounded as its build rounds, see `fused`), so
+/// every printed digit equals Stim's.
+fn join(old: f64, p: f64) -> f64 {
+    fused(old, 1.0 - p, (1.0 - old) * p)
+}
+
+/// A key's pieces.
+fn components(key: &[u64]) -> impl Iterator<Item = &[u64]> {
+    key.split(|&t| t == SEP)
+}
+
+/// Every piece fires at most two detectors.
+fn graphlike(key: &[u64]) -> bool {
+    components(key).all(|c| c.iter().filter(|&&t| t & OBS == 0).count() <= 2)
+}
+
 
 /* -- The walk -------------------------------------------------------------- */
 
@@ -358,7 +304,7 @@ impl Analyzer {
 
     fn add(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>) {
         if self.accumulate {
-            self.window.add(p, pieces, origin, tag.clone());
+            self.window.add(p, pieces, origin, tag, self.decompose);
         }
     }
 
@@ -580,17 +526,15 @@ impl Analyzer {
                     // Stim's basis: the second qubit's X and Z errors, then the first's.
                     let t = &self.t;
                     let combos = channel_combinations(&[t.sx[b].clone(), t.sz[b].clone(), t.sx[a].clone(), t.sz[a].clone()]);
+                    // Case k + 1 in Stim's order: the first qubit's Pauli (k + 1) / 4, the
+                    // second's (k + 1) % 4, each I, X, Y, Z, as bits (X 1, Z 2).
                     const BITS: [usize; 4] = [0b00, 0b01, 0b11, 0b10];
-                    let cases: Vec<(f64, Vec<Sym>)> = probs
-                        .iter()
-                        .enumerate()
-                        .map(|(k, &p)| {
-                            let combo = BITS[(k + 1) % 4] | (BITS[(k + 1) / 4] << 2);
-                            (p, combos[combo - 1].clone())
-                        })
-                        .collect();
+                    let mut by_combo = vec![0.0; 16];
+                    for (k, &p) in probs.iter().enumerate() {
+                        by_combo[BITS[(k + 1) % 4] | (BITS[(k + 1) / 4] << 2)] = p;
+                    }
                     let origin = Origin { name: "PAULI_CHANNEL_2", a: qa, b: Some(qb), pauli: (0, 0) };
-                    self.add_disjoint(cases, origin, tag);
+                    self.add_disjoint(by_combo, &combos, origin, tag);
                 }
             }
             Instr::Heralded { erase, args, probs, qubits } => {
@@ -601,10 +545,13 @@ impl Analyzer {
                     let qi = q as usize;
                     // Stim's basis: the Z error, the X error, the herald.
                     let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone(), herald]);
-                    let cases = [(probs[0], 0b100), (probs[1], 0b110), (probs[2], 0b111), (probs[3], 0b101)]
-                        .map(|(p, k): (f64, usize)| (p, combos[k - 1].clone()));
+                    // The herald with I, X, Y or Z.
+                    let mut by_combo = vec![0.0; 8];
+                    for (p, k) in [(probs[0], 0b100), (probs[1], 0b110), (probs[2], 0b111), (probs[3], 0b101)] {
+                        by_combo[k] = p;
+                    }
                     let origin = Origin { name: "heralded error", a: q, b: None, pauli: (0, 0) };
-                    self.add_disjoint(cases.to_vec(), origin, tag);
+                    self.add_disjoint(by_combo, &combos, origin, tag);
                 }
             }
             // X_ERROR, Y_ERROR and Z_ERROR are single faults and stay whole, a Y included, as
@@ -640,9 +587,8 @@ impl Analyzer {
                     for &q in qubits {
                         let qi = q as usize;
                         let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
-                        let cases = vec![(*px, combos[0].clone()), (*pz, combos[1].clone()), (*py, combos[2].clone())];
                         let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (0, 0) };
-                        self.add_disjoint(cases, origin, tag);
+                        self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag);
                     }
                 }
                 Ok((qx, qy, qz)) => {
@@ -680,23 +626,26 @@ impl Analyzer {
         Ok(())
     }
 
-    /// The cases of one disjoint channel, approximated as independent faults the way Stim
-    /// does: cases with the same symptom (they never fire together) summed, each sum one fault,
-    /// split into the pieces of its first case.
-    fn add_disjoint(&mut self, cases: Vec<(f64, Vec<Sym>)>, origin: Origin, tag: &Option<Arc<str>>) {
-        let mut groups: Vec<(Sym, f64, Vec<Sym>)> = Vec::new();
-        for (p, pieces) in cases {
-            let mut sym = Sym::new();
-            for piece in &pieces {
-                xor_into(&mut sym, piece);
-            }
-            match groups.iter_mut().find(|g| g.0 == sym) {
-                Some(g) => g.1 += p,
-                None => groups.push((sym, p, pieces)),
+    /// The cases of one disjoint channel, approximated as independent faults as Stim
+    /// approximates them: `by_combo[k]` is the probability of combination `k` of the channel's
+    /// basis errors, `combos[k - 1]` its pieces. Cases that cannot be told apart (whose XOR fires
+    /// nothing) are summed into the lowest-numbered, in Stim's order, and each combination is
+    /// then recorded in turn.
+    fn add_disjoint(&mut self, mut by_combo: Vec<f64>, combos: &[Vec<Sym>], origin: Origin, tag: &Option<Arc<str>>) {
+        let n = by_combo.len();
+        for k in 1..n {
+            if combos[k - 1].iter().fold(Sym::new(), |acc, x| xor(&acc, x)).is_empty() {
+                for dst in 0..n {
+                    let src = dst ^ k;
+                    if src > dst {
+                        by_combo[dst] += by_combo[src];
+                        by_combo[src] = 0.0;
+                    }
+                }
             }
         }
-        for (_, p, pieces) in groups {
-            self.add(p, pieces, origin, tag);
+        for k in 1..n {
+            self.add(by_combo[k], combos[k - 1].clone(), origin, tag);
         }
     }
 
@@ -782,79 +731,71 @@ impl Analyzer {
         Ok(())
     }
 
-    /// Stim's `flush`: split the stretch's wide errors by the pieces it knows, and write its
-    /// error classes to the model, ascending (descending here, reversed).
+    /// Stim's `flush`: split the stretch's wide errors by the pieces it knows
+    /// (`do_global_error_decomposition_pass`), and write its fault classes to the model in
+    /// their sorted order (reversed here, as the model is).
     fn flush(&mut self) -> Result<(), String> {
-        let window = std::mem::take(&mut self.window);
-        for e in &window.entries {
-            if e.sym.iter().all(|t| t & OBS != 0) {
+        let mut classes = std::mem::take(&mut self.window).classes;
+        for ((key, _), c) in &classes {
+            let sym = components(key).fold(Sym::new(), |acc, x| xor(&acc, x));
+            if !sym.is_empty() && sym.iter().all(|t| t & OBS != 0) {
                 return Err(format!(
                     "{} flips observables {:#b} while firing no detector: an undetectable logical error",
-                    e.origin.describe(),
-                    obs_mask(&e.sym)
+                    c.origin.describe(),
+                    obs_mask(&sym)
                 ));
             }
         }
-        let mut errors: Vec<(Vec<Sym>, f64, String)> = Vec::new();
-        let known = if self.decompose { known_pieces(&window.entries) } else { HashMap::new() };
-        for e in &window.entries {
-            let tag = e.tag.as_deref().unwrap_or("").to_string();
-            if !self.decompose {
-                let p = e.variants.iter().fold(0.0, |acc, v| xor_prob(acc, v.p));
-                errors.push((vec![e.sym.clone()], p, tag));
-                continue;
+        if self.decompose && classes.keys().any(|(k, _)| !graphlike(k)) {
+            // Every one- and two-detector piece of every class, in the classes' order: where two
+            // share detectors, the later class's stands.
+            let mut known: HashMap<Vec<u64>, Sym> = HashMap::new();
+            for ((key, _), c) in &classes {
+                if c.p == 0.0 {
+                    continue;
+                }
+                for comp in components(key) {
+                    let d = dets(comp);
+                    if (1..=2).contains(&d.len()) {
+                        known.insert(d, comp.to_vec());
+                    }
+                }
             }
-            let mut grouped: Vec<(Vec<Sym>, f64)> = Vec::new();
-            for Variant { pieces, p, .. } in &e.variants {
-                let graphlike = pieces.iter().all(|x| (1..=2).contains(&dets(x).len()));
-                let rewritten: Vec<Sym> = if graphlike {
-                    pieces.clone()
-                } else {
-                    let mut out = Vec::new();
-                    for x in pieces {
-                        match brute_force_known(x, &known).or_else(|| greedy_known(x, &known)) {
-                            Some(mut parts) => out.append(&mut parts),
-                            None => {
-                                return Err(format!(
-                                    "cannot split {} into graph-like pieces: it fires detectors {:?}",
-                                    e.origin.describe(),
-                                    dets(&e.sym)
-                                ))
-                            }
+            let mut rewrites = Vec::new();
+            for ((key, tag), c) in &classes {
+                if c.p == 0.0 || graphlike(key) {
+                    continue;
+                }
+                let mut out = Vec::new();
+                for comp in components(key) {
+                    let parts = brute_force_known(comp, &known).or_else(|| greedy_known(comp, &known)).ok_or_else(|| {
+                        format!("cannot split {} into graph-like pieces: it fires detectors {:?}", c.origin.describe(), dets(comp))
+                    })?;
+                    for part in parts {
+                        if dets(&part).len() > 2 {
+                            return Err(format!(
+                                "cannot split {} into graph-like pieces: a piece fires detectors {:?}",
+                                c.origin.describe(),
+                                dets(&part)
+                            ));
                         }
+                        out.extend_from_slice(&part);
+                        out.push(SEP);
                     }
-                    out
-                };
-                let mut final_pieces = Vec::with_capacity(rewritten.len());
-                for x in rewritten {
-                    // A piece of observables alone is Stim's too (a weight-two logical's
-                    // remnant).
-                    if dets(&x).len() > 2 {
-                        return Err(format!(
-                            "cannot split {} into graph-like pieces: a piece fires detectors {:?}",
-                            e.origin.describe(),
-                            dets(&x)
-                        ));
-                    }
-                    final_pieces.push(x);
                 }
-                final_pieces.sort_by_key(|x| piece_key(x));
-                match grouped.iter_mut().find(|g| g.0 == final_pieces) {
-                    Some(g) => g.1 = xor_prob(g.1, *p),
-                    None => grouped.push((final_pieces, *p)),
-                }
+                out.pop();
+                rewrites.push(((key.clone(), tag.clone()), out));
             }
-            for (pieces, p) in grouped {
-                errors.push((pieces, p, tag.clone()));
+            for (old, new) in rewrites {
+                let c = classes.remove(&old).expect("a class just listed");
+                let slot = classes.entry((new, old.1)).or_insert(Class { p: 0.0, origin: c.origin });
+                slot.p = join(slot.p, c.p);
             }
         }
-        errors.sort_by(|a, b| {
-            let (ka, kb) = (stim_class_key(&a.0.iter().collect::<Vec<_>>()), stim_class_key(&b.0.iter().collect::<Vec<_>>()));
-            ka.cmp(&kb).then(a.2.cmp(&b.2))
-        });
-        for (pieces, p, tag) in errors.into_iter().rev() {
-            if p > 0.0 {
-                self.reversed.push(DemInstr::Error { p, pieces, tag });
+        for ((key, tag), c) in classes.into_iter().rev() {
+            if c.p > 0.0 && !key.is_empty() {
+                let pieces = components(&key).map(<[u64]>::to_vec).collect();
+                self.reversed.push(DemInstr::Error { p: c.p, pieces, tag });
             }
         }
         Ok(())
@@ -944,57 +885,6 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
 //
 // Stim's decomposition, reproduced so that this engine's matching graph is the one PyMatching
 // builds from Stim's model, edge for edge (see `dem.rs` for why it matters).
-
-/// Stim's map from a one- or two-detector set to the piece a wider fault is split by
-/// (`do_global_error_decomposition_pass`), over one flush's error classes: every such piece of
-/// every class in turn, classes sorted by their targets, so where two pieces fire the same
-/// detectors with different observables, the last class's wins.
-fn known_pieces(entries: &[Entry]) -> HashMap<Vec<u64>, Sym> {
-    let mut known: HashMap<Vec<u64>, Sym> = HashMap::new();
-    let mut conflicted: HashSet<Vec<u64>> = HashSet::new();
-    for e in entries {
-        for v in &e.variants {
-            for x in &v.pieces {
-                let d = dets(x);
-                if (1..=2).contains(&d.len()) {
-                    match known.get(&d) {
-                        None => {
-                            known.insert(d, x.clone());
-                        }
-                        Some(old) if old != x => {
-                            conflicted.insert(d);
-                        }
-                        Some(_) => {}
-                    }
-                }
-            }
-        }
-    }
-    if conflicted.is_empty() {
-        return known;
-    }
-    let mut last: HashMap<Vec<u64>, (Vec<u64>, Sym)> = HashMap::new();
-    for e in entries {
-        for v in &e.variants {
-            for pieces in v.arrivals() {
-                if !pieces.iter().any(|x| conflicted.contains(&dets(x))) {
-                    continue;
-                }
-                let key = stim_class_key(&pieces);
-                for x in pieces {
-                    let d = dets(x);
-                    if conflicted.contains(&d) && last.get(&d).is_none_or(|(k, _)| key >= *k) {
-                        last.insert(d, (key.clone(), x.clone()));
-                    }
-                }
-            }
-        }
-    }
-    for (d, (_, x)) in last {
-        known.insert(d, x);
-    }
-    known
-}
 
 /// Stim's `decompose_helper_add_error_combinations`: the pieces of every combination k =
 /// 1..2^s of a channel's basis errors, in order. A combination is split using only the

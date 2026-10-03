@@ -4,6 +4,21 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Unreleased
+
+### Changed
+
+- Error models print as Stim prints them, character for character (515 of 515 random,
+  disjoint, tagged, Pauli-observable and looped circuits, and Stim's generated memories). Fault
+  classes are Stim's: a fault's pieces in the order they arose, so a fault Stim lists once per
+  order is listed so here too, and `num_errors` equals Stim's. Probabilities are accumulated in
+  Stim's order and rounded as Stim's build for the machine rounds them (its ARM64 build fuses a
+  multiply into an add), and printed to Stim's 16 significant digits.
+- `PAULI_CHANNEL_1` is converted to independent errors as Stim converts it: with the cases
+  relabelled so that identity is the likeliest, and by Newton's method where no exact solution
+  exists, so channels Stim treats as independent need no `approximate_disjoint_errors` here
+  either. Disjoint cases that cannot be told apart are merged in Stim's order.
+
 ## 1.2.0 — 2026-10-02
 
 The Python package and the Rust crate both at 1.2.0: circuits built in code, error models
