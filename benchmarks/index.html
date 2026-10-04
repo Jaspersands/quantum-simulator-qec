@@ -34,8 +34,8 @@
 <section>
   <h2>Method</h2>
   <p>Each benchmark times one job in this package and the same job in the reference: Stim for error
-  models, sampling and measurement conversion, PyMatching for matching. Each time is the fastest of five
-  runs after a warm-up, on one thread. The <em>ratio</em> is this package's time over the reference's,
+  models, sampling and measurement conversion, PyMatching for matching. Each time is the fastest of several
+  runs after a warm-up (five by default), on one thread. The <em>ratio</em> is this package's time over the reference's,
   so below 1 is faster. Times depend on the machine; ratios carry from machine to machine far better, so
   they are what is recorded and compared.</p>
   <p>Every push runs the benchmarks in continuous integration and fails if any ratio is more than twice
@@ -72,7 +72,7 @@
     const rows = Object.values(run.results).map((r) =>
       `<tr><td>${esc(r.what)}</td><td class="num">${fmt(r.ours_us, 2)}</td><td class="num">${fmt(r.reference_us, 2)}</td>` +
       `<td class="num">${r.ratio === null ? "" : fmt(r.ratio, 2) + "×"}</td><td>${bar(r.ratio)}</td></tr>`).join("");
-    return `<p class="machine">stabilizer-qec ${esc(run.version)} · ${esc(run.date)} · ${esc(run.machine)} · Stim ${esc(run.references.stim)}, PyMatching ${esc(run.references.pymatching)}</p>` +
+    return `<p class="machine">stabilizer-qec ${esc(run.version)} · ${esc(run.date)} · ${esc(run.machine)} · Stim ${esc(run.references.stim)}, PyMatching ${esc(run.references.pymatching)}${run.note ? " · " + esc(run.note) : ""}</p>` +
       `<table><thead><tr><th>Benchmark</th><th class="num">ours (µs)</th><th class="num">reference (µs)</th><th class="num">ratio</th><th>faster ← 1 → slower</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   fetch("../data/bench/runs.json").then((r) => r.json()).then((runs) => {

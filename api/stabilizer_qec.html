@@ -76,13 +76,10 @@
                                 <a class="function" href="#BivariateBicycleCode.__init__">BivariateBicycleCode</a>
                         </li>
                         <li>
-                                <a class="variable" href="#BivariateBicycleCode.name">name</a>
+                                <a class="function" href="#BivariateBicycleCode.from_polynomials">from_polynomials</a>
                         </li>
                         <li>
-                                <a class="variable" href="#BivariateBicycleCode.n">n</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#BivariateBicycleCode.k">k</a>
+                                <a class="variable" href="#BivariateBicycleCode.polynomials">polynomials</a>
                         </li>
                         <li>
                                 <a class="function" href="#BivariateBicycleCode.check_matrices">check_matrices</a>
@@ -101,6 +98,30 @@
                         </li>
                         <li>
                                 <a class="function" href="#BivariateBicycleCode.logical_measurement_circuit">logical_measurement_circuit</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CssCode">CssCode</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CssCode.__init__">CssCode</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CssCode.hypergraph_product">hypergraph_product</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CssCode.color_code">color_code</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CssCode.check_matrices">check_matrices</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CssCode.logicals">logicals</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CssCode.memory_circuit">memory_circuit</a>
                         </li>
                 </ul>
 
@@ -194,6 +215,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.diagram">diagram</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.generated">generated</a>
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.compile_detector_sampler">compile_detector_sampler</a>
@@ -435,7 +459,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.4.0</footer>
+            <footer>stabilizer-qec 1.5.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -500,8 +524,10 @@ Stim.</p>
 indices, strings such as <code>"rec[-1]"</code>, or <code>stim.GateTarget</code>s), <code>+</code> one circuit after another,
 and <code>*</code> one into a <code>REPEAT</code> block.</p>
 
-<p>Circuits written for you: <code><a href="#memory_circuit">memory_circuit</a></code> (rotated and XZZX surface codes),
-<code><a href="#BivariateBicycleCode">BivariateBicycleCode</a></code> (the gross code and [[72, 12, 6]], with their logical operations), the
+<p>Circuits written for you: <code><a href="#Circuit.generated">Circuit.generated</a></code> (Stim's generated memories, character for
+character), <code><a href="#memory_circuit">memory_circuit</a></code> (rotated and XZZX surface codes), <code><a href="#BivariateBicycleCode">BivariateBicycleCode</a></code> (every
+code of Bravyi et al.'s Table 3 or any other, the gross code's logical operations), <code><a href="#CssCode">CssCode</a></code>
+(any CSS code from its checks, hypergraph products and colour codes, with a memory), the
 <code>surgery</code> module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and <code><a href="#stream_memory">stream_memory</a></code>
 (a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).</p>
 
@@ -686,16 +712,18 @@ BP's own correction was used.</p>
     </div>
     <a class="headerlink" href="#BivariateBicycleCode"></a>
     
-            <div class="docstring"><p>One of IBM's bivariate bicycle codes (Bravyi et al., Nature 627, 778, 2024):
-<code>"gross"</code>, the [[144, 12, 12]] gross code, or <code>"72"</code>, [[72, 12, 6]], with the paper's
-depth-8 syndrome cycle.</p>
+            <div class="docstring"><p>One of IBM's bivariate bicycle codes (Bravyi et al., Nature 627, 778, 2024), with the
+paper's depth-8 syndrome cycle: by its number of data qubits, the codes of the paper's
+Table 3, <code>"72"</code> ([[72, 12, 6]]), <code>"90"</code> ([[90, 8, 10]]), <code>"108"</code> ([[108, 8, 10]]),
+<code>"144"</code> or <code>"gross"</code> (the gross code, [[144, 12, 12]]) and <code>"288"</code> ([[288, 12, 18]]);
+or any other from its polynomials with <code><a href="#BivariateBicycleCode.from_polynomials">from_polynomials</a></code>.</p>
 </div>
 
 
                             <div id="BivariateBicycleCode.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">BivariateBicycleCode</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'gross'</span></span>)</span>
+        <span class="name">BivariateBicycleCode</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">name</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'gross'</span></span>)</span>
 
         
     </div>
@@ -704,37 +732,42 @@ depth-8 syndrome cycle.</p>
     
 
                             </div>
-                            <div id="BivariateBicycleCode.name" class="classattr">
-                                <div class="attr variable">
-            <span class="name">name</span>
+                            <div id="BivariateBicycleCode.from_polynomials" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_polynomials</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">l</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">m</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">a</span><span class="p">:</span> <span class="n">Sequence</span>,</span><span class="param">	<span class="n">b</span><span class="p">:</span> <span class="n">Sequence</span></span><span class="return-annotation">) -> <span class="n"><a href="#BivariateBicycleCode">BivariateBicycleCode</a></span>:</span></span>
 
         
     </div>
-    <a class="headerlink" href="#BivariateBicycleCode.name"></a>
+    <a class="headerlink" href="#BivariateBicycleCode.from_polynomials"></a>
     
-    
+            <div class="docstring"><p>The code of A = Σ x^i y^j over the three <code>(i, j)</code> in <code>a</code> and B likewise over
+<code>b</code>, on an <code>l</code> × <code>m</code> torus: H_X = [A | B], H_Z = [Bᵀ | Aᵀ]. Each polynomial's
+three monomials must differ, and the code must encode a qubit.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n"><a href="#BivariateBicycleCode.from_polynomials">BivariateBicycleCode.from_polynomials</a></span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="p">[(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)],</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)])</span><span class="o">.</span><span class="n">k</span>
+<span class="go">12</span>
+</code></pre>
+</div>
+</div>
+
 
                             </div>
-                            <div id="BivariateBicycleCode.n" class="classattr">
+                            <div id="BivariateBicycleCode.polynomials" class="classattr">
                                 <div class="attr variable">
-            <span class="name">n</span>
+            <span class="name">polynomials</span><span class="annotation">: tuple</span>
 
         
     </div>
-    <a class="headerlink" href="#BivariateBicycleCode.n"></a>
+    <a class="headerlink" href="#BivariateBicycleCode.polynomials"></a>
     
-    
+            <div class="docstring"><p><code>(l, m, a, b)</code>: the torus and A's and B's monomials, as <code><a href="#BivariateBicycleCode.from_polynomials">from_polynomials</a></code> takes
+them.</p>
+</div>
 
-                            </div>
-                            <div id="BivariateBicycleCode.k" class="classattr">
-                                <div class="attr variable">
-            <span class="name">k</span>
-
-        
-    </div>
-    <a class="headerlink" href="#BivariateBicycleCode.k"></a>
-    
-    
 
                             </div>
                             <div id="BivariateBicycleCode.check_matrices" class="classattr">
@@ -747,7 +780,7 @@ depth-8 syndrome cycle.</p>
     </div>
     <a class="headerlink" href="#BivariateBicycleCode.check_matrices"></a>
     
-            <div class="docstring"><p>(H_X, H_Z), each check a row over the <code><a href="#BivariateBicycleCode.n">n</a></code> data qubits, uint8.</p>
+            <div class="docstring"><p>(H_X, H_Z), each check a row over the <code>n</code> data qubits, uint8.</p>
 </div>
 
 
@@ -762,7 +795,7 @@ depth-8 syndrome cycle.</p>
     </div>
     <a class="headerlink" href="#BivariateBicycleCode.logicals"></a>
     
-            <div class="docstring"><p>(logical X, logical Z), <code><a href="#BivariateBicycleCode.k">k</a></code> rows each over the data qubits, paired so that
+            <div class="docstring"><p>(logical X, logical Z), <code>k</code> rows each over the data qubits, paired so that
 X_i and Z_j anticommute exactly when i = j.</p>
 </div>
 
@@ -795,7 +828,7 @@ X_i and Z_j anticommute exactly when i = j.</p>
     
             <div class="docstring"><p>A memory: the data prepared in <code>basis</code>, <code>cycles</code> syndrome cycles (at most
 10,000) under circuit noise <code>p</code> (Bravyi et al.'s model), the data read out. The
-observables are the <code><a href="#BivariateBicycleCode.k">k</a></code> logicals of that basis.</p>
+observables are the <code>k</code> logicals of that basis.</p>
 </div>
 
 
@@ -832,6 +865,131 @@ constant at least 1), which keeps the code's distance while it is measured.</p>
 memory cycles, <code>merged</code> cycles of the deformed code, <code>post</code> memory cycles, the
 data read in <code>basis</code>. In <code>"x"</code> the observables are the outcome (L0) and the 12 X
 logicals; in <code>"z"</code>, the 11 Z logicals the measurement keeps.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="CssCode">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CssCode</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode"></a>
+    
+            <div class="docstring"><p>A CSS code given by its check matrices, with a memory experiment correct for any of
+them: each round measures every X check and then every Z check, in layers no qubit is used
+twice in. <code>CssCode(hx, hz)</code> takes the checks as 0/1 matrices over the data qubits;
+<code><a href="#CssCode.hypergraph_product">hypergraph_product</a></code> and <code><a href="#CssCode.color_code">color_code</a></code> build two families.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">hamming</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">code</span> <span class="o">=</span> <span class="n"><a href="#CssCode.hypergraph_product">CssCode.hypergraph_product</a></span><span class="p">(</span><span class="n">hamming</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">code</span><span class="o">.</span><span class="n">n</span><span class="p">,</span> <span class="n">code</span><span class="o">.</span><span class="n">k</span>
+<span class="go">(58, 16)</span>
+</code></pre>
+</div>
+</div>
+
+
+                            <div id="CssCode.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CssCode</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">hx</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="n">hz</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CssCode.hypergraph_product" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">hypergraph_product</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">cls</span>, </span><span class="param"><span class="n">h1</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="n">h2</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#CssCode">CssCode</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode.hypergraph_product"></a>
+    
+            <div class="docstring"><p>The hypergraph product (Tillich and Zémor) of the classical codes with parity-check
+matrices <code>h1</code> and <code>h2</code> (<code>h1</code> again if omitted): data qubits are bit pairs, then
+check pairs; H_X = [H1 ⊗ I | I ⊗ H2ᵀ], H_Z = [I ⊗ H2 | H1ᵀ ⊗ I]. Two repetition codes
+give the unrotated surface code.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCode.color_code" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">color_code</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">cls</span>, </span><span class="param"><span class="n">distance</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n"><a href="#CssCode">CssCode</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode.color_code"></a>
+    
+            <div class="docstring"><p>The triangular 6.6.6 colour code of odd <code>distance</code> (3 to 101), on the layout of
+Stim's generated colour code: each hexagon an X and a Z check. Distance 3 is the Steane
+code, [[7, 1, 3]].</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCode.check_matrices" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">check_matrices</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode.check_matrices"></a>
+    
+            <div class="docstring"><p>(H_X, H_Z), each check a row over the <code>n</code> data qubits, uint8.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCode.logicals" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">logicals</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode.logicals"></a>
+    
+            <div class="docstring"><p>(logical X, logical Z), <code>k</code> rows each over the data qubits, paired so that X_i
+and Z_j anticommute exactly when i = j.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCode.memory_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">memory_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">basis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'z'</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCode.memory_circuit"></a>
+    
+            <div class="docstring"><p>A memory: the data prepared in <code>basis</code>, <code>rounds</code> rounds of syndrome extraction
+(a loop; up to a million) under circuit noise <code>p</code> (depolarizing on the data each
+round and after every CNOT, flips after resets and before measurements), the data read
+out. Detectors compare every check round to round and with the readout; the
+observables are the <code>k</code> logicals of that basis. Its hyperedges want <code><a href="#BpOsd">BpOsd</a></code>.</p>
 </div>
 
 
@@ -1280,6 +1438,33 @@ groups bracketed, loops drawn once with their count, measurements numbered.</li>
 <span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">diagram</span><span class="p">(</span><span class="s2">"detslice-text"</span><span class="p">,</span> <span class="n">tick</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
 <span class="go">D0: Z0 Z1</span>
 <span class="go">&lt;BLANKLINE&gt;</span>
+</code></pre>
+</div>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.generated" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">generated</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">code_task</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">after_clifford_depolarization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">before_round_data_depolarization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">before_measure_flip_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">after_reset_flip_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.generated"></a>
+    
+            <div class="docstring"><p>One of Stim's generated memory experiments, character for character as
+<code>stim.Circuit.generated</code> writes it, with the same arguments. <code>code_task</code> is
+<code>"repetition_code:memory"</code>, <code>"surface_code:rotated_memory_x"</code> (or <code>_z</code>),
+<code>"surface_code:unrotated_memory_x"</code> (or <code>_z</code>), or <code>"color_code:memory_xyz"</code>.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n"><a href="#Circuit.generated">Circuit.generated</a></span><span class="p">(</span><span class="s2">"surface_code:rotated_memory_z"</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rounds</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<span class="gp">... </span>                      <span class="n">after_clifford_depolarization</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">num_qubits</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">num_detectors</span>
+<span class="go">(26, 40)</span>
 </code></pre>
 </div>
 </div>
@@ -2228,7 +2413,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;1.4.0&#39;</span>
+<span class="default_value">&#39;1.5.0&#39;</span>
 
         
     </div>

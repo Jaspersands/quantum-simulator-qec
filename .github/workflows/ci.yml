@@ -139,7 +139,9 @@ jobs:
       # Ratios to Stim's and PyMatching's times on this runner, held to the last run recorded on
       # the same kind of machine (data/bench/runs.json); the table goes to the run's summary.
       - name: Benchmarks, checked against the last recorded run
-        run: python tools/bench.py --check --summary "$GITHUB_STEP_SUMMARY" --json bench.json
+        run: |
+          python tools/bench.py --check --summary "$GITHUB_STEP_SUMMARY" --json bench.json
+          cat bench.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
