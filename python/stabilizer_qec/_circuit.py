@@ -8,7 +8,7 @@ from typing import Any, Union
 import numpy as np
 
 from . import _core
-from ._util import b8_to_rows, call, count, pack_rows, real, rows_to_b8, seed_of, stride, text_of
+from ._util import b8_to_rows, call, count, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
 
 class Circuit:
@@ -213,6 +213,42 @@ class Circuit:
             raise TypeError(f"type must be a str, not {builtins_type(type).__name__}")
         t = None if tick is None else count(tick, "tick")
         return Diagram(call(self._c.diagram, type, t), type)
+
+    @classmethod
+    def generated(
+        cls,
+        code_task: str,
+        *,
+        distance: int,
+        rounds: int,
+        after_clifford_depolarization: float = 0.0,
+        before_round_data_depolarization: float = 0.0,
+        before_measure_flip_probability: float = 0.0,
+        after_reset_flip_probability: float = 0.0,
+    ) -> "Circuit":
+        """One of Stim's generated memory experiments, character for character as
+        ``stim.Circuit.generated`` writes it, with the same arguments. ``code_task`` is
+        ``"repetition_code:memory"``, ``"surface_code:rotated_memory_x"`` (or ``_z``),
+        ``"surface_code:unrotated_memory_x"`` (or ``_z``), or ``"color_code:memory_xyz"``.
+
+        >>> c = Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=5,
+        ...                       after_clifford_depolarization=0.001)
+        >>> c.num_qubits, c.num_detectors
+        (26, 40)
+        """
+        if not isinstance(code_task, str):
+            raise TypeError(f"code_task must be a str, not {builtins_type(code_task).__name__}")
+        text = call(
+            _core.generated_circuit,
+            code_task,
+            count(distance, "distance"),
+            count(rounds, "rounds"),
+            probability(after_clifford_depolarization, "after_clifford_depolarization"),
+            probability(before_round_data_depolarization, "before_round_data_depolarization"),
+            probability(before_measure_flip_probability, "before_measure_flip_probability"),
+            probability(after_reset_flip_probability, "after_reset_flip_probability"),
+        )
+        return cls(text)
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same

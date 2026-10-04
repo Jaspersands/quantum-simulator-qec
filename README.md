@@ -126,7 +126,8 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge. Diagrams after
   Stim's: timelines, detector slices (the same as Stim's at every tick of its generated codes)
-  and matching graphs, as text or SVG.
+  and matching graphs, as text or SVG. Stim's generated memory circuits (`Circuit.generated`),
+  character for character.
 - **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
   gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
   (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
@@ -1847,6 +1848,7 @@ src/sparse/           sparse blossom: exact matching by growing regions on the d
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
 src/diagram.rs        timelines, detector slices and matching graphs, as text and SVG
+src/generated.rs      Stim's generated memory circuits, written as Stim writes them
 src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's arithmetic
 src/belief.rs         belief-matching, as the authors' beliefmatching package does it
 src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows

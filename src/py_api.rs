@@ -435,6 +435,19 @@ fn decode_b8_belief<'py>(
     Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), PyBytes::new(py, &conv), errors, seconds))
 }
 
+/// One of Stim's generated memory experiments as Stim's text: (task, distance, rounds, and the
+/// four noise strengths in Stim's order).
+#[pyfunction]
+fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, round_data: f64, measure: f64, reset: f64) -> PyResult<String> {
+    let noise = crate::generated::Noise {
+        after_clifford_depolarization: clifford,
+        before_round_data_depolarization: round_data,
+        before_measure_flip_probability: measure,
+        after_reset_flip_probability: reset,
+    };
+    crate::generated::generate(task, distance, rounds, &noise).map_err(err)
+}
+
 fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
     crate::bb::check_cycles(total, least).map_err(err)
 }
@@ -714,6 +727,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stream_circuit_decode, m)?)?;
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
+    m.add_function(wrap_pyfunction!(generated_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bb_matrices, m)?)?;
     m.add_function(wrap_pyfunction!(bb_memory_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bposd_decode, m)?)?;

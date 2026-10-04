@@ -4,6 +4,23 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Unreleased
+
+### Added
+
+- `Circuit.generated(code_task, *, distance, rounds, ...)` (Rust: `Circuit::generated` with
+  `GeneratedNoise`): Stim's generated memory experiments, the repetition code, the rotated
+  and unrotated surface codes in either basis and the colour code's XYZ memory, with Stim's
+  four noise parameters. The text is Stim's character for character (every task at distances
+  2 to 7 and 25, one to seven rounds and 50, with and without each kind of noise), and the
+  arguments Stim refuses are refused.
+
+### Changed
+
+- Instruction arguments are written as Stim writes them (`1e-05`, not `0.00001`) whenever
+  Stim's six significant digits hold the value exactly; a value they would round is still
+  written in full, so circuit text never loses precision.
+
 ## 1.4.0 — 2026-10-04
 
 The Python package and the Rust crate both at 1.4.0: window decoding of models too long to

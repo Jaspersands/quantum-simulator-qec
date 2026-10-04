@@ -1078,7 +1078,22 @@ fn expand_gates(instrs: &[Instr], tag: Option<&Arc<str>>, out: &mut Vec<Instr>, 
 }
 
 pub(crate) fn fmt_args(a: &[f64]) -> String {
-    a.iter().map(|v| format!("{v}")).collect::<Vec<_>>().join(", ")
+    a.iter().map(|&v| fmt_arg(v)).collect::<Vec<_>>().join(", ")
+}
+
+/// A number as Stim writes an instruction's argument (whole numbers in full, others as `%g` to
+/// six digits) whenever that holds it exactly; otherwise its shortest exact form, so the text
+/// never loses precision where Stim's would.
+fn fmt_arg(v: f64) -> String {
+    if v.is_finite() && v == v.trunc() && v.abs() < 9.007_199_254_740_992e15 {
+        return format!("{}", v as i64);
+    }
+    let g = crate::dem_program::fmt_g(v, 6);
+    if g.parse::<f64>() == Ok(v) {
+        g
+    } else {
+        format!("{v}")
+    }
 }
 
 fn with_args(name: &str, args: &[f64]) -> String {
