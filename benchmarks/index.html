@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarks: stabilizer-qec against Stim and PyMatching</title>
+<meta name="description" content="stabilizer-qec timed against Stim and PyMatching on the same machine and one thread: error models, sampling, measurement conversion, matching and correlated matching, recorded at each release and checked on every push.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231c1d1f'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='5' cy='11' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='11' r='1.6' fill='%23c0392b'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../report/report.css">
+<style>
+  td.num, th.num { text-align: right; font-family: var(--font-mono); font-size: 13px; }
+  .bar { position: relative; width: 160px; height: 14px; }
+  .bar span { position: absolute; top: 2px; height: 10px; }
+  .bar .one { left: 50%; top: 0; width: 1.5px; height: 14px; background: var(--ink); }
+  .bar .fast { background: #2e8b57; }
+  .bar .slow { background: #c0392b; }
+  .legend { font-size: 13px; color: var(--ink-2); }
+  .machine { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); margin: 0 0 8px; }
+  #status { color: var(--ink-3); }
+</style>
+</head>
+<body>
+<main class="paper">
+<header class="masthead">
+  <p class="kicker">Benchmarks · stabilizer-qec</p>
+  <h1>How fast, against Stim and PyMatching</h1>
+  <p class="subtitle">The same jobs on the same machine, one thread each, recorded at every release and checked on every push</p>
+  <p class="links"><a href="../">qcompiler.jaspersands.com</a> · <a href="../report/report.html">Technical report</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec/tree/master/tutorials">Tutorials</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">Source</a></p>
+</header>
+
+<section>
+  <h2>Method</h2>
+  <p>Each benchmark times one job in this package and the same job in the reference: Stim for error
+  models, sampling and measurement conversion, PyMatching for matching. Each time is the fastest of five
+  runs after a warm-up, on one thread. The <em>ratio</em> is this package's time over the reference's,
+  so below 1 is faster. Times depend on the machine; ratios carry from machine to machine far better, so
+  they are what is recorded and compared.</p>
+  <p>Every push runs the benchmarks in continuous integration and fails if any ratio is more than twice
+  the one last recorded on the same kind of machine. The table appears in the run's summary. Recorded
+  runs are kept in <a href="../data/bench/runs.json"><code>data/bench/runs.json</code></a>; to reproduce
+  one, install the package with Stim and PyMatching and run <code>python tools/bench.py</code>.</p>
+</section>
+
+<section id="latest">
+  <h2>Latest recorded runs</h2>
+  <p id="status">Loading the recorded runs…</p>
+</section>
+
+<section id="history" hidden>
+  <h2>Ratios by release</h2>
+  <p class="legend">Each recorded run's ratio for each benchmark (this package's time over the reference's).</p>
+</section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const fmt = (v, digits) => (v === null || v === undefined ? "" : Number(v).toFixed(digits));
+  // A bar on a log scale centred on a ratio of 1: green to the left (faster), red to the right.
+  function bar(ratio) {
+    if (ratio === null || ratio === undefined) return "";
+    const span = Math.max(-1, Math.min(1, Math.log2(ratio) / 2)) * 50;
+    const cls = ratio <= 1 ? "fast" : "slow";
+    const left = span < 0 ? 50 + span : 50;
+    return `<div class="bar" title="${fmt(ratio, 2)}×"><span class="${cls}" style="left:${left}%;width:${Math.abs(span)}%"></span><span class="one"></span></div>`;
+  }
+  function table(run) {
+    const rows = Object.values(run.results).map((r) =>
+      `<tr><td>${esc(r.what)}</td><td class="num">${fmt(r.ours_us, 2)}</td><td class="num">${fmt(r.reference_us, 2)}</td>` +
+      `<td class="num">${r.ratio === null ? "" : fmt(r.ratio, 2) + "×"}</td><td>${bar(r.ratio)}</td></tr>`).join("");
+    return `<p class="machine">stabilizer-qec ${esc(run.version)} · ${esc(run.date)} · ${esc(run.machine)} · Stim ${esc(run.references.stim)}, PyMatching ${esc(run.references.pymatching)}</p>` +
+      `<table><thead><tr><th>Benchmark</th><th class="num">ours (µs)</th><th class="num">reference (µs)</th><th class="num">ratio</th><th>faster ← 1 → slower</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  fetch("../data/bench/runs.json").then((r) => r.json()).then((runs) => {
+    const latest = new Map();
+    for (const run of runs) latest.set(run.kind || run.machine, run);
+    const status = document.getElementById("status");
+    status.remove();
+    const section = document.getElementById("latest");
+    for (const run of latest.values()) section.insertAdjacentHTML("beforeend", table(run));
+    section.insertAdjacentHTML("beforeend", '<p class="legend">Times are per unit of work (per shot, or per model); blank cells have no reference to compare with.</p>');
+    const keys = [...new Set(runs.flatMap((r) => Object.keys(r.results)))].filter((k) => runs.some((r) => r.results[k] && r.results[k].ratio !== null));
+    const history = document.getElementById("history");
+    const head = keys.map((k) => `<th class="num">${esc(k.replace(/_/g, " "))}</th>`).join("");
+    const body = runs.map((r) => `<tr><td>${esc(r.version)}<br><span class="machine">${esc(r.kind || r.machine)}</span></td>` +
+      keys.map((k) => `<td class="num">${r.results[k] && r.results[k].ratio !== null ? fmt(r.results[k].ratio, 2) : ""}</td>`).join("") + "</tr>").join("");
+    history.insertAdjacentHTML("beforeend", `<table><thead><tr><th>Run</th>${head}</tr></thead><tbody>${body}</tbody></table>`);
+    history.hidden = false;
+  }).catch((e) => {
+    document.getElementById("status").textContent = "The recorded runs could not be loaded: " + e;
+  });
+})();
+</script>
+</body>
+</html>

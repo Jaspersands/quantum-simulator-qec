@@ -1,0 +1,64 @@
+[
+ {
+  "version": "1.4.0",
+  "date": "2026-10-04",
+  "machine": "Darwin arm64, Python 3.13.5",
+  "kind": "Darwin arm64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 50934.33405272663,
+    "reference_us": 27257.70801771432,
+    "ratio": 1.8686213095989312
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 2.6324625010602176,
+    "reference_us": 2.937983354786411,
+    "ratio": 0.8960100120279938
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 3.5343853989616036,
+    "reference_us": 3.150350000942126,
+    "ratio": 1.1219024546176235
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 5.255175003549084,
+    "reference_us": 4.7966646030545235,
+    "ratio": 1.0955894227423324
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 14.202631247462705,
+    "reference_us": 11.885725002503023,
+    "ratio": 1.1949318400410378
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 11.244816647376865,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 1493.6063869390637,
+    "reference_us": null,
+    "ratio": null
+   }
+  }
+ }
+]

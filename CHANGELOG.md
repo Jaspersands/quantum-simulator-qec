@@ -30,6 +30,14 @@ minor release before a major release removes it. The Rust crate is versioned on 
   the unrotated surface code), and `CssCode.color_code(d)`, the triangular 6.6.6 colour code
   on Stim's layout. Their memories' error models equal Stim's character for character, and
   decode with `BpOsd`.
+- Tutorials: three notebooks in `tutorials/` (getting started, from a circuit to a threshold
+  plot; decoders and real-time decoding; codes beyond the surface code), each built from a
+  plain Python file by `tools/notebooks.py`, and run on every push.
+- Benchmarks against Stim and PyMatching (`tools/bench.py`): error models, sampling,
+  measurement conversion, matching and correlated matching, each as a ratio to the
+  reference's time on the same machine and thread. Runs are recorded in
+  `data/bench/runs.json` and shown on the site's new benchmarks page; every push is checked
+  against the last run recorded on the same kind of machine.
 
 ### Changed
 

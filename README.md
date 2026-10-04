@@ -56,6 +56,13 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   [sinter](https://pypi.org/project/sinter/)'s threshold sweeps (`decoders=["sq_matching",
   "sq_belief_matching", "sq_bposd", ...]`), or the whole pipeline with `sq_sim_matching` and
   its kin. Circuits, models and decoders pickle, for `multiprocessing` and sinter's workers.
+- **Tutorials.** Three notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
+  (a circuit to a threshold plot), [decoders and real-time decoding](tutorials/02_decoders.ipynb),
+  and [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb). Each is
+  built from a plain Python file by `tools/notebooks.py`, and CI runs them all.
+- **Benchmarks.** Against Stim and PyMatching on the same machine, one thread:
+  [qcompiler.jaspersands.com/benchmarks](https://qcompiler.jaspersands.com/benchmarks/).
+  `tools/bench.py` runs them; CI fails a push whose ratio to the reference doubles.
 - **Docs.** A guide and the full reference at
   [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
   builds it from the docstrings, whose examples the tests run). The package is typed.
@@ -1945,6 +1952,10 @@ tools/site-tests.mjs    Node tests for the site's pure modules
 tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page draws
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
+tools/notebooks.py      the tutorials: each .py run and built into its notebook, or checked
+tutorials/              three notebooks, each built from the Python file beside it
+tools/bench.py          the benchmarks against Stim and PyMatching, recorded and checked
+benchmarks/             the benchmarks page; data/bench/runs.json the recorded runs
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
 python/stabilizer_qec/  the Python package: the public API over the extension, _core, and its stub
 tests/                  the package's test suite (pytest, Hypothesis), and every gate against Stim

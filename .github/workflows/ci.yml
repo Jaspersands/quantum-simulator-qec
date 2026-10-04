@@ -1,8 +1,9 @@
 # Every push and pull request: the Rust tests (with a randomized no-panic run), the
 # WebAssembly engine built fresh and exercised in Node (as the page exercises it), the site's
 # own tests; the Python package built once per platform, checked against Stim, PyMatching,
-# ldpc and beliefmatching, and its test suite run on every supported Python on Linux, macOS
-# and Windows; and a fuzzing run of the parsers and decoders.
+# ldpc and beliefmatching, its tutorials run, and its test suite run on every supported Python
+# on Linux, macOS and Windows; its speed against Stim and PyMatching held to the recorded
+# benchmarks; and a fuzzing run of the parsers and decoders.
 name: CI
 
 on:
@@ -114,6 +115,36 @@ jobs:
       - name: The gross code's logical measurement against Stim and ldpc
         if: matrix.os == 'ubuntu-latest'
         run: python tools/gross_ops.py check --quick
+      - name: The tutorials run, and their notebooks are built from them
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install matplotlib
+          python tools/notebooks.py --check
+
+  benchmarks:
+    name: Benchmarks against Stim and PyMatching
+    needs: wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v5
+        with:
+          name: wheel-ubuntu-latest
+          path: dist
+      - name: Install the wheel with Stim and PyMatching
+        run: python -m pip install dist/*.whl numpy stim pymatching
+      # Ratios to Stim's and PyMatching's times on this runner, held to the last run recorded on
+      # the same kind of machine (data/bench/runs.json); the table goes to the run's summary.
+      - name: Benchmarks, checked against the last recorded run
+        run: python tools/bench.py --check --summary "$GITHUB_STEP_SUMMARY" --json bench.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmarks
+          path: bench.json
 
   tests:
     name: Tests (Python ${{ matrix.python }}, ${{ matrix.os }})
