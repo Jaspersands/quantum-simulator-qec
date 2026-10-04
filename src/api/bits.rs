@@ -23,27 +23,16 @@ pub struct BitTable {
 impl BitTable {
     /// `num_rows` rows of `num_bits` zero bits.
     pub fn zeros(num_rows: usize, num_bits: usize) -> BitTable {
-        BitTable {
-            num_rows,
-            num_bits,
-            data: vec![0; num_rows * num_bits.div_ceil(8)],
-        }
+        BitTable { num_rows, num_bits, data: vec![0; num_rows * num_bits.div_ceil(8)] }
     }
 
     /// A table from its packed bytes: `num_rows` rows of ⌈num_bits / 8⌉ bytes each.
     pub fn from_packed(num_rows: usize, num_bits: usize, data: Vec<u8>) -> Result<BitTable> {
         let stride = num_bits.div_ceil(8);
         if stride.checked_mul(num_rows) != Some(data.len()) {
-            return Err(Error::new(format!(
-                "{} bytes is not {num_rows} rows of {num_bits} bits",
-                data.len()
-            )));
+            return Err(Error::new(format!("{} bytes is not {num_rows} rows of {num_bits} bits", data.len())));
         }
-        Ok(BitTable {
-            num_rows,
-            num_bits,
-            data,
-        })
+        Ok(BitTable { num_rows, num_bits, data })
     }
 
     /// A table from rows of bools, each `num_bits` long.
@@ -52,10 +41,7 @@ impl BitTable {
         for (i, row) in rows.iter().enumerate() {
             let row = row.as_ref();
             if row.len() != num_bits {
-                return Err(Error::new(format!(
-                    "row {i} has {} bits, not {num_bits}",
-                    row.len()
-                )));
+                return Err(Error::new(format!("row {i} has {} bits, not {num_bits}", row.len())));
             }
             for (k, &b) in row.iter().enumerate() {
                 if b {
@@ -88,23 +74,13 @@ impl BitTable {
 
     /// Bit `bit` of row `row`.
     pub fn get(&self, row: usize, bit: usize) -> bool {
-        assert!(
-            row < self.num_rows && bit < self.num_bits,
-            "bit ({row}, {bit}) is outside a {}×{} table",
-            self.num_rows,
-            self.num_bits
-        );
+        assert!(row < self.num_rows && bit < self.num_bits, "bit ({row}, {bit}) is outside a {}×{} table", self.num_rows, self.num_bits);
         (self.data[row * self.stride() + bit / 8] >> (bit % 8)) & 1 == 1
     }
 
     /// Set bit `bit` of row `row`.
     pub fn set(&mut self, row: usize, bit: usize, value: bool) {
-        assert!(
-            row < self.num_rows && bit < self.num_bits,
-            "bit ({row}, {bit}) is outside a {}×{} table",
-            self.num_rows,
-            self.num_bits
-        );
+        assert!(row < self.num_rows && bit < self.num_bits, "bit ({row}, {bit}) is outside a {}×{} table", self.num_rows, self.num_bits);
         let i = row * self.stride() + bit / 8;
         if value {
             self.data[i] |= 1 << (bit % 8);

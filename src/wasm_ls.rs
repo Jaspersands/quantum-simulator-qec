@@ -23,24 +23,10 @@ static mut SETUP: Option<Setup> = None;
 /// |0⟩ (d rounds before and after); 1: the logical CNOT on |0⟩|0⟩; 2: the
 /// CNOT on |+⟩|+⟩.
 #[no_mangle]
-pub extern "C" fn wasm_ls_setup(
-    kind: u32,
-    d: usize,
-    merged: usize,
-    p: f64,
-    correlated: u32,
-) -> usize {
+pub extern "C" fn wasm_ls_setup(kind: u32, d: usize, merged: usize, p: f64, correlated: u32) -> usize {
     let built = (|| -> Result<(Setup, usize), String> {
         let circuit = match kind {
-            0 => Surgery {
-                d,
-                pre: d,
-                merged,
-                post: d,
-                basis: Basis::Z,
-                p,
-            }
-            .circuit()?,
+            0 => Surgery { d, pre: d, merged, post: d, basis: Basis::Z, p }.circuit()?,
             1 => cnot(d, merged, p, Basis::Z).circuit()?,
             2 => cnot(d, merged, p, Basis::X).circuit()?,
             other => return Err(format!("no lattice-surgery program of kind {other}")),
@@ -49,23 +35,13 @@ pub extern "C" fn wasm_ls_setup(
         let sampler = BatchSampler::new(&circuit)?;
         let decoder = DemDecoder::new(&dem)?;
         let observables = dem.num_observables;
-        Ok((
-            Setup {
-                sampler,
-                decoder,
-                correlated: correlated != 0,
-                observables,
-            },
-            dem.num_detectors,
-        ))
+        Ok((Setup { sampler, decoder, correlated: correlated != 0, observables }, dem.num_detectors))
     })();
     match built {
         Ok((s, detectors)) => {
             let observables = s.observables;
             unsafe { *std::ptr::addr_of_mut!(SETUP) = Some(s) };
-            reply(&format!(
-                "{{\"ok\":true,\"detectors\":{detectors},\"observables\":{observables}}}"
-            ))
+            reply(&format!("{{\"ok\":true,\"detectors\":{detectors},\"observables\":{observables}}}"))
         }
         Err(e) => json_error(&e),
     }
@@ -86,11 +62,7 @@ pub extern "C" fn wasm_ls_run() -> usize {
     let mut each = vec![0usize; s.observables];
     for lane in 0..64 {
         let defects = batch.lane_defects(lane);
-        let got = if s.correlated {
-            s.decoder.decode_correlated(&defects)
-        } else {
-            s.decoder.decode(&defects)
-        };
+        let got = if s.correlated { s.decoder.decode_correlated(&defects) } else { s.decoder.decode(&defects) };
         let wrong = match got {
             Ok(p) => (p.observables ^ batch.lane_observables(lane)) & mask,
             Err(_) => mask,
@@ -116,9 +88,7 @@ mod tests {
 
     #[test]
     fn a_batch_decodes() {
-        let _turn = crate::wasm_xc::TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _turn = crate::wasm_xc::TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let len = wasm_ls_setup(0, 3, 3, 0.001, 1);
         let r = String::from_utf8(text()[..len].to_vec()).unwrap();
         assert!(r.contains("\"ok\":true"), "{r}");
@@ -127,10 +97,7 @@ mod tests {
         assert!(r.contains("\"shots\":64"), "{r}");
         let len = wasm_ls_setup(0, 3, 1, 0.001, 1);
         let r = String::from_utf8(text()[..len].to_vec()).unwrap();
-        assert!(
-            r.contains("undetectable"),
-            "one merged round is refused: {r}"
-        );
+        assert!(r.contains("undetectable"), "one merged round is refused: {r}");
         // The CNOT, both input pairs: two observables each.
         for kind in [1, 2] {
             let len = wasm_ls_setup(kind, 3, 3, 0.001, 1);
@@ -138,10 +105,7 @@ mod tests {
             assert!(r.contains("\"observables\":2"), "{r}");
             let len = wasm_ls_run();
             let r = String::from_utf8(text()[..len].to_vec()).unwrap();
-            assert!(
-                r.contains("\"shots\":64") && r.contains("\"wrong\":["),
-                "{r}"
-            );
+            assert!(r.contains("\"shots\":64") && r.contains("\"wrong\":["), "{r}");
         }
     }
 }

@@ -23,18 +23,18 @@
 //! `matcher` (the seven cases an event can be) and `extract` (the matching).
 
 mod correlated;
-#[cfg(test)]
-mod correlated_tests;
 mod extract;
 mod flooder;
 mod graph;
 mod matcher;
 mod paths;
 mod state;
-#[cfg(test)]
-mod tests;
 mod tracker;
 mod union_find;
+#[cfg(test)]
+mod correlated_tests;
+#[cfg(test)]
+mod tests;
 
 pub use correlated::Correlations;
 pub(crate) use correlated::FaultEdges;
@@ -53,16 +53,9 @@ pub(crate) struct Solver<'a> {
 impl SparseGraph {
     /// Decode one shot. `defects` must be sorted and distinct (checked in debug
     /// builds), and `scratch` built for this graph.
-    pub fn decode(
-        &self,
-        scratch: &mut Scratch,
-        defects: &[u32],
-    ) -> Result<Prediction, DecodeError> {
+    pub fn decode(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Prediction, DecodeError> {
         self.check_scratch(scratch);
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        let mut solver = Solver { g: self, s: scratch };
         solver.reset();
         solver.run(defects, false)?;
         Ok(solver.extract())
@@ -71,12 +64,7 @@ impl SparseGraph {
     /// Decode one shot on weights given for this shot alone, `edge_w[id]` for
     /// each edge (even integers, as `int_weight` makes them). The scratch's
     /// weights are the graph's again afterwards.
-    pub fn decode_with_weights(
-        &self,
-        scratch: &mut Scratch,
-        defects: &[u32],
-        edge_w: &[i64],
-    ) -> Result<Prediction, DecodeError> {
+    pub fn decode_with_weights(&self, scratch: &mut Scratch, defects: &[u32], edge_w: &[i64]) -> Result<Prediction, DecodeError> {
         self.check_scratch(scratch);
         assert_eq!(edge_w.len(), self.num_edges(), "one weight per edge");
         for (halves, &wt) in self.halves.iter().zip(edge_w) {
@@ -84,10 +72,7 @@ impl SparseGraph {
                 scratch.w[slot as usize] = wt;
             }
         }
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        let mut solver = Solver { g: self, s: scratch };
         solver.reset();
         let result = solver.run(defects, false).map(|()| solver.extract());
         scratch.w.copy_from_slice(&self.w);
@@ -96,36 +81,17 @@ impl SparseGraph {
 
     /// The edges one shot's matching uses (see `paths`), as endpoints with
     /// `num_nodes` standing for the boundary.
-    pub fn decode_to_edges(
-        &self,
-        scratch: &mut Scratch,
-        defects: &[u32],
-    ) -> Result<Vec<(u32, u32)>, DecodeError> {
+    pub fn decode_to_edges(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Vec<(u32, u32)>, DecodeError> {
         self.check_scratch(scratch);
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        let mut solver = Solver { g: self, s: scratch };
         solver.pass_one(defects)?;
-        Ok(solver
-            .s
-            .edge_set
-            .iter()
-            .map(|&id| self.ends[id as usize])
-            .collect())
+        Ok(solver.s.edge_set.iter().map(|&id| self.ends[id as usize]).collect())
     }
 
     /// Pass one's edge set, as edge ids: what a window decoder commits from.
-    pub fn decode_edge_ids(
-        &self,
-        scratch: &mut Scratch,
-        defects: &[u32],
-    ) -> Result<Vec<u32>, DecodeError> {
+    pub fn decode_edge_ids(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Vec<u32>, DecodeError> {
         self.check_scratch(scratch);
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        let mut solver = Solver { g: self, s: scratch };
         solver.pass_one(defects)?;
         Ok(solver.s.edge_set.clone())
     }
@@ -139,15 +105,8 @@ impl SparseGraph {
         defects: &[u32],
     ) -> Result<Vec<u32>, DecodeError> {
         self.check_scratch(scratch);
-        assert_eq!(
-            corr.num_edges(),
-            self.num_edges(),
-            "Correlations serve the graph they were built for"
-        );
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        assert_eq!(corr.num_edges(), self.num_edges(), "Correlations serve the graph they were built for");
+        let mut solver = Solver { g: self, s: scratch };
         solver.pass_one(defects)?;
         solver.pass_two_edges(corr, defects)?;
         Ok(solver.s.edge_set.clone())
@@ -162,15 +121,8 @@ impl SparseGraph {
         defects: &[u32],
     ) -> Result<Prediction, DecodeError> {
         self.check_scratch(scratch);
-        assert_eq!(
-            corr.num_edges(),
-            self.num_edges(),
-            "Correlations serve the graph they were built for"
-        );
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        assert_eq!(corr.num_edges(), self.num_edges(), "Correlations serve the graph they were built for");
+        let mut solver = Solver { g: self, s: scratch };
         solver.pass_one(defects)?;
         solver.pass_two(corr, defects)
     }
@@ -185,15 +137,8 @@ impl SparseGraph {
         edge_ids: &[u32],
     ) -> Result<Prediction, DecodeError> {
         self.check_scratch(scratch);
-        assert_eq!(
-            corr.num_edges(),
-            self.num_edges(),
-            "Correlations serve the graph they were built for"
-        );
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        assert_eq!(corr.num_edges(), self.num_edges(), "Correlations serve the graph they were built for");
+        let mut solver = Solver { g: self, s: scratch };
         solver.s.edge_set.clear();
         solver.s.edge_set.extend_from_slice(edge_ids);
         solver.pass_two(corr, defects)
@@ -201,16 +146,9 @@ impl SparseGraph {
 
     /// The same, checking the dual's feasibility after every event.
     #[cfg(test)]
-    pub(crate) fn decode_checked(
-        &self,
-        scratch: &mut Scratch,
-        defects: &[u32],
-    ) -> Result<Prediction, DecodeError> {
+    pub(crate) fn decode_checked(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Prediction, DecodeError> {
         self.check_scratch(scratch);
-        let mut solver = Solver {
-            g: self,
-            s: scratch,
-        };
+        let mut solver = Solver { g: self, s: scratch };
         solver.reset();
         solver.run(defects, true)?;
         Ok(solver.extract())

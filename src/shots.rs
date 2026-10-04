@@ -24,18 +24,11 @@ pub fn write_b8(shots: &[Vec<bool>], num_bits: usize) -> Vec<u8> {
 pub fn read_b8(bytes: &[u8], num_bits: usize) -> Result<Vec<Vec<bool>>, String> {
     let stride = num_bits.div_ceil(8);
     if stride == 0 || !bytes.len().is_multiple_of(stride) {
-        return Err(format!(
-            "{} bytes is not a whole number of {num_bits}-bit shots",
-            bytes.len()
-        ));
+        return Err(format!("{} bytes is not a whole number of {num_bits}-bit shots", bytes.len()));
     }
     Ok(bytes
         .chunks(stride)
-        .map(|row| {
-            (0..num_bits)
-                .map(|i| (row[i / 8] >> (i % 8)) & 1 == 1)
-                .collect()
-        })
+        .map(|row| (0..num_bits).map(|i| (row[i / 8] >> (i % 8)) & 1 == 1).collect())
         .collect())
 }
 
@@ -76,10 +69,7 @@ pub fn read_01(text: &str, num_bits: usize) -> Result<Vec<Vec<bool>>, String> {
         .enumerate()
         .map(|(i, line)| {
             if line.len() != num_bits {
-                return Err(format!(
-                    "shot {i} has {} bits, expected {num_bits}",
-                    line.len()
-                ));
+                return Err(format!("shot {i} has {} bits, expected {num_bits}", line.len()));
             }
             line.chars()
                 .map(|c| match c {
@@ -98,9 +88,7 @@ mod tests {
 
     fn sample() -> Vec<Vec<bool>> {
         vec![
-            vec![
-                true, false, false, false, false, false, false, false, true, true,
-            ],
+            vec![true, false, false, false, false, false, false, false, true, true],
             vec![false; 10],
             vec![true; 10],
         ]
@@ -140,10 +128,7 @@ mod tests {
                     *last |= 0x80;
                 }
             }
-            let slow: Vec<u32> = (0..n)
-                .filter(|&i| (row[i / 8] >> (i % 8)) & 1 == 1)
-                .map(|i| i as u32)
-                .collect();
+            let slow: Vec<u32> = (0..n).filter(|&i| (row[i / 8] >> (i % 8)) & 1 == 1).map(|i| i as u32).collect();
             let mut fast = vec![7u32];
             defects_from_b8(&row, n, &mut fast);
             assert_eq!(&fast[1..], &slow[..], "n = {n}");

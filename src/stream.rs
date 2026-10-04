@@ -77,11 +77,7 @@ fn declared_layers(program: &DemProgram) -> Result<usize, String> {
     let mut times: Vec<f64> = Vec::new();
     for ins in program.flattened()?.instrs {
         if let DemInstr::Detector { coords, .. } = ins {
-            times.push(
-                *coords
-                    .last()
-                    .ok_or("a detector has no time coordinate; windows need them")?,
-            );
+            times.push(*coords.last().ok_or("a detector has no time coordinate; windows need them")?);
         }
     }
     times.sort_by(|a, b| a.partial_cmp(b).expect("times are numbers"));
@@ -98,11 +94,7 @@ pub fn dependencies(specs: &[Spec], mode: Mode) -> Vec<Vec<usize>> {
         deps[i] = match mode {
             Mode::Sliding => t.get(j.wrapping_sub(1)).copied().into_iter().collect(),
             Mode::Parallel if specs[i].phase == 1 => (0..specs.len())
-                .filter(|&k| {
-                    specs[k].phase == 0
-                        && (specs[k].commit.1 == specs[i].commit.0
-                            || specs[k].commit.0 == specs[i].commit.1)
-                })
+                .filter(|&k| specs[k].phase == 0 && (specs[k].commit.1 == specs[i].commit.0 || specs[k].commit.0 == specs[i].commit.1))
                 .collect(),
             Mode::Parallel => Vec::new(),
         };
@@ -136,28 +128,15 @@ impl StreamDecoder {
     /// unrolls each model as `to_dem_merged` does, else as `to_dem`. Refuses (and a caller may
     /// cut windows from the whole model instead) a model with no loop, one whose passes add a
     /// varying number of layers, or a schedule whose period is not a whole number of passes.
-    pub fn from_program(
-        program: &DemProgram,
-        commit: usize,
-        buffer: usize,
-        mode: Mode,
-        merged: bool,
-    ) -> Result<StreamDecoder, String> {
+    pub fn from_program(program: &DemProgram, commit: usize, buffer: usize, mode: Mode, merged: bool) -> Result<StreamDecoder, String> {
         check_schedule(commit, buffer, mode)?;
         let period = match mode {
             Mode::Sliding => commit,
             Mode::Parallel => commit + 2 * buffer,
         };
         let windows_per_period = if mode == Mode::Sliding { 1 } else { 2 };
-        let flat = |p: &DemProgram| {
-            if merged {
-                p.to_dem_merged()
-            } else {
-                p.to_dem()
-            }
-        };
-        let layer_count =
-            |p: &DemProgram| -> Result<usize, String> { Ok(Layers::from_dem(&flat(p)?)?.count()) };
+        let flat = |p: &DemProgram| if merged { p.to_dem_merged() } else { p.to_dem() };
+        let layer_count = |p: &DemProgram| -> Result<usize, String> { Ok(Layers::from_dem(&flat(p)?)?.count()) };
         let (index, count) = program
             .instrs
             .iter()
@@ -176,15 +155,8 @@ impl StreamDecoder {
             q
         };
         // Layers per pass, the same from pass to pass.
-        let (l2, l3, l4) = (
-            layer_count(&with_count(2))?,
-            layer_count(&with_count(3))?,
-            layer_count(&with_count(4))?,
-        );
-        let per = l3
-            .checked_sub(l2)
-            .filter(|&x| x > 0 && l4 == l3 + x)
-            .ok_or("the loop's passes do not each add the same number of layers")?;
+        let (l2, l3, l4) = (layer_count(&with_count(2))?, layer_count(&with_count(3))?, layer_count(&with_count(4))?);
+        let per = l3.checked_sub(l2).filter(|&x| x > 0 && l4 == l3 + x).ok_or("the loop's passes do not each add the same number of layers")?;
         // The middle repeats every lcm(period, per) layers: `periods` window periods.
         let gcd = |mut a: usize, mut b: usize| {
             while b != 0 {
@@ -197,19 +169,14 @@ impl StreamDecoder {
         // Layers declared before the loop and after it. (A model's part before the loop alone
         // has faults on detectors declared later, so its layers are counted from its own
         // declarations.)
-        let before = declared_layers(&DemProgram {
-            instrs: program.instrs[..index].to_vec(),
-        })?;
-        let after = layer_count(&with_count(0))?
-            .checked_sub(before)
-            .ok_or("the model's layers before its loop outnumber the model's")?;
+        let before = declared_layers(&DemProgram { instrs: program.instrs[..index].to_vec() })?;
+        let after = layer_count(&with_count(0))?.checked_sub(before).ok_or("the model's layers before its loop outnumber the model's")?;
         let stride = period / windows_per_period;
         // End windows reach past the layers outside the loop and a buffer beyond them; every
         // window after them sits wholly inside the repetition.
         let edge = EDGE.max((before.max(after) + 1 + buffer).div_ceil(stride.max(1)) + 1);
         let full = l2 as u64 + (count.saturating_sub(2)) * per as u64;
-        let min_layers =
-            ((2 * edge / windows_per_period + 1 + periods) * period + buffer + 2) as u64;
+        let min_layers = ((2 * edge / windows_per_period + 1 + periods) * period + buffer + 2) as u64;
         // Passes for the template: enough layers, and the stream's extra layers a whole number
         // of window periods.
         let passes = if count <= 2 || full <= min_layers + cycle_layers as u64 {
@@ -218,8 +185,7 @@ impl StreamDecoder {
             (2..count)
                 .find(|&c| {
                     let layers = l2 as u64 + (c - 2) * per as u64;
-                    layers >= min_layers
-                        && ((count - c) * per as u64).is_multiple_of(cycle_layers as u64)
+                    layers >= min_layers && ((count - c) * per as u64).is_multiple_of(cycle_layers as u64)
                 })
                 .unwrap_or(count)
         };
@@ -227,8 +193,7 @@ impl StreamDecoder {
         let dem = flat(&template_program)?;
         let template = WindowDecoder::new(Model::new(&dem)?, commit, buffer, mode)?;
         let template_layers = template.model.layers.count() as u32;
-        let stream_layers = u32::try_from(template_layers as u64 + (count - passes) * per as u64)
-            .map_err(|_| "too many layers")?;
+        let stream_layers = u32::try_from(template_layers as u64 + (count - passes) * per as u64).map_err(|_| "too many layers")?;
         let layers = &template.model.layers;
         let mut place = vec![(0u32, 0u32); template.model.num_detectors];
         for (l, members) in layers.members.iter().enumerate() {
@@ -244,31 +209,14 @@ impl StreamDecoder {
                     .map(|l| {
                         layers.members[l as usize]
                             .iter()
-                            .map(|det| {
-                                w.window
-                                    .global_node
-                                    .binary_search(det)
-                                    .expect("the window holds its layers")
-                                    as u32
-                            })
+                            .map(|det| w.window.global_node.binary_search(det).expect("the window holds its layers") as u32)
                             .collect()
                     })
                     .collect()
             })
             .collect();
         let cycle = windows_per_period * periods;
-        Ok(StreamDecoder {
-            template,
-            template_layers,
-            stream_layers,
-            edge,
-            cycle,
-            place,
-            local,
-            commit,
-            buffer,
-            mode,
-        })
+        Ok(StreamDecoder { template, template_layers, stream_layers, edge, cycle, place, local, commit, buffer, mode })
     }
 
     /// The stream's windows, each tied to its template window.
@@ -276,11 +224,7 @@ impl StreamDecoder {
         let edge = self.edge;
         let layers = self.stream_layers;
         let specs = plan(layers, self.commit, self.buffer, self.mode)?;
-        let (t_specs, s_time, t_time) = (
-            &self.template.specs,
-            by_time(&specs),
-            by_time(&self.template.specs),
-        );
+        let (t_specs, s_time, t_time) = (&self.template.specs, by_time(&specs), by_time(&self.template.specs));
         let (n_s, n_t) = (specs.len(), t_specs.len());
         let per = self.cycle;
         let (mut template, mut offset) = (vec![0usize; n_s], vec![0u32; n_s]);
@@ -293,61 +237,23 @@ impl StreamDecoder {
                 edge + (j - edge) % per
             };
             let (s, t) = (specs[i], t_specs[t_time[tj]]);
-            let off =
-                s.a.checked_sub(t.a)
-                    .ok_or("a stream window sits before its template")?;
-            let shifted = (
-                t.a + off,
-                t.b + off,
-                t.commit.0 + off,
-                t.commit.1 + off,
-                t.past,
-                t.future,
-                t.phase.min(1),
-            );
-            if shifted
-                != (
-                    s.a,
-                    s.b,
-                    s.commit.0,
-                    s.commit.1,
-                    s.past,
-                    s.future,
-                    s.phase.min(1),
-                )
-            {
-                return Err(format!(
-                    "stream window {j} does not match its template window {tj}"
-                ));
+            let off = s.a.checked_sub(t.a).ok_or("a stream window sits before its template")?;
+            let shifted = (t.a + off, t.b + off, t.commit.0 + off, t.commit.1 + off, t.past, t.future, t.phase.min(1));
+            if shifted != (s.a, s.b, s.commit.0, s.commit.1, s.past, s.future, s.phase.min(1)) {
+                return Err(format!("stream window {j} does not match its template window {tj}"));
             }
             template[i] = t_time[tj];
             offset[i] = off;
         }
         let deps = dependencies(&specs, self.mode);
-        let ready_layer: Vec<u32> = (0..n_s)
-            .map(|i| {
-                deps[i]
-                    .iter()
-                    .map(|&k| specs[k].b)
-                    .fold(specs[i].b, u32::max)
-            })
-            .collect();
+        let ready_layer: Vec<u32> = (0..n_s).map(|i| deps[i].iter().map(|&k| specs[k].b).fold(specs[i].b, u32::max)).collect();
         let mut order: Vec<usize> = (0..n_s).collect();
         order.sort_by_key(|&i| (ready_layer[i], specs[i].phase.min(1), specs[i].commit.0));
         let mut suffix_min_a = vec![u32::MAX; n_s + 1];
         for k in (0..n_s).rev() {
             suffix_min_a[k] = suffix_min_a[k + 1].min(specs[order[k]].a);
         }
-        Ok(StreamPlan {
-            layers,
-            specs,
-            template,
-            offset,
-            order,
-            ready_layer,
-            deps,
-            suffix_min_a,
-        })
+        Ok(StreamPlan { layers, specs, template, offset, order, ready_layer, deps, suffix_min_a })
     }
 
     pub fn scratches(&self) -> Vec<Scratch> {
@@ -384,11 +290,7 @@ impl<'a> Stream<'a> {
         scratches: &'a mut [Scratch],
         clock: Option<&'a dyn Fn() -> f64>,
     ) -> Stream<'a> {
-        let times = if clock.is_some() {
-            vec![0.0; plan.specs.len()]
-        } else {
-            Vec::new()
-        };
+        let times = if clock.is_some() { vec![0.0; plan.specs.len()] } else { Vec::new() };
         Stream {
             dec,
             plan,
@@ -429,9 +331,7 @@ impl<'a> Stream<'a> {
     }
 
     fn advance(&mut self) -> Result<(), DecodeError> {
-        while self.pos < self.plan.order.len()
-            && self.plan.ready_layer[self.plan.order[self.pos]] <= self.complete
-        {
+        while self.pos < self.plan.order.len() && self.plan.ready_layer[self.plan.order[self.pos]] <= self.complete {
             let wi = self.plan.order[self.pos];
             self.decode_window(wi)?;
             self.pos += 1;
@@ -439,9 +339,7 @@ impl<'a> Stream<'a> {
             // defect left in them: nothing can explain it any more.
             let keep = self.plan.suffix_min_a[self.pos].min(self.complete);
             while self.base < keep {
-                let Some(row) = self.live.pop_front() else {
-                    break;
-                };
+                let Some(row) = self.live.pop_front() else { break };
                 self.dropped += row.iter().map(|w| w.count_ones() as usize).sum::<usize>();
                 self.base += 1;
             }
@@ -450,11 +348,7 @@ impl<'a> Stream<'a> {
     }
 
     fn decode_window(&mut self, wi: usize) -> Result<(), DecodeError> {
-        let (spec, ti, off) = (
-            self.plan.specs[wi],
-            self.plan.template[wi],
-            self.plan.offset[wi],
-        );
+        let (spec, ti, off) = (self.plan.specs[wi], self.plan.template[wi], self.plan.offset[wi]);
         let dec = self.dec;
         let w = &dec.template.windows[ti];
         let model = &dec.template.model;
@@ -474,16 +368,10 @@ impl<'a> Stream<'a> {
                 }
             }
             defects.sort_unstable();
-            let start = if lane == 0 {
-                self.clock.map(|c| c())
-            } else {
-                None
-            };
+            let start = if lane == 0 { self.clock.map(|c| c()) } else { None };
             let scratch = &mut self.scratches[ti];
             let edges = if self.correlated {
-                w.window
-                    .graph
-                    .decode_correlated_edge_ids(&w.window.corr, scratch, &defects)?
+                w.window.graph.decode_correlated_edge_ids(&w.window.corr, scratch, &defects)?
             } else {
                 w.window.graph.decode_edge_ids(scratch, &defects)?
             };
@@ -516,12 +404,7 @@ impl<'a> Stream<'a> {
         if self.pos != self.plan.order.len() {
             return Err(DecodeError::MatcherDeclined);
         }
-        let held: usize = self
-            .live
-            .iter()
-            .flatten()
-            .map(|w| w.count_ones() as usize)
-            .sum();
+        let held: usize = self.live.iter().flatten().map(|w| w.count_ones() as usize).sum();
         let unexplained = self.dropped + held;
         Ok((self, unexplained))
     }
@@ -560,12 +443,7 @@ pub fn run_stream(
         stream.push_layer(&layer)?;
     }
     let (stream, unexplained) = stream.finish()?;
-    Ok((
-        stream.predictions,
-        truth.first().copied().unwrap_or(0),
-        unexplained,
-        stream.times,
-    ))
+    Ok((stream.predictions, truth.first().copied().unwrap_or(0), unexplained, stream.times))
 }
 
 #[cfg(test)]
@@ -586,52 +464,21 @@ mod tests {
         let full = Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap();
         let full_layers = full.layers.count();
         for mode in [Mode::Sliding, Mode::Parallel] {
-            let dec = StreamDecoder::new(
-                CodeKind::Rotated,
-                d,
-                p,
-                Basis::Z,
-                commit,
-                buffer,
-                mode,
-                rounds,
-            )
-            .unwrap();
-            assert!(
-                dec.template_layers < dec.stream_layers,
-                "{mode:?}: template of {} layers",
-                dec.template_layers
-            );
+            let dec = StreamDecoder::new(CodeKind::Rotated, d, p, Basis::Z, commit, buffer, mode, rounds).unwrap();
+            assert!(dec.template_layers < dec.stream_layers, "{mode:?}: template of {} layers", dec.template_layers);
             let plan = dec.plan().unwrap();
             assert_eq!(plan.layers as usize, full_layers);
-            let wd = WindowDecoder::new(
-                Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap(),
-                commit,
-                buffer,
-                mode,
-            )
-            .unwrap();
+            let wd = WindowDecoder::new(Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap(), commit, buffer, mode).unwrap();
             let mut full_scratch = wd.scratches();
             for correlated in [false, true] {
                 let mut rng = Xorshift::new(21);
                 let batch = sampler.sample(&mut rng);
                 let mut rng = Xorshift::new(21);
                 let mut scratches = dec.scratches();
-                let (pred, _, unexplained, _) = run_stream(
-                    &dec,
-                    &plan,
-                    &sampler,
-                    &mut rng,
-                    correlated,
-                    &mut scratches,
-                    None,
-                )
-                .unwrap();
+                let (pred, _, unexplained, _) = run_stream(&dec, &plan, &sampler, &mut rng, correlated, &mut scratches, None).unwrap();
                 assert_eq!(unexplained, 0, "{mode:?} correlated {correlated}");
                 for (lane, &p) in pred.iter().enumerate() {
-                    let want = wd
-                        .decode_with(&batch.lane_defects(lane), correlated, &mut full_scratch)
-                        .unwrap();
+                    let want = wd.decode_with(&batch.lane_defects(lane), correlated, &mut full_scratch).unwrap();
                     assert_eq!(want.unexplained, 0);
                     assert_eq!(p, want.observables, "d = {d} C = {commit} B = {buffer} {mode:?} correlated {correlated}, lane {lane}");
                 }
@@ -657,17 +504,7 @@ mod tests {
     #[test]
     fn defects_left_behind_are_counted() {
         let rounds = 30;
-        let dec = StreamDecoder::new(
-            CodeKind::Rotated,
-            3,
-            0.001,
-            Basis::Z,
-            3,
-            3,
-            Mode::Sliding,
-            rounds,
-        )
-        .unwrap();
+        let dec = StreamDecoder::new(CodeKind::Rotated, 3, 0.001, Basis::Z, 3, 3, Mode::Sliding, rounds).unwrap();
         let plan = dec.plan().unwrap();
         let members = &dec.template.model.layers.members;
         let mut scratches = dec.scratches();
@@ -682,10 +519,7 @@ mod tests {
             }
             stream.push_layer(&row).unwrap();
         }
-        assert!(
-            stream.live.is_empty(),
-            "every layer let go after the last window"
-        );
+        assert!(stream.live.is_empty(), "every layer let go after the last window");
         let (_, unexplained) = stream.finish().unwrap();
         assert_eq!(unexplained, 1);
     }
@@ -694,35 +528,16 @@ mod tests {
     /// windows are the same graph once shifted.
     #[test]
     fn bulk_windows_are_the_same_graph() {
-        let circuit = generate(
-            CodeKind::Rotated,
-            3,
-            60,
-            NoiseModel::Sd6 { p: 0.004 },
-            Basis::Z,
-        )
-        .unwrap();
+        let circuit = generate(CodeKind::Rotated, 3, 60, NoiseModel::Sd6 { p: 0.004 }, Basis::Z).unwrap();
         let model = Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap();
         let signature = |a: u32| {
             let w = model.window(a, a + 6, true, true);
             let g = &w.graph;
-            (
-                g.num_nodes,
-                g.to.clone(),
-                g.w.clone(),
-                g.obs.clone(),
-                (0..g.num_edges() as u32)
-                    .map(|e| w.corr.rules_of(e))
-                    .collect::<Vec<_>>(),
-            )
+            (g.num_nodes, g.to.clone(), g.w.clone(), g.obs.clone(), (0..g.num_edges() as u32).map(|e| w.corr.rules_of(e)).collect::<Vec<_>>())
         };
         let first = signature(15);
         assert_eq!(signature(27), first);
         assert_eq!(signature(40), first);
-        assert_ne!(
-            signature(0),
-            first,
-            "the first rounds differ, which is why the ends come from the template's ends"
-        );
+        assert_ne!(signature(0), first, "the first rounds differ, which is why the ends come from the template's ends");
     }
 }

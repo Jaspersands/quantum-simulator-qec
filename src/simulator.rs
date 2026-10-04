@@ -65,8 +65,7 @@ impl StabilizerSimulator {
         for i in 0..(2 * self.tableau.n) {
             let x_val = self.tableau.get_x(i, qubit);
             let z_val = self.tableau.get_z(i, qubit);
-            self.tableau
-                .set_r(i, self.tableau.get_r(i) ^ (x_val as u8) ^ (z_val as u8));
+            self.tableau.set_r(i, self.tableau.get_r(i) ^ (x_val as u8) ^ (z_val as u8));
         }
     }
 

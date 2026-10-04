@@ -86,17 +86,7 @@ fn flip(basis: Basis) -> u8 {
 
 impl Writer {
     pub fn new(p: f64, detect: Basis, data: Vec<u32>) -> Writer {
-        Writer {
-            c: Vec::new(),
-            m: 0,
-            p,
-            detect,
-            data,
-            last: HashMap::new(),
-            fresh: HashMap::new(),
-            measured: HashMap::new(),
-            cycle: 0,
-        }
+        Writer { c: Vec::new(), m: 0, p, detect, data, last: HashMap::new(), fresh: HashMap::new(), measured: HashMap::new(), cycle: 0 }
     }
 
     fn lookback(&self, rec: usize) -> u32 {
@@ -114,16 +104,9 @@ impl Writer {
         if qubits.is_empty() {
             return;
         }
-        self.c.push(Instr::Reset {
-            basis,
-            qubits: qubits.to_vec(),
-        });
+        self.c.push(Instr::Reset { basis, qubits: qubits.to_vec() });
         let p = self.p;
-        self.noise(Instr::PauliError {
-            pauli: flip(basis),
-            p,
-            qubits: qubits.to_vec(),
-        });
+        self.noise(Instr::PauliError { pauli: flip(basis), p, qubits: qubits.to_vec() });
         for &q in qubits {
             self.fresh.insert(q, basis);
         }
@@ -134,32 +117,16 @@ impl Writer {
         if qubits.is_empty() {
             return;
         }
-        self.c.push(Instr::Reset {
-            basis: Basis::Z,
-            qubits: qubits.to_vec(),
-        });
+        self.c.push(Instr::Reset { basis: Basis::Z, qubits: qubits.to_vec() });
         let p = self.p;
-        self.noise(Instr::PauliError {
-            pauli: 1,
-            p,
-            qubits: qubits.to_vec(),
-        });
+        self.noise(Instr::PauliError { pauli: 1, p, qubits: qubits.to_vec() });
     }
 
     /// Measure qubits in `basis`, with a flip before; their records, in order.
     pub fn measure(&mut self, basis: Basis, qubits: &[u32]) -> Vec<usize> {
         let p = self.p;
-        self.noise(Instr::PauliError {
-            pauli: flip(basis),
-            p,
-            qubits: qubits.to_vec(),
-        });
-        self.c.push(Instr::Measure {
-            basis,
-            reset: false,
-            flip: 0.0,
-            qubits: qubits.to_vec(),
-        });
+        self.noise(Instr::PauliError { pauli: flip(basis), p, qubits: qubits.to_vec() });
+        self.c.push(Instr::Measure { basis, reset: false, flip: 0.0, qubits: qubits.to_vec() });
         let recs: Vec<usize> = (self.m..self.m + qubits.len()).collect();
         self.m += qubits.len();
         for (&q, &r) in qubits.iter().zip(&recs) {
@@ -178,11 +145,7 @@ impl Writer {
 
     pub fn observable(&mut self, index: u32, recs: &[usize]) {
         let recs = recs.iter().map(|&r| self.lookback(r)).collect();
-        self.c.push(Instr::Observable {
-            index,
-            recs,
-            paulis: Vec::new(),
-        });
+        self.c.push(Instr::Observable { index, recs, paulis: Vec::new() });
     }
 
     /// Measure checks' ancillas in the checks' basis, and give each its detector.
@@ -192,17 +155,8 @@ impl Writer {
         }
         let ancs: Vec<u32> = which.iter().map(|&i| cyc.checks[i].anc).collect();
         let p = self.p;
-        self.noise(Instr::PauliError {
-            pauli: flip(basis),
-            p,
-            qubits: ancs.clone(),
-        });
-        self.c.push(Instr::Measure {
-            basis,
-            reset: false,
-            flip: 0.0,
-            qubits: ancs,
-        });
+        self.noise(Instr::PauliError { pauli: flip(basis), p, qubits: ancs.clone() });
+        self.c.push(Instr::Measure { basis, reset: false, flip: 0.0, qubits: ancs });
         // The whole measurement first, so every detector's lookbacks count from its end.
         let first = self.m;
         self.m += which.len();
@@ -217,11 +171,7 @@ impl Writer {
         let basis = if ch.x_type { Basis::X } else { Basis::Z };
         if basis == self.detect {
             let mut targets = vec![rec];
-            let deterministic = match self
-                .last
-                .get(&ch.key)
-                .filter(|prev| prev.cycle + 1 == self.cycle)
-            {
+            let deterministic = match self.last.get(&ch.key).filter(|prev| prev.cycle + 1 == self.cycle) {
                 Some(prev) => {
                     targets.push(prev.rec);
                     let read_since = |q: &u32| match self.measured.get(q) {
@@ -238,11 +188,7 @@ impl Writer {
                             }
                         }
                     }
-                    ok &= ch
-                        .support
-                        .iter()
-                        .filter(|q| !prev.support.contains(q))
-                        .all(|q| self.fresh.contains_key(q));
+                    ok &= ch.support.iter().filter(|q| !prev.support.contains(q)).all(|q| self.fresh.contains_key(q));
                     for q in prev.support.iter().filter(|q| !ch.support.contains(q)) {
                         match read_since(q) {
                             Some(r) => targets.push(r),
@@ -255,20 +201,10 @@ impl Writer {
             };
             if deterministic {
                 let recs = targets.iter().map(|&r| self.lookback(r)).collect();
-                self.c.push(Instr::Detector {
-                    coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64],
-                    recs,
-                });
+                self.c.push(Instr::Detector { coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64], recs });
             }
         }
-        self.last.insert(
-            ch.key,
-            Last {
-                rec,
-                support: ch.support.clone(),
-                cycle: self.cycle,
-            },
-        );
+        self.last.insert(ch.key, Last { rec, support: ch.support.clone(), cycle: self.cycle });
     }
 
     /// One cycle; returns each check's record.
@@ -280,15 +216,8 @@ impl Writer {
             self.read(cyc, &tick.measure_z, Basis::Z, &mut out);
             if !tick.prepare_x.is_empty() {
                 let ancs: Vec<u32> = tick.prepare_x.iter().map(|&i| cyc.checks[i].anc).collect();
-                self.c.push(Instr::Reset {
-                    basis: Basis::X,
-                    qubits: ancs.clone(),
-                });
-                self.noise(Instr::PauliError {
-                    pauli: 2,
-                    p,
-                    qubits: ancs,
-                });
+                self.c.push(Instr::Reset { basis: Basis::X, qubits: ancs.clone() });
+                self.noise(Instr::PauliError { pauli: 2, p, qubits: ancs });
             }
             let pairs: Vec<(u32, u32)> = tick
                 .cnots
@@ -307,12 +236,7 @@ impl Writer {
                 self.noise(Instr::Depolarize2 { p, pairs });
             }
             let busy: Vec<u32> = tick.cnots.iter().map(|&(_, q)| q).collect();
-            let idle: Vec<u32> = self
-                .data
-                .iter()
-                .copied()
-                .filter(|q| !busy.contains(q))
-                .collect();
+            let idle: Vec<u32> = self.data.iter().copied().filter(|q| !busy.contains(q)).collect();
             if !idle.is_empty() {
                 self.noise(Instr::Depolarize1 { p, qubits: idle });
             }
@@ -335,9 +259,7 @@ impl Writer {
             if basis != self.detect {
                 continue;
             }
-            let Some(last) = self.last.get(&ch.key).filter(|l| l.cycle + 1 == self.cycle) else {
-                continue;
-            };
+            let Some(last) = self.last.get(&ch.key).filter(|l| l.cycle + 1 == self.cycle) else { continue };
             let reads: Option<Vec<usize>> = ch
                 .support
                 .iter()
@@ -349,10 +271,7 @@ impl Writer {
             if let Some(mut targets) = reads {
                 targets.push(last.rec);
                 let recs = targets.iter().map(|&r| self.lookback(r)).collect();
-                self.c.push(Instr::Detector {
-                    coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64],
-                    recs,
-                });
+                self.c.push(Instr::Detector { coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64], recs });
             }
         }
     }
@@ -362,42 +281,23 @@ impl Writer {
     /// compared with the parity of its support, and with the records of any
     /// qubit its last measurement read that it does not (read in its basis
     /// since).
-    pub fn final_detectors(
-        &mut self,
-        cyc: &Cycle,
-        basis: Basis,
-        readout: &HashMap<u32, usize>,
-    ) -> Result<(), String> {
+    pub fn final_detectors(&mut self, cyc: &Cycle, basis: Basis, readout: &HashMap<u32, usize>) -> Result<(), String> {
         let want_x = basis == Basis::X;
         for ch in cyc.checks.iter().filter(|c| c.x_type == want_x) {
-            let Some(last) = self.last.get(&ch.key).filter(|l| l.cycle + 1 == self.cycle) else {
-                continue;
-            };
+            let Some(last) = self.last.get(&ch.key).filter(|l| l.cycle + 1 == self.cycle) else { continue };
             let mut targets: Vec<usize> = Vec::new();
             for q in &ch.support {
-                targets.push(
-                    *readout
-                        .get(q)
-                        .ok_or(format!("qubit {q} of check {} was not read out", ch.key))?,
-                );
+                targets.push(*readout.get(q).ok_or(format!("qubit {q} of check {} was not read out", ch.key))?);
             }
             targets.push(last.rec);
             for q in last.support.iter().filter(|q| !ch.support.contains(q)) {
                 match self.measured.get(q) {
                     Some(&(r, b)) if b == basis && r > last.rec => targets.push(r),
-                    _ => {
-                        return Err(format!(
-                            "check {} lost qubit {q}, not read in its basis",
-                            ch.key
-                        ))
-                    }
+                    _ => return Err(format!("check {} lost qubit {q}, not read in its basis", ch.key)),
                 }
             }
             let recs = targets.iter().map(|&r| self.lookback(r)).collect();
-            self.c.push(Instr::Detector {
-                coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64],
-                recs,
-            });
+            self.c.push(Instr::Detector { coords: vec![ch.pos.0, ch.pos.1, self.cycle as f64], recs });
         }
         Ok(())
     }
@@ -410,16 +310,8 @@ fn memory_coords(code: &BbCode, w: &mut Writer) {
     let h = code.half();
     for c in 0..h {
         let (u, v) = ((c / code.m) as f64, (c % code.m) as f64);
-        for (q, x, y) in [
-            (c, 2.0 * u, 2.0 * v),
-            (h + c, 2.0 * u + 1.0, 2.0 * v),
-            (2 * h + c, 2.0 * u, 2.0 * v + 1.0),
-            (3 * h + c, 2.0 * u + 1.0, 2.0 * v + 1.0),
-        ] {
-            w.c.push(Instr::QubitCoords {
-                coords: vec![x, y],
-                qubits: vec![q as u32],
-            });
+        for (q, x, y) in [(c, 2.0 * u, 2.0 * v), (h + c, 2.0 * u + 1.0, 2.0 * v), (2 * h + c, 2.0 * u, 2.0 * v + 1.0), (3 * h + c, 2.0 * u + 1.0, 2.0 * v + 1.0)] {
+            w.c.push(Instr::QubitCoords { coords: vec![x, y], qubits: vec![q as u32] });
         }
     }
 }
@@ -428,40 +320,15 @@ fn memory_coords(code: &BbCode, w: &mut Writer) {
 /// key h + c), each reading its six neighbours in `neighbours` order.
 fn code_checks(code: &BbCode) -> Vec<Check> {
     let h = code.half();
-    let pos = |c: usize, dx: f64, dy: f64| {
-        (
-            2.0 * (c / code.m) as f64 + dx,
-            2.0 * (c % code.m) as f64 + dy,
-        )
-    };
+    let pos = |c: usize, dx: f64, dy: f64| (2.0 * (c / code.m) as f64 + dx, 2.0 * (c % code.m) as f64 + dy);
     let mut checks = Vec::with_capacity(2 * h);
     for c in 0..h {
-        let support = code
-            .neighbours(c, true)
-            .iter()
-            .map(|&q| (h + q) as u32)
-            .collect();
-        checks.push(Check {
-            key: c,
-            anc: c as u32,
-            x_type: true,
-            support,
-            pos: pos(c, 0.0, 0.0),
-        });
+        let support = code.neighbours(c, true).iter().map(|&q| (h + q) as u32).collect();
+        checks.push(Check { key: c, anc: c as u32, x_type: true, support, pos: pos(c, 0.0, 0.0) });
     }
     for c in 0..h {
-        let support = code
-            .neighbours(c, false)
-            .iter()
-            .map(|&q| (h + q) as u32)
-            .collect();
-        checks.push(Check {
-            key: h + c,
-            anc: (3 * h + c) as u32,
-            x_type: false,
-            support,
-            pos: pos(c, 1.0, 1.0),
-        });
+        let support = code.neighbours(c, false).iter().map(|&q| (h + q) as u32).collect();
+        checks.push(Check { key: h + c, anc: (3 * h + c) as u32, x_type: false, support, pos: pos(c, 1.0, 1.0) });
     }
     checks
 }
@@ -479,8 +346,7 @@ pub fn memory_cycle(code: &BbCode) -> Cycle {
             tick.cnots.extend((0..h).map(|c| (c, checks[c].support[k])));
         }
         if let Some(k) = SZ[t] {
-            tick.cnots
-                .extend((0..h).map(|c| (h + c, checks[h + c].support[k])));
+            tick.cnots.extend((0..h).map(|c| (h + c, checks[h + c].support[k])));
         }
     }
     ticks[6].measure_z = (h..2 * h).collect();
@@ -506,16 +372,11 @@ pub fn memory(code: &BbCode, basis: Basis, cycles: usize, p: f64) -> Circuit {
     w.c.push(Instr::Tick);
     let recs = w.measure(basis, &data);
     let readout: HashMap<u32, usize> = data.iter().copied().zip(recs).collect();
-    w.final_detectors(&cyc, basis, &readout)
-        .expect("a memory's checks keep their support");
+    w.final_detectors(&cyc, basis, &readout).expect("a memory's checks keep their support");
     let (lx, lz) = code.logicals();
     let logicals = if basis == Basis::X { lx } else { lz };
     for k in 0..logicals.rows {
-        let recs: Vec<usize> = logicals
-            .row_ones(k)
-            .iter()
-            .map(|&q| readout[&(h + q as u32)])
-            .collect();
+        let recs: Vec<usize> = logicals.row_ones(k).iter().map(|&q| readout[&(h + q as u32)]).collect();
         w.observable(k as u32, &recs);
     }
     Circuit { instrs: w.c }
@@ -531,11 +392,7 @@ struct Added {
 
 impl Added {
     fn new(code: &BbCode, g: &Gauging) -> Added {
-        Added {
-            base: 4 * code.half() as u32,
-            edges: g.num_edges() as u32,
-            vertices: g.support.len() as u32,
-        }
+        Added { base: 4 * code.half() as u32, edges: g.num_edges() as u32, vertices: g.support.len() as u32 }
     }
     fn edge(&self, i: usize) -> u32 {
         self.base + i as u32
@@ -562,12 +419,7 @@ fn data_pos(code: &BbCode, d: usize) -> (f64, f64) {
 /// Place each (check, qubit) CNOT at the first tick from `from` where
 /// neither the check's ancilla nor the qubit has one yet; ticks are added as
 /// needed. Returns the last tick used, if any.
-fn first_fit(
-    ticks: &mut Vec<Tick>,
-    checks: &[Check],
-    pairs: &[(usize, u32)],
-    from: usize,
-) -> Option<usize> {
+fn first_fit(ticks: &mut Vec<Tick>, checks: &[Check], pairs: &[(usize, u32)], from: usize) -> Option<usize> {
     let mut last = None;
     for &(ci, q) in pairs {
         let mut t = from;
@@ -575,10 +427,7 @@ fn first_fit(
             if ticks.len() <= t {
                 ticks.resize(t + 1, Tick::default());
             }
-            let clash = ticks[t]
-                .cnots
-                .iter()
-                .any(|&(c2, q2)| q2 == q || checks[c2].anc == checks[ci].anc);
+            let clash = ticks[t].cnots.iter().any(|&(c2, q2)| q2 == q || checks[c2].anc == checks[ci].anc);
             if !clash {
                 ticks[t].cnots.push((ci, q));
                 last = Some(last.map_or(t, |l: usize| l.max(t)));
@@ -614,26 +463,12 @@ pub fn merged_cycle(code: &BbCode, g: &Gauging) -> Cycle {
     for (v, es) in g.gauss.iter().enumerate() {
         let d = g.support[v];
         let (x, y) = data_pos(code, d);
-        let support = std::iter::once((h + d) as u32)
-            .chain(es.iter().map(|&e| q.edge(e)))
-            .collect();
-        checks.push(Check {
-            key: 2 * h + v,
-            anc: q.gauss(v),
-            x_type: true,
-            support,
-            pos: (x + 0.25, y + 0.25),
-        });
+        let support = std::iter::once((h + d) as u32).chain(es.iter().map(|&e| q.edge(e))).collect();
+        checks.push(Check { key: 2 * h + v, anc: q.gauss(v), x_type: true, support, pos: (x + 0.25, y + 0.25) });
     }
     for (j, cycle) in g.flux.iter().enumerate() {
         let support = cycle.iter().map(|&e| q.edge(e)).collect();
-        checks.push(Check {
-            key: 2 * h + nv + j,
-            anc: q.flux(j),
-            x_type: false,
-            support,
-            pos: (-1.0 - j as f64, -1.0),
-        });
+        checks.push(Check { key: 2 * h + nv + j, anc: q.flux(j), x_type: false, support, pos: (-1.0 - j as f64, -1.0) });
     }
     let gauss_checks: Vec<usize> = (2 * h..2 * h + nv).collect();
     let z_type: Vec<usize> = (h..2 * h).chain(2 * h + nv..checks.len()).collect();
@@ -645,13 +480,10 @@ pub fn merged_cycle(code: &BbCode, g: &Gauging) -> Cycle {
             tick.cnots.extend((0..h).map(|c| (c, checks[c].support[k])));
         }
         if let Some(k) = SZ[t] {
-            tick.cnots
-                .extend((0..h).map(|c| (h + c, checks[h + c].support[k])));
+            tick.cnots.extend((0..h).map(|c| (h + c, checks[h + c].support[k])));
         }
     }
-    ticks[6]
-        .cnots
-        .extend(g.edges.iter().enumerate().map(|(i, &c)| (h + c, q.edge(i))));
+    ticks[6].cnots.extend(g.edges.iter().enumerate().map(|(i, &c)| (h + c, q.edge(i))));
     ticks[7].measure_x = (0..h).collect();
     let mut early: Vec<(usize, u32)> = Vec::new();
     for (j, cycle) in g.flux.iter().enumerate() {
@@ -672,9 +504,7 @@ pub fn merged_cycle(code: &BbCode, g: &Gauging) -> Cycle {
     for (v, es) in g.gauss.iter().enumerate() {
         late.extend(es.iter().map(|&e| (2 * h + v, q.edge(e))));
     }
-    let last = first_fit(&mut ticks, &checks, &late, read_z)
-        .unwrap_or(read_z)
-        .max(7);
+    let last = first_fit(&mut ticks, &checks, &late, read_z).unwrap_or(read_z).max(7);
     ticks.truncate(last + 1);
     ticks[last].measure_x.extend(gauss_checks);
     ticks[last].prepare_z = z_type;
@@ -692,15 +522,7 @@ pub fn merged_cycle(code: &BbCode, g: &Gauging) -> Cycle {
 /// the code's 12 X logicals, which the measurement keeps. Z basis: the 11 Z
 /// logicals that commute with the operator (the one that does not is made
 /// random), each with its route through the edges read at the split.
-pub fn logical_measurement(
-    code: &BbCode,
-    g: &Gauging,
-    basis: Basis,
-    pre: usize,
-    merged: usize,
-    post: usize,
-    p: f64,
-) -> Result<Circuit, String> {
+pub fn logical_measurement(code: &BbCode, g: &Gauging, basis: Basis, pre: usize, merged: usize, post: usize, p: f64) -> Result<Circuit, String> {
     if merged == 0 {
         return Err("a logical measurement needs at least one merged cycle".into());
     }
@@ -709,39 +531,22 @@ pub fn logical_measurement(
     let data: Vec<u32> = (h as u32..3 * h as u32).collect();
     let mut w = Writer::new(p, basis, data.clone());
     memory_coords(code, &mut w);
-    let hz_pos = |c: usize| {
-        (
-            2.0 * (c / code.m) as f64 + 1.0,
-            2.0 * (c % code.m) as f64 + 1.0,
-        )
-    };
+    let hz_pos = |c: usize| (2.0 * (c / code.m) as f64 + 1.0, 2.0 * (c % code.m) as f64 + 1.0);
     for (i, &c) in g.edges.iter().enumerate() {
         let (x, y) = hz_pos(c);
-        w.c.push(Instr::QubitCoords {
-            coords: vec![x + 0.5, y + 0.5],
-            qubits: vec![q.edge(i)],
-        });
+        w.c.push(Instr::QubitCoords { coords: vec![x + 0.5, y + 0.5], qubits: vec![q.edge(i)] });
     }
     // An added edge sits between its two vertices (as drawn, not across the torus).
     for (k, &(a, b)) in g.extra.iter().enumerate() {
         let ((xa, ya), (xb, yb)) = (data_pos(code, g.support[a]), data_pos(code, g.support[b]));
-        w.c.push(Instr::QubitCoords {
-            coords: vec![(xa + xb) / 2.0, (ya + yb) / 2.0],
-            qubits: vec![q.edge(g.edges.len() + k)],
-        });
+        w.c.push(Instr::QubitCoords { coords: vec![(xa + xb) / 2.0, (ya + yb) / 2.0], qubits: vec![q.edge(g.edges.len() + k)] });
     }
     for (v, &d) in g.support.iter().enumerate() {
         let (x, y) = data_pos(code, d);
-        w.c.push(Instr::QubitCoords {
-            coords: vec![x + 0.25, y + 0.25],
-            qubits: vec![q.gauss(v)],
-        });
+        w.c.push(Instr::QubitCoords { coords: vec![x + 0.25, y + 0.25], qubits: vec![q.gauss(v)] });
     }
     for j in 0..g.flux.len() {
-        w.c.push(Instr::QubitCoords {
-            coords: vec![-1.0 - j as f64, -1.0],
-            qubits: vec![q.flux(j)],
-        });
+        w.c.push(Instr::QubitCoords { coords: vec![-1.0 - j as f64, -1.0], qubits: vec![q.flux(j)] });
     }
 
     w.prepare(basis, &data);
@@ -760,9 +565,7 @@ pub fn logical_measurement(
     for k in 0..merged {
         let recs = w.cycle(&merged_c);
         if k == 0 {
-            outcome = (0..g.support.len())
-                .map(|v| recs[2 * h + v].expect("every Gauss-law check is read"))
-                .collect();
+            outcome = (0..g.support.len()).map(|v| recs[2 * h + v].expect("every Gauss-law check is read")).collect();
         }
     }
     w.c.push(Instr::Tick);
@@ -778,12 +581,7 @@ pub fn logical_measurement(
     let readout: HashMap<u32, usize> = data.iter().copied().zip(recs).collect();
     w.final_detectors(&memory, basis, &readout)?;
 
-    let on_data = |support: &[usize]| {
-        support
-            .iter()
-            .map(|&d| readout[&((h + d) as u32)])
-            .collect::<Vec<usize>>()
-    };
+    let on_data = |support: &[usize]| support.iter().map(|&d| readout[&((h + d) as u32)]).collect::<Vec<usize>>();
     let (lx, lz) = code.logicals();
     match basis {
         Basis::X => {
@@ -795,16 +593,8 @@ pub fn logical_measurement(
         Basis::Z => {
             let odd = |z: &[usize]| z.iter().filter(|d| g.support.contains(d)).count() % 2 == 1;
             let rows: Vec<Vec<usize>> = (0..lz.rows).map(|k| lz.row_ones(k)).collect();
-            let pivot = rows
-                .iter()
-                .position(|z| odd(z))
-                .ok_or("every Z logical commutes with the operator: it is a stabilizer")?;
-            for (index, (k, z)) in rows
-                .iter()
-                .enumerate()
-                .filter(|&(k, _)| k != pivot)
-                .enumerate()
-            {
+            let pivot = rows.iter().position(|z| odd(z)).ok_or("every Z logical commutes with the operator: it is a stabilizer")?;
+            for (index, (k, z)) in rows.iter().enumerate().filter(|&(k, _)| k != pivot).enumerate() {
                 let z: Vec<usize> = if odd(z) {
                     let mut on = vec![false; 2 * h];
                     for &d in z.iter().chain(&rows[pivot]) {
@@ -833,11 +623,7 @@ mod tests {
 
     fn mechanisms(c: &Circuit) -> Vec<(Vec<u32>, u64, f64)> {
         let dem = Dem::from_circuit_undecomposed(c).unwrap();
-        let mut v: Vec<_> = dem
-            .mechanisms
-            .iter()
-            .map(|m| (m.detectors.clone(), m.observables, m.p))
-            .collect();
+        let mut v: Vec<_> = dem.mechanisms.iter().map(|m| (m.detectors.clone(), m.observables, m.p)).collect();
         v.sort_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
         v
     }
@@ -882,10 +668,7 @@ mod tests {
             for (t, tick) in cyc.ticks.iter().enumerate() {
                 let mut seen = std::collections::HashSet::new();
                 for &(ch, q) in &tick.cnots {
-                    assert!(
-                        seen.insert(cyc.checks[ch].anc),
-                        "{name}, tick {t}: an ancilla twice"
-                    );
+                    assert!(seen.insert(cyc.checks[ch].anc), "{name}, tick {t}: an ancilla twice");
                     assert!(seen.insert(q), "{name}, tick {t}: qubit {q} twice");
                 }
             }
@@ -901,10 +684,7 @@ mod tests {
         let code = BbCode::gross();
         let systems = ["f", "gh", "f+gh"].into_iter().flat_map(|name| {
             let l = crate::bb::gross_operator(name).unwrap();
-            [
-                (name, Gauging::new(&code, &l).unwrap()),
-                (name, Gauging::expanded(&code, &l).unwrap()),
-            ]
+            [(name, Gauging::new(&code, &l).unwrap()), (name, Gauging::expanded(&code, &l).unwrap())]
         });
         for (name, g) in systems {
             let name = format!("{name} (+{} edges)", g.extra.len());
@@ -917,8 +697,7 @@ mod tests {
             // Read out right after the split too: the checks that lost their
             // edge qubit take its reading into their last comparison.
             for basis in [Basis::X, Basis::Z] {
-                M2d::new(&logical_measurement(&code, &g, basis, 1, 2, 0, 0.0).unwrap())
-                    .unwrap_or_else(|e| panic!("{name} {basis:?}, post 0: {e}"));
+                M2d::new(&logical_measurement(&code, &g, basis, 1, 2, 0, 0.0).unwrap()).unwrap_or_else(|e| panic!("{name} {basis:?}, post 0: {e}"));
             }
         }
     }
@@ -929,11 +708,7 @@ mod tests {
     #[test]
     fn retired_flux_checks_close_their_comparisons() {
         let (code, g) = gauged("f");
-        let count = |basis, merged| {
-            M2d::new(&logical_measurement(&code, &g, basis, 1, merged, 1, 0.0).unwrap())
-                .unwrap()
-                .num_detectors
-        };
+        let count = |basis, merged| M2d::new(&logical_measurement(&code, &g, basis, 1, merged, 1, 0.0).unwrap()).unwrap().num_detectors;
         let h = code.half();
         // Z basis: each merged cycle adds the Z checks and the flux checks; the split adds the flux checks once more.
         assert_eq!(count(Basis::Z, 3) - count(Basis::Z, 2), h + g.flux.len());
@@ -948,19 +723,12 @@ mod tests {
     #[test]
     fn the_outcome_needs_two_merged_cycles() {
         let (code, g) = gauged("f");
-        let build = |merged| {
-            Dem::from_circuit_undecomposed(
-                &logical_measurement(&code, &g, Basis::X, 1, merged, 1, 0.001).unwrap(),
-            )
-        };
+        let build = |merged| Dem::from_circuit_undecomposed(&logical_measurement(&code, &g, Basis::X, 1, merged, 1, 0.001).unwrap());
         assert!(build(1).unwrap_err().contains("undetectable"));
         let dem = build(2).unwrap();
         assert_eq!(dem.num_observables, 13);
         let (code, g) = gauged("f");
-        let z = Dem::from_circuit_undecomposed(
-            &logical_measurement(&code, &g, Basis::Z, 1, 2, 1, 0.001).unwrap(),
-        )
-        .unwrap();
+        let z = Dem::from_circuit_undecomposed(&logical_measurement(&code, &g, Basis::Z, 1, 2, 1, 0.001).unwrap()).unwrap();
         assert_eq!(z.num_observables, 11);
     }
 }

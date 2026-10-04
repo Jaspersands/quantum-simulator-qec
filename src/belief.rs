@@ -111,15 +111,7 @@ impl BeliefMatching {
             hyper_edges.extend(d);
             hyper_start.push(hyper_edges.len() as u32);
         }
-        Ok(BeliefMatching {
-            bp,
-            graph,
-            hyper_obs: obs,
-            hyper_start,
-            hyper_edges,
-            method,
-            max_iter,
-        })
+        Ok(BeliefMatching { bp, graph, hyper_obs: obs, hyper_start, hyper_edges, method, max_iter })
     }
 
     pub fn work(&self) -> BeliefWork {
@@ -133,28 +125,15 @@ impl BeliefMatching {
     }
 
     /// Decode one shot, `defects` sorted and distinct.
-    pub fn decode(
-        &self,
-        defects: &[u32],
-        w: &mut BeliefWork,
-    ) -> Result<BeliefOutcome, DecodeError> {
+    pub fn decode(&self, defects: &[u32], w: &mut BeliefWork) -> Result<BeliefOutcome, DecodeError> {
         w.syndrome.fill(0);
         for &d in defects {
             w.syndrome[d as usize] = 1;
         }
-        let out = self
-            .bp
-            .decode(&w.syndrome, self.method, self.max_iter, &mut w.bp);
+        let out = self.bp.decode(&w.syndrome, self.method, self.max_iter, &mut w.bp);
         if out.converged {
-            let observables = (0..self.bp.num_vars)
-                .filter(|&v| w.bp.hard[v] == 1)
-                .fold(0u64, |o, v| o ^ self.hyper_obs[v]);
-            return Ok(BeliefOutcome {
-                observables,
-                weight: f64::NAN,
-                converged: true,
-                iterations: out.iterations,
-            });
+            let observables = (0..self.bp.num_vars).filter(|&v| w.bp.hard[v] == 1).fold(0u64, |o, v| o ^ self.hyper_obs[v]);
+            return Ok(BeliefOutcome { observables, weight: f64::NAN, converged: true, iterations: out.iterations });
         }
         w.edge_p.fill(0.0);
         for h in 0..self.bp.num_vars {
@@ -165,24 +144,15 @@ impl BeliefMatching {
             if p.is_nan() {
                 return Err(DecodeError::MatcherDeclined);
             }
-            for &e in
-                &self.hyper_edges[self.hyper_start[h] as usize..self.hyper_start[h + 1] as usize]
-            {
+            for &e in &self.hyper_edges[self.hyper_start[h] as usize..self.hyper_start[h + 1] as usize] {
                 w.edge_p[e as usize] += p;
             }
         }
         for (wt, &p) in w.edge_w.iter_mut().zip(&w.edge_p) {
             *wt = int_weight(-p.clamp(EPS, 1.0 - EPS).ln());
         }
-        let prediction = self
-            .graph
-            .decode_with_weights(&mut w.scratch, defects, &w.edge_w)?;
-        Ok(BeliefOutcome {
-            observables: prediction.observables,
-            weight: prediction.weight,
-            converged: false,
-            iterations: out.iterations,
-        })
+        let prediction = self.graph.decode_with_weights(&mut w.scratch, defects, &w.edge_w)?;
+        Ok(BeliefOutcome { observables: prediction.observables, weight: prediction.weight, converged: false, iterations: out.iterations })
     }
 }
 
@@ -196,11 +166,7 @@ mod tests {
     use crate::surface_code::Xorshift;
 
     fn defects_of(dets: &[bool]) -> Vec<u32> {
-        dets.iter()
-            .enumerate()
-            .filter(|x| *x.1)
-            .map(|x| x.0 as u32)
-            .collect()
+        dets.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect()
     }
 
     fn model(kind: CodeKind, d: usize, p: f64, basis: Basis) -> (crate::circuit::Circuit, Dem) {
@@ -223,12 +189,7 @@ mod tests {
                     let got = bm.decode(&m.detectors, &mut w).unwrap();
                     failed += usize::from(got.observables != m.observables);
                 }
-                assert_eq!(
-                    failed,
-                    0,
-                    "{kind:?} {basis:?}: {failed} of {} faults",
-                    dem.mechanisms.len()
-                );
+                assert_eq!(failed, 0, "{kind:?} {basis:?}: {failed} of {} faults", dem.mechanisms.len());
             }
         }
     }
@@ -273,9 +234,6 @@ mod tests {
             belief += ((b.observables ^ shot.observables) & 1) as i64;
         }
         println!("plain {plain}, belief-matching {belief}, BP converged on {converged} of {shots}");
-        assert!(
-            belief <= plain + 4 * ((plain + belief) as f64).sqrt() as i64,
-            "{belief} vs {plain}"
-        );
+        assert!(belief <= plain + 4 * ((plain + belief) as f64).sqrt() as i64, "{belief} vs {plain}");
     }
 }

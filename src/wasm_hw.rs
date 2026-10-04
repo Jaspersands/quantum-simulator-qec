@@ -105,10 +105,7 @@ fn install(slot: usize, dem: Result<Dem, String>) -> usize {
 /// Decoder `slot` from our own model of the noisy circuit in the text buffer.
 #[no_mangle]
 pub extern "C" fn wasm_hw_model_circuit(slot: usize) -> usize {
-    install(
-        slot,
-        Circuit::parse(&text_string()).and_then(|c| Dem::from_circuit(&c)),
-    )
+    install(slot, Circuit::parse(&text_string()).and_then(|c| Dem::from_circuit(&c)))
 }
 
 /// Decoder `slot` from the detector error model text in the text buffer.
@@ -130,10 +127,7 @@ pub extern "C" fn wasm_hw_decode(slot: usize, num_shots: usize, correlated: u32)
     let stride = nd.div_ceil(8);
     let b = bytes();
     if b.len() != stride * num_shots {
-        return json_error(&format!(
-            "{} bytes is not {num_shots} shots of {nd} detectors",
-            b.len()
-        ));
+        return json_error(&format!("{} bytes is not {num_shots} shots of {nd} detectors", b.len()));
     }
     let mut out = Vec::with_capacity(num_shots);
     let mut defects = Vec::new();
@@ -142,11 +136,7 @@ pub extern "C" fn wasm_hw_decode(slot: usize, num_shots: usize, correlated: u32)
         let row = &b[s * stride..(s + 1) * stride];
         defects.clear();
         crate::shots::defects_from_b8(row, nd, &mut defects);
-        let result = if correlated != 0 {
-            dec.decode_correlated(&defects)
-        } else {
-            dec.decode(&defects)
-        };
+        let result = if correlated != 0 { dec.decode_correlated(&defects) } else { dec.decode(&defects) };
         out.push(match result {
             Ok(p) => (p.observables & 1) as u8,
             Err(_) => {
@@ -163,8 +153,7 @@ pub extern "C" fn wasm_hw_decode(slot: usize, num_shots: usize, correlated: u32)
 /// detector error model text in the text buffer.
 #[no_mangle]
 pub extern "C" fn wasm_hw_belief_model() -> usize {
-    let built = Dem::parse(&text_string())
-        .and_then(|dem| BeliefMatching::from_dem(&dem, Method::ProductSum, 20));
+    let built = Dem::parse(&text_string()).and_then(|dem| BeliefMatching::from_dem(&dem, Method::ProductSum, 20));
     match built {
         Ok(bm) => {
             let reply_text = format!(
@@ -193,10 +182,7 @@ pub extern "C" fn wasm_hw_belief_decode(num_shots: usize) -> usize {
     let stride = nd.div_ceil(8);
     let b = bytes();
     if b.len() != stride * num_shots {
-        return json_error(&format!(
-            "{} bytes is not {num_shots} shots of {nd} detectors",
-            b.len()
-        ));
+        return json_error(&format!("{} bytes is not {num_shots} shots of {nd} detectors", b.len()));
     }
     let mut out = Vec::with_capacity(num_shots);
     let mut defects = Vec::new();
@@ -218,9 +204,7 @@ pub extern "C" fn wasm_hw_belief_decode(num_shots: usize) -> usize {
     }
     b.clear();
     b.extend_from_slice(&out);
-    reply(&format!(
-        "{{\"ok\":true,\"errors\":{errors},\"converged\":{converged}}}"
-    ))
+    reply(&format!("{{\"ok\":true,\"errors\":{errors},\"converged\":{converged}}}"))
 }
 
 #[cfg(test)]
@@ -247,19 +231,12 @@ mod tests {
     /// readouts to detection events, a model, and predictions.
     #[test]
     fn readouts_to_predictions() {
-        let _turn = crate::wasm_xc::TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _turn = crate::wasm_xc::TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         set_text("R 0 1\nCX sweep[0] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1] rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-2]\n");
         // Shots: meas (1, 0) with the sweep bit set; meas (1, 1) with it clear.
         set_bytes(&[0b01, 0b11, 1, 0]);
         let r = reply_text(wasm_hw_m2d(2));
-        assert!(
-            r.contains("\"ok\":true")
-                && r.contains("\"detBytes\":2")
-                && r.contains("\"obsBytes\":2"),
-            "{r}"
-        );
+        assert!(r.contains("\"ok\":true") && r.contains("\"detBytes\":2") && r.contains("\"obsBytes\":2"), "{r}");
         // The second shot read qubit 0 as 1 with its sweep bit clear: D0 and
         // the observable both flipped.
         assert_eq!(bytes().as_slice(), &[0b00, 0b01, 0, 1]);
@@ -278,10 +255,7 @@ mod tests {
         // Belief-matching: D0 alone is most likely the fault that also flips L0.
         set_text("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1\n");
         let r = reply_text(wasm_hw_belief_model());
-        assert!(
-            r.contains("\"ok\":true") && r.contains("\"hyperedges\":3"),
-            "{r}"
-        );
+        assert!(r.contains("\"ok\":true") && r.contains("\"hyperedges\":3"), "{r}");
         set_bytes(&[0b01, 0b00, 0b11]);
         let r = reply_text(wasm_hw_belief_decode(3));
         assert!(r.contains("\"errors\":0"), "{r}");

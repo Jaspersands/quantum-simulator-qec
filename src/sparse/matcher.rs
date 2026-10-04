@@ -35,10 +35,7 @@ impl<'a> Solver<'a> {
         while self.s.regions[r as usize].blossom_parent != b {
             r = self.s.regions[r as usize].blossom_parent;
         }
-        children
-            .iter()
-            .position(|c| c.0 == r)
-            .expect("the defect lies in a child of the blossom")
+        children.iter().position(|c| c.0 == r).expect("the defect lies in a child of the blossom")
     }
 
     /// Two top regions touch; `e` runs from `r1` to `r2`.
@@ -50,9 +47,7 @@ impl<'a> Solver<'a> {
             return self.on_collide(r2, r1, e.rev());
         }
         if n2 == NONE {
-            let (partner, _) = self.s.regions[r2 as usize]
-                .matched
-                .expect("a region outside every tree is matched");
+            let (partner, _) = self.s.regions[r2 as usize].matched.expect("a region outside every tree is matched");
             if partner == BOUNDARY {
                 self.take_from_boundary(n1, r2, e)
             } else {
@@ -142,8 +137,7 @@ impl<'a> Solver<'a> {
         while let Some(x) = stack.pop() {
             // Every node of the tree dies here, so its children can be moved out.
             let a = &mut self.s.alt[x as usize];
-            let (inner, outer, io, off_path) =
-                (a.inner, a.outer, a.inner_to_outer, a.mark != on_path);
+            let (inner, outer, io, off_path) = (a.inner, a.outer, a.inner_to_outer, a.mark != on_path);
             a.alive = false;
             stack.append(&mut a.children);
             if inner != NONE {
@@ -177,10 +171,7 @@ impl<'a> Solver<'a> {
         for &x in &path1 {
             self.s.alt[x as usize].mark = in_path1;
         }
-        let a = *path2
-            .iter()
-            .find(|&&x| self.s.alt[x as usize].mark == in_path1)
-            .expect("same tree");
+        let a = *path2.iter().find(|&&x| self.s.alt[x as usize].mark == in_path1).expect("same tree");
         let p1 = &path1[..path1.iter().position(|&x| x == a).expect("a is on path1")];
         let p2 = &path2[..path2.iter().position(|&x| x == a).expect("a is on path2")];
 
@@ -208,10 +199,7 @@ impl<'a> Solver<'a> {
         let len = cycle.len();
         let shell = self.s.spare_u32();
         let b = self.new_region(Region {
-            radius: Radius {
-                y0: -self.s.now,
-                slope: 1,
-            },
+            radius: Radius { y0: -self.s.now, slope: 1 },
             blossom_parent: NONE,
             children: cycle,
             shell,
@@ -235,12 +223,7 @@ impl<'a> Solver<'a> {
         orphans.clear();
         for &m in p1.iter().chain(p2.iter()) {
             let children = std::mem::take(&mut self.s.alt[m as usize].children);
-            orphans.extend(
-                children
-                    .iter()
-                    .copied()
-                    .filter(|&c| self.s.alt[c as usize].mark != on),
-            );
+            orphans.extend(children.iter().copied().filter(|&c| self.s.alt[c as usize].mark != on));
             self.s.alt[m as usize].alive = false;
             self.s.keep_u32(children);
         }
@@ -331,11 +314,7 @@ impl<'a> Solver<'a> {
         }
 
         let mut changed = Vec::new();
-        let mut j = if forward {
-            (i_out + 1) % k
-        } else {
-            (i_in + 1) % k
-        };
+        let mut j = if forward { (i_out + 1) % k } else { (i_in + 1) % k };
         while !on_path[j] {
             let next = (j + 1) % k;
             let (c1, c2, ce) = (children[j].0, children[next].0, children[j].1);
@@ -408,11 +387,7 @@ impl<'a> Solver<'a> {
             let a = &self.s.alt[n as usize];
             (a.parent, a.parent_edge, a.inner_to_outer)
         };
-        let e = CEdge {
-            a: pe.a,
-            b: iot.b,
-            obs: pe.obs ^ iot.obs,
-        };
+        let e = CEdge { a: pe.a, b: iot.b, obs: pe.obs ^ iot.obs };
         self.form_blossom(p, n, e);
     }
 }

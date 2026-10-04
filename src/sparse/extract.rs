@@ -39,11 +39,7 @@ impl<'a> Solver<'a> {
             }
         }
         self.s.pairs = pairs;
-        Prediction {
-            observables,
-            weight: iweight as f64 / SCALE,
-            iweight,
-        }
+        Prediction { observables, weight: iweight as f64 / SCALE, iweight }
     }
 
     fn expand(&self, r: u32, a: u32, observables: &mut u64, pairs: &mut Vec<(u32, u32)>) {

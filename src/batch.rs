@@ -23,11 +23,7 @@ pub fn match_shots(
         range
             .map(|s| {
                 defects.clear();
-                crate::shots::defects_from_b8(
-                    &packed[s * stride..(s + 1) * stride],
-                    nd,
-                    &mut defects,
-                );
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
                 let result = match corr {
                     Some(corr) => graph.decode_correlated(corr, &mut scratch, &defects),
                     None => graph.decode(&mut scratch, &defects),
@@ -40,13 +36,7 @@ pub fn match_shots(
 }
 
 /// Belief-matching of b8 shots: (observables, weight, 0 matched / 1 BP converged / 2 failed).
-pub fn belief_shots(
-    bm: &BeliefMatching,
-    packed: &[u8],
-    nd: usize,
-    num_shots: usize,
-    threads: usize,
-) -> Vec<(u64, f64, u8)> {
+pub fn belief_shots(bm: &BeliefMatching, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, u8)> {
     let stride = nd.div_ceil(8);
     parallel(num_shots, threads, |range| {
         let mut work = bm.work();
@@ -54,29 +44,15 @@ pub fn belief_shots(
         range
             .map(|s| {
                 defects.clear();
-                crate::shots::defects_from_b8(
-                    &packed[s * stride..(s + 1) * stride],
-                    nd,
-                    &mut defects,
-                );
-                bm.decode(&defects, &mut work)
-                    .map_or((u64::MAX, f64::NAN, 2), |o| {
-                        (o.observables, o.weight, u8::from(o.converged))
-                    })
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                bm.decode(&defects, &mut work).map_or((u64::MAX, f64::NAN, 2), |o| (o.observables, o.weight, u8::from(o.converged)))
             })
             .collect()
     })
 }
 
 /// BP+OSD of b8 shots on a model's faults: (observables, BP converged).
-pub fn bposd_shots(
-    dec: &BpOsd,
-    obs: &[u64],
-    packed: &[u8],
-    nd: usize,
-    num_shots: usize,
-    threads: usize,
-) -> Vec<(u64, u8)> {
+pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
     let stride = nd.div_ceil(8);
     parallel(num_shots, threads, |range| {
         let mut work = dec.work();
@@ -88,12 +64,7 @@ pub fn bposd_shots(
                     *x = (row[i / 8] >> (i % 8)) & 1;
                 }
                 let o = dec.decode(&syndrome, &mut work);
-                let pred = work
-                    .correction
-                    .iter()
-                    .zip(obs)
-                    .filter(|(c, _)| **c != 0)
-                    .fold(0u64, |a, (_, o)| a ^ o);
+                let pred = work.correction.iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
                 (pred, u8::from(o.converged))
             })
             .collect()
@@ -130,10 +101,7 @@ pub fn window_shots(
                         let start = timings.then(std::time::Instant::now);
                         // A refused window fails the shot; its defects are not "unexplained",
                         // which counts commit mistakes.
-                        if wd
-                            .decode_window(wi, &mut live, &mut obs, correlated, &mut scratches[wi])
-                            .is_err()
-                        {
+                        if wd.decode_window(wi, &mut live, &mut obs, correlated, &mut scratches[wi]).is_err() {
                             failed = true;
                             break 'windows;
                         }
@@ -142,17 +110,8 @@ pub fn window_shots(
                         }
                     }
                 }
-                let unexplained = if failed {
-                    0
-                } else {
-                    live.iter().filter(|&&b| b).count()
-                };
-                (
-                    if failed { u64::MAX } else { obs },
-                    unexplained,
-                    times,
-                    failed,
-                )
+                let unexplained = if failed { 0 } else { live.iter().filter(|&&b| b).count() };
+                (if failed { u64::MAX } else { obs }, unexplained, times, failed)
             })
             .collect()
     })
@@ -174,18 +133,10 @@ pub fn window_info(wd: &WindowDecoder) -> Vec<WindowInfo> {
         .iter()
         .zip(deps)
         .enumerate()
-        .map(|(i, (w, deps))| {
-            (
-                w.window.layers.0,
-                w.window.layers.1,
-                w.commit.0,
-                w.commit.1,
-                phase_of[i],
-                deps,
-            )
-        })
+        .map(|(i, (w, deps))| (w.window.layers.0, w.window.layers.1, w.commit.0, w.commit.1, phase_of[i], deps))
         .collect()
 }
+
 
 /// A streamed memory's outcome (see `stream_shots`).
 pub struct StreamOutcome {
@@ -268,24 +219,10 @@ fn stream_with(
                     let mut scratches = dec.scratches();
                     let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
                     for b in (t..batches).step_by(threads) {
-                        let mut rng = Xorshift::new(
-                            seed ^ (b as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15),
-                        );
-                        let (pred, truth, u, ts) = run_stream(
-                            dec,
-                            plan,
-                            sampler,
-                            &mut rng,
-                            correlated,
-                            &mut scratches,
-                            Some(&clock),
-                        )
-                        .map_err(|e| format!("{e:?}"))?;
-                        failures += pred
-                            .iter()
-                            .enumerate()
-                            .filter(|(lane, &p)| ((p ^ (truth >> lane)) & 1) == 1)
-                            .count();
+                        let mut rng = Xorshift::new(seed ^ (b as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                        let (pred, truth, u, ts) = run_stream(dec, plan, sampler, &mut rng, correlated, &mut scratches, Some(&clock))
+                            .map_err(|e| format!("{e:?}"))?;
+                        failures += pred.iter().enumerate().filter(|(lane, &p)| ((p ^ (truth >> lane)) & 1) == 1).count();
                         unexplained += u;
                         times.extend(ts);
                     }
@@ -293,10 +230,7 @@ fn stream_with(
                 })
             })
             .collect();
-        handles
-            .into_iter()
-            .map(|h| h.join().expect("stream thread panicked"))
-            .collect()
+        handles.into_iter().map(|h| h.join().expect("stream thread panicked")).collect()
     });
     let seconds = start.elapsed().as_secs_f64();
     let (mut failures, mut unexplained, mut times) = (0usize, 0usize, Vec::new());
@@ -306,30 +240,12 @@ fn stream_with(
         unexplained += u;
         times.extend(t);
     }
-    let windows = plan
-        .specs
-        .iter()
-        .zip(&plan.deps)
-        .map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone()))
-        .collect();
-    Ok(StreamOutcome {
-        failures,
-        shots: batches * 64,
-        unexplained,
-        times,
-        windows,
-        seconds,
-    })
+    let windows = plan.specs.iter().zip(&plan.deps).map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone())).collect();
+    Ok(StreamOutcome { failures, shots: batches * 64, unexplained, times, windows, seconds })
 }
 
 /// Union-find of b8 shots: the observables per shot, `None` where no correction exists.
-pub fn union_find_shots(
-    graph: &SparseGraph,
-    packed: &[u8],
-    nd: usize,
-    num_shots: usize,
-    threads: usize,
-) -> Vec<Option<u64>> {
+pub fn union_find_shots(graph: &SparseGraph, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<Option<u64>> {
     let stride = nd.div_ceil(8);
     parallel(num_shots, threads, |range| {
         let mut scratch = graph.union_find_scratch();
@@ -337,11 +253,7 @@ pub fn union_find_shots(
         range
             .map(|s| {
                 defects.clear();
-                crate::shots::defects_from_b8(
-                    &packed[s * stride..(s + 1) * stride],
-                    nd,
-                    &mut defects,
-                );
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
                 graph.decode_union_find(&mut scratch, &defects)
             })
             .collect()
@@ -358,12 +270,7 @@ pub struct StreamedWindows {
 }
 
 impl StreamedWindows {
-    pub fn new(
-        program: &crate::dem_program::DemProgram,
-        commit: usize,
-        buffer: usize,
-        mode: crate::window::Mode,
-    ) -> Result<StreamedWindows, String> {
+    pub fn new(program: &crate::dem_program::DemProgram, commit: usize, buffer: usize, mode: crate::window::Mode) -> Result<StreamedWindows, String> {
         let dec = crate::stream::StreamDecoder::from_program(program, commit, buffer, mode, false)?;
         let plan = dec.plan()?;
         let times = program.detector_times()?;
@@ -371,17 +278,11 @@ impl StreamedWindows {
         distinct.sort_by(|a, b| a.partial_cmp(b).expect("times are numbers"));
         distinct.dedup();
         if distinct.len() != plan.layers as usize {
-            return Err(format!(
-                "the model has {} layers where its template's plan expects {}",
-                distinct.len(),
-                plan.layers
-            ));
+            return Err(format!("the model has {} layers where its template's plan expects {}", distinct.len(), plan.layers));
         }
         let mut members = vec![Vec::new(); distinct.len()];
         for (d, t) in times.iter().enumerate() {
-            let l = distinct
-                .binary_search_by(|x| x.partial_cmp(t).expect("times are numbers"))
-                .expect("a layer of its own");
+            let l = distinct.binary_search_by(|x| x.partial_cmp(t).expect("times are numbers")).expect("a layer of its own");
             members[l].push(d as u32);
         }
         // Every window's layers hold as many detectors as its template window's.
@@ -390,10 +291,7 @@ impl StreamedWindows {
             let t = dec.template.specs[plan.template[i]];
             for k in 0..(spec.b - spec.a) {
                 if members[(spec.a + k) as usize].len() != template[(t.a + k) as usize].len() {
-                    return Err(format!(
-                        "window {i}'s layer {} does not match its template's",
-                        spec.a + k
-                    ));
+                    return Err(format!("window {i}'s layer {} does not match its template's", spec.a + k));
                 }
             }
         }
@@ -437,23 +335,14 @@ pub fn streamed_window_shots(
         range
             .map(|b| {
                 let lanes = (num_shots - b * 64).min(64);
-                let mut stream = Stream::new(
-                    &sw.dec,
-                    &sw.plan,
-                    correlated,
-                    &mut scratches,
-                    timings.then_some(&clock as &dyn Fn() -> f64),
-                );
+                let mut stream = Stream::new(&sw.dec, &sw.plan, correlated, &mut scratches, timings.then_some(&clock as &dyn Fn() -> f64));
                 let mut words = Vec::new();
                 let mut failed = false;
                 for layer in &sw.members {
                     words.clear();
                     words.extend(layer.iter().map(|&d| {
                         let (byte, bit) = (d as usize / 8, d % 8);
-                        (0..lanes).fold(0u64, |w, lane| {
-                            w | (u64::from((packed[(b * 64 + lane) * stride + byte] >> bit) & 1)
-                                << lane)
-                        })
+                        (0..lanes).fold(0u64, |w, lane| w | (u64::from((packed[(b * 64 + lane) * stride + byte] >> bit) & 1) << lane))
                     }));
                     if stream.push_layer(&words).is_err() {
                         failed = true;
@@ -464,35 +353,11 @@ pub fn streamed_window_shots(
                 match finished {
                     Some((stream, unexplained)) => (0..lanes)
                         .map(|lane| {
-                            let times = if timings && lane == 0 {
-                                stream.times.clone()
-                            } else if timings {
-                                vec![f64::NAN; nw]
-                            } else {
-                                Vec::new()
-                            };
-                            (
-                                stream.predictions[lane],
-                                if lane == 0 { unexplained } else { 0 },
-                                times,
-                                false,
-                            )
+                            let times = if timings && lane == 0 { stream.times.clone() } else if timings { vec![f64::NAN; nw] } else { Vec::new() };
+                            (stream.predictions[lane], if lane == 0 { unexplained } else { 0 }, times, false)
                         })
                         .collect(),
-                    None => (0..lanes)
-                        .map(|_| {
-                            (
-                                0,
-                                0,
-                                if timings {
-                                    vec![f64::NAN; nw]
-                                } else {
-                                    Vec::new()
-                                },
-                                true,
-                            )
-                        })
-                        .collect(),
+                    None => (0..lanes).map(|_| (0, 0, if timings { vec![f64::NAN; nw] } else { Vec::new() }, true)).collect(),
                 }
             })
             .collect()

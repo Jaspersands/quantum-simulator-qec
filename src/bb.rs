@@ -31,10 +31,9 @@ pub struct BbCode {
 /// The per-round order in which each check qubit meets its six neighbours
 /// (0-2: A₁-A₃ on the left data; 3-5: B₁-B₃ on the right), from the paper's
 /// published simulation code. `None` is a round the check spends idle.
-pub(crate) const SX: [Option<usize>; 7] =
-    [None, Some(1), Some(4), Some(3), Some(5), Some(0), Some(2)];
-pub(crate) const SZ: [Option<usize>; 7] =
-    [Some(3), Some(5), Some(0), Some(1), Some(2), Some(4), None];
+pub(crate) const SX: [Option<usize>; 7] = [None, Some(1), Some(4), Some(3), Some(5), Some(0), Some(2)];
+pub(crate) const SZ: [Option<usize>; 7] = [Some(3), Some(5), Some(0), Some(1), Some(2), Some(4), None];
+
 
 /// A bivariate bicycle circuit is written out cycle by cycle: at least `least` cycles of the
 /// part that needs them, and no more in all (`total`) than a flat memory's rounds.
@@ -43,9 +42,7 @@ pub fn check_cycles(total: usize, least: usize) -> Result<(), String> {
     if least == 0 {
         Err("a memory needs at least one cycle".into())
     } else if total > most {
-        Err(format!(
-            "{total} cycles: at most {most} are written out cycle by cycle"
-        ))
+        Err(format!("{total} cycles: at most {most} are written out cycle by cycle"))
     } else {
         Ok(())
     }
@@ -54,22 +51,12 @@ pub fn check_cycles(total: usize, least: usize) -> Result<(), String> {
 impl BbCode {
     /// The gross code, [[144, 12, 12]]: A = x³ + y + y², B = y³ + x + x² on a 12 × 6 torus.
     pub fn gross() -> BbCode {
-        BbCode {
-            l: 12,
-            m: 6,
-            a: [(3, 0), (0, 1), (0, 2)],
-            b: [(0, 3), (1, 0), (2, 0)],
-        }
+        BbCode { l: 12, m: 6, a: [(3, 0), (0, 1), (0, 2)], b: [(0, 3), (1, 0), (2, 0)] }
     }
 
     /// [[72, 12, 6]]: the same polynomials on a 6 × 6 torus.
     pub fn bb72() -> BbCode {
-        BbCode {
-            l: 6,
-            m: 6,
-            a: [(3, 0), (0, 1), (0, 2)],
-            b: [(0, 3), (1, 0), (2, 0)],
-        }
+        BbCode { l: 6, m: 6, a: [(3, 0), (0, 1), (0, 2)], b: [(0, 3), (1, 0), (2, 0)] }
     }
 
     /// Qubits of one kind (checks of one type, or data on one side): ℓm.
@@ -133,16 +120,12 @@ impl BbCode {
     }
 
     pub fn hx(&self) -> BitMatrix {
-        let rows: Vec<Vec<usize>> = (0..self.half())
-            .map(|c| self.neighbours(c, true).to_vec())
-            .collect();
+        let rows: Vec<Vec<usize>> = (0..self.half()).map(|c| self.neighbours(c, true).to_vec()).collect();
         BitMatrix::from_rows(self.num_data(), &rows)
     }
 
     pub fn hz(&self) -> BitMatrix {
-        let rows: Vec<Vec<usize>> = (0..self.half())
-            .map(|c| self.neighbours(c, false).to_vec())
-            .collect();
+        let rows: Vec<Vec<usize>> = (0..self.half()).map(|c| self.neighbours(c, false).to_vec()).collect();
         BitMatrix::from_rows(self.num_data(), &rows)
     }
 
@@ -155,9 +138,7 @@ impl BbCode {
         let lx = complement_rows(&hx, &hz.kernel());
         // Pair them: with P = Lx Lzᵀ, replacing Lx by P⁻¹ Lx makes the pairing the identity.
         let p = lx.mul(&lz.transpose());
-        let inv = p
-            .inverse()
-            .expect("logical X and Z operators pair nondegenerately");
+        let inv = p.inverse().expect("logical X and Z operators pair nondegenerately");
         (inv.mul(&lx), lz)
     }
 
@@ -176,12 +157,7 @@ impl BbCode {
         let zq = |c: usize| 3 * h + c;
         let xn: Vec<[usize; 6]> = (0..h).map(|c| self.neighbours(c, true)).collect();
         let zn: Vec<[usize; 6]> = (0..h).map(|c| self.neighbours(c, false)).collect();
-        let list = |v: &[usize]| {
-            v.iter()
-                .map(|q| q.to_string())
-                .collect::<Vec<_>>()
-                .join(" ")
-        };
+        let list = |v: &[usize]| v.iter().map(|q| q.to_string()).collect::<Vec<_>>().join(" ");
         let all_data: Vec<usize> = (0..2 * h).map(dq).collect();
         let x_checks: Vec<usize> = (0..h).map(xq).collect();
         let z_checks: Vec<usize> = (0..h).map(zq).collect();
@@ -195,18 +171,8 @@ impl BbCode {
             let (u, v) = (c / self.m, c % self.m);
             line(format!("QUBIT_COORDS({}, {}) {}", 2 * u, 2 * v, xq(c)));
             line(format!("QUBIT_COORDS({}, {}) {}", 2 * u + 1, 2 * v, dq(c)));
-            line(format!(
-                "QUBIT_COORDS({}, {}) {}",
-                2 * u,
-                2 * v + 1,
-                dq(h + c)
-            ));
-            line(format!(
-                "QUBIT_COORDS({}, {}) {}",
-                2 * u + 1,
-                2 * v + 1,
-                zq(c)
-            ));
+            line(format!("QUBIT_COORDS({}, {}) {}", 2 * u, 2 * v + 1, dq(h + c)));
+            line(format!("QUBIT_COORDS({}, {}) {}", 2 * u + 1, 2 * v + 1, zq(c)));
         }
         line(format!("R {}", list(&all_data)));
         line(format!("X_ERROR({p}) {}", list(&all_data)));
@@ -246,11 +212,7 @@ impl BbCode {
                         let now = measured - (first + c);
                         let (u, v) = (c / self.m, c % self.m);
                         match last_z {
-                            None => line(format!(
-                                "DETECTOR({}, {}, {cycle}) rec[-{now}]",
-                                2 * u + 1,
-                                2 * v + 1
-                            )),
+                            None => line(format!("DETECTOR({}, {}, {cycle}) rec[-{now}]", 2 * u + 1, 2 * v + 1)),
                             Some(prev) => line(format!(
                                 "DETECTOR({}, {}, {cycle}) rec[-{now}] rec[-{}]",
                                 2 * u + 1,
@@ -292,23 +254,13 @@ impl BbCode {
         let prev = last_z.expect("at least one cycle");
         for c in 0..h {
             let (u, v) = (c / self.m, c % self.m);
-            let mut targets: Vec<String> =
-                zn[c].iter().map(|&q| format!("rec[-{}]", rec(q))).collect();
+            let mut targets: Vec<String> = zn[c].iter().map(|&q| format!("rec[-{}]", rec(q))).collect();
             targets.push(format!("rec[-{}]", measured - (prev + c)));
-            line(format!(
-                "DETECTOR({}, {}, {cycles}) {}",
-                2 * u + 1,
-                2 * v + 1,
-                targets.join(" ")
-            ));
+            line(format!("DETECTOR({}, {}, {cycles}) {}", 2 * u + 1, 2 * v + 1, targets.join(" ")));
         }
         let (_, lz) = self.logicals();
         for k in 0..lz.rows {
-            let targets: Vec<String> = lz
-                .row_ones(k)
-                .iter()
-                .map(|&q| format!("rec[-{}]", rec(q)))
-                .collect();
+            let targets: Vec<String> = lz.row_ones(k).iter().map(|&q| format!("rec[-{}]", rec(q))).collect();
             line(format!("OBSERVABLE_INCLUDE({k}) {}", targets.join(" ")));
         }
         out
@@ -321,20 +273,7 @@ impl BbCode {
 /// indices (left 0..72, right 72..144).
 pub fn gross_operator(name: &str) -> Result<Vec<usize>, String> {
     // f = 1 + x + x² + x³ + x⁶ + x⁷ + x⁸ + x⁹ + (x + x⁵ + x⁷ + x¹¹)y³
-    const F: [Monomial; 12] = [
-        (0, 0),
-        (1, 0),
-        (2, 0),
-        (3, 0),
-        (6, 0),
-        (7, 0),
-        (8, 0),
-        (9, 0),
-        (1, 3),
-        (5, 3),
-        (7, 3),
-        (11, 3),
-    ];
+    const F: [Monomial; 12] = [(0, 0), (1, 0), (2, 0), (3, 0), (6, 0), (7, 0), (8, 0), (9, 0), (1, 3), (5, 3), (7, 3), (11, 3)];
     // g = x + x²y + (1 + x)y² + x²y³ + y⁴
     const G: [Monomial; 6] = [(1, 0), (2, 1), (0, 2), (1, 2), (2, 3), (0, 4)];
     // h = 1 + (1 + x)y + y² + (1 + x)y³
@@ -350,9 +289,7 @@ pub fn gross_operator(name: &str) -> Result<Vec<usize>, String> {
             }
             Ok((0..code.num_data()).filter(|&q| on[q]).collect())
         }
-        other => Err(format!(
-            "unknown gross-code operator '{other}' (f, gh or f+gh)"
-        )),
+        other => Err(format!("unknown gross-code operator '{other}' (f, gh or f+gh)")),
     }
 }
 
@@ -383,14 +320,8 @@ mod tests {
             let (lx, lz) = code.logicals();
             assert_eq!((lx.rows, lz.rows), (12, 12));
             assert_eq!(lx.mul(&lz.transpose()), BitMatrix::identity(12));
-            assert!(
-                code.hx().mul(&lz.transpose()).is_zero(),
-                "Z logicals commute with X checks"
-            );
-            assert!(
-                code.hz().mul(&lx.transpose()).is_zero(),
-                "X logicals commute with Z checks"
-            );
+            assert!(code.hx().mul(&lz.transpose()).is_zero(), "Z logicals commute with X checks");
+            assert!(code.hz().mul(&lx.transpose()).is_zero(), "X logicals commute with Z checks");
             // Not stabilizers: each adds to the rank of the checks of its type.
             assert_eq!(code.hz().stack(&lz).rank(), code.hz().rank() + 12);
             assert_eq!(code.hx().stack(&lx).rank(), code.hx().rank() + 12);
@@ -416,10 +347,7 @@ mod tests {
             }
             assert!(count.iter().all(|&n| n <= 1), "round {round}");
             if (1..6).contains(&round) {
-                assert!(
-                    count.iter().all(|&n| n == 1),
-                    "round {round} uses every data qubit"
-                );
+                assert!(count.iter().all(|&n| n == 1), "round {round} uses every data qubit");
             }
         }
     }
@@ -447,10 +375,7 @@ mod tests {
         let dem = Dem::from_circuit_undecomposed(&circuit).unwrap();
         assert_eq!(dem.num_observables, 12);
         for m in &dem.mechanisms {
-            assert!(
-                !(m.detectors.is_empty() && m.observables != 0),
-                "a single fault flips a logical undetected"
-            );
+            assert!(!(m.detectors.is_empty() && m.observables != 0), "a single fault flips a logical undetected");
         }
     }
 }

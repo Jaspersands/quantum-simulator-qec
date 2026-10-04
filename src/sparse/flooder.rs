@@ -52,10 +52,7 @@ impl<'a> Solver<'a> {
         let s = &mut *self.s;
         // Region 0, nobody's, stays: next_node_event reads it for every empty
         // neighbour.
-        assert!(
-            s.regions.len() > NOBODY && s.regions[NOBODY].dead,
-            "region 0, nobody's, is missing"
-        );
+        assert!(s.regions.len() > NOBODY && s.regions[NOBODY].dead, "region 0, nobody's, is missing");
         for r in s.regions.drain(NOBODY + 1..) {
             if r.shell.capacity() > 0 {
                 let mut v = r.shell;
@@ -102,6 +99,7 @@ impl<'a> Solver<'a> {
         self.s.regions[n.top as usize].radius.at(self.s.now) + n.wrapped
     }
 
+
     /// Every node owned by `r` or by any region inside it, in a buffer the
     /// caller hands back with `done_with_nodes` once it has walked them.
     pub(crate) fn nodes_under(&mut self, r: u32) -> Vec<u32> {
@@ -124,18 +122,11 @@ impl<'a> Solver<'a> {
     }
 
     fn create_trivial(&mut self, d: u32) {
-        let none = CEdge {
-            a: NONE,
-            b: NONE,
-            obs: 0,
-        };
+        let none = CEdge { a: NONE, b: NONE, obs: 0 };
         let mut shell = self.s.spare_u32();
         shell.push(d);
         let r = self.new_region(Region {
-            radius: Radius {
-                y0: -self.s.now,
-                slope: 1,
-            },
+            radius: Radius { y0: -self.s.now, slope: 1 },
             blossom_parent: NONE,
             children: Vec::new(),
             shell,
@@ -203,28 +194,16 @@ impl<'a> Solver<'a> {
         let beyond = nodes.len() - 1;
         for (k, (&u, &wt)) in to.iter().zip(w).enumerate() {
             let nu = &nodes[if u == BOUNDARY { beyond } else { u as usize }];
-            let r = &regions[if nu.top == NONE {
-                NOBODY
-            } else {
-                nu.top as usize
-            }]
-            .radius;
+            let r = &regions[if nu.top == NONE { NOBODY } else { nu.top as usize }].radius;
             let lu = r.at(now) + nu.wrapped;
             let rate = sv + r.slope;
             let gap = wt - lv - lu;
             // One region, or two empty nodes, meet nothing; nor do sides whose
             // radii do not close.
             let meets = nu.top != nv.top && rate > 0;
-            debug_assert!(
-                !meets || (gap >= 0 && gap % rate == 0),
-                "gap {gap} at rate {rate}"
-            );
+            debug_assert!(!meets || (gap >= 0 && gap % rate == 0), "gap {gap} at rate {rate}");
             // Slopes are -1, 0 or 1, so a positive rate is 1 or 2.
-            let dt = if meets {
-                gap.max(0) >> u32::from(rate == 2)
-            } else {
-                i64::MAX
-            };
+            let dt = if meets { gap.max(0) >> u32::from(rate == 2) } else { i64::MAX };
             if dt < best_dt {
                 best_dt = dt;
                 best_k = k;
@@ -311,16 +290,10 @@ impl<'a> Solver<'a> {
     }
 
     pub(crate) fn leave(&mut self, r: u32) {
-        let v = self.s.regions[r as usize]
-            .shell
-            .pop()
-            .expect("a leave event has a node to give up");
+        let v = self.s.regions[r as usize].shell.pop().expect("a leave event has a node to give up");
         let n = self.s.nodes[v as usize];
         // Its reminder and touch flag live apart, and stay as they are.
-        self.s.nodes[v as usize] = NodeState {
-            own: n.own,
-            ..NodeState::EMPTY
-        };
+        self.s.nodes[v as usize] = NodeState { own: n.own, ..NodeState::EMPTY };
         self.look_at_node(v);
         self.look_at_region(r);
     }
@@ -330,10 +303,7 @@ impl<'a> Solver<'a> {
         let now = self.s.now;
         let rad = &mut self.s.regions[r as usize].radius;
         let y = rad.at(now);
-        *rad = Radius {
-            y0: y - slope * now,
-            slope,
-        };
+        *rad = Radius { y0: y - slope * now, slope };
     }
 
     /// Recompute every reminder a region's change can have moved.
@@ -351,23 +321,12 @@ impl<'a> Solver<'a> {
             NodeEvent::Arrive { from, to, e } => self.arrive(from, to, e),
             NodeEvent::Collide { v, u, e } => {
                 let (nv, nu) = (self.s.nodes[v as usize], self.s.nodes[u as usize]);
-                let edge = CEdge {
-                    a: nv.source,
-                    b: nu.source,
-                    obs: nv.obs ^ nu.obs ^ self.g.obs[e],
-                };
+                let edge = CEdge { a: nv.source, b: nu.source, obs: nv.obs ^ nu.obs ^ self.g.obs[e] };
                 self.on_collide(nv.top, nu.top, edge);
             }
             NodeEvent::Boundary { v, e } => {
                 let nv = self.s.nodes[v as usize];
-                self.on_boundary(
-                    nv.top,
-                    CEdge {
-                        a: nv.source,
-                        b: BOUNDARY,
-                        obs: nv.obs ^ self.g.obs[e],
-                    },
-                );
+                self.on_boundary(nv.top, CEdge { a: nv.source, b: BOUNDARY, obs: nv.obs ^ self.g.obs[e] });
             }
         }
     }
@@ -381,10 +340,7 @@ impl<'a> Solver<'a> {
     }
 
     pub(crate) fn run(&mut self, defects: &[u32], check: bool) -> Result<(), DecodeError> {
-        debug_assert!(
-            defects.windows(2).all(|w| w[0] < w[1]),
-            "defects must be sorted and distinct"
-        );
+        debug_assert!(defects.windows(2).all(|w| w[0] < w[1]), "defects must be sorted and distinct");
         let limit = EVENT_FLOOR.max(EVENTS_PER_DEFECT * defects.len() as u64);
         for &d in defects {
             self.create_trivial(d);
@@ -452,22 +408,12 @@ impl<'a> Solver<'a> {
         // What next_node_event reads in place of branches: nobody's region,
         // dead and of radius zero, and the boundary's node, empty.
         let nobody = &self.s.regions[NOBODY];
-        assert!(
-            nobody.dead && nobody.radius.y0 == 0 && nobody.radius.slope == 0,
-            "region 0 is no longer nobody's"
-        );
+        assert!(nobody.dead && nobody.radius.y0 == 0 && nobody.radius.slope == 0, "region 0 is no longer nobody's");
         let beyond = &self.s.nodes[self.g.num_nodes];
-        assert!(
-            beyond.top == NONE && beyond.wrapped == 0,
-            "the boundary's node has been reached"
-        );
+        assert!(beyond.top == NONE && beyond.wrapped == 0, "the boundary's node has been reached");
         for (i, r) in self.s.regions.iter().enumerate() {
             if !r.dead {
-                assert!(
-                    r.radius.at(now) >= 0,
-                    "region {i} has radius {} at {now}",
-                    r.radius.at(now)
-                );
+                assert!(r.radius.at(now) >= 0, "region {i} has radius {} at {now}", r.radius.at(now));
             }
         }
         for v in 0..self.g.num_nodes as u32 {
@@ -479,10 +425,7 @@ impl<'a> Solver<'a> {
             while self.s.regions[r as usize].blossom_parent != NONE {
                 r = self.s.regions[r as usize].blossom_parent;
             }
-            assert_eq!(
-                r, n.top,
-                "node {v}: recorded top is not its region's outermost ancestor"
-            );
+            assert_eq!(r, n.top, "node {v}: recorded top is not its region's outermost ancestor");
             let lv = self.local_radius(v);
             assert!(lv >= 0, "node {v}: local radius {lv}");
             for e in self.g.edges(v) {

@@ -45,11 +45,7 @@ fn old_path_model(
                         if flips[t * n + s] != flips[(t - 1) * n + s] {
                             let (x, y) = stab_coords(kind, s);
                             let key = (x as i64, y as i64, t as i64);
-                            dets.push(
-                                *index
-                                    .get(&key)
-                                    .unwrap_or_else(|| panic!("no detector at {key:?}")),
-                            );
+                            dets.push(*index.get(&key).unwrap_or_else(|| panic!("no detector at {key:?}")));
                         }
                     }
                 }
@@ -83,9 +79,7 @@ fn old_path_model(
 fn new_path_model(dem: &Dem) -> Model {
     let mut model = Model::new();
     for m in &dem.mechanisms {
-        let e = model
-            .entry((m.detectors.clone(), m.observables))
-            .or_insert(0.0);
+        let e = model.entry((m.detectors.clone(), m.observables)).or_insert(0.0);
         *e = xor_prob(*e, m.p);
     }
     model
@@ -94,8 +88,7 @@ fn new_path_model(dem: &Dem) -> Model {
 fn check(kind: CodeKind, d: usize, basis: Basis) {
     let (p, eta) = (0.003, 0.5);
     let patch = patch_for(kind, d, basis).unwrap();
-    let dem =
-        Dem::from_circuit(&memory_circuit(&patch, d, NoiseModel::Current { p, eta })).unwrap();
+    let dem = Dem::from_circuit(&memory_circuit(&patch, d, NoiseModel::Current { p, eta })).unwrap();
     let index: HashMap<(i64, i64, i64), u32> = dem
         .detector_coords
         .iter()
@@ -118,31 +111,17 @@ fn check(kind: CodeKind, d: usize, basis: Basis) {
         }
     };
     let new = new_path_model(&dem);
-    let missing: Vec<_> = old
-        .keys()
-        .filter(|k| !new.contains_key(*k))
-        .take(3)
-        .collect();
-    let extra: Vec<_> = new
-        .keys()
-        .filter(|k| !old.contains_key(*k))
-        .take(3)
-        .collect();
+    let missing: Vec<_> = old.keys().filter(|k| !new.contains_key(*k)).take(3).collect();
+    let extra: Vec<_> = new.keys().filter(|k| !old.contains_key(*k)).take(3).collect();
     assert!(
         missing.is_empty() && extra.is_empty(),
         "{kind:?} {basis:?} d = {d}: old-only {missing:?}, new-only {extra:?}"
     );
     for (k, &po) in &old {
         let pn = new[k];
-        assert!(
-            (po - pn).abs() <= 1e-9 * po.max(pn),
-            "{kind:?} {basis:?} d = {d}: {k:?} old {po} new {pn}"
-        );
+        assert!((po - pn).abs() <= 1e-9 * po.max(pn), "{kind:?} {basis:?} d = {d}: {k:?} old {po} new {pn}");
     }
-    println!(
-        "{kind:?} {basis:?} d = {d}: {} mechanisms identical",
-        old.len()
-    );
+    println!("{kind:?} {basis:?} d = {d}: {} mechanisms identical", old.len());
 }
 
 #[test]
@@ -183,18 +162,11 @@ fn current_rates_old_decoder_vs_new_decoder() {
             let model = crate::circuit_model::build(&code.circuit_layout(), d);
             let mut old_fail = 0;
             for _ in 0..shots {
-                let class =
-                    code.simulate_circuit_noise_with_model(&model, d, p, 0.5, "zero", 2, 0.0, 0);
+                let class = code.simulate_circuit_noise_with_model(&model, d, p, 0.5, "zero", 2, 0.0, 0);
                 old_fail += (class & 1) as usize;
             }
-            let circuit = crate::memory::generate(
-                CodeKind::Rotated,
-                d,
-                d,
-                NoiseModel::Current { p, eta: 0.5 },
-                Basis::Z,
-            )
-            .unwrap();
+            let circuit =
+                crate::memory::generate(CodeKind::Rotated, d, d, NoiseModel::Current { p, eta: 0.5 }, Basis::Z).unwrap();
             let dec = DemDecoder::new(&Dem::from_circuit(&circuit).unwrap()).unwrap();
             let sampler = FrameSampler::new(&circuit).unwrap();
             let mut rng = Xorshift::new(0x5eed ^ (d as u64) ^ p.to_bits());

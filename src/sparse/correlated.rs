@@ -56,12 +56,7 @@ pub(crate) struct FaultEdges {
 impl FaultEdges {
     pub(crate) fn from_dem(dem: &Dem, graph: &SparseGraph) -> Result<FaultEdges, String> {
         let boundary = graph.num_nodes as u32;
-        let mut f = FaultEdges {
-            p: Vec::new(),
-            start: vec![0],
-            ids: Vec::new(),
-            num_edges: graph.num_edges(),
-        };
+        let mut f = FaultEdges { p: Vec::new(), start: vec![0], ids: Vec::new(), num_edges: graph.num_edges() };
         for m in &dem.mechanisms {
             // PyMatching skips an error that cannot happen.
             if m.p == 0.0 {
@@ -74,18 +69,9 @@ impl FaultEdges {
                     [] => continue,
                     [a] => (*a, boundary),
                     [a, b] => (*a.min(b), *a.max(b)),
-                    other => {
-                        return Err(format!(
-                            "piece with {} detectors cannot be an edge",
-                            other.len()
-                        ))
-                    }
+                    other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
                 };
-                f.ids.push(
-                    graph
-                        .edge_id(u, v)
-                        .ok_or_else(|| format!("piece ({u}, {v}) is not an edge of the graph"))?,
-                );
+                f.ids.push(graph.edge_id(u, v).ok_or_else(|| format!("piece ({u}, {v}) is not an edge of the graph"))?);
             }
             f.p.push(m.p);
             f.start.push(f.ids.len() as u32);
@@ -96,9 +82,7 @@ impl FaultEdges {
 
 impl Correlations {
     pub fn from_dem(dem: &Dem, graph: &SparseGraph) -> Result<Correlations, String> {
-        Ok(Correlations::from_faults(&FaultEdges::from_dem(
-            dem, graph,
-        )?))
+        Ok(Correlations::from_faults(&FaultEdges::from_dem(dem, graph)?))
     }
 
     pub(crate) fn from_faults(faults: &FaultEdges) -> Correlations {
@@ -157,9 +141,7 @@ impl Correlations {
 
     /// Edge c's rules as (affected edge, implied probability, implied weight).
     pub fn rules_of(&self, c: u32) -> Vec<(u32, f64, i64)> {
-        self.rules(c)
-            .map(|r| (self.affected[r], self.prob[r], self.weight[r]))
-            .collect()
+        self.rules(c).map(|r| (self.affected[r], self.prob[r], self.weight[r])).collect()
     }
 
     pub fn num_rules(&self) -> usize {
@@ -230,11 +212,7 @@ impl<'a> Solver<'a> {
     }
 
     /// Reweight from `s.edge_set`, match again, and restore the weights.
-    pub(crate) fn pass_two(
-        &mut self,
-        corr: &Correlations,
-        defects: &[u32],
-    ) -> Result<Prediction, DecodeError> {
+    pub(crate) fn pass_two(&mut self, corr: &Correlations, defects: &[u32]) -> Result<Prediction, DecodeError> {
         self.reweight(corr);
         self.reset();
         let result = self.run(defects, false).map(|()| self.extract());
@@ -245,11 +223,7 @@ impl<'a> Solver<'a> {
     /// Pass two, then its matching's edges traced on the lowered weights into
     /// `s.edge_set`, before the weights are restored: the correction a window
     /// decoder commits from.
-    pub(crate) fn pass_two_edges(
-        &mut self,
-        corr: &Correlations,
-        defects: &[u32],
-    ) -> Result<Prediction, DecodeError> {
+    pub(crate) fn pass_two_edges(&mut self, corr: &Correlations, defects: &[u32]) -> Result<Prediction, DecodeError> {
         self.reweight(corr);
         self.reset();
         let result = self.run(defects, false).map(|()| self.extract());

@@ -48,11 +48,7 @@ static mut RNG_STREAM: u64 = 0x2545_F491_4F6C_DD1D;
 pub fn seed_global_rng(seed: u64) {
     unsafe {
         let slot = core::ptr::addr_of_mut!(RNG_STREAM);
-        slot.write(if seed == 0 {
-            0x2545_F491_4F6C_DD1D
-        } else {
-            seed
-        });
+        slot.write(if seed == 0 { 0x2545_F491_4F6C_DD1D } else { seed });
     }
 }
 
@@ -112,11 +108,7 @@ impl LogicalCheck {
 
         for &(mut x, mut z) in stabilizers {
             for &(bx, bz, pivot_in_x, bit) in &basis {
-                let set = if pivot_in_x {
-                    (x >> bit) & 1
-                } else {
-                    (z >> bit) & 1
-                };
+                let set = if pivot_in_x { (x >> bit) & 1 } else { (z >> bit) & 1 };
                 if set == 1 {
                     x ^= bx;
                     z ^= bz;
@@ -144,11 +136,7 @@ impl LogicalCheck {
             basis.push((x, z, pivot_in_x, bit));
         }
 
-        let mut check = LogicalCheck {
-            basis,
-            logical_x: (0, 0),
-            logical_z: (0, 0),
-        };
+        let mut check = LogicalCheck { basis, logical_x: (0, 0), logical_z: (0, 0) };
         let (lx, lz) = find_logical_pair(stabilizers, num_qubits, &check);
         check.logical_x = lx;
         check.logical_z = lz;
@@ -164,11 +152,7 @@ impl LogicalCheck {
     /// Reduce a Pauli against the stabilizer basis, leaving its logical part.
     fn reduce(&self, mut x: u128, mut z: u128) -> (u128, u128) {
         for &(bx, bz, pivot_in_x, bit) in &self.basis {
-            let set = if pivot_in_x {
-                (x >> bit) & 1
-            } else {
-                (z >> bit) & 1
-            };
+            let set = if pivot_in_x { (x >> bit) & 1 } else { (z >> bit) & 1 };
             if set == 1 {
                 x ^= bx;
                 z ^= bz;
@@ -214,18 +198,10 @@ struct Row {
 
 impl Row {
     fn get(&self, col: usize, n: usize) -> bool {
-        if col < n {
-            (self.lo >> col) & 1 == 1
-        } else {
-            (self.hi >> (col - n)) & 1 == 1
-        }
+        if col < n { (self.lo >> col) & 1 == 1 } else { (self.hi >> (col - n)) & 1 == 1 }
     }
     fn set(&mut self, col: usize, n: usize) {
-        if col < n {
-            self.lo |= 1u128 << col;
-        } else {
-            self.hi |= 1u128 << (col - n);
-        }
+        if col < n { self.lo |= 1u128 << col; } else { self.hi |= 1u128 << (col - n); }
     }
     fn xor(&mut self, other: &Row) {
         self.lo ^= other.lo;
@@ -291,12 +267,8 @@ fn find_logical_pair(
         .map(|&(sx, sz)| {
             let mut row = Row::default();
             for j in 0..n {
-                if (sz >> j) & 1 == 1 {
-                    row.set(j, n);
-                }
-                if (sx >> j) & 1 == 1 {
-                    row.set(n + j, n);
-                }
+                if (sz >> j) & 1 == 1 { row.set(j, n); }
+                if (sx >> j) & 1 == 1 { row.set(n + j, n); }
             }
             row
         })
@@ -307,15 +279,11 @@ fn find_logical_pair(
     // Null-space basis: one vector per free column.
     let mut null: Vec<Row> = Vec::new();
     for free in 0..width {
-        if is_pivot[free] {
-            continue;
-        }
+        if is_pivot[free] { continue; }
         let mut v = Row::default();
         v.set(free, n);
         for (r, &pc) in pivots.iter().enumerate() {
-            if rows[r].get(free, n) {
-                v.set(pc, n);
-            }
+            if rows[r].get(free, n) { v.set(pc, n); }
         }
         null.push(v);
     }
@@ -351,13 +319,7 @@ fn sample_pauli(p: f64, eta: f64, rng: &mut Xorshift) -> Option<u8> {
     let roll = rng.next_f64();
     let p_z = eta / (eta + 1.0);
     let p_x = 1.0 / (2.0 * (eta + 1.0));
-    Some(if roll < p_z {
-        2
-    } else if roll < p_z + p_x {
-        1
-    } else {
-        3
-    })
+    Some(if roll < p_z { 2 } else if roll < p_z + p_x { 1 } else { 3 })
 }
 
 fn sample_biased_error(p: f64, eta: f64, rng: &mut Xorshift) -> (bool, bool) {
@@ -375,12 +337,7 @@ fn get_drift_p(p: f64, t: usize, correlated_noise: usize) -> f64 {
     }
 }
 
-fn sample_biased_error_with_erasure(
-    p_pauli: f64,
-    bias: f64,
-    p_erase: f64,
-    rng: &mut Xorshift,
-) -> (bool, bool, bool) {
+fn sample_biased_error_with_erasure(p_pauli: f64, bias: f64, p_erase: f64, rng: &mut Xorshift) -> (bool, bool, bool) {
     if rng.next_f64() < p_erase {
         let choice = rng.next_u64() % 3;
         let (err_x, err_z) = match choice {
@@ -403,31 +360,28 @@ fn inject_correlated_noise(
     correlated_noise: usize,
     rng: &mut Xorshift,
 ) {
-    if (correlated_noise == 1 || correlated_noise == 3) && rng.next_f64() < 0.02 {
-        let cx = rng.next_f64() * d as f64;
-        let cy = rng.next_f64() * d as f64;
-        for q in 0..data_qubits.len() {
-            let (qx, qy) = data_qubits[q];
-            let ux = (qx as f64 - 1.0) / 2.0;
-            let uy = (qy as f64 - 1.0) / 2.0;
-            let dist = ((ux - cx).powi(2) + (uy - cy).powi(2)).sqrt();
-            if dist <= 1.5 {
-                let choice = rng.next_u64() % 3;
-                match choice {
-                    0 => {
-                        physical_x[q] ^= true;
-                    }
-                    1 => {
-                        physical_z[q] ^= true;
-                    }
-                    _ => {
-                        physical_x[q] ^= true;
-                        physical_z[q] ^= true;
+    if (correlated_noise == 1 || correlated_noise == 3)
+        && rng.next_f64() < 0.02 {
+            let cx = rng.next_f64() * d as f64;
+            let cy = rng.next_f64() * d as f64;
+            for q in 0..data_qubits.len() {
+                let (qx, qy) = data_qubits[q];
+                let ux = (qx as f64 - 1.0) / 2.0;
+                let uy = (qy as f64 - 1.0) / 2.0;
+                let dist = ((ux - cx).powi(2) + (uy - cy).powi(2)).sqrt();
+                if dist <= 1.5 {
+                    let choice = rng.next_u64() % 3;
+                    match choice {
+                        0 => { physical_x[q] ^= true; }
+                        1 => { physical_z[q] ^= true; }
+                        _ => {
+                            physical_x[q] ^= true;
+                            physical_z[q] ^= true;
+                        }
                     }
                 }
             }
         }
-    }
 }
 
 fn inject_correlated_noise_circuit(
@@ -438,44 +392,32 @@ fn inject_correlated_noise_circuit(
     correlated_noise: usize,
     rng: &mut Xorshift,
 ) {
-    if (correlated_noise == 1 || correlated_noise == 3) && rng.next_f64() < 0.02 {
-        let cx = rng.next_f64() * d as f64;
-        let cy = rng.next_f64() * d as f64;
-        for q in 0..data_qubits.len() {
-            let (qx, qy) = data_qubits[q];
-            let ux = (qx as f64 - 1.0) / 2.0;
-            let uy = (qy as f64 - 1.0) / 2.0;
-            let dist = ((ux - cx).powi(2) + (uy - cy).powi(2)).sqrt();
-            if dist <= 1.5 {
-                let choice = rng.next_u64() % 3;
-                let pauli = match choice {
-                    0 => {
-                        sim.apply_x(q);
-                        1u8
-                    }
-                    1 => {
-                        sim.apply_z(q);
-                        2u8
-                    }
-                    _ => {
-                        sim.apply_y(q);
-                        3u8
-                    }
-                };
-                if let Some(f) = frame.as_deref_mut() {
-                    f.apply(q, pauli);
+    if (correlated_noise == 1 || correlated_noise == 3)
+        && rng.next_f64() < 0.02 {
+            let cx = rng.next_f64() * d as f64;
+            let cy = rng.next_f64() * d as f64;
+            for q in 0..data_qubits.len() {
+                let (qx, qy) = data_qubits[q];
+                let ux = (qx as f64 - 1.0) / 2.0;
+                let uy = (qy as f64 - 1.0) / 2.0;
+                let dist = ((ux - cx).powi(2) + (uy - cy).powi(2)).sqrt();
+                if dist <= 1.5 {
+                    let choice = rng.next_u64() % 3;
+                    let pauli = match choice {
+                        0 => { sim.apply_x(q); 1u8 }
+                        1 => { sim.apply_z(q); 2u8 }
+                        _ => { sim.apply_y(q); 3u8 }
+                    };
+                    if let Some(f) = frame.as_deref_mut() { f.apply(q, pauli); }
                 }
             }
         }
-    }
 }
 
-fn decode_by_type(
-    graph: &SyndromeGraph,
-    defects: &[bool],
-    decoder_type: usize,
-    erased_edges: &[bool],
-) -> Vec<usize> {
+
+
+
+fn decode_by_type(graph: &SyndromeGraph, defects: &[bool], decoder_type: usize, erased_edges: &[bool]) -> Vec<usize> {
     match decoder_type {
         1 => crate::decoder::decode_greedy(graph, defects, erased_edges),
         2 => crate::decoder::decode_mwpm(graph, defects, erased_edges),
@@ -620,9 +562,7 @@ impl RotatedSurfaceCode {
     pub fn circuit_layout(&self) -> crate::circuit_model::CircuitLayout {
         crate::circuit_model::CircuitLayout {
             program: self.round_program(),
-            num_qubits: self.data_qubits.len()
-                + self.x_stabilizers.len()
-                + self.z_stabilizers.len(),
+            num_qubits: self.data_qubits.len() + self.x_stabilizers.len() + self.z_stabilizers.len(),
             num_data: self.data_qubits.len(),
             num_x_stabs: self.x_stabilizers.len(),
             num_z_stabs: self.z_stabilizers.len(),
@@ -730,15 +670,7 @@ impl RotatedSurfaceCode {
     /// channel: under Pauli noise and a Pauli decoder the channel is itself a
     /// Pauli channel, and reconstructing it needs the probability of each of
     /// I, X, Y and Z separately.
-    pub fn simulate_phenomenological_noise(
-        &self,
-        num_rounds: usize,
-        p: f64,
-        bias: f64,
-        decoder_type: usize,
-        erasure_rate: f64,
-        correlated_noise: usize,
-    ) -> u8 {
+    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -766,28 +698,16 @@ impl RotatedSurfaceCode {
             let p_pauli = round_p * (1.0 - erasure_rate);
 
             for q in 0..num_data {
-                let (err_x, err_z, erased) =
-                    sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
+                let (err_x, err_z, erased) = sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
                 if erased {
                     erased_edges_z[t * num_data + q] = true;
                     erased_edges_x[t * num_data + q] = true;
                 }
-                if err_x {
-                    physical_x[q] ^= true;
-                }
-                if err_z {
-                    physical_z[q] ^= true;
-                }
+                if err_x { physical_x[q] ^= true; }
+                if err_z { physical_z[q] ^= true; }
             }
 
-            inject_correlated_noise(
-                &mut physical_x,
-                &mut physical_z,
-                &self.data_qubits,
-                self.d,
-                correlated_noise,
-                &mut rng,
-            );
+            inject_correlated_noise(&mut physical_x, &mut physical_z, &self.data_qubits, self.d, correlated_noise, &mut rng);
 
             for s_idx in 0..num_stabs_z {
                 let neighbors = self.get_neighbors(&self.z_stabilizers[s_idx]);
@@ -837,17 +757,12 @@ impl RotatedSurfaceCode {
         let mut defects_z = vec![false; graph_z.num_nodes];
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs_z {
-                let prev_outcome = if t == 0 {
-                    false
-                } else {
-                    measured_z[t - 1][s_idx]
-                };
+                let prev_outcome = if t == 0 { false } else { measured_z[t - 1][s_idx] };
                 let diff = measured_z[t][s_idx] ^ prev_outcome;
                 defects_z[s_idx + t * num_stabs_z] = diff;
             }
         }
-        let correction_z_edges =
-            decode_by_type(&graph_z, &defects_z, decoder_type, &erased_edges_z);
+        let correction_z_edges = decode_by_type(&graph_z, &defects_z, decoder_type, &erased_edges_z);
 
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
@@ -859,17 +774,12 @@ impl RotatedSurfaceCode {
         let mut defects_x = vec![false; graph_x.num_nodes];
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs_x {
-                let prev_outcome = if t == 0 {
-                    false
-                } else {
-                    measured_x[t - 1][s_idx]
-                };
+                let prev_outcome = if t == 0 { false } else { measured_x[t - 1][s_idx] };
                 let diff = measured_x[t][s_idx] ^ prev_outcome;
                 defects_x[s_idx + t * num_stabs_x] = diff;
             }
         }
-        let correction_x_edges =
-            decode_by_type(&graph_x, &defects_x, decoder_type, &erased_edges_x);
+        let correction_x_edges = decode_by_type(&graph_x, &defects_x, decoder_type, &erased_edges_x);
 
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
@@ -916,14 +826,7 @@ impl RotatedSurfaceCode {
     /// channel: under Pauli noise and a Pauli decoder the channel is itself a
     /// Pauli channel, and reconstructing it needs the probability of each of
     /// I, X, Y and Z separately.
-    pub fn simulate_data_noise(
-        &self,
-        p: f64,
-        bias: f64,
-        decoder_type: usize,
-        erasure_rate: f64,
-        correlated_noise: usize,
-    ) -> u8 {
+    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -932,7 +835,7 @@ impl RotatedSurfaceCode {
         let num_data = self.data_qubits.len();
         let mut physical_x = vec![false; num_data];
         let mut physical_z = vec![false; num_data];
-
+        
         let graph_z = self.build_syndrome_graph(1, true);
         let mut erased_edges_z = vec![false; graph_z.edges.len()];
 
@@ -944,29 +847,17 @@ impl RotatedSurfaceCode {
         let p_pauli = round_p * (1.0 - erasure_rate);
 
         for q in 0..num_data {
-            let (err_x, err_z, erased) =
-                sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
+            let (err_x, err_z, erased) = sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
             if erased {
                 erased_edges_z[q] = true;
                 erased_edges_x[q] = true;
             }
-            if err_x {
-                physical_x[q] = true;
-            }
-            if err_z {
-                physical_z[q] = true;
-            }
+            if err_x { physical_x[q] = true; }
+            if err_z { physical_z[q] = true; }
         }
 
-        inject_correlated_noise(
-            &mut physical_x,
-            &mut physical_z,
-            &self.data_qubits,
-            self.d,
-            correlated_noise,
-            &mut rng,
-        );
-
+        inject_correlated_noise(&mut physical_x, &mut physical_z, &self.data_qubits, self.d, correlated_noise, &mut rng);
+        
         let num_stabs_z = self.z_stabilizers.len();
         let mut measured_z = vec![false; num_stabs_z];
         for s_idx in 0..num_stabs_z {
@@ -993,8 +884,7 @@ impl RotatedSurfaceCode {
             measured_x[s_idx] = parity;
         }
 
-        let correction_z_edges =
-            decode_by_type(&graph_z, &measured_z, decoder_type, &erased_edges_z);
+        let correction_z_edges = decode_by_type(&graph_z, &measured_z, decoder_type, &erased_edges_z);
         let mut correction_x_data = vec![false; num_data];
         for edge_idx in correction_z_edges {
             if let Some(q_idx) = graph_z.edge_to_qubit[edge_idx] {
@@ -1002,8 +892,7 @@ impl RotatedSurfaceCode {
             }
         }
 
-        let correction_x_edges =
-            decode_by_type(&graph_x, &measured_x, decoder_type, &erased_edges_x);
+        let correction_x_edges = decode_by_type(&graph_x, &measured_x, decoder_type, &erased_edges_x);
         let mut correction_z_data = vec![false; num_data];
         for edge_idx in correction_x_edges {
             if let Some(q_idx) = graph_x.edge_to_qubit[edge_idx] {
@@ -1069,8 +958,7 @@ impl RotatedSurfaceCode {
         let mut rng = next_shot_rng();
 
         // Seed the tableau's measurement randomness from this shot's generator.
-        let mut sim =
-            crate::simulator::StabilizerSimulator::with_seed(total_qubits, rng.next_u64());
+        let mut sim = crate::simulator::StabilizerSimulator::with_seed(total_qubits, rng.next_u64());
 
         let program = self.round_program();
         let rounds_total = crate::circuit_model::rounds_executed(num_rounds);
@@ -1125,14 +1013,8 @@ impl RotatedSurfaceCode {
                         }
                         frame.step(op);
                     }
-                    Op::H(q) => {
-                        sim.apply_h(q);
-                        frame.step(op);
-                    }
-                    Op::Cnot(c, t) => {
-                        sim.apply_cnot(c, t);
-                        frame.step(op);
-                    }
+                    Op::H(q) => { sim.apply_h(q); frame.step(op); }
+                    Op::Cnot(c, t) => { sim.apply_cnot(c, t); frame.step(op); }
                     // The tableau has no native CZ; conjugating the target by H
                     // is the identity CZ = (I x H) CNOT (I x H).
                     Op::Cz(a, b) => {
@@ -1156,16 +1038,7 @@ impl RotatedSurfaceCode {
                                 3 => sim.apply_y(q),
                                 _ => sim.apply_z(q),
                             }
-                            frame.apply(
-                                q,
-                                if pauli == 3 {
-                                    3
-                                } else if pauli == 1 {
-                                    1
-                                } else {
-                                    2
-                                },
-                            );
+                            frame.apply(q, if pauli == 3 { 3 } else if pauli == 1 { 1 } else { 2 });
                             if r > 0 && r < rounds_total - 1 {
                                 erased_sites[(r - 1) * model.noise_slots + slot] = true;
                             }
@@ -1195,13 +1068,7 @@ impl RotatedSurfaceCode {
 
             if r > 0 && r < rounds_total - 1 {
                 inject_correlated_noise_circuit(
-                    &mut sim,
-                    Some(&mut frame),
-                    &self.data_qubits,
-                    self.d,
-                    correlated_noise,
-                    &mut rng,
-                );
+                    &mut sim, Some(&mut frame), &self.data_qubits, self.d, correlated_noise, &mut rng);
             }
         }
 
@@ -1209,13 +1076,15 @@ impl RotatedSurfaceCode {
         let mut detectors_z = vec![false; num_z * layers];
         for t in 0..layers {
             for s in 0..num_z {
-                detectors_z[s + t * num_z] = flips_z[(t + 1) * num_z + s] != flips_z[t * num_z + s];
+                detectors_z[s + t * num_z] =
+                    flips_z[(t + 1) * num_z + s] != flips_z[t * num_z + s];
             }
         }
         let mut detectors_x = vec![false; num_x * layers];
         for t in 0..layers {
             for s in 0..num_x {
-                detectors_x[s + t * num_x] = flips_x[(t + 1) * num_x + s] != flips_x[t * num_x + s];
+                detectors_x[s + t * num_x] =
+                    flips_x[(t + 1) * num_x + s] != flips_x[t * num_x + s];
             }
         }
 
@@ -1242,30 +1111,14 @@ impl RotatedSurfaceCode {
                 let mask = dg.correction[edge_idx];
                 for q in 0..num_data {
                     if (mask >> q) & 1 == 1 {
-                        if is_x {
-                            sim.apply_x(q);
-                        } else {
-                            sim.apply_z(q);
-                        }
+                        if is_x { sim.apply_x(q); } else { sim.apply_z(q); }
                         frame.apply(q, if is_x { 1 } else { 2 });
                     }
                 }
             }
         };
-        apply(
-            &mut sim,
-            &mut frame,
-            &model.for_x_errors,
-            &detectors_z,
-            true,
-        );
-        apply(
-            &mut sim,
-            &mut frame,
-            &model.for_z_errors,
-            &detectors_x,
-            false,
-        );
+        apply(&mut sim, &mut frame, &model.for_x_errors, &detectors_z, true);
+        apply(&mut sim, &mut frame, &model.for_z_errors, &detectors_x, false);
 
         // Logical X runs down a column, logical Z across a row; a residual X is
         // a logical X when its parity against the column is odd, and vice versa.
@@ -1273,12 +1126,8 @@ impl RotatedSurfaceCode {
         // a measurement in one basis can only ever see one of them.
         let (mut rx, mut rz) = (0u128, 0u128);
         for q in 0..num_data {
-            if frame.x[q] {
-                rx |= 1u128 << q;
-            }
-            if frame.z[q] {
-                rz |= 1u128 << q;
-            }
+            if frame.x[q] { rx |= 1u128 << q; }
+            if frame.z[q] { rz |= 1u128 << q; }
         }
         let (mut column, mut row) = (0u128, 0u128);
         for i in 0..self.d {
@@ -1288,7 +1137,8 @@ impl RotatedSurfaceCode {
         // `init_state` still chooses what is prepared — the tableau runs a real
         // memory experiment — but the class is read from the frame, so it no
         // longer decides which kind of failure is visible.
-        ((rx & column).count_ones() % 2) as u8 | ((((rz & row).count_ones() % 2) as u8) << 1)
+        ((rx & column).count_ones() % 2) as u8
+            | ((((rz & row).count_ones() % 2) as u8) << 1)
     }
 }
 
@@ -1304,6 +1154,7 @@ pub struct XZZXSurfaceCode {
 }
 
 impl XZZXSurfaceCode {
+
     /// The syndrome-extraction round, as a list of instructions.
     ///
     /// As with the rotated code this is the single definition of the circuit,
@@ -1339,16 +1190,16 @@ impl XZZXSurfaceCode {
     /// single-fault check — leaves exactly 6 that pass, all of them transposes.
     /// d = 5 is clean either way, so nothing but the d = 3 check finds this.
     pub const SCHEDULE_A: [(i32, i32, bool); 4] = [
-        (-1, -1, true), // NW, X
-        (1, -1, false), // NE, Z
-        (-1, 1, false), // SW, Z
-        (1, 1, true),   // SE, X
+        (-1, -1, true),  // NW, X
+        (1, -1, false),  // NE, Z
+        (-1, 1, false),  // SW, Z
+        (1, 1, true),    // SE, X
     ];
     pub const SCHEDULE_B: [(i32, i32, bool); 4] = [
-        (-1, -1, true), // NW, X
-        (-1, 1, false), // SW, Z
-        (1, -1, false), // NE, Z
-        (1, 1, true),   // SE, X
+        (-1, -1, true),  // NW, X
+        (-1, 1, false),  // SW, Z
+        (1, -1, false),  // NE, Z
+        (1, 1, true),    // SE, X
     ];
 
     pub fn round_program_ordered(
@@ -1372,11 +1223,8 @@ impl XZZXSurfaceCode {
         let split = self.z_stabilizers.len();
         for step in 0..4 {
             for s in 0..self.stabilizers.len() {
-                let (dx, dy, is_x) = if s < split {
-                    order_a[step]
-                } else {
-                    order_b[step]
-                };
+                let (dx, dy, is_x) =
+                    if s < split { order_a[step] } else { order_b[step] };
                 if let Some(data) = self.get_neighbor_idx(
                     self.stabilizers[s].0 as i32 + dx,
                     self.stabilizers[s].1 as i32 + dy,
@@ -1460,11 +1308,7 @@ impl XZZXSurfaceCode {
             // the last supplies the comparison that makes the final round's
             // faults visible at all.
             let noisy = r > 0 && r < rounds_total - 1;
-            let round_p = if noisy {
-                get_drift_p(p, r, correlated_noise)
-            } else {
-                0.0
-            };
+            let round_p = if noisy { get_drift_p(p, r, correlated_noise) } else { 0.0 };
             let mut slot = 0usize;
 
             for &op in &program {
@@ -1533,20 +1377,13 @@ impl XZZXSurfaceCode {
         }
 
         let (cx, cz) = crate::circuit_model::correction_for_combined(
-            &model.graph,
-            &defects,
-            decoder_type,
-            &erased_edges,
+            &model.graph, &defects, decoder_type, &erased_edges,
         );
 
         let (mut rx, mut rz) = (0u128, 0u128);
         for q in 0..num_data {
-            if frame.x[q] {
-                rx |= 1u128 << q;
-            }
-            if frame.z[q] {
-                rz |= 1u128 << q;
-            }
+            if frame.x[q] { rx |= 1u128 << q; }
+            if frame.z[q] { rz |= 1u128 << q; }
         }
         self.logical.classify(rx ^ cx, rz ^ cz)
     }
@@ -1594,17 +1431,11 @@ impl XZZXSurfaceCode {
         for &(sx, sy) in &stabilizers {
             let (mut px, mut pz) = (0u128, 0u128);
             for &(dx, dy, is_x) in &[
-                (-1i32, -1i32, true),
-                (1, 1, true),
-                (1, -1, false),
-                (-1, 1, false),
+                (-1i32, -1i32, true), (1, 1, true),
+                (1, -1, false), (-1, 1, false),
             ] {
                 if let Some(q) = index_of(sx as i32 + dx, sy as i32 + dy) {
-                    if is_x {
-                        px |= 1u128 << q;
-                    } else {
-                        pz |= 1u128 << q;
-                    }
+                    if is_x { px |= 1u128 << q; } else { pz |= 1u128 << q; }
                 }
             }
             ops.push((px, pz));
@@ -1662,11 +1493,11 @@ impl XZZXSurfaceCode {
                 for (s_idx, stab) in self.stabilizers.iter().enumerate() {
                     let (sx, sy) = *stab;
                     let is_connected = if is_for_x_errors {
-                        (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 - 1)
-                            || (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 + 1)
+                        (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 - 1) ||
+                        (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 + 1)
                     } else {
-                        (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 - 1)
-                            || (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 + 1)
+                        (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 - 1) ||
+                        (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 + 1)
                     };
                     if is_connected {
                         connected_stabs.push(s_idx);
@@ -1740,11 +1571,11 @@ impl XZZXSurfaceCode {
                     for (s_idx, stab) in self.stabilizers.iter().enumerate() {
                         let (sx, sy) = *stab;
                         let is_connected = if is_for_x_errors {
-                            (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 - 1)
-                                || (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 + 1)
+                            (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 - 1) ||
+                            (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 + 1)
                         } else {
-                            (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 - 1)
-                                || (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 + 1)
+                            (qx as i32 == sx as i32 - 1 && qy as i32 == sy as i32 - 1) ||
+                            (qx as i32 == sx as i32 + 1 && qy as i32 == sy as i32 + 1)
                         };
                         if is_connected {
                             connected_stabs.push(s_idx);
@@ -1782,14 +1613,7 @@ impl XZZXSurfaceCode {
             }
         }
 
-        (
-            SyndromeGraph {
-                num_nodes,
-                edges,
-                edge_to_qubit,
-            },
-            edge_is_x,
-        )
+        (SyndromeGraph { num_nodes, edges, edge_to_qubit }, edge_is_x)
     }
 
     /// Returns the logical Pauli class left behind: bit 0 set if a logical X
@@ -1799,15 +1623,7 @@ impl XZZXSurfaceCode {
     /// channel: under Pauli noise and a Pauli decoder the channel is itself a
     /// Pauli channel, and reconstructing it needs the probability of each of
     /// I, X, Y and Z separately.
-    pub fn simulate_phenomenological_noise(
-        &self,
-        num_rounds: usize,
-        p: f64,
-        bias: f64,
-        decoder_type: usize,
-        erasure_rate: f64,
-        correlated_noise: usize,
-    ) -> u8 {
+    pub fn simulate_phenomenological_noise(&self, num_rounds: usize, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -1832,51 +1648,31 @@ impl XZZXSurfaceCode {
             let p_pauli = round_p * (1.0 - erasure_rate);
 
             for q in 0..num_data {
-                let (err_x, err_z, erased) =
-                    sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
+                let (err_x, err_z, erased) = sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
                 if erased {
                     erased_qubits[t * num_data + q] = true;
                 }
-                if err_x {
-                    physical_x[q] ^= true;
-                }
-                if err_z {
-                    physical_z[q] ^= true;
-                }
+                if err_x { physical_x[q] ^= true; }
+                if err_z { physical_z[q] ^= true; }
             }
 
-            inject_correlated_noise(
-                &mut physical_x,
-                &mut physical_z,
-                &self.data_qubits,
-                self.d,
-                correlated_noise,
-                &mut rng,
-            );
+            inject_correlated_noise(&mut physical_x, &mut physical_z, &self.data_qubits, self.d, correlated_noise, &mut rng);
 
             for s_idx in 0..num_stabs {
                 let (sx, sy) = self.stabilizers[s_idx];
                 let mut parity = false;
-
+                
                 if let Some(q) = self.get_neighbor_idx(sx as i32 - 1, sy as i32 - 1) {
-                    if physical_z[q] {
-                        parity ^= true;
-                    }
+                    if physical_z[q] { parity ^= true; }
                 }
                 if let Some(q) = self.get_neighbor_idx(sx as i32 + 1, sy as i32 - 1) {
-                    if physical_x[q] {
-                        parity ^= true;
-                    }
+                    if physical_x[q] { parity ^= true; }
                 }
                 if let Some(q) = self.get_neighbor_idx(sx as i32 - 1, sy as i32 + 1) {
-                    if physical_x[q] {
-                        parity ^= true;
-                    }
+                    if physical_x[q] { parity ^= true; }
                 }
                 if let Some(q) = self.get_neighbor_idx(sx as i32 + 1, sy as i32 + 1) {
-                    if physical_z[q] {
-                        parity ^= true;
-                    }
+                    if physical_z[q] { parity ^= true; }
                 }
 
                 // The final round is noiseless. Defects are time differences,
@@ -1900,11 +1696,7 @@ impl XZZXSurfaceCode {
         let mut defects_z = vec![false; graph.num_nodes];
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs {
-                let prev_outcome = if t == 0 {
-                    false
-                } else {
-                    measured[t - 1][s_idx]
-                };
+                let prev_outcome = if t == 0 { false } else { measured[t - 1][s_idx] };
                 let diff = measured[t][s_idx] ^ prev_outcome;
                 defects_z[s_idx + t * num_stabs] = diff;
             }
@@ -1944,12 +1736,8 @@ impl XZZXSurfaceCode {
         // logical string. See LogicalCheck.
         let (mut rx, mut rz) = (0u128, 0u128);
         for q in 0..num_data {
-            if residual_x[q] {
-                rx |= 1u128 << q;
-            }
-            if residual_z[q] {
-                rz |= 1u128 << q;
-            }
+            if residual_x[q] { rx |= 1u128 << q; }
+            if residual_z[q] { rz |= 1u128 << q; }
         }
         self.logical.classify(rx, rz)
     }
@@ -1961,14 +1749,7 @@ impl XZZXSurfaceCode {
     /// channel: under Pauli noise and a Pauli decoder the channel is itself a
     /// Pauli channel, and reconstructing it needs the probability of each of
     /// I, X, Y and Z separately.
-    pub fn simulate_data_noise(
-        &self,
-        p: f64,
-        bias: f64,
-        decoder_type: usize,
-        erasure_rate: f64,
-        correlated_noise: usize,
-    ) -> u8 {
+    pub fn simulate_data_noise(&self, p: f64, bias: f64, decoder_type: usize, erasure_rate: f64, correlated_noise: usize) -> u8 {
         #[cfg(feature = "python")]
         let mut rng = Xorshift::new(rand::random());
         #[cfg(not(feature = "python"))]
@@ -1988,27 +1769,15 @@ impl XZZXSurfaceCode {
         let p_pauli = round_p * (1.0 - erasure_rate);
 
         for q in 0..num_data {
-            let (err_x, err_z, erased) =
-                sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
+            let (err_x, err_z, erased) = sample_biased_error_with_erasure(p_pauli, bias, p_erase, &mut rng);
             if erased {
                 erased_qubits[q] = true;
             }
-            if err_x {
-                physical_x[q] = true;
-            }
-            if err_z {
-                physical_z[q] = true;
-            }
+            if err_x { physical_x[q] = true; }
+            if err_z { physical_z[q] = true; }
         }
 
-        inject_correlated_noise(
-            &mut physical_x,
-            &mut physical_z,
-            &self.data_qubits,
-            self.d,
-            correlated_noise,
-            &mut rng,
-        );
+        inject_correlated_noise(&mut physical_x, &mut physical_z, &self.data_qubits, self.d, correlated_noise, &mut rng);
 
         let num_stabs = self.stabilizers.len();
         let mut measured = vec![false; num_stabs];
@@ -2016,24 +1785,16 @@ impl XZZXSurfaceCode {
             let (sx, sy) = self.stabilizers[s_idx];
             let mut parity = false;
             if let Some(q) = self.get_neighbor_idx(sx as i32 - 1, sy as i32 - 1) {
-                if physical_z[q] {
-                    parity ^= true;
-                }
+                if physical_z[q] { parity ^= true; }
             }
             if let Some(q) = self.get_neighbor_idx(sx as i32 + 1, sy as i32 - 1) {
-                if physical_x[q] {
-                    parity ^= true;
-                }
+                if physical_x[q] { parity ^= true; }
             }
             if let Some(q) = self.get_neighbor_idx(sx as i32 - 1, sy as i32 + 1) {
-                if physical_x[q] {
-                    parity ^= true;
-                }
+                if physical_x[q] { parity ^= true; }
             }
             if let Some(q) = self.get_neighbor_idx(sx as i32 + 1, sy as i32 + 1) {
-                if physical_z[q] {
-                    parity ^= true;
-                }
+                if physical_z[q] { parity ^= true; }
             }
             measured[s_idx] = parity;
         }
@@ -2073,13 +1834,10 @@ impl XZZXSurfaceCode {
         // logical string. See LogicalCheck.
         let (mut rx, mut rz) = (0u128, 0u128);
         for q in 0..num_data {
-            if residual_x[q] {
-                rx |= 1u128 << q;
-            }
-            if residual_z[q] {
-                rz |= 1u128 << q;
-            }
+            if residual_x[q] { rx |= 1u128 << q; }
+            if residual_z[q] { rz |= 1u128 << q; }
         }
         self.logical.classify(rx, rz)
     }
+
 }

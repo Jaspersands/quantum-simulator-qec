@@ -44,32 +44,15 @@ impl Gauging {
         let mut support = support.to_vec();
         support.sort_unstable();
         support.dedup();
-        let edges: Vec<usize> = (0..hz.rows)
-            .filter(|&c| hz.row_ones(c).iter().any(|q| support.contains(q)))
-            .collect();
+        let edges: Vec<usize> = (0..hz.rows).filter(|&c| hz.row_ones(c).iter().any(|q| support.contains(q))).collect();
         let incidence: Vec<Vec<usize>> = edges
             .iter()
-            .map(|&c| {
-                hz.row_ones(c)
-                    .iter()
-                    .filter_map(|q| support.iter().position(|v| v == q))
-                    .collect()
-            })
+            .map(|&c| hz.row_ones(c).iter().filter_map(|q| support.iter().position(|v| v == q)).collect())
             .collect();
         if let Some(i) = incidence.iter().position(|e| e.len() % 2 == 1) {
-            return Err(format!(
-                "Z check {} meets the operator in an odd number of qubits: it is not a logical X",
-                edges[i]
-            ));
+            return Err(format!("Z check {} meets the operator in an odd number of qubits: it is not a logical X", edges[i]));
         }
-        let mut g = Gauging {
-            support,
-            edges,
-            extra: Vec::new(),
-            incidence,
-            gauss: Vec::new(),
-            flux: Vec::new(),
-        };
+        let mut g = Gauging { support, edges, extra: Vec::new(), incidence, gauss: Vec::new(), flux: Vec::new() };
         g.finish()?;
         Ok(g)
     }
@@ -88,11 +71,7 @@ impl Gauging {
                 return Ok(g);
             }
             let degree = |v: usize| g.gauss[v].len();
-            let joined = |x: usize, y: usize| {
-                g.incidence
-                    .iter()
-                    .any(|e| e.len() == 2 && e.contains(&x) && e.contains(&y))
-            };
+            let joined = |x: usize, y: usize| g.incidence.iter().any(|e| e.len() == 2 && e.contains(&x) && e.contains(&y));
             let outside: Vec<usize> = (0..g.support.len()).filter(|v| !u.contains(v)).collect();
             let pair = u
                 .iter()
@@ -115,13 +94,7 @@ impl Gauging {
     }
 
     fn vertex_edges(&self) -> Vec<Vec<usize>> {
-        (0..self.support.len())
-            .map(|v| {
-                (0..self.num_edges())
-                    .filter(|&e| self.incidence[e].contains(&v))
-                    .collect()
-            })
-            .collect()
+        (0..self.support.len()).map(|v| (0..self.num_edges()).filter(|&e| self.incidence[e].contains(&v)).collect()).collect()
     }
 
     /// Edge qubits: one per check touching the operator, one per added edge.
@@ -140,25 +113,15 @@ impl Gauging {
     pub fn cheeger(&self) -> (usize, Vec<usize>) {
         let n = self.support.len();
         assert!(n <= 26, "{n} vertices are too many to enumerate");
-        let masks: Vec<u32> = self
-            .incidence
-            .iter()
-            .map(|e| e.iter().fold(0u32, |m, &v| m | 1 << v))
-            .collect();
+        let masks: Vec<u32> = self.incidence.iter().map(|e| e.iter().fold(0u32, |m, &v| m | 1 << v)).collect();
         let (mut best_b, mut best_u) = (usize::MAX, 0u32);
         for u in 1u32..(1 << n) {
             let k = u.count_ones() as usize;
             if 2 * k > n {
                 continue;
             }
-            let b = masks
-                .iter()
-                .filter(|&&m| (m & u).count_ones() % 2 == 1)
-                .count();
-            let (bk, kk) = (
-                best_b.saturating_mul(k),
-                b * best_u.count_ones().max(1) as usize,
-            );
+            let b = masks.iter().filter(|&&m| (m & u).count_ones() % 2 == 1).count();
+            let (bk, kk) = (best_b.saturating_mul(k), b * best_u.count_ones().max(1) as usize);
             if best_b == usize::MAX || kk < bk || (kk == bk && k < best_u.count_ones() as usize) {
                 best_b = b;
                 best_u = u;
@@ -182,9 +145,7 @@ impl Gauging {
         let space = self.restricted().transpose().kernel();
         let ne = self.num_edges();
         if space.rows > 20 {
-            let mut basis: Vec<Vec<bool>> = (0..space.rows)
-                .map(|r| (0..ne).map(|e| space.get(r, e)).collect())
-                .collect();
+            let mut basis: Vec<Vec<bool>> = (0..space.rows).map(|r| (0..ne).map(|e| space.get(r, e)).collect()).collect();
             let weight = |v: &[bool]| v.iter().filter(|&&x| x).count();
             loop {
                 let mut improved = false;
@@ -193,8 +154,7 @@ impl Gauging {
                         if i == j {
                             continue;
                         }
-                        let sum: Vec<bool> =
-                            basis[i].iter().zip(&basis[j]).map(|(a, b)| a ^ b).collect();
+                        let sum: Vec<bool> = basis[i].iter().zip(&basis[j]).map(|(a, b)| a ^ b).collect();
                         if weight(&sum) < weight(&basis[i]) {
                             basis[i] = sum;
                             improved = true;
@@ -205,10 +165,7 @@ impl Gauging {
                     break;
                 }
             }
-            let mut out: Vec<Vec<usize>> = basis
-                .iter()
-                .map(|v| (0..ne).filter(|&e| v[e]).collect())
-                .collect();
+            let mut out: Vec<Vec<usize>> = basis.iter().map(|v| (0..ne).filter(|&e| v[e]).collect()).collect();
             out.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
             return Ok(out);
         }
@@ -246,25 +203,14 @@ impl Gauging {
         let cols = n + self.num_edges();
         let mut x: Vec<Vec<usize>> = (0..hx.rows).map(|r| hx.row_ones(r)).collect();
         for (v, es) in self.gauss.iter().enumerate() {
-            x.push(
-                std::iter::once(self.support[v])
-                    .chain(es.iter().map(|e| n + e))
-                    .collect(),
-            );
+            x.push(std::iter::once(self.support[v]).chain(es.iter().map(|e| n + e)).collect());
         }
         let mut z: Vec<Vec<usize>> = (0..hz.rows).map(|r| hz.row_ones(r)).collect();
         for (i, &c) in self.edges.iter().enumerate() {
             z[c].push(n + i);
         }
-        z.extend(
-            self.flux
-                .iter()
-                .map(|cycle| cycle.iter().map(|e| n + e).collect()),
-        );
-        (
-            BitMatrix::from_rows(cols, &x),
-            BitMatrix::from_rows(cols, &z),
-        )
+        z.extend(self.flux.iter().map(|cycle| cycle.iter().map(|e| n + e).collect()));
+        (BitMatrix::from_rows(cols, &x), BitMatrix::from_rows(cols, &z))
     }
 
     /// Edges whose ends, counted mod 2, are exactly `z`'s qubits in V₀: a
@@ -285,16 +231,9 @@ impl Gauging {
         let mut m = BitMatrix::from_rows(ne + 1, &rows);
         let pivots = m.row_reduce();
         if pivots.contains(&ne) {
-            return Err(
-                "no set of edges has that boundary: the operator does not commute with it".into(),
-            );
+            return Err("no set of edges has that boundary: the operator does not commute with it".into());
         }
-        let mut s: Vec<usize> = pivots
-            .iter()
-            .enumerate()
-            .filter(|&(r, _)| m.get(r, ne))
-            .map(|(_, &p)| p)
-            .collect();
+        let mut s: Vec<usize> = pivots.iter().enumerate().filter(|&(r, _)| m.get(r, ne)).map(|(_, &p)| p).collect();
         s.sort_unstable();
         Ok(s)
     }
@@ -326,16 +265,9 @@ mod tests {
         for name in ["f", "gh", "f+gh"] {
             let (code, g, l) = gauged(name);
             let (hx, hz) = g.deformed(&code);
-            assert!(
-                hx.mul(&hz.transpose()).is_zero(),
-                "{name}: the checks commute"
-            );
+            assert!(hx.mul(&hz.transpose()).is_zero(), "{name}: the checks commute");
             let n = hx.cols;
-            assert_eq!(
-                n - hx.rank() - hz.rank(),
-                11,
-                "{name}: 11 logical qubits while merged"
-            );
+            assert_eq!(n - hx.rank() - hz.rank(), 11, "{name}: 11 logical qubits while merged");
             let mut product = vec![false; n];
             for r in code.half()..code.half() + g.support.len() {
                 for q in hx.row_ones(r) {
@@ -344,11 +276,7 @@ mod tests {
             }
             let got: Vec<usize> = (0..n).filter(|&q| product[q]).collect();
             assert_eq!(got, l, "{name}: the Gauss-law checks multiply to L");
-            assert_eq!(
-                g.flux.len(),
-                g.num_edges() - g.restricted().rank(),
-                "{name}: a flux check per independent cycle"
-            );
+            assert_eq!(g.flux.len(), g.num_edges() - g.restricted().rank(), "{name}: a flux check per independent cycle");
         }
     }
 
@@ -363,10 +291,7 @@ mod tests {
             assert_eq!(g.ancillas(), edges + g.support.len() + flux);
         }
         let (_, g, _) = gauged("f");
-        assert!(
-            g.gauss.iter().all(|es| es.len() == 3),
-            "every vertex of X(f, 0)'s graph has degree 3"
-        );
+        assert!(g.gauss.iter().all(|es| es.len() == 3), "every vertex of X(f, 0)'s graph has degree 3");
     }
 
     /// X(f, 0)'s graph is two clusters of six joined by two edges: its
@@ -383,38 +308,16 @@ mod tests {
             let l = gross_operator(name).unwrap();
             let g = Gauging::new(&code, &l).unwrap();
             let (b, u) = g.cheeger();
-            assert_eq!(
-                (b, u.len()),
-                minimal,
-                "{name}: the worst cut of the minimal system"
-            );
+            assert_eq!((b, u.len()), minimal, "{name}: the worst cut of the minimal system");
             let x = Gauging::expanded(&code, &l).unwrap();
             let (b, u) = x.cheeger();
-            eprintln!(
-                "{name}: {} extra edges, worst cut {b}/{}",
-                x.extra.len(),
-                u.len()
-            );
-            assert!(
-                b >= u.len() && !x.extra.is_empty(),
-                "{name}: expanded to a Cheeger constant of at least 1"
-            );
+            eprintln!("{name}: {} extra edges, worst cut {b}/{}", x.extra.len(), u.len());
+            assert!(b >= u.len() && !x.extra.is_empty(), "{name}: expanded to a Cheeger constant of at least 1");
             let (hx, hz) = x.deformed(&code);
-            assert!(
-                hx.mul(&hz.transpose()).is_zero(),
-                "{name}: the expanded checks commute"
-            );
-            assert_eq!(
-                hx.cols - hx.rank() - hz.rank(),
-                11,
-                "{name}: 11 logical qubits while merged"
-            );
+            assert!(hx.mul(&hz.transpose()).is_zero(), "{name}: the expanded checks commute");
+            assert_eq!(hx.cols - hx.rank() - hz.rank(), 11, "{name}: 11 logical qubits while merged");
             assert_eq!(x.ancillas(), x.num_edges() + x.support.len() + x.flux.len());
-            assert_eq!(
-                x.flux.len(),
-                x.num_edges() - x.restricted().rank(),
-                "{name}: a flux check per independent cycle"
-            );
+            assert_eq!(x.flux.len(), x.num_edges() - x.restricted().rank(), "{name}: a flux check per independent cycle");
         }
     }
 
@@ -424,10 +327,7 @@ mod tests {
         let (_, g, _) = gauged("f");
         let w: Vec<usize> = g.flux.iter().map(Vec::len).collect();
         eprintln!("flux weights, f: {w:?}");
-        assert!(
-            w.windows(2).all(|p| p[0] <= p[1]),
-            "sorted by weight: {w:?}"
-        );
+        assert!(w.windows(2).all(|p| p[0] <= p[1]), "sorted by weight: {w:?}");
         assert!(*w.last().unwrap() <= 8, "cycles of length at most 8: {w:?}");
     }
 
@@ -442,20 +342,12 @@ mod tests {
             let z = lz.row_ones(j);
             let overlap = z.iter().filter(|q| l.contains(q)).count();
             let got = g.edges_for(&z);
-            assert_eq!(
-                got.is_ok(),
-                overlap % 2 == 0,
-                "Z logical {j}: overlap {overlap}"
-            );
+            assert_eq!(got.is_ok(), overlap % 2 == 0, "Z logical {j}: overlap {overlap}");
             if let Ok(s) = got {
                 // Each vertex meets the path as often as z meets it, mod 2.
                 for (v, es) in g.gauss.iter().enumerate() {
                     let meets = es.iter().filter(|e| s.contains(e)).count() % 2 == 1;
-                    assert_eq!(
-                        meets,
-                        z.contains(&g.support[v]),
-                        "Z logical {j}, vertex {v}"
-                    );
+                    assert_eq!(meets, z.contains(&g.support[v]), "Z logical {j}, vertex {v}");
                 }
             }
         }

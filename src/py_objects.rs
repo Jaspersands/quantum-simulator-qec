@@ -11,7 +11,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots, WindowInfo};
 use crate::batch_sampler::BatchSampler;
 use crate::belief::BeliefMatching;
 use crate::circuit::Circuit;
@@ -19,6 +18,7 @@ use crate::dem::Dem;
 use crate::dem_decoder::DemDecoder;
 use crate::m2d::M2d;
 use crate::osd::{BpOsd, OsdMethod};
+use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots, WindowInfo};
 use crate::window::{Mode, Model, WindowDecoder};
 
 fn err(e: String) -> PyErr {
@@ -26,17 +26,9 @@ fn err(e: String) -> PyErr {
 }
 
 /// A buffer must hold exactly `num_shots` rows of `stride` bytes.
-pub(crate) fn check_rows(
-    len: usize,
-    stride: usize,
-    num_shots: usize,
-    bits: usize,
-    what: &str,
-) -> PyResult<()> {
+pub(crate) fn check_rows(len: usize, stride: usize, num_shots: usize, bits: usize, what: &str) -> PyResult<()> {
     if stride.checked_mul(num_shots) != Some(len) {
-        return Err(err(format!(
-            "{len} bytes is not {num_shots} shots of {bits} {what}"
-        )));
+        return Err(err(format!("{len} bytes is not {num_shots} shots of {bits} {what}")));
     }
     Ok(())
 }
@@ -78,9 +70,7 @@ impl PyCircuit {
 impl PyCircuit {
     #[new]
     fn new(text: &str) -> PyResult<Self> {
-        Ok(PyCircuit {
-            circuit: crate::api::Circuit::parse(text).map_err(api_err)?,
-        })
+        Ok(PyCircuit { circuit: crate::api::Circuit::parse(text).map_err(api_err)? })
     }
 
     #[getter]
@@ -118,13 +108,7 @@ impl PyCircuit {
 
     /// One instruction from its parts (targets as their text); the circuit is unchanged on an
     /// error.
-    fn append_instruction(
-        &mut self,
-        name: &str,
-        tag: &str,
-        args: Vec<f64>,
-        targets: Vec<String>,
-    ) -> PyResult<()> {
+    fn append_instruction(&mut self, name: &str, tag: &str, args: Vec<f64>, targets: Vec<String>) -> PyResult<()> {
         let piece = Circuit::instruction(name, tag, &args, &targets).map_err(err)?;
         let piece = crate::api::Circuit::from_engine(piece).map_err(api_err)?;
         self.circuit.append_circuit(&piece).map_err(api_err)
@@ -139,9 +123,7 @@ impl PyCircuit {
     }
 
     fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
-        Ok(PyCircuit {
-            circuit: self.circuit.repeated(count).map_err(api_err)?,
-        })
+        Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
     }
 
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
@@ -162,45 +144,24 @@ impl PyCircuit {
     }
 
     fn copy(&self) -> PyCircuit {
-        PyCircuit {
-            circuit: self.circuit.clone(),
-        }
+        PyCircuit { circuit: self.circuit.clone() }
     }
 
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
     /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
     /// `flatten` writes it without folding its loops.
     #[pyo3(signature = (decompose, approximate=None, flatten=false))]
-    fn detector_error_model(
-        &self,
-        decompose: bool,
-        approximate: Option<f64>,
-        flatten: bool,
-    ) -> PyResult<PyDem> {
-        let options = crate::api::DemOptions::new()
-            .decompose_errors(decompose)
-            .approximate_disjoint_errors(approximate)
-            .flatten_loops(flatten);
-        Ok(PyDem {
-            dem: self
-                .circuit
-                .detector_error_model(&options)
-                .map_err(api_err)?,
-        })
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool) -> PyResult<PyDem> {
+        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten);
+        Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
     }
 
     fn sampler(&self, seed: u64) -> PyResult<PySampler> {
-        Ok(PySampler {
-            sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?,
-            seed,
-            next: 0.into(),
-        })
+        Ok(PySampler { sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
     }
 
     fn m2d(&self) -> PyResult<PyM2d> {
-        Ok(PyM2d {
-            m2d: M2d::new(&self.circuit.inner).map_err(err)?,
-        })
+        Ok(PyM2d { m2d: M2d::new(&self.circuit.inner).map_err(err)? })
     }
 }
 
@@ -222,9 +183,7 @@ impl PyDem {
 impl PyDem {
     #[new]
     fn new(text: &str) -> PyResult<Self> {
-        Ok(PyDem {
-            dem: crate::api::DetectorErrorModel::parse(text).map_err(api_err)?,
-        })
+        Ok(PyDem { dem: crate::api::DetectorErrorModel::parse(text).map_err(api_err)? })
     }
 
     #[getter]
@@ -251,9 +210,7 @@ impl PyDem {
     }
 
     fn flattened(&self) -> PyResult<PyDem> {
-        Ok(PyDem {
-            dem: self.dem.flattened().map_err(api_err)?,
-        })
+        Ok(PyDem { dem: self.dem.flattened().map_err(api_err)? })
     }
 }
 
@@ -283,16 +240,8 @@ impl PySampler {
 
     /// `shots` shots as b8 rows of detectors and of observables. A call that ends mid-batch
     /// discards the batch's other lanes; the next call starts a new batch.
-    fn sample<'py>(
-        &self,
-        py: Python<'py>,
-        shots: usize,
-        threads: usize,
-    ) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
-        let first = self.next.fetch_add(
-            shots.div_ceil(64) as u64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
         let (sampler, seed) = (&self.sampler, self.seed);
         let (d, o) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
@@ -327,17 +276,9 @@ impl PyM2d {
         self.m2d.num_observables
     }
 
-    fn convert<'py>(
-        &self,
-        py: Python<'py>,
-        meas: &[u8],
-        sweeps: &[u8],
-        shots: usize,
-    ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    fn convert<'py>(&self, py: Python<'py>, meas: &[u8], sweeps: &[u8], shots: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
         let m2d = &self.m2d;
-        let (d, o) = py
-            .detach(|| m2d.convert_b8(meas, sweeps, shots))
-            .map_err(err)?;
+        let (d, o) = py.detach(|| m2d.convert_b8(meas, sweeps, shots)).map_err(err)?;
         Ok((PyBytes::new(py, &d), PyBytes::new(py, &o)))
     }
 }
@@ -363,32 +304,15 @@ impl PyMatcher {
     fn new(dem: &PyDem, correlated: bool) -> PyResult<Self> {
         let d = dem.flat()?;
         let (graph, corr) = DemDecoder::new(d).map_err(err)?.into_parts(correlated);
-        Ok(PyMatcher {
-            graph,
-            corr,
-            num_detectors: d.num_detectors,
-            num_observables: d.num_observables,
-        })
+        Ok(PyMatcher { graph, corr, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// (observables as u64 per shot, weights as f64 per shot, the shots with no matching).
-    fn decode_batch<'py>(
-        &self,
-        py: Python<'py>,
-        packed: &[u8],
-        shots: usize,
-        threads: usize,
-    ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>)> {
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
-        let out =
-            py.detach(|| match_shots(&self.graph, self.corr.as_ref(), packed, nd, shots, threads));
-        let failed = out
-            .iter()
-            .enumerate()
-            .filter(|(_, (_, w))| w.is_nan())
-            .map(|(s, _)| s)
-            .collect();
+        let out = py.detach(|| match_shots(&self.graph, self.corr.as_ref(), packed, nd, shots, threads));
+        let failed = out.iter().enumerate().filter(|(_, (_, w))| w.is_nan()).map(|(s, _)| s).collect();
         let preds = le_u64(out.iter().map(|&(o, _)| o));
         let weights = le_f64(out.iter().map(|&(_, w)| w));
         Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), failed))
@@ -411,35 +335,16 @@ impl PyUnionFinder {
     fn new(dem: &PyDem) -> PyResult<Self> {
         let d = dem.flat()?;
         let (graph, _) = DemDecoder::new(d).map_err(err)?.into_parts(false);
-        Ok(PyUnionFinder {
-            graph,
-            num_detectors: d.num_detectors,
-            num_observables: d.num_observables,
-        })
+        Ok(PyUnionFinder { graph, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// (observables as u64 per shot, the shots with no correction).
-    fn decode_batch<'py>(
-        &self,
-        py: Python<'py>,
-        packed: &[u8],
-        shots: usize,
-        threads: usize,
-    ) -> PyResult<(Bound<'py, PyBytes>, Vec<usize>)> {
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Vec<usize>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
-        let out =
-            py.detach(|| crate::batch::union_find_shots(&self.graph, packed, nd, shots, threads));
-        let failed = out
-            .iter()
-            .enumerate()
-            .filter(|(_, o)| o.is_none())
-            .map(|(s, _)| s)
-            .collect();
-        Ok((
-            PyBytes::new(py, &le_u64(out.iter().map(|o| o.unwrap_or(0)))),
-            failed,
-        ))
+        let out = py.detach(|| crate::batch::union_find_shots(&self.graph, packed, nd, shots, threads));
+        let failed = out.iter().enumerate().filter(|(_, o)| o.is_none()).map(|(s, _)| s).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.unwrap_or(0)))), failed))
     }
 }
 
@@ -447,9 +352,7 @@ fn bp_method(method: &str, scale: f64) -> PyResult<crate::bp::Method> {
     match method {
         "product_sum" => Ok(crate::bp::Method::ProductSum),
         "minimum_sum" => Ok(crate::bp::Method::MinSum { scale }),
-        other => Err(err(format!(
-            "BP method '{other}' is neither product_sum nor minimum_sum"
-        ))),
+        other => Err(err(format!("BP method '{other}' is neither product_sum nor minimum_sum"))),
     }
 }
 
@@ -458,9 +361,7 @@ fn osd_method(name: &str, order: usize) -> PyResult<OsdMethod> {
         "osd_0" | "osd0" => Ok(OsdMethod::Osd0),
         "osd_e" => Ok(OsdMethod::Exhaustive(order)),
         "osd_cs" => Ok(OsdMethod::CombinationSweep(order)),
-        other => Err(err(format!(
-            "OSD method '{other}' is not osd_0, osd_e or osd_cs"
-        ))),
+        other => Err(err(format!("OSD method '{other}' is not osd_0, osd_e or osd_cs"))),
     }
 }
 
@@ -480,11 +381,7 @@ impl PyBeliefMatcher {
     fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64) -> PyResult<Self> {
         let d = dem.flat()?;
         let bm = BeliefMatching::from_dem(d, bp_method(method, scale)?, max_iter).map_err(err)?;
-        Ok(PyBeliefMatcher {
-            bm,
-            num_detectors: d.num_detectors,
-            num_observables: d.num_observables,
-        })
+        Ok(PyBeliefMatcher { bm, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// (observables as u64, weights as f64 (NaN where BP converged), one byte per shot 1
@@ -496,22 +393,12 @@ impl PyBeliefMatcher {
         packed: &[u8],
         shots: usize,
         threads: usize,
-    ) -> PyResult<(
-        Bound<'py, PyBytes>,
-        Bound<'py, PyBytes>,
-        Bound<'py, PyBytes>,
-        Vec<usize>,
-    )> {
+    ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let bm = &self.bm;
         let out = py.detach(|| belief_shots(bm, packed, nd, shots, threads));
-        let failed = out
-            .iter()
-            .enumerate()
-            .filter(|(_, x)| x.2 == 2)
-            .map(|(s, _)| s)
-            .collect();
+        let failed = out.iter().enumerate().filter(|(_, x)| x.2 == 2).map(|(s, _)| s).collect();
         let conv: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
         Ok((
             PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))),
@@ -537,52 +424,24 @@ pub struct PyDemBpOsd {
 impl PyDemBpOsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    fn new(
-        dem: &PyDem,
-        max_iter: usize,
-        method: &str,
-        scale: f64,
-        osd: &str,
-        order: usize,
-    ) -> PyResult<Self> {
+    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize) -> PyResult<Self> {
         let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
-        let dec = BpOsd::new(
-            d.num_detectors,
-            columns,
-            &priors,
-            bp_method(method, scale)?,
-            max_iter,
-            osd_method(osd, order)?,
-        )
-        .map_err(err)?;
+        let dec = BpOsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?)
+            .map_err(err)?;
         let obs = d.mechanisms.iter().map(|m| m.observables).collect();
-        Ok(PyDemBpOsd {
-            dec,
-            obs,
-            num_detectors: d.num_detectors,
-            num_observables: d.num_observables,
-        })
+        Ok(PyDemBpOsd { dec, obs, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// (observables as u64 per shot, one byte per shot 1 where BP converged).
-    fn decode_batch<'py>(
-        &self,
-        py: Python<'py>,
-        packed: &[u8],
-        shots: usize,
-        threads: usize,
-    ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let (dec, obs) = (&self.dec, &self.obs);
         let out = py.detach(|| bposd_shots(dec, obs, packed, nd, shots, threads));
         let conv: Vec<u8> = out.iter().map(|x| x.1).collect();
-        Ok((
-            PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))),
-            PyBytes::new(py, &conv),
-        ))
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &conv)))
     }
 }
 
@@ -608,33 +467,16 @@ impl PyWindowMatcher {
     /// (False), or the template for a model of more than a million faults (None).
     #[new]
     #[pyo3(signature = (dem, commit, buffer, mode, correlated, template=None))]
-    fn new(
-        dem: &PyDem,
-        commit: usize,
-        buffer: usize,
-        mode: &str,
-        correlated: bool,
-        template: Option<bool>,
-    ) -> PyResult<Self> {
+    fn new(dem: &PyDem, commit: usize, buffer: usize, mode: &str, correlated: bool, template: Option<bool>) -> PyResult<Self> {
         let mode = match mode {
             "sliding" => Mode::Sliding,
             "parallel" => Mode::Parallel,
-            other => {
-                return Err(err(format!(
-                    "mode '{other}' is neither sliding nor parallel"
-                )))
-            }
+            other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
         };
         let (nd, no) = (dem.dem.num_detectors(), dem.dem.num_observables());
-        let streamed = || {
-            crate::batch::StreamedWindows::new(dem.dem.program(), commit, buffer, mode)
-                .map(Box::new)
-        };
+        let streamed = || crate::batch::StreamedWindows::new(dem.dem.program(), commit, buffer, mode).map(Box::new);
         let whole = || -> PyResult<PyWindows> {
-            Ok(PyWindows::Whole(Box::new(
-                WindowDecoder::new(Model::new(dem.flat()?).map_err(err)?, commit, buffer, mode)
-                    .map_err(err)?,
-            )))
+            Ok(PyWindows::Whole(Box::new(WindowDecoder::new(Model::new(dem.flat()?).map_err(err)?, commit, buffer, mode).map_err(err)?)))
         };
         let wd = match template {
             Some(true) => PyWindows::Streamed(streamed().map_err(err)?),
@@ -644,12 +486,7 @@ impl PyWindowMatcher {
             },
             _ => whole()?,
         };
-        Ok(PyWindowMatcher {
-            wd,
-            correlated,
-            num_detectors: nd,
-            num_observables: no,
-        })
+        Ok(PyWindowMatcher { wd, correlated, num_detectors: nd, num_observables: no })
     }
 
     fn windows(&self) -> Vec<WindowInfo> {
@@ -680,27 +517,13 @@ impl PyWindowMatcher {
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let (wd, correlated) = (&self.wd, self.correlated);
         let out = py.detach(|| match wd {
-            PyWindows::Whole(wd) => {
-                window_shots(wd, packed, nd, shots, correlated, threads, timings)
-            }
-            PyWindows::Streamed(sw) => crate::batch::streamed_window_shots(
-                sw, packed, nd, shots, correlated, threads, timings,
-            ),
+            PyWindows::Whole(wd) => window_shots(wd, packed, nd, shots, correlated, threads, timings),
+            PyWindows::Streamed(sw) => crate::batch::streamed_window_shots(sw, packed, nd, shots, correlated, threads, timings),
         });
         let unexplained = out.iter().map(|x| x.1).sum();
         let times = le_f64(out.iter().flat_map(|x| x.2.iter().copied()));
-        let failed = out
-            .iter()
-            .enumerate()
-            .filter(|(_, x)| x.3)
-            .map(|(s, _)| s)
-            .collect();
-        Ok((
-            PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))),
-            unexplained,
-            PyBytes::new(py, &times),
-            failed,
-        ))
+        let failed = out.iter().enumerate().filter(|(_, x)| x.3).map(|(s, _)| s).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), unexplained, PyBytes::new(py, &times), failed))
     }
 }
 
@@ -718,36 +541,18 @@ pub struct PyBp {
 #[pymethods]
 impl PyBp {
     #[new]
-    fn new(
-        num_checks: usize,
-        columns: Vec<Vec<u32>>,
-        priors: Vec<f64>,
-        max_iter: usize,
-        method: &str,
-        scale: f64,
-    ) -> PyResult<Self> {
+    fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64) -> PyResult<Self> {
         let bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
-        Ok(PyBp {
-            bp,
-            method: bp_method(method, scale)?,
-            max_iter,
-            num_checks,
-        })
+        Ok(PyBp { bp, method: bp_method(method, scale)?, max_iter, num_checks })
     }
 
     /// (hard decision, posterior log-likelihood ratios, converged, iterations).
     fn decode(&self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, Vec<f64>, bool, usize)> {
         if syndrome.len() != self.num_checks {
-            return Err(err(format!(
-                "{} syndrome bits for {} checks",
-                syndrome.len(),
-                self.num_checks
-            )));
+            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.num_checks)));
         }
         let mut w = self.bp.work();
-        let out = self
-            .bp
-            .decode(&syndrome, self.method, self.max_iter, &mut w);
+        let out = self.bp.decode(&syndrome, self.method, self.max_iter, &mut w);
         Ok((bits(&w.hard), w.llr, out.converged, out.iterations))
     }
 }
@@ -763,36 +568,15 @@ pub struct PyBpOsd {
 impl PyBpOsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    fn new(
-        num_checks: usize,
-        columns: Vec<Vec<u32>>,
-        priors: Vec<f64>,
-        max_iter: usize,
-        method: &str,
-        scale: f64,
-        osd: &str,
-        order: usize,
-    ) -> PyResult<Self> {
-        let dec = BpOsd::new(
-            num_checks,
-            columns,
-            &priors,
-            bp_method(method, scale)?,
-            max_iter,
-            osd_method(osd, order)?,
-        )
-        .map_err(err)?;
+    fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize) -> PyResult<Self> {
+        let dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?).map_err(err)?;
         Ok(PyBpOsd { dec, num_checks })
     }
 
     /// (correction, BP converged, iterations).
     fn decode(&self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, bool, usize)> {
         if syndrome.len() != self.num_checks {
-            return Err(err(format!(
-                "{} syndrome bits for {} checks",
-                syndrome.len(),
-                self.num_checks
-            )));
+            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.num_checks)));
         }
         let mut w = self.dec.work();
         let out = self.dec.decode(&syndrome, &mut w);

@@ -29,11 +29,7 @@ static mut SETUP: Option<Setup> = None;
 /// (adaptive scaling) for up to `max_iter` iterations.
 #[no_mangle]
 pub extern "C" fn wasm_bb_setup(code: u32, cycles: usize, p: f64, max_iter: usize) -> usize {
-    let code = if code == 1 {
-        BbCode::gross()
-    } else {
-        BbCode::bb72()
-    };
+    let code = if code == 1 { BbCode::gross() } else { BbCode::bb72() };
     let built = (|| -> Result<Setup, String> {
         let circuit = Circuit::parse(&code.memory_z(cycles, p))?;
         let dem = Dem::from_circuit_undecomposed(&circuit)?;
@@ -41,22 +37,9 @@ pub extern "C" fn wasm_bb_setup(code: u32, cycles: usize, p: f64, max_iter: usiz
         let columns: Vec<Vec<u32>> = dem.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = dem.mechanisms.iter().map(|m| m.p).collect();
         let observables = dem.mechanisms.iter().map(|m| m.observables).collect();
-        let decoder = BpOsd::new(
-            dem.num_detectors,
-            columns,
-            &priors,
-            Method::MinSum { scale: 0.0 },
-            max_iter,
-            OsdMethod::CombinationSweep(7),
-        )?;
+        let decoder = BpOsd::new(dem.num_detectors, columns, &priors, Method::MinSum { scale: 0.0 }, max_iter, OsdMethod::CombinationSweep(7))?;
         let work = decoder.work();
-        Ok(Setup {
-            sampler,
-            decoder,
-            work,
-            observables,
-            num_detectors: dem.num_detectors,
-        })
+        Ok(Setup { sampler, decoder, work, observables, num_detectors: dem.num_detectors })
     })();
     match built {
         Ok(s) => {
@@ -92,18 +75,10 @@ pub extern "C" fn wasm_bb_run() -> usize {
         }
         let out = s.decoder.decode(&syndrome, &mut s.work);
         converged += usize::from(out.converged);
-        let predicted = s
-            .work
-            .correction
-            .iter()
-            .enumerate()
-            .filter(|x| *x.1 != 0)
-            .fold(0u64, |a, (v, _)| a ^ s.observables[v]);
+        let predicted = s.work.correction.iter().enumerate().filter(|x| *x.1 != 0).fold(0u64, |a, (v, _)| a ^ s.observables[v]);
         failures += usize::from(predicted != batch.lane_observables(lane));
     }
-    reply(&format!(
-        "{{\"ok\":true,\"shots\":64,\"failures\":{failures},\"converged\":{converged}}}"
-    ))
+    reply(&format!("{{\"ok\":true,\"shots\":64,\"failures\":{failures},\"converged\":{converged}}}"))
 }
 
 #[cfg(test)]
@@ -117,25 +92,12 @@ mod tests {
 
     #[test]
     fn a_batch_decodes() {
-        let _turn = crate::wasm_xc::TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _turn = crate::wasm_xc::TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let r = reply_text(wasm_bb_setup(0, 2, 0.002, 200));
-        assert!(
-            r.contains("\"ok\":true") && r.contains("\"qubits\":144"),
-            "{r}"
-        );
+        assert!(r.contains("\"ok\":true") && r.contains("\"qubits\":144"), "{r}");
         let r = reply_text(wasm_bb_run());
         assert!(r.contains("\"shots\":64"), "{r}");
-        let failures: usize = r
-            .split("\"failures\":")
-            .nth(1)
-            .unwrap()
-            .split(',')
-            .next()
-            .unwrap()
-            .parse()
-            .unwrap();
+        let failures: usize = r.split("\"failures\":").nth(1).unwrap().split(',').next().unwrap().parse().unwrap();
         assert!(failures < 16, "{r}");
     }
 }

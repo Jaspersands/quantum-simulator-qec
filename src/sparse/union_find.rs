@@ -126,14 +126,8 @@ impl SparseGraph {
         let n = self.num_nodes as u32;
         let ra = find(&mut s.parent, a);
         let rb = find(&mut s.parent, b);
-        let grows = |s: &UfScratch, v: u32, r: u32| {
-            v != n && s.clustered[v as usize] && s.odd[r as usize] && !s.boundary[r as usize]
-        };
-        let rate = if ra == rb {
-            0
-        } else {
-            u8::from(grows(s, a, ra)) + u8::from(grows(s, b, rb))
-        };
+        let grows = |s: &UfScratch, v: u32, r: u32| v != n && s.clustered[v as usize] && s.odd[r as usize] && !s.boundary[r as usize];
+        let rate = if ra == rb { 0 } else { u8::from(grows(s, a, ra)) + u8::from(grows(s, b, rb)) };
         s.support[i] += u64::from(s.rate[i]) * (now - s.since[i]);
         s.since[i] = now;
         if rate == s.rate[i] && rate > 0 {
@@ -142,11 +136,7 @@ impl SparseGraph {
         s.rate[i] = rate;
         s.version[i] = s.version[i].wrapping_add(1);
         if rate > 0 {
-            let done = now
-                + self
-                    .uf_weight(id)
-                    .saturating_sub(s.support[i])
-                    .div_ceil(u64::from(rate));
+            let done = now + self.uf_weight(id).saturating_sub(s.support[i]).div_ceil(u64::from(rate));
             s.events.push(done, id, s.version[i]);
         }
     }
@@ -218,8 +208,7 @@ impl SparseGraph {
             }
             // Only the edges of a side whose growth stops or starts change rate.
             let grows = |s: &UfScratch, r: u32| s.odd[r as usize] && !s.boundary[r as usize];
-            let merged = (s.odd[ra as usize] ^ s.odd[rb as usize])
-                && !(s.boundary[ra as usize] || s.boundary[rb as usize]);
+            let merged = (s.odd[ra as usize] ^ s.odd[rb as usize]) && !(s.boundary[ra as usize] || s.boundary[rb as usize]);
             let mut changed = std::mem::take(&mut s.changed);
             for r in [ra, rb] {
                 if grows(s, r) != merged {
@@ -252,9 +241,7 @@ impl SparseGraph {
         let n = self.num_nodes as u32;
         s.order.clear();
         s.correction.clear();
-        let starts: Vec<u32> = std::iter::once(n)
-            .chain(s.touched_nodes.iter().copied())
-            .collect();
+        let starts: Vec<u32> = std::iter::once(n).chain(s.touched_nodes.iter().copied()).collect();
         for root in starts {
             if s.visited[root as usize] {
                 continue;
@@ -322,11 +309,7 @@ struct RadixHeap {
 
 impl Default for RadixHeap {
     fn default() -> RadixHeap {
-        RadixHeap {
-            last: 0,
-            len: 0,
-            buckets: std::array::from_fn(|_| Vec::new()),
-        }
+        RadixHeap { last: 0, len: 0, buckets: std::array::from_fn(|_| Vec::new()) }
     }
 }
 
@@ -336,10 +319,7 @@ impl RadixHeap {
     }
 
     fn push(&mut self, key: u64, id: u32, version: u32) {
-        debug_assert!(
-            key >= self.last,
-            "a radix heap's keys never fall below the last popped"
-        );
+        debug_assert!(key >= self.last, "a radix heap's keys never fall below the last popped");
         let b = self.bucket(key);
         self.buckets[b].push((key, id, version));
         self.len += 1;
@@ -350,9 +330,7 @@ impl RadixHeap {
             return None;
         }
         if self.buckets[0].is_empty() {
-            let b = (1..65)
-                .find(|&b| !self.buckets[b].is_empty())
-                .expect("a nonempty bucket");
+            let b = (1..65).find(|&b| !self.buckets[b].is_empty()).expect("a nonempty bucket");
             let moved = std::mem::take(&mut self.buckets[b]);
             self.last = moved.iter().map(|e| e.0).min().expect("a nonempty bucket");
             for e in &moved {
@@ -399,11 +377,7 @@ fn union(s: &mut UfScratch, a: u32, b: u32) -> u32 {
     if ra == rb {
         return ra;
     }
-    let (big, small) = if s.size[ra as usize] >= s.size[rb as usize] {
-        (ra, rb)
-    } else {
-        (rb, ra)
-    };
+    let (big, small) = if s.size[ra as usize] >= s.size[rb as usize] { (ra, rb) } else { (rb, ra) };
     s.parent[small as usize] = big;
     s.size[big as usize] += s.size[small as usize];
     s.odd[big as usize] ^= s.odd[small as usize];
@@ -455,14 +429,7 @@ mod tests {
 
     fn graph(d: usize, rounds: usize, p: f64) -> (Circuit, Dem, SparseGraph) {
         use crate::memory::{generate, CodeKind, NoiseModel};
-        let c = generate(
-            CodeKind::Rotated,
-            d,
-            rounds,
-            NoiseModel::Sd6 { p },
-            crate::circuit::Basis::Z,
-        )
-        .unwrap();
+        let c = generate(CodeKind::Rotated, d, rounds, NoiseModel::Sd6 { p }, crate::circuit::Basis::Z).unwrap();
         let dem = Dem::from_circuit(&c).unwrap();
         let (g, _) = DemDecoder::new(&dem).unwrap().into_parts(false);
         (c, dem, g)
@@ -491,15 +458,8 @@ mod tests {
         let mut s = g.union_find_scratch();
         for _ in 0..2000 {
             let shot = sampler.sample(&mut rng);
-            let defects: Vec<u32> = shot
-                .detectors
-                .iter()
-                .enumerate()
-                .filter(|x| *x.1)
-                .map(|x| x.0 as u32)
-                .collect();
-            g.decode_union_find(&mut s, &defects)
-                .expect("a surface code's syndromes always have a correction");
+            let defects: Vec<u32> = shot.detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
+            g.decode_union_find(&mut s, &defects).expect("a surface code's syndromes always have a correction");
             assert!(explains(&g, &s.correction, &defects), "{defects:?}");
         }
     }
@@ -525,13 +485,7 @@ mod tests {
             let (mut uf, mut mwpm) = (0, 0);
             for _ in 0..shots {
                 let shot = sampler.sample(&mut rng);
-                let defects: Vec<u32> = shot
-                    .detectors
-                    .iter()
-                    .enumerate()
-                    .filter(|x| *x.1)
-                    .map(|x| x.0 as u32)
-                    .collect();
+                let defects: Vec<u32> = shot.detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
                 uf += (g.decode_union_find(&mut s, &defects).unwrap() != shot.observables) as usize;
                 mwpm += (dec.decode(&defects).unwrap().observables != shot.observables) as usize;
             }
@@ -539,10 +493,7 @@ mod tests {
         };
         let (uf3, m3) = rate(3, 0.003, 20_000);
         let (uf5, m5) = rate(5, 0.003, 20_000);
-        assert!(
-            uf3 < 1.6 * m3 + 0.002 && uf5 < 1.6 * m5 + 0.002,
-            "{uf3} {m3} {uf5} {m5}"
-        );
+        assert!(uf3 < 1.6 * m3 + 0.002 && uf5 < 1.6 * m5 + 0.002, "{uf3} {m3} {uf5} {m5}");
         assert!(uf5 < uf3, "{uf5} {uf3}");
     }
 
@@ -550,16 +501,8 @@ mod tests {
     fn scratch_is_reset_between_decodes() {
         let (_, dem, g) = graph(3, 3, 0.01);
         let mut s = g.union_find_scratch();
-        let first: Vec<u64> = dem
-            .mechanisms
-            .iter()
-            .map(|m| g.decode_union_find(&mut s, &m.detectors).unwrap())
-            .collect();
-        let again: Vec<u64> = dem
-            .mechanisms
-            .iter()
-            .map(|m| g.decode_union_find(&mut s, &m.detectors).unwrap())
-            .collect();
+        let first: Vec<u64> = dem.mechanisms.iter().map(|m| g.decode_union_find(&mut s, &m.detectors).unwrap()).collect();
+        let again: Vec<u64> = dem.mechanisms.iter().map(|m| g.decode_union_find(&mut s, &m.detectors).unwrap()).collect();
         assert_eq!(first, again);
         assert_eq!(g.decode_union_find(&mut s, &[]), Some(0));
         assert_eq!(g.decode_union_find(&mut s, &[u32::MAX]), None);

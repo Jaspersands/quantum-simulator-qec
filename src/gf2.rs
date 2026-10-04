@@ -17,12 +17,7 @@ pub struct BitMatrix {
 impl BitMatrix {
     pub fn zeros(rows: usize, cols: usize) -> BitMatrix {
         let words = cols.div_ceil(64).max(1);
-        BitMatrix {
-            rows,
-            cols,
-            words,
-            data: vec![0; rows * words],
-        }
+        BitMatrix { rows, cols, words, data: vec![0; rows * words] }
     }
 
     pub fn identity(n: usize) -> BitMatrix {
@@ -142,12 +137,7 @@ impl BitMatrix {
     pub fn mul_vec(&self, v: &[u8]) -> Vec<u8> {
         assert_eq!(v.len(), self.cols);
         (0..self.rows)
-            .map(|r| {
-                (0..self.cols)
-                    .filter(|&c| v[c] != 0 && self.get(r, c))
-                    .count() as u8
-                    & 1
-            })
+            .map(|r| (0..self.cols).filter(|&c| v[c] != 0 && self.get(r, c)).count() as u8 & 1)
             .collect()
     }
 
@@ -163,9 +153,7 @@ impl BitMatrix {
             if r == self.rows {
                 break;
             }
-            let Some(p) = (r..self.rows).find(|&i| self.get(i, c)) else {
-                continue;
-            };
+            let Some(p) = (r..self.rows).find(|&i| self.get(i, c)) else { continue };
             self.swap_rows(r, p);
             for i in 0..self.rows {
                 if i != r && self.get(i, c) {

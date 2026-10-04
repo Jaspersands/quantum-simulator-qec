@@ -135,12 +135,7 @@ pub extern "C" fn wasm_free_session(ptr: *mut WasmSession) {
 }
 
 #[no_mangle]
-pub extern "C" fn wasm_toggle_error(
-    ptr: *mut WasmSession,
-    q_idx: usize,
-    error_type: usize,
-    t: usize,
-) {
+pub extern "C" fn wasm_toggle_error(ptr: *mut WasmSession, q_idx: usize, error_type: usize, t: usize) {
     let session = unsafe { &mut *ptr };
     let num_data = session.d * session.d;
     let idx = q_idx + t * num_data;
@@ -182,18 +177,10 @@ pub extern "C" fn wasm_toggle_measurement_error(ptr: *mut WasmSession, s_idx: us
 #[no_mangle]
 pub extern "C" fn wasm_clear_errors(ptr: *mut WasmSession) {
     let session = unsafe { &mut *ptr };
-    for val in &mut session.physical_x {
-        *val = false;
-    }
-    for val in &mut session.physical_z {
-        *val = false;
-    }
-    for val in &mut session.physical_erased {
-        *val = false;
-    }
-    for val in &mut session.measurement_errors {
-        *val = false;
-    }
+    for val in &mut session.physical_x { *val = false; }
+    for val in &mut session.physical_z { *val = false; }
+    for val in &mut session.physical_erased { *val = false; }
+    for val in &mut session.measurement_errors { *val = false; }
 }
 
 #[no_mangle]
@@ -236,13 +223,13 @@ pub extern "C" fn wasm_get_syndrome(ptr: *mut WasmSession) -> *const u8 {
     let d = session.d;
     let num_rounds = session.num_rounds;
     let num_data = d * d;
-
+    
     if session.code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
         let num_x = code.x_stabilizers.len();
         let num_z = code.z_stabilizers.len();
         let num_stabs = num_x + num_z;
-
+        
         for t in 0..num_rounds {
             for s_idx in 0..num_z {
                 let neighbors = code.get_neighbors(&code.z_stabilizers[s_idx]);
@@ -281,31 +268,23 @@ pub extern "C" fn wasm_get_syndrome(ptr: *mut WasmSession) -> *const u8 {
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
         let num_stabs = code.stabilizers.len();
-
+        
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs {
                 let (sx, sy) = code.stabilizers[s_idx];
                 let mut parity = 0;
                 for t_prime in 0..=t {
                     if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 - 1) {
-                        if session.physical_z[q + t_prime * num_data] {
-                            parity ^= 1;
-                        }
+                        if session.physical_z[q + t_prime * num_data] { parity ^= 1; }
                     }
                     if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 - 1) {
-                        if session.physical_x[q + t_prime * num_data] {
-                            parity ^= 1;
-                        }
+                        if session.physical_x[q + t_prime * num_data] { parity ^= 1; }
                     }
                     if let Some(q) = code.get_neighbor_idx(sx as i32 - 1, sy as i32 + 1) {
-                        if session.physical_x[q + t_prime * num_data] {
-                            parity ^= 1;
-                        }
+                        if session.physical_x[q + t_prime * num_data] { parity ^= 1; }
                     }
                     if let Some(q) = code.get_neighbor_idx(sx as i32 + 1, sy as i32 + 1) {
-                        if session.physical_z[q + t_prime * num_data] {
-                            parity ^= 1;
-                        }
+                        if session.physical_z[q + t_prime * num_data] { parity ^= 1; }
                     }
                 }
                 if session.measurement_errors[s_idx + t * num_stabs] {
@@ -319,7 +298,10 @@ pub extern "C" fn wasm_get_syndrome(ptr: *mut WasmSession) -> *const u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 {
+pub extern "C" fn wasm_decode(
+    ptr: *mut WasmSession,
+    decoder_type: usize,
+) -> u8 {
     let session = unsafe { &mut *ptr };
     let d = session.d;
     let num_rounds = session.num_rounds;
@@ -347,11 +329,7 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
         for t in 0..num_rounds {
             for s_idx in 0..num_z {
                 let outcome = session.syndrome[num_x + s_idx + t * num_stabs] == 1;
-                let prev_outcome = if t == 0 {
-                    false
-                } else {
-                    session.syndrome[num_x + s_idx + (t - 1) * num_stabs] == 1
-                };
+                let prev_outcome = if t == 0 { false } else { session.syndrome[num_x + s_idx + (t - 1) * num_stabs] == 1 };
                 defects_z[s_idx + t * num_z] = outcome ^ prev_outcome;
             }
         }
@@ -387,11 +365,7 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
         for t in 0..num_rounds {
             for s_idx in 0..num_x {
                 let outcome = session.syndrome[s_idx + t * num_stabs] == 1;
-                let prev_outcome = if t == 0 {
-                    false
-                } else {
-                    session.syndrome[s_idx + (t - 1) * num_stabs] == 1
-                };
+                let prev_outcome = if t == 0 { false } else { session.syndrome[s_idx + (t - 1) * num_stabs] == 1 };
                 defects_x[s_idx + t * num_x] = outcome ^ prev_outcome;
             }
         }
@@ -426,10 +400,8 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
         let mut accumulated_z = vec![false; num_data];
         for t in 0..num_rounds {
             for q in 0..num_data {
-                accumulated_x[q] ^= session.physical_x[q + t * num_data]
-                    ^ (session.correction_x[q + t * num_data] != 0);
-                accumulated_z[q] ^= session.physical_z[q + t * num_data]
-                    ^ (session.correction_z[q + t * num_data] != 0);
+                accumulated_x[q] ^= session.physical_x[q + t * num_data] ^ (session.correction_x[q + t * num_data] != 0);
+                accumulated_z[q] ^= session.physical_z[q + t * num_data] ^ (session.correction_z[q + t * num_data] != 0);
             }
         }
 
@@ -449,11 +421,7 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
             }
         }
 
-        if logical_x || logical_z {
-            1
-        } else {
-            0
-        }
+        if logical_x || logical_z { 1 } else { 0 }
     } else {
         let code = surface_code::XZZXSurfaceCode::new(d);
         let num_stabs = code.stabilizers.len();
@@ -469,11 +437,7 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
         for t in 0..num_rounds {
             for s_idx in 0..num_stabs {
                 let outcome = session.syndrome[s_idx + t * num_stabs] == 1;
-                let prev_outcome = if t == 0 {
-                    false
-                } else {
-                    session.syndrome[s_idx + (t - 1) * num_stabs] == 1
-                };
+                let prev_outcome = if t == 0 { false } else { session.syndrome[s_idx + (t - 1) * num_stabs] == 1 };
                 defects[s_idx + t * num_stabs] = outcome ^ prev_outcome;
             }
         }
@@ -513,10 +477,8 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
         let mut accumulated_z = vec![false; num_data];
         for t in 0..num_rounds {
             for q in 0..num_data {
-                accumulated_x[q] ^= session.physical_x[q + t * num_data]
-                    ^ (session.correction_x[q + t * num_data] != 0);
-                accumulated_z[q] ^= session.physical_z[q + t * num_data]
-                    ^ (session.correction_z[q + t * num_data] != 0);
+                accumulated_x[q] ^= session.physical_x[q + t * num_data] ^ (session.correction_x[q + t * num_data] != 0);
+                accumulated_z[q] ^= session.physical_z[q + t * num_data] ^ (session.correction_z[q + t * num_data] != 0);
             }
         }
 
@@ -524,18 +486,10 @@ pub extern "C" fn wasm_decode(ptr: *mut WasmSession, decoder_type: usize) -> u8 
         // logical string. See surface_code::LogicalCheck.
         let (mut rx, mut rz) = (0u128, 0u128);
         for q in 0..num_data {
-            if accumulated_x[q] {
-                rx |= 1u128 << q;
-            }
-            if accumulated_z[q] {
-                rz |= 1u128 << q;
-            }
+            if accumulated_x[q] { rx |= 1u128 << q; }
+            if accumulated_z[q] { rz |= 1u128 << q; }
         }
-        if code.logical.is_logical(rx, rz) {
-            1
-        } else {
-            0
-        }
+        if code.logical.is_logical(rx, rz) { 1 } else { 0 }
     }
 }
 
@@ -603,31 +557,15 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
         let code = surface_code::RotatedSurfaceCode::new(d);
         // The detector error model depends only on the code and the round
         // count, so it is built once here rather than per shot.
-        let model =
-            (noise_mode == 2).then(|| circuit_model::build(&code.circuit_layout(), num_rounds));
+        let model = (noise_mode == 2)
+            .then(|| circuit_model::build(&code.circuit_layout(), num_rounds));
         for _ in 0..runs {
             let outcome = match noise_mode {
-                0 => {
-                    code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise)
-                }
-                1 => code.simulate_phenomenological_noise(
-                    num_rounds,
-                    p,
-                    bias,
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
                 2 => code.simulate_circuit_noise_with_model(
-                    model.as_ref().unwrap(),
-                    num_rounds,
-                    p,
-                    bias,
-                    "zero",
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                    model.as_ref().unwrap(), num_rounds, p, bias, "zero",
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             classes[(outcome & 3) as usize] += 1;
@@ -640,26 +578,11 @@ pub extern "C" fn wasm_estimate_logical_fidelity(
             .then(|| circuit_model::build_combined(&code.circuit_layout(), num_rounds));
         for _ in 0..runs {
             let outcome = match noise_mode {
-                0 => {
-                    code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise)
-                }
-                1 => code.simulate_phenomenological_noise(
-                    num_rounds,
-                    p,
-                    bias,
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
                 2 => code.simulate_circuit_noise_with_model(
-                    model.as_ref().unwrap(),
-                    num_rounds,
-                    p,
-                    bias,
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                    model.as_ref().unwrap(), num_rounds, p, bias,
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             classes[(outcome & 3) as usize] += 1;
@@ -761,31 +684,15 @@ pub extern "C" fn wasm_run_benchmark(
     if code_type == 0 {
         let code = surface_code::RotatedSurfaceCode::new(d);
         // Built once: the model is a property of the circuit, not of a shot.
-        let model =
-            (noise_mode == 2).then(|| circuit_model::build(&code.circuit_layout(), num_rounds));
+        let model = (noise_mode == 2)
+            .then(|| circuit_model::build(&code.circuit_layout(), num_rounds));
         for _ in 0..num_runs {
             let failed = match noise_mode {
-                0 => {
-                    code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise)
-                }
-                1 => code.simulate_phenomenological_noise(
-                    num_rounds,
-                    p,
-                    bias,
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
                 2 => code.simulate_circuit_noise_with_model(
-                    model.as_ref().unwrap(),
-                    num_rounds,
-                    p,
-                    bias,
-                    "zero",
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                    model.as_ref().unwrap(), num_rounds, p, bias, "zero",
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             if failed != 0 {
@@ -800,26 +707,11 @@ pub extern "C" fn wasm_run_benchmark(
             .then(|| circuit_model::build_combined(&code.circuit_layout(), num_rounds));
         for _ in 0..num_runs {
             let failed = match noise_mode {
-                0 => {
-                    code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise)
-                }
-                1 => code.simulate_phenomenological_noise(
-                    num_rounds,
-                    p,
-                    bias,
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                0 => code.simulate_data_noise(p, bias, decoder_type, erasure_rate, correlated_noise),
+                1 => code.simulate_phenomenological_noise(num_rounds, p, bias, decoder_type, erasure_rate, correlated_noise),
                 2 => code.simulate_circuit_noise_with_model(
-                    model.as_ref().unwrap(),
-                    num_rounds,
-                    p,
-                    bias,
-                    decoder_type,
-                    erasure_rate,
-                    correlated_noise,
-                ),
+                    model.as_ref().unwrap(), num_rounds, p, bias,
+                    decoder_type, erasure_rate, correlated_noise),
                 _ => 0,
             };
             if failed != 0 {
@@ -922,13 +814,9 @@ pub extern "C" fn wasm_get_stabilizer_y(ptr: *mut WasmSession, idx: usize) -> us
 #[no_mangle]
 pub extern "C" fn wasm_noise_slots(d: usize, code_type: usize) -> usize {
     if code_type == 0 {
-        surface_code::RotatedSurfaceCode::new(d)
-            .circuit_layout()
-            .noise_slots()
+        surface_code::RotatedSurfaceCode::new(d).circuit_layout().noise_slots()
     } else {
-        surface_code::XZZXSurfaceCode::new(d)
-            .circuit_layout()
-            .noise_slots()
+        surface_code::XZZXSurfaceCode::new(d).circuit_layout().noise_slots()
     }
 }
 
