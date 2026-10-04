@@ -37,7 +37,14 @@ const MAX_WORK: u64 = 1 << 26;
 
 /* -- Sparse symptoms ------------------------------------------------------- */
 
+thread_local! {
+    /// Targets merged by `xor` on this thread: the walk's real work, which `Analyzer::spend`
+    /// bounds alongside its instructions.
+    static MERGED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
 fn xor(a: &[u64], b: &[u64]) -> Sym {
+    MERGED.with(|m| m.set(m.get().wrapping_add((a.len() + b.len()) as u64)));
     let mut out = Vec::with_capacity(a.len() + b.len());
     let (mut i, mut j) = (0, 0);
     while i < a.len() && j < b.len() {
@@ -289,14 +296,18 @@ struct Analyzer {
     /// absolute.
     reversed: Vec<DemInstr>,
     work: u64,
+    /// When set, what each sweep bit's X flips, gathered as the walk passes it.
+    sweeps: Option<Vec<Sym>>,
 }
 
 impl Analyzer {
     fn spend(&mut self, units: u64) -> Result<(), String> {
         self.work = self.work.saturating_add(units);
+        let merged = MERGED.with(|m| m.replace(0));
+        self.work = self.work.saturating_add(merged / 8);
         if self.work > MAX_WORK {
             return Err(format!(
-                "the circuit's loops do not settle into a repeating pattern within {MAX_WORK} instructions and targets of work"
+                "the circuit's model is too large to build: its loops do not settle into a repeating pattern within {MAX_WORK} units of work"
             ));
         }
         Ok(())
@@ -516,8 +527,20 @@ impl Analyzer {
                 let sym = self.sym_of(*qubit as usize, *pauli);
                 self.t.feed(*k, &sym)?;
             }
-            // A sweep bit moves only the noiseless reference.
-            Instr::Feedback { control: Control::Sweep(_), .. } => {}
+            // A sweep bit moves only the noiseless reference: what it moves, where asked.
+            Instr::Feedback { pauli, control: Control::Sweep(k), qubit } => {
+                let sym = self.sym_of(*qubit as usize, *pauli);
+                if let Some(sweeps) = self.sweeps.as_mut() {
+                    xor_into(&mut sweeps[*k as usize], &sym);
+                }
+            }
+            Instr::SweepX(pairs) => {
+                if let Some(sweeps) = self.sweeps.as_mut() {
+                    for &(k, q) in pairs {
+                        xor_into(&mut sweeps[k as usize], &self.t.sx[q as usize]);
+                    }
+                }
+            }
             Instr::Correlated { .. } => unreachable!("undo_block takes correlated errors"),
             Instr::PauliChannel2 { probs, pairs } => {
                 self.approximated("PAULI_CHANNEL_2", probs, true)?;
@@ -621,7 +644,7 @@ impl Analyzer {
                     }
                 }
             }
-            Instr::QubitCoords { .. } | Instr::Tick | Instr::Pauli { .. } | Instr::SweepX(_) => {}
+            Instr::QubitCoords { .. } | Instr::Tick | Instr::Pauli { .. } => {}
         }
         Ok(())
     }
@@ -667,6 +690,7 @@ impl Analyzer {
             window: Window::default(),
             reversed: Vec::new(),
             work: self.work,
+            sweeps: None,
         };
         let (mut hare_iter, mut tortoise_iter) = (0u64, 0u64);
         while hare_iter < iterations {
@@ -870,6 +894,7 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
         window: Window::default(),
         reversed: Vec::new(),
         work: 0,
+        sweeps: None,
     };
     a.undo_block(&circuit.instrs, &None)?;
     // Every qubit starts in |0>, which is a Z-basis reset at time zero.
@@ -879,6 +904,39 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
     a.flush()?;
     let (mut base, mut seen) = (0u64, HashSet::new());
     Ok(DemProgram { instrs: unreversed(&a.reversed, &mut base, &mut seen) })
+}
+
+/// What each sweep bit's X flips, as (detectors, observables), and a check that every detector
+/// and observable is deterministic: the backward walk, collecting no faults. Loops are folded
+/// unless a sweep bit is read inside one, whose every pass counts.
+pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> {
+    fn sweeps_in_loops(instrs: &[Instr], inside: bool) -> bool {
+        instrs.iter().any(|i| match i {
+            Instr::Repeat { body, .. } => sweeps_in_loops(body, true),
+            Instr::Gate { body, .. } => sweeps_in_loops(body, inside),
+            Instr::SweepX(_) | Instr::Feedback { control: Control::Sweep(_), .. } => inside,
+            _ => false,
+        })
+    }
+    let counts = Counts::of(&circuit.instrs)?;
+    let nq = counts.qubits;
+    let mut a = Analyzer {
+        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        accumulate: false,
+        fold: !sweeps_in_loops(&circuit.instrs, false),
+        decompose: false,
+        // Faults are not collected, so no channel needs approximating.
+        approximate: Some(f64::INFINITY),
+        window: Window::default(),
+        reversed: Vec::new(),
+        work: 0,
+        sweeps: Some(vec![Sym::new(); counts.sweep_bits]),
+    };
+    a.undo_block(&circuit.instrs, &None)?;
+    for q in 0..nq {
+        a.check_reset(q, Basis::Z, "the initial |0>")?;
+    }
+    Ok(a.sweeps.unwrap_or_default().iter().map(|s| (dets(s).into_iter().map(|d| d as u32).collect(), obs_mask(s))).collect())
 }
 
 /* -- Decomposition --------------------------------------------------------- */

@@ -1008,7 +1008,7 @@ fn pauli_measurements(name: &str, flip: f64, t: &[&str]) -> Result<Vec<Instr>, S
 const MAX_UNROLLED: u64 = 1 << 24;
 
 /// Instructions plus targets once every REPEAT block is expanded, saturating.
-fn unrolled_size(instrs: &[Instr]) -> u64 {
+pub(crate) fn unrolled_size(instrs: &[Instr]) -> u64 {
     instrs.iter().fold(0u64, |n, ins| {
         n.saturating_add(match ins {
             Instr::Repeat { count, body, .. } => count.saturating_mul(unrolled_size(body)),

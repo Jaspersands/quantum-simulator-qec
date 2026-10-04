@@ -15,6 +15,19 @@ minor release before a major release removes it. The Rust crate is versioned on 
   0.70% against 0.65%). It is the standard baseline rather than the fast option here: this
   engine's matcher, near-linear too, is about twice as fast at every noise strength measured.
 
+- The measurement converter no longer unrolls a circuit: its reference is one tableau run
+  through the loops as written, determinism and the sweep bits' effects come from the error
+  model's backward walk (folding loops; seven extra random runs, and one per sweep bit, are
+  gone), and shots are read by a program of the circuit's measurements and detectors with its
+  loops kept. A memory of millions of rounds converts; the 2²⁴-instruction limit is gone.
+
+### Fixed
+
+- Building an error model, or a converter, for a circuit whose walk never settles into a
+  period (a qubit read every round and never reset) is refused once its work passes the limit,
+  rather than running for hours: the limit now counts the sensitivity sets merged, not only
+  the instructions.
+
 ### Changed
 
 - Error models print as Stim prints them, character for character (515 of 515 random,
