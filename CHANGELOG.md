@@ -22,6 +22,14 @@ minor release before a major release removes it. The Rust crate is versioned on 
   depth-8 syndrome cycle, its memories in both bases, its logicals and its automorphisms; a
   noiseless memory of each is checked to fire no detector. `polynomials` gives a code's torus
   and monomials.
+- `CssCode` (Python and Rust): any CSS code from its check matrices, checked to commute and
+  to encode a qubit, with paired logical operators and a memory experiment correct for any
+  such code (every X check measured, then every Z check, in layers no qubit is used twice in;
+  rounds as a loop). Two families come built: `CssCode.hypergraph_product(h1, h2)` of any two
+  classical codes (the Hamming code's with itself is [[58, 16, 3]], two repetition codes'
+  the unrotated surface code), and `CssCode.color_code(d)`, the triangular 6.6.6 colour code
+  on Stim's layout. Their memories' error models equal Stim's character for character, and
+  decode with `BpOsd`.
 
 ### Changed
 

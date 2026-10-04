@@ -146,3 +146,74 @@ def test_stream_memory():
     assert r.shots == 128 and 0 <= r.failures <= 128
     assert r.window_seconds.shape == (2, len(r.windows))
     assert sq.stream_memory(**kw, threads=4).failures == r.failures
+
+
+HAMMING = [[1, 0, 1, 0, 1, 0, 1], [0, 1, 1, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1, 1]]
+
+
+def repetition(d):
+    return np.eye(d - 1, d, dtype=np.uint8) + np.eye(d - 1, d, 1, dtype=np.uint8)
+
+
+@pytest.mark.parametrize(
+    "make, n, k",
+    [
+        (lambda: sq.CssCode.hypergraph_product(HAMMING), 58, 16),
+        (lambda: sq.CssCode.hypergraph_product(repetition(4)), 25, 1),
+        (lambda: sq.CssCode.hypergraph_product(repetition(3), HAMMING), 27, 4),
+        (lambda: sq.CssCode.color_code(3), 7, 1),
+        (lambda: sq.CssCode.color_code(7), 37, 1),
+    ],
+)
+def test_css_codes(make, n, k):
+    code = make()
+    assert (code.n, code.k) == (n, k)
+    hx, hz = code.check_matrices()
+    lx, lz = code.logicals()
+    assert not ((hx.astype(int) @ hz.T) % 2).any()
+    assert np.array_equal((lx.astype(int) @ lz.T) % 2, np.eye(k, dtype=int))
+    assert not ((hz.astype(int) @ lx.T) % 2).any() and not ((hx.astype(int) @ lz.T) % 2).any()
+    for basis in ("z", "x"):
+        c = code.memory_circuit(3, 0.0, basis=basis)
+        assert c.num_observables == k
+        dets, obs = c.compile_detector_sampler(seed=2).sample(64, separate_observables=True)
+        assert not dets.any() and not obs.any()
+
+
+def test_css_memory_models_equal_stims():
+    stim = pytest.importorskip("stim")
+    for code in (sq.CssCode.hypergraph_product(HAMMING), sq.CssCode.color_code(5)):
+        for basis in ("z", "x"):
+            c = code.memory_circuit(4, 0.002, basis=basis)
+            # Character for character, loops folded alike (this package's text ends in a newline).
+            assert str(c.detector_error_model()) == str(stim.Circuit(str(c)).detector_error_model()) + "\n"
+
+
+def test_css_memories_decode():
+    # The Steane code's memory decoded by BP+OSD: well below the unprotected rate.
+    code = sq.CssCode.color_code(3)
+    c = code.memory_circuit(3, 0.001)
+    dem = c.detector_error_model()
+    dets, obs = c.compile_detector_sampler(seed=5).sample(4000, separate_observables=True)
+    wrong = (sq.BpOsd(dem).decode_batch(dets) != obs).any(axis=1).mean()
+    assert wrong < 0.01
+
+
+def test_css_code_from_checks_and_errors():
+    hgp = sq.CssCode.hypergraph_product(HAMMING)
+    again = sq.CssCode(*hgp.check_matrices())
+    assert (again.n, again.k) == (58, 16) and "[[58, 16]]" in repr(again)
+    with pytest.raises(ValueError, match="anticommute"):
+        sq.CssCode([[1, 1, 0]], [[0, 1, 1]])
+    with pytest.raises(ValueError, match="no logical"):
+        sq.CssCode([[1, 1]], [[1, 1]])
+    with pytest.raises(ValueError, match="0 and 1"):
+        sq.CssCode([[2, 0]], [[1, 1]])
+    with pytest.raises(ValueError, match="alike"):
+        sq.CssCode([[1, 1, 0, 0]], [[1, 1, 0]])
+    with pytest.raises(ValueError):
+        sq.CssCode.color_code(4)
+    with pytest.raises(ValueError):
+        hgp.memory_circuit(0, 0.001)
+    with pytest.raises(ValueError):
+        hgp.memory_circuit(2, 0.001, basis="y")

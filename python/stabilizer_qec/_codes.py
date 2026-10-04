@@ -2,7 +2,7 @@
 logical operations, and the streamed million-round memory."""
 
 
-from typing import NamedTuple, Sequence, Union
+from typing import Any, NamedTuple, Sequence, Union
 
 import numpy as np
 
@@ -206,6 +206,85 @@ class BivariateBicycleCode:
                 bool(expanded),
             )
         )
+
+
+def _check_rows(h: Any, name: str) -> tuple:
+    """A 0/1 matrix as (its rows' column lists, its number of columns)."""
+    a = np.asarray(h)
+    if a.ndim != 2:
+        raise ValueError(f"{name} must be a 2-dimensional 0/1 matrix, not {a.ndim}-dimensional")
+    if a.size and not np.isin(a, (0, 1)).all():
+        raise ValueError(f"{name} must hold only 0 and 1")
+    return [np.flatnonzero(r).tolist() for r in a], a.shape[1]
+
+
+class CssCode:
+    """A CSS code given by its check matrices, with a memory experiment correct for any of
+    them: each round measures every X check and then every Z check, in layers no qubit is used
+    twice in. ``CssCode(hx, hz)`` takes the checks as 0/1 matrices over the data qubits;
+    ``hypergraph_product`` and ``color_code`` build two families.
+
+    >>> hamming = [[1, 0, 1, 0, 1, 0, 1], [0, 1, 1, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1, 1]]
+    >>> code = CssCode.hypergraph_product(hamming)
+    >>> code.n, code.k
+    (58, 16)
+    """
+
+    def __init__(self, hx: Any, hz: Any) -> None:
+        (rx, nx), (rz, nz) = _check_rows(hx, "hx"), _check_rows(hz, "hz")
+        if nx != nz:
+            raise ValueError(f"hx and hz must have a column per data qubit alike, not {nx} and {nz}")
+        self._init(call(_core.css_code, "checks", nx, rx, rz, 0))
+
+    @classmethod
+    def hypergraph_product(cls, h1: Any, h2: Any = None) -> "CssCode":
+        """The hypergraph product (Tillich and Zémor) of the classical codes with parity-check
+        matrices ``h1`` and ``h2`` (``h1`` again if omitted): data qubits are bit pairs, then
+        check pairs; H_X = [H1 ⊗ I | I ⊗ H2ᵀ], H_Z = [I ⊗ H2 | H1ᵀ ⊗ I]. Two repetition codes
+        give the unrotated surface code."""
+        (r1, n1) = _check_rows(h1, "h1")
+        (r2, n2) = _check_rows(h1 if h2 is None else h2, "h2")
+        code = cls.__new__(cls)
+        code._init(call(_core.css_code, "hgp", n1, r1, r2, n2))
+        return code
+
+    @classmethod
+    def color_code(cls, distance: int) -> "CssCode":
+        """The triangular 6.6.6 colour code of odd ``distance`` (3 to 101), on the layout of
+        Stim's generated colour code: each hexagon an X and a Z check. Distance 3 is the Steane
+        code, [[7, 1, 3]]."""
+        code = cls.__new__(cls)
+        code._init(call(_core.css_code, "color", count(distance, "distance"), [], [], 0))
+        return code
+
+    def _init(self, parts: tuple) -> None:
+        n, hx, hz, lx, lz = parts
+        self.n, self.k = n, len(lx)
+        self._rows = (hx, hz)
+        self._hx, self._hz = _rows(hx, n), _rows(hz, n)
+        self._lx, self._lz = _rows(lx, n), _rows(lz, n)
+
+    def __repr__(self) -> str:
+        return f"<stabilizer_qec.CssCode [[{self.n}, {self.k}]], {len(self._hx)} X and {len(self._hz)} Z checks>"
+
+    def check_matrices(self) -> tuple:
+        """(H_X, H_Z), each check a row over the ``n`` data qubits, uint8."""
+        return self._hx.copy(), self._hz.copy()
+
+    def logicals(self) -> tuple:
+        """(logical X, logical Z), ``k`` rows each over the data qubits, paired so that X_i
+        and Z_j anticommute exactly when i = j."""
+        return self._lx.copy(), self._lz.copy()
+
+    def memory_circuit(self, rounds: int, p: float, *, basis: str = "z") -> Circuit:
+        """A memory: the data prepared in ``basis``, ``rounds`` rounds of syndrome extraction
+        (a loop; up to a million) under circuit noise ``p`` (depolarizing on the data each
+        round and after every CNOT, flips after resets and before measurements), the data read
+        out. Detectors compare every check round to round and with the readout; the
+        observables are the ``k`` logicals of that basis. Its hyperedges want ``BpOsd``."""
+        _choice(basis, _BASES, "basis")
+        hx, hz = self._rows
+        return Circuit(call(_core.css_memory_circuit, self.n, hx, hz, count(rounds, "rounds", 1), probability(p), basis))
 
 
 class StreamResult(NamedTuple):

@@ -45,8 +45,10 @@ Or build one in code, as in Stim: `append` an instruction at a time (targets as 
 indices, strings such as `"rec[-1]"`, or `stim.GateTarget`s), `+` one circuit after another,
 and `*` one into a `REPEAT` block.
 
-Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
-`BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
+Circuits written for you: `Circuit.generated` (Stim's generated memories, character for
+character), `memory_circuit` (rotated and XZZX surface codes), `BivariateBicycleCode` (every
+code of Bravyi et al.'s Table 3 or any other, the gross code's logical operations), `CssCode`
+(any CSS code from its checks, hypergraph products and colour codes, with a memory), the
 `surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`
 (a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).
 
@@ -104,7 +106,7 @@ from importlib.metadata import version as _version
 
 from . import _core, surgery
 from ._circuit import Circuit, DetectorErrorModel, DetectorSampler, Diagram, MeasurementsToDetectionEventsConverter
-from ._codes import Automorphism, BivariateBicycleCode, Gauging, StreamResult, memory_circuit, stream_memory
+from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
 
 try:
@@ -161,6 +163,7 @@ __all__ = [
     "Automorphism",
     "BeliefMatching",
     "BivariateBicycleCode",
+    "CssCode",
     "BpDecoder",
     "BpOsd",
     "BpOsdDecoder",

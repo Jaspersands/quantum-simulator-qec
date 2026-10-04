@@ -445,3 +445,74 @@ impl BivariateBicycleCode {
         Circuit::from_engine(crate::bb_circuit::logical_measurement(&self.inner, &g, basis.engine(), pre, merged, post, p)?)
     }
 }
+
+/// A CSS code given by its checks, with a memory experiment correct for any of them: every X
+/// check measured and then every Z check, each in layers no qubit is used twice in. Built from
+/// check matrices, as the hypergraph product of two classical codes, or as the triangular
+/// colour code.
+///
+/// ```
+/// use stabilizer_qec::{Basis, CssCode};
+///
+/// // The [7, 4, 3] Hamming code's hypergraph product with itself: [[58, 16, 3]].
+/// let hamming = vec![vec![0, 2, 4, 6], vec![1, 2, 5, 6], vec![3, 4, 5, 6]];
+/// let code = CssCode::hypergraph_product(&hamming, 7, &hamming, 7)?;
+/// assert_eq!((code.n(), code.k()), (58, 16));
+/// let c = code.memory_circuit(3, 0.001, Basis::Z)?;
+/// assert_eq!(c.num_observables(), 16);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+#[derive(Clone, Debug)]
+pub struct CssCode {
+    inner: crate::css::CssCode,
+}
+
+impl CssCode {
+    /// The code of these checks (each as the data qubits it acts on) on `n` data qubits. Every X
+    /// check must commute with every Z check, and the code must encode a qubit.
+    pub fn new(n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>) -> Result<CssCode> {
+        Ok(CssCode { inner: crate::css::CssCode::new(n, hx, hz)? })
+    }
+
+    /// The hypergraph product (Tillich and Zémor) of the classical codes with parity checks
+    /// `h1` on `n1` bits and `h2` on `n2`: data qubits are bit pairs, then check pairs;
+    /// H_X = [H1 ⊗ I | I ⊗ H2ᵀ], H_Z = [I ⊗ H2 | H1ᵀ ⊗ I]. Two repetition codes give the
+    /// unrotated surface code.
+    pub fn hypergraph_product(h1: &[Vec<usize>], n1: usize, h2: &[Vec<usize>], n2: usize) -> Result<CssCode> {
+        Ok(CssCode { inner: crate::css::CssCode::hypergraph_product(h1, n1, h2, n2)? })
+    }
+
+    /// The triangular 6.6.6 colour code of odd `distance` (3 to 101), on Stim's layout: each
+    /// hexagon an X and a Z check. Distance 3 is the Steane code.
+    pub fn color_code(distance: usize) -> Result<CssCode> {
+        Ok(CssCode { inner: crate::css::CssCode::color_code(distance)? })
+    }
+
+    /// Data qubits.
+    pub fn n(&self) -> usize {
+        self.inner.n
+    }
+
+    /// Logical qubits.
+    pub fn k(&self) -> usize {
+        self.inner.k()
+    }
+
+    /// (H_X, H_Z): each check as the data qubits it acts on.
+    pub fn check_matrices(&self) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+        (self.inner.hx.clone(), self.inner.hz.clone())
+    }
+
+    /// (logical X, logical Z), `k` each, paired so that X_i and Z_j anticommute exactly when
+    /// i = j.
+    pub fn logicals(&self) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+        self.inner.logicals()
+    }
+
+    /// A memory: the data prepared in `basis`, `rounds` rounds of syndrome extraction (at most a
+    /// million, as a loop) under circuit noise `p`, the data read out; detectors compare every
+    /// check round to round, and the observables are the `k` logicals of the basis.
+    pub fn memory_circuit(&self, rounds: usize, p: f64, basis: Basis) -> Result<Circuit> {
+        Circuit::parse(&self.inner.memory(rounds, p, basis == Basis::X)?)
+    }
+}

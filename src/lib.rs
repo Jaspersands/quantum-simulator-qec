@@ -28,6 +28,8 @@ pub mod surface_code;
 #[doc(hidden)]
 pub mod circuit_model;
 #[doc(hidden)]
+pub mod css;
+#[doc(hidden)]
 pub mod circuit;
 #[doc(hidden)]
 pub mod gates;

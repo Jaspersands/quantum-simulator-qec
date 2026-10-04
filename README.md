@@ -149,6 +149,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   al.'s depth-8 syndrome cycle, decoded by BP+OSD whose corrections equal `ldpc`'s but for ties. On
   it, every automorphism's logical action computed exactly, and the gauging measurement of a logical
   operator built from Cross et al.'s definition, with its distance proven by integer programming.
+- **More codes**: every bivariate bicycle code of Bravyi et al.'s Table 3 ([[72, 12, 6]] to
+  [[288, 12, 18]]) or any other from its polynomials, and any CSS code from its checks:
+  hypergraph products of classical codes and the 6.6.6 colour code, each with a memory
+  experiment whose error model equals Stim's.
 - **Lattice surgery**: surface-code patches merged and split as one circuit, its error model equal
   to Stim's, and programs compiled from such steps: a logical CNOT, merges in a row, and lines of
   patches merged at once.
@@ -1849,6 +1853,7 @@ src/sparse/           sparse blossom: exact matching by growing regions on the d
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
 src/diagram.rs        timelines, detector slices and matching graphs, as text and SVG
 src/generated.rs      Stim's generated memory circuits, written as Stim writes them
+src/css.rs            CSS codes from their checks: hypergraph products, colour codes, a memory for any
 src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's arithmetic
 src/belief.rs         belief-matching, as the authors' beliefmatching package does it
 src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows

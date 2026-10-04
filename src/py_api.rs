@@ -448,6 +448,30 @@ fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, roun
     crate::generated::generate(task, distance, rounds, &noise).map_err(err)
 }
 
+/// A CSS code checked and completed: (n, H_X, H_Z, logical X, logical Z), each as rows of the
+/// data qubits they act on. `kind` is "checks" (`n`, `hx`, `hz` given), "hgp" (`hx` and `hz`
+/// are h1 and h2, `n` and `n2` their bits) or "color" (`n` the distance).
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn css_code(kind: &str, n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, n2: usize) -> PyResult<(usize, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
+    let code = match kind {
+        "checks" => crate::css::CssCode::new(n, hx, hz),
+        "hgp" => crate::css::CssCode::hypergraph_product(&hx, n, &hz, n2),
+        "color" => crate::css::CssCode::color_code(n),
+        other => Err(format!("unknown CSS code kind '{other}'")),
+    }
+    .map_err(err)?;
+    let (lx, lz) = code.logicals();
+    Ok((code.n, code.hx, code.hz, lx, lz))
+}
+
+/// A CSS code's memory experiment (see `CssCode::memory`) as Stim's text.
+#[pyfunction]
+fn css_memory_circuit(n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, rounds: usize, p: f64, basis: &str) -> PyResult<String> {
+    let code = crate::css::CssCode::new(n, hx, hz).map_err(err)?;
+    code.memory(rounds, p, basis_of(basis)? == Basis::X).map_err(err)
+}
+
 fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
     crate::bb::check_cycles(total, least).map_err(err)
 }
@@ -456,8 +480,19 @@ fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
 /// x^i y^j.
 type BbSpec = (usize, usize, [(usize, usize); 3], [(usize, usize); 3]);
 
-fn bb_code((l, m, a, b): BbSpec) -> PyResult<crate::bb::BbCode> {
-    crate::bb::BbCode::new(l, m, a, b).map_err(err)
+/// A code as the core functions take it: a name (as the repository's tools pass) or a spec.
+#[derive(FromPyObject)]
+enum BbArg {
+    Name(String),
+    Spec(BbSpec),
+}
+
+fn bb_code(code: BbArg) -> PyResult<crate::bb::BbCode> {
+    match code {
+        BbArg::Name(name) => crate::bb::BbCode::named(&name),
+        BbArg::Spec((l, m, a, b)) => crate::bb::BbCode::new(l, m, a, b),
+    }
+    .map_err(err)
 }
 
 /// One of Bravyi et al.'s codes by name ("72", "90", "108", "144" or "gross", "288"), or the
@@ -467,7 +502,7 @@ fn bb_code((l, m, a, b): BbSpec) -> PyResult<crate::bb::BbCode> {
 fn bb_spec(name: Option<&str>, spec: Option<BbSpec>) -> PyResult<BbSpec> {
     let c = match (name, spec) {
         (Some(n), None) => crate::bb::BbCode::named(n).map_err(err)?,
-        (None, Some(s)) => bb_code(s)?,
+        (None, Some(s)) => bb_code(BbArg::Spec(s))?,
         _ => return Err(err("give a name or a spec".to_string())),
     };
     Ok((c.l, c.m, c.a, c.b))
@@ -478,7 +513,7 @@ fn bb_spec(name: Option<&str>, spec: Option<BbSpec>) -> PyResult<BbSpec> {
 /// (H_X, H_Z, logical X, logical Z).
 #[pyfunction]
 #[allow(clippy::type_complexity)]
-fn bb_matrices(code: BbSpec) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
+fn bb_matrices(code: BbArg) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
     let c = bb_code(code)?;
     let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect::<Vec<_>>();
     let (lx, lz) = c.logicals();
@@ -488,7 +523,7 @@ fn bb_matrices(code: BbSpec) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<
 /// The paper's Z-basis memory on a bivariate bicycle code (a spec, see `bb_spec`),
 /// `cycles` depth-8 syndrome cycles under circuit noise `p`, as Stim text.
 #[pyfunction]
-fn bb_memory_circuit(code: BbSpec, cycles: usize, p: f64) -> PyResult<String> {
+fn bb_memory_circuit(code: BbArg, cycles: usize, p: f64) -> PyResult<String> {
     bb_cycles(cycles, cycles)?;
     crate::memory::probability(p).map_err(err)?;
     Ok(bb_code(code)?.memory_z(cycles, p))
@@ -501,7 +536,7 @@ fn bb_memory_circuit(code: BbSpec, cycles: usize, p: f64) -> PyResult<String> {
 /// basis `bb_matrices` gives).
 #[pyfunction]
 #[allow(clippy::type_complexity)]
-fn bb_automorphisms(code: BbSpec) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usize>>)>> {
+fn bb_automorphisms(code: BbArg) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usize>>)>> {
     use crate::bb_auto::Automorphism;
     let c = bb_code(code)?;
     let mut out = Vec::new();
@@ -571,7 +606,7 @@ fn bb_gauging(
 /// A memory of a bivariate bicycle code in either basis, by the cycle
 /// writer (in "z" it is `bb_memory_circuit`'s model), as Stim text.
 #[pyfunction]
-fn bb_memory_basis_circuit(code: BbSpec, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
+fn bb_memory_basis_circuit(code: BbArg, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
     bb_cycles(cycles, cycles)?;
     crate::memory::probability(p).map_err(err)?;
     Ok(crate::bb_circuit::memory(&bb_code(code)?, basis_of(basis)?, cycles, p).to_stim())
@@ -741,6 +776,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
     m.add_function(wrap_pyfunction!(generated_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(css_code, m)?)?;
+    m.add_function(wrap_pyfunction!(css_memory_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bb_spec, m)?)?;
     m.add_function(wrap_pyfunction!(bb_matrices, m)?)?;
     m.add_function(wrap_pyfunction!(bb_memory_circuit, m)?)?;
