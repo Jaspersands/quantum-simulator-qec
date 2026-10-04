@@ -4,6 +4,24 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Unreleased
+
+### Added
+
+- Window decoding of models too long to unroll. `WindowMatching` takes its windows' graphs
+  from a short template of the model's longest loop, whose middle windows serve every window
+  away from the model's ends, shifted by whole passes of the loop; shots are fed in layer by
+  layer. A d = 11 rotated memory of 10,000 rounds (27.6 million faults) builds its model in
+  0.2 s and its decoder in about a second, and decodes from the folded model. It is the
+  default for a model of more than a million faults with a loop; `template=True` (Rust:
+  `WindowOptions::with_template`) asks for it, `template=False` for the whole model, and both
+  give the same predictions (tested on Stim's rotated, unrotated and repetition memories,
+  sliding and parallel, with and without correlations). `WindowMatching.streamed` says which.
+- `stream_memory(circuit=...)` (Rust: `stream_circuit`): any circuit with a loop, sampled
+  round by round and window-decoded as it streams, its windows from a template of its folded
+  model. The template's middle spans a whole number of window periods that is also a whole
+  number of the loop's passes, so loops Stim folds two rounds at a time are served.
+
 ## 1.3.0 — 2026-10-04
 
 The Python package and the Rust crate both at 1.3.0: error models whose text is Stim's,

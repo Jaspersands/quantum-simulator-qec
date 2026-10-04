@@ -193,6 +193,38 @@ pub fn stream_memory(
     };
     let batches = shots.max(1).div_ceil(64);
     let out = crate::batch::stream_shots(kind, distance, p, rounds, commit, buffer, mode, correlations, batches, seed, threads)?;
+    stream_result(out)
+}
+
+/// Any circuit with a loop, sampled round by round and window-decoded as it streams, its
+/// windows' graphs from a template of its folded error model: the middle windows of a short
+/// version of the loop serve every window of the long one. As [`stream_memory`], for circuits
+/// of your own (Stim's generated ones among them): their detectors need a time coordinate.
+///
+/// ```
+/// use stabilizer_qec::{stream_circuit, Circuit, WindowMode, WindowOptions};
+///
+/// // A distance-3 repetition code, 500 rounds; each detector's last coordinate is its round.
+/// let c: Circuit = "R 0 1 2 3 4\nMR 3 4\nREPEAT 500 {\n X_ERROR(0.002) 0 1 2\n CX 0 3 1 3 1 4 2 4\n MR 3 4\n \
+///     DETECTOR(0, 1) rec[-2] rec[-4]\n DETECTOR(1, 1) rec[-1] rec[-3]\n SHIFT_COORDS(0, 1)\n}\nM 0 1 2\n\
+///     DETECTOR(0, 1) rec[-5] rec[-3] rec[-2]\nDETECTOR(1, 1) rec[-4] rec[-2] rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]".parse()?;
+/// let r = stream_circuit(&c, WindowOptions::new(4, 4, WindowMode::Parallel), 128, 7, 1)?;
+/// assert_eq!(r.shots, 128);
+/// assert!(r.failures < 8);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+pub fn stream_circuit(circuit: &Circuit, windows: WindowOptions, shots: usize, seed: u64, threads: usize) -> Result<StreamResult> {
+    let (commit, buffer, mode, correlations) = windows.parts();
+    let mode = match mode {
+        WindowMode::Sliding => crate::window::Mode::Sliding,
+        WindowMode::Parallel => crate::window::Mode::Parallel,
+    };
+    let batches = shots.max(1).div_ceil(64);
+    let out = crate::batch::stream_circuit(&circuit.inner, commit, buffer, mode, correlations, batches, seed, threads)?;
+    stream_result(out)
+}
+
+fn stream_result(out: crate::batch::StreamOutcome) -> Result<StreamResult> {
     if out.unexplained > 0 {
         return Err(Error::new(format!(
             "internal error in stabilizer_qec: window commits left {} defects unexplained; please report it",

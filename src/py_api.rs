@@ -340,6 +340,34 @@ fn stream_decode<'py>(
     Ok((out.failures, out.shots, out.unexplained, PyBytes::new(py, &bytes), out.windows, out.seconds))
 }
 
+/// Any circuit with a loop, decoded as it streams: as `stream_decode`, the circuit sampled
+/// round by round and window-decoded with graphs from a template of its folded model.
+#[pyfunction]
+#[pyo3(signature = (circuit, commit, buffer, mode, correlated=false, batches=1, seed=1, threads=0))]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn stream_circuit_decode<'py>(
+    py: Python<'py>,
+    circuit: &crate::py_objects::PyCircuit,
+    commit: usize,
+    buffer: usize,
+    mode: &str,
+    correlated: bool,
+    batches: usize,
+    seed: u64,
+    threads: usize,
+) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<WindowInfo>, f64)> {
+    use crate::window::Mode;
+    let mode = match mode {
+        "sliding" => Mode::Sliding,
+        "parallel" => Mode::Parallel,
+        other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
+    };
+    let c = circuit.engine();
+    let out = py.detach(|| crate::batch::stream_circuit(c, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
+    let bytes: Vec<u8> = out.times.iter().flat_map(|x| x.to_le_bytes()).collect();
+    Ok((out.failures, out.shots, out.unexplained, PyBytes::new(py, &bytes), out.windows, out.seconds))
+}
+
 fn bp_method(method: &str, ms_scale: f64) -> PyResult<crate::bp::Method> {
     match method {
         "product_sum" => Ok(crate::bp::Method::ProductSum),
@@ -683,6 +711,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sample_b8_batch, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_window, m)?)?;
     m.add_function(wrap_pyfunction!(stream_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(stream_circuit_decode, m)?)?;
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
     m.add_function(wrap_pyfunction!(bb_matrices, m)?)?;

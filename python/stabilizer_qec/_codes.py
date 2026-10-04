@@ -188,9 +188,9 @@ class StreamResult(NamedTuple):
 def stream_memory(
     code: str = "rotated",
     *,
-    distance: int,
-    rounds: int,
-    p: float,
+    distance: "int | None" = None,
+    rounds: "int | None" = None,
+    p: "float | None" = None,
     commit: int,
     buffer: int,
     mode: str = "parallel",
@@ -198,27 +198,51 @@ def stream_memory(
     shots: int = 64,
     seed: "int | None" = None,
     threads: int = 0,
+    circuit: "Circuit | None" = None,
 ) -> StreamResult:
     """A memory too long to model whole, sampled round by round and window-decoded as it
     streams: an SD6 memory of ``rounds`` rounds (a million is fine), its windows' graphs
     built once from a short template. ``shots`` is rounded up to a multiple of 64. The same
-    seed gives the same failures on any number of threads."""
-    _choice(code, _CODES, "code")
+    seed gives the same failures on any number of threads.
+
+    Or any ``circuit`` with a loop (Stim's generated ones among them), in place of ``code``,
+    ``distance``, ``rounds`` and ``p``: its windows come from a template of its folded error
+    model, and its detectors need a time coordinate (their last)."""
     batches = max(1, -(-count(shots, "shots", 1) // 64))
-    failures, total, unexplained, times, info, seconds = call(
-        _core.stream_decode,
-        code,
-        count(distance, "distance"),
-        probability(p),
-        count(rounds, "rounds", 1),
-        count(commit, "commit"),
-        count(buffer, "buffer"),
-        mode,
-        bool(enable_correlations),
-        batches,
-        seed_of(seed),
-        count(threads, "threads"),
-    )
+    if circuit is not None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        if distance is not None or rounds is not None or p is not None:
+            raise ValueError("give a circuit, or a code's distance, rounds and p, not both")
+        failures, total, unexplained, times, info, seconds = call(
+            _core.stream_circuit_decode,
+            circuit._c,
+            count(commit, "commit"),
+            count(buffer, "buffer"),
+            mode,
+            bool(enable_correlations),
+            batches,
+            seed_of(seed),
+            count(threads, "threads"),
+        )
+    else:
+        if distance is None or rounds is None or p is None:
+            raise TypeError("stream_memory needs distance, rounds and p (or a circuit)")
+        _choice(code, _CODES, "code")
+        failures, total, unexplained, times, info, seconds = call(
+            _core.stream_decode,
+            code,
+            count(distance, "distance"),
+            probability(p),
+            count(rounds, "rounds", 1),
+            count(commit, "commit"),
+            count(buffer, "buffer"),
+            mode,
+            bool(enable_correlations),
+            batches,
+            seed_of(seed),
+            count(threads, "threads"),
+        )
     if unexplained:
         raise RuntimeError(f"internal error in stabilizer-qec: window commits left {unexplained} defects unexplained; please report it")
     windows = [Window(*w) for w in info]

@@ -82,7 +82,7 @@ pub fn window_shots(
     correlated: bool,
     threads: usize,
     timings: bool,
-) -> Vec<(u64, usize, Vec<f64>, bool)> {
+) -> Vec<WindowShot> {
     let stride = nd.div_ceil(8);
     let nw = wd.windows.len();
     parallel(num_shots, threads, |range| {
@@ -168,13 +168,43 @@ pub fn stream_shots(
     threads: usize,
 ) -> Result<StreamOutcome, String> {
     use crate::circuit::Basis;
-    use crate::stream::{run_stream, StreamDecoder};
+    use crate::stream::StreamDecoder;
+    let dec = StreamDecoder::new(kind, d, p, Basis::Z, commit, buffer, mode, rounds)?;
+    let circuit = crate::memory::generate_repeat(kind, d, rounds, p, Basis::Z)?;
+    stream_with(&dec, &circuit, correlated, batches, seed, threads)
+}
+
+/// Any circuit with a loop, sampled and window-decoded as it streams, its windows from a
+/// template of its folded model (see `StreamDecoder::from_program`).
+#[allow(clippy::too_many_arguments)]
+pub fn stream_circuit(
+    circuit: &crate::circuit::Circuit,
+    commit: usize,
+    buffer: usize,
+    mode: crate::window::Mode,
+    correlated: bool,
+    batches: usize,
+    seed: u64,
+    threads: usize,
+) -> Result<StreamOutcome, String> {
+    let program = crate::dem_build::build(circuit, true, Some(1.0), true)?;
+    let dec = crate::stream::StreamDecoder::from_program(&program, commit, buffer, mode, false)?;
+    stream_with(&dec, circuit, correlated, batches, seed, threads)
+}
+
+fn stream_with(
+    dec: &crate::stream::StreamDecoder,
+    circuit: &crate::circuit::Circuit,
+    correlated: bool,
+    batches: usize,
+    seed: u64,
+    threads: usize,
+) -> Result<StreamOutcome, String> {
+    use crate::stream::run_stream;
     use crate::surface_code::Xorshift;
     use std::time::Instant;
-    let dec = StreamDecoder::new(kind, d, p, Basis::Z, commit, buffer, mode, rounds)?;
-    let plan = dec.plan(rounds)?;
-    let circuit = crate::memory::generate_repeat(kind, d, rounds, p, Basis::Z)?;
-    let sampler = crate::batch_sampler::BatchSampler::new(&circuit)?;
+    let plan = dec.plan()?;
+    let sampler = crate::batch_sampler::BatchSampler::new(circuit)?;
     let threads = crate::parallel::resolve_threads(threads, batches);
     let start = Instant::now();
     // Per thread: failures, defects left unexplained, and window times.
@@ -228,4 +258,109 @@ pub fn union_find_shots(graph: &SparseGraph, packed: &[u8], nd: usize, num_shots
             })
             .collect()
     })
+}
+
+/// Windows for a model too long to unroll: a `StreamDecoder` from a template of its loop, its
+/// plan, and each layer's detectors, so that shots given whole are fed in layer by layer.
+pub struct StreamedWindows {
+    dec: crate::stream::StreamDecoder,
+    plan: crate::stream::StreamPlan,
+    /// Per layer of the full model, its detectors in order.
+    members: Vec<Vec<u32>>,
+}
+
+impl StreamedWindows {
+    pub fn new(program: &crate::dem_program::DemProgram, commit: usize, buffer: usize, mode: crate::window::Mode) -> Result<StreamedWindows, String> {
+        let dec = crate::stream::StreamDecoder::from_program(program, commit, buffer, mode, false)?;
+        let plan = dec.plan()?;
+        let times = program.detector_times()?;
+        let mut distinct = times.clone();
+        distinct.sort_by(|a, b| a.partial_cmp(b).expect("times are numbers"));
+        distinct.dedup();
+        if distinct.len() != plan.layers as usize {
+            return Err(format!("the model has {} layers where its template's plan expects {}", distinct.len(), plan.layers));
+        }
+        let mut members = vec![Vec::new(); distinct.len()];
+        for (d, t) in times.iter().enumerate() {
+            let l = distinct.binary_search_by(|x| x.partial_cmp(t).expect("times are numbers")).expect("a layer of its own");
+            members[l].push(d as u32);
+        }
+        // Every window's layers hold as many detectors as its template window's.
+        let template = &dec.template.model.layers.members;
+        for (i, spec) in plan.specs.iter().enumerate() {
+            let t = dec.template.specs[plan.template[i]];
+            for k in 0..(spec.b - spec.a) {
+                if members[(spec.a + k) as usize].len() != template[(t.a + k) as usize].len() {
+                    return Err(format!("window {i}'s layer {} does not match its template's", spec.a + k));
+                }
+            }
+        }
+        Ok(StreamedWindows { dec, plan, members })
+    }
+
+    pub fn windows(&self) -> Vec<WindowInfo> {
+        self.plan
+            .specs
+            .iter()
+            .zip(&self.plan.deps)
+            .map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone()))
+            .collect()
+    }
+}
+
+/// One shot's window decoding: its observables, the defects left unexplained, each window's
+/// decode seconds, and whether a window refused it.
+pub type WindowShot = (u64, usize, Vec<f64>, bool);
+
+/// Streamed window decoding of b8 shots, 64 at a time, in the shape `window_shots` gives:
+/// (observables, defects left unexplained, each window's decode seconds, refused). Timings are
+/// the first shot's of each 64 (the rest NaN): the stream decodes 64 at once.
+pub fn streamed_window_shots(
+    sw: &StreamedWindows,
+    packed: &[u8],
+    nd: usize,
+    num_shots: usize,
+    correlated: bool,
+    threads: usize,
+    timings: bool,
+) -> Vec<WindowShot> {
+    use crate::stream::Stream;
+    let stride = nd.div_ceil(8);
+    let nw = sw.plan.specs.len();
+    let batches = num_shots.div_ceil(64);
+    let per_batch: Vec<Vec<WindowShot>> = parallel(batches, threads, |range| {
+        let mut scratches = sw.dec.scratches();
+        let origin = std::time::Instant::now();
+        let clock = move || origin.elapsed().as_secs_f64();
+        range
+            .map(|b| {
+                let lanes = (num_shots - b * 64).min(64);
+                let mut stream = Stream::new(&sw.dec, &sw.plan, correlated, &mut scratches, timings.then_some(&clock as &dyn Fn() -> f64));
+                let mut words = Vec::new();
+                let mut failed = false;
+                for layer in &sw.members {
+                    words.clear();
+                    words.extend(layer.iter().map(|&d| {
+                        let (byte, bit) = (d as usize / 8, d % 8);
+                        (0..lanes).fold(0u64, |w, lane| w | (u64::from((packed[(b * 64 + lane) * stride + byte] >> bit) & 1) << lane))
+                    }));
+                    if stream.push_layer(&words).is_err() {
+                        failed = true;
+                        break;
+                    }
+                }
+                let finished = if failed { None } else { stream.finish().ok() };
+                match finished {
+                    Some((stream, unexplained)) => (0..lanes)
+                        .map(|lane| {
+                            let times = if timings && lane == 0 { stream.times.clone() } else if timings { vec![f64::NAN; nw] } else { Vec::new() };
+                            (stream.predictions[lane], if lane == 0 { unexplained } else { 0 }, times, false)
+                        })
+                        .collect(),
+                    None => (0..lanes).map(|_| (0, 0, if timings { vec![f64::NAN; nw] } else { Vec::new() }, true)).collect(),
+                }
+            })
+            .collect()
+    });
+    per_batch.into_iter().flatten().collect()
 }

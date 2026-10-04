@@ -48,7 +48,7 @@ and `*` one into a `REPEAT` block.
 Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 `BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
 `surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`
-(a million rounds, window-decoded as they stream).
+(a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).
 
 ## Shots
 

@@ -1,5 +1,5 @@
 use super::{probability, BitTable, DetectorErrorModel, Error, Result};
-use crate::batch::{belief_shots, bposd_shots, match_shots, union_find_shots, window_info, window_shots};
+use crate::batch::{StreamedWindows, belief_shots, bposd_shots, match_shots, streamed_window_shots, union_find_shots, window_info, window_shots};
 use crate::dem_decoder::{DecodeError, DemDecoder};
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::{Mode, Model, WindowDecoder};
@@ -345,6 +345,7 @@ pub struct WindowOptions {
     buffer: usize,
     mode: WindowMode,
     correlations: bool,
+    template: Option<bool>,
 }
 
 impl Window {
@@ -361,7 +362,18 @@ impl WindowOptions {
     /// Windows that commit `commit` rounds with `buffer` rounds on either side, run in `mode`,
     /// plain matching.
     pub fn new(commit: usize, buffer: usize, mode: WindowMode) -> WindowOptions {
-        WindowOptions { commit, buffer, mode, correlations: false }
+        WindowOptions { commit, buffer, mode, correlations: false, template: None }
+    }
+
+    /// Where the windows' graphs come from. `Some(true)`: a short template of the model's
+    /// longest loop, whose middle windows serve every window of the long model away from its
+    /// ends, shifted (the decoder never unrolls the model: a memory of millions of rounds
+    /// decodes); `Some(false)`: the whole model, unrolled; `None` (the default): the template
+    /// for a model of more than a million faults that has one, else the whole model. Both give
+    /// the same predictions.
+    pub fn with_template(mut self, template: Option<bool>) -> WindowOptions {
+        self.template = template;
+        self
     }
 
     /// Correlated matching in each window.
@@ -394,9 +406,14 @@ pub struct Window {
 /// each matched alone and committing only its middle. The model's detectors need a time
 /// coordinate (their last), as Stim's generated circuits give them.
 pub struct WindowMatching {
-    inner: WindowDecoder,
+    inner: Windows,
     correlations: bool,
     num_detectors: usize,
+}
+
+enum Windows {
+    Whole(Box<WindowDecoder>),
+    Streamed(Box<StreamedWindows>),
 }
 
 impl WindowMatching {
@@ -406,22 +423,34 @@ impl WindowMatching {
             WindowMode::Sliding => Mode::Sliding,
             WindowMode::Parallel => Mode::Parallel,
         };
-        let inner = WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?;
+        let streamed = || StreamedWindows::new(dem.program(), options.commit, options.buffer, mode).map(Box::new);
+        let inner = match options.template {
+            Some(true) => Windows::Streamed(streamed()?),
+            None if dem.num_errors() > 1_000_000 => match streamed() {
+                Ok(s) => Windows::Streamed(s),
+                Err(_) => Windows::Whole(Box::new(WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?)),
+            },
+            _ => Windows::Whole(Box::new(WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?)),
+        };
         Ok(WindowMatching { inner, correlations: options.correlations, num_detectors: dem.num_detectors() })
     }
 
     /// The windows, in the order they are planned.
     pub fn windows(&self) -> Vec<Window> {
-        window_info(&self.inner)
-            .into_iter()
-            .map(Window::from_info)
-            .collect()
+        let info = match &self.inner {
+            Windows::Whole(wd) => window_info(wd),
+            Windows::Streamed(sw) => sw.windows(),
+        };
+        info.into_iter().map(Window::from_info).collect()
     }
 
     /// A batch of shots across `threads` threads (`0` is every core).
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = window_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), self.correlations, threads, false);
+        let out = match &self.inner {
+            Windows::Whole(wd) => window_shots(wd, shots.as_bytes(), self.num_detectors, shots.num_rows(), self.correlations, threads, false),
+            Windows::Streamed(sw) => streamed_window_shots(sw, shots.as_bytes(), self.num_detectors, shots.num_rows(), self.correlations, threads, false),
+        };
         if let Some(s) = out.iter().position(|x| x.3) {
             return Err(Error::new(format!("shot {s}: a window found no matching")));
         }

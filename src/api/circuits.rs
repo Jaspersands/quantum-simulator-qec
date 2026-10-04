@@ -369,6 +369,11 @@ impl DetectorErrorModel {
         DetectorErrorModel { stats: program.stats(), program, flat: OnceLock::new() }
     }
 
+    /// The model as written.
+    pub(crate) fn program(&self) -> &DemProgram {
+        &self.program
+    }
+
     /// The model unrolled, for a decoder.
     pub(crate) fn flat(&self) -> Result<&Dem> {
         self.flat.get_or_init(|| self.program.to_dem()).as_ref().map_err(|e| Error::new(e.clone()))

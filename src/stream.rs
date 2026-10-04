@@ -23,18 +23,25 @@
 use std::collections::VecDeque;
 
 use crate::circuit::Basis;
-use crate::dem::Dem;
 use crate::dem_decoder::DecodeError;
-use crate::memory::{generate, CodeKind, NoiseModel};
+use crate::dem_program::{DemInstr, DemProgram};
+use crate::memory::CodeKind;
 use crate::sparse::Scratch;
-use crate::window::{check_schedule, plan, Mode, Model, Spec, WindowDecoder};
+use crate::window::{check_schedule, plan, Layers, Mode, Model, Spec, WindowDecoder};
 
-/// Windows matched from each end of the stream to the template's ends.
+/// Windows matched from each end of the stream to the template's ends, at least.
 const EDGE: usize = 3;
 
 pub struct StreamDecoder {
     pub template: WindowDecoder,
-    pub template_rounds: usize,
+    /// The template's layers, and the stream's.
+    pub template_layers: u32,
+    pub stream_layers: u32,
+    /// Windows matched from each end of the stream to the template's ends.
+    edge: usize,
+    /// Windows in one cycle of the middle: a whole number of window periods spanning a whole
+    /// number of the loop's passes.
+    cycle: usize,
     /// Per template detector: its layer and its rank within the layer.
     place: Vec<(u32, u32)>,
     /// Per template window, per layer from its first, per rank: its local node.
@@ -65,6 +72,19 @@ fn by_time(specs: &[Spec]) -> Vec<usize> {
     idx
 }
 
+/// The distinct time coordinates of the detectors a model declares.
+fn declared_layers(program: &DemProgram) -> Result<usize, String> {
+    let mut times: Vec<f64> = Vec::new();
+    for ins in program.flattened()?.instrs {
+        if let DemInstr::Detector { coords, .. } = ins {
+            times.push(*coords.last().ok_or("a detector has no time coordinate; windows need them")?);
+        }
+    }
+    times.sort_by(|a, b| a.partial_cmp(b).expect("times are numbers"));
+    times.dedup();
+    Ok(times.len())
+}
+
 /// Parallel layer-B windows wait for the layer-A windows bordering their
 /// commit region; sliding windows wait for the one before.
 pub fn dependencies(specs: &[Spec], mode: Mode) -> Vec<Vec<usize>> {
@@ -84,6 +104,7 @@ pub fn dependencies(specs: &[Spec], mode: Mode) -> Vec<Vec<usize>> {
 
 impl StreamDecoder {
     /// A decoder for a rotated or XZZX SD6 memory of `stream_rounds` rounds.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         kind: CodeKind,
         d: usize,
@@ -94,24 +115,85 @@ impl StreamDecoder {
         mode: Mode,
         stream_rounds: usize,
     ) -> Result<StreamDecoder, String> {
+        let circuit = crate::memory::generate_repeat(kind, d, stream_rounds, p, basis)?;
+        let program = crate::dem_build::build(&circuit, true, None, true)?;
+        StreamDecoder::from_program(&program, commit, buffer, mode, true)
+    }
+
+    /// A decoder for the model `program` describes, however long, built from a template of it:
+    /// the same model with its longest top-level `repeat` run fewer times, long enough that its
+    /// middle windows sit inside the repetition and its end windows cover what lies before and
+    /// after it. Windows of the stream away from its ends are the template's middle windows
+    /// shifted by whole passes of the loop; the rest are the template's end windows. `merged`
+    /// unrolls each model as `to_dem_merged` does, else as `to_dem`. Refuses (and a caller may
+    /// cut windows from the whole model instead) a model with no loop, one whose passes add a
+    /// varying number of layers, or a schedule whose period is not a whole number of passes.
+    pub fn from_program(program: &DemProgram, commit: usize, buffer: usize, mode: Mode, merged: bool) -> Result<StreamDecoder, String> {
         check_schedule(commit, buffer, mode)?;
-        // The template's windows repeat with the stream's: same round count
-        // modulo the schedule's period, and long enough to have EDGE windows
-        // at each end and a whole period of windows between.
         let period = match mode {
             Mode::Sliding => commit,
             Mode::Parallel => commit + 2 * buffer,
         };
         let windows_per_period = if mode == Mode::Sliding { 1 } else { 2 };
-        let min_rounds = (2 * EDGE / windows_per_period + 2) * period + buffer + 2;
-        let rounds = if stream_rounds <= min_rounds {
-            stream_rounds
-        } else {
-            min_rounds + (stream_rounds - min_rounds) % period
+        let flat = |p: &DemProgram| if merged { p.to_dem_merged() } else { p.to_dem() };
+        let layer_count = |p: &DemProgram| -> Result<usize, String> { Ok(Layers::from_dem(&flat(p)?)?.count()) };
+        let (index, count) = program
+            .instrs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, ins)| match ins {
+                DemInstr::Repeat { count, .. } => Some((i, *count)),
+                _ => None,
+            })
+            .max_by_key(|&(_, c)| c)
+            .ok_or("the model has no top-level loop to take a template from")?;
+        let with_count = |c: u64| {
+            let mut q = program.clone();
+            if let DemInstr::Repeat { count, .. } = &mut q.instrs[index] {
+                *count = c;
+            }
+            q
         };
-        let circuit = generate(kind, d, rounds, NoiseModel::Sd6 { p }, basis)?;
-        let dem = Dem::from_circuit(&circuit)?;
+        // Layers per pass, the same from pass to pass.
+        let (l2, l3, l4) = (layer_count(&with_count(2))?, layer_count(&with_count(3))?, layer_count(&with_count(4))?);
+        let per = l3.checked_sub(l2).filter(|&x| x > 0 && l4 == l3 + x).ok_or("the loop's passes do not each add the same number of layers")?;
+        // The middle repeats every lcm(period, per) layers: `periods` window periods.
+        let gcd = |mut a: usize, mut b: usize| {
+            while b != 0 {
+                (a, b) = (b, a % b);
+            }
+            a
+        };
+        let periods = per / gcd(period, per);
+        let cycle_layers = period * periods;
+        // Layers declared before the loop and after it. (A model's part before the loop alone
+        // has faults on detectors declared later, so its layers are counted from its own
+        // declarations.)
+        let before = declared_layers(&DemProgram { instrs: program.instrs[..index].to_vec() })?;
+        let after = layer_count(&with_count(0))?.checked_sub(before).ok_or("the model's layers before its loop outnumber the model's")?;
+        let stride = period / windows_per_period;
+        // End windows reach past the layers outside the loop and a buffer beyond them; every
+        // window after them sits wholly inside the repetition.
+        let edge = EDGE.max((before.max(after) + 1 + buffer).div_ceil(stride.max(1)) + 1);
+        let full = l2 as u64 + (count.saturating_sub(2)) * per as u64;
+        let min_layers = ((2 * edge / windows_per_period + 1 + periods) * period + buffer + 2) as u64;
+        // Passes for the template: enough layers, and the stream's extra layers a whole number
+        // of window periods.
+        let passes = if count <= 2 || full <= min_layers + cycle_layers as u64 {
+            count
+        } else {
+            (2..count)
+                .find(|&c| {
+                    let layers = l2 as u64 + (c - 2) * per as u64;
+                    layers >= min_layers && ((count - c) * per as u64).is_multiple_of(cycle_layers as u64)
+                })
+                .unwrap_or(count)
+        };
+        let template_program = with_count(passes);
+        let dem = flat(&template_program)?;
         let template = WindowDecoder::new(Model::new(&dem)?, commit, buffer, mode)?;
+        let template_layers = template.model.layers.count() as u32;
+        let stream_layers = u32::try_from(template_layers as u64 + (count - passes) * per as u64).map_err(|_| "too many layers")?;
         let layers = &template.model.layers;
         let mut place = vec![(0u32, 0u32); template.model.num_detectors];
         for (l, members) in layers.members.iter().enumerate() {
@@ -133,28 +215,26 @@ impl StreamDecoder {
                     .collect()
             })
             .collect();
-        Ok(StreamDecoder { template, template_rounds: rounds, place, local, commit, buffer, mode })
+        let cycle = windows_per_period * periods;
+        Ok(StreamDecoder { template, template_layers, stream_layers, edge, cycle, place, local, commit, buffer, mode })
     }
 
-    /// The windows of a stream of `stream_rounds` rounds (the template's
-    /// layers plus one per extra round), each tied to its template window.
-    pub fn plan(&self, stream_rounds: usize) -> Result<StreamPlan, String> {
-        if stream_rounds < self.template_rounds {
-            return Err(format!("a stream of {stream_rounds} rounds is shorter than its {}-round template", self.template_rounds));
-        }
-        let layers = (self.template.model.layers.count() + stream_rounds - self.template_rounds) as u32;
+    /// The stream's windows, each tied to its template window.
+    pub fn plan(&self) -> Result<StreamPlan, String> {
+        let edge = self.edge;
+        let layers = self.stream_layers;
         let specs = plan(layers, self.commit, self.buffer, self.mode)?;
         let (t_specs, s_time, t_time) = (&self.template.specs, by_time(&specs), by_time(&self.template.specs));
         let (n_s, n_t) = (specs.len(), t_specs.len());
-        let per = if self.mode == Mode::Sliding { 1 } else { 2 };
+        let per = self.cycle;
         let (mut template, mut offset) = (vec![0usize; n_s], vec![0u32; n_s]);
         for (j, &i) in s_time.iter().enumerate() {
-            let tj = if n_s == n_t || j < EDGE {
+            let tj = if n_s == n_t || j < edge {
                 j
-            } else if j >= n_s - EDGE {
+            } else if j >= n_s - edge {
                 n_t - (n_s - j)
             } else {
-                EDGE + (j - EDGE) % per
+                edge + (j - edge) % per
             };
             let (s, t) = (specs[i], t_specs[t_time[tj]]);
             let off = s.a.checked_sub(t.a).ok_or("a stream window sits before its template")?;
@@ -370,7 +450,8 @@ pub fn run_stream(
 mod tests {
     use super::*;
     use crate::batch_sampler::BatchSampler;
-    use crate::memory::generate_repeat;
+    use crate::dem::Dem;
+    use crate::memory::{generate, generate_repeat, NoiseModel};
     use crate::surface_code::Xorshift;
 
     /// On a stream longer than its template, windows taken from the template
@@ -384,8 +465,8 @@ mod tests {
         let full_layers = full.layers.count();
         for mode in [Mode::Sliding, Mode::Parallel] {
             let dec = StreamDecoder::new(CodeKind::Rotated, d, p, Basis::Z, commit, buffer, mode, rounds).unwrap();
-            assert!(dec.template_rounds < rounds, "{mode:?}: template of {} rounds", dec.template_rounds);
-            let plan = dec.plan(rounds).unwrap();
+            assert!(dec.template_layers < dec.stream_layers, "{mode:?}: template of {} layers", dec.template_layers);
+            let plan = dec.plan().unwrap();
             assert_eq!(plan.layers as usize, full_layers);
             let wd = WindowDecoder::new(Model::new(&Dem::from_circuit(&circuit).unwrap()).unwrap(), commit, buffer, mode).unwrap();
             let mut full_scratch = wd.scratches();
@@ -424,7 +505,7 @@ mod tests {
     fn defects_left_behind_are_counted() {
         let rounds = 30;
         let dec = StreamDecoder::new(CodeKind::Rotated, 3, 0.001, Basis::Z, 3, 3, Mode::Sliding, rounds).unwrap();
-        let plan = dec.plan(rounds).unwrap();
+        let plan = dec.plan().unwrap();
         let members = &dec.template.model.layers.members;
         let mut scratches = dec.scratches();
         let mut stream = Stream::new(&dec, &plan, false, &mut scratches, None);
