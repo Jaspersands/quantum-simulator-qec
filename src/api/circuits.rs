@@ -122,6 +122,23 @@ impl Circuit {
         Circuit::from_engine(circuit::Circuit::parse(text)?)
     }
 
+    /// One of Stim's generated memory experiments (`stim.Circuit.generated`), character for
+    /// character as Stim writes it: `task` is `"repetition_code:memory"`,
+    /// `"surface_code:rotated_memory_x"` or `_z`, `"surface_code:unrotated_memory_x"` or `_z`,
+    /// or `"color_code:memory_xyz"`.
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, GeneratedNoise};
+    ///
+    /// let noise = GeneratedNoise::new().after_clifford_depolarization(0.001);
+    /// let c = Circuit::generated("surface_code:rotated_memory_z", 3, 5, &noise)?;
+    /// assert_eq!((c.num_qubits(), c.num_detectors()), (26, 40));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn generated(task: &str, distance: u32, rounds: u64, noise: &GeneratedNoise) -> Result<Circuit> {
+        Circuit::parse(&crate::generated::generate(task, distance, rounds, &noise.inner)?)
+    }
+
     pub(crate) fn from_engine(inner: circuit::Circuit) -> Result<Circuit> {
         let counts = Counts::of(&inner.instrs)?;
         fits(&counts)?;
@@ -354,6 +371,43 @@ pub enum DiagramKind {
     },
     /// The decomposed model's matching graph as an SVG picture (`matchgraph-svg`).
     MatchGraphSvg,
+}
+
+/// The noise of [`Circuit::generated`]: Stim's four strengths, each zero (left out) unless set.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GeneratedNoise {
+    inner: crate::generated::Noise,
+}
+
+impl GeneratedNoise {
+    /// No noise.
+    pub fn new() -> GeneratedNoise {
+        GeneratedNoise::default()
+    }
+
+    /// `DEPOLARIZE1`/`DEPOLARIZE2` after every Clifford gate.
+    pub fn after_clifford_depolarization(mut self, p: f64) -> GeneratedNoise {
+        self.inner.after_clifford_depolarization = p;
+        self
+    }
+
+    /// `DEPOLARIZE1` on the data at the start of every round.
+    pub fn before_round_data_depolarization(mut self, p: f64) -> GeneratedNoise {
+        self.inner.before_round_data_depolarization = p;
+        self
+    }
+
+    /// A flip before every measurement.
+    pub fn before_measure_flip_probability(mut self, p: f64) -> GeneratedNoise {
+        self.inner.before_measure_flip_probability = p;
+        self
+    }
+
+    /// A flip after every reset.
+    pub fn after_reset_flip_probability(mut self, p: f64) -> GeneratedNoise {
+        self.inner.after_reset_flip_probability = p;
+        self
+    }
 }
 
 /// How [`Circuit::detector_error_model`] builds a model.

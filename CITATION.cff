@@ -4,13 +4,14 @@ title: "stabilizer-qec: a quantum error-correction simulator and decoder"
 abstract: >-
   A quantum error-correction simulator and decoder in Rust, with Python bindings: circuits and
   detector error models in Stim's formats, a bit-parallel sampler, exact sparse-blossom,
-  correlated and belief matching, BP and BP+OSD, window decoders for real time, IBM's bivariate
-  bicycle codes, and lattice surgery.
+  correlated and belief matching, union-find, BP and BP+OSD, window decoders for real time,
+  circuit diagrams, IBM's bivariate bicycle codes, any CSS code from its checks, and lattice
+  surgery.
 type: software
 authors:
   - given-names: Jasper
     family-names: Sands
-version: 1.4.0
+version: 1.5.0
 date-released: 2026-10-04
 license: MIT
 repository-code: "https://github.com/Jaspersands/quantum-simulator-qec"

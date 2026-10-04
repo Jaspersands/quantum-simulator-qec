@@ -4,6 +4,54 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 1.5.0 — 2026-10-04
+
+The Python package and the Rust crate both at 1.5.0: Stim's generated circuits character for
+character, every bivariate bicycle code of Bravyi et al.'s table and any CSS code from its
+checks, tutorials, and benchmarks against Stim and PyMatching tracked in CI.
+
+### Added
+
+- `Circuit.generated(code_task, *, distance, rounds, ...)` (Rust: `Circuit::generated` with
+  `GeneratedNoise`): Stim's generated memory experiments, the repetition code, the rotated
+  and unrotated surface codes in either basis and the colour code's XYZ memory, with Stim's
+  four noise parameters. The text is Stim's character for character (every task at distances
+  2 to 7 and 25, one to seven rounds and 50, with and without each kind of noise), and the
+  arguments Stim refuses are refused.
+- Every bivariate bicycle code of Bravyi et al.'s Table 3: `BivariateBicycleCode("90")`
+  ([[90, 8, 10]]), `"108"` ([[108, 8, 10]]) and `"288"` ([[288, 12, 18]]) beside `"72"` and
+  `"144"`/`"gross"` (Rust: `bb90`, `bb108`, `bb288`, `named`), and any other from its
+  polynomials, `BivariateBicycleCode.from_polynomials(l, m, a, b)` (Rust: `from_polynomials`),
+  checked for weight-six checks and at least one logical qubit. Each comes with the paper's
+  depth-8 syndrome cycle, its memories in both bases, its logicals and its automorphisms; a
+  noiseless memory of each is checked to fire no detector. `polynomials` gives a code's torus
+  and monomials.
+- `CssCode` (Python and Rust): any CSS code from its check matrices, checked to commute and
+  to encode a qubit, with paired logical operators and a memory experiment correct for any
+  such code (every X check measured, then every Z check, in layers no qubit is used twice in;
+  rounds as a loop). Two families come built: `CssCode.hypergraph_product(h1, h2)` of any two
+  classical codes (the Hamming code's with itself is [[58, 16, 3]], two repetition codes'
+  the unrotated surface code), and `CssCode.color_code(d)`, the triangular 6.6.6 colour code
+  on Stim's layout. Their memories' error models equal Stim's character for character, and
+  decode with `BpOsd`.
+- Tutorials: three notebooks in `tutorials/` (getting started, from a circuit to a threshold
+  plot; decoders and real-time decoding; codes beyond the surface code), each built from a
+  plain Python file by `tools/notebooks.py`, and run on every push.
+- Benchmarks against Stim and PyMatching (`tools/bench.py`): error models, sampling,
+  measurement conversion, matching and correlated matching, each as a ratio to the
+  reference's time on the same machine and thread. Runs are recorded in
+  `data/bench/runs.json` and shown on the site's new benchmarks page; every push is checked
+  against the last run recorded on the same kind of machine.
+- Zenodo metadata (`.zenodo.json`) and the steps to link the repository
+  (`docs/zenodo.md`), so each release can be archived with a DOI; a Citing section in the
+  README.
+
+### Changed
+
+- Instruction arguments are written as Stim writes them (`1e-05`, not `0.00001`) whenever
+  Stim's six significant digits hold the value exactly; a value they would round is still
+  written in full, so circuit text never loses precision.
+
 ## 1.4.0 — 2026-10-04
 
 The Python package and the Rust crate both at 1.4.0: window decoding of models too long to

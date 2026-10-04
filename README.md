@@ -56,6 +56,13 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   [sinter](https://pypi.org/project/sinter/)'s threshold sweeps (`decoders=["sq_matching",
   "sq_belief_matching", "sq_bposd", ...]`), or the whole pipeline with `sq_sim_matching` and
   its kin. Circuits, models and decoders pickle, for `multiprocessing` and sinter's workers.
+- **Tutorials.** Three notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
+  (a circuit to a threshold plot), [decoders and real-time decoding](tutorials/02_decoders.ipynb),
+  and [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb). Each is
+  built from a plain Python file by `tools/notebooks.py`, and CI runs them all.
+- **Benchmarks.** Against Stim and PyMatching on the same machine, one thread:
+  [qcompiler.jaspersands.com/benchmarks](https://qcompiler.jaspersands.com/benchmarks/).
+  `tools/bench.py` runs them; CI fails a push whose ratio to the reference doubles.
 - **Docs.** A guide and the full reference at
   [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
   builds it from the docstrings, whose examples the tests run). The package is typed.
@@ -71,7 +78,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.4, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.5, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -126,7 +133,8 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
   `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge. Diagrams after
   Stim's: timelines, detector slices (the same as Stim's at every tick of its generated codes)
-  and matching graphs, as text or SVG.
+  and matching graphs, as text or SVG. Stim's generated memory circuits (`Circuit.generated`),
+  character for character.
 - **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
   gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
   (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
@@ -148,6 +156,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   al.'s depth-8 syndrome cycle, decoded by BP+OSD whose corrections equal `ldpc`'s but for ties. On
   it, every automorphism's logical action computed exactly, and the gauging measurement of a logical
   operator built from Cross et al.'s definition, with its distance proven by integer programming.
+- **More codes**: every bivariate bicycle code of Bravyi et al.'s Table 3 ([[72, 12, 6]] to
+  [[288, 12, 18]]) or any other from its polynomials, and any CSS code from its checks:
+  hypergraph products of classical codes and the 6.6.6 colour code, each with a memory
+  experiment whose error model equals Stim's.
 - **Lattice surgery**: surface-code patches merged and split as one circuit, its error model equal
   to Stim's, and programs compiled from such steps: a logical CNOT, merges in a row, and lines of
   patches merged at once.
@@ -1393,6 +1405,13 @@ Node, pandoc, matplotlib and Chrome.
 - **Failure.** The build stops on a value it cannot fill or one that is not finite.
 - **Figures** are drawn from the same data into `report/figures/`.
 
+## Citing
+
+`CITATION.cff` gives the citation (GitHub's **Cite this repository** reads it, in APA and
+BibTeX). Releases are set up for archiving on Zenodo, which gives each version a DOI:
+`.zenodo.json` holds the record's metadata, and [docs/zenodo.md](docs/zenodo.md) the one-time
+linking.
+
 ## Engine defects found and fixed
 
 Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
@@ -1847,6 +1866,8 @@ src/sparse/           sparse blossom: exact matching by growing regions on the d
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
 src/diagram.rs        timelines, detector slices and matching graphs, as text and SVG
+src/generated.rs      Stim's generated memory circuits, written as Stim writes them
+src/css.rs            CSS codes from their checks: hypergraph products, colour codes, a memory for any
 src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's arithmetic
 src/belief.rs         belief-matching, as the authors' beliefmatching package does it
 src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows
@@ -1938,6 +1959,10 @@ tools/site-tests.mjs    Node tests for the site's pure modules
 tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page draws
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
+tools/notebooks.py      the tutorials: each .py run and built into its notebook, or checked
+tutorials/              three notebooks, each built from the Python file beside it
+tools/bench.py          the benchmarks against Stim and PyMatching, recorded and checked
+benchmarks/             the benchmarks page; data/bench/runs.json the recorded runs
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
 python/stabilizer_qec/  the Python package: the public API over the extension, _core, and its stub
 tests/                  the package's test suite (pytest, Hypothesis), and every gate against Stim

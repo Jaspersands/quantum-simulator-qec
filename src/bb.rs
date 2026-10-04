@@ -20,7 +20,7 @@ use crate::gf2::{complement_rows, BitMatrix};
 /// A monomial x^i y^j.
 pub type Monomial = (usize, usize);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BbCode {
     pub l: usize,
     pub m: usize,
@@ -57,6 +57,56 @@ impl BbCode {
     /// [[72, 12, 6]]: the same polynomials on a 6 × 6 torus.
     pub fn bb72() -> BbCode {
         BbCode { l: 6, m: 6, a: [(3, 0), (0, 1), (0, 2)], b: [(0, 3), (1, 0), (2, 0)] }
+    }
+
+    /// [[90, 8, 10]]: A = x⁹ + y + y², B = 1 + x² + x⁷ on a 15 × 3 torus.
+    pub fn bb90() -> BbCode {
+        BbCode { l: 15, m: 3, a: [(9, 0), (0, 1), (0, 2)], b: [(0, 0), (2, 0), (7, 0)] }
+    }
+
+    /// [[108, 8, 10]]: the gross code's polynomials on a 9 × 6 torus.
+    pub fn bb108() -> BbCode {
+        BbCode { l: 9, m: 6, a: [(3, 0), (0, 1), (0, 2)], b: [(0, 3), (1, 0), (2, 0)] }
+    }
+
+    /// [[288, 12, 18]]: A = x³ + y² + y⁷, B = y³ + x + x² on a 12 × 12 torus.
+    pub fn bb288() -> BbCode {
+        BbCode { l: 12, m: 12, a: [(3, 0), (0, 2), (0, 7)], b: [(0, 3), (1, 0), (2, 0)] }
+    }
+
+    /// The codes of Bravyi et al.'s Table 3 by their number of data qubits: "72", "90", "108",
+    /// "144" (also "gross") and "288".
+    pub fn named(name: &str) -> Result<BbCode, String> {
+        match name {
+            "72" => Ok(BbCode::bb72()),
+            "90" => Ok(BbCode::bb90()),
+            "108" => Ok(BbCode::bb108()),
+            "144" | "gross" => Ok(BbCode::gross()),
+            "288" => Ok(BbCode::bb288()),
+            other => Err(format!("unknown bivariate bicycle code '{other}': 72, 90, 108, 144 (gross) or 288")),
+        }
+    }
+
+    /// The code of A = Σ x^i y^j over `a` and B over `b` on an ℓ × m torus. Each polynomial's
+    /// three monomials must differ (the checks are weight six, as the syndrome cycle needs),
+    /// and the code must encode at least one qubit.
+    pub fn new(l: usize, m: usize, a: [Monomial; 3], b: [Monomial; 3]) -> Result<BbCode, String> {
+        if l == 0 || m == 0 || l * m > 4096 {
+            return Err(format!("a {l} × {m} torus: each side at least 1, and at most 4096 cells"));
+        }
+        let reduce = |p: [Monomial; 3]| p.map(|(i, j)| (i % l, j % m));
+        let (a, b) = (reduce(a), reduce(b));
+        for (name, p) in [("A", a), ("B", b)] {
+            if p[0] == p[1] || p[0] == p[2] || p[1] == p[2] {
+                return Err(format!("{name}'s three monomials must differ on the {l} × {m} torus, not {p:?}"));
+            }
+        }
+        let code = BbCode { l, m, a, b };
+        let (hx, hz) = (code.hx(), code.hz());
+        if hx.rank() + hz.rank() == code.num_data() {
+            return Err("this code encodes no logical qubits".into());
+        }
+        Ok(code)
     }
 
     /// Qubits of one kind (checks of one type, or data on one side): ℓm.
