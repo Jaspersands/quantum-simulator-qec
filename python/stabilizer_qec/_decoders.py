@@ -110,6 +110,43 @@ class Matching(_DemDecoder):
         return out
 
 
+class UnionFind(_DemDecoder):
+    """Weighted union-find decoding (Delfosse and Nickerson 2021, with Huang, Newman and
+    Brown's weighted growth) on the graph ``Matching`` uses: clusters around the detection
+    events grow edge weight by edge weight until their events can pair inside them, and a
+    spanning tree of each is peeled for the correction. Linear time in practice, with a logical
+    error rate a little above matching's: the standard baseline (``Matching``, near-linear too,
+    is about twice as fast here). The model must be decomposed (``decompose_errors=True``).
+
+    >>> import stabilizer_qec as sq
+    >>> c = sq.memory_circuit(distance=5, rounds=5, p=0.003)
+    >>> dem = c.detector_error_model(decompose_errors=True)
+    >>> dets, obs = c.compile_detector_sampler(seed=1).sample(2000, separate_observables=True)
+    >>> int((sq.UnionFind(dem).decode_batch(dets) != obs).any(axis=1).sum()) < 100
+    True
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike) -> None:
+        model = self._made(_model(model))
+        self._x = call(_core.UnionFinder, model._d)
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> np.ndarray:
+        """As ``Matching.decode_batch``. A shot no correction explains raises ``ValueError``."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, failed = call(self._x.decode_batch, packed, n, threads)
+        _failed(failed, "no correction explains its detection events (an odd cluster with no boundary)")
+        return self._predictions(preds, n, bit_packed_predictions)
+
+
 class BeliefMatching(_DemDecoder):
     """Belief-matching (Higgott et al. 2023), as the ``beliefmatching`` package decodes:
     belief propagation on the model's full hypergraph; where BP's own correction explains the

@@ -6,6 +6,15 @@ minor release before a major release removes it. The Rust crate is versioned on 
 
 ## Unreleased
 
+### Added
+
+- `UnionFind` (Python and Rust), weighted union-find decoding (Delfosse and Nickerson, with
+  Huang, Newman and Brown's weighted growth) on the matching graph, and `"union_find"` in the
+  sinter adapter. Its corrections always explain the detection events, every single fault is
+  corrected, and its logical error rate is a little above matching's (d = 9 at p = 0.005:
+  0.70% against 0.65%). It is the standard baseline rather than the fast option here: this
+  engine's matcher, near-linear too, is about twice as fast at every noise strength measured.
+
 ### Changed
 
 - Error models print as Stim prints them, character for character (515 of 515 random,

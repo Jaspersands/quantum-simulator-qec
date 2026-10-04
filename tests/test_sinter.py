@@ -96,3 +96,9 @@ def test_adapters_pickle_and_check_their_kind():
     with pytest.raises(ValueError, match="kind must be one of"):
         sq_sinter.Decoder("unionfind")
     assert set(sq_sinter.sinter_decoders()) == {f"sq_{k}" for k in sq_sinter.KINDS} | {f"sq_sim_{k}" for k in sq_sinter.KINDS}
+
+
+def test_union_find_runs_under_sinter():
+    stats = sinter.collect(num_workers=1, tasks=[task()], decoders=["sq_union_find", "sq_sim_union_find"], custom_decoders=sq_sinter.sinter_decoders(), max_shots=5000, max_errors=10**9)
+    for name, (rate, s) in rates(stats).items():
+        assert s.shots >= 5000 and rate < 0.1, name

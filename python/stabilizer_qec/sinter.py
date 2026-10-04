@@ -23,7 +23,7 @@ others: the options are the decoder class's (``Decoder("bposd", osd_order=10)``)
 The decoder kinds are ``"matching"`` (``Matching``), ``"correlated_matching"`` (``Matching``
 with ``enable_correlations``), ``"belief_matching"`` (``BeliefMatching``) and ``"bposd"``
 (``BpOsd``, for codes whose faults flip three or more detectors, such as the bivariate bicycle
-codes). Requires sinter.
+codes), and ``"union_find"`` (``UnionFind``, the standard baseline). Requires sinter.
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ except ImportError as ex:  # pragma: no cover - exercised only without sinter
     raise ImportError("stabilizer_qec.sinter needs sinter: pip install sinter") from ex
 
 from ._circuit import Circuit, DetectorErrorModel
-from ._decoders import BeliefMatching, BpOsd, Matching
+from ._decoders import BeliefMatching, BpOsd, Matching, UnionFind
 
-KINDS = ("matching", "correlated_matching", "belief_matching", "bposd")
+KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_find")
 
 __all__ = ["KINDS", "Decoder", "Sampler", "decoders", "samplers", "sinter_decoders"]
 
@@ -59,6 +59,8 @@ def _build(kind: str, dem: DetectorErrorModel, options: dict) -> Any:
         return Matching(dem, enable_correlations=True, **options)
     if kind == "belief_matching":
         return BeliefMatching(dem, **options)
+    if kind == "union_find":
+        return UnionFind(dem, **options)
     return BpOsd(dem, **options)
 
 

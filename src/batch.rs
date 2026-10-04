@@ -213,3 +213,19 @@ pub fn stream_shots(
     let windows = plan.specs.iter().zip(&plan.deps).map(|(s, deps)| (s.a, s.b, s.commit.0, s.commit.1, s.phase, deps.clone())).collect();
     Ok(StreamOutcome { failures, shots: batches * 64, unexplained, times, windows, seconds })
 }
+
+/// Union-find of b8 shots: the observables per shot, `None` where no correction exists.
+pub fn union_find_shots(graph: &SparseGraph, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<Option<u64>> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut scratch = graph.union_find_scratch();
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                graph.decode_union_find(&mut scratch, &defects)
+            })
+            .collect()
+    })
+}

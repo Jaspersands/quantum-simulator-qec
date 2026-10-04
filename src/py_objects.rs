@@ -291,6 +291,35 @@ impl PyMatcher {
     }
 }
 
+/// Weighted union-find on a decomposed model's matching graph.
+#[pyclass(name = "UnionFinder", module = "stabilizer_qec._core")]
+pub struct PyUnionFinder {
+    graph: crate::sparse::SparseGraph,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyUnionFinder {
+    #[new]
+    fn new(dem: &PyDem) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let (graph, _) = DemDecoder::new(d).map_err(err)?.into_parts(false);
+        Ok(PyUnionFinder { graph, num_detectors: d.num_detectors, num_observables: d.num_observables })
+    }
+
+    /// (observables as u64 per shot, the shots with no correction).
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Vec<usize>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let out = py.detach(|| crate::batch::union_find_shots(&self.graph, packed, nd, shots, threads));
+        let failed = out.iter().enumerate().filter(|(_, o)| o.is_none()).map(|(s, _)| s).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.unwrap_or(0)))), failed))
+    }
+}
+
 fn bp_method(method: &str, scale: f64) -> PyResult<crate::bp::Method> {
     match method {
         "product_sum" => Ok(crate::bp::Method::ProductSum),
@@ -502,6 +531,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySampler>()?;
     m.add_class::<PyM2d>()?;
     m.add_class::<PyMatcher>()?;
+    m.add_class::<PyUnionFinder>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;
     m.add_class::<PyWindowMatcher>()?;
