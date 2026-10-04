@@ -38,6 +38,9 @@ minor release before a major release removes it. The Rust crate is versioned on 
   reference's time on the same machine and thread. Runs are recorded in
   `data/bench/runs.json` and shown on the site's new benchmarks page; every push is checked
   against the last run recorded on the same kind of machine.
+- Zenodo metadata (`.zenodo.json`) and the steps to link the repository
+  (`docs/zenodo.md`), so each release can be archived with a DOI; a Citing section in the
+  README.
 
 ### Changed
 

@@ -1405,6 +1405,13 @@ Node, pandoc, matplotlib and Chrome.
 - **Failure.** The build stops on a value it cannot fill or one that is not finite.
 - **Figures** are drawn from the same data into `report/figures/`.
 
+## Citing
+
+`CITATION.cff` gives the citation (GitHub's **Cite this repository** reads it, in APA and
+BibTeX). Releases are set up for archiving on Zenodo, which gives each version a DOI:
+`.zenodo.json` holds the record's metadata, and [docs/zenodo.md](docs/zenodo.md) the one-time
+linking.
+
 ## Engine defects found and fixed
 
 Seventeen bugs surfaced while making the site report live data. All seventeen are fixed, and the
