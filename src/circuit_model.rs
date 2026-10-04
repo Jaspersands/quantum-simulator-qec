@@ -125,12 +125,19 @@ pub(crate) struct Frame {
 
 impl Frame {
     pub(crate) fn new(n: usize) -> Self {
-        Frame { x: vec![false; n], z: vec![false; n] }
+        Frame {
+            x: vec![false; n],
+            z: vec![false; n],
+        }
     }
 
     pub(crate) fn apply(&mut self, q: usize, pauli: Pauli) {
-        if pauli & 1 != 0 { self.x[q] ^= true; }
-        if pauli & 2 != 0 { self.z[q] ^= true; }
+        if pauli & 1 != 0 {
+            self.x[q] ^= true;
+        }
+        if pauli & 2 != 0 {
+            self.z[q] ^= true;
+        }
     }
 
     /// Walk one op. Returns Some(outcome flipped) for a measurement.
@@ -147,15 +154,23 @@ impl Frame {
             }
             Op::Cnot(c, t) => {
                 // X propagates control -> target, Z propagates target -> control.
-                if self.x[c] { self.x[t] ^= true; }
-                if self.z[t] { self.z[c] ^= true; }
+                if self.x[c] {
+                    self.x[t] ^= true;
+                }
+                if self.z[t] {
+                    self.z[c] ^= true;
+                }
                 None
             }
             Op::Cz(a, b) => {
                 // CZ is symmetric and turns an X on either side into a Z on the
                 // other; Z commutes with it and does not move.
-                if self.x[a] { self.z[b] ^= true; }
-                if self.x[b] { self.z[a] ^= true; }
+                if self.x[a] {
+                    self.z[b] ^= true;
+                }
+                if self.x[b] {
+                    self.z[a] ^= true;
+                }
                 None
             }
             Op::Measure(q, kind, idx) => {
@@ -234,11 +249,20 @@ impl CircuitLayout {
         let mut residual_x = 0u128;
         let mut residual_z = 0u128;
         for q in 0..self.num_data {
-            if frame.x[q] { residual_x |= 1u128 << q; }
-            if frame.z[q] { residual_z |= 1u128 << q; }
+            if frame.x[q] {
+                residual_x |= 1u128 << q;
+            }
+            if frame.z[q] {
+                residual_z |= 1u128 << q;
+            }
         }
 
-        FaultEffect { flips_x_stab: flips_x, flips_z_stab: flips_z, residual_x, residual_z }
+        FaultEffect {
+            flips_x_stab: flips_x,
+            flips_z_stab: flips_z,
+            residual_x,
+            residual_z,
+        }
     }
 
     /// Every elementary fault one round admits, paired with its erasure slot.
@@ -266,7 +290,10 @@ impl CircuitLayout {
 
     /// How many noise locations one round has.
     pub fn noise_slots(&self) -> usize {
-        self.program.iter().filter(|op| matches!(op, Op::Noise(_))).count()
+        self.program
+            .iter()
+            .filter(|op| matches!(op, Op::Noise(_)))
+            .count()
     }
 }
 
@@ -351,9 +378,17 @@ fn assemble(
             .expect("a tallied pair has at least one correction");
         // The matcher's own bookkeeping wants a representative qubit; the real
         // correction is the mask alongside.
-        let representative = if best == 0 { None } else { Some(best.trailing_zeros() as usize) };
+        let representative = if best == 0 {
+            None
+        } else {
+            Some(best.trailing_zeros() as usize)
+        };
         edge_of_pair.insert((u, v), edges.len());
-        edges.push(Edge { u, v, id: edges.len() });
+        edges.push(Edge {
+            u,
+            v,
+            id: edges.len(),
+        });
         edge_to_qubit.push(representative);
         correction.push(best);
     }
@@ -370,7 +405,11 @@ fn assemble(
     }
 
     DetectorGraph {
-        graph: SyndromeGraph { num_nodes, edges, edge_to_qubit },
+        graph: SyndromeGraph {
+            num_nodes,
+            edges,
+            edge_to_qubit,
+        },
         correction,
         site_edges,
     }
@@ -411,13 +450,17 @@ pub fn single_fault_failures(
 
             // X errors, decoded on the Z-stabilizer detectors.
             let mut defects = vec![false; model.for_x_errors.graph.num_nodes];
-            for &n in &dz { defects[n] = true; }
+            for &n in &dz {
+                defects[n] = true;
+            }
             let none_x = vec![false; model.for_x_errors.graph.edges.len()];
             residual_x ^= correction_for(&model.for_x_errors, &defects, decoder_type, &none_x);
 
             // Z errors, decoded on the X-stabilizer detectors.
             let mut defects = vec![false; model.for_z_errors.graph.num_nodes];
-            for &n in &dx { defects[n] = true; }
+            for &n in &dx {
+                defects[n] = true;
+            }
             let none_z = vec![false; model.for_z_errors.graph.edges.len()];
             residual_z ^= correction_for(&model.for_z_errors, &defects, decoder_type, &none_z);
 
@@ -462,7 +505,12 @@ pub struct ModelStats {
 /// Same enumeration as `build`, reporting where the faults land.
 pub fn stats(layout: &CircuitLayout, num_rounds: usize) -> ModelStats {
     let rounds_total = rounds_executed(num_rounds);
-    let mut st = ModelStats { x_buckets: [0; 5], z_buckets: [0; 5], x_edges: 0, z_edges: 0 };
+    let mut st = ModelStats {
+        x_buckets: [0; 5],
+        z_buckets: [0; 5],
+        x_edges: 0,
+        z_edges: 0,
+    };
     for round in 1..rounds_total - 1 {
         for (fault, _) in layout.fault_locations() {
             let effect = layout.propagate(fault, round, rounds_total);
@@ -576,7 +624,11 @@ fn assemble_combined(
     let mut tally: BTreeMap<(usize, usize), BTreeMap<(u128, u128), usize>> = BTreeMap::new();
     for (nodes, cx, cz, _) in &candidates {
         if let Some(pair) = endpoints(nodes) {
-            *tally.entry(pair).or_default().entry((*cx, *cz)).or_insert(0) += 1;
+            *tally
+                .entry(pair)
+                .or_default()
+                .entry((*cx, *cz))
+                .or_insert(0) += 1;
         }
     }
 
@@ -599,7 +651,11 @@ fn assemble_combined(
             None
         };
         edge_of_pair.insert((u, v), edges.len());
-        edges.push(Edge { u, v, id: edges.len() });
+        edges.push(Edge {
+            u,
+            v,
+            id: edges.len(),
+        });
         edge_to_qubit.push(representative);
         correction_x.push(cx);
         correction_z.push(cz);
@@ -617,7 +673,11 @@ fn assemble_combined(
     }
 
     CombinedGraph {
-        graph: SyndromeGraph { num_nodes, edges, edge_to_qubit },
+        graph: SyndromeGraph {
+            num_nodes,
+            edges,
+            edge_to_qubit,
+        },
         correction_x,
         correction_z,
         site_edges,
@@ -731,7 +791,9 @@ pub fn single_fault_failures_combined(
 
             let d = detectors(&effect.flips_z_stab, layout.num_z_stabs, rounds_total);
             let mut defects = vec![false; model.graph.graph.num_nodes];
-            for &n in &d { defects[n] = true; }
+            for &n in &d {
+                defects[n] = true;
+            }
 
             let (cx, cz) = correction_for_combined(&model.graph, &defects, decoder_type, &none);
             if is_logical(effect.residual_x ^ cx, effect.residual_z ^ cz) {

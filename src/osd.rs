@@ -55,7 +55,14 @@ pub struct BpOsdOutcome {
 }
 
 impl BpOsd {
-    pub fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: &[f64], method: Method, max_iter: usize, osd: OsdMethod) -> Result<BpOsd, String> {
+    pub fn new(
+        num_checks: usize,
+        columns: Vec<Vec<u32>>,
+        priors: &[f64],
+        method: Method,
+        max_iter: usize,
+        osd: OsdMethod,
+    ) -> Result<BpOsd, String> {
         // One matrix for BP and OSD alike: each column's checks sorted and
         // distinct, as Bp keeps them.
         let columns: Vec<Vec<u32>> = columns
@@ -68,7 +75,14 @@ impl BpOsd {
             .collect();
         let bp = Bp::new(num_checks, &columns, priors)?;
         let weight = priors.iter().map(|&p| (1.0 / p).ln()).collect();
-        Ok(BpOsd { bp, columns, weight, method, max_iter, osd })
+        Ok(BpOsd {
+            bp,
+            columns,
+            weight,
+            method,
+            max_iter,
+            osd,
+        })
     }
 
     pub fn work(&self) -> BpOsdWork {
@@ -86,13 +100,21 @@ impl BpOsd {
     /// Decode a syndrome (one byte per check); the correction is left in
     /// `w.correction`.
     pub fn decode(&self, syndrome: &[u8], w: &mut BpOsdWork) -> BpOsdOutcome {
-        let out = self.bp.decode(syndrome, self.method, self.max_iter, &mut w.bp);
+        let out = self
+            .bp
+            .decode(syndrome, self.method, self.max_iter, &mut w.bp);
         if out.converged {
             w.correction.copy_from_slice(&w.bp.hard);
-            return BpOsdOutcome { converged: true, iterations: out.iterations };
+            return BpOsdOutcome {
+                converged: true,
+                iterations: out.iterations,
+            };
         }
         self.osd(syndrome, w);
-        BpOsdOutcome { converged: false, iterations: out.iterations }
+        BpOsdOutcome {
+            converged: false,
+            iterations: out.iterations,
+        }
     }
 
     fn osd(&self, syndrome: &[u8], w: &mut BpOsdWork) {
@@ -104,7 +126,8 @@ impl BpOsd {
         // run long enough (its adaptive scale reaches exactly 1) repeats
         // values, and the tie order picks OSD-CS's candidates.
         let llr = &w.bp.llr;
-        w.order.sort_by(|&a, &b| llr[a as usize].total_cmp(&llr[b as usize]).then(b.cmp(&a)));
+        w.order
+            .sort_by(|&a, &b| llr[a as usize].total_cmp(&llr[b as usize]).then(b.cmp(&a)));
         // [H | s] with H's columns in that order; the syndrome is column n.
         w.rows.fill(0);
         for (pos, &v) in w.order.iter().enumerate() {
@@ -125,7 +148,9 @@ impl BpOsd {
                 break;
             }
             let (wi, bit) = (col / 64, 1u64 << (col % 64));
-            let Some(p) = (r..m).find(|&i| w.rows[i * words + wi] & bit != 0) else { continue };
+            let Some(p) = (r..m).find(|&i| w.rows[i * words + wi] & bit != 0) else {
+                continue;
+            };
             if p != r {
                 for k in 0..words {
                     w.rows.swap(p * words + k, r * words + k);
@@ -151,15 +176,23 @@ impl BpOsd {
             v
         };
         let non_pivots: Vec<usize> = (0..n).filter(|&c| !is_pivot[c]).collect();
-        let get = |rows: &[u64], i: usize, col: usize| rows[i * words + col / 64] >> (col % 64) & 1 == 1;
+        let get =
+            |rows: &[u64], i: usize, col: usize| rows[i * words + col / 64] >> (col % 64) & 1 == 1;
         let weight_of = |pos: usize| self.weight[w.order[pos] as usize];
 
         // A candidate: the non-pivot positions flipped. Its pivot bits are the
         // reduced syndrome XOR the reduced columns of the flips; only its
         // weight is needed until it wins.
-        let pivot_bit = |flips: &[usize], rows: &[u64], i: usize| flips.iter().fold(get(rows, i, n), |b, &f| b ^ get(rows, i, f));
+        let pivot_bit = |flips: &[usize], rows: &[u64], i: usize| {
+            flips
+                .iter()
+                .fold(get(rows, i, n), |b, &f| b ^ get(rows, i, f))
+        };
         let weigh = |flips: &[usize], rows: &[u64]| -> f64 {
-            let pivots_weight: f64 = (0..rank).filter(|&i| pivot_bit(flips, rows, i)).map(|i| weight_of(pivots[i])).sum();
+            let pivots_weight: f64 = (0..rank)
+                .filter(|&i| pivot_bit(flips, rows, i))
+                .map(|i| weight_of(pivots[i]))
+                .sum();
             pivots_weight + flips.iter().map(|&f| weight_of(f)).sum::<f64>()
         };
         let mut best_w = weigh(&[], &w.rows);
@@ -176,7 +209,12 @@ impl BpOsd {
             OsdMethod::Exhaustive(order) => {
                 let k = order.min(non_pivots.len());
                 for mask in 1u64..(1 << k) {
-                    consider((0..k).filter(|&i| mask >> i & 1 == 1).map(|i| non_pivots[i]).collect());
+                    consider(
+                        (0..k)
+                            .filter(|&i| mask >> i & 1 == 1)
+                            .map(|i| non_pivots[i])
+                            .collect(),
+                    );
                 }
             }
             OsdMethod::CombinationSweep(order) => {
@@ -191,7 +229,9 @@ impl BpOsd {
                 }
             }
         }
-        let best_x: Vec<bool> = (0..rank).map(|i| pivot_bit(&best_flips, &w.rows, i)).collect();
+        let best_x: Vec<bool> = (0..rank)
+            .map(|i| pivot_bit(&best_flips, &w.rows, i))
+            .collect();
         w.correction.fill(0);
         for (i, &p) in pivots.iter().enumerate() {
             if best_x[i] {
@@ -244,9 +284,21 @@ mod tests {
         let (m, n) = (30, 60);
         let columns = random_code(m, n, &mut rng);
         let priors = vec![0.05; n];
-        for osd in [OsdMethod::Osd0, OsdMethod::Exhaustive(4), OsdMethod::CombinationSweep(5)] {
+        for osd in [
+            OsdMethod::Osd0,
+            OsdMethod::Exhaustive(4),
+            OsdMethod::CombinationSweep(5),
+        ] {
             // Few iterations, so OSD runs often.
-            let dec = BpOsd::new(m, columns.clone(), &priors, Method::MinSum { scale: 0.625 }, 2, osd).unwrap();
+            let dec = BpOsd::new(
+                m,
+                columns.clone(),
+                &priors,
+                Method::MinSum { scale: 0.625 },
+                2,
+                osd,
+            )
+            .unwrap();
             let mut w = dec.work();
             let mut osd_runs = 0;
             for _ in 0..200 {
@@ -268,18 +320,36 @@ mod tests {
         let (m, n) = (8, 14);
         let columns = random_code(m, n, &mut rng);
         let priors: Vec<f64> = (0..n).map(|i| 0.02 + 0.01 * i as f64).collect();
-        let weight = |e: &[u8]| e.iter().enumerate().filter(|x| *x.1 != 0).map(|(i, _)| (1.0 / priors[i]).ln()).sum::<f64>();
+        let weight = |e: &[u8]| {
+            e.iter()
+                .enumerate()
+                .filter(|x| *x.1 != 0)
+                .map(|(i, _)| (1.0 / priors[i]).ln())
+                .sum::<f64>()
+        };
         let mk = |osd| BpOsd::new(m, columns.clone(), &priors, Method::ProductSum, 1, osd).unwrap();
-        let (d0, dcs, dfull) = (mk(OsdMethod::Osd0), mk(OsdMethod::CombinationSweep(4)), mk(OsdMethod::Exhaustive(n)));
+        let (d0, dcs, dfull) = (
+            mk(OsdMethod::Osd0),
+            mk(OsdMethod::CombinationSweep(4)),
+            mk(OsdMethod::Exhaustive(n)),
+        );
         let (mut w0, mut wcs, mut wfull) = (d0.work(), dcs.work(), dfull.work());
         for _ in 0..100 {
             let e: Vec<u8> = (0..n).map(|_| u8::from(rng.next_f64() < 0.15)).collect();
             let s = syndrome_of(&columns, m, &e);
-            let (a, b, c) = (d0.decode(&s, &mut w0), dcs.decode(&s, &mut wcs), dfull.decode(&s, &mut wfull));
+            let (a, b, c) = (
+                d0.decode(&s, &mut w0),
+                dcs.decode(&s, &mut wcs),
+                dfull.decode(&s, &mut wfull),
+            );
             if a.converged || b.converged || c.converged {
                 continue;
             }
-            let (x0, xcs, xfull) = (weight(&w0.correction), weight(&wcs.correction), weight(&wfull.correction));
+            let (x0, xcs, xfull) = (
+                weight(&w0.correction),
+                weight(&wcs.correction),
+                weight(&wfull.correction),
+            );
             assert!(xcs <= x0 + 1e-12 && xfull <= xcs + 1e-12);
             // Brute force over every error with this syndrome.
             let mut best = f64::INFINITY;
@@ -289,7 +359,10 @@ mod tests {
                     best = best.min(weight(&e));
                 }
             }
-            assert!((xfull - best).abs() < 1e-9, "exhaustive OSD {xfull} vs brute force {best}");
+            assert!(
+                (xfull - best).abs() < 1e-9,
+                "exhaustive OSD {xfull} vs brute force {best}"
+            );
         }
     }
 }

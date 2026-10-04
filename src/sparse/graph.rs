@@ -52,7 +52,11 @@ impl SparseGraph {
             let (fw, iw) = edge_weight(p);
             wf.push(fw);
             let boundary = (v as usize) >= num_nodes;
-            let pairs: &[(u32, u32)] = if boundary { &[(u, BOUNDARY)] } else { &[(u, v), (v, u)] };
+            let pairs: &[(u32, u32)] = if boundary {
+                &[(u, BOUNDARY)]
+            } else {
+                &[(u, v), (v, u)]
+            };
             for (k, &(a, b)) in pairs.iter().enumerate() {
                 let slot = fill[a as usize] as usize;
                 fill[a as usize] += 1;
@@ -64,7 +68,17 @@ impl SparseGraph {
             }
             ends.push((u, if boundary { num_nodes as u32 } else { v }));
         }
-        SparseGraph { num_nodes, offsets, to, w, obs, edge_of, halves, ends, wf }
+        SparseGraph {
+            num_nodes,
+            offsets,
+            to,
+            w,
+            obs,
+            edge_of,
+            halves,
+            ends,
+            wf,
+        }
     }
 
     pub(crate) fn edges(&self, v: u32) -> std::ops::Range<usize> {
@@ -76,7 +90,12 @@ impl SparseGraph {
     pub(crate) fn arcs(&self, v: u32) -> impl Iterator<Item = (Option<u32>, i64, u64, f64)> + '_ {
         self.edges(v).map(move |e| {
             let to = self.to[e];
-            (if to == BOUNDARY { None } else { Some(to) }, self.w[e], self.obs[e], self.wf[self.edge_of[e] as usize])
+            (
+                if to == BOUNDARY { None } else { Some(to) },
+                self.w[e],
+                self.obs[e],
+                self.wf[self.edge_of[e] as usize],
+            )
         })
     }
 
@@ -93,7 +112,9 @@ impl SparseGraph {
             return None;
         }
         let target = if v == n { BOUNDARY } else { v };
-        self.edges(u).find(|&e| self.to[e] == target).map(|e| self.edge_of[e])
+        self.edges(u)
+            .find(|&e| self.to[e] == target)
+            .map(|e| self.edge_of[e])
     }
 
     /// An edge's endpoints, with `num_nodes` standing for the boundary.
@@ -114,6 +135,9 @@ impl SparseGraph {
             scratch.nodes.len() == self.num_nodes + 1 && scratch.w.len() == self.w.len(),
             "a Scratch serves the graph it was built for"
         );
-        debug_assert!(scratch.undo.is_empty(), "a Scratch's weights are restored after every decode");
+        debug_assert!(
+            scratch.undo.is_empty(),
+            "a Scratch's weights are restored after every decode"
+        );
     }
 }

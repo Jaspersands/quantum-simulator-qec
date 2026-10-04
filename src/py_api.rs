@@ -16,14 +16,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots};
 use crate::circuit::{Basis, Circuit};
 use crate::dem::Dem;
 use crate::dem_decoder::{DemDecoder, Prediction};
 use crate::frame_sampler::FrameSampler;
-use crate::py_objects::bits;
-use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots};
-use crate::py_objects::check_rows;
 use crate::memory::{generate, CodeKind, NoiseModel};
+use crate::py_objects::bits;
+use crate::py_objects::check_rows;
 use crate::shots::{pack_row, read_b8, write_01};
 use crate::surface_code::Xorshift;
 
@@ -39,7 +39,15 @@ use crate::parallel::resolve_threads;
 /// biased `"current"` model with bias `eta`, in basis `"z"` or `"x"`.
 #[pyfunction]
 #[pyo3(signature = (code, d, rounds, noise, p, eta=0.5, basis="z"))]
-fn generate_circuit(code: &str, d: usize, rounds: usize, noise: &str, p: f64, eta: f64, basis: &str) -> PyResult<String> {
+fn generate_circuit(
+    code: &str,
+    d: usize,
+    rounds: usize,
+    noise: &str,
+    p: f64,
+    eta: f64,
+    basis: &str,
+) -> PyResult<String> {
     let kind = match code {
         "rotated" => CodeKind::Rotated,
         "xzzx" => CodeKind::Xzzx,
@@ -55,7 +63,9 @@ fn generate_circuit(code: &str, d: usize, rounds: usize, noise: &str, p: f64, et
         "x" => Basis::X,
         _ => return Err(err(format!("unknown basis '{basis}'"))),
     };
-    Ok(generate(kind, d, rounds, noise, basis).map_err(err)?.to_stim())
+    Ok(generate(kind, d, rounds, noise, basis)
+        .map_err(err)?
+        .to_stim())
 }
 
 /// The circuit's detector error model, built by walking it backwards, as
@@ -64,7 +74,11 @@ fn generate_circuit(code: &str, d: usize, rounds: usize, noise: &str, p: f64, et
 #[pyo3(signature = (circuit_text, decompose=false))]
 fn dem_from_circuit(circuit_text: &str, decompose: bool) -> PyResult<String> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
-    let dem = if decompose { Dem::from_circuit(&c) } else { Dem::from_circuit_undecomposed(&c) };
+    let dem = if decompose {
+        Dem::from_circuit(&c)
+    } else {
+        Dem::from_circuit_undecomposed(&c)
+    };
     Ok(dem.map_err(err)?.to_stim(decompose))
 }
 
@@ -95,7 +109,12 @@ fn decode_packed<'py>(
     let errors = out.iter().filter(|(_, w)| w.is_nan()).count();
     let preds: Vec<u8> = out.iter().flat_map(|(o, _)| o.to_le_bytes()).collect();
     let weights: Vec<u8> = out.iter().flat_map(|(_, w)| w.to_le_bytes()).collect();
-    Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), errors, seconds))
+    Ok((
+        PyBytes::new(py, &preds),
+        PyBytes::new(py, &weights),
+        errors,
+        seconds,
+    ))
 }
 
 /// Decode with a model someone else wrote, pieces and all (Stim's decomposed
@@ -147,13 +166,22 @@ impl Decoder {
     fn new(dem_text: &str) -> PyResult<Self> {
         let dem = Dem::parse(dem_text).map_err(err)?;
         let inner = DemDecoder::new(&dem).map_err(err)?;
-        Ok(Decoder { inner, num_detectors: dem.num_detectors as u32 })
+        Ok(Decoder {
+            inner,
+            num_detectors: dem.num_detectors as u32,
+        })
     }
 
     fn edges(&self, defects: Vec<u32>) -> PyResult<Vec<(i64, i64)>> {
         let nd = self.num_detectors;
-        let edges = self.inner.decode_to_edges(&defects).map_err(|e| err(format!("{e:?}")))?;
-        Ok(edges.into_iter().map(|(u, v)| (u as i64, if v == nd { -1 } else { v as i64 })).collect())
+        let edges = self
+            .inner
+            .decode_to_edges(&defects)
+            .map_err(|e| err(format!("{e:?}")))?;
+        Ok(edges
+            .into_iter()
+            .map(|(u, v)| (u as i64, if v == nd { -1 } else { v as i64 }))
+            .collect())
     }
 
     fn pass2(&self, defects: Vec<u32>, edges: Vec<(i64, i64)>) -> PyResult<(u64, f64)> {
@@ -161,9 +189,14 @@ impl Decoder {
         let end = |x: i64| match x {
             -1 => Ok(nd),
             x if x >= 0 && x < nd as i64 => Ok(x as u32),
-            x => Err(err(format!("{x} is neither a detector nor -1, the boundary"))),
+            x => Err(err(format!(
+                "{x} is neither a detector nor -1, the boundary"
+            ))),
         };
-        let edges = edges.into_iter().map(|(u, v)| Ok((end(u)?, end(v)?))).collect::<PyResult<Vec<(u32, u32)>>>()?;
+        let edges = edges
+            .into_iter()
+            .map(|(u, v)| Ok((end(u)?, end(v)?)))
+            .collect::<PyResult<Vec<(u32, u32)>>>()?;
         let p: Prediction = self.inner.decode_pass2(&defects, &edges).map_err(err)?;
         Ok((p.observables, p.weight))
     }
@@ -205,7 +238,9 @@ fn m2d_b8<'py>(
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     let c = Circuit::parse(circuit_text).map_err(err)?;
     let m = crate::m2d::M2d::new(&c).map_err(err)?;
-    let (d, o) = py.detach(|| m.convert_b8(meas, sweeps, num_shots)).map_err(err)?;
+    let (d, o) = py
+        .detach(|| m.convert_b8(meas, sweeps, num_shots))
+        .map_err(err)?;
     Ok((PyBytes::new(py, &d), PyBytes::new(py, &o)))
 }
 
@@ -239,17 +274,23 @@ fn sample_b8_batch<'py>(
                 .map(|t| {
                     let sampler = &sampler;
                     scope.spawn(move || {
-                        let mut rng = Xorshift::new(seed ^ (t as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+                        let mut rng =
+                            Xorshift::new(seed ^ (t as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
                         let (mut dets, mut obs) = (Vec::new(), Vec::new());
                         for b in (t * per)..((t + 1) * per).min(batches) {
                             let lanes = (num_shots - b * 64).min(64);
-                            sampler.sample(&mut rng).write_b8(lanes, &mut dets, &mut obs);
+                            sampler
+                                .sample(&mut rng)
+                                .write_b8(lanes, &mut dets, &mut obs);
                         }
                         (dets, obs)
                     })
                 })
                 .collect();
-            handles.into_iter().map(|h| h.join().expect("sampler thread panicked")).collect()
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("sampler thread panicked"))
+                .collect()
         })
     });
     let seconds = start.elapsed().as_secs_f64();
@@ -282,22 +323,40 @@ fn decode_b8_window<'py>(
     correlated: bool,
     threads: usize,
     timings: bool,
-) -> PyResult<(Bound<'py, PyBytes>, usize, Bound<'py, PyBytes>, Vec<WindowInfo>)> {
+) -> PyResult<(
+    Bound<'py, PyBytes>,
+    usize,
+    Bound<'py, PyBytes>,
+    Vec<WindowInfo>,
+)> {
     use crate::window::{Mode, Model, WindowDecoder};
     let dem = Dem::parse(dem_text).map_err(err)?;
     let mode = match mode {
         "sliding" => Mode::Sliding,
         "parallel" => Mode::Parallel,
-        other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
+        other => {
+            return Err(err(format!(
+                "mode '{other}' is neither sliding nor parallel"
+            )))
+        }
     };
-    let wd = WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode).map_err(err)?;
+    let wd =
+        WindowDecoder::new(Model::new(&dem).map_err(err)?, commit, buffer, mode).map_err(err)?;
     let nd = dem.num_detectors;
     check_rows(packed.len(), nd.div_ceil(8), num_shots, nd, "detectors")?;
     let out = py.detach(|| window_shots(&wd, packed, nd, num_shots, correlated, threads, timings));
     let preds: Vec<u8> = out.iter().flat_map(|x| x.0.to_le_bytes()).collect();
     let unexplained = out.iter().map(|x| x.1).sum();
-    let times: Vec<u8> = out.iter().flat_map(|x| x.2.iter().flat_map(|t| t.to_le_bytes())).collect();
-    Ok((PyBytes::new(py, &preds), unexplained, PyBytes::new(py, &times), window_info(&wd)))
+    let times: Vec<u8> = out
+        .iter()
+        .flat_map(|x| x.2.iter().flat_map(|t| t.to_le_bytes()))
+        .collect();
+    Ok((
+        PyBytes::new(py, &preds),
+        unexplained,
+        PyBytes::new(py, &times),
+        window_info(&wd),
+    ))
 }
 
 /// A long SD6 memory decoded as it streams: `batches` × 64 streams of
@@ -323,7 +382,14 @@ fn stream_decode<'py>(
     batches: usize,
     seed: u64,
     threads: usize,
-) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<WindowInfo>, f64)> {
+) -> PyResult<(
+    usize,
+    usize,
+    usize,
+    Bound<'py, PyBytes>,
+    Vec<WindowInfo>,
+    f64,
+)> {
     use crate::window::Mode;
     let kind = match code {
         "rotated" => CodeKind::Rotated,
@@ -333,11 +399,28 @@ fn stream_decode<'py>(
     let mode = match mode {
         "sliding" => Mode::Sliding,
         "parallel" => Mode::Parallel,
-        other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
+        other => {
+            return Err(err(format!(
+                "mode '{other}' is neither sliding nor parallel"
+            )))
+        }
     };
-    let out = py.detach(|| crate::batch::stream_shots(kind, d, p, rounds, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
+    let out = py
+        .detach(|| {
+            crate::batch::stream_shots(
+                kind, d, p, rounds, commit, buffer, mode, correlated, batches, seed, threads,
+            )
+        })
+        .map_err(err)?;
     let bytes: Vec<u8> = out.times.iter().flat_map(|x| x.to_le_bytes()).collect();
-    Ok((out.failures, out.shots, out.unexplained, PyBytes::new(py, &bytes), out.windows, out.seconds))
+    Ok((
+        out.failures,
+        out.shots,
+        out.unexplained,
+        PyBytes::new(py, &bytes),
+        out.windows,
+        out.seconds,
+    ))
 }
 
 /// Any circuit with a loop, decoded as it streams: as `stream_decode`, the circuit sampled
@@ -355,24 +438,50 @@ fn stream_circuit_decode<'py>(
     batches: usize,
     seed: u64,
     threads: usize,
-) -> PyResult<(usize, usize, usize, Bound<'py, PyBytes>, Vec<WindowInfo>, f64)> {
+) -> PyResult<(
+    usize,
+    usize,
+    usize,
+    Bound<'py, PyBytes>,
+    Vec<WindowInfo>,
+    f64,
+)> {
     use crate::window::Mode;
     let mode = match mode {
         "sliding" => Mode::Sliding,
         "parallel" => Mode::Parallel,
-        other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
+        other => {
+            return Err(err(format!(
+                "mode '{other}' is neither sliding nor parallel"
+            )))
+        }
     };
     let c = circuit.engine();
-    let out = py.detach(|| crate::batch::stream_circuit(c, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
+    let out = py
+        .detach(|| {
+            crate::batch::stream_circuit(
+                c, commit, buffer, mode, correlated, batches, seed, threads,
+            )
+        })
+        .map_err(err)?;
     let bytes: Vec<u8> = out.times.iter().flat_map(|x| x.to_le_bytes()).collect();
-    Ok((out.failures, out.shots, out.unexplained, PyBytes::new(py, &bytes), out.windows, out.seconds))
+    Ok((
+        out.failures,
+        out.shots,
+        out.unexplained,
+        PyBytes::new(py, &bytes),
+        out.windows,
+        out.seconds,
+    ))
 }
 
 fn bp_method(method: &str, ms_scale: f64) -> PyResult<crate::bp::Method> {
     match method {
         "product_sum" => Ok(crate::bp::Method::ProductSum),
         "minimum_sum" => Ok(crate::bp::Method::MinSum { scale: ms_scale }),
-        other => Err(err(format!("BP method '{other}' is neither product_sum nor minimum_sum"))),
+        other => Err(err(format!(
+            "BP method '{other}' is neither product_sum nor minimum_sum"
+        ))),
     }
 }
 
@@ -394,7 +503,10 @@ fn bp_decode(
 ) -> PyResult<(Vec<u32>, Vec<f64>, bool, usize)> {
     let bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
     if syndrome.len() != num_checks {
-        return Err(err(format!("{} syndrome bits for {num_checks} checks", syndrome.len())));
+        return Err(err(format!(
+            "{} syndrome bits for {num_checks} checks",
+            syndrome.len()
+        )));
     }
     let mut w = bp.work();
     let out = bp.decode(&syndrome, bp_method(method, ms_scale)?, max_iter, &mut w);
@@ -419,7 +531,13 @@ fn decode_b8_belief<'py>(
     method: &str,
     ms_scale: f64,
     threads: usize,
-) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, usize, f64)> {
+) -> PyResult<(
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    usize,
+    f64,
+)> {
     use crate::belief::BeliefMatching;
     let dem = Dem::parse(dem_text).map_err(err)?;
     let bm = BeliefMatching::from_dem(&dem, bp_method(method, ms_scale)?, max_iter).map_err(err)?;
@@ -432,7 +550,13 @@ fn decode_b8_belief<'py>(
     let weights: Vec<u8> = out.iter().flat_map(|x| x.1.to_le_bytes()).collect();
     let conv: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
     let errors = out.iter().filter(|x| x.2 == 2).count();
-    Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), PyBytes::new(py, &conv), errors, seconds))
+    Ok((
+        PyBytes::new(py, &preds),
+        PyBytes::new(py, &weights),
+        PyBytes::new(py, &conv),
+        errors,
+        seconds,
+    ))
 }
 
 fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
@@ -443,7 +567,9 @@ fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
     match name {
         "gross" | "144" => Ok(crate::bb::BbCode::gross()),
         "72" => Ok(crate::bb::BbCode::bb72()),
-        other => Err(err(format!("unknown bivariate bicycle code '{other}' (gross or 72)"))),
+        other => Err(err(format!(
+            "unknown bivariate bicycle code '{other}' (gross or 72)"
+        ))),
     }
 }
 
@@ -452,7 +578,14 @@ fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
 /// (H_X, H_Z, logical X, logical Z).
 #[pyfunction]
 #[allow(clippy::type_complexity)]
-fn bb_matrices(code: &str) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
+fn bb_matrices(
+    code: &str,
+) -> PyResult<(
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+    Vec<Vec<usize>>,
+)> {
     let c = bb_code(code)?;
     let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect::<Vec<_>>();
     let (lx, lz) = c.logicals();
@@ -482,7 +615,12 @@ fn bb_automorphisms(code: &str) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usi
     for a in 0..c.l {
         for b in 0..c.m {
             for dual in [false, true] {
-                let m = c.logical_action(Automorphism { shift: (a, b), dual }).map_err(err)?;
+                let m = c
+                    .logical_action(Automorphism {
+                        shift: (a, b),
+                        dual,
+                    })
+                    .map_err(err)?;
                 out.push((a, b, dual, (0..m.rows).map(|r| m.row_ones(r)).collect()));
             }
         }
@@ -490,10 +628,17 @@ fn bb_automorphisms(code: &str) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usi
     Ok(out)
 }
 
-fn gauged(operator: &str, expanded: bool) -> PyResult<(crate::bb::BbCode, crate::bb_gauge::Gauging)> {
+fn gauged(
+    operator: &str,
+    expanded: bool,
+) -> PyResult<(crate::bb::BbCode, crate::bb_gauge::Gauging)> {
     let code = crate::bb::BbCode::gross();
     let support = crate::bb::gross_operator(operator).map_err(err)?;
-    let g = if expanded { crate::bb_gauge::Gauging::expanded(&code, &support) } else { crate::bb_gauge::Gauging::new(&code, &support) };
+    let g = if expanded {
+        crate::bb_gauge::Gauging::expanded(&code, &support)
+    } else {
+        crate::bb_gauge::Gauging::new(&code, &support)
+    };
     Ok((code, g.map_err(err)?))
 }
 
@@ -558,12 +703,25 @@ fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> Py
 /// `expanded` uses the expanded ancilla system (see `bb_gauging`).
 #[pyfunction]
 #[pyo3(signature = (operator, basis, pre, merged, post, p, expanded=false))]
-fn bb_logical_measurement_circuit(operator: &str, basis: &str, pre: usize, merged: usize, post: usize, p: f64, expanded: bool) -> PyResult<String> {
+fn bb_logical_measurement_circuit(
+    operator: &str,
+    basis: &str,
+    pre: usize,
+    merged: usize,
+    post: usize,
+    p: f64,
+    expanded: bool,
+) -> PyResult<String> {
     // A merge of no cycles is refused below, with its own message.
-    bb_cycles(pre.saturating_add(merged).saturating_add(post).max(1), merged.max(1))?;
+    bb_cycles(
+        pre.saturating_add(merged).saturating_add(post).max(1),
+        merged.max(1),
+    )?;
     crate::memory::probability(p).map_err(err)?;
     let (code, g) = gauged(operator, expanded)?;
-    let c = crate::bb_circuit::logical_measurement(&code, &g, basis_of(basis)?, pre, merged, post, p).map_err(err)?;
+    let c =
+        crate::bb_circuit::logical_measurement(&code, &g, basis_of(basis)?, pre, merged, post, p)
+            .map_err(err)?;
     Ok(c.to_stim())
 }
 
@@ -573,7 +731,9 @@ fn osd_method(name: &str, order: usize) -> PyResult<crate::osd::OsdMethod> {
         "osd_0" | "osd0" => Ok(OsdMethod::Osd0),
         "osd_e" => Ok(OsdMethod::Exhaustive(order)),
         "osd_cs" => Ok(OsdMethod::CombinationSweep(order)),
-        other => Err(err(format!("OSD method '{other}' is not osd_0, osd_e or osd_cs"))),
+        other => Err(err(format!(
+            "OSD method '{other}' is not osd_0, osd_e or osd_cs"
+        ))),
     }
 }
 
@@ -594,10 +754,20 @@ fn bposd_decode(
     osd_order: usize,
 ) -> PyResult<(Vec<u32>, bool, usize)> {
     use crate::osd::BpOsd;
-    let dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, ms_scale)?, max_iter, osd_method(osd, osd_order)?)
-        .map_err(err)?;
+    let dec = BpOsd::new(
+        num_checks,
+        columns,
+        &priors,
+        bp_method(method, ms_scale)?,
+        max_iter,
+        osd_method(osd, osd_order)?,
+    )
+    .map_err(err)?;
     if syndrome.len() != num_checks {
-        return Err(err(format!("{} syndrome bits for {num_checks} checks", syndrome.len())));
+        return Err(err(format!(
+            "{} syndrome bits for {num_checks} checks",
+            syndrome.len()
+        )));
     }
     let mut w = dec.work();
     let out = dec.decode(&syndrome, &mut w);
@@ -627,8 +797,15 @@ fn decode_b8_bposd<'py>(
     let columns: Vec<Vec<u32>> = dem.mechanisms.iter().map(|m| m.detectors.clone()).collect();
     let priors: Vec<f64> = dem.mechanisms.iter().map(|m| m.p).collect();
     let obs: Vec<u64> = dem.mechanisms.iter().map(|m| m.observables).collect();
-    let dec = BpOsd::new(dem.num_detectors, columns, &priors, bp_method(method, ms_scale)?, max_iter, osd_method(osd, osd_order)?)
-        .map_err(err)?;
+    let dec = BpOsd::new(
+        dem.num_detectors,
+        columns,
+        &priors,
+        bp_method(method, ms_scale)?,
+        max_iter,
+        osd_method(osd, osd_order)?,
+    )
+    .map_err(err)?;
     let nd = dem.num_detectors;
     check_rows(packed.len(), nd.div_ceil(8), num_shots, nd, "detectors")?;
     let start = Instant::now();
@@ -646,9 +823,20 @@ fn decode_b8_bposd<'py>(
 /// Z1Z2, L1 = Z1, L2 = Z2. "x": both in |+>, L0 = X1X2.
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, basis="z", pre=None, post=None))]
-fn surgery_circuit(d: usize, merged: usize, p: f64, basis: &str, pre: Option<usize>, post: Option<usize>) -> PyResult<String> {
+fn surgery_circuit(
+    d: usize,
+    merged: usize,
+    p: f64,
+    basis: &str,
+    pre: Option<usize>,
+    post: Option<usize>,
+) -> PyResult<String> {
     let basis = basis_of(basis)?;
-    Ok(crate::surgery::zz_circuit(d, pre.unwrap_or(d), merged, post.unwrap_or(d), p, basis).map_err(err)?.to_stim())
+    Ok(
+        crate::surgery::zz_circuit(d, pre.unwrap_or(d), merged, post.unwrap_or(d), p, basis)
+            .map_err(err)?
+            .to_stim(),
+    )
 }
 
 fn basis_of(name: &str) -> PyResult<Basis> {
@@ -666,14 +854,20 @@ fn basis_of(name: &str) -> PyResult<Basis> {
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, inputs="z"))]
 fn surgery_cnot(d: usize, merged: usize, p: f64, inputs: &str) -> PyResult<String> {
-    Ok(crate::surgery::cnot_circuit(d, merged, p, basis_of(inputs)?).map_err(err)?.to_stim())
+    Ok(
+        crate::surgery::cnot_circuit(d, merged, p, basis_of(inputs)?)
+            .map_err(err)?
+            .to_stim(),
+    )
 }
 
 /// k Z⊗Z measurements in a row on two patches in |0>|0> (see
 /// `surgery::repeated`): observables each outcome, then Z1 and Z2.
 #[pyfunction]
 fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<String> {
-    Ok(crate::surgery::repeated_circuit(d, k, merged, p).map_err(err)?.to_stim())
+    Ok(crate::surgery::repeated_circuit(d, k, merged, p)
+        .map_err(err)?
+        .to_stim())
 }
 
 /// n patches in a row, all in |0>, merged at once (see `surgery::line`):
@@ -681,7 +875,9 @@ fn surgery_repeated(d: usize, k: usize, merged: usize, p: f64) -> PyResult<Strin
 /// outcome, then each patch's Z.
 #[pyfunction]
 fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
-    Ok(crate::surgery::line_circuit(d, n, merged, p).map_err(err)?.to_stim())
+    Ok(crate::surgery::line_circuit(d, n, merged, p)
+        .map_err(err)?
+        .to_stim())
 }
 
 /// The X⊗X mirror of `surgery_circuit` (see `surgery::vertical`): "x", the
@@ -689,7 +885,9 @@ fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (d, merged, p, basis="x"))]
 fn surgery_vertical(d: usize, merged: usize, p: f64, basis: &str) -> PyResult<String> {
-    Ok(crate::surgery::xx_circuit(d, merged, p, basis_of(basis)?).map_err(err)?.to_stim())
+    Ok(crate::surgery::xx_circuit(d, merged, p, basis_of(basis)?)
+        .map_err(err)?
+        .to_stim())
 }
 
 /// b8 rows of `num_bits` bits as Stim's 01 text.

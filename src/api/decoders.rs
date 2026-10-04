@@ -1,5 +1,8 @@
 use super::{probability, BitTable, DetectorErrorModel, Error, Result};
-use crate::batch::{StreamedWindows, belief_shots, bposd_shots, match_shots, streamed_window_shots, union_find_shots, window_info, window_shots};
+use crate::batch::{
+    belief_shots, bposd_shots, match_shots, streamed_window_shots, union_find_shots, window_info,
+    window_shots, StreamedWindows,
+};
 use crate::dem_decoder::{DecodeError, DemDecoder};
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::{Mode, Model, WindowDecoder};
@@ -33,14 +36,19 @@ fn decode_error(e: DecodeError) -> Error {
 /// Check a batch's width and say which shot failed, if any.
 fn check_width(shots: &BitTable, num_detectors: usize) -> Result<()> {
     if shots.num_bits() != num_detectors {
-        return Err(Error::new(format!("{} bits per shot, not the model's {num_detectors} detectors", shots.num_bits())));
+        return Err(Error::new(format!(
+            "{} bits per shot, not the model's {num_detectors} detectors",
+            shots.num_bits()
+        )));
     }
     Ok(())
 }
 
 fn check_defects(defects: &[u32], num_detectors: usize) -> Result<()> {
     match defects.iter().find(|&&d| d as usize >= num_detectors) {
-        Some(d) => Err(Error::new(format!("detector {d} is beyond the model's {num_detectors}"))),
+        Some(d) => Err(Error::new(format!(
+            "detector {d} is beyond the model's {num_detectors}"
+        ))),
         None => Ok(()),
     }
 }
@@ -81,7 +89,12 @@ impl Matching {
 
     fn build(dem: &DetectorErrorModel, correlated: bool) -> Result<Matching> {
         let (graph, corr) = DemDecoder::new(dem.flat()?)?.into_parts(correlated);
-        Ok(Matching { graph, corr, num_detectors: dem.num_detectors(), num_observables: dem.num_observables() })
+        Ok(Matching {
+            graph,
+            corr,
+            num_detectors: dem.num_detectors(),
+            num_observables: dem.num_observables(),
+        })
     }
 
     /// Detectors in the model.
@@ -106,18 +119,38 @@ impl Matching {
             None => self.graph.decode(&mut scratch, &sorted),
         }
         .map_err(decode_error)?;
-        Ok(Prediction { observables: p.observables, weight: Some(p.weight), bp_converged: None })
+        Ok(Prediction {
+            observables: p.observables,
+            weight: Some(p.weight),
+            bp_converged: None,
+        })
     }
 
     /// A batch of shots (one row per shot, one bit per detector), across `threads` threads
     /// (`0` is every core). A shot no matching explains is an error naming it.
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = match_shots(&self.graph, self.corr.as_ref(), shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        let out = match_shots(
+            &self.graph,
+            self.corr.as_ref(),
+            shots.as_bytes(),
+            self.num_detectors,
+            shots.num_rows(),
+            threads,
+        );
         if let Some(s) = out.iter().position(|(_, w)| w.is_nan()) {
-            return Err(Error::new(format!("shot {s}: no matching explains its detection events")));
+            return Err(Error::new(format!(
+                "shot {s}: no matching explains its detection events"
+            )));
         }
-        Ok(out.into_iter().map(|(o, w)| Prediction { observables: o, weight: Some(w), bp_converged: None }).collect())
+        Ok(out
+            .into_iter()
+            .map(|(o, w)| Prediction {
+                observables: o,
+                weight: Some(w),
+                bp_converged: None,
+            })
+            .collect())
     }
 }
 
@@ -139,7 +172,9 @@ impl BpMethod {
     fn engine(self) -> crate::bp::Method {
         match self {
             BpMethod::ProductSum => crate::bp::Method::ProductSum,
-            BpMethod::MinimumSum { scaling_factor } => crate::bp::Method::MinSum { scale: scaling_factor },
+            BpMethod::MinimumSum { scaling_factor } => crate::bp::Method::MinSum {
+                scale: scaling_factor,
+            },
         }
     }
 }
@@ -208,7 +243,11 @@ impl UnionFind {
     /// The decoder for a decomposed model.
     pub fn new(dem: &DetectorErrorModel) -> Result<UnionFind> {
         let (graph, _) = DemDecoder::new(dem.flat()?)?.into_parts(false);
-        Ok(UnionFind { graph, num_detectors: dem.num_detectors(), num_observables: dem.num_observables() })
+        Ok(UnionFind {
+            graph,
+            num_detectors: dem.num_detectors(),
+            num_observables: dem.num_observables(),
+        })
     }
 
     /// Detectors in the model.
@@ -232,19 +271,35 @@ impl UnionFind {
             .graph
             .decode_union_find(&mut scratch, &sorted)
             .ok_or_else(|| Error::new("no correction explains the detection events (an odd component with no boundary)"))?;
-        Ok(Prediction { observables: o, weight: None, bp_converged: None })
+        Ok(Prediction {
+            observables: o,
+            weight: None,
+            bp_converged: None,
+        })
     }
 
     /// A batch of shots (one row per shot, one bit per detector), across `threads` threads
     /// (`0` is every core). A shot no correction explains is an error naming it.
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = union_find_shots(&self.graph, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        let out = union_find_shots(
+            &self.graph,
+            shots.as_bytes(),
+            self.num_detectors,
+            shots.num_rows(),
+            threads,
+        );
         out.into_iter()
             .enumerate()
             .map(|(s, o)| match o {
-                Some(observables) => Ok(Prediction { observables, weight: None, bp_converged: None }),
-                None => Err(Error::new(format!("shot {s}: no correction explains its detection events"))),
+                Some(observables) => Ok(Prediction {
+                    observables,
+                    weight: None,
+                    bp_converged: None,
+                }),
+                None => Err(Error::new(format!(
+                    "shot {s}: no correction explains its detection events"
+                ))),
             })
             .collect()
     }
@@ -262,8 +317,12 @@ impl BeliefMatching {
     /// Belief-matching with the given BP settings (the package's defaults are 20 iterations of
     /// product-sum).
     pub fn new(dem: &DetectorErrorModel, bp: BpOptions) -> Result<BeliefMatching> {
-        let inner = crate::belief::BeliefMatching::from_dem(dem.flat()?, bp.method.engine(), bp.max_iter)?;
-        Ok(BeliefMatching { inner, num_detectors: dem.num_detectors() })
+        let inner =
+            crate::belief::BeliefMatching::from_dem(dem.flat()?, bp.method.engine(), bp.max_iter)?;
+        Ok(BeliefMatching {
+            inner,
+            num_detectors: dem.num_detectors(),
+        })
     }
 
     /// One shot, given the detectors that fired.
@@ -272,20 +331,39 @@ impl BeliefMatching {
         let mut sorted = defects.to_vec();
         sorted.sort_unstable();
         sorted.dedup();
-        let o = self.inner.decode(&sorted, &mut self.inner.work()).map_err(decode_error)?;
-        Ok(Prediction { observables: o.observables, weight: (!o.converged).then_some(o.weight), bp_converged: Some(o.converged) })
+        let o = self
+            .inner
+            .decode(&sorted, &mut self.inner.work())
+            .map_err(decode_error)?;
+        Ok(Prediction {
+            observables: o.observables,
+            weight: (!o.converged).then_some(o.weight),
+            bp_converged: Some(o.converged),
+        })
     }
 
     /// A batch of shots across `threads` threads (`0` is every core).
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = belief_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        let out = belief_shots(
+            &self.inner,
+            shots.as_bytes(),
+            self.num_detectors,
+            shots.num_rows(),
+            threads,
+        );
         if let Some(s) = out.iter().position(|x| x.2 == 2) {
-            return Err(Error::new(format!("shot {s}: no correction explains its detection events")));
+            return Err(Error::new(format!(
+                "shot {s}: no correction explains its detection events"
+            )));
         }
         Ok(out
             .into_iter()
-            .map(|(o, w, c)| Prediction { observables: o, weight: (c == 0).then_some(w), bp_converged: Some(c == 1) })
+            .map(|(o, w, c)| Prediction {
+                observables: o,
+                weight: (c == 0).then_some(w),
+                bp_converged: Some(c == 1),
+            })
             .collect())
     }
 }
@@ -306,8 +384,19 @@ impl BpOsd {
         let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
-        let inner = crate::osd::BpOsd::new(d.num_detectors, columns, &priors, bp.method.engine(), bp.max_iter, osd.engine())?;
-        Ok(BpOsd { inner, observables: d.mechanisms.iter().map(|m| m.observables).collect(), num_detectors: d.num_detectors })
+        let inner = crate::osd::BpOsd::new(
+            d.num_detectors,
+            columns,
+            &priors,
+            bp.method.engine(),
+            bp.max_iter,
+            osd.engine(),
+        )?;
+        Ok(BpOsd {
+            inner,
+            observables: d.mechanisms.iter().map(|m| m.observables).collect(),
+            num_detectors: d.num_detectors,
+        })
     }
 
     /// One shot, given the detectors that fired.
@@ -323,8 +412,22 @@ impl BpOsd {
     /// A batch of shots across `threads` threads (`0` is every core).
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = bposd_shots(&self.inner, &self.observables, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
-        Ok(out.into_iter().map(|(o, c)| Prediction { observables: o, weight: None, bp_converged: Some(c == 1) }).collect())
+        let out = bposd_shots(
+            &self.inner,
+            &self.observables,
+            shots.as_bytes(),
+            self.num_detectors,
+            shots.num_rows(),
+            threads,
+        );
+        Ok(out
+            .into_iter()
+            .map(|(o, c)| Prediction {
+                observables: o,
+                weight: None,
+                bp_converged: Some(c == 1),
+            })
+            .collect())
     }
 }
 
@@ -350,7 +453,14 @@ pub struct WindowOptions {
 
 impl Window {
     pub(crate) fn from_info((a, b, c0, c1, phase, waits_for): crate::batch::WindowInfo) -> Window {
-        Window { first_layer: a, end_layer: b, commit_start: c0, commit_end: c1, phase, waits_for }
+        Window {
+            first_layer: a,
+            end_layer: b,
+            commit_start: c0,
+            commit_end: c1,
+            phase,
+            waits_for,
+        }
     }
 }
 
@@ -362,7 +472,13 @@ impl WindowOptions {
     /// Windows that commit `commit` rounds with `buffer` rounds on either side, run in `mode`,
     /// plain matching.
     pub fn new(commit: usize, buffer: usize, mode: WindowMode) -> WindowOptions {
-        WindowOptions { commit, buffer, mode, correlations: false, template: None }
+        WindowOptions {
+            commit,
+            buffer,
+            mode,
+            correlations: false,
+            template: None,
+        }
     }
 
     /// Where the windows' graphs come from. `Some(true)`: a short template of the model's
@@ -423,16 +539,32 @@ impl WindowMatching {
             WindowMode::Sliding => Mode::Sliding,
             WindowMode::Parallel => Mode::Parallel,
         };
-        let streamed = || StreamedWindows::new(dem.program(), options.commit, options.buffer, mode).map(Box::new);
+        let streamed = || {
+            StreamedWindows::new(dem.program(), options.commit, options.buffer, mode).map(Box::new)
+        };
         let inner = match options.template {
             Some(true) => Windows::Streamed(streamed()?),
             None if dem.num_errors() > 1_000_000 => match streamed() {
                 Ok(s) => Windows::Streamed(s),
-                Err(_) => Windows::Whole(Box::new(WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?)),
+                Err(_) => Windows::Whole(Box::new(WindowDecoder::new(
+                    Model::new(dem.flat()?)?,
+                    options.commit,
+                    options.buffer,
+                    mode,
+                )?)),
             },
-            _ => Windows::Whole(Box::new(WindowDecoder::new(Model::new(dem.flat()?)?, options.commit, options.buffer, mode)?)),
+            _ => Windows::Whole(Box::new(WindowDecoder::new(
+                Model::new(dem.flat()?)?,
+                options.commit,
+                options.buffer,
+                mode,
+            )?)),
         };
-        Ok(WindowMatching { inner, correlations: options.correlations, num_detectors: dem.num_detectors() })
+        Ok(WindowMatching {
+            inner,
+            correlations: options.correlations,
+            num_detectors: dem.num_detectors(),
+        })
     }
 
     /// The windows, in the order they are planned.
@@ -448,35 +580,73 @@ impl WindowMatching {
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
         let out = match &self.inner {
-            Windows::Whole(wd) => window_shots(wd, shots.as_bytes(), self.num_detectors, shots.num_rows(), self.correlations, threads, false),
-            Windows::Streamed(sw) => streamed_window_shots(sw, shots.as_bytes(), self.num_detectors, shots.num_rows(), self.correlations, threads, false),
+            Windows::Whole(wd) => window_shots(
+                wd,
+                shots.as_bytes(),
+                self.num_detectors,
+                shots.num_rows(),
+                self.correlations,
+                threads,
+                false,
+            ),
+            Windows::Streamed(sw) => streamed_window_shots(
+                sw,
+                shots.as_bytes(),
+                self.num_detectors,
+                shots.num_rows(),
+                self.correlations,
+                threads,
+                false,
+            ),
         };
         if let Some(s) = out.iter().position(|x| x.3) {
             return Err(Error::new(format!("shot {s}: a window found no matching")));
         }
         if out.iter().any(|x| x.1 > 0) {
-            return Err(Error::new("internal error: window commits left defects unexplained; please report it"));
+            return Err(Error::new(
+                "internal error: window commits left defects unexplained; please report it",
+            ));
         }
-        Ok(out.into_iter().map(|x| Prediction { observables: x.0, weight: None, bp_converged: None }).collect())
+        Ok(out
+            .into_iter()
+            .map(|x| Prediction {
+                observables: x.0,
+                weight: None,
+                bp_converged: None,
+            })
+            .collect())
     }
 }
 
 fn check_matrix(num_checks: usize, columns: &[Vec<u32>], priors: &[f64]) -> Result<()> {
     if columns.len() != priors.len() {
-        return Err(Error::new(format!("{} columns but {} priors", columns.len(), priors.len())));
+        return Err(Error::new(format!(
+            "{} columns but {} priors",
+            columns.len(),
+            priors.len()
+        )));
     }
     for (j, &p) in priors.iter().enumerate() {
         probability(p, &format!("prior {j}"))?;
     }
-    if let Some((j, r)) = columns.iter().enumerate().find_map(|(j, c)| c.iter().find(|&&r| r as usize >= num_checks).map(|r| (j, r))) {
-        return Err(Error::new(format!("column {j} touches check {r}, beyond {num_checks}")));
+    if let Some((j, r)) = columns.iter().enumerate().find_map(|(j, c)| {
+        c.iter()
+            .find(|&&r| r as usize >= num_checks)
+            .map(|r| (j, r))
+    }) {
+        return Err(Error::new(format!(
+            "column {j} touches check {r}, beyond {num_checks}"
+        )));
     }
     Ok(())
 }
 
 fn syndrome_bytes(syndrome: &[bool], num_checks: usize) -> Result<Vec<u8>> {
     if syndrome.len() != num_checks {
-        return Err(Error::new(format!("{} syndrome bits for {num_checks} checks", syndrome.len())));
+        return Err(Error::new(format!(
+            "{} syndrome bits for {num_checks} checks",
+            syndrome.len()
+        )));
     }
     Ok(syndrome.iter().map(|&b| u8::from(b)).collect())
 }
@@ -505,16 +675,30 @@ pub struct BpDecoder {
 
 impl BpDecoder {
     /// A decoder for `num_checks` checks and the given columns, each with its prior.
-    pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], options: BpOptions) -> Result<BpDecoder> {
+    pub fn new(
+        num_checks: usize,
+        columns: &[Vec<u32>],
+        priors: &[f64],
+        options: BpOptions,
+    ) -> Result<BpDecoder> {
         check_matrix(num_checks, columns, priors)?;
-        Ok(BpDecoder { inner: crate::bp::Bp::new(num_checks, columns, priors)?, options, num_checks })
+        Ok(BpDecoder {
+            inner: crate::bp::Bp::new(num_checks, columns, priors)?,
+            options,
+            num_checks,
+        })
     }
 
     /// Decode one syndrome (one bit per check).
     pub fn decode(&self, syndrome: &[bool]) -> Result<BpOutcome> {
         let s = syndrome_bytes(syndrome, self.num_checks)?;
         let mut w = self.inner.work();
-        let out = self.inner.decode(&s, self.options.method.engine(), self.options.max_iter, &mut w);
+        let out = self.inner.decode(
+            &s,
+            self.options.method.engine(),
+            self.options.max_iter,
+            &mut w,
+        );
         Ok(BpOutcome {
             correction: w.hard.iter().map(|&b| b != 0).collect(),
             log_prob_ratios: w.llr.clone(),
@@ -544,9 +728,22 @@ pub struct BpOsdDecoder {
 
 impl BpOsdDecoder {
     /// A decoder for `num_checks` checks and the given columns, each with its prior.
-    pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], bp: BpOptions, osd: OsdMethod) -> Result<BpOsdDecoder> {
+    pub fn new(
+        num_checks: usize,
+        columns: &[Vec<u32>],
+        priors: &[f64],
+        bp: BpOptions,
+        osd: OsdMethod,
+    ) -> Result<BpOsdDecoder> {
         check_matrix(num_checks, columns, priors)?;
-        let inner = crate::osd::BpOsd::new(num_checks, columns.to_vec(), priors, bp.method.engine(), bp.max_iter, osd.engine())?;
+        let inner = crate::osd::BpOsd::new(
+            num_checks,
+            columns.to_vec(),
+            priors,
+            bp.method.engine(),
+            bp.max_iter,
+            osd.engine(),
+        )?;
         Ok(BpOsdDecoder { inner, num_checks })
     }
 
@@ -555,6 +752,10 @@ impl BpOsdDecoder {
         let s = syndrome_bytes(syndrome, self.num_checks)?;
         let mut w = self.inner.work();
         let out = self.inner.decode(&s, &mut w);
-        Ok(BpOsdOutcome { correction: w.correction.iter().map(|&b| b != 0).collect(), converged: out.converged, iterations: out.iterations })
+        Ok(BpOsdOutcome {
+            correction: w.correction.iter().map(|&b| b != 0).collect(),
+            converged: out.converged,
+            iterations: out.iterations,
+        })
     }
 }

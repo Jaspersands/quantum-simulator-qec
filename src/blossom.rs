@@ -130,7 +130,8 @@ impl Blossom {
     }
 
     fn e_delta(&self, u: usize, v: usize) -> i64 {
-        self.lab[self.eu[u][v]] + self.lab[self.ev[u][v]] - self.ew[self.eu[u][v]][self.ev[u][v]] * 2
+        self.lab[self.eu[u][v]] + self.lab[self.ev[u][v]]
+            - self.ew[self.eu[u][v]][self.ev[u][v]] * 2
     }
 
     fn update_slack(&mut self, u: usize, x: usize) {
@@ -602,7 +603,11 @@ pub fn min_weight_perfect_matching(n: usize, cost: &[Vec<i64>]) -> Option<Vec<us
         }
     }
     let flipped: Vec<Vec<i64>> = (0..n)
-        .map(|i| (0..n).map(|j| if i == j { 0 } else { top - cost[i][j] + 1 }).collect())
+        .map(|i| {
+            (0..n)
+                .map(|j| if i == j { 0 } else { top - cost[i][j] + 1 })
+                .collect()
+        })
         .collect();
 
     solve_with_reason(n, &flipped).0
@@ -628,7 +633,11 @@ pub fn min_weight_perfect_matching_diagnostic(
         }
     }
     let flipped: Vec<Vec<i64>> = (0..n)
-        .map(|i| (0..n).map(|j| if i == j { 0 } else { top - cost[i][j] + 1 }).collect())
+        .map(|i| {
+            (0..n)
+                .map(|j| if i == j { 0 } else { top - cost[i][j] + 1 })
+                .collect()
+        })
         .collect();
     solve_with_reason(n, &flipped)
 }

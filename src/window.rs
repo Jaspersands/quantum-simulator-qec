@@ -53,7 +53,9 @@ impl Layers {
                 .detector_coords
                 .get(d)
                 .and_then(|c| c.last())
-                .ok_or_else(|| format!("detector D{d} has no time coordinate; windows need them"))?;
+                .ok_or_else(|| {
+                    format!("detector D{d} has no time coordinate; windows need them")
+                })?;
             times.push(t);
         }
         let mut distinct = times.clone();
@@ -61,7 +63,11 @@ impl Layers {
         distinct.dedup();
         let of: Vec<u32> = times
             .iter()
-            .map(|t| distinct.binary_search_by(|x| x.partial_cmp(t).unwrap()).unwrap() as u32)
+            .map(|t| {
+                distinct
+                    .binary_search_by(|x| x.partial_cmp(t).unwrap())
+                    .unwrap() as u32
+            })
             .collect();
         let mut members = vec![Vec::new(); distinct.len()];
         for (d, &l) in of.iter().enumerate() {
@@ -102,14 +108,21 @@ impl Model {
         let layers = Layers::from_dem(dem)?;
         let full = SparseGraph::from_edges(dem.num_detectors, &edges);
         let corr = Correlations::from_dem(dem, &full)?;
-        Ok(Model { num_detectors: dem.num_detectors, edges, layers, corr })
+        Ok(Model {
+            num_detectors: dem.num_detectors,
+            edges,
+            layers,
+            corr,
+        })
     }
 
     /// The window over layers `[a, b)`. With `past` (or `future`), an edge to
     /// a layer before `a` (or from `b` on) becomes a boundary half-edge of its
     /// end inside; without, it is dropped.
     pub fn window(&self, a: u32, b: u32, past: bool, future: bool) -> Window {
-        let mut nodes: Vec<u32> = (a..b).flat_map(|l| self.layers.members[l as usize].iter().copied()).collect();
+        let mut nodes: Vec<u32> = (a..b)
+            .flat_map(|l| self.layers.members[l as usize].iter().copied())
+            .collect();
         nodes.sort_unstable();
         let n = nodes.len() as u32;
         let boundary = self.num_detectors as u32;
@@ -143,7 +156,13 @@ impl Model {
             map[g as usize] = i as u32;
         }
         let corr = self.corr.restrict(&map, list.len());
-        Window { layers: (a, b), graph, corr, global_node: nodes, global_edge }
+        Window {
+            layers: (a, b),
+            graph,
+            corr,
+            global_node: nodes,
+            global_edge,
+        }
     }
 }
 
@@ -198,7 +217,14 @@ pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Result<Vec<
                 let last = s + c + b >= total;
                 let end = if last { total } else { s + c + b };
                 let commit = if last { (s, total) } else { (s, s + c) };
-                out.push(Spec { a: s, b: end, commit, past: false, future: !last, phase: out.len() });
+                out.push(Spec {
+                    a: s,
+                    b: end,
+                    commit,
+                    past: false,
+                    future: !last,
+                    phase: out.len(),
+                });
                 s = commit.1;
             }
         }
@@ -207,14 +233,31 @@ pub fn plan(total: u32, commit: usize, buffer: usize, mode: Mode) -> Result<Vec<
             let mut s = 0u32;
             while s < total {
                 let (a, e) = (s.saturating_sub(b), (s + c + b).min(total));
-                out.push(Spec { a, b: e, commit: (s, (s + c).min(total)), past: a > 0, future: e < total, phase: 0 });
+                out.push(Spec {
+                    a,
+                    b: e,
+                    commit: (s, (s + c).min(total)),
+                    past: a > 0,
+                    future: e < total,
+                    phase: 0,
+                });
                 starts.push(s);
                 s += c + 2 * b;
             }
             for (i, &s) in starts.iter().enumerate() {
-                let gap = ((s + c).min(total), starts.get(i + 1).copied().unwrap_or(total));
+                let gap = (
+                    (s + c).min(total),
+                    starts.get(i + 1).copied().unwrap_or(total),
+                );
                 if gap.0 < gap.1 {
-                    out.push(Spec { a: gap.0, b: gap.1, commit: gap, past: false, future: false, phase: 1 });
+                    out.push(Spec {
+                        a: gap.0,
+                        b: gap.1,
+                        commit: gap,
+                        past: false,
+                        future: false,
+                        phase: 1,
+                    });
                 }
             }
         }
@@ -248,20 +291,40 @@ pub struct Outcome {
 }
 
 impl WindowDecoder {
-    pub fn new(model: Model, commit: usize, buffer: usize, mode: Mode) -> Result<WindowDecoder, String> {
+    pub fn new(
+        model: Model,
+        commit: usize,
+        buffer: usize,
+        mode: Mode,
+    ) -> Result<WindowDecoder, String> {
         let specs = plan(model.layers.count() as u32, commit, buffer, mode)?;
-        let windows =
-            specs.iter().map(|s| Planned { window: model.window(s.a, s.b, s.past, s.future), commit: s.commit }).collect();
-        let mut phases: Vec<Vec<usize>> = vec![Vec::new(); specs.iter().map(|s| s.phase + 1).max().unwrap_or(0)];
+        let windows = specs
+            .iter()
+            .map(|s| Planned {
+                window: model.window(s.a, s.b, s.past, s.future),
+                commit: s.commit,
+            })
+            .collect();
+        let mut phases: Vec<Vec<usize>> =
+            vec![Vec::new(); specs.iter().map(|s| s.phase + 1).max().unwrap_or(0)];
         for (i, s) in specs.iter().enumerate() {
             phases[s.phase].push(i);
         }
-        Ok(WindowDecoder { model, specs, windows, phases, mode })
+        Ok(WindowDecoder {
+            model,
+            specs,
+            windows,
+            phases,
+            mode,
+        })
     }
 
     /// One scratch per window, sized for its graph.
     pub fn scratches(&self) -> Vec<Scratch> {
-        self.windows.iter().map(|w| Scratch::new(&w.window.graph)).collect()
+        self.windows
+            .iter()
+            .map(|w| Scratch::new(&w.window.graph))
+            .collect()
     }
 
     /// Decode window `wi` given the live defects so far, commit its
@@ -284,7 +347,9 @@ impl WindowDecoder {
             .map(|(i, _)| i as u32)
             .collect();
         let edges = if correlated {
-            w.window.graph.decode_correlated_edge_ids(&w.window.corr, scratch, &defects)?
+            w.window
+                .graph
+                .decode_correlated_edge_ids(&w.window.corr, scratch, &defects)?
         } else {
             w.window.graph.decode_edge_ids(scratch, &defects)?
         };
@@ -315,7 +380,12 @@ impl WindowDecoder {
     }
 
     /// Decode one shot, every window in its schedule's order.
-    pub fn decode_with(&self, defects: &[u32], correlated: bool, scratches: &mut [Scratch]) -> Result<Outcome, DecodeError> {
+    pub fn decode_with(
+        &self,
+        defects: &[u32],
+        correlated: bool,
+        scratches: &mut [Scratch],
+    ) -> Result<Outcome, DecodeError> {
         let mut live = vec![false; self.model.num_detectors];
         for &d in defects {
             live[d as usize] ^= true;
@@ -323,10 +393,19 @@ impl WindowDecoder {
         let mut observables = 0u64;
         for phase in &self.phases {
             for &wi in phase {
-                self.decode_window(wi, &mut live, &mut observables, correlated, &mut scratches[wi])?;
+                self.decode_window(
+                    wi,
+                    &mut live,
+                    &mut observables,
+                    correlated,
+                    &mut scratches[wi],
+                )?;
             }
         }
-        Ok(Outcome { observables, unexplained: live.iter().filter(|&&b| b).count() })
+        Ok(Outcome {
+            observables,
+            unexplained: live.iter().filter(|&&b| b).count(),
+        })
     }
 }
 
@@ -340,7 +419,11 @@ mod tests {
     use crate::surface_code::Xorshift;
 
     fn defects_of(dets: &[bool]) -> Vec<u32> {
-        dets.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect()
+        dets.iter()
+            .enumerate()
+            .filter(|x| *x.1)
+            .map(|x| x.0 as u32)
+            .collect()
     }
 
     fn sd6(kind: CodeKind, d: usize, rounds: usize, p: f64) -> (crate::circuit::Circuit, Dem) {
@@ -352,7 +435,11 @@ mod tests {
     #[test]
     fn unsound_schedules_are_refused() {
         let (_, dem) = sd6(CodeKind::Rotated, 3, 5, 0.005);
-        let refused = |c, b, mode| WindowDecoder::new(Model::new(&dem).unwrap(), c, b, mode).err().unwrap_or_default();
+        let refused = |c, b, mode| {
+            WindowDecoder::new(Model::new(&dem).unwrap(), c, b, mode)
+                .err()
+                .unwrap_or_default()
+        };
         assert!(refused(2, 0, Mode::Parallel).contains("buffer of at least one layer"));
         assert!(refused(0, 2, Mode::Parallel).contains("at least one layer"));
         assert!(refused(0, 2, Mode::Sliding).contains("at least one layer"));
@@ -375,8 +462,14 @@ mod tests {
         let full = DemDecoder::new(&dem).unwrap();
         let w = model.window(0, model.layers.count() as u32, false, false);
         let (g, h) = (&w.graph, full.graph());
-        assert_eq!(w.global_node, (0..dem.num_detectors as u32).collect::<Vec<_>>());
-        assert_eq!((g.num_edges(), g.to.clone(), g.w.clone(), g.obs.clone()), (h.num_edges(), h.to.clone(), h.w.clone(), h.obs.clone()));
+        assert_eq!(
+            w.global_node,
+            (0..dem.num_detectors as u32).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            (g.num_edges(), g.to.clone(), g.w.clone(), g.obs.clone()),
+            (h.num_edges(), h.to.clone(), h.w.clone(), h.obs.clone())
+        );
         for e in 0..g.num_edges() as u32 {
             assert_eq!(w.corr.rules_of(e), full.correlations().rules_of(e));
         }
@@ -392,11 +485,19 @@ mod tests {
         let both = model.window(1, 2, true, true);
         assert_eq!(both.global_node, vec![1]);
         let targets: Vec<u32> = both.graph.edges(0).map(|e| both.graph.to[e]).collect();
-        assert_eq!(targets.len(), 3, "past, real and future boundaries, kept apart");
+        assert_eq!(
+            targets.len(),
+            3,
+            "past, real and future boundaries, kept apart"
+        );
         let mut from: Vec<u32> = both.global_edge.clone();
         from.sort();
         assert_eq!(from, vec![0, 1, 2]);
-        assert_eq!(model.window(1, 2, false, false).graph.num_edges(), 1, "only the real boundary");
+        assert_eq!(
+            model.window(1, 2, false, false).graph.num_edges(),
+            1,
+            "only the real boundary"
+        );
         assert_eq!(model.window(1, 2, false, true).graph.num_edges(), 2);
     }
 
@@ -410,8 +511,12 @@ mod tests {
         for _ in 0..200 {
             let defects = defects_of(&sampler.sample(&mut rng).detectors);
             let mut ids = dec.graph().decode_edge_ids(&mut s, &defects).unwrap();
-            let mut ends: Vec<u32> =
-                dec.decode_to_edges(&defects).unwrap().iter().map(|&(u, v)| dec.graph().edge_id(u, v).unwrap()).collect();
+            let mut ends: Vec<u32> = dec
+                .decode_to_edges(&defects)
+                .unwrap()
+                .iter()
+                .map(|&(u, v)| dec.graph().edge_id(u, v).unwrap())
+                .collect();
             ids.sort();
             ends.sort();
             assert_eq!(ids, ends);
@@ -431,7 +536,9 @@ mod tests {
         for _ in 0..200 {
             let defects = defects_of(&sampler.sample(&mut rng).detectors);
             let first = g.decode_edge_ids(&mut s, &defects).unwrap();
-            let second = g.decode_correlated_edge_ids(corr, &mut s, &defects).unwrap();
+            let second = g
+                .decode_correlated_edge_ids(corr, &mut s, &defects)
+                .unwrap();
             // The lowered weights pass one's edges imply.
             let mut w: Vec<i64> = (0..g.num_edges() as u32).map(|e| g.weight_of(e)).collect();
             for &e in &first {
@@ -449,7 +556,10 @@ mod tests {
             }
             assert_eq!(defects_of(&syndrome), defects);
             let weight: i64 = second.iter().map(|&e| w[e as usize]).sum();
-            assert_eq!(weight, g.decode_correlated(corr, &mut s, &defects).unwrap().iweight);
+            assert_eq!(
+                weight,
+                g.decode_correlated(corr, &mut s, &defects).unwrap().iweight
+            );
         }
     }
 
@@ -472,14 +582,31 @@ mod tests {
                     for _ in 0..100 {
                         let defects = defects_of(&sampler.sample(&mut rng).detectors);
                         for correlated in [false, true] {
-                            let got = wd.decode_with(&defects, correlated, &mut scratches).unwrap();
+                            let got = wd
+                                .decode_with(&defects, correlated, &mut scratches)
+                                .unwrap();
                             let ids = if correlated {
-                                dec.graph().decode_correlated_edge_ids(dec.correlations(), &mut s, &defects).unwrap()
+                                dec.graph()
+                                    .decode_correlated_edge_ids(
+                                        dec.correlations(),
+                                        &mut s,
+                                        &defects,
+                                    )
+                                    .unwrap()
                             } else {
                                 dec.graph().decode_edge_ids(&mut s, &defects).unwrap()
                             };
-                            let want = ids.iter().fold(0u64, |o, &e| o ^ dec.graph().obs[dec.graph().halves[e as usize][0] as usize]);
-                            assert_eq!(got, Outcome { observables: want, unexplained: 0 }, "{kind:?} d = {d} {mode:?}");
+                            let want = ids.iter().fold(0u64, |o, &e| {
+                                o ^ dec.graph().obs[dec.graph().halves[e as usize][0] as usize]
+                            });
+                            assert_eq!(
+                                got,
+                                Outcome {
+                                    observables: want,
+                                    unexplained: 0
+                                },
+                                "{kind:?} d = {d} {mode:?}"
+                            );
                         }
                     }
                 }
@@ -495,16 +622,24 @@ mod tests {
         for d in [3usize, 5] {
             let (c, dem) = sd6(CodeKind::Rotated, d, 10, 0.008);
             let sampler = FrameSampler::new(&c).unwrap();
-            let shots: Vec<Vec<u32>> = (0..40).map(|_| defects_of(&sampler.sample(&mut rng).detectors)).collect();
+            let shots: Vec<Vec<u32>> = (0..40)
+                .map(|_| defects_of(&sampler.sample(&mut rng).detectors))
+                .collect();
             for mode in [Mode::Sliding, Mode::Parallel] {
                 for commit in 1..=3 {
                     for buffer in usize::from(mode == Mode::Parallel)..=3 {
-                        let wd = WindowDecoder::new(Model::new(&dem).unwrap(), commit, buffer, mode).unwrap();
+                        let wd =
+                            WindowDecoder::new(Model::new(&dem).unwrap(), commit, buffer, mode)
+                                .unwrap();
                         let mut scratches = wd.scratches();
                         for defects in &shots {
                             for correlated in [false, true] {
-                                let got = wd.decode_with(defects, correlated, &mut scratches).unwrap();
-                                assert_eq!(got.unexplained, 0, "d = {d} {mode:?} C = {commit} B = {buffer}");
+                                let got =
+                                    wd.decode_with(defects, correlated, &mut scratches).unwrap();
+                                assert_eq!(
+                                    got.unexplained, 0,
+                                    "d = {d} {mode:?} C = {commit} B = {buffer}"
+                                );
                             }
                         }
                     }
@@ -534,7 +669,13 @@ mod tests {
             for correlated in [false, true] {
                 let (mut global, mut windowed, mut differ) = (0i64, 0i64, 0i64);
                 for (defects, obs) in &shots {
-                    let g = if correlated { dec.decode_correlated(defects) } else { dec.decode(defects) }.unwrap().observables;
+                    let g = if correlated {
+                        dec.decode_correlated(defects)
+                    } else {
+                        dec.decode(defects)
+                    }
+                    .unwrap()
+                    .observables;
                     let w = wd.decode_with(defects, correlated, &mut scratches).unwrap();
                     assert_eq!(w.unexplained, 0);
                     global += ((g ^ obs) & 1) as i64;
@@ -542,7 +683,10 @@ mod tests {
                     differ += ((g ^ w.observables) & 1) as i64;
                 }
                 println!("{mode:?} correlated {correlated}: global {global}, windowed {windowed}, differ {differ} of 3000");
-                assert!((windowed - global).abs() as f64 <= 4.0 * (differ.max(1) as f64).sqrt() + 1.0, "{mode:?} {correlated}: {windowed} vs {global}");
+                assert!(
+                    (windowed - global).abs() as f64 <= 4.0 * (differ.max(1) as f64).sqrt() + 1.0,
+                    "{mode:?} {correlated}: {windowed} vs {global}"
+                );
             }
         }
     }

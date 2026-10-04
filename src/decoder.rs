@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, BinaryHeap};
+use std::collections::{BinaryHeap, VecDeque};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 struct HeapState {
@@ -8,7 +8,9 @@ struct HeapState {
 
 impl Ord for HeapState {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.cost.cmp(&self.cost)
+        other
+            .cost
+            .cmp(&self.cost)
             .then(self.position.cmp(&other.position))
     }
 }
@@ -116,7 +118,7 @@ pub fn decode_union_find(
 
     // Track edge growth: 0 = unvisited, 1 = half grown, 2 = fully grown (excited)
     let mut edge_growth = vec![0u8; graph.edges.len()];
-    
+
     // Set of edges that are fully grown and belong to our forest
     let mut forest_edges: Vec<usize> = Vec::new();
 
@@ -273,11 +275,7 @@ pub fn decode_union_find(
     correction
 }
 
-pub fn decode_greedy(
-    graph: &SyndromeGraph,
-    defects: &[bool],
-    erased_edges: &[bool],
-) -> Vec<usize> {
+pub fn decode_greedy(graph: &SyndromeGraph, defects: &[bool], erased_edges: &[bool]) -> Vec<usize> {
     let total_nodes = graph.num_nodes + 1; // including boundary
     let mut unmatched = Vec::new();
     for u in 0..graph.num_nodes {
@@ -304,7 +302,10 @@ pub fn decode_greedy(
     for &start in &unmatched {
         let mut heap = BinaryHeap::new();
         dists[start][start] = 0;
-        heap.push(HeapState { cost: 0, position: start });
+        heap.push(HeapState {
+            cost: 0,
+            position: start,
+        });
 
         while let Some(HeapState { cost, position }) = heap.pop() {
             if cost > dists[start][position] {
@@ -312,13 +313,20 @@ pub fn decode_greedy(
             }
 
             for &(v, edge_idx) in &adj[position] {
-                let weight = if edge_idx < erased_edges.len() && erased_edges[edge_idx] { 0 } else { 1 };
+                let weight = if edge_idx < erased_edges.len() && erased_edges[edge_idx] {
+                    0
+                } else {
+                    1
+                };
                 let next_cost = cost + weight;
                 if next_cost < dists[start][v] {
                     dists[start][v] = next_cost;
                     parent_edges[start][v] = Some(edge_idx);
                     parent_nodes[start][v] = Some(position);
-                    heap.push(HeapState { cost: next_cost, position: v });
+                    heap.push(HeapState {
+                        cost: next_cost,
+                        position: v,
+                    });
                 }
             }
         }
@@ -374,7 +382,6 @@ pub fn decode_greedy(
 
     correction_edges
 }
-
 
 /// Approximate minimum-weight perfect matching: nearest pair first, then 2-opt.
 ///
@@ -470,11 +477,7 @@ fn approx_matching(
     (out, total)
 }
 
-pub fn decode_mwpm(
-    graph: &SyndromeGraph,
-    defects: &[bool],
-    erased_edges: &[bool],
-) -> Vec<usize> {
+pub fn decode_mwpm(graph: &SyndromeGraph, defects: &[bool], erased_edges: &[bool]) -> Vec<usize> {
     let total_nodes = graph.num_nodes + 1; // including boundary
     let mut unmatched = Vec::new();
     for u in 0..graph.num_nodes {
@@ -501,7 +504,10 @@ pub fn decode_mwpm(
     for &start in &unmatched {
         let mut heap = BinaryHeap::new();
         dists[start][start] = 0;
-        heap.push(HeapState { cost: 0, position: start });
+        heap.push(HeapState {
+            cost: 0,
+            position: start,
+        });
 
         while let Some(HeapState { cost, position }) = heap.pop() {
             if cost > dists[start][position] {
@@ -509,13 +515,20 @@ pub fn decode_mwpm(
             }
 
             for &(v, edge_idx) in &adj[position] {
-                let weight = if edge_idx < erased_edges.len() && erased_edges[edge_idx] { 0 } else { 1 };
+                let weight = if edge_idx < erased_edges.len() && erased_edges[edge_idx] {
+                    0
+                } else {
+                    1
+                };
                 let next_cost = cost + weight;
                 if next_cost < dists[start][v] {
                     dists[start][v] = next_cost;
                     parent_edges[start][v] = Some(edge_idx);
                     parent_nodes[start][v] = Some(position);
-                    heap.push(HeapState { cost: next_cost, position: v });
+                    heap.push(HeapState {
+                        cost: next_cost,
+                        position: v,
+                    });
                 }
             }
         }
@@ -557,7 +570,13 @@ pub fn decode_mwpm(
         .map(|&d| d as i64)
         .sum::<i64>()
         + 1;
-    let finite = |d: usize| -> i64 { if d == usize::MAX { unreachable } else { d as i64 } };
+    let finite = |d: usize| -> i64 {
+        if d == usize::MAX {
+            unreachable
+        } else {
+            d as i64
+        }
+    };
 
     let mut cost = vec![vec![0i64; n2]; n2];
     for i in 0..m {
@@ -596,7 +615,6 @@ pub fn decode_mwpm(
     }
     let _ = best_weight;
 
-
     let mut correction_edges = Vec::new();
     for &(u, v) in &best_matching {
         let mut curr = v;
@@ -617,7 +635,13 @@ pub fn decode_mwpm(
     let weigh = |edges: &[usize]| -> usize {
         edges
             .iter()
-            .map(|&e| if e < erased_edges.len() && erased_edges[e] { 0 } else { 1 })
+            .map(|&e| {
+                if e < erased_edges.len() && erased_edges[e] {
+                    0
+                } else {
+                    1
+                }
+            })
             .sum()
     };
     let peeled = decode_union_find(graph, defects, erased_edges);
@@ -627,4 +651,3 @@ pub fn decode_mwpm(
 
     correction_edges
 }
-

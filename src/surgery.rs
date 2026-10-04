@@ -74,7 +74,12 @@ struct TileBox {
 
 impl TileBox {
     fn union(a: TileBox, b: TileBox) -> TileBox {
-        TileBox { x0: a.x0.min(b.x0), x1: a.x1.max(b.x1), y0: a.y0.min(b.y0), y1: a.y1.max(b.y1) }
+        TileBox {
+            x0: a.x0.min(b.x0),
+            x1: a.x1.max(b.x1),
+            y0: a.y0.min(b.y0),
+            y1: a.y1.max(b.y1),
+        }
     }
 }
 
@@ -105,13 +110,22 @@ impl Layout {
                 positions.push((x, y));
             }
         }
-        Layout { d, positions, index }
+        Layout {
+            d,
+            positions,
+            index,
+        }
     }
 
     /// The data of tile (column i, row j).
     fn tile(&self, (i, j): (i32, i32)) -> TileBox {
         let (x0, y0) = (1 + i * (2 * self.d + 2), 1 + j * (2 * self.d + 2));
-        TileBox { x0, x1: x0 + 2 * self.d - 2, y0, y1: y0 + 2 * self.d - 2 }
+        TileBox {
+            x0,
+            x1: x0 + 2 * self.d - 2,
+            y0,
+            y1: y0 + 2 * self.d - 2,
+        }
     }
 
     fn data(&self, b: TileBox) -> Vec<u32> {
@@ -133,11 +147,19 @@ impl Layout {
             for x in (b.x0 - 1..=b.x1 + 1).step_by(2) {
                 let x_type = ((x + y) / 2).rem_euclid(2) == 1;
                 // Z checks stay off the left and right edges, X checks off the top and bottom.
-                let allowed = if x_type { y > b.y0 && y < b.y1 } else { x > b.x0 && x < b.x1 };
+                let allowed = if x_type {
+                    y > b.y0 && y < b.y1
+                } else {
+                    x > b.x0 && x < b.x1
+                };
                 if !allowed {
                     continue;
                 }
-                let order = if x_type { RotatedSurfaceCode::X_ORDER } else { RotatedSurfaceCode::Z_ORDER };
+                let order = if x_type {
+                    RotatedSurfaceCode::X_ORDER
+                } else {
+                    RotatedSurfaceCode::Z_ORDER
+                };
                 let mut at_step = [None; 4];
                 for (k, &(dx, dy)) in order.iter().enumerate() {
                     if inside(x + dx, y + dy) {
@@ -145,7 +167,12 @@ impl Layout {
                     }
                 }
                 if at_step.iter().flatten().count() >= 2 {
-                    checks.push(Check { pos: (x, y), x_type, anc: self.index[&(x, y)], at_step });
+                    checks.push(Check {
+                        pos: (x, y),
+                        x_type,
+                        anc: self.index[&(x, y)],
+                        at_step,
+                    });
                 }
             }
         }
@@ -195,9 +222,16 @@ impl Writer {
         if qubits.is_empty() {
             return;
         }
-        self.c.push(Instr::Reset { basis, qubits: qubits.to_vec() });
+        self.c.push(Instr::Reset {
+            basis,
+            qubits: qubits.to_vec(),
+        });
         let p = self.p;
-        self.noise(Instr::PauliError { pauli: if basis == Basis::Z { 1 } else { 2 }, p, qubits: qubits.to_vec() });
+        self.noise(Instr::PauliError {
+            pauli: if basis == Basis::Z { 1 } else { 2 },
+            p,
+            qubits: qubits.to_vec(),
+        });
         for &q in qubits {
             self.fresh.insert(q, basis);
         }
@@ -206,8 +240,17 @@ impl Writer {
     /// Measure data qubits; returns their records in the order given.
     fn measure(&mut self, basis: Basis, qubits: &[u32]) -> Vec<usize> {
         let p = self.p;
-        self.noise(Instr::PauliError { pauli: if basis == Basis::Z { 1 } else { 2 }, p, qubits: qubits.to_vec() });
-        self.c.push(Instr::Measure { basis, reset: false, flip: 0.0, qubits: qubits.to_vec() });
+        self.noise(Instr::PauliError {
+            pauli: if basis == Basis::Z { 1 } else { 2 },
+            p,
+            qubits: qubits.to_vec(),
+        });
+        self.c.push(Instr::Measure {
+            basis,
+            reset: false,
+            flip: 0.0,
+            qubits: qubits.to_vec(),
+        });
         let recs: Vec<usize> = (0..qubits.len()).map(|i| self.m + i).collect();
         self.m += qubits.len();
         for (&q, &r) in qubits.iter().zip(&recs) {
@@ -224,13 +267,30 @@ impl Writer {
         let anc: Vec<u32> = checks.iter().map(|c| c.anc).collect();
         let had: Vec<u32> = checks.iter().filter(|c| c.x_type).map(|c| c.anc).collect();
         let active: Vec<u32> = data.iter().copied().chain(anc.iter().copied()).collect();
-        let idle = |busy: &[u32]| -> Vec<u32> { active.iter().copied().filter(|q| !busy.contains(q)).collect() };
+        let idle = |busy: &[u32]| -> Vec<u32> {
+            active
+                .iter()
+                .copied()
+                .filter(|q| !busy.contains(q))
+                .collect()
+        };
 
         self.c.push(Instr::Tick);
-        self.c.push(Instr::Reset { basis: Basis::Z, qubits: anc.clone() });
+        self.c.push(Instr::Reset {
+            basis: Basis::Z,
+            qubits: anc.clone(),
+        });
         let p = self.p;
-        self.noise(Instr::PauliError { pauli: 1, p, qubits: anc.clone() });
-        let resting: Vec<u32> = data.iter().copied().filter(|q| !self.fresh.contains_key(q)).collect();
+        self.noise(Instr::PauliError {
+            pauli: 1,
+            p,
+            qubits: anc.clone(),
+        });
+        let resting: Vec<u32> = data
+            .iter()
+            .copied()
+            .filter(|q| !self.fresh.contains_key(q))
+            .collect();
         self.depol1(resting);
 
         for pass in 0..2 {
@@ -254,7 +314,10 @@ impl Writer {
                 }
                 if !pairs.is_empty() {
                     self.c.push(Instr::Cx(pairs.clone()));
-                    self.noise(Instr::Depolarize2 { p, pairs: pairs.clone() });
+                    self.noise(Instr::Depolarize2 {
+                        p,
+                        pairs: pairs.clone(),
+                    });
                 }
                 let busy: Vec<u32> = pairs.iter().flat_map(|&(a, b)| [a, b]).collect();
                 let rest = idle(&busy);
@@ -263,8 +326,17 @@ impl Writer {
         }
 
         self.c.push(Instr::Tick);
-        self.noise(Instr::PauliError { pauli: 1, p, qubits: anc.clone() });
-        self.c.push(Instr::Measure { basis: Basis::Z, reset: false, flip: 0.0, qubits: anc.clone() });
+        self.noise(Instr::PauliError {
+            pauli: 1,
+            p,
+            qubits: anc.clone(),
+        });
+        self.c.push(Instr::Measure {
+            basis: Basis::Z,
+            reset: false,
+            flip: 0.0,
+            qubits: anc.clone(),
+        });
         let recs: Vec<usize> = (0..anc.len()).map(|i| self.m + i).collect();
         self.m += anc.len();
         self.depol1(data.to_vec());
@@ -278,7 +350,11 @@ impl Writer {
             // round before: one that skipped a round (a seam check of an
             // earlier merge, say, whose seam was since read and prepared
             // again) starts over, as if measured for the first time.
-            let deterministic = match self.last.get(&ch.pos).filter(|prev| prev.round + 1 == self.round) {
+            let deterministic = match self
+                .last
+                .get(&ch.pos)
+                .filter(|prev| prev.round + 1 == self.round)
+            {
                 Some(prev) => {
                     targets.push(prev.rec);
                     // A reading since `prev`, in the check's basis, of a qubit it read then.
@@ -299,7 +375,10 @@ impl Writer {
                             }
                         }
                     }
-                    ok &= support.iter().filter(|q| !prev.support.contains(q)).all(|q| self.fresh.contains_key(q));
+                    ok &= support
+                        .iter()
+                        .filter(|q| !prev.support.contains(q))
+                        .all(|q| self.fresh.contains_key(q));
                     for q in prev.support.iter().filter(|q| !support.contains(q)) {
                         match read_since(q) {
                             Some(r) => targets.push(r),
@@ -314,7 +393,14 @@ impl Writer {
                 let recs = targets.iter().map(|&r| self.lookback(r)).collect();
                 self.c.push(Instr::Detector { coords, recs });
             }
-            self.last.insert(ch.pos, Last { rec, support, round: self.round });
+            self.last.insert(
+                ch.pos,
+                Last {
+                    rec,
+                    support,
+                    round: self.round,
+                },
+            );
         }
         self.fresh.clear();
         recs
@@ -370,7 +456,11 @@ pub enum Step {
 pub enum Term {
     /// A patch's logical in `basis`, from its final measurement in that
     /// basis, along data line `line` (0 the first): Z a column, X a row.
-    Logical { patch: usize, basis: Basis, line: usize },
+    Logical {
+        patch: usize,
+        basis: Basis,
+        line: usize,
+    },
     /// Merge `merge`'s outcome on seam `seam` (merges numbered in program
     /// order, seams along the line, 0 between its first two patches): the
     /// product of that seam's new checks of the measured type in the merge's
@@ -379,7 +469,11 @@ pub enum Term {
     /// Merge `merge`'s seam records, from its split, on `patch`'s data line
     /// `line` where it crosses the seams: a row for a horizontal line
     /// (vertical seams), a column for a vertical line.
-    Seam { merge: usize, patch: usize, line: usize },
+    Seam {
+        merge: usize,
+        patch: usize,
+        line: usize,
+    },
 }
 
 struct MergeState {
@@ -408,7 +502,9 @@ const MAX_ROUNDS: usize = 10_000;
 
 /// About how many qubits `tiles` tiles at distance `d` take: 2(d + 1)² each, saturating.
 fn qubits_for(d: usize, tiles: u64) -> u64 {
-    tiles.saturating_mul(2).saturating_mul((d as u64).saturating_add(1).saturating_pow(2))
+    tiles
+        .saturating_mul(2)
+        .saturating_mul((d as u64).saturating_add(1).saturating_pow(2))
 }
 
 /// Refuse, before a program is built, sizes it could never be written for: more qubits than
@@ -417,19 +513,38 @@ fn qubits_for(d: usize, tiles: u64) -> u64 {
 pub fn check_size(d: usize, tiles: usize, rounds: usize) -> Result<(), String> {
     let qubits = qubits_for(d, tiles as u64);
     if qubits > 1 << 24 {
-        return Err(format!("{tiles} patches at distance {d} need more qubits than Stim can index"));
+        return Err(format!(
+            "{tiles} patches at distance {d} need more qubits than Stim can index"
+        ));
     }
     if rounds > MAX_ROUNDS {
-        return Err(format!("{rounds} rounds and steps: at most {MAX_ROUNDS} are written out"));
+        return Err(format!(
+            "{rounds} rounds and steps: at most {MAX_ROUNDS} are written out"
+        ));
     }
     // Every program holds its patches d rounds before and after, besides `rounds`.
     check_volume(qubits, rounds.saturating_add(d.saturating_mul(2)))
 }
 
 /// Z⊗Z on two patches side by side (see `Surgery`), checked for size before it is built.
-pub fn zz_circuit(d: usize, pre: usize, merged: usize, post: usize, p: f64, basis: Basis) -> Result<Circuit, String> {
+pub fn zz_circuit(
+    d: usize,
+    pre: usize,
+    merged: usize,
+    post: usize,
+    p: f64,
+    basis: Basis,
+) -> Result<Circuit, String> {
     check_size(d, 2, merged.saturating_add(pre).saturating_add(post))?;
-    Surgery { d, pre, merged, post, basis, p }.circuit()
+    Surgery {
+        d,
+        pre,
+        merged,
+        post,
+        basis,
+        p,
+    }
+    .circuit()
 }
 
 /// X⊗X (see `vertical`), checked for size before it is built.
@@ -457,7 +572,10 @@ pub fn line_circuit(d: usize, n: usize, merged: usize, p: f64) -> Result<Circuit
         return Err(format!("a line merge needs at least two patches, not {n}"));
     }
     if n > 32 {
-        return Err(format!("{n} patches have {} observables (each seam and each patch); at most 64 are supported", 2 * n - 1));
+        return Err(format!(
+            "{n} patches have {} observables (each seam and each patch); at most 64 are supported",
+            2 * n - 1
+        ));
     }
     check_size(d, n, merged)?;
     line(d, n, merged, p).circuit()
@@ -481,7 +599,9 @@ impl Program {
     pub fn circuit(&self) -> Result<Circuit, String> {
         let d = self.d;
         if d < 3 || d.is_multiple_of(2) {
-            return Err(format!("lattice surgery needs an odd distance of at least 3, not {d}"));
+            return Err(format!(
+                "lattice surgery needs an odd distance of at least 3, not {d}"
+            ));
         }
         if self.tiles.is_empty() || self.tiles.iter().any(|&(i, j)| i < 0 || j < 0) {
             return Err("a program needs patches on tiles of non-negative column and row".into());
@@ -492,9 +612,13 @@ impl Program {
         let grid = |t: fn(&(i32, i32)) -> i32| self.tiles.iter().map(t).max().unwrap() as u64 + 1;
         let qubits = qubits_for(d, grid(|t| t.0).saturating_mul(grid(|t| t.1)));
         if qubits > 1 << 24 {
-            return Err(format!("the program's grid of tiles at distance {d} needs more qubits than Stim can index"));
+            return Err(format!(
+                "the program's grid of tiles at distance {d} needs more qubits than Stim can index"
+            ));
         }
-        let rounds = self.steps.iter().fold(0usize, |n, s| n.saturating_add(if let Step::Rounds(k) = s { *k } else { 1 }));
+        let rounds = self.steps.iter().fold(0usize, |n, s| {
+            n.saturating_add(if let Step::Rounds(k) = s { *k } else { 1 })
+        });
         if rounds > MAX_ROUNDS {
             return Err(format!("the program runs {rounds} rounds and steps, more than the {MAX_ROUNDS} written out"));
         }
@@ -512,9 +636,20 @@ impl Program {
         let codes: Vec<Vec<Check>> = boxes.iter().map(|&b| layout.code(b)).collect();
         let datas: Vec<Vec<u32>> = boxes.iter().map(|&b| layout.data(b)).collect();
 
-        let mut w = Writer { c: Vec::new(), m: 0, p: self.p, last: HashMap::new(), fresh: HashMap::new(), measured: HashMap::new(), round: 0 };
+        let mut w = Writer {
+            c: Vec::new(),
+            m: 0,
+            p: self.p,
+            last: HashMap::new(),
+            fresh: HashMap::new(),
+            measured: HashMap::new(),
+            round: 0,
+        };
         for (q, &(x, y)) in layout.positions.iter().enumerate() {
-            w.c.push(Instr::QubitCoords { coords: vec![x as f64, y as f64], qubits: vec![q as u32] });
+            w.c.push(Instr::QubitCoords {
+                coords: vec![x as f64, y as f64],
+                qubits: vec![q as u32],
+            });
         }
         let mut life = vec![Life::Unprepared; n];
         let mut in_merge: Vec<Option<usize>> = vec![None; n];
@@ -522,7 +657,13 @@ impl Program {
         let mut active: Vec<usize> = Vec::new();
         let mut final_basis: Vec<Option<Basis>> = vec![None; n];
         let mut final_rec: HashMap<u32, usize> = HashMap::new();
-        let check = |q: usize| if q < n { Ok(()) } else { Err(format!("there is no patch {q}")) };
+        let check = |q: usize| {
+            if q < n {
+                Ok(())
+            } else {
+                Err(format!("there is no patch {q}"))
+            }
+        };
         // A step's patches: at least one, each once.
         let listed = |patches: &[usize]| -> Result<(), String> {
             if patches.is_empty() {
@@ -547,7 +688,10 @@ impl Program {
                         }
                         life[q] = Life::Live;
                     }
-                    let data: Vec<u32> = patches.iter().flat_map(|&q| datas[q].iter().copied()).collect();
+                    let data: Vec<u32> = patches
+                        .iter()
+                        .flat_map(|&q| datas[q].iter().copied())
+                        .collect();
                     w.prepare(*basis, &data);
                 }
                 Step::Rounds(k) => {
@@ -583,7 +727,14 @@ impl Program {
                             if let Some(m) = m {
                                 let ms = &mut merges[m];
                                 if ms.outcomes.is_none() {
-                                    ms.outcomes = Some(ms.new_checks.iter().map(|seam| seam.iter().map(|&i| recs[off + i]).collect()).collect());
+                                    ms.outcomes = Some(
+                                        ms.new_checks
+                                            .iter()
+                                            .map(|seam| {
+                                                seam.iter().map(|&i| recs[off + i]).collect()
+                                            })
+                                            .collect(),
+                                    );
                                 }
                             }
                         }
@@ -596,32 +747,58 @@ impl Program {
                     }
                     for &q in patches {
                         if life[q] != Life::Live || in_merge[q].is_some() {
-                            return Err(format!("patch {q} is not live and alone, so it cannot merge"));
+                            return Err(format!(
+                                "patch {q} is not live and alone, so it cannot merge"
+                            ));
                         }
                     }
                     let t: Vec<(i32, i32)> = patches.iter().map(|&q| self.tiles[q]).collect();
                     let horizontal = t.windows(2).all(|p| p[1] == (p[0].0 + 1, p[0].1));
                     let vertical = t.windows(2).all(|p| p[1] == (p[0].0, p[0].1 + 1));
                     if !horizontal && !vertical {
-                        return Err(format!("patches {patches:?} are not a line of neighbouring tiles, in order"));
+                        return Err(format!(
+                            "patches {patches:?} are not a line of neighbouring tiles, in order"
+                        ));
                     }
-                    let bbox = patches.iter().map(|&q| boxes[q]).reduce(TileBox::union).unwrap();
+                    let bbox = patches
+                        .iter()
+                        .map(|&q| boxes[q])
+                        .reduce(TileBox::union)
+                        .unwrap();
                     let code = layout.code(bbox);
                     let data = layout.data(bbox);
-                    let seam: Vec<u32> = data.iter().copied().filter(|q| !patches.iter().any(|&p| datas[p].contains(q))).collect();
+                    let seam: Vec<u32> = data
+                        .iter()
+                        .copied()
+                        .filter(|q| !patches.iter().any(|&p| datas[p].contains(q)))
+                        .collect();
                     // Horizontal measures Z⊗Z across each seam, by new Z checks;
                     // vertical X⊗X, by new X checks. A seam's checks lie between
                     // the two patches either side of it.
                     let across = |c: &Check| if horizontal { c.pos.0 } else { c.pos.1 };
-                    let span = |q: usize| if horizontal { (boxes[q].x0, boxes[q].x1) } else { (boxes[q].y0, boxes[q].y1) };
+                    let span = |q: usize| {
+                        if horizontal {
+                            (boxes[q].x0, boxes[q].x1)
+                        } else {
+                            (boxes[q].y0, boxes[q].y1)
+                        }
+                    };
                     let new_checks = patches
                         .windows(2)
                         .map(|pair| {
                             let (after, before) = (span(pair[0]).1, span(pair[1]).0);
                             code.iter()
                                 .enumerate()
-                                .filter(|(_, c)| c.x_type != horizontal && after < across(c) && across(c) < before)
-                                .filter(|(_, c)| !patches.iter().any(|&q| codes[q].iter().any(|pc| pc.pos == c.pos)))
+                                .filter(|(_, c)| {
+                                    c.x_type != horizontal
+                                        && after < across(c)
+                                        && across(c) < before
+                                })
+                                .filter(|(_, c)| {
+                                    !patches
+                                        .iter()
+                                        .any(|&q| codes[q].iter().any(|pc| pc.pos == c.pos))
+                                })
                                 .map(|(i, _)| i)
                                 .collect()
                         })
@@ -632,7 +809,16 @@ impl Program {
                     for &q in patches {
                         in_merge[q] = Some(m);
                     }
-                    merges.push(MergeState { patches: patches.clone(), horizontal, code, data, seam, new_checks, outcomes: None, seam_recs: None });
+                    merges.push(MergeState {
+                        patches: patches.clone(),
+                        horizontal,
+                        code,
+                        data,
+                        seam,
+                        new_checks,
+                        outcomes: None,
+                        seam_recs: None,
+                    });
                     active.push(m);
                 }
                 Step::Split => {
@@ -641,7 +827,11 @@ impl Program {
                     }
                     w.c.push(Instr::Tick);
                     for m in std::mem::take(&mut active) {
-                        let basis = if merges[m].horizontal { Basis::X } else { Basis::Z };
+                        let basis = if merges[m].horizontal {
+                            Basis::X
+                        } else {
+                            Basis::Z
+                        };
                         let seam = merges[m].seam.clone();
                         merges[m].seam_recs = Some(w.measure(basis, &seam));
                         for &q in &merges[m].patches {
@@ -653,11 +843,16 @@ impl Program {
                     listed(patches)?;
                     for &q in patches {
                         if life[q] != Life::Live || in_merge[q].is_some() {
-                            return Err(format!("patch {q} is not live and alone, so it cannot be measured"));
+                            return Err(format!(
+                                "patch {q} is not live and alone, so it cannot be measured"
+                            ));
                         }
                     }
                     w.c.push(Instr::Tick);
-                    let data: Vec<u32> = patches.iter().flat_map(|&q| datas[q].iter().copied()).collect();
+                    let data: Vec<u32> = patches
+                        .iter()
+                        .flat_map(|&q| datas[q].iter().copied())
+                        .collect();
                     let recs = w.measure(*basis, &data);
                     final_rec.extend(data.iter().copied().zip(recs));
                     let want_x = *basis == Basis::X;
@@ -666,19 +861,27 @@ impl Program {
                         final_basis[q] = Some(*basis);
                         for ch in codes[q].iter().filter(|c| c.x_type == want_x) {
                             // Only a check measured in the last round predicts the readout.
-                            let Some(last) = w.last.get(&ch.pos).filter(|l| l.round == w.round) else { continue };
+                            let Some(last) = w.last.get(&ch.pos).filter(|l| l.round == w.round)
+                            else {
+                                continue;
+                            };
                             let support = ch.support();
-                            let mut targets: Vec<usize> = support.iter().map(|x| final_rec[x]).collect();
+                            let mut targets: Vec<usize> =
+                                support.iter().map(|x| final_rec[x]).collect();
                             targets.push(last.rec);
                             // Qubits its last measurement read and its patch does not:
                             // seam qubits, read at a split in the same basis.
                             for lost in last.support.iter().filter(|x| !support.contains(x)) {
                                 match w.measured.get(lost) {
                                     Some(&(r, b)) if b == *basis && r > last.rec => targets.push(r),
-                                    _ => return Err(format!("the check at {:?} lost a qubit not measured in its basis", ch.pos)),
+                                    _ => return Err(format!(
+                                        "the check at {:?} lost a qubit not measured in its basis",
+                                        ch.pos
+                                    )),
                                 }
                             }
-                            let coords = vec![ch.pos.0 as f64, ch.pos.1 as f64, (w.round + 1) as f64];
+                            let coords =
+                                vec![ch.pos.0 as f64, ch.pos.1 as f64, (w.round + 1) as f64];
                             let recs = targets.iter().map(|&r| w.lookback(r)).collect();
                             w.c.push(Instr::Detector { coords, recs });
                         }
@@ -694,7 +897,9 @@ impl Program {
                     Term::Logical { patch, basis, line } => {
                         check(patch)?;
                         if final_basis[patch] != Some(basis) {
-                            return Err(format!("patch {patch}'s logical {basis:?} needs it measured in {basis:?}"));
+                            return Err(format!(
+                                "patch {patch}'s logical {basis:?} needs it measured in {basis:?}"
+                            ));
                         }
                         if line >= d {
                             return Err(format!("a patch has {d} lines, not {}", line + 1));
@@ -702,16 +907,29 @@ impl Program {
                         let b = boxes[patch];
                         let at = 2 * line as i32;
                         let qubits: Vec<u32> = if basis == Basis::Z {
-                            (b.y0..=b.y1).step_by(2).map(|y| layout.index[&(b.x0 + at, y)]).collect()
+                            (b.y0..=b.y1)
+                                .step_by(2)
+                                .map(|y| layout.index[&(b.x0 + at, y)])
+                                .collect()
                         } else {
-                            (b.x0..=b.x1).step_by(2).map(|x| layout.index[&(x, b.y0 + at)]).collect()
+                            (b.x0..=b.x1)
+                                .step_by(2)
+                                .map(|x| layout.index[&(x, b.y0 + at)])
+                                .collect()
                         };
                         recs.extend(qubits.iter().map(|q| w.lookback(final_rec[q])));
                     }
                     Term::Outcome { merge, seam } => {
-                        let ms = merges.get(merge).ok_or(format!("there is no merge {merge}"))?;
-                        let out = ms.outcomes.as_ref().ok_or(format!("merge {merge} had no rounds"))?;
-                        let out = out.get(seam).ok_or(format!("merge {merge} has no seam {seam}"))?;
+                        let ms = merges
+                            .get(merge)
+                            .ok_or(format!("there is no merge {merge}"))?;
+                        let out = ms
+                            .outcomes
+                            .as_ref()
+                            .ok_or(format!("merge {merge} had no rounds"))?;
+                        let out = out
+                            .get(seam)
+                            .ok_or(format!("merge {merge} has no seam {seam}"))?;
                         recs.extend(out.iter().map(|&r| w.lookback(r)));
                     }
                     Term::Seam { merge, patch, line } => {
@@ -719,23 +937,34 @@ impl Program {
                         if line >= d {
                             return Err(format!("a patch has {d} lines, not {}", line + 1));
                         }
-                        let ms = merges.get(merge).ok_or(format!("there is no merge {merge}"))?;
+                        let ms = merges
+                            .get(merge)
+                            .ok_or(format!("there is no merge {merge}"))?;
                         if !ms.patches.contains(&patch) {
                             return Err(format!("patch {patch} is not in merge {merge}"));
                         }
-                        let seam_recs = ms.seam_recs.as_ref().ok_or(format!("merge {merge} was never split"))?;
+                        let seam_recs = ms
+                            .seam_recs
+                            .as_ref()
+                            .ok_or(format!("merge {merge} was never split"))?;
                         let b = boxes[patch];
                         let at = 2 * line as i32;
                         for (&q, &r) in ms.seam.iter().zip(seam_recs) {
                             let (x, y) = layout.positions[q as usize];
-                            if (ms.horizontal && y == b.y0 + at) || (!ms.horizontal && x == b.x0 + at) {
+                            if (ms.horizontal && y == b.y0 + at)
+                                || (!ms.horizontal && x == b.x0 + at)
+                            {
                                 recs.push(w.lookback(r));
                             }
                         }
                     }
                 }
             }
-            w.c.push(Instr::Observable { index: index as u32, recs, paulis: Vec::new() });
+            w.c.push(Instr::Observable {
+                index: index as u32,
+                recs,
+                paulis: Vec::new(),
+            });
         }
         Ok(Circuit { instrs: w.c })
     }
@@ -748,14 +977,34 @@ impl Surgery {
         let observables = match self.basis {
             Basis::Z => vec![
                 vec![Term::Outcome { merge: 0, seam: 0 }],
-                vec![Term::Logical { patch: 0, basis: Basis::Z, line: 0 }],
-                vec![Term::Logical { patch: 1, basis: Basis::Z, line: 0 }],
+                vec![Term::Logical {
+                    patch: 0,
+                    basis: Basis::Z,
+                    line: 0,
+                }],
+                vec![Term::Logical {
+                    patch: 1,
+                    basis: Basis::Z,
+                    line: 0,
+                }],
             ],
             // X₁X₂ along the first row, with that row's seam qubit read at the split.
             Basis::X => vec![vec![
-                Term::Logical { patch: 0, basis: Basis::X, line: 0 },
-                Term::Logical { patch: 1, basis: Basis::X, line: 0 },
-                Term::Seam { merge: 0, patch: 0, line: 0 },
+                Term::Logical {
+                    patch: 0,
+                    basis: Basis::X,
+                    line: 0,
+                },
+                Term::Logical {
+                    patch: 1,
+                    basis: Basis::X,
+                    line: 0,
+                },
+                Term::Seam {
+                    merge: 0,
+                    patch: 0,
+                    line: 0,
+                },
             ]],
         };
         Program {
@@ -763,13 +1012,21 @@ impl Surgery {
             p: self.p,
             tiles: vec![(0, 0), (1, 0)],
             steps: vec![
-                Step::Prepare { patches: vec![0, 1], basis: self.basis },
+                Step::Prepare {
+                    patches: vec![0, 1],
+                    basis: self.basis,
+                },
                 Step::Rounds(self.pre),
-                Step::Merge { patches: vec![0, 1] },
+                Step::Merge {
+                    patches: vec![0, 1],
+                },
                 Step::Rounds(self.merged),
                 Step::Split,
                 Step::Rounds(self.post),
-                Step::Measure { patches: vec![0, 1], basis: self.basis },
+                Step::Measure {
+                    patches: vec![0, 1],
+                    basis: self.basis,
+                },
             ],
             observables,
         }
@@ -811,23 +1068,55 @@ pub fn cnot(d: usize, merged: usize, p: f64, inputs: Basis) -> Program {
     let [c, a, t] = CNOT;
     let observables = match inputs {
         Basis::Z => vec![
-            vec![Term::Logical { patch: c, basis: Basis::Z, line: 0 }],
+            vec![Term::Logical {
+                patch: c,
+                basis: Basis::Z,
+                line: 0,
+            }],
             vec![
-                Term::Logical { patch: t, basis: Basis::Z, line: 0 },
-                Term::Logical { patch: a, basis: Basis::Z, line: 0 },
+                Term::Logical {
+                    patch: t,
+                    basis: Basis::Z,
+                    line: 0,
+                },
+                Term::Logical {
+                    patch: a,
+                    basis: Basis::Z,
+                    line: 0,
+                },
                 Term::Outcome { merge: 0, seam: 0 },
-                Term::Seam { merge: 1, patch: t, line: 0 },
+                Term::Seam {
+                    merge: 1,
+                    patch: t,
+                    line: 0,
+                },
             ],
         ],
         // m₂ reads X on A's last row and T's first, the rows that touch the
         // A–T seam, so X_C X_A is taken along the last row too.
         Basis::X => vec![
-            vec![Term::Logical { patch: t, basis: Basis::X, line: 0 }],
+            vec![Term::Logical {
+                patch: t,
+                basis: Basis::X,
+                line: 0,
+            }],
             vec![
-                Term::Logical { patch: c, basis: Basis::X, line: d.saturating_sub(1) },
-                Term::Logical { patch: t, basis: Basis::X, line: 0 },
+                Term::Logical {
+                    patch: c,
+                    basis: Basis::X,
+                    line: d.saturating_sub(1),
+                },
+                Term::Logical {
+                    patch: t,
+                    basis: Basis::X,
+                    line: 0,
+                },
                 Term::Outcome { merge: 1, seam: 0 },
-                Term::Seam { merge: 0, patch: c, line: d.saturating_sub(1) },
+                Term::Seam {
+                    merge: 0,
+                    patch: c,
+                    line: d.saturating_sub(1),
+                },
             ],
         ],
     };
@@ -836,7 +1125,14 @@ pub fn cnot(d: usize, merged: usize, p: f64, inputs: Basis) -> Program {
 
 /// The CNOT's program with control and target prepared in `prep` and read
 /// out in `read` (each [C, T]), and the given observables.
-fn cnot_with(d: usize, merged: usize, p: f64, prep: [Basis; 2], read: [Basis; 2], observables: Vec<Vec<Term>>) -> Program {
+fn cnot_with(
+    d: usize,
+    merged: usize,
+    p: f64,
+    prep: [Basis; 2],
+    read: [Basis; 2],
+    observables: Vec<Vec<Term>>,
+) -> Program {
     let [c, a, t] = CNOT;
     // Each pair read or prepared alike is one step, as the recorded circuits were written.
     let pair = |basis: [Basis; 2], step: fn(Vec<usize>, Basis) -> Step| {
@@ -848,19 +1144,38 @@ fn cnot_with(d: usize, merged: usize, p: f64, prep: [Basis; 2], read: [Basis; 2]
     };
     let mut steps = pair(prep, |patches, basis| Step::Prepare { patches, basis });
     steps.extend([
-        Step::Prepare { patches: vec![a], basis: Basis::X },
+        Step::Prepare {
+            patches: vec![a],
+            basis: Basis::X,
+        },
         Step::Rounds(d),
-        Step::Merge { patches: vec![c, a] },
+        Step::Merge {
+            patches: vec![c, a],
+        },
         Step::Rounds(merged),
         Step::Split,
-        Step::Merge { patches: vec![a, t] },
+        Step::Merge {
+            patches: vec![a, t],
+        },
         Step::Rounds(merged),
         Step::Split,
-        Step::Measure { patches: vec![a], basis: Basis::Z },
+        Step::Measure {
+            patches: vec![a],
+            basis: Basis::Z,
+        },
         Step::Rounds(d),
     ]);
-    steps.extend(pair(read, |patches, basis| Step::Measure { patches, basis }));
-    Program { d, p, tiles: vec![(0, 0), (1, 0), (1, 1)], steps, observables }
+    steps.extend(pair(read, |patches, basis| Step::Measure {
+        patches,
+        basis,
+    }));
+    Program {
+        d,
+        p,
+        tiles: vec![(0, 0), (1, 0), (1, 1)],
+        steps,
+        observables,
+    }
 }
 
 /// k Z⊗Z measurements in a row on two patches in |0⟩|0⟩, each of `merged`
@@ -868,15 +1183,50 @@ fn cnot_with(d: usize, merged: usize, p: f64, prep: [Basis; 2], read: [Basis; 2]
 /// first and after the last. Observables: each outcome (all +1), then each
 /// patch's Z.
 pub fn repeated(d: usize, k: usize, merged: usize, p: f64) -> Program {
-    let mut steps = vec![Step::Prepare { patches: vec![0, 1], basis: Basis::Z }, Step::Rounds(d)];
+    let mut steps = vec![
+        Step::Prepare {
+            patches: vec![0, 1],
+            basis: Basis::Z,
+        },
+        Step::Rounds(d),
+    ];
     for _ in 0..k {
-        steps.extend([Step::Merge { patches: vec![0, 1] }, Step::Rounds(merged), Step::Split, Step::Rounds(1)]);
+        steps.extend([
+            Step::Merge {
+                patches: vec![0, 1],
+            },
+            Step::Rounds(merged),
+            Step::Split,
+            Step::Rounds(1),
+        ]);
     }
-    steps.extend([Step::Rounds(d.saturating_sub(1)), Step::Measure { patches: vec![0, 1], basis: Basis::Z }]);
-    let mut observables: Vec<Vec<Term>> = (0..k).map(|i| vec![Term::Outcome { merge: i, seam: 0 }]).collect();
-    observables.push(vec![Term::Logical { patch: 0, basis: Basis::Z, line: 0 }]);
-    observables.push(vec![Term::Logical { patch: 1, basis: Basis::Z, line: 0 }]);
-    Program { d, p, tiles: vec![(0, 0), (1, 0)], steps, observables }
+    steps.extend([
+        Step::Rounds(d.saturating_sub(1)),
+        Step::Measure {
+            patches: vec![0, 1],
+            basis: Basis::Z,
+        },
+    ]);
+    let mut observables: Vec<Vec<Term>> = (0..k)
+        .map(|i| vec![Term::Outcome { merge: i, seam: 0 }])
+        .collect();
+    observables.push(vec![Term::Logical {
+        patch: 0,
+        basis: Basis::Z,
+        line: 0,
+    }]);
+    observables.push(vec![Term::Logical {
+        patch: 1,
+        basis: Basis::Z,
+        line: 0,
+    }]);
+    Program {
+        d,
+        p,
+        tiles: vec![(0, 0), (1, 0)],
+        steps,
+        observables,
+    }
 }
 
 /// n patches in a row, all in |0⟩, merged at once and split: each
@@ -886,20 +1236,36 @@ pub fn repeated(d: usize, k: usize, merged: usize, p: f64) -> Program {
 /// every patch. Observables: each seam's outcome (+1), then each patch's Z.
 pub fn line(d: usize, n: usize, merged: usize, p: f64) -> Program {
     let all: Vec<usize> = (0..n).collect();
-    let mut observables: Vec<Vec<Term>> = (0..n.saturating_sub(1)).map(|seam| vec![Term::Outcome { merge: 0, seam }]).collect();
-    observables.extend((0..n).map(|q| vec![Term::Logical { patch: q, basis: Basis::Z, line: 0 }]));
+    let mut observables: Vec<Vec<Term>> = (0..n.saturating_sub(1))
+        .map(|seam| vec![Term::Outcome { merge: 0, seam }])
+        .collect();
+    observables.extend((0..n).map(|q| {
+        vec![Term::Logical {
+            patch: q,
+            basis: Basis::Z,
+            line: 0,
+        }]
+    }));
     Program {
         d,
         p,
         tiles: (0..n as i32).map(|i| (i, 0)).collect(),
         steps: vec![
-            Step::Prepare { patches: all.clone(), basis: Basis::Z },
+            Step::Prepare {
+                patches: all.clone(),
+                basis: Basis::Z,
+            },
             Step::Rounds(d),
-            Step::Merge { patches: all.clone() },
+            Step::Merge {
+                patches: all.clone(),
+            },
             Step::Rounds(merged),
             Step::Split,
             Step::Rounds(d),
-            Step::Measure { patches: all, basis: Basis::Z },
+            Step::Measure {
+                patches: all,
+                basis: Basis::Z,
+            },
         ],
         observables,
     }
@@ -914,13 +1280,33 @@ pub fn vertical(d: usize, merged: usize, p: f64, basis: Basis) -> Program {
     let observables = match basis {
         Basis::X => vec![
             vec![Term::Outcome { merge: 0, seam: 0 }],
-            vec![Term::Logical { patch: 0, basis: Basis::X, line: 0 }],
-            vec![Term::Logical { patch: 1, basis: Basis::X, line: 0 }],
+            vec![Term::Logical {
+                patch: 0,
+                basis: Basis::X,
+                line: 0,
+            }],
+            vec![Term::Logical {
+                patch: 1,
+                basis: Basis::X,
+                line: 0,
+            }],
         ],
         Basis::Z => vec![vec![
-            Term::Logical { patch: 0, basis: Basis::Z, line: 0 },
-            Term::Logical { patch: 1, basis: Basis::Z, line: 0 },
-            Term::Seam { merge: 0, patch: 0, line: 0 },
+            Term::Logical {
+                patch: 0,
+                basis: Basis::Z,
+                line: 0,
+            },
+            Term::Logical {
+                patch: 1,
+                basis: Basis::Z,
+                line: 0,
+            },
+            Term::Seam {
+                merge: 0,
+                patch: 0,
+                line: 0,
+            },
         ]],
     };
     Program {
@@ -928,13 +1314,21 @@ pub fn vertical(d: usize, merged: usize, p: f64, basis: Basis) -> Program {
         p,
         tiles: vec![(0, 0), (0, 1)],
         steps: vec![
-            Step::Prepare { patches: vec![0, 1], basis },
+            Step::Prepare {
+                patches: vec![0, 1],
+                basis,
+            },
             Step::Rounds(d),
-            Step::Merge { patches: vec![0, 1] },
+            Step::Merge {
+                patches: vec![0, 1],
+            },
             Step::Rounds(merged),
             Step::Split,
             Step::Rounds(d),
-            Step::Measure { patches: vec![0, 1], basis },
+            Step::Measure {
+                patches: vec![0, 1],
+                basis,
+            },
         ],
         observables,
     }
@@ -948,12 +1342,21 @@ mod tests {
     use crate::m2d::M2d;
 
     fn surgery(d: usize, merged: usize, basis: Basis, p: f64) -> Surgery {
-        Surgery { d, pre: d, merged, post: d, basis, p }
+        Surgery {
+            d,
+            pre: d,
+            merged,
+            post: d,
+            basis,
+            p,
+        }
     }
 
     /// FNV-1a, 64 bits: a fingerprint that is the same in every Rust version.
     fn fnv1a64(bytes: &[u8]) -> String {
-        let h = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3));
+        let h = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| {
+            (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
+        });
         format!("{h:016x}")
     }
 
@@ -971,9 +1374,25 @@ mod tests {
             ts.dedup();
             for merged in ts {
                 for (basis, name) in [(Basis::Z, "z"), (Basis::X, "x")] {
-                    let text = Surgery { d, pre: d, merged, post: d, basis, p: 0.002 }.circuit().unwrap().to_stim();
-                    let key = format!("\"d{d}/T{merged}/{name}\": \"{}\"", fnv1a64(text.as_bytes()));
-                    assert!(golden.contains(&key), "d = {d}, T = {merged}, {name}: the circuit changed");
+                    let text = Surgery {
+                        d,
+                        pre: d,
+                        merged,
+                        post: d,
+                        basis,
+                        p: 0.002,
+                    }
+                    .circuit()
+                    .unwrap()
+                    .to_stim();
+                    let key = format!(
+                        "\"d{d}/T{merged}/{name}\": \"{}\"",
+                        fnv1a64(text.as_bytes())
+                    );
+                    assert!(
+                        golden.contains(&key),
+                        "d = {d}, T = {merged}, {name}: the circuit changed"
+                    );
                     n += 1;
                 }
             }
@@ -989,7 +1408,8 @@ mod tests {
             for basis in [Basis::Z, Basis::X] {
                 for merged in [1usize, 2, d] {
                     let c = surgery(d, merged, basis, 0.0).circuit().unwrap();
-                    let m = M2d::new(&c).unwrap_or_else(|e| panic!("d = {d} {basis:?} T = {merged}: {e}"));
+                    let m = M2d::new(&c)
+                        .unwrap_or_else(|e| panic!("d = {d} {basis:?} T = {merged}: {e}"));
                     assert_eq!(m.num_observables, if basis == Basis::Z { 3 } else { 1 });
                 }
             }
@@ -1002,7 +1422,11 @@ mod tests {
     fn the_codes_have_the_right_number_of_checks() {
         for d in [3usize, 5, 7] {
             let layout = Layout::new(d, 2, 2);
-            let (a, b, c) = (layout.tile((0, 0)), layout.tile((1, 0)), layout.tile((0, 1)));
+            let (a, b, c) = (
+                layout.tile((0, 0)),
+                layout.tile((1, 0)),
+                layout.tile((0, 1)),
+            );
             assert_eq!(layout.code(a).len(), d * d - 1);
             assert_eq!(layout.code(b).len(), d * d - 1);
             // Merged side by side, and one above the other.
@@ -1019,11 +1443,17 @@ mod tests {
     fn single_faults_need_more_than_one_merged_round() {
         let one = surgery(3, 1, Basis::Z, 0.001).circuit().unwrap();
         let err = Dem::from_circuit(&one).unwrap_err();
-        assert!(err.contains("undetectable logical error") && err.contains("flips observables 0b1 "), "{err}");
+        assert!(
+            err.contains("undetectable logical error") && err.contains("flips observables 0b1 "),
+            "{err}"
+        );
 
         for basis in [Basis::Z, Basis::X] {
             let (failed, of) = uncorrected(&surgery(3, 3, basis, 0.001).circuit().unwrap());
-            assert_eq!(failed, 0, "{basis:?}, T = 3: {failed} of {of} single faults uncorrected");
+            assert_eq!(
+                failed, 0,
+                "{basis:?}, T = 3: {failed} of {of} single faults uncorrected"
+            );
         }
     }
     /// Every program's detectors and observables are deterministic without
@@ -1034,13 +1464,20 @@ mod tests {
     fn programs_are_deterministic() {
         for d in [3usize, 5] {
             for basis in [Basis::Z, Basis::X] {
-                for (name, prog) in [("cnot", cnot(d, d, 0.0, basis)), ("vertical", vertical(d, d, 0.0, basis))] {
+                for (name, prog) in [
+                    ("cnot", cnot(d, d, 0.0, basis)),
+                    ("vertical", vertical(d, d, 0.0, basis)),
+                ] {
                     let c = prog.circuit().unwrap();
                     M2d::new(&c).unwrap_or_else(|e| panic!("{name}, d = {d}, {basis:?}: {e}"));
                 }
             }
-            for (name, prog) in [("repeated", repeated(d, 3, d, 0.0)), ("line", line(d, 3, d, 0.0))] {
-                M2d::new(&prog.circuit().unwrap()).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
+            for (name, prog) in [
+                ("repeated", repeated(d, 3, d, 0.0)),
+                ("line", line(d, 3, d, 0.0)),
+            ] {
+                M2d::new(&prog.circuit().unwrap())
+                    .unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
             }
         }
     }
@@ -1054,8 +1491,10 @@ mod tests {
         for basis in [Basis::Z, Basis::X] {
             let mut prog = cnot(3, 3, 0.0, basis);
             let k = prog.observables.len();
-            prog.observables.push(vec![Term::Outcome { merge: 0, seam: 0 }]);
-            prog.observables.push(vec![Term::Outcome { merge: 1, seam: 0 }]);
+            prog.observables
+                .push(vec![Term::Outcome { merge: 0, seam: 0 }]);
+            prog.observables
+                .push(vec![Term::Outcome { merge: 1, seam: 0 }]);
             let sampler = FrameSampler::new(&prog.circuit().unwrap()).unwrap();
             let mut rng = crate::surface_code::Xorshift::new(4);
             let (mut ones0, mut ones1) = (0, 0);
@@ -1064,7 +1503,10 @@ mod tests {
                 ones0 += ((shot.observables >> k) & 1) as usize;
                 ones1 += ((shot.observables >> (k + 1)) & 1) as usize;
             }
-            assert!((120..=280).contains(&ones0) && (120..=280).contains(&ones1), "{basis:?}: {ones0}, {ones1} of 400");
+            assert!(
+                (120..=280).contains(&ones0) && (120..=280).contains(&ones1),
+                "{basis:?}: {ones0}, {ones1} of 400"
+            );
         }
     }
 
@@ -1083,7 +1525,10 @@ mod tests {
         ];
         for (name, prog) in programs {
             let (failed, of) = uncorrected(&prog.circuit().unwrap());
-            assert_eq!(failed, 0, "{name}: {failed} of {of} single faults uncorrected");
+            assert_eq!(
+                failed, 0,
+                "{name}: {failed} of {of} single faults uncorrected"
+            );
         }
     }
 
@@ -1094,7 +1539,11 @@ mod tests {
         let failed = dem
             .mechanisms
             .iter()
-            .filter(|m| dec.decode(&m.detectors).map(|p| p.observables != m.observables).unwrap_or(true))
+            .filter(|m| {
+                dec.decode(&m.detectors)
+                    .map(|p| p.observables != m.observables)
+                    .unwrap_or(true)
+            })
             .count();
         (failed, dem.mechanisms.len())
     }
@@ -1114,24 +1563,56 @@ mod tests {
         let logical = |patch, basis, line| Term::Logical { patch, basis, line };
         for d in [3usize, 5] {
             // Z_T and its frame (m₁, A's Z, the A–T seam's Z records on T's column).
-            let z_t = vec![logical(t, Z, 0), logical(a, Z, 0), Term::Outcome { merge: 0, seam: 0 }, Term::Seam { merge: 1, patch: t, line: 0 }];
+            let z_t = vec![
+                logical(t, Z, 0),
+                logical(a, Z, 0),
+                Term::Outcome { merge: 0, seam: 0 },
+                Term::Seam {
+                    merge: 1,
+                    patch: t,
+                    line: 0,
+                },
+            ];
             // X_C X_T and its frame (m₂, the C–A seam's X record on C's last row).
-            let x_cx_t = vec![logical(c, X, d - 1), logical(t, X, 0), Term::Outcome { merge: 1, seam: 0 }, Term::Seam { merge: 0, patch: c, line: d - 1 }];
+            let x_cx_t = vec![
+                logical(c, X, d - 1),
+                logical(t, X, 0),
+                Term::Outcome { merge: 1, seam: 0 },
+                Term::Seam {
+                    merge: 0,
+                    patch: c,
+                    line: d - 1,
+                },
+            ];
             // Z_C along its last column, the one m₁ reads: with C in |+⟩ its
             // columns differ by Z checks that are not all fixed.
-            let z_cz_t: Vec<Term> = std::iter::once(logical(c, Z, d - 1)).chain(z_t.iter().copied()).collect();
+            let z_cz_t: Vec<Term> = std::iter::once(logical(c, Z, d - 1))
+                .chain(z_t.iter().copied())
+                .collect();
             let cases = [
                 ("|+0⟩ read in Z", [X, Z], [Z, Z], vec![z_cz_t]),
                 ("|+0⟩ read in X", [X, Z], [X, X], vec![x_cx_t]),
-                ("|0+⟩", [Z, X], [Z, X], vec![vec![logical(c, Z, 0)], vec![logical(t, X, 0)]]),
+                (
+                    "|0+⟩",
+                    [Z, X],
+                    [Z, X],
+                    vec![vec![logical(c, Z, 0)], vec![logical(t, X, 0)]],
+                ),
             ];
             for (name, prep, read, observables) in cases {
-                let circuit = cnot_with(d, d, 0.0, prep, read, observables).circuit().unwrap();
+                let circuit = cnot_with(d, d, 0.0, prep, read, observables)
+                    .circuit()
+                    .unwrap();
                 M2d::new(&circuit).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
             }
-            let circuit = cnot_with(d, d, 0.0, [X, Z], [Z, Z], vec![z_t]).circuit().unwrap();
+            let circuit = cnot_with(d, d, 0.0, [X, Z], [Z, Z], vec![z_t])
+                .circuit()
+                .unwrap();
             let err = M2d::new(&circuit).err().unwrap_or_default();
-            assert!(err.contains("not deterministic"), "d = {d}: after |+0⟩, Z_T alone should be random: {err}");
+            assert!(
+                err.contains("not deterministic"),
+                "d = {d}: after |+0⟩, Z_T alone should be random: {err}"
+            );
         }
     }
 
@@ -1144,7 +1625,11 @@ mod tests {
         for d in [3usize, 5] {
             let layout = Layout::new(d, 3, 1);
             let row = TileBox::union(layout.tile((0, 0)), layout.tile((2, 0)));
-            assert_eq!(layout.code(row).len(), layout.data(row).len() - 1, "d = {d}: one logical qubit");
+            assert_eq!(
+                layout.code(row).len(),
+                layout.data(row).len() - 1,
+                "d = {d}: one logical qubit"
+            );
             let m = M2d::new(&line(d, 3, d, 0.0).circuit().unwrap()).unwrap();
             assert_eq!(m.num_observables, 2 + 3);
         }
@@ -1164,7 +1649,10 @@ mod tests {
             p,
             tiles: vec![(0, 0), (1, 0)],
             steps: vec![
-                Step::Prepare { patches: both(), basis: Basis::Z },
+                Step::Prepare {
+                    patches: both(),
+                    basis: Basis::Z,
+                },
                 Step::Rounds(d),
                 Step::Merge { patches: both() },
                 Step::Rounds(d),
@@ -1173,13 +1661,24 @@ mod tests {
                 Step::Rounds(d),
                 Step::Split,
                 Step::Rounds(d),
-                Step::Measure { patches: both(), basis: Basis::Z },
+                Step::Measure {
+                    patches: both(),
+                    basis: Basis::Z,
+                },
             ],
             observables: vec![
                 vec![Term::Outcome { merge: 0, seam: 0 }],
                 vec![Term::Outcome { merge: 1, seam: 0 }],
-                vec![Term::Logical { patch: 0, basis: Basis::Z, line: 0 }],
-                vec![Term::Logical { patch: 1, basis: Basis::Z, line: 0 }],
+                vec![Term::Logical {
+                    patch: 0,
+                    basis: Basis::Z,
+                    line: 0,
+                }],
+                vec![Term::Logical {
+                    patch: 1,
+                    basis: Basis::Z,
+                    line: 0,
+                }],
             ],
         };
         M2d::new(&prog(0.0).circuit().unwrap()).unwrap();
@@ -1193,18 +1692,49 @@ mod tests {
     fn malformed_programs_are_errors() {
         type Spoil = fn(&mut Program);
         let cases: [(&str, Spoil); 5] = [
-            ("lines", |p| p.observables.push(vec![Term::Seam { merge: 1, patch: 2, line: 3 }])),
-            ("not in merge", |p| p.observables.push(vec![Term::Seam { merge: 1, patch: 0, line: 0 }])),
-            ("no seam 1", |p| p.observables.push(vec![Term::Outcome { merge: 0, seam: 1 }])),
-            ("twice", |p| p.steps[0] = Step::Prepare { patches: vec![0, 0, 2], basis: Basis::Z }),
-            ("names no patch", |p| p.steps.push(Step::Measure { patches: vec![], basis: Basis::Z })),
+            ("lines", |p| {
+                p.observables.push(vec![Term::Seam {
+                    merge: 1,
+                    patch: 2,
+                    line: 3,
+                }])
+            }),
+            ("not in merge", |p| {
+                p.observables.push(vec![Term::Seam {
+                    merge: 1,
+                    patch: 0,
+                    line: 0,
+                }])
+            }),
+            ("no seam 1", |p| {
+                p.observables
+                    .push(vec![Term::Outcome { merge: 0, seam: 1 }])
+            }),
+            ("twice", |p| {
+                p.steps[0] = Step::Prepare {
+                    patches: vec![0, 0, 2],
+                    basis: Basis::Z,
+                }
+            }),
+            ("names no patch", |p| {
+                p.steps.push(Step::Measure {
+                    patches: vec![],
+                    basis: Basis::Z,
+                })
+            }),
         ];
         for (want, spoil) in cases {
             let mut prog = cnot(3, 3, 0.0, Basis::Z);
             spoil(&mut prog);
             let err = prog.circuit().err().unwrap_or_default();
-            assert!(err.contains(want), "expected an error naming '{want}', got '{err}'");
+            assert!(
+                err.contains(want),
+                "expected an error naming '{want}', got '{err}'"
+            );
         }
-        assert!(cnot(0, 3, 0.0, Basis::X).circuit().unwrap_err().contains("odd distance"));
+        assert!(cnot(0, 3, 0.0, Basis::X)
+            .circuit()
+            .unwrap_err()
+            .contains("odd distance"));
     }
 }

@@ -59,7 +59,11 @@ impl Tableau {
             x,
             z,
             r,
-            rng_state: if seed == 0 { 0xdead_beef_1234_5678 } else { seed },
+            rng_state: if seed == 0 {
+                0xdead_beef_1234_5678
+            } else {
+                seed
+            },
         }
     }
 
@@ -204,7 +208,10 @@ impl Tableau {
                 }
 
                 // Choose a random outcome 0 or 1
-                self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                self.rng_state = self
+                    .rng_state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 let outcome = ((self.rng_state >> 32) & 1) as u8;
                 self.r[p] = outcome;
                 outcome

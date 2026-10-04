@@ -16,39 +16,9 @@
 // the fuzz targets can reach them, and hidden: they are the engine's internals, outside the
 // stability promise. The crate's API is `api`, re-exported below.
 #[doc(hidden)]
-pub mod tableau;
+pub mod batch;
 #[doc(hidden)]
-pub mod simulator;
-#[doc(hidden)]
-pub mod blossom;
-#[doc(hidden)]
-pub mod decoder;
-#[doc(hidden)]
-pub mod surface_code;
-#[doc(hidden)]
-pub mod circuit_model;
-#[doc(hidden)]
-pub mod circuit;
-#[doc(hidden)]
-pub mod gates;
-#[doc(hidden)]
-pub mod dem;
-#[doc(hidden)]
-pub mod dem_build;
-#[doc(hidden)]
-pub mod dem_program;
-#[doc(hidden)]
-pub mod dem_decoder;
-#[doc(hidden)]
-pub mod sparse;
-#[doc(hidden)]
-pub mod m2d;
-#[doc(hidden)]
-pub mod window;
-#[doc(hidden)]
-pub mod bp;
-#[doc(hidden)]
-pub mod gf2;
+pub mod batch_sampler;
 #[doc(hidden)]
 pub mod bb;
 #[doc(hidden)]
@@ -58,45 +28,77 @@ pub mod bb_circuit;
 #[doc(hidden)]
 pub mod bb_gauge;
 #[doc(hidden)]
-pub mod osd;
-#[doc(hidden)]
-pub mod surgery;
-#[doc(hidden)]
 pub mod belief;
 #[doc(hidden)]
-pub mod stream;
+pub mod blossom;
+#[doc(hidden)]
+pub mod bp;
+#[doc(hidden)]
+pub mod circuit;
+#[doc(hidden)]
+pub mod circuit_model;
+#[doc(hidden)]
+pub mod decoder;
+#[doc(hidden)]
+pub mod dem;
+#[doc(hidden)]
+pub mod dem_build;
+#[doc(hidden)]
+pub mod dem_decoder;
+#[doc(hidden)]
+pub mod dem_program;
+#[doc(hidden)]
+pub mod diagram;
+#[cfg(test)]
+mod equivalence;
+#[cfg(test)]
+mod fixtures;
 #[doc(hidden)]
 pub mod frame_sampler;
 #[doc(hidden)]
-pub mod batch_sampler;
+pub mod fuzzing;
 #[doc(hidden)]
-pub mod shots;
+pub mod gates;
+#[doc(hidden)]
+pub mod gf2;
+#[doc(hidden)]
+pub mod m2d;
 #[doc(hidden)]
 pub mod memory;
 #[doc(hidden)]
+pub mod osd;
+#[doc(hidden)]
 pub mod parallel;
-#[doc(hidden)]
-pub mod batch;
-#[doc(hidden)]
-pub mod fuzzing;
-#[cfg(test)]
-mod fixtures;
-#[cfg(test)]
-mod equivalence;
 #[cfg(feature = "python")]
 mod py_api;
 #[cfg(feature = "python")]
 mod py_objects;
-#[cfg(not(feature = "python"))]
-mod wasm_xc;
-#[cfg(not(feature = "python"))]
-mod wasm_hw;
-#[cfg(not(feature = "python"))]
-mod wasm_rt;
+#[doc(hidden)]
+pub mod shots;
+#[doc(hidden)]
+pub mod simulator;
+#[doc(hidden)]
+pub mod sparse;
+#[doc(hidden)]
+pub mod stream;
+#[doc(hidden)]
+pub mod surface_code;
+#[doc(hidden)]
+pub mod surgery;
+#[doc(hidden)]
+pub mod tableau;
 #[cfg(not(feature = "python"))]
 mod wasm_bb;
 #[cfg(not(feature = "python"))]
+mod wasm_hw;
+#[cfg(not(feature = "python"))]
 mod wasm_ls;
+#[cfg(not(feature = "python"))]
+mod wasm_rt;
+#[cfg(not(feature = "python"))]
+mod wasm_xc;
+#[doc(hidden)]
+pub mod window;
 
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -118,13 +120,28 @@ impl PyRotatedSurfaceCode {
     }
 
     #[pyo3(signature = (num_rounds, p, bias=None, decoder_type=None))]
-    fn simulate(&self, num_rounds: usize, p: f64, bias: Option<f64>, decoder_type: Option<usize>) -> bool {
-        self.code.simulate_phenomenological_noise(num_rounds, p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0) != 0
+    fn simulate(
+        &self,
+        num_rounds: usize,
+        p: f64,
+        bias: Option<f64>,
+        decoder_type: Option<usize>,
+    ) -> bool {
+        self.code.simulate_phenomenological_noise(
+            num_rounds,
+            p,
+            bias.unwrap_or(1.0),
+            decoder_type.unwrap_or(0),
+            0.0,
+            0,
+        ) != 0
     }
 
     #[pyo3(signature = (p, bias=None, decoder_type=None))]
     fn simulate_data_noise(&self, p: f64, bias: Option<f64>, decoder_type: Option<usize>) -> bool {
-        self.code.simulate_data_noise(p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0) != 0
+        self.code
+            .simulate_data_noise(p, bias.unwrap_or(1.0), decoder_type.unwrap_or(0), 0.0, 0)
+            != 0
     }
 
     #[getter]
@@ -180,18 +197,32 @@ mod tests {
                     let mut out = vec![0u8; num_stabs];
                     for &op in &program {
                         match op {
-                            Op::Reset(q) => { if sim.measure_z(q) == 1 { sim.apply_x(q); } }
+                            Op::Reset(q) => {
+                                if sim.measure_z(q) == 1 {
+                                    sim.apply_x(q);
+                                }
+                            }
                             Op::H(q) => sim.apply_h(q),
                             Op::Cnot(c, t) => sim.apply_cnot(c, t),
-                            Op::Cz(a, b) => { sim.apply_h(b); sim.apply_cnot(a, b); sim.apply_h(b); }
+                            Op::Cz(a, b) => {
+                                sim.apply_h(b);
+                                sim.apply_cnot(a, b);
+                                sim.apply_h(b);
+                            }
                             Op::Measure(q, _, idx) => out[idx] = sim.measure_z(q),
                             Op::Noise(_) => {}
                         }
                     }
                     rounds.push(out);
                 }
-                assert_eq!(rounds[1], rounds[2], "d={d} seed={seed}: round 2 != round 3");
-                assert_eq!(rounds[2], rounds[3], "d={d} seed={seed}: round 3 != round 4");
+                assert_eq!(
+                    rounds[1], rounds[2],
+                    "d={d} seed={seed}: round 2 != round 3"
+                );
+                assert_eq!(
+                    rounds[2], rounds[3],
+                    "d={d} seed={seed}: round 3 != round 4"
+                );
             }
         }
     }
@@ -212,8 +243,13 @@ mod tests {
             }
             let par = by_pair.values().filter(|&&c| c > 1).count();
             let worst = by_pair.values().max().unwrap();
-            println!("XZZX    d={d}: {} edges, {} node-pairs, {} pairs with >1 edge, worst {}",
-                m.graph.graph.edges.len(), by_pair.len(), par, worst);
+            println!(
+                "XZZX    d={d}: {} edges, {} node-pairs, {} pairs with >1 edge, worst {}",
+                m.graph.graph.edges.len(),
+                by_pair.len(),
+                par,
+                worst
+            );
 
             // rotated, both graphs
             let rc = crate::surface_code::RotatedSurfaceCode::new(d);
@@ -221,7 +257,9 @@ mod tests {
             let rm = build(&rl, d);
             for (name, g) in [("for_x", &rm.for_x_errors), ("for_z", &rm.for_z_errors)] {
                 let mut bp: HashMap<(usize, usize), usize> = HashMap::new();
-                for e in &g.graph.edges { *bp.entry((e.u.min(e.v), e.u.max(e.v))).or_insert(0) += 1; }
+                for e in &g.graph.edges {
+                    *bp.entry((e.u.min(e.v), e.u.max(e.v))).or_insert(0) += 1;
+                }
                 let p2 = bp.values().filter(|&&c| c > 1).count();
                 println!("rotated d={d} {name}: {} edges, {} node-pairs, {} pairs with >1 edge, worst {}",
                     g.graph.edges.len(), bp.len(), p2, bp.values().max().unwrap());
@@ -245,14 +283,18 @@ mod tests {
             for st in &code.x_stabilizers {
                 let mut px = 0u128;
                 for &(dx, dy) in &[(-1i32, -1i32), (-1, 1), (1, -1), (1, 1)] {
-                    if let Some(q) = code.neighbor_at(st, dx, dy) { px |= 1u128 << q; }
+                    if let Some(q) = code.neighbor_at(st, dx, dy) {
+                        px |= 1u128 << q;
+                    }
                 }
                 ops.push((px, 0));
             }
             for st in &code.z_stabilizers {
                 let mut pz = 0u128;
                 for &(dx, dy) in &[(-1i32, -1i32), (-1, 1), (1, -1), (1, 1)] {
-                    if let Some(q) = code.neighbor_at(st, dx, dy) { pz |= 1u128 << q; }
+                    if let Some(q) = code.neighbor_at(st, dx, dy) {
+                        pz |= 1u128 << q;
+                    }
                 }
                 ops.push((0, pz));
             }
@@ -260,7 +302,7 @@ mod tests {
 
             // The code's own convention, from its simulators.
             let mut column = 0u128; // logical X support
-            let mut row = 0u128;    // logical Z support
+            let mut row = 0u128; // logical Z support
             for i in 0..d {
                 column |= 1u128 << (i * d);
                 row |= 1u128 << i;
@@ -269,15 +311,27 @@ mod tests {
             let mut rng: u64 = 0x2545F4914F6CDD1D;
             let mut checked = 0usize;
             for _ in 0..4000 {
-                let mut next = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
-                let mask = if n >= 128 { u128::MAX } else { (1u128 << n) - 1 };
+                let mut next = || {
+                    rng ^= rng << 13;
+                    rng ^= rng >> 7;
+                    rng ^= rng << 17;
+                    rng
+                };
+                let mask = if n >= 128 {
+                    u128::MAX
+                } else {
+                    (1u128 << n) - 1
+                };
                 let rx = ((next() as u128) | ((next() as u128) << 64)) & mask;
                 let rz = ((next() as u128) | ((next() as u128) << 64)) & mask;
 
                 let want = ((rx & column).count_ones() % 2) as u8
                     | (((rz & row).count_ones() % 2) as u8) << 1;
                 let got = check.classify(rx, rz);
-                assert_eq!(got, want, "d={d}: classify disagreed on rx={rx:b} rz={rz:b}");
+                assert_eq!(
+                    got, want,
+                    "d={d}: classify disagreed on rx={rx:b} rz={rz:b}"
+                );
                 checked += 1;
             }
             assert!(checked > 1000);
@@ -301,17 +355,24 @@ mod tests {
         let model = crate::circuit_model::build(&layout, d);
 
         for _ in 0..200 {
-            let clean = code.simulate_circuit_noise_with_model(
-                &model, d, 0.0, 0.5, "zero", 0, 0.0, 0);
+            let clean =
+                code.simulate_circuit_noise_with_model(&model, d, 0.0, 0.5, "zero", 0, 0.0, 0);
             assert_eq!(clean, 0, "a noiseless circuit left something in the frame");
         }
 
         let (mut only_x, mut only_z, mut both, mut n) = (0usize, 0usize, 0usize, 0usize);
         for _ in 0..4000 {
-            let c = code.simulate_circuit_noise_with_model(
-                &model, d, 0.006, 0.5, "zero", 0, 0.0, 0);
-            match c { 0 => {}, 1 => only_x += 1, 2 => only_z += 1, _ => both += 1 }
-            if c != 0 { n += 1 }
+            let c =
+                code.simulate_circuit_noise_with_model(&model, d, 0.006, 0.5, "zero", 0, 0.0, 0);
+            match c {
+                0 => {}
+                1 => only_x += 1,
+                2 => only_z += 1,
+                _ => both += 1,
+            }
+            if c != 0 {
+                n += 1
+            }
         }
         assert!(n > 40, "too few failures to judge: {n}");
         let x = only_x + both;
@@ -341,14 +402,25 @@ mod tests {
             let index_of = |x: i32, y: i32| -> Option<usize> {
                 if x >= 1 && x < (2 * d) as i32 && y >= 1 && y < (2 * d) as i32 {
                     Some(((x - 1) as usize / 2) + d * ((y - 1) as usize / 2))
-                } else { None }
+                } else {
+                    None
+                }
             };
             let mut ops: Vec<(u128, u128)> = Vec::new();
             for &(sx, sy) in &code.stabilizers {
                 let (mut px, mut pz) = (0u128, 0u128);
-                for &(dx, dy, is_x) in &[(-1i32,-1i32,true), (1,1,true), (1,-1,false), (-1,1,false)] {
+                for &(dx, dy, is_x) in &[
+                    (-1i32, -1i32, true),
+                    (1, 1, true),
+                    (1, -1, false),
+                    (-1, 1, false),
+                ] {
                     if let Some(q) = index_of(sx as i32 + dx, sy as i32 + dy) {
-                        if is_x { px |= 1u128 << q; } else { pz |= 1u128 << q; }
+                        if is_x {
+                            px |= 1u128 << q;
+                        } else {
+                            pz |= 1u128 << q;
+                        }
                     }
                 }
                 ops.push((px, pz));
@@ -357,14 +429,29 @@ mod tests {
             let commutes = |a: (u128, u128), b: (u128, u128)| {
                 ((a.0 & b.1).count_ones() + (a.1 & b.0).count_ones()).is_multiple_of(2)
             };
-            assert!(lx != (0, 0) && lz != (0, 0), "d={d}: no logical pair found (n={n})");
+            assert!(
+                lx != (0, 0) && lz != (0, 0),
+                "d={d}: no logical pair found (n={n})"
+            );
             for (i, &st) in ops.iter().enumerate() {
-                assert!(commutes(lx, st), "d={d}: logical_x anticommutes with stabilizer {i}");
-                assert!(commutes(lz, st), "d={d}: logical_z anticommutes with stabilizer {i}");
+                assert!(
+                    commutes(lx, st),
+                    "d={d}: logical_x anticommutes with stabilizer {i}"
+                );
+                assert!(
+                    commutes(lz, st),
+                    "d={d}: logical_z anticommutes with stabilizer {i}"
+                );
             }
             assert!(!commutes(lx, lz), "d={d}: the two representatives commute");
-            assert!(code.logical.is_logical(lx.0, lx.1), "d={d}: logical_x is a stabilizer product");
-            assert!(code.logical.is_logical(lz.0, lz.1), "d={d}: logical_z is a stabilizer product");
+            assert!(
+                code.logical.is_logical(lx.0, lx.1),
+                "d={d}: logical_x is a stabilizer product"
+            );
+            assert!(
+                code.logical.is_logical(lz.0, lz.1),
+                "d={d}: logical_z is a stabilizer product"
+            );
         }
     }
 
@@ -376,15 +463,28 @@ mod tests {
         let graph = code.build_syndrome_graph(d, true);
         let none = vec![false; graph.edges.len()];
         let mut rng: u64 = 0xDEADBEEF12345678;
-        let mut next = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
         for trial in 0..50 {
             let mut defects = vec![false; graph.num_nodes];
             for v in defects.iter_mut() {
-                if ((next() >> 11) as f64 / 9007199254740992.0) < 0.1 { *v = true; }
+                if ((next() >> 11) as f64 / 9007199254740992.0) < 0.1 {
+                    *v = true;
+                }
             }
             let a = decode_union_find(&graph, &defects, &none);
             let b = decode_union_find(&graph, &defects, &none);
-            assert_eq!(a.len(), b.len(), "trial {trial}: union-find gave {} then {} edges", a.len(), b.len());
+            assert_eq!(
+                a.len(),
+                b.len(),
+                "trial {trial}: union-find gave {} then {} edges",
+                a.len(),
+                b.len()
+            );
         }
     }
 
@@ -421,7 +521,12 @@ mod tests {
         }
 
         let mut rng: u64 = 0x243F6A8885A308D3;
-        let mut next = move || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
 
         let (mut agreed, mut declined) = (0usize, 0usize);
         let mut reasons: std::collections::BTreeMap<&'static str, usize> = Default::default();
@@ -463,9 +568,15 @@ mod tests {
                     assert_ne!(mate[i], i, "n={n} trial={trial}: {i} matched to itself");
                     assert_eq!(mate[mate[i]], i, "n={n} trial={trial}: asymmetric at {i}");
                 }
-                let got: i64 = (0..n).filter(|&i| i < mate[i]).map(|i| cost[i][mate[i]]).sum();
+                let got: i64 = (0..n)
+                    .filter(|&i| i < mate[i])
+                    .map(|i| cost[i][mate[i]])
+                    .sum();
                 let want = brute(n, &cost);
-                assert_eq!(got, want, "n={n} trial={trial}: blossom {got}, brute {want}");
+                assert_eq!(
+                    got, want,
+                    "n={n} trial={trial}: blossom {got}, brute {want}"
+                );
                 agreed += 1;
             }
         }
@@ -481,22 +592,37 @@ mod tests {
     fn blossom_speed() {
         use crate::blossom::min_weight_perfect_matching;
         let mut rng: u64 = 0x9E3779B97F4A7C15;
-        let mut next = move || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
         for n in [20usize, 40, 60, 80, 120, 160] {
             let mut total = std::time::Duration::ZERO;
             let reps = 20;
             let mut declined = 0;
             for _ in 0..reps {
                 let pts: Vec<(i64, i64)> = (0..n)
-                    .map(|_| ((next() % 200) as i64, (next() % 200) as i64)).collect();
-                let cost: Vec<Vec<i64>> = (0..n).map(|i| (0..n).map(|j|
-                    (pts[i].0 - pts[j].0).abs() + (pts[i].1 - pts[j].1).abs()).collect()).collect();
+                    .map(|_| ((next() % 200) as i64, (next() % 200) as i64))
+                    .collect();
+                let cost: Vec<Vec<i64>> = (0..n)
+                    .map(|i| {
+                        (0..n)
+                            .map(|j| (pts[i].0 - pts[j].0).abs() + (pts[i].1 - pts[j].1).abs())
+                            .collect()
+                    })
+                    .collect();
                 let t = std::time::Instant::now();
-                if min_weight_perfect_matching(n, &cost).is_none() { declined += 1; }
+                if min_weight_perfect_matching(n, &cost).is_none() {
+                    declined += 1;
+                }
                 total += t.elapsed();
             }
-            println!("  n={n:<4} {:>8.3} ms/solve   declined {declined}/{reps}",
-                total.as_secs_f64() * 1000.0 / reps as f64);
+            println!(
+                "  n={n:<4} {:>8.3} ms/solve   declined {declined}/{reps}",
+                total.as_secs_f64() * 1000.0 / reps as f64
+            );
         }
     }
 
@@ -513,7 +639,12 @@ mod tests {
     fn matching_decoder_is_never_heavier_than_the_others() {
         use crate::decoder::{decode_greedy, decode_mwpm, decode_union_find};
         let mut rng: u64 = 0x853C49E6748FEA9B;
-        let mut next = || { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; rng };
+        let mut next = || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
 
         for d in [3usize, 5, 7, 9] {
             let code = crate::surface_code::RotatedSurfaceCode::new(d);
@@ -531,7 +662,9 @@ mod tests {
                             count += 1;
                         }
                     }
-                    if count == 0 { continue; }
+                    if count == 0 {
+                        continue;
+                    }
                     let mw = weigh(&decode_mwpm(&graph, &defects, &none));
                     let gr = weigh(&decode_greedy(&graph, &defects, &none));
                     let uf = weigh(&decode_union_find(&graph, &defects, &none));
@@ -574,17 +707,29 @@ mod tests {
                             if let Some((at, pauli)) = inject {
                                 if at == i {
                                     if let Op::Noise(q) = op {
-                                        if pauli & 1 != 0 { sim.apply_x(q); }
-                                        if pauli & 2 != 0 { sim.apply_z(q); }
+                                        if pauli & 1 != 0 {
+                                            sim.apply_x(q);
+                                        }
+                                        if pauli & 2 != 0 {
+                                            sim.apply_z(q);
+                                        }
                                     }
                                 }
                             }
                         }
                         match op {
-                            Op::Reset(q) => { if sim.measure_z(q) == 1 { sim.apply_x(q); } }
+                            Op::Reset(q) => {
+                                if sim.measure_z(q) == 1 {
+                                    sim.apply_x(q);
+                                }
+                            }
                             Op::H(q) => sim.apply_h(q),
                             Op::Cnot(c, t) => sim.apply_cnot(c, t),
-                            Op::Cz(a, b) => { sim.apply_h(b); sim.apply_cnot(a, b); sim.apply_h(b); }
+                            Op::Cz(a, b) => {
+                                sim.apply_h(b);
+                                sim.apply_cnot(a, b);
+                                sim.apply_h(b);
+                            }
                             Op::Measure(q, _, idx) => out[idx] = sim.measure_z(q),
                             Op::Noise(_) => {}
                         }
@@ -613,7 +758,8 @@ mod tests {
                     .collect();
                 assert_eq!(
                     tableau, frame,
-                    "d={d}: frame and tableau disagree for {:?} at op {at}", pauli
+                    "d={d}: frame and tableau disagree for {:?} at op {at}",
+                    pauli
                 );
                 checked += 1;
             }
@@ -631,8 +777,16 @@ mod tests {
             let layout = code.circuit_layout();
             let (buckets, edges) = crate::circuit_model::stats_combined(&layout, d);
             assert!(edges > 0, "d={d}: model has no edges");
-            assert_eq!(buckets[3], 0, "d={d}: {} faults fire 3 detectors", buckets[3]);
-            assert_eq!(buckets[4], 0, "d={d}: {} faults fire 4+ detectors", buckets[4]);
+            assert_eq!(
+                buckets[3], 0,
+                "d={d}: {} faults fire 3 detectors",
+                buckets[3]
+            );
+            assert_eq!(
+                buckets[4], 0,
+                "d={d}: {} faults fire 4+ detectors",
+                buckets[4]
+            );
         }
     }
 
@@ -643,28 +797,51 @@ mod tests {
         const DIRS: [(i32, i32, bool); 4] =
             [(-1, -1, true), (1, -1, false), (-1, 1, false), (1, 1, true)];
         let mut perms: Vec<[usize; 4]> = Vec::new();
-        for a in 0..4 { for b in 0..4 { for c in 0..4 { for e in 0..4 {
-            let v = [a, b, c, e];
-            let mut seen = [false; 4];
-            if v.iter().all(|&i| { let n = !seen[i]; seen[i] = true; n }) { perms.push(v); }
-        }}}}
+        for a in 0..4 {
+            for b in 0..4 {
+                for c in 0..4 {
+                    for e in 0..4 {
+                        let v = [a, b, c, e];
+                        let mut seen = [false; 4];
+                        if v.iter().all(|&i| {
+                            let n = !seen[i];
+                            seen[i] = true;
+                            n
+                        }) {
+                            perms.push(v);
+                        }
+                    }
+                }
+            }
+        }
         let ord = |p: &[usize; 4]| [DIRS[p[0]], DIRS[p[1]], DIRS[p[2]], DIRS[p[3]]];
 
-        let check = |d: usize, oa: &[(i32,i32,bool);4], ob: &[(i32,i32,bool);4]| -> (bool, usize, usize) {
+        let check = |d: usize,
+                     oa: &[(i32, i32, bool); 4],
+                     ob: &[(i32, i32, bool); 4]|
+         -> (bool, usize, usize) {
             let code = crate::surface_code::XZZXSurfaceCode::new(d);
             let program = code.round_program_ordered(oa, ob);
             let ns = code.stabilizers.len();
-            let mut sim = crate::simulator::StabilizerSimulator::with_seed(
-                code.data_qubits.len() + ns, 7);
+            let mut sim =
+                crate::simulator::StabilizerSimulator::with_seed(code.data_qubits.len() + ns, 7);
             let mut rr: Vec<Vec<u8>> = Vec::new();
             for _ in 0..3 {
                 let mut out = vec![0u8; ns];
                 for &op in &program {
                     match op {
-                        Op::Reset(q) => { if sim.measure_z(q) == 1 { sim.apply_x(q); } }
+                        Op::Reset(q) => {
+                            if sim.measure_z(q) == 1 {
+                                sim.apply_x(q);
+                            }
+                        }
                         Op::H(q) => sim.apply_h(q),
                         Op::Cnot(c, t) => sim.apply_cnot(c, t),
-                        Op::Cz(a, b) => { sim.apply_h(b); sim.apply_cnot(a, b); sim.apply_h(b); }
+                        Op::Cz(a, b) => {
+                            sim.apply_h(b);
+                            sim.apply_cnot(a, b);
+                            sim.apply_h(b);
+                        }
                         Op::Measure(q, _, i) => out[i] = sim.measure_z(q),
                         Op::Noise(_) => {}
                     }
@@ -680,8 +857,9 @@ mod tests {
                 num_z_stabs: ns,
             };
             let model = build_combined(&layout, d);
-            let (t, f) = single_fault_failures_combined(
-                &layout, &model, d, 0, &|x, z| code.logical.is_logical(x, z));
+            let (t, f) = single_fault_failures_combined(&layout, &model, d, 0, &|x, z| {
+                code.logical.is_logical(x, z)
+            });
             (commutes, f, t)
         };
 
@@ -690,7 +868,9 @@ mod tests {
             for pb in &perms {
                 let (oa, ob) = (ord(pa), ord(pb));
                 let (c3, f3, _) = check(3, &oa, &ob);
-                if !c3 || f3 > 0 { continue; }
+                if !c3 || f3 > 0 {
+                    continue;
+                }
                 let (c5, f5, _) = check(5, &oa, &ob);
                 if c5 && f5 == 0 {
                     println!("PASS  A={:?}  B={:?}", pa, pb);
@@ -711,12 +891,18 @@ mod tests {
             let model = crate::circuit_model::build_combined(&layout, d);
             for decoder in [0usize, 2] {
                 let (tested, failures) = crate::circuit_model::single_fault_failures_combined(
-                    &layout, &model, d, decoder,
+                    &layout,
+                    &model,
+                    d,
+                    decoder,
                     &|rx, rz| code.logical.is_logical(rx, rz),
                 );
                 assert!(tested > 0, "d={d}: nothing tested");
                 println!("XZZX d={d} decoder={decoder}: {failures}/{tested}");
-                assert_eq!(failures, 0, "d={d} decoder={decoder}: {failures}/{tested} faults uncorrected");
+                assert_eq!(
+                    failures, 0,
+                    "d={d} decoder={decoder}: {failures}/{tested} faults uncorrected"
+                );
             }
         }
     }
@@ -824,7 +1010,7 @@ mod tests {
     #[test]
     fn test_single_qubit_gates() {
         let mut sim = StabilizerSimulator::new(1);
-        
+
         // Z gate on |0> does nothing (phase remains +1)
         sim.apply_z(0);
         assert_eq!(sim.measure_z(0), 0);
@@ -859,7 +1045,11 @@ mod tests {
         }
         let error_rate = (error_count as f64) / (num_runs as f64);
         println!("d=3, p=0.005: logical error rate = {}", error_rate);
-        assert!(error_rate < 0.12, "Logical error rate {} too high for p=0.005", error_rate);
+        assert!(
+            error_rate < 0.12,
+            "Logical error rate {} too high for p=0.005",
+            error_rate
+        );
     }
 
     #[test]
@@ -901,7 +1091,11 @@ mod tests {
                         inner_product ^= true;
                     }
                 }
-                assert!(!inner_product, "Stabilizers {} and {} do not commute!", i, j);
+                assert!(
+                    !inner_product,
+                    "Stabilizers {} and {} do not commute!",
+                    i, j
+                );
             }
         }
     }

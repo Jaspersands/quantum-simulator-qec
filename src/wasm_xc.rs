@@ -9,10 +9,10 @@
 
 use std::fmt::Write as _;
 
+use crate::batch_sampler::BatchSampler;
 use crate::circuit::{Basis, Circuit};
 use crate::dem::{compare, Dem};
 use crate::dem_decoder::DemDecoder;
-use crate::batch_sampler::BatchSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
 
 static mut TEXT: Vec<u8> = Vec::new();
@@ -20,7 +20,11 @@ static mut SLOT: Option<Circuit> = None;
 static mut DECODE_ERRORS: usize = 0;
 /// (code, d, rounds, noise, p bits, eta bits) and the compiled sampler and decoder.
 #[allow(clippy::type_complexity)]
-static mut CACHE: Option<((usize, usize, usize, usize, u64, u64), BatchSampler, DemDecoder)> = None;
+static mut CACHE: Option<(
+    (usize, usize, usize, usize, u64, u64),
+    BatchSampler,
+    DemDecoder,
+)> = None;
 
 /// Tests that drive the exports share one text buffer, so they take turns.
 #[cfg(test)]
@@ -38,7 +42,10 @@ pub(crate) fn reply(s: &str) -> usize {
 }
 
 pub(crate) fn json_error(e: &str) -> usize {
-    let escaped = e.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ");
+    let escaped = e
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', " ");
     reply(&format!("{{\"ok\":false,\"error\":\"{escaped}\"}}"))
 }
 
@@ -73,9 +80,23 @@ pub extern "C" fn wasm_text_ptr() -> *const u8 {
 
 /// Generate a memory circuit into the slot and reply with its Stim text.
 #[no_mangle]
-pub extern "C" fn wasm_xc_generate(code: usize, d: usize, rounds: usize, noise: usize, p: f64, eta: f64, basis: usize) -> usize {
+pub extern "C" fn wasm_xc_generate(
+    code: usize,
+    d: usize,
+    rounds: usize,
+    noise: usize,
+    p: f64,
+    eta: f64,
+    basis: usize,
+) -> usize {
     let basis = if basis == 1 { Basis::X } else { Basis::Z };
-    match generate(code_kind(code), d, rounds, noise_model(noise, p, eta), basis) {
+    match generate(
+        code_kind(code),
+        d,
+        rounds,
+        noise_model(noise, p, eta),
+        basis,
+    ) {
         Ok(c) => {
             let s = c.to_stim();
             unsafe { *std::ptr::addr_of_mut!(SLOT) = Some(c) };
@@ -143,7 +164,14 @@ pub extern "C" fn wasm_xc_run(
     let key = (code, d, rounds, noise, p.to_bits(), eta.to_bits());
     let cache = unsafe { &mut *std::ptr::addr_of_mut!(CACHE) };
     if cache.as_ref().map(|c| c.0) != Some(key) {
-        let built = generate(code_kind(code), d, rounds, noise_model(noise, p, eta), Basis::Z).and_then(|c| {
+        let built = generate(
+            code_kind(code),
+            d,
+            rounds,
+            noise_model(noise, p, eta),
+            Basis::Z,
+        )
+        .and_then(|c| {
             let dem = Dem::from_circuit(&c)?;
             Ok((key, BatchSampler::new(&c)?, DemDecoder::new(&dem)?))
         });
@@ -170,7 +198,9 @@ pub extern "C" fn wasm_xc_run(
         let defects = batch.all_defects();
         for (lane, shot) in defects.iter().enumerate().take(lanes) {
             match decoder.decode(shot) {
-                Ok(pred) => failures += ((pred.observables ^ batch.lane_observables(lane)) & 1) as usize,
+                Ok(pred) => {
+                    failures += ((pred.observables ^ batch.lane_observables(lane)) & 1) as usize
+                }
                 Err(_) => {
                     errors += 1;
                     failures += 1;

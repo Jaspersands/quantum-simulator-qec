@@ -67,13 +67,25 @@ fn compile(instrs: &[Instr], out: &mut Vec<Op>) {
 
 /// Walk the program over one shot's records, `bit(i)` the i-th: each detector's parity in turn
 /// to `detector`, the observables' to `obs`.
-fn walk(ops: &[Op], m: &mut u64, bit: &impl Fn(u64) -> bool, detector: &mut impl FnMut(bool), obs: &mut u64) {
+fn walk(
+    ops: &[Op],
+    m: &mut u64,
+    bit: &impl Fn(u64) -> bool,
+    detector: &mut impl FnMut(bool),
+    obs: &mut u64,
+) {
     for op in ops {
         match op {
             Op::Records(n) => *m += n,
-            Op::Detector(recs) => detector(recs.iter().fold(false, |acc, &k| acc ^ bit(*m - u64::from(k)))),
+            Op::Detector(recs) => detector(
+                recs.iter()
+                    .fold(false, |acc, &k| acc ^ bit(*m - u64::from(k))),
+            ),
             Op::Observable(i, recs) => {
-                if recs.iter().fold(false, |acc, &k| acc ^ bit(*m - u64::from(k))) {
+                if recs
+                    .iter()
+                    .fold(false, |acc, &k| acc ^ bit(*m - u64::from(k)))
+                {
                     *obs ^= 1u64 << i;
                 }
             }
@@ -132,7 +144,12 @@ pub(crate) fn run(circuit: &Circuit, num_qubits: usize, sweeps: &[bool], seed: u
     rec
 }
 
-fn run_block(instrs: &[Instr], sim: &mut StabilizerSimulator, sweeps: &[bool], rec: &mut Vec<bool>) {
+fn run_block(
+    instrs: &[Instr],
+    sim: &mut StabilizerSimulator,
+    sweeps: &[bool],
+    rec: &mut Vec<bool>,
+) {
     for ins in instrs {
         match ins {
             Instr::Reset { basis, qubits } => {
@@ -141,7 +158,9 @@ fn run_block(instrs: &[Instr], sim: &mut StabilizerSimulator, sweeps: &[bool], r
                 }
             }
             Instr::H(qubits) => qubits.iter().for_each(|&q| sim.apply_h(q as usize)),
-            Instr::Cx(pairs) => pairs.iter().for_each(|&(c, t)| sim.apply_cnot(c as usize, t as usize)),
+            Instr::Cx(pairs) => pairs
+                .iter()
+                .for_each(|&(c, t)| sim.apply_cnot(c as usize, t as usize)),
             Instr::Cz(pairs) => {
                 for &(a, b) in pairs {
                     sim.apply_h(b as usize);
@@ -166,7 +185,12 @@ fn run_block(instrs: &[Instr], sim: &mut StabilizerSimulator, sweeps: &[bool], r
                     }
                 }
             }
-            Instr::Measure { basis, reset: then_reset, qubits, .. } => {
+            Instr::Measure {
+                basis,
+                reset: then_reset,
+                qubits,
+                ..
+            } => {
                 for &q in qubits {
                     let q = q as usize;
                     let bit = match basis {
@@ -181,7 +205,11 @@ fn run_block(instrs: &[Instr], sim: &mut StabilizerSimulator, sweeps: &[bool], r
             }
             Instr::S(qubits) => qubits.iter().for_each(|&q| sim.apply_s(q as usize)),
             Instr::Pad { values, .. } => rec.extend(values.iter().copied()),
-            Instr::Feedback { pauli, control, qubit } => {
+            Instr::Feedback {
+                pauli,
+                control,
+                qubit,
+            } => {
                 let on = match control {
                     Control::Rec(k) => rec[rec.len() - *k as usize],
                     Control::Sweep(k) => sweeps.get(*k as usize).copied().unwrap_or(false),
@@ -240,8 +268,10 @@ impl M2d {
                 "the circuit runs to {size} instructions and targets, more than the {MAX_REFERENCE} its reference run takes"
             ));
         }
-        let num_measurements = usize::try_from(counts.measurements).map_err(|_| "too many measurements for this machine")?;
-        let num_detectors = usize::try_from(counts.detectors).map_err(|_| "too many detectors for this machine")?;
+        let num_measurements = usize::try_from(counts.measurements)
+            .map_err(|_| "too many measurements for this machine")?;
+        let num_detectors =
+            usize::try_from(counts.detectors).map_err(|_| "too many detectors for this machine")?;
         // Deterministic detectors and observables, and the sweep bits' effects, by the backward
         // walk; it also refuses records read before the first measurement.
         let effects = crate::dem_build::sweep_effects(circuit)?;
@@ -249,7 +279,13 @@ impl M2d {
         compile(&circuit.instrs, &mut ops);
         let reference = run(circuit, counts.qubits, &[], 1);
         let (mut ref_det, mut ref_obs) = (Vec::with_capacity(num_detectors), 0u64);
-        walk(&ops, &mut 0, &|i| reference[i as usize], &mut |b| ref_det.push(b), &mut ref_obs);
+        walk(
+            &ops,
+            &mut 0,
+            &|i| reference[i as usize],
+            &mut |b| ref_det.push(b),
+            &mut ref_obs,
+        );
         let (sweep_det, sweep_obs) = effects.into_iter().unzip();
         Ok(M2d {
             num_measurements,
@@ -277,7 +313,13 @@ impl M2d {
         );
         let mut det = Vec::with_capacity(self.num_detectors);
         let mut obs = self.ref_obs;
-        walk(&self.ops, &mut 0, &|i| meas[i as usize], &mut |b| det.push(b ^ self.ref_det[det.len()]), &mut obs);
+        walk(
+            &self.ops,
+            &mut 0,
+            &|i| meas[i as usize],
+            &mut |b| det.push(b ^ self.ref_det[det.len()]),
+            &mut obs,
+        );
         for (k, &set) in sweeps.iter().enumerate() {
             if set {
                 for &d in &self.sweep_det[k] {
@@ -291,9 +333,19 @@ impl M2d {
 
     /// Many shots in Stim's b8 layout, rows padded to whole bytes: detection events, and
     /// observable flips.
-    pub fn convert_b8(&self, meas: &[u8], sweeps: &[u8], num_shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
-        let (ms, ss) = (self.num_measurements.div_ceil(8), self.num_sweep_bits.div_ceil(8));
-        if ms.checked_mul(num_shots) != Some(meas.len()) || ss.checked_mul(num_shots) != Some(sweeps.len()) {
+    pub fn convert_b8(
+        &self,
+        meas: &[u8],
+        sweeps: &[u8],
+        num_shots: usize,
+    ) -> Result<(Vec<u8>, Vec<u8>), String> {
+        let (ms, ss) = (
+            self.num_measurements.div_ceil(8),
+            self.num_sweep_bits.div_ceil(8),
+        );
+        if ms.checked_mul(num_shots) != Some(meas.len())
+            || ss.checked_mul(num_shots) != Some(sweeps.len())
+        {
             return Err(format!(
                 "{} + {} bytes is not {num_shots} shots of {} measurements and {} sweep bits",
                 meas.len(),
@@ -302,7 +354,10 @@ impl M2d {
                 self.num_sweep_bits
             ));
         }
-        let (ds, os) = (self.num_detectors.div_ceil(8), self.num_observables.div_ceil(8));
+        let (ds, os) = (
+            self.num_detectors.div_ceil(8),
+            self.num_observables.div_ceil(8),
+        );
         let mut dets = vec![0u8; ds * num_shots];
         let mut obs_out = vec![0u8; os * num_shots];
         for s in 0..num_shots {
@@ -353,7 +408,10 @@ mod tests {
         )
         .unwrap();
         let m = M2d::new(&c).unwrap();
-        assert_eq!((m.num_measurements, m.num_sweep_bits, m.num_detectors), (2, 1, 2));
+        assert_eq!(
+            (m.num_measurements, m.num_sweep_bits, m.num_detectors),
+            (2, 1, 2)
+        );
         // A noiseless shot with the bit set reads 1 1: nothing fired.
         assert_eq!(m.convert(&[true, true], &[true]), (vec![false, false], 0));
         // The same readout with the bit clear: qubit 0 flipped.
@@ -368,7 +426,15 @@ mod tests {
         use crate::memory::{generate, CodeKind, NoiseModel};
         // A memory circuit with a sweep bit on each of its nine data qubits,
         // right after their reset, as Google's circuits have them.
-        let text = generate(CodeKind::Rotated, 3, 3, NoiseModel::Sd6 { p: 0.0 }, Basis::Z).unwrap().to_stim();
+        let text = generate(
+            CodeKind::Rotated,
+            3,
+            3,
+            NoiseModel::Sd6 { p: 0.0 },
+            Basis::Z,
+        )
+        .unwrap()
+        .to_stim();
         let reset = "R 0 1 2 3 4 5 6 7 8\n";
         let sweep: String = (0..9).map(|k| format!(" sweep[{k}] {k}")).collect();
         let with = text.replacen(reset, &format!("{reset}CX{sweep}\n"), 1);
@@ -393,7 +459,9 @@ mod tests {
 
     #[test]
     fn circuits_too_wide_for_the_tableau_are_refused() {
-        let err = M2d::new(&Circuit::parse("M 16384").unwrap()).err().unwrap_or_default();
+        let err = M2d::new(&Circuit::parse("M 16384").unwrap())
+            .err()
+            .unwrap_or_default();
         assert!(err.contains("dense tableau"), "{err}");
     }
 
@@ -405,7 +473,10 @@ mod tests {
 
     #[test]
     fn b8_conversion_matches_the_bool_path() {
-        let c = Circuit::parse("R 0 1\nCX sweep[0] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1] rec[-2]\n").unwrap();
+        let c = Circuit::parse(
+            "R 0 1\nCX sweep[0] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1] rec[-2]\n",
+        )
+        .unwrap();
         let m = M2d::new(&c).unwrap();
         // Shots: meas (1, 0) with the bit set; meas (1, 1) with it clear.
         let (d, o) = m.convert_b8(&[0b01, 0b11], &[1, 0], 2).unwrap();
@@ -423,7 +494,10 @@ mod tests {
         )
         .unwrap();
         let m = M2d::new(&c).unwrap();
-        assert_eq!((m.num_measurements, m.num_detectors, m.num_sweep_bits), (2_000_002, 2_000_000, 1));
+        assert_eq!(
+            (m.num_measurements, m.num_detectors, m.num_sweep_bits),
+            (2_000_002, 2_000_000, 1)
+        );
         // The sweep bit flips qubit 0: the first round's detector, and the observable.
         assert_eq!((m.sweep_det[0].clone(), m.sweep_obs[0]), (vec![0], 1));
         let mut meas = vec![true; 2_000_002];
@@ -438,7 +512,8 @@ mod tests {
     fn a_walk_that_never_settles_is_refused_not_endless() {
         // Qubit 0 is never reset and every round reads it, so the walk's state grows by a
         // detector a pass and never repeats.
-        let c = Circuit::parse("R 0 1\nREPEAT 2000000 {\n CX 0 1\n MR 1\n DETECTOR rec[-1]\n}").unwrap();
+        let c = Circuit::parse("R 0 1\nREPEAT 2000000 {\n CX 0 1\n MR 1\n DETECTOR rec[-1]\n}")
+            .unwrap();
         let t = std::time::Instant::now();
         assert!(M2d::new(&c).err().unwrap_or_default().contains("too large"));
         assert!(t.elapsed().as_secs() < 60);

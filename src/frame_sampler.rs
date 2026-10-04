@@ -111,7 +111,12 @@ impl FrameSampler {
                         }
                     }
                 }
-                Instr::Measure { basis, reset, flip, qubits } => {
+                Instr::Measure {
+                    basis,
+                    reset,
+                    flip,
+                    qubits,
+                } => {
                     for &q in qubits {
                         let q = q as usize;
                         let mut r = match basis {
@@ -209,7 +214,11 @@ impl FrameSampler {
                 }
                 // Relative to the noiseless run, a record's flip flips its Pauli; a sweep bit
                 // moves only the reference.
-                Instr::Feedback { pauli, control, qubit } => {
+                Instr::Feedback {
+                    pauli,
+                    control,
+                    qubit,
+                } => {
                     if let crate::circuit::Control::Rec(k) = control {
                         if rec[rec.len() - *k as usize] {
                             apply(&mut x, &mut z, *qubit as usize, *pauli);
@@ -264,7 +273,10 @@ impl FrameSampler {
                 observables |= 1u64 << k;
             }
         }
-        Shot { detectors, observables }
+        Shot {
+            detectors,
+            observables,
+        }
     }
 }
 
@@ -294,18 +306,29 @@ mod tests {
             obs += (shot.observables & 1) as usize;
         }
         let predict = |pick: &dyn Fn(&crate::dem::Mechanism) -> bool| -> f64 {
-            let prod: f64 = dem.mechanisms.iter().filter(|m| pick(m)).map(|m| 1.0 - 2.0 * m.p).product();
+            let prod: f64 = dem
+                .mechanisms
+                .iter()
+                .filter(|m| pick(m))
+                .map(|m| 1.0 - 2.0 * m.p)
+                .product();
             (1.0 - prod) / 2.0
         };
         for (d, &c) in counts.iter().enumerate() {
             let q = predict(&|m| m.detectors.contains(&(d as u32)));
             let sigma = (q * (1.0 - q) / n as f64).sqrt();
             let rate = c as f64 / n as f64;
-            assert!((rate - q).abs() < 5.0 * sigma, "D{d}: sampled {rate}, model {q}");
+            assert!(
+                (rate - q).abs() < 5.0 * sigma,
+                "D{d}: sampled {rate}, model {q}"
+            );
         }
         let q = predict(&|m| m.observables & 1 == 1);
         let rate = obs as f64 / n as f64;
-        assert!((rate - q).abs() < 5.0 * (q * (1.0 - q) / n as f64).sqrt(), "L0: sampled {rate}, model {q}");
+        assert!(
+            (rate - q).abs() < 5.0 * (q * (1.0 - q) / n as f64).sqrt(),
+            "L0: sampled {rate}, model {q}"
+        );
     }
 
     #[test]

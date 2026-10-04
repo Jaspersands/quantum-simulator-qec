@@ -19,7 +19,11 @@ pub(crate) struct CEdge {
 
 impl CEdge {
     pub fn rev(self) -> CEdge {
-        CEdge { a: self.b, b: self.a, obs: self.obs }
+        CEdge {
+            a: self.b,
+            b: self.a,
+            obs: self.obs,
+        }
     }
 }
 

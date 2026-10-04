@@ -33,8 +33,15 @@ impl Noise {
     fn new(p: f64) -> Noise {
         // ln_1p keeps ln(1 − p) nonzero for p far below 1e-16, where 1 − p
         // rounds to 1; a p it still cannot resolve is treated as zero.
-        let log1mp = if p > 0.0 && p < 1.0 { (-p).ln_1p() } else { 0.0 };
-        Noise { p: if log1mp == 0.0 && p < 1.0 { 0.0 } else { p }, log1mp }
+        let log1mp = if p > 0.0 && p < 1.0 {
+            (-p).ln_1p()
+        } else {
+            0.0
+        };
+        Noise {
+            p: if log1mp == 0.0 && p < 1.0 { 0.0 } else { p },
+            log1mp,
+        }
     }
 }
 
@@ -72,15 +79,39 @@ fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
 
 #[derive(Debug)]
 enum Op {
-    Reset { basis: Basis, qubits: Vec<u32> },
+    Reset {
+        basis: Basis,
+        qubits: Vec<u32>,
+    },
     H(Vec<u32>),
     Cx(Vec<(u32, u32)>),
     Cz(Vec<(u32, u32)>),
-    Measure { basis: Basis, reset: bool, flip: Noise, qubits: Vec<u32> },
-    PauliError { pauli: u8, noise: Noise, qubits: Vec<u32> },
-    Depolarize1 { noise: Noise, qubits: Vec<u32> },
-    Depolarize2 { noise: Noise, pairs: Vec<(u32, u32)> },
-    PauliChannel1 { any: Noise, px: f64, pxy: f64, total: f64, qubits: Vec<u32> },
+    Measure {
+        basis: Basis,
+        reset: bool,
+        flip: Noise,
+        qubits: Vec<u32>,
+    },
+    PauliError {
+        pauli: u8,
+        noise: Noise,
+        qubits: Vec<u32>,
+    },
+    Depolarize1 {
+        noise: Noise,
+        qubits: Vec<u32>,
+    },
+    Depolarize2 {
+        noise: Noise,
+        pairs: Vec<(u32, u32)>,
+    },
+    PauliChannel1 {
+        any: Noise,
+        px: f64,
+        pxy: f64,
+        total: f64,
+        qubits: Vec<u32>,
+    },
     /// Lookbacks (1 is the latest measurement), and the detector's last
     /// coordinate as written, with its index: its time, before shifts.
     Detector(Vec<u32>, Option<(usize, f64)>),
@@ -92,68 +123,136 @@ enum Op {
     S(Vec<u32>),
     /// `E` / `ELSE_CORRELATED_ERROR`: the product on the lanes that fire; a chained one fires
     /// only on lanes where its chain has not.
-    Correlated { noise: Noise, paulis: Vec<(u32, u8)>, chained: bool },
+    Correlated {
+        noise: Noise,
+        paulis: Vec<(u32, u8)>,
+        chained: bool,
+    },
     /// `PAULI_CHANNEL_2`: the lanes any case fires on, then one case each by its share.
-    PauliChannel2 { any: Noise, cumulative: Vec<f64>, pairs: Vec<(u32, u32)> },
+    PauliChannel2 {
+        any: Noise,
+        cumulative: Vec<f64>,
+        pairs: Vec<(u32, u32)>,
+    },
     /// `MPAD`: records that, relative to the noiseless run, hold only their flips.
-    Pad { flip: Noise, count: usize },
+    Pad {
+        flip: Noise,
+        count: usize,
+    },
     /// A Pauli on a qubit where a record (lookback) flipped relative to the noiseless run.
-    Feedback { pauli: u8, lookback: u32, qubit: u32 },
+    Feedback {
+        pauli: u8,
+        lookback: u32,
+        qubit: u32,
+    },
     /// Heralded errors: per qubit, the herald record, and on the lanes it fires a Pauli by
     /// its share (I, X, Y, Z).
-    Heralded { any: Noise, cumulative: [f64; 4], qubits: Vec<u32> },
+    Heralded {
+        any: Noise,
+        cumulative: [f64; 4],
+        qubits: Vec<u32>,
+    },
 }
 
 fn compile(instrs: &[Instr]) -> Vec<Op> {
     let mut out = Vec::new();
     for ins in instrs {
         out.push(match ins {
-            Instr::Reset { basis, qubits } => Op::Reset { basis: *basis, qubits: qubits.clone() },
+            Instr::Reset { basis, qubits } => Op::Reset {
+                basis: *basis,
+                qubits: qubits.clone(),
+            },
             Instr::H(q) => Op::H(q.clone()),
             Instr::Cx(p) => Op::Cx(p.clone()),
             Instr::Cz(p) => Op::Cz(p.clone()),
-            Instr::Measure { basis, reset, flip, qubits } => {
-                Op::Measure { basis: *basis, reset: *reset, flip: Noise::new(*flip), qubits: qubits.clone() }
-            }
-            Instr::PauliError { pauli, p, qubits } => {
-                Op::PauliError { pauli: *pauli, noise: Noise::new(*p), qubits: qubits.clone() }
-            }
-            Instr::Depolarize1 { p, qubits } => Op::Depolarize1 { noise: Noise::new(*p), qubits: qubits.clone() },
-            Instr::Depolarize2 { p, pairs } => Op::Depolarize2 { noise: Noise::new(*p), pairs: pairs.clone() },
+            Instr::Measure {
+                basis,
+                reset,
+                flip,
+                qubits,
+            } => Op::Measure {
+                basis: *basis,
+                reset: *reset,
+                flip: Noise::new(*flip),
+                qubits: qubits.clone(),
+            },
+            Instr::PauliError { pauli, p, qubits } => Op::PauliError {
+                pauli: *pauli,
+                noise: Noise::new(*p),
+                qubits: qubits.clone(),
+            },
+            Instr::Depolarize1 { p, qubits } => Op::Depolarize1 {
+                noise: Noise::new(*p),
+                qubits: qubits.clone(),
+            },
+            Instr::Depolarize2 { p, pairs } => Op::Depolarize2 {
+                noise: Noise::new(*p),
+                pairs: pairs.clone(),
+            },
             Instr::PauliChannel1 { px, py, pz, qubits } => {
                 let total = px + py + pz;
-                Op::PauliChannel1 { any: Noise::new(total), px: *px, pxy: px + py, total, qubits: qubits.clone() }
+                Op::PauliChannel1 {
+                    any: Noise::new(total),
+                    px: *px,
+                    pxy: px + py,
+                    total,
+                    qubits: qubits.clone(),
+                }
             }
             Instr::Detector { recs, coords } => {
                 Op::Detector(recs.clone(), coords.last().map(|&t| (coords.len() - 1, t)))
             }
             Instr::ShiftCoords(shift) => Op::ShiftCoords(shift.clone()),
-            Instr::Observable { index, recs, paulis } => {
-                Op::Observable(*index, recs.clone(), paulis.iter().map(|&(q, p, _)| (q, p)).collect())
-            }
+            Instr::Observable {
+                index,
+                recs,
+                paulis,
+            } => Op::Observable(
+                *index,
+                recs.clone(),
+                paulis.iter().map(|&(q, p, _)| (q, p)).collect(),
+            ),
             Instr::Repeat { count, body, .. } => Op::Repeat(*count, compile(body)),
             Instr::S(q) => Op::S(q.clone()),
             Instr::Gate { body, .. } => {
                 out.extend(compile(body));
                 continue;
             }
-            Instr::Correlated { p, paulis, chained } => {
-                Op::Correlated { noise: Noise::new(*p), paulis: paulis.clone(), chained: *chained }
-            }
+            Instr::Correlated { p, paulis, chained } => Op::Correlated {
+                noise: Noise::new(*p),
+                paulis: paulis.clone(),
+                chained: *chained,
+            },
             Instr::PauliChannel2 { probs, pairs } => {
                 let total: f64 = probs.iter().sum();
                 let cumulative = probs.iter().scan(0.0, |acc, p| {
                     *acc += p;
                     Some(*acc)
                 });
-                Op::PauliChannel2 { any: Noise::new(total), cumulative: cumulative.collect(), pairs: pairs.clone() }
+                Op::PauliChannel2 {
+                    any: Noise::new(total),
+                    cumulative: cumulative.collect(),
+                    pairs: pairs.clone(),
+                }
             }
-            Instr::Pad { flip, values } => Op::Pad { flip: Noise::new(*flip), count: values.len() },
-            Instr::Feedback { pauli, control: crate::circuit::Control::Rec(k), qubit } => {
-                Op::Feedback { pauli: *pauli, lookback: *k, qubit: *qubit }
-            }
+            Instr::Pad { flip, values } => Op::Pad {
+                flip: Noise::new(*flip),
+                count: values.len(),
+            },
+            Instr::Feedback {
+                pauli,
+                control: crate::circuit::Control::Rec(k),
+                qubit,
+            } => Op::Feedback {
+                pauli: *pauli,
+                lookback: *k,
+                qubit: *qubit,
+            },
             // A sweep bit moves only the noiseless reference, which a frame is relative to.
-            Instr::Feedback { control: crate::circuit::Control::Sweep(_), .. } => continue,
+            Instr::Feedback {
+                control: crate::circuit::Control::Sweep(_),
+                ..
+            } => continue,
             Instr::Heralded { probs, qubits, .. } => {
                 let mut cumulative = [0.0; 4];
                 let mut acc = 0.0;
@@ -161,7 +260,11 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
                     acc += p;
                     *c = acc;
                 }
-                Op::Heralded { any: Noise::new(acc), cumulative, qubits: qubits.clone() }
+                Op::Heralded {
+                    any: Noise::new(acc),
+                    cumulative,
+                    qubits: qubits.clone(),
+                }
             }
             // Pauli gates and sweep-controlled X only flip signs, which a frame
             // relative to the noiseless run does not carry; annotations and
@@ -202,10 +305,18 @@ impl Counts {
     /// made before it, and sampling or analysing the whole is what refuses one that reaches
     /// before the first measurement.
     pub fn of(instrs: &[Instr]) -> Result<Counts, String> {
-        let mut s = Shape { lenient: true, ..Shape::default() };
+        let mut s = Shape {
+            lenient: true,
+            ..Shape::default()
+        };
         shape(&compile(instrs), &mut s)?;
         Ok(Counts {
-            qubits: instrs.iter().flat_map(Instr::qubits).map(|q| q as usize + 1).max().unwrap_or(0),
+            qubits: instrs
+                .iter()
+                .flat_map(Instr::qubits)
+                .map(|q| q as usize + 1)
+                .max()
+                .unwrap_or(0),
             measurements: s.measurements,
             detectors: s.detectors,
             observables: s.observables,
@@ -218,8 +329,14 @@ impl Counts {
         let overflow = || "the circuit's measurements or detectors overflow a count".to_string();
         Ok(Counts {
             qubits: self.qubits.max(next.qubits),
-            measurements: self.measurements.checked_add(next.measurements).ok_or_else(overflow)?,
-            detectors: self.detectors.checked_add(next.detectors).ok_or_else(overflow)?,
+            measurements: self
+                .measurements
+                .checked_add(next.measurements)
+                .ok_or_else(overflow)?,
+            detectors: self
+                .detectors
+                .checked_add(next.detectors)
+                .ok_or_else(overflow)?,
             observables: self.observables.max(next.observables),
             sweep_bits: self.sweep_bits.max(next.sweep_bits),
         })
@@ -227,7 +344,8 @@ impl Counts {
 
     /// The counts of `REPEAT count { this }`.
     pub fn times(self, count: u64) -> Result<Counts, String> {
-        let overflow = || format!("REPEAT {count}: the loop's measurements or detectors overflow a count");
+        let overflow =
+            || format!("REPEAT {count}: the loop's measurements or detectors overflow a count");
         Ok(Counts {
             measurements: self.measurements.checked_mul(count).ok_or_else(overflow)?,
             detectors: self.detectors.checked_mul(count).ok_or_else(overflow)?,
@@ -243,8 +361,15 @@ fn max_sweep_bit(instrs: &[Instr]) -> usize {
     instrs
         .iter()
         .map(|i| match i {
-            Instr::SweepX(pairs) => pairs.iter().map(|&(k, _)| k as usize + 1).max().unwrap_or(0),
-            Instr::Feedback { control: crate::circuit::Control::Sweep(k), .. } => *k as usize + 1,
+            Instr::SweepX(pairs) => pairs
+                .iter()
+                .map(|&(k, _)| k as usize + 1)
+                .max()
+                .unwrap_or(0),
+            Instr::Feedback {
+                control: crate::circuit::Control::Sweep(k),
+                ..
+            } => *k as usize + 1,
             Instr::Repeat { body, .. } | Instr::Gate { body, .. } => max_sweep_bit(body),
             _ => 0,
         })
@@ -282,10 +407,14 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 qubits.iter().for_each(|&q| touch(s, q));
                 s.measurements = s.measurements.saturating_add(qubits.len() as u64);
             }
-            Op::Feedback { lookback, qubit, .. } => {
+            Op::Feedback {
+                lookback, qubit, ..
+            } => {
                 touch(s, *qubit);
                 if (*lookback == 0 || u64::from(*lookback) > s.measurements) && !s.lenient {
-                    return Err(format!("rec[-{lookback}] reaches before the first measurement"));
+                    return Err(format!(
+                        "rec[-{lookback}] reaches before the first measurement"
+                    ));
                 }
                 s.lookback = s.lookback.max(*lookback);
             }
@@ -302,7 +431,9 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                     Op::Observable(i, _, paulis) => {
                         paulis.iter().for_each(|&(q, _)| touch(s, q));
                         if *i >= 64 {
-                            return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
+                            return Err(format!(
+                                "OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"
+                            ));
                         }
                         s.observables = s.observables.max(*i as usize + 1)
                     }
@@ -314,9 +445,17 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                 let (m0, d0) = (s.measurements, s.detectors);
                 shape(body, s)?;
                 let (dm, dd) = (s.measurements - m0, s.detectors - d0);
-                let too_many = || format!("REPEAT {count}: the loop's measurements or detectors overflow a count");
-                s.measurements = dm.checked_mul(*count).and_then(|n| n.checked_add(m0)).ok_or_else(too_many)?;
-                s.detectors = dd.checked_mul(*count).and_then(|n| n.checked_add(d0)).ok_or_else(too_many)?;
+                let too_many = || {
+                    format!("REPEAT {count}: the loop's measurements or detectors overflow a count")
+                };
+                s.measurements = dm
+                    .checked_mul(*count)
+                    .and_then(|n| n.checked_add(m0))
+                    .ok_or_else(too_many)?;
+                s.detectors = dd
+                    .checked_mul(*count)
+                    .and_then(|n| n.checked_add(d0))
+                    .ok_or_else(too_many)?;
             }
         }
     }
@@ -342,7 +481,10 @@ impl Batch {
     /// The detectors shot `lane` fired, in order.
     pub fn lane_defects(&self, lane: usize) -> Vec<u32> {
         let bit = 1u64 << lane;
-        (0..self.detectors.len()).filter(|&d| self.detectors[d] & bit != 0).map(|d| d as u32).collect()
+        (0..self.detectors.len())
+            .filter(|&d| self.detectors[d] & bit != 0)
+            .map(|d| d as u32)
+            .collect()
     }
 
     /// The observables shot `lane` flipped, as a mask.
@@ -357,11 +499,17 @@ impl Batch {
     /// The first `lanes` shots appended as Stim b8 rows: detectors to `dets`,
     /// observables to `obs`, each row padded to whole bytes.
     pub fn write_b8(&self, lanes: usize, dets: &mut Vec<u8>, obs: &mut Vec<u8>) {
-        let (ds, os) = (self.detectors.len().div_ceil(8), self.observables.len().div_ceil(8));
+        let (ds, os) = (
+            self.detectors.len().div_ceil(8),
+            self.observables.len().div_ceil(8),
+        );
         let (d0, o0) = (dets.len(), obs.len());
         dets.resize(d0 + lanes * ds, 0);
         obs.resize(o0 + lanes * os, 0);
-        for (rows, start, stride, words) in [(&mut *dets, d0, ds, &self.detectors), (&mut *obs, o0, os, &self.observables)] {
+        for (rows, start, stride, words) in [
+            (&mut *dets, d0, ds, &self.detectors),
+            (&mut *obs, o0, os, &self.observables),
+        ] {
             for (k, &w) in words.iter().enumerate() {
                 let mut w = w;
                 while w != 0 {
@@ -456,7 +604,12 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     st.z[a] ^= st.x[b];
                 }
             }
-            Op::Measure { basis, reset, flip, qubits } => {
+            Op::Measure {
+                basis,
+                reset,
+                flip,
+                qubits,
+            } => {
                 for &q in qubits {
                     let q = q as usize;
                     let rec = match basis {
@@ -474,7 +627,11 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     }
                 }
             }
-            Op::PauliError { pauli, noise, qubits } => {
+            Op::PauliError {
+                pauli,
+                noise,
+                qubits,
+            } => {
                 for &q in qubits {
                     let w = bernoulli(rng, *noise);
                     if pauli & 1 != 0 {
@@ -507,7 +664,13 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     }
                 }
             }
-            Op::PauliChannel1 { any, px, pxy, total, qubits } => {
+            Op::PauliChannel1 {
+                any,
+                px,
+                pxy,
+                total,
+                qubits,
+            } => {
                 for &q in qubits {
                     let mut w = bernoulli(rng, *any);
                     while w != 0 {
@@ -530,7 +693,9 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                 for &k in recs {
                     w ^= st.ring[(st.m - k as usize) & st.mask];
                 }
-                let t = time.map_or(f64::NAN, |(i, t)| t + st.shift.get(i).copied().unwrap_or(0.0));
+                let t = time.map_or(f64::NAN, |(i, t)| {
+                    t + st.shift.get(i).copied().unwrap_or(0.0)
+                });
                 sink(st.det, t, w);
                 st.det += 1;
             }
@@ -568,7 +733,11 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     st.z[q] ^= st.x[q];
                 }
             }
-            Op::Correlated { noise, paulis, chained } => {
+            Op::Correlated {
+                noise,
+                paulis,
+                chained,
+            } => {
                 let mut w = bernoulli(rng, *noise);
                 if *chained {
                     w &= !st.chain;
@@ -585,7 +754,11 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     }
                 }
             }
-            Op::PauliChannel2 { any, cumulative, pairs } => {
+            Op::PauliChannel2 {
+                any,
+                cumulative,
+                pairs,
+            } => {
                 let total = *cumulative.last().unwrap_or(&0.0);
                 for &(a, b) in pairs {
                     let mut w = bernoulli(rng, *any);
@@ -602,7 +775,11 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     }
                 }
             }
-            Op::Feedback { pauli, lookback, qubit } => {
+            Op::Feedback {
+                pauli,
+                lookback,
+                qubit,
+            } => {
                 let w = st.ring[(st.m - *lookback as usize) & st.mask];
                 if pauli & 1 != 0 {
                     st.x[*qubit as usize] ^= w;
@@ -611,7 +788,11 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                     st.z[*qubit as usize] ^= w;
                 }
             }
-            Op::Heralded { any, cumulative, qubits } => {
+            Op::Heralded {
+                any,
+                cumulative,
+                qubits,
+            } => {
                 for &q in qubits {
                     let w = bernoulli(rng, *any);
                     st.ring[st.m & st.mask] = w;
@@ -645,8 +826,10 @@ impl BatchSampler {
         Ok(BatchSampler {
             ops,
             num_qubits: s.qubits,
-            num_measurements: usize::try_from(s.measurements).map_err(|_| "too many measurements for this machine")?,
-            num_detectors: usize::try_from(s.detectors).map_err(|_| "too many detectors for this machine")?,
+            num_measurements: usize::try_from(s.measurements)
+                .map_err(|_| "too many measurements for this machine")?,
+            num_detectors: usize::try_from(s.detectors)
+                .map_err(|_| "too many detectors for this machine")?,
             num_observables: s.observables,
             ring_mask: ring - 1,
         })
@@ -681,12 +864,19 @@ impl BatchSampler {
     /// `shots` shots as b8 rows (detectors, observables), batch `first + k` drawn from a stream
     /// of its own, seeded by `seed` and the batch's index alone: the shots do not depend on how
     /// many threads drew them, and a later call continues where an earlier one stopped.
-    pub fn sample_seeded(&self, seed: u64, first: u64, shots: usize, threads: usize) -> (Vec<u8>, Vec<u8>) {
+    pub fn sample_seeded(
+        &self,
+        seed: u64,
+        first: u64,
+        shots: usize,
+        threads: usize,
+    ) -> (Vec<u8>, Vec<u8>) {
         let parts = crate::parallel::parallel(shots.div_ceil(64), threads, |range| {
             let (mut dets, mut obs) = (Vec::new(), Vec::new());
             for b in range {
                 let mut rng = Xorshift::new(batch_seed(seed, first + b as u64));
-                self.sample(&mut rng).write_b8((shots - b * 64).min(64), &mut dets, &mut obs);
+                self.sample(&mut rng)
+                    .write_b8((shots - b * 64).min(64), &mut dets, &mut obs);
             }
             vec![(dets, obs)]
         });
@@ -703,7 +893,10 @@ impl BatchSampler {
         // Capped: a loop of a trillion detectors may still be run through `run`.
         let mut detectors = Vec::with_capacity(self.num_detectors.min(1 << 24));
         let observables = self.run(rng, &mut |_, w| detectors.push(w));
-        Batch { detectors, observables }
+        Batch {
+            detectors,
+            observables,
+        }
     }
 }
 
@@ -736,7 +929,8 @@ mod tests {
             let args_end = line.find(')').map(|i| i + 1);
             let targets = args_end.map(|i| line[i..].trim()).unwrap_or("");
             match head {
-                "DEPOLARIZE1" | "DEPOLARIZE2" | "X_ERROR" | "Y_ERROR" | "Z_ERROR" | "PAULI_CHANNEL_1" => {
+                "DEPOLARIZE1" | "DEPOLARIZE2" | "X_ERROR" | "Y_ERROR" | "Z_ERROR"
+                | "PAULI_CHANNEL_1" => {
                     let name = ["X_ERROR", "Y_ERROR", "Z_ERROR"][(rng.next_u64() % 3) as usize];
                     out.push_str(&format!("{name}({b}) {targets}\n"));
                 }
@@ -760,15 +954,26 @@ mod tests {
         for kind in [CodeKind::Rotated, CodeKind::Xzzx] {
             for basis in [Basis::Z, Basis::X] {
                 for d in [3usize, 5] {
-                    let text = generate(kind, d, d, NoiseModel::Sd6 { p: 0.01 }, basis).unwrap().to_stim();
+                    let text = generate(kind, d, d, NoiseModel::Sd6 { p: 0.01 }, basis)
+                        .unwrap()
+                        .to_stim();
                     for _ in 0..20 {
                         let c = Circuit::parse(&deterministic(&text, &mut rng)).unwrap();
                         let shot = FrameSampler::new(&c).unwrap().sample(&mut rng);
-                        let want: Vec<u32> =
-                            shot.detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
+                        let want: Vec<u32> = shot
+                            .detectors
+                            .iter()
+                            .enumerate()
+                            .filter(|x| *x.1)
+                            .map(|x| x.0 as u32)
+                            .collect();
                         let batch = BatchSampler::new(&c).unwrap().sample(&mut rng);
                         for lane in [0, 17, 63] {
-                            assert_eq!(batch.lane_defects(lane), want, "{kind:?} {basis:?} d = {d}");
+                            assert_eq!(
+                                batch.lane_defects(lane),
+                                want,
+                                "{kind:?} {basis:?} d = {d}"
+                            );
                             assert_eq!(batch.lane_observables(lane), shot.observables);
                         }
                         compared += usize::from(!want.is_empty());
@@ -781,16 +986,28 @@ mod tests {
 
     #[test]
     fn repeat_blocks_run_without_flattening() {
-        let stim = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/data/xcheck/stim-rotated-memory-z-d3.stim.txt"))
-            .unwrap();
+        let stim = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/xcheck/stim-rotated-memory-z-d3.stim.txt"
+        ))
+        .unwrap();
         let nested = "R 0 1\nREPEAT 3 {\n    REPEAT 2 {\n        X_ERROR(0.2) 0\n        CX 0 1\n        DEPOLARIZE1(0.1) 1\n        M 1\n        DETECTOR rec[-1]\n    }\n    M 0\n    DETECTOR rec[-1] rec[-2]\n}\nOBSERVABLE_INCLUDE(0) rec[-1]\n";
         for text in [stim.as_str(), nested] {
             let c = Circuit::parse(text).unwrap();
             assert!(c.instrs.iter().any(|i| matches!(i, Instr::Repeat { .. })));
-            let (a, b) = (BatchSampler::new(&c).unwrap(), BatchSampler::new(&c.flattened()).unwrap());
-            assert_eq!((a.num_detectors, a.num_measurements), (b.num_detectors, b.num_measurements));
+            let (a, b) = (
+                BatchSampler::new(&c).unwrap(),
+                BatchSampler::new(&c.flattened()).unwrap(),
+            );
+            assert_eq!(
+                (a.num_detectors, a.num_measurements),
+                (b.num_detectors, b.num_measurements)
+            );
             assert_eq!(a.num_detectors, c.resolve().unwrap().detectors.len());
-            let (x, y) = (a.sample(&mut Xorshift::new(9)), b.sample(&mut Xorshift::new(9)));
+            let (x, y) = (
+                a.sample(&mut Xorshift::new(9)),
+                b.sample(&mut Xorshift::new(9)),
+            );
             assert_eq!(x.detectors, y.detectors);
             assert_eq!(x.observables, y.observables);
         }
@@ -798,13 +1015,21 @@ mod tests {
 
     #[test]
     fn a_million_rounds_cost_the_loop_body() {
-        let c = Circuit::parse("R 0\nREPEAT 1000000 {\n    X_ERROR(0.001) 0\n    MR 0\n    DETECTOR rec[-1]\n}\n").unwrap();
+        let c = Circuit::parse(
+            "R 0\nREPEAT 1000000 {\n    X_ERROR(0.001) 0\n    MR 0\n    DETECTOR rec[-1]\n}\n",
+        )
+        .unwrap();
         let s = BatchSampler::new(&c).unwrap();
         assert_eq!((s.num_detectors, s.ring_mask), (1_000_000, 0));
         let mut fired = 0u64;
-        s.run(&mut Xorshift::new(1), &mut |_, w| fired += u64::from(w.count_ones()));
+        s.run(&mut Xorshift::new(1), &mut |_, w| {
+            fired += u64::from(w.count_ones())
+        });
         // 64 million Bernoulli(0.001) draws.
-        assert!((fired as f64 - 64_000.0).abs() < 5.0 * 64_000f64.sqrt(), "{fired}");
+        assert!(
+            (fired as f64 - 64_000.0).abs() < 5.0 * 64_000f64.sqrt(),
+            "{fired}"
+        );
     }
 
     fn marginals(circuit: &Circuit, batches: usize) {
@@ -823,23 +1048,47 @@ mod tests {
         }
         let n = (batches * 64) as f64;
         let predict = |pick: &dyn Fn(&crate::dem::Mechanism) -> bool| -> f64 {
-            let prod: f64 = dem.mechanisms.iter().filter(|m| pick(m)).map(|m| 1.0 - 2.0 * m.p).product();
+            let prod: f64 = dem
+                .mechanisms
+                .iter()
+                .filter(|m| pick(m))
+                .map(|m| 1.0 - 2.0 * m.p)
+                .product();
             (1.0 - prod) / 2.0
         };
         for (d, &c) in counts.iter().enumerate() {
             let q = predict(&|m| m.detectors.contains(&(d as u32)));
             let rate = c as f64 / n;
-            assert!((rate - q).abs() < 5.0 * (q * (1.0 - q) / n).sqrt().max(1e-9), "D{d}: sampled {rate}, model {q}");
+            assert!(
+                (rate - q).abs() < 5.0 * (q * (1.0 - q) / n).sqrt().max(1e-9),
+                "D{d}: sampled {rate}, model {q}"
+            );
         }
         let q = predict(&|m| m.observables & 1 == 1);
-        assert!((obs as f64 / n - q).abs() < 5.0 * (q * (1.0 - q) / n).sqrt().max(1e-9), "L0");
+        assert!(
+            (obs as f64 / n - q).abs() < 5.0 * (q * (1.0 - q) / n).sqrt().max(1e-9),
+            "L0"
+        );
     }
 
     #[test]
     fn marginals_match_the_error_model() {
         use crate::memory::{generate, CodeKind, NoiseModel};
-        marginals(&Circuit::parse(&crate::fixtures::REP3.replace("0.01", "0.05")).unwrap(), 3125);
-        marginals(&generate(CodeKind::Rotated, 3, 3, NoiseModel::Sd6 { p: 0.01 }, Basis::Z).unwrap(), 3125);
+        marginals(
+            &Circuit::parse(&crate::fixtures::REP3.replace("0.01", "0.05")).unwrap(),
+            3125,
+        );
+        marginals(
+            &generate(
+                CodeKind::Rotated,
+                3,
+                3,
+                NoiseModel::Sd6 { p: 0.01 },
+                Basis::Z,
+            )
+            .unwrap(),
+            3125,
+        );
     }
 
     #[test]
@@ -870,10 +1119,16 @@ mod tests {
             let total: u64 = lanes.iter().sum();
             let n_all = (words * 64) as f64;
             let rate = total as f64 / n_all;
-            assert!((rate - p).abs() < 5.0 * (p * (1.0 - p) / n_all).sqrt(), "p = {p}: {rate}");
+            assert!(
+                (rate - p).abs() < 5.0 * (p * (1.0 - p) / n_all).sqrt(),
+                "p = {p}: {rate}"
+            );
             let per = words as f64;
             for (k, &l) in lanes.iter().enumerate() {
-                assert!((l as f64 / per - p).abs() < 5.0 * (p * (1.0 - p) / per).sqrt(), "p = {p}, lane {k}");
+                assert!(
+                    (l as f64 / per - p).abs() < 5.0 * (p * (1.0 - p) / per).sqrt(),
+                    "p = {p}, lane {k}"
+                );
             }
         }
         assert_eq!(bernoulli(&mut rng, Noise::new(0.0)), 0);
@@ -890,23 +1145,38 @@ mod tests {
         }
         // Small but resolvable: the rate is still right.
         let n = Noise::new(1e-7);
-        let fired: u32 = (0..2_000_000).map(|_| bernoulli(&mut rng, n).count_ones()).sum();
+        let fired: u32 = (0..2_000_000)
+            .map(|_| bernoulli(&mut rng, n).count_ones())
+            .sum();
         assert!(fired < 40, "{fired} of 128e6 at p = 1e-7");
     }
 
     #[test]
     fn a_loop_that_never_runs_is_not_checked() {
-        assert!(BatchSampler::new(&Circuit::parse("REPEAT 0 {\n DETECTOR rec[-1]\n}\nM 0").unwrap()).is_ok());
+        assert!(BatchSampler::new(
+            &Circuit::parse("REPEAT 0 {\n DETECTOR rec[-1]\n}\nM 0").unwrap()
+        )
+        .is_ok());
     }
 
     #[test]
     fn lookbacks_before_the_first_measurement_are_errors() {
         assert!(BatchSampler::new(&Circuit::parse("M 0\nDETECTOR rec[-2]").unwrap()).is_err());
-        assert!(BatchSampler::new(&Circuit::parse("REPEAT 3 {\n M 0\n DETECTOR rec[-2]\n}").unwrap()).is_err());
-        assert!(BatchSampler::new(&Circuit::parse("M 0\nREPEAT 3 {\n M 0\n DETECTOR rec[-2]\n}").unwrap()).is_ok());
+        assert!(BatchSampler::new(
+            &Circuit::parse("REPEAT 3 {\n M 0\n DETECTOR rec[-2]\n}").unwrap()
+        )
+        .is_err());
+        assert!(BatchSampler::new(
+            &Circuit::parse("M 0\nREPEAT 3 {\n M 0\n DETECTOR rec[-2]\n}").unwrap()
+        )
+        .is_ok());
         // Counts that overflow are errors, not wrapped numbers.
-        let nested = "REPEAT 4000000000 {\n REPEAT 4000000000 {\n REPEAT 4000000000 {\n M 0\n }\n }\n}";
-        assert!(BatchSampler::new(&Circuit::parse(nested).unwrap()).err().unwrap_or_default().contains("overflow"));
+        let nested =
+            "REPEAT 4000000000 {\n REPEAT 4000000000 {\n REPEAT 4000000000 {\n M 0\n }\n }\n}";
+        assert!(BatchSampler::new(&Circuit::parse(nested).unwrap())
+            .err()
+            .unwrap_or_default()
+            .contains("overflow"));
     }
 
     #[test]
@@ -914,8 +1184,18 @@ mod tests {
     fn batch_timing() {
         use crate::memory::{generate, CodeKind, NoiseModel};
         for d in [3usize, 5, 7, 9] {
-            let c = generate(CodeKind::Rotated, d, d, NoiseModel::Sd6 { p: 0.003 }, Basis::Z).unwrap();
-            let (old, new) = (FrameSampler::new(&c).unwrap(), BatchSampler::new(&c).unwrap());
+            let c = generate(
+                CodeKind::Rotated,
+                d,
+                d,
+                NoiseModel::Sd6 { p: 0.003 },
+                Basis::Z,
+            )
+            .unwrap();
+            let (old, new) = (
+                FrameSampler::new(&c).unwrap(),
+                BatchSampler::new(&c).unwrap(),
+            );
             let mut rng = Xorshift::new(1);
             let shots = 20_000usize;
             let t = std::time::Instant::now();
@@ -928,13 +1208,26 @@ mod tests {
                 std::hint::black_box(new.sample(&mut rng));
             }
             let new_us = t.elapsed().as_secs_f64() * 1e6 / (shots / 64 * 64) as f64;
-            println!("d = {d}: FrameSampler {old_us:.2} us/shot, batch {new_us:.3} us/shot, {:.0}x", old_us / new_us);
+            println!(
+                "d = {d}: FrameSampler {old_us:.2} us/shot, batch {new_us:.3} us/shot, {:.0}x",
+                old_us / new_us
+            );
         }
     }
 
     fn sd6() -> BatchSampler {
         use crate::memory::{generate, CodeKind, NoiseModel};
-        BatchSampler::new(&generate(CodeKind::Rotated, 3, 3, NoiseModel::Sd6 { p: 0.02 }, Basis::Z).unwrap()).unwrap()
+        BatchSampler::new(
+            &generate(
+                CodeKind::Rotated,
+                3,
+                3,
+                NoiseModel::Sd6 { p: 0.02 },
+                Basis::Z,
+            )
+            .unwrap(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -942,9 +1235,17 @@ mod tests {
         let s = sd6();
         let one = s.sample_seeded(7, 0, 1000, 1);
         for threads in [2, 3, 8] {
-            assert_eq!(s.sample_seeded(7, 0, 1000, threads), one, "{threads} threads");
+            assert_eq!(
+                s.sample_seeded(7, 0, 1000, threads),
+                one,
+                "{threads} threads"
+            );
         }
-        assert_ne!(s.sample_seeded(8, 0, 1000, 1), one, "another seed draws other shots");
+        assert_ne!(
+            s.sample_seeded(8, 0, 1000, 1),
+            one,
+            "another seed draws other shots"
+        );
         assert_eq!(one.0.len(), 1000 * s.num_detectors.div_ceil(8));
     }
 

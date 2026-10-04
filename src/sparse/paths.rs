@@ -58,7 +58,8 @@ impl<'a> Solver<'a> {
         // Keep each edge that ended flipped, once, and lower every flag.
         let s = &mut *self.s;
         let flipped = &mut s.flipped;
-        s.edge_set.retain(|&e| std::mem::replace(&mut flipped[e as usize], false));
+        s.edge_set
+            .retain(|&e| std::mem::replace(&mut flipped[e as usize], false));
         Ok(())
     }
 

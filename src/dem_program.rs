@@ -27,15 +27,31 @@ pub const MAX_UNROLLED_LINES: u64 = 1 << 24;
 pub enum DemInstr {
     /// `error[tag](p) D0 D1 ^ D2 L0`: each piece's targets sorted (detectors relative to the
     /// current shift), pieces in order.
-    Error { p: f64, pieces: Vec<Vec<u64>>, tag: String },
+    Error {
+        p: f64,
+        pieces: Vec<Vec<u64>>,
+        tag: String,
+    },
     /// `detector[tag](coords) D3`: detectors, relative.
-    Detector { coords: Vec<f64>, targets: Vec<u64>, tag: String },
+    Detector {
+        coords: Vec<f64>,
+        targets: Vec<u64>,
+        tag: String,
+    },
     /// `logical_observable[tag] L1`.
     Observable { targets: Vec<u32>, tag: String },
     /// `shift_detectors[tag](coords) n`.
-    Shift { coords: Vec<f64>, by: u64, tag: String },
+    Shift {
+        coords: Vec<f64>,
+        by: u64,
+        tag: String,
+    },
     /// `repeat[tag] count { body }`.
-    Repeat { count: u64, body: Vec<DemInstr>, tag: String },
+    Repeat {
+        count: u64,
+        body: Vec<DemInstr>,
+        tag: String,
+    },
 }
 
 /// A model as a program.
@@ -114,7 +130,10 @@ fn block_stats(instrs: &[DemInstr]) -> BlockStats {
 /// on other ARM64 (34).
 pub const STIM_PRECISION: usize = if cfg!(all(target_arch = "x86_64", not(target_os = "windows"))) {
     19
-} else if cfg!(all(target_arch = "aarch64", not(any(target_os = "windows", target_vendor = "apple")))) {
+} else if cfg!(all(
+    target_arch = "aarch64",
+    not(any(target_os = "windows", target_vendor = "apple"))
+)) {
     34
 } else {
     16
@@ -150,7 +169,10 @@ pub fn fmt_g(x: f64, digits: usize) -> String {
 }
 
 fn g16_args(args: &[f64]) -> String {
-    args.iter().map(|&v| fmt_g16(v)).collect::<Vec<_>>().join(", ")
+    args.iter()
+        .map(|&v| fmt_g16(v))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn tagged(tag: &str) -> String {
@@ -190,7 +212,11 @@ fn toggle(v: &mut Vec<u64>, t: u64) {
 impl DemProgram {
     pub fn stats(&self) -> Stats {
         let b = block_stats(&self.instrs);
-        Stats { num_detectors: b.end, num_observables: b.observables, num_errors: b.errors }
+        Stats {
+            num_detectors: b.end,
+            num_observables: b.observables,
+            num_errors: b.errors,
+        }
     }
 
     /// Stim's text.
@@ -212,7 +238,11 @@ impl DemProgram {
     /// declarations, or past detector `MAX_DETECTOR`.
     pub fn flattened(&self) -> Result<DemProgram, String> {
         let mut out = Vec::new();
-        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        let mut st = Unroll {
+            offset: 0,
+            coords: Vec::new(),
+            budget: MAX_UNROLLED_LINES,
+        };
         unroll(&self.instrs, &mut st, &mut |ins| out.push(ins))?;
         Ok(DemProgram { instrs: out })
     }
@@ -223,14 +253,26 @@ impl DemProgram {
     pub fn detector_times(&self) -> Result<Vec<f64>, String> {
         let n = self.stats().num_detectors;
         if n > MAX_DETECTOR + 1 {
-            return Err(format!("the model has {n} detectors, past the largest index, {MAX_DETECTOR}"));
+            return Err(format!(
+                "the model has {n} detectors, past the largest index, {MAX_DETECTOR}"
+            ));
         }
         let mut times = vec![f64::NAN; n as usize];
-        fn walk(instrs: &[DemInstr], offset: &mut u64, coords: &mut Vec<f64>, times: &mut [f64]) -> Result<(), String> {
+        fn walk(
+            instrs: &[DemInstr],
+            offset: &mut u64,
+            coords: &mut Vec<f64>,
+            times: &mut [f64],
+        ) -> Result<(), String> {
             for ins in instrs {
                 match ins {
-                    DemInstr::Detector { coords: c, targets, .. } => {
-                        let k = c.len().checked_sub(1).ok_or("a detector has no coordinates; windows need its time")?;
+                    DemInstr::Detector {
+                        coords: c, targets, ..
+                    } => {
+                        let k = c
+                            .len()
+                            .checked_sub(1)
+                            .ok_or("a detector has no coordinates; windows need its time")?;
                         let t = c[k] + coords.get(k).copied().unwrap_or(0.0);
                         for &d in targets {
                             times[(d + *offset) as usize] = t;
@@ -247,7 +289,9 @@ impl DemProgram {
                     }
                     DemInstr::Repeat { count, body, .. } => {
                         // A body that declares nothing and shifts nothing changes nothing.
-                        if body.iter().any(|i| !matches!(i, DemInstr::Error { .. } | DemInstr::Observable { .. })) {
+                        if body.iter().any(|i| {
+                            !matches!(i, DemInstr::Error { .. } | DemInstr::Observable { .. })
+                        }) {
                             for _ in 0..*count {
                                 walk(body, offset, coords, times)?;
                             }
@@ -260,7 +304,9 @@ impl DemProgram {
         }
         walk(&self.instrs, &mut 0, &mut Vec::new(), &mut times)?;
         if let Some(d) = times.iter().position(|t| t.is_nan()) {
-            return Err(format!("detector D{d} is not declared with coordinates; windows need its time"));
+            return Err(format!(
+                "detector D{d} is not declared with coordinates; windows need its time"
+            ));
         }
         Ok(times)
     }
@@ -269,14 +315,29 @@ impl DemProgram {
     pub fn to_dem(&self) -> Result<Dem, String> {
         let stats = self.stats();
         if stats.num_detectors > MAX_DETECTOR + 1 {
-            return Err(format!("the model names detector {}, past the largest index, {MAX_DETECTOR}", stats.num_detectors - 1));
+            return Err(format!(
+                "the model names detector {}, past the largest index, {MAX_DETECTOR}",
+                stats.num_detectors - 1
+            ));
         }
-        let mut dem = Dem { num_detectors: stats.num_detectors as usize, num_observables: stats.num_observables, ..Dem::default() };
+        let mut dem = Dem {
+            num_detectors: stats.num_detectors as usize,
+            num_observables: stats.num_observables,
+            ..Dem::default()
+        };
         dem.detector_coords = vec![Vec::new(); dem.num_detectors];
-        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        let mut st = Unroll {
+            offset: 0,
+            coords: Vec::new(),
+            budget: MAX_UNROLLED_LINES,
+        };
         unroll(&self.instrs, &mut st, &mut |ins| match ins {
             DemInstr::Error { p, pieces, tag } => dem.mechanisms.push(mechanism(p, &pieces, tag)),
-            DemInstr::Detector { coords, targets, tag } => {
+            DemInstr::Detector {
+                coords,
+                targets,
+                tag,
+            } => {
                 for d in targets {
                     let d = d as usize;
                     dem.detector_coords[d] = coords.clone();
@@ -308,7 +369,14 @@ impl DemProgram {
     /// every way merged and all sorted, as the decoders have always been given it.
     pub fn to_dem_merged(&self) -> Result<Dem, String> {
         let mut dem = self.to_dem()?;
-        let key = |m: &Mechanism| (m.detectors.clone(), m.observables, m.tag.clone(), m.pieces.clone());
+        let key = |m: &Mechanism| {
+            (
+                m.detectors.clone(),
+                m.observables,
+                m.tag.clone(),
+                m.pieces.clone(),
+            )
+        };
         dem.mechanisms.sort_by(|a, b| {
             a.detectors
                 .cmp(&b.detectors)
@@ -336,20 +404,34 @@ fn mechanism(p: f64, pieces: &[Vec<u64>], tag: String) -> Mechanism {
     let mut kept = Vec::new();
     for piece in pieces {
         let (dets, obs) = split(piece);
-        kept.push(Piece { detectors: dets, observables: obs });
+        kept.push(Piece {
+            detectors: dets,
+            observables: obs,
+        });
         for &t in piece {
             toggle(&mut all, t);
         }
     }
     let (detectors, observables) = split(&all);
     let pieces = if kept.len() > 1 {
-        kept.into_iter().filter(|p| !p.detectors.is_empty() || p.observables != 0).collect()
+        kept.into_iter()
+            .filter(|p| !p.detectors.is_empty() || p.observables != 0)
+            .collect()
     } else if (1..=2).contains(&detectors.len()) {
-        vec![Piece { detectors: detectors.clone(), observables }]
+        vec![Piece {
+            detectors: detectors.clone(),
+            observables,
+        }]
     } else {
         Vec::new()
     };
-    Mechanism { p, detectors, observables, pieces, tag }
+    Mechanism {
+        p,
+        detectors,
+        observables,
+        pieces,
+        tag,
+    }
 }
 
 /// A sorted target list as detectors (`u32`) and an observable mask.
@@ -372,18 +454,26 @@ struct Unroll {
     budget: u64,
 }
 
-fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -> Result<(), String> {
+fn unroll(
+    instrs: &[DemInstr],
+    st: &mut Unroll,
+    out: &mut dyn FnMut(DemInstr),
+) -> Result<(), String> {
     let absolute = |t: u64, offset: u64| -> Result<u64, String> {
         if t & OBS != 0 {
             return Ok(t);
         }
         t.checked_add(offset)
             .filter(|&d| d <= MAX_DETECTOR)
-            .ok_or_else(|| format!("the model names a detector past the largest index, {MAX_DETECTOR}"))
+            .ok_or_else(|| {
+                format!("the model names a detector past the largest index, {MAX_DETECTOR}")
+            })
     };
     let spend = |st: &mut Unroll| -> Result<(), String> {
         if st.budget == 0 {
-            return Err(format!("the model unrolls past {MAX_UNROLLED_LINES} errors and declarations"));
+            return Err(format!(
+                "the model unrolls past {MAX_UNROLLED_LINES} errors and declarations"
+            ));
         }
         st.budget -= 1;
         Ok(())
@@ -394,17 +484,39 @@ fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -
                 spend(st)?;
                 let mut abs = Vec::with_capacity(pieces.len());
                 for piece in pieces {
-                    let mut v = piece.iter().map(|&t| absolute(t, st.offset)).collect::<Result<Vec<_>, _>>()?;
+                    let mut v = piece
+                        .iter()
+                        .map(|&t| absolute(t, st.offset))
+                        .collect::<Result<Vec<_>, _>>()?;
                     v.sort_unstable();
                     abs.push(v);
                 }
-                out(DemInstr::Error { p: *p, pieces: abs, tag: tag.clone() });
+                out(DemInstr::Error {
+                    p: *p,
+                    pieces: abs,
+                    tag: tag.clone(),
+                });
             }
-            DemInstr::Detector { coords, targets, tag } => {
+            DemInstr::Detector {
+                coords,
+                targets,
+                tag,
+            } => {
                 spend(st)?;
-                let coords = coords.iter().enumerate().map(|(i, v)| v + st.coords.get(i).copied().unwrap_or(0.0)).collect();
-                let targets = targets.iter().map(|&t| absolute(t, st.offset)).collect::<Result<Vec<_>, _>>()?;
-                out(DemInstr::Detector { coords, targets, tag: tag.clone() });
+                let coords = coords
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| v + st.coords.get(i).copied().unwrap_or(0.0))
+                    .collect();
+                let targets = targets
+                    .iter()
+                    .map(|&t| absolute(t, st.offset))
+                    .collect::<Result<Vec<_>, _>>()?;
+                out(DemInstr::Detector {
+                    coords,
+                    targets,
+                    tag: tag.clone(),
+                });
             }
             DemInstr::Observable { .. } => {
                 spend(st)?;
@@ -417,9 +529,15 @@ fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -
                 for (a, b) in st.coords.iter_mut().zip(coords) {
                     *a += b;
                 }
-                st.offset = st.offset.checked_add(*by).filter(|&o| o <= MAX_DETECTOR + 1).ok_or_else(|| {
-                    format!("shift_detectors moves past detector {MAX_DETECTOR}, the largest index")
-                })?;
+                st.offset = st
+                    .offset
+                    .checked_add(*by)
+                    .filter(|&o| o <= MAX_DETECTOR + 1)
+                    .ok_or_else(|| {
+                        format!(
+                            "shift_detectors moves past detector {MAX_DETECTOR}, the largest index"
+                        )
+                    })?;
             }
             DemInstr::Repeat { count, body, .. } => {
                 for _ in 0..*count {
@@ -447,7 +565,11 @@ fn emit(instrs: &[DemInstr], indent: &str, s: &mut String) {
                     }
                 }
             }
-            DemInstr::Detector { coords, targets, tag } => {
+            DemInstr::Detector {
+                coords,
+                targets,
+                tag,
+            } => {
                 let _ = write!(s, "{indent}{}", with_args("detector", tag, coords));
                 for &t in targets {
                     push_target(s, t);
@@ -460,7 +582,11 @@ fn emit(instrs: &[DemInstr], indent: &str, s: &mut String) {
                 }
             }
             DemInstr::Shift { coords, by, tag } => {
-                let _ = write!(s, "{indent}{} {by}", with_args("shift_detectors", tag, coords));
+                let _ = write!(
+                    s,
+                    "{indent}{} {by}",
+                    with_args("shift_detectors", tag, coords)
+                );
             }
             DemInstr::Repeat { count, body, tag } => {
                 let _ = writeln!(s, "{indent}repeat{} {count} {{", tagged(tag));
@@ -488,7 +614,8 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
             return Err(format!("line {lineno}: unmatched '}}'"));
         }
         if let Some(rest) = line.strip_suffix('{') {
-            let (name, tag, args, parts) = split_instruction(rest).map_err(|e| format!("line {lineno}: {e}"))?;
+            let (name, tag, args, parts) =
+                split_instruction(rest).map_err(|e| format!("line {lineno}: {e}"))?;
             if name != "REPEAT" {
                 return Err(format!("line {lineno}: only repeat opens a block"));
             }
@@ -498,19 +625,32 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
             }
             .ok_or_else(|| format!("line {lineno}: repeat needs a count"))?;
             let body = parse_block(lines, pos, true)?;
-            out.push(DemInstr::Repeat { count, body, tag: tag.to_string() });
+            out.push(DemInstr::Repeat {
+                count,
+                body,
+                tag: tag.to_string(),
+            });
             continue;
         }
-        let (name, tag, args, tokens) = split_instruction(line).map_err(|e| format!("line {lineno}: {e}"))?;
+        let (name, tag, args, tokens) =
+            split_instruction(line).map_err(|e| format!("line {lineno}: {e}"))?;
         let tag = tag.to_string();
         let bad = |t: &str| format!("line {lineno}: bad target '{t}'");
         let detector = |t: &str| -> Result<u64, String> {
-            t.strip_prefix('D').and_then(|d| d.parse::<u64>().ok()).filter(|&d| d <= MAX_DETECTOR).ok_or_else(|| bad(t))
+            t.strip_prefix('D')
+                .and_then(|d| d.parse::<u64>().ok())
+                .filter(|&d| d <= MAX_DETECTOR)
+                .ok_or_else(|| bad(t))
         };
         let observable = |t: &str| -> Result<u32, String> {
-            let l = t.strip_prefix('L').and_then(|l| l.parse::<u32>().ok()).ok_or_else(|| bad(t))?;
+            let l = t
+                .strip_prefix('L')
+                .and_then(|l| l.parse::<u32>().ok())
+                .ok_or_else(|| bad(t))?;
             if l >= 64 {
-                return Err(format!("line {lineno}: at most 64 observables are supported"));
+                return Err(format!(
+                    "line {lineno}: at most 64 observables are supported"
+                ));
             }
             Ok(l)
         };
@@ -531,23 +671,45 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
                         return Err(bad(t));
                     }
                 }
-                DemInstr::Error { p: args[0], pieces, tag }
+                DemInstr::Error {
+                    p: args[0],
+                    pieces,
+                    tag,
+                }
             }
             "DETECTOR" => {
-                let targets = tokens.iter().map(|t| detector(t)).collect::<Result<Vec<_>, _>>()?;
-                DemInstr::Detector { coords: args, targets, tag }
+                let targets = tokens
+                    .iter()
+                    .map(|t| detector(t))
+                    .collect::<Result<Vec<_>, _>>()?;
+                DemInstr::Detector {
+                    coords: args,
+                    targets,
+                    tag,
+                }
             }
             "LOGICAL_OBSERVABLE" => {
-                let targets = tokens.iter().map(|t| observable(t)).collect::<Result<Vec<_>, _>>()?;
+                let targets = tokens
+                    .iter()
+                    .map(|t| observable(t))
+                    .collect::<Result<Vec<_>, _>>()?;
                 DemInstr::Observable { targets, tag }
             }
             "SHIFT_DETECTORS" => {
                 let by = match tokens.as_slice() {
                     [] => 0,
-                    [n] => n.parse::<u64>().ok().filter(|&n| n <= MAX_DETECTOR + 1).ok_or_else(|| bad(n))?,
+                    [n] => n
+                        .parse::<u64>()
+                        .ok()
+                        .filter(|&n| n <= MAX_DETECTOR + 1)
+                        .ok_or_else(|| bad(n))?,
                     _ => return Err(format!("line {lineno}: shift_detectors takes one count")),
                 };
-                DemInstr::Shift { coords: args, by, tag }
+                DemInstr::Shift {
+                    coords: args,
+                    by,
+                    tag,
+                }
             }
             _ => return Err(format!("line {lineno}: unsupported instruction '{name}'")),
         });

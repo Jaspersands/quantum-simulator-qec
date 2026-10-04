@@ -52,7 +52,11 @@ fn random_small(rng: &mut Xorshift) -> (usize, Vec<TestEdge>, String) {
     while edges.len() < target && tries < 1000 {
         tries += 1;
         let a = (rng.next_u64() % nd as u64) as u32;
-        let b = if rng.next_u64().is_multiple_of(3) { None } else { Some((rng.next_u64() % nd as u64) as u32) };
+        let b = if rng.next_u64().is_multiple_of(3) {
+            None
+        } else {
+            Some((rng.next_u64() % nd as u64) as u32)
+        };
         if b == Some(a) {
             continue;
         }
@@ -63,7 +67,12 @@ fn random_small(rng: &mut Xorshift) -> (usize, Vec<TestEdge>, String) {
         if !seen.insert(key) {
             continue;
         }
-        edges.push((key.0, key.1, 0.01 + 0.3 * rng.next_f64(), rng.next_u64() % 2));
+        edges.push((
+            key.0,
+            key.1,
+            0.01 + 0.3 * rng.next_f64(),
+            rng.next_u64() % 2,
+        ));
     }
     let mut text = String::new();
     for d in 0..nd {
@@ -89,19 +98,33 @@ fn matches_brute_force_on_small_graphs() {
     for trial in 0..3000 {
         let (nd, edges, text) = random_small(&mut rng);
         let dec = decoder(&text);
-        let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64().is_multiple_of(2)).collect();
+        let defects: Vec<u32> = (0..nd as u32)
+            .filter(|_| rng.next_u64().is_multiple_of(2))
+            .collect();
         let mut scratch = Scratch::new(dec.graph());
-        match (brute_force(&edges, &defects), dec.graph().decode_checked(&mut scratch, &defects)) {
+        match (
+            brute_force(&edges, &defects),
+            dec.graph().decode_checked(&mut scratch, &defects),
+        ) {
             (None, Err(DecodeError::Unmatchable)) => unmatchable += 1,
             (Some((w, masks)), Ok(pred)) => {
                 assert_eq!(pred.iweight, w, "trial {trial}");
-                assert!(masks.contains(&pred.observables), "trial {trial}: {} not in {masks:?}", pred.observables);
+                assert!(
+                    masks.contains(&pred.observables),
+                    "trial {trial}: {} not in {masks:?}",
+                    pred.observables
+                );
                 compared += usize::from(!defects.is_empty());
             }
-            (b, s) => panic!("trial {trial}: brute force {b:?}, sparse {s:?}\n{text}defects {defects:?}"),
+            (b, s) => {
+                panic!("trial {trial}: brute force {b:?}, sparse {s:?}\n{text}defects {defects:?}")
+            }
         }
     }
-    assert!(compared > 1500 && unmatchable > 25, "{compared} compared, {unmatchable} unmatchable");
+    assert!(
+        compared > 1500 && unmatchable > 25,
+        "{compared} compared, {unmatchable} unmatchable"
+    );
 }
 
 fn random_graph(rng: &mut Xorshift, nodes: usize, boundary: f64) -> String {
@@ -110,7 +133,13 @@ fn random_graph(rng: &mut Xorshift, nodes: usize, boundary: f64) -> String {
     for d in 0..nodes {
         text.push_str(&format!("detector D{d}\n"));
     }
-    let obs = |rng: &mut Xorshift| if rng.next_u64().is_multiple_of(4) { " L0" } else { "" };
+    let obs = |rng: &mut Xorshift| {
+        if rng.next_u64().is_multiple_of(4) {
+            " L0"
+        } else {
+            ""
+        }
+    };
     for u in 0..nodes {
         for _ in 0..2 {
             let v = (rng.next_u64() % nodes as u64) as usize;
@@ -139,18 +168,29 @@ fn agrees_with_the_dense_matcher_on_random_graphs() {
         let boundary = [0.0, 0.1, 0.5][(rng.next_u64() % 3) as usize];
         let text = random_graph(&mut rng, nodes, boundary);
         let dec = decoder(&text);
-        let defects: Vec<u32> = (0..nodes as u32).filter(|_| rng.next_u64().is_multiple_of(3)).collect();
+        let defects: Vec<u32> = (0..nodes as u32)
+            .filter(|_| rng.next_u64().is_multiple_of(3))
+            .collect();
         let mut scratch = Scratch::new(dec.graph());
-        match (dec.graph().decode_checked(&mut scratch, &defects), dec.decode_dense(&defects)) {
+        match (
+            dec.graph().decode_checked(&mut scratch, &defects),
+            dec.decode_dense(&defects),
+        ) {
             (Ok(s), Ok(d)) => {
-                assert_eq!(s.iweight, d.iweight, "trial {trial}\n{text}defects {defects:?}");
+                assert_eq!(
+                    s.iweight, d.iweight,
+                    "trial {trial}\n{text}defects {defects:?}"
+                );
                 compared += 1;
             }
             (Err(DecodeError::Unmatchable), Err(DecodeError::Unmatchable)) => unmatchable += 1,
             (s, d) => panic!("trial {trial}: sparse {s:?}, dense {d:?}\n{text}defects {defects:?}"),
         }
     }
-    assert!(compared > 10_000 && unmatchable > 100, "{compared} compared, {unmatchable} unmatchable");
+    assert!(
+        compared > 10_000 && unmatchable > 100,
+        "{compared} compared, {unmatchable} unmatchable"
+    );
 }
 
 #[test]
@@ -160,9 +200,17 @@ fn one_scratch_decodes_many_shots() {
     let dec = decoder(&text);
     let mut scratch = Scratch::new(dec.graph());
     for _ in 0..500 {
-        let defects: Vec<u32> = (0..30).filter(|_| rng.next_u64().is_multiple_of(3)).collect();
-        let a = dec.graph().decode(&mut scratch, &defects).map(|p| p.iweight);
-        let b = dec.graph().decode(&mut Scratch::new(dec.graph()), &defects).map(|p| p.iweight);
+        let defects: Vec<u32> = (0..30)
+            .filter(|_| rng.next_u64().is_multiple_of(3))
+            .collect();
+        let a = dec
+            .graph()
+            .decode(&mut scratch, &defects)
+            .map(|p| p.iweight);
+        let b = dec
+            .graph()
+            .decode(&mut Scratch::new(dec.graph()), &defects)
+            .map(|p| p.iweight);
         assert_eq!(a, b);
     }
 }
@@ -185,8 +233,13 @@ fn agrees_with_the_dense_matcher_on_surface_code_shots() {
                         let mut scratch = Scratch::new(dec.graph());
                         for shot_i in 0..60 {
                             let shot = sampler.sample(&mut rng);
-                            let defects: Vec<u32> =
-                                shot.detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
+                            let defects: Vec<u32> = shot
+                                .detectors
+                                .iter()
+                                .enumerate()
+                                .filter(|x| *x.1)
+                                .map(|x| x.0 as u32)
+                                .collect();
                             let dense = match dec.decode_dense(&defects) {
                                 Ok(x) => x,
                                 Err(DecodeError::TooManyDefects(_)) => continue,
@@ -198,7 +251,10 @@ fn agrees_with_the_dense_matcher_on_surface_code_shots() {
                                 dec.graph().decode(&mut scratch, &defects)
                             }
                             .unwrap();
-                            assert_eq!(sparse.iweight, dense.iweight, "{kind:?} {basis:?} {noise:?} d = {d}: {defects:?}");
+                            assert_eq!(
+                                sparse.iweight, dense.iweight,
+                                "{kind:?} {basis:?} {noise:?} d = {d}: {defects:?}"
+                            );
                             compared += 1;
                             obs_differ += usize::from(sparse.observables != dense.observables);
                         }
@@ -216,7 +272,14 @@ fn decodes_shots_far_beyond_the_dense_limit() {
     use crate::circuit::Basis;
     use crate::frame_sampler::FrameSampler;
     use crate::memory::{generate, CodeKind, NoiseModel};
-    let c = generate(CodeKind::Rotated, 7, 60, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let c = generate(
+        CodeKind::Rotated,
+        7,
+        60,
+        NoiseModel::Sd6 { p: 0.006 },
+        Basis::Z,
+    )
+    .unwrap();
     let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
     let sampler = FrameSampler::new(&c).unwrap();
     let mut rng = Xorshift::new(7);
@@ -224,10 +287,15 @@ fn decodes_shots_far_beyond_the_dense_limit() {
     for _ in 0..100 {
         let shot = sampler.sample(&mut rng);
         most = most.max(shot.detectors.iter().filter(|&&b| b).count());
-        let pred = dec.decode_bools(&shot.detectors).expect("the sparse matcher has no defect ceiling");
+        let pred = dec
+            .decode_bools(&shot.detectors)
+            .expect("the sparse matcher has no defect ceiling");
         failures += ((pred.observables ^ shot.observables) & 1) as usize;
     }
-    assert!(most > 256, "the test should exceed the dense limit; most was {most}");
+    assert!(
+        most > 256,
+        "the test should exceed the dense limit; most was {most}"
+    );
     assert!(failures < 100, "every shot failed");
 }
 
@@ -267,18 +335,40 @@ fn a_reused_scratch_keeps_no_more_than_one_shot_needs() {
     use crate::circuit::Basis;
     use crate::frame_sampler::FrameSampler;
     use crate::memory::{generate, CodeKind, NoiseModel};
-    let c = generate(CodeKind::Rotated, 5, 5, NoiseModel::Sd6 { p: 0.008 }, Basis::Z).unwrap();
+    let c = generate(
+        CodeKind::Rotated,
+        5,
+        5,
+        NoiseModel::Sd6 { p: 0.008 },
+        Basis::Z,
+    )
+    .unwrap();
     let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
     let sampler = FrameSampler::new(&c).unwrap();
     let mut rng = Xorshift::new(5);
     let mut scratch = Scratch::new(dec.graph());
     let mut peak = 0;
     for _ in 0..3000 {
-        let s: Vec<u32> = sampler.sample(&mut rng).detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
-        dec.graph().decode_correlated(dec.correlations(), &mut scratch, &s).unwrap();
+        let s: Vec<u32> = sampler
+            .sample(&mut rng)
+            .detectors
+            .iter()
+            .enumerate()
+            .filter(|x| *x.1)
+            .map(|x| x.0 as u32)
+            .collect();
+        dec.graph()
+            .decode_correlated(dec.correlations(), &mut scratch, &s)
+            .unwrap();
         peak = peak.max(scratch.regions.len() + scratch.alt.len());
     }
     let spare = scratch.spare_u32.len() + scratch.spare_cycles.len();
-    assert!(peak > 20, "the shots must exercise the matcher (peak {peak})");
-    assert!(spare <= peak, "{spare} spare vectors after 3,000 shots, where the largest shot used {peak}");
+    assert!(
+        peak > 20,
+        "the shots must exercise the matcher (peak {peak})"
+    );
+    assert!(
+        spare <= peak,
+        "{spare} spare vectors after 3,000 shots, where the largest shot used {peak}"
+    );
 }

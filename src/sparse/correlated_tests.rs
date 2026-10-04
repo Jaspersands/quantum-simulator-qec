@@ -1,9 +1,9 @@
 //! Correlated matching: the rule table, the traced edges, the second pass, and
 //! whether it helps. Spec: docs/superpowers/specs/2026-09-25-google-data-design.md, Part 1.
 
+use super::*;
 use crate::circuit::Basis;
 use crate::dem::Dem;
-use super::*;
 use crate::dem_decoder::{edge_weight, DecodeError, DemDecoder};
 use crate::frame_sampler::FrameSampler;
 use crate::memory::{generate, CodeKind, NoiseModel};
@@ -85,19 +85,40 @@ fn a_piece_of_observables_alone_names_no_edge() {
     // so do the rules; PyMatching's correlated mode refuses the model instead.
     let dec = decoder("error(0.1) D0 ^ D1 ^ L0\nerror(0.2) D0\nerror(0.2) D1\n");
     assert_eq!(dec.graph().num_edges(), 2);
-    let (e0, e1) = (dec.graph().edge_id(0, 2).unwrap(), dec.graph().edge_id(1, 2).unwrap());
-    assert_eq!(dec.correlations().rules_of(e0).iter().map(|r| r.0).collect::<Vec<_>>(), vec![e1]);
+    let (e0, e1) = (
+        dec.graph().edge_id(0, 2).unwrap(),
+        dec.graph().edge_id(1, 2).unwrap(),
+    );
+    assert_eq!(
+        dec.correlations()
+            .rules_of(e0)
+            .iter()
+            .map(|r| r.0)
+            .collect::<Vec<_>>(),
+        vec![e1]
+    );
 }
 
 #[test]
 fn circuit_models_have_rules() {
-    let c = generate(CodeKind::Rotated, 3, 3, NoiseModel::Sd6 { p: 0.003 }, Basis::Z).unwrap();
+    let c = generate(
+        CodeKind::Rotated,
+        3,
+        3,
+        NoiseModel::Sd6 { p: 0.003 },
+        Basis::Z,
+    )
+    .unwrap();
     let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
     assert!(dec.correlations().num_rules() > 0);
 }
 
 fn defects_of(dets: &[bool]) -> Vec<u32> {
-    dets.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect()
+    dets.iter()
+        .enumerate()
+        .filter(|x| *x.1)
+        .map(|x| x.0 as u32)
+        .collect()
 }
 
 #[test]
@@ -133,7 +154,10 @@ fn traced_edges_are_a_minimum_weight_correction() {
                     let defects = defects_of(&sampler.sample(&mut rng).detectors);
                     let plain = dec.decode(&defects).unwrap();
                     let edges = dec.decode_to_edges(&defects).unwrap();
-                    let mut ids: Vec<u32> = edges.iter().map(|&(u, v)| g.edge_id(u, v).unwrap()).collect();
+                    let mut ids: Vec<u32> = edges
+                        .iter()
+                        .map(|&(u, v)| g.edge_id(u, v).unwrap())
+                        .collect();
                     ids.sort_unstable();
                     ids.dedup();
                     assert_eq!(ids.len(), edges.len(), "an edge listed twice");
@@ -146,7 +170,10 @@ fn traced_edges_are_a_minimum_weight_correction() {
                     }
                     let weight: i64 = ids.iter().map(|&e| g.weight_of(e)).sum();
                     assert_eq!(defects_of(&syndrome), defects, "{kind:?} d = {d}, p = {p}");
-                    assert_eq!(weight, plain.iweight, "{kind:?} d = {d}, p = {p}: {defects:?}");
+                    assert_eq!(
+                        weight, plain.iweight,
+                        "{kind:?} d = {d}, p = {p}: {defects:?}"
+                    );
                     shots += 1;
                 }
             }
@@ -201,14 +228,19 @@ fn pass_two_is_exact_on_the_reweighted_graph() {
                 for _ in 0..120 {
                     let defects = defects_of(&sampler.sample(&mut rng).detectors);
                     let used = dec.decode_to_edges(&defects).unwrap();
-                    let oracle = DemDecoder::new(&Dem::parse(&reweighted_model(&dem, &dec, &used)).unwrap()).unwrap();
+                    let oracle =
+                        DemDecoder::new(&Dem::parse(&reweighted_model(&dem, &dec, &used)).unwrap())
+                            .unwrap();
                     let dense = match oracle.decode_dense(&defects) {
                         Ok(x) => x,
                         Err(DecodeError::TooManyDefects(_)) => continue,
                         Err(e) => panic!("{e:?}"),
                     };
                     let two = dec.decode_correlated(&defects).unwrap();
-                    assert_eq!(two.iweight, dense.iweight, "{kind:?} d = {d}, p = {p}: {defects:?}");
+                    assert_eq!(
+                        two.iweight, dense.iweight,
+                        "{kind:?} d = {d}, p = {p}: {defects:?}"
+                    );
                     compared += 1;
                 }
             }
@@ -220,14 +252,24 @@ fn pass_two_is_exact_on_the_reweighted_graph() {
 
 #[test]
 fn pass_two_from_given_edges_is_the_full_decode() {
-    let c = generate(CodeKind::Rotated, 5, 5, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let c = generate(
+        CodeKind::Rotated,
+        5,
+        5,
+        NoiseModel::Sd6 { p: 0.006 },
+        Basis::Z,
+    )
+    .unwrap();
     let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
     let sampler = FrameSampler::new(&c).unwrap();
     let mut rng = Xorshift::new(3);
     for _ in 0..300 {
         let defects = defects_of(&sampler.sample(&mut rng).detectors);
         let used = dec.decode_to_edges(&defects).unwrap();
-        assert_eq!(dec.decode_pass2(&defects, &used).unwrap(), dec.decode_correlated(&defects).unwrap());
+        assert_eq!(
+            dec.decode_pass2(&defects, &used).unwrap(),
+            dec.decode_correlated(&defects).unwrap()
+        );
     }
     assert!(dec.decode_pass2(&[0, 1], &[(0, 999_999)]).is_err());
 }
@@ -245,8 +287,15 @@ fn weights_are_restored_after_every_decode() {
         let two = g.decode_correlated(corr, &mut scratch, &defects).unwrap();
         assert_eq!(scratch.w, g.w);
         assert!(scratch.undo.is_empty());
-        assert_eq!(g.decode(&mut scratch, &defects).unwrap(), dec.decode(&defects).unwrap());
-        assert_eq!(two, g.decode_correlated(corr, &mut Scratch::new(g), &defects).unwrap());
+        assert_eq!(
+            g.decode(&mut scratch, &defects).unwrap(),
+            dec.decode(&defects).unwrap()
+        );
+        assert_eq!(
+            two,
+            g.decode_correlated(corr, &mut Scratch::new(g), &defects)
+                .unwrap()
+        );
     }
 }
 
@@ -255,7 +304,14 @@ fn weights_are_restored_after_every_decode() {
 /// The cross-check measures the gain properly (check 5).
 #[test]
 fn correlated_matching_beats_plain_matching_under_sd6() {
-    let c = generate(CodeKind::Rotated, 5, 5, NoiseModel::Sd6 { p: 0.006 }, Basis::Z).unwrap();
+    let c = generate(
+        CodeKind::Rotated,
+        5,
+        5,
+        NoiseModel::Sd6 { p: 0.006 },
+        Basis::Z,
+    )
+    .unwrap();
     let dec = DemDecoder::new(&Dem::from_circuit(&c).unwrap()).unwrap();
     let sampler = FrameSampler::new(&c).unwrap();
     let mut rng = Xorshift::new(2026);
@@ -264,7 +320,8 @@ fn correlated_matching_beats_plain_matching_under_sd6() {
         let shot = sampler.sample(&mut rng);
         let defects = defects_of(&shot.detectors);
         plain += ((dec.decode(&defects).unwrap().observables ^ shot.observables) & 1) as usize;
-        corr += ((dec.decode_correlated(&defects).unwrap().observables ^ shot.observables) & 1) as usize;
+        corr += ((dec.decode_correlated(&defects).unwrap().observables ^ shot.observables) & 1)
+            as usize;
     }
     println!("d = 5, p = 0.6%, 5000 shots: plain {plain} failures, correlated {corr}");
     assert!(corr < plain, "correlated {corr}, plain {plain}");

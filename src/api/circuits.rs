@@ -7,8 +7,8 @@ use crate::batch_sampler::{BatchSampler, Counts};
 use crate::circuit;
 use crate::dem::Dem;
 use crate::dem_program::{DemProgram, Stats};
-use std::sync::OnceLock;
 use crate::m2d::M2d;
+use std::sync::OnceLock;
 
 /// A stabilizer circuit in Stim's circuit language.
 ///
@@ -98,7 +98,11 @@ impl fmt::Display for Target {
             Target::Inverted(q) => write!(f, "!{q}"),
             Target::Rec(k) => write!(f, "rec[-{k}]"),
             Target::Sweep(k) => write!(f, "sweep[{k}]"),
-            Target::Pauli { pauli, qubit, inverted } => {
+            Target::Pauli {
+                pauli,
+                qubit,
+                inverted,
+            } => {
                 let p = match pauli {
                     Pauli::X => 'X',
                     Pauli::Y => 'Y',
@@ -137,9 +141,16 @@ impl Circuit {
     }
 
     /// [`append`](Circuit::append), with Stim's instruction tag (`H[tag] 0`).
-    pub fn append_tagged(&mut self, name: &str, targets: &[Target], args: &[f64], tag: &str) -> Result<()> {
+    pub fn append_tagged(
+        &mut self,
+        name: &str,
+        targets: &[Target],
+        args: &[f64],
+        tag: &str,
+    ) -> Result<()> {
         let targets: Vec<String> = targets.iter().map(Target::to_string).collect();
-        let piece = Circuit::from_engine(circuit::Circuit::instruction(name, tag, args, &targets)?)?;
+        let piece =
+            Circuit::from_engine(circuit::Circuit::instruction(name, tag, args, &targets)?)?;
         self.append_circuit(&piece)
     }
 
@@ -161,9 +172,16 @@ impl Circuit {
     /// `REPEAT count { self }`, as Stim's `circuit * count`: the empty circuit for 0, the
     /// circuit itself for 1. The error is a count whose measurements or detectors overflow.
     pub fn repeated(&self, count: u64) -> Result<Circuit> {
-        let counts = if count == 0 { Counts::default() } else { self.counts.times(count)? };
+        let counts = if count == 0 {
+            Counts::default()
+        } else {
+            self.counts.times(count)?
+        };
         fits(&counts)?;
-        Ok(Circuit { inner: self.inner.repeated(count), counts })
+        Ok(Circuit {
+            inner: self.inner.repeated(count),
+            counts,
+        })
     }
 
     /// One more than the largest qubit index any instruction names.
@@ -207,28 +225,73 @@ impl Circuit {
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn detector_error_model(&self, options: &DemOptions) -> Result<DetectorErrorModel> {
-        let program = crate::dem_build::build(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops)?;
+        let program = crate::dem_build::build(
+            &self.inner,
+            options.decompose_errors,
+            options.approximate_disjoint_errors,
+            !options.flatten_loops,
+        )?;
         Ok(DetectorErrorModel::from_program(program))
     }
 
     /// A sampler of detection events and observable flips, seeded: the same seed gives the same
     /// shots on any machine and any number of threads.
     pub fn detector_sampler(&self, seed: u64) -> Result<DetectorSampler> {
-        Ok(DetectorSampler { sampler: BatchSampler::new(&self.inner)?, seed, next: 0 })
+        Ok(DetectorSampler {
+            sampler: BatchSampler::new(&self.inner)?,
+            seed,
+            next: 0,
+        })
+    }
+
+    /// A picture of the circuit, after Stim's `diagram` (see [`DiagramKind`]): its timeline as
+    /// text or SVG, what its detectors compare at a moment, or its matching graph.
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, DiagramKind};
+    ///
+    /// let c: Circuit = "R 0 1\nH 0\nTICK\nCX 0 1\nTICK\nM 0 1\nDETECTOR rec[-1] rec[-2]".parse()?;
+    /// let text = c.diagram(DiagramKind::TimelineText)?;
+    /// assert!(text.contains("q0: -R-H-@-M:rec[0]-DETECTOR:D0=rec[1]*rec[0]-"));
+    /// assert!(text.contains("q1: -R---X-M:rec[1]-"));
+    /// // Just before the measurements, the detector compares Z0 Z1.
+    /// assert_eq!(c.diagram(DiagramKind::DetectorSliceText { tick: 2 })?, "D0: Z0 Z1\n");
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn diagram(&self, kind: DiagramKind) -> Result<String> {
+        use crate::diagram as d;
+        Ok(match kind {
+            DiagramKind::TimelineText => d::timeline_text(&self.inner)?,
+            DiagramKind::TimelineSvg => d::timeline_svg(&self.inner)?,
+            DiagramKind::DetectorSliceText { tick } => d::detslice_text(&self.inner, tick)?,
+            DiagramKind::DetectorSliceSvg { tick } => d::detslice_svg(&self.inner, tick)?,
+            DiagramKind::MatchGraphSvg => {
+                let dem = self.detector_error_model(
+                    &DemOptions::new()
+                        .decompose_errors(true)
+                        .approximate_disjoint_errors(Some(1.0)),
+                )?;
+                dem.matchgraph_svg()?
+            }
+        })
     }
 
     /// A converter from raw measurement records (and sweep bits) to detection events and
     /// observable flips, as `stim m2d`. Its reference run keeps a dense tableau: at most 16,384
     /// qubits.
     pub fn measurement_converter(&self) -> Result<MeasurementConverter> {
-        Ok(MeasurementConverter { m2d: M2d::new(&self.inner)? })
+        Ok(MeasurementConverter {
+            m2d: M2d::new(&self.inner)?,
+        })
     }
 }
 
 /// Counts this machine can index.
 fn fits(c: &Counts) -> Result<()> {
     if usize::try_from(c.measurements).is_err() || usize::try_from(c.detectors).is_err() {
-        return Err(Error::new("too many measurements or detectors for this machine"));
+        return Err(Error::new(
+            "too many measurements or detectors for this machine",
+        ));
     }
     Ok(())
 }
@@ -304,6 +367,30 @@ impl fmt::Display for Circuit {
     }
 }
 
+/// A kind of [`Circuit::diagram`], after Stim's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DiagramKind {
+    /// The timeline as text (Stim's `timeline-text`): a row per qubit, each operation in the
+    /// first column its wires are free, `TICK` groups bracketed, loops drawn once.
+    TimelineText,
+    /// The timeline as an SVG picture (`timeline-svg`).
+    TimelineSvg,
+    /// What each detector compares after `tick` `TICK`s, as text (`detslice-text`): a line per
+    /// detector, its Paulis.
+    DetectorSliceText {
+        /// The moment: after this many `TICK`s (0 is the start).
+        tick: u64,
+    },
+    /// The same as an SVG picture over the qubits' coordinates (`detslice-svg`).
+    DetectorSliceSvg {
+        /// The moment.
+        tick: u64,
+    },
+    /// The decomposed model's matching graph as an SVG picture (`matchgraph-svg`).
+    MatchGraphSvg,
+}
+
 /// How [`Circuit::detector_error_model`] builds a model.
 ///
 /// ```
@@ -366,7 +453,11 @@ pub struct DetectorErrorModel {
 
 impl DetectorErrorModel {
     pub(crate) fn from_program(program: DemProgram) -> DetectorErrorModel {
-        DetectorErrorModel { stats: program.stats(), program, flat: OnceLock::new() }
+        DetectorErrorModel {
+            stats: program.stats(),
+            program,
+            flat: OnceLock::new(),
+        }
     }
 
     /// The model as written.
@@ -376,7 +467,10 @@ impl DetectorErrorModel {
 
     /// The model unrolled, for a decoder.
     pub(crate) fn flat(&self) -> Result<&Dem> {
-        self.flat.get_or_init(|| self.program.to_dem()).as_ref().map_err(|e| Error::new(e.clone()))
+        self.flat
+            .get_or_init(|| self.program.to_dem())
+            .as_ref()
+            .map_err(|e| Error::new(e.clone()))
     }
 
     /// Parse Stim's detector-error-model text.
@@ -397,6 +491,13 @@ impl DetectorErrorModel {
     /// Faults: `error` lines, counted through loops.
     pub fn num_errors(&self) -> usize {
         usize::try_from(self.stats.num_errors).unwrap_or(usize::MAX)
+    }
+
+    /// The matching graph as an SVG picture: each detector at its coordinates, each graph-like
+    /// fault an edge, those flipping an observable heavier. The model must be decomposed, and
+    /// unroll.
+    pub fn matchgraph_svg(&self) -> Result<String> {
+        Ok(crate::diagram::matchgraph_svg(self.flat()?)?)
     }
 
     /// The model without `repeat` blocks or `shift_detectors`, as Stim's `flattened`: every
@@ -472,11 +573,15 @@ impl DetectorSampler {
     /// are drawn 64 at a time from streams seeded by the sampler's seed and the batch, and a
     /// call that ends partway through 64 discards the rest.
     pub fn sample(&mut self, shots: usize, threads: usize) -> Samples {
-        let (d, o) = self.sampler.sample_seeded(self.seed, self.next, shots, threads);
+        let (d, o) = self
+            .sampler
+            .sample_seeded(self.seed, self.next, shots, threads);
         self.next += shots.div_ceil(64) as u64;
         Samples {
-            detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
-            observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
+            detectors: BitTable::from_packed(shots, self.num_detectors(), d)
+                .expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.num_observables(), o)
+                .expect("the sampler writes whole rows"),
         }
     }
 }
@@ -500,10 +605,18 @@ impl MeasurementConverter {
     }
 
     /// Convert shots of measurement records (and, if the circuit reads any, sweep bits).
-    pub fn convert(&self, measurements: &BitTable, sweep_bits: Option<&BitTable>) -> Result<Samples> {
+    pub fn convert(
+        &self,
+        measurements: &BitTable,
+        sweep_bits: Option<&BitTable>,
+    ) -> Result<Samples> {
         let shots = measurements.num_rows();
         if measurements.num_bits() != self.num_measurements() {
-            return Err(Error::new(format!("{} measurement bits per shot, not {}", measurements.num_bits(), self.num_measurements())));
+            return Err(Error::new(format!(
+                "{} measurement bits per shot, not {}",
+                measurements.num_bits(),
+                self.num_measurements()
+            )));
         }
         let zeros;
         let sweeps = match sweep_bits {
@@ -523,7 +636,9 @@ impl MeasurementConverter {
                 &zeros
             }
         };
-        let (d, o) = self.m2d.convert_b8(measurements.as_bytes(), sweeps.as_bytes(), shots)?;
+        let (d, o) = self
+            .m2d
+            .convert_b8(measurements.as_bytes(), sweeps.as_bytes(), shots)?;
         Ok(Samples {
             detectors: BitTable::from_packed(shots, self.m2d.num_detectors, d)?,
             observables: BitTable::from_packed(shots, self.m2d.num_observables, o)?,

@@ -134,15 +134,26 @@ pub fn xzzx_layers(code: &XZZXSurfaceCode) -> RoundLayers {
     let mut steps: [Vec<Gate2>; 4] = Default::default();
     for (step, gates) in steps.iter_mut().enumerate() {
         for s in 0..ns {
-            let (dx, dy, is_x) =
-                if s < split { XZZXSurfaceCode::SCHEDULE_A[step] } else { XZZXSurfaceCode::SCHEDULE_B[step] };
+            let (dx, dy, is_x) = if s < split {
+                XZZXSurfaceCode::SCHEDULE_A[step]
+            } else {
+                XZZXSurfaceCode::SCHEDULE_B[step]
+            };
             let (sx, sy) = code.stabilizers[s];
             if let Some(q) = code.get_neighbor_idx(sx as i32 + dx, sy as i32 + dy) {
-                gates.push(if is_x { Gate2::Cx(anc(s), q as u32) } else { Gate2::Cz(anc(s), q as u32) });
+                gates.push(if is_x {
+                    Gate2::Cx(anc(s), q as u32)
+                } else {
+                    Gate2::Cz(anc(s), q as u32)
+                });
             }
         }
     }
-    RoundLayers { ancillas: (0..ns).map(anc).collect(), hadamard: (0..ns).map(anc).collect(), steps }
+    RoundLayers {
+        ancillas: (0..ns).map(anc).collect(),
+        hadamard: (0..ns).map(anc).collect(),
+        steps,
+    }
 }
 
 pub fn rotated_patch(code: &RotatedSurfaceCode, basis: Basis) -> Patch {
@@ -150,9 +161,21 @@ pub fn rotated_patch(code: &RotatedSurfaceCode, basis: Basis) -> Patch {
     let n = code.data_qubits.len();
     let nx = code.x_stabilizers.len();
     let nz = code.z_stabilizers.len();
-    let stab_coords: Vec<(usize, usize)> =
-        code.x_stabilizers.iter().chain(code.z_stabilizers.iter()).copied().collect();
-    let support = stab_coords.iter().map(|s| code.get_neighbors(s).into_iter().map(|q| q as u32).collect()).collect();
+    let stab_coords: Vec<(usize, usize)> = code
+        .x_stabilizers
+        .iter()
+        .chain(code.z_stabilizers.iter())
+        .copied()
+        .collect();
+    let support = stab_coords
+        .iter()
+        .map(|s| {
+            code.get_neighbors(s)
+                .into_iter()
+                .map(|q| q as u32)
+                .collect()
+        })
+        .collect();
     let (deterministic, observable) = match basis {
         Basis::Z => ((nx..nx + nz).collect(), column(d)),
         Basis::X => ((0..nx).collect(), row(d)),
@@ -161,7 +184,12 @@ pub fn rotated_patch(code: &RotatedSurfaceCode, basis: Basis) -> Patch {
         d,
         num_qubits: n + nx + nz,
         num_data: n,
-        qubit_coords: code.data_qubits.iter().copied().chain(stab_coords).collect(),
+        qubit_coords: code
+            .data_qubits
+            .iter()
+            .copied()
+            .chain(stab_coords)
+            .collect(),
         layers: rotated_layers(code),
         program: code.round_program(),
         support,
@@ -191,14 +219,19 @@ pub fn xzzx_hadamard_pattern(code: &XZZXSurfaceCode) -> Result<Vec<bool>, String
                 match h[q] {
                     None => h[q] = Some(differs),
                     Some(prev) if prev != differs => {
-                        return Err(format!("data qubit {q} needs a Hadamard for one plaquette and not another"));
+                        return Err(format!(
+                            "data qubit {q} needs a Hadamard for one plaquette and not another"
+                        ));
                     }
                     _ => {}
                 }
             }
         }
     }
-    h.into_iter().enumerate().map(|(q, v)| v.ok_or_else(|| format!("data qubit {q} is in no plaquette"))).collect()
+    h.into_iter()
+        .enumerate()
+        .map(|(q, v)| v.ok_or_else(|| format!("data qubit {q} is in no plaquette")))
+        .collect()
 }
 
 pub fn xzzx_patch(code: &XZZXSurfaceCode, basis: Basis) -> Result<Patch, String> {
@@ -207,8 +240,16 @@ pub fn xzzx_patch(code: &XZZXSurfaceCode, basis: Basis) -> Result<Patch, String>
     let ns = code.stabilizers.len();
     let split = code.z_stabilizers.len();
     let h = xzzx_hadamard_pattern(code)?;
-    let support =
-        code.stabilizers.iter().map(|s| code.get_neighbors(s).into_iter().map(|q| q as u32).collect()).collect();
+    let support = code
+        .stabilizers
+        .iter()
+        .map(|s| {
+            code.get_neighbors(s)
+                .into_iter()
+                .map(|q| q as u32)
+                .collect()
+        })
+        .collect();
     let (deterministic, observable) = match basis {
         Basis::Z => ((0..split).collect(), column(d)),
         Basis::X => ((split..ns).collect(), row(d)),
@@ -217,11 +258,19 @@ pub fn xzzx_patch(code: &XZZXSurfaceCode, basis: Basis) -> Result<Patch, String>
         d,
         num_qubits: n + ns,
         num_data: n,
-        qubit_coords: code.data_qubits.iter().chain(code.stabilizers.iter()).copied().collect(),
+        qubit_coords: code
+            .data_qubits
+            .iter()
+            .chain(code.stabilizers.iter())
+            .copied()
+            .collect(),
         layers: xzzx_layers(code),
         program: code.round_program(),
         support,
-        data_basis: h.iter().map(|&flip| if flip { other(basis) } else { basis }).collect(),
+        data_basis: h
+            .iter()
+            .map(|&flip| if flip { other(basis) } else { basis })
+            .collect(),
         deterministic,
         observable,
     })
@@ -237,7 +286,13 @@ pub fn patch_for(kind: CodeKind, d: usize, basis: Basis) -> Result<Patch, String
     }
 }
 
-pub fn generate(kind: CodeKind, d: usize, rounds: usize, noise: NoiseModel, basis: Basis) -> Result<Circuit, String> {
+pub fn generate(
+    kind: CodeKind,
+    d: usize,
+    rounds: usize,
+    noise: NoiseModel,
+    basis: Basis,
+) -> Result<Circuit, String> {
     if rounds == 0 {
         return Err("a memory experiment needs at least one round".into());
     }
@@ -281,7 +336,13 @@ pub fn memory_circuit(patch: &Patch, rounds: usize, noise: NoiseModel) -> Circui
 /// `REPEAT` block whose detectors move forward in time by `SHIFT_COORDS`.
 /// Flattened, it is `generate`'s circuit exactly; unflattened, a million rounds
 /// cost one round of instructions, which is how the batch sampler streams them.
-pub fn generate_repeat(kind: CodeKind, d: usize, rounds: usize, p: f64, basis: Basis) -> Result<Circuit, String> {
+pub fn generate_repeat(
+    kind: CodeKind,
+    d: usize,
+    rounds: usize,
+    p: f64,
+    basis: Basis,
+) -> Result<Circuit, String> {
     if rounds == 0 {
         return Err("a memory experiment needs at least one round".into());
     }
@@ -297,7 +358,10 @@ fn lookback(now: usize, abs: usize) -> u32 {
 
 fn coords_header(patch: &Patch, c: &mut Vec<Instr>) {
     for (q, &(x, y)) in patch.qubit_coords.iter().enumerate() {
-        c.push(Instr::QubitCoords { coords: vec![x as f64, y as f64], qubits: vec![q as u32] });
+        c.push(Instr::QubitCoords {
+            coords: vec![x as f64, y as f64],
+            qubits: vec![q as u32],
+        });
     }
 }
 
@@ -317,15 +381,29 @@ fn data_by_basis(patch: &Patch) -> (Vec<u32>, Vec<u32>) {
 fn reset_data(patch: &Patch, c: &mut Vec<Instr>, p: f64) {
     let (zs, xs) = data_by_basis(patch);
     if !zs.is_empty() {
-        c.push(Instr::Reset { basis: Basis::Z, qubits: zs.clone() });
+        c.push(Instr::Reset {
+            basis: Basis::Z,
+            qubits: zs.clone(),
+        });
         if p > 0.0 {
-            c.push(Instr::PauliError { pauli: 1, p, qubits: zs });
+            c.push(Instr::PauliError {
+                pauli: 1,
+                p,
+                qubits: zs,
+            });
         }
     }
     if !xs.is_empty() {
-        c.push(Instr::Reset { basis: Basis::X, qubits: xs.clone() });
+        c.push(Instr::Reset {
+            basis: Basis::X,
+            qubits: xs.clone(),
+        });
         if p > 0.0 {
-            c.push(Instr::PauliError { pauli: 2, p, qubits: xs });
+            c.push(Instr::PauliError {
+                pauli: 2,
+                p,
+                qubits: xs,
+            });
         }
     }
 }
@@ -340,9 +418,18 @@ fn final_readout(patch: &Patch, c: &mut Vec<Instr>, m: &mut usize, last: &[usize
             continue;
         }
         if p > 0.0 {
-            c.push(Instr::PauliError { pauli: flip, p, qubits: qs.clone() });
+            c.push(Instr::PauliError {
+                pauli: flip,
+                p,
+                qubits: qs.clone(),
+            });
         }
-        c.push(Instr::Measure { basis, reset: false, flip: 0.0, qubits: qs.clone() });
+        c.push(Instr::Measure {
+            basis,
+            reset: false,
+            flip: 0.0,
+            qubits: qs.clone(),
+        });
         for &q in qs {
             at[q as usize] = *m;
             *m += 1;
@@ -350,12 +437,26 @@ fn final_readout(patch: &Patch, c: &mut Vec<Instr>, m: &mut usize, last: &[usize
     }
     for &a in &patch.deterministic {
         let (x, y) = patch.qubit_coords[patch.layers.ancillas[a] as usize];
-        let mut recs: Vec<u32> = patch.support[a].iter().map(|&q| lookback(*m, at[q as usize])).collect();
+        let mut recs: Vec<u32> = patch.support[a]
+            .iter()
+            .map(|&q| lookback(*m, at[q as usize]))
+            .collect();
         recs.push(lookback(*m, last[a]));
-        c.push(Instr::Detector { coords: vec![x as f64, y as f64, t], recs });
+        c.push(Instr::Detector {
+            coords: vec![x as f64, y as f64, t],
+            recs,
+        });
     }
-    let recs = patch.observable.iter().map(|&q| lookback(*m, at[q as usize])).collect();
-    c.push(Instr::Observable { index: 0, recs, paulis: Vec::new() });
+    let recs = patch
+        .observable
+        .iter()
+        .map(|&q| lookback(*m, at[q as usize]))
+        .collect();
+    c.push(Instr::Observable {
+        index: 0,
+        recs,
+        paulis: Vec::new(),
+    });
 }
 
 /* -- Current: the engine's own model, gate for gate ------------------------ */
@@ -367,7 +468,13 @@ fn current_circuit(patch: &Patch, rounds: usize, p: f64, eta: f64) -> Circuit {
     let px = p / (2.0 * (eta + 1.0));
     let py = px;
     let na = patch.layers.ancillas.len();
-    let pos: HashMap<u32, usize> = patch.layers.ancillas.iter().enumerate().map(|(i, &a)| (a, i)).collect();
+    let pos: HashMap<u32, usize> = patch
+        .layers
+        .ancillas
+        .iter()
+        .enumerate()
+        .map(|(i, &a)| (a, i))
+        .collect();
 
     let mut c = Vec::new();
     coords_header(patch, &mut c);
@@ -381,18 +488,31 @@ fn current_circuit(patch: &Patch, rounds: usize, p: f64, eta: f64) -> Circuit {
         let mut this = vec![usize::MAX; na];
         for &op in &patch.program {
             match op {
-                Op::Reset(q) => c.push(Instr::Reset { basis: Basis::Z, qubits: vec![q as u32] }),
+                Op::Reset(q) => c.push(Instr::Reset {
+                    basis: Basis::Z,
+                    qubits: vec![q as u32],
+                }),
                 Op::H(q) => c.push(Instr::H(vec![q as u32])),
                 Op::Cnot(a, b) => c.push(Instr::Cx(vec![(a as u32, b as u32)])),
                 Op::Cz(a, b) => c.push(Instr::Cz(vec![(a as u32, b as u32)])),
                 Op::Noise(q) => {
                     if noisy && p > 0.0 {
-                        c.push(Instr::PauliChannel1 { px, py, pz, qubits: vec![q as u32] });
+                        c.push(Instr::PauliChannel1 {
+                            px,
+                            py,
+                            pz,
+                            qubits: vec![q as u32],
+                        });
                     }
                 }
                 Op::Measure(q, _, _) => {
                     let flip = if noisy { p } else { 0.0 };
-                    c.push(Instr::Measure { basis: Basis::Z, reset: false, flip, qubits: vec![q as u32] });
+                    c.push(Instr::Measure {
+                        basis: Basis::Z,
+                        reset: false,
+                        flip,
+                        qubits: vec![q as u32],
+                    });
                     this[pos[&(q as u32)]] = m;
                     m += 1;
                 }
@@ -455,9 +575,16 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
         let c = if fold && r == 2 { &mut body } else { &mut head };
         // Reset: ancillas every round, data in the first; idle data otherwise.
         c.push(Instr::Tick);
-        c.push(Instr::Reset { basis: Basis::Z, qubits: anc.clone() });
+        c.push(Instr::Reset {
+            basis: Basis::Z,
+            qubits: anc.clone(),
+        });
         if p > 0.0 {
-            c.push(Instr::PauliError { pauli: 1, p, qubits: anc.clone() });
+            c.push(Instr::PauliError {
+                pauli: 1,
+                p,
+                qubits: anc.clone(),
+            });
         }
         if r == 1 {
             reset_data(patch, c, p);
@@ -491,7 +618,10 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
             }
             let pairs: Vec<(u32, u32)> = step.iter().map(|g| g.qubits()).collect();
             if p > 0.0 && !pairs.is_empty() {
-                c.push(Instr::Depolarize2 { p, pairs: pairs.clone() });
+                c.push(Instr::Depolarize2 {
+                    p,
+                    pairs: pairs.clone(),
+                });
             }
             let busy: Vec<u32> = pairs.iter().flat_map(|&(a, b)| [a, b]).collect();
             depol1(c, idle(&busy));
@@ -502,9 +632,18 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
         // Measure the ancillas; the data idle meanwhile.
         c.push(Instr::Tick);
         if p > 0.0 {
-            c.push(Instr::PauliError { pauli: 1, p, qubits: anc.clone() });
+            c.push(Instr::PauliError {
+                pauli: 1,
+                p,
+                qubits: anc.clone(),
+            });
         }
-        c.push(Instr::Measure { basis: Basis::Z, reset: false, flip: 0.0, qubits: anc.clone() });
+        c.push(Instr::Measure {
+            basis: Basis::Z,
+            reset: false,
+            flip: 0.0,
+            qubits: anc.clone(),
+        });
         let this: Vec<usize> = (0..na).map(|a| m + a).collect();
         m += na;
         depol1(c, data.clone());
@@ -516,7 +655,10 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
         match &prev {
             None => {
                 for &a in &patch.deterministic {
-                    c.push(Instr::Detector { coords: coords(a), recs: vec![lookback(m, this[a])] });
+                    c.push(Instr::Detector {
+                        coords: coords(a),
+                        recs: vec![lookback(m, this[a])],
+                    });
                 }
             }
             Some(prev) => {
@@ -533,7 +675,11 @@ fn sd6_circuit(patch: &Patch, rounds: usize, p: f64, fold: bool) -> Circuit {
     let mut c = head;
     let (last, t_final) = if fold {
         body.push(Instr::ShiftCoords(vec![0.0, 0.0, 1.0]));
-        c.push(Instr::Repeat { count: (rounds - 1) as u64, body, tag: String::new() });
+        c.push(Instr::Repeat {
+            count: (rounds - 1) as u64,
+            body,
+            tag: String::new(),
+        });
         // Every round measured; the final readout's detectors are written at
         // t = 2, which the rounds - 1 shifts carry to rounds + 1.
         m = na * rounds;
@@ -636,7 +782,11 @@ pub(crate) mod tests {
             let code = XZZXSurfaceCode::new(d);
             let h = xzzx_hadamard_pattern(&code).unwrap();
             for (q, &(x, y)) in code.data_qubits.iter().enumerate() {
-                assert_eq!(h[q], ((x + y) / 2) % 2 == 1, "d = {d}, qubit {q} at ({x}, {y})");
+                assert_eq!(
+                    h[q],
+                    ((x + y) / 2) % 2 == 1,
+                    "d = {d}, qubit {q} at ({x}, {y})"
+                );
             }
         }
     }
@@ -646,7 +796,10 @@ pub(crate) mod tests {
         for &d in ds {
             for kind in [CodeKind::Rotated, CodeKind::Xzzx] {
                 for basis in [Basis::Z, Basis::X] {
-                    for noise in [NoiseModel::Current { p: 0.003, eta: 0.5 }, NoiseModel::Sd6 { p: 0.003 }] {
+                    for noise in [
+                        NoiseModel::Current { p: 0.003, eta: 0.5 },
+                        NoiseModel::Sd6 { p: 0.003 },
+                    ] {
                         let name = format!("{kind:?} {basis:?} {noise:?} d = {d}");
                         out.push((name, generate(kind, d, d, noise, basis).unwrap()));
                     }
@@ -661,11 +814,19 @@ pub(crate) mod tests {
         for (name, c) in all_circuits(&[3, 5]) {
             let dem = Dem::from_circuit(&c).unwrap_or_else(|e| panic!("{name}: {e}"));
             for m in &dem.mechanisms {
-                assert!(!m.pieces.is_empty(), "{name}: {:?} undecomposed", m.detectors);
+                assert!(
+                    !m.pieces.is_empty(),
+                    "{name}: {:?} undecomposed",
+                    m.detectors
+                );
                 let mut dets: Vec<u32> = Vec::new();
                 let mut obs = 0u64;
                 for piece in &m.pieces {
-                    assert!((1..=2).contains(&piece.detectors.len()), "{name}: piece {:?}", piece.detectors);
+                    assert!(
+                        (1..=2).contains(&piece.detectors.len()),
+                        "{name}: piece {:?}",
+                        piece.detectors
+                    );
                     for &d in &piece.detectors {
                         match dets.iter().position(|&x| x == d) {
                             Some(i) => {
@@ -677,9 +838,17 @@ pub(crate) mod tests {
                     obs ^= piece.observables;
                 }
                 dets.sort_unstable();
-                assert_eq!((dets, obs), (m.detectors.clone(), m.observables), "{name}: pieces do not XOR back");
+                assert_eq!(
+                    (dets, obs),
+                    (m.detectors.clone(), m.observables),
+                    "{name}: pieces do not XOR back"
+                );
             }
-            assert_eq!(Circuit::parse(&c.to_stim()).unwrap(), c, "{name}: text round trip");
+            assert_eq!(
+                Circuit::parse(&c.to_stim()).unwrap(),
+                c,
+                "{name}: text round trip"
+            );
         }
     }
 
@@ -688,11 +857,31 @@ pub(crate) mod tests {
         let d = 3;
         let na = 8; // 4 X plaquettes, 4 Z plaquettes
         let det = 4;
-        let current = generate(CodeKind::Rotated, d, d, NoiseModel::Current { p: 0.003, eta: 0.5 }, Basis::Z).unwrap();
-        assert_eq!(current.resolve().unwrap().detectors.len(), (d + 1) * na + det);
-        let sd6 = generate(CodeKind::Rotated, d, d, NoiseModel::Sd6 { p: 0.003 }, Basis::Z).unwrap();
+        let current = generate(
+            CodeKind::Rotated,
+            d,
+            d,
+            NoiseModel::Current { p: 0.003, eta: 0.5 },
+            Basis::Z,
+        )
+        .unwrap();
+        assert_eq!(
+            current.resolve().unwrap().detectors.len(),
+            (d + 1) * na + det
+        );
+        let sd6 = generate(
+            CodeKind::Rotated,
+            d,
+            d,
+            NoiseModel::Sd6 { p: 0.003 },
+            Basis::Z,
+        )
+        .unwrap();
         // Stim's own rotated_memory_z at d = 3, rounds = 3 also has 24.
-        assert_eq!(sd6.resolve().unwrap().detectors.len(), 2 * det + (d - 1) * na);
+        assert_eq!(
+            sd6.resolve().unwrap().detectors.len(),
+            2 * det + (d - 1) * na
+        );
     }
 
     /// A CSS code's X-type and Z-type checks see disjoint error families, so no
@@ -705,17 +894,28 @@ pub(crate) mod tests {
     fn rotated_pieces_never_join_x_and_z_checks() {
         for d in [3, 5] {
             for basis in [Basis::Z, Basis::X] {
-                for noise in [NoiseModel::Current { p: 0.003, eta: 0.5 }, NoiseModel::Sd6 { p: 0.003 }] {
+                for noise in [
+                    NoiseModel::Current { p: 0.003, eta: 0.5 },
+                    NoiseModel::Sd6 { p: 0.003 },
+                ] {
                     let code = RotatedSurfaceCode::new(d);
-                    let dem = Dem::from_circuit(&generate(CodeKind::Rotated, d, d, noise, basis).unwrap()).unwrap();
+                    let dem = Dem::from_circuit(
+                        &generate(CodeKind::Rotated, d, d, noise, basis).unwrap(),
+                    )
+                    .unwrap();
                     let is_x = |det: u32| {
                         let c = &dem.detector_coords[det as usize];
                         code.x_stabilizers.contains(&(c[0] as usize, c[1] as usize))
                     };
                     for m in &dem.mechanisms {
                         for piece in &m.pieces {
-                            let kinds: Vec<bool> = piece.detectors.iter().map(|&x| is_x(x)).collect();
-                            assert!(kinds.windows(2).all(|w| w[0] == w[1]), "{basis:?} {noise:?} d = {d}: piece {:?} joins X and Z checks", piece.detectors);
+                            let kinds: Vec<bool> =
+                                piece.detectors.iter().map(|&x| is_x(x)).collect();
+                            assert!(
+                                kinds.windows(2).all(|w| w[0] == w[1]),
+                                "{basis:?} {noise:?} d = {d}: piece {:?} joins X and Z checks",
+                                piece.detectors
+                            );
                         }
                     }
                 }
@@ -763,8 +963,13 @@ pub(crate) mod tests {
                 for d in [3usize, 5] {
                     for rounds in [1usize, 2, 3, 7] {
                         let folded = generate_repeat(kind, d, rounds, 0.004, basis).unwrap();
-                        let flat = generate(kind, d, rounds, NoiseModel::Sd6 { p: 0.004 }, basis).unwrap();
-                        assert_eq!(folded.flattened(), flat, "{kind:?} {basis:?} d = {d}, {rounds} rounds");
+                        let flat =
+                            generate(kind, d, rounds, NoiseModel::Sd6 { p: 0.004 }, basis).unwrap();
+                        assert_eq!(
+                            folded.flattened(),
+                            flat,
+                            "{kind:?} {basis:?} d = {d}, {rounds} rounds"
+                        );
                         if rounds >= 3 {
                             assert!(folded.instrs.len() < flat.instrs.len());
                         }
@@ -774,4 +979,3 @@ pub(crate) mod tests {
         }
     }
 }
-

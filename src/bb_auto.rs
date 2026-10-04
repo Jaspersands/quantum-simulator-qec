@@ -73,10 +73,18 @@ impl BbCode {
         let map = self.data_map(a);
         let mut out = BitMatrix::zeros(2 * k, 2 * k);
         for i in 0..2 * k {
-            let (from, was_x) = if i < k { (lx.row_ones(i), true) } else { (lz.row_ones(i - k), false) };
+            let (from, was_x) = if i < k {
+                (lx.row_ones(i), true)
+            } else {
+                (lz.row_ones(i - k), false)
+            };
             let image: Vec<usize> = from.iter().map(|&q| map[q]).collect();
             let is_x = was_x != a.dual;
-            let (pair, basis, stabilizers, rank, offset) = if is_x { (&lz, &lx, &hx, rx, 0) } else { (&lx, &lz, &hz, rz, k) };
+            let (pair, basis, stabilizers, rank, offset) = if is_x {
+                (&lz, &lx, &hx, rx, 0)
+            } else {
+                (&lx, &lz, &hz, rz, k)
+            };
             let mut residual = BitMatrix::from_rows(self.num_data(), std::slice::from_ref(&image));
             for j in 0..k {
                 if parity(&image, &pair.row_ones(j)) {
@@ -87,7 +95,9 @@ impl BbCode {
                 }
             }
             if stabilizers.stack(&residual).rank() != rank {
-                return Err(format!("{a:?}: logical {i}'s image is not the basis's plus a stabilizer"));
+                return Err(format!(
+                    "{a:?}: logical {i}'s image is not the basis's plus a stabilizer"
+                ));
             }
         }
         Ok(out)
@@ -102,7 +112,10 @@ impl BbCode {
         for a in 0..self.l {
             for b in 0..self.m {
                 for dual in [false, true] {
-                    let m = self.logical_action(Automorphism { shift: (a, b), dual })?;
+                    let m = self.logical_action(Automorphism {
+                        shift: (a, b),
+                        dual,
+                    })?;
                     if !dual && m == BitMatrix::identity(m.rows) {
                         trivial_shifts.push((a, b));
                     }
@@ -127,11 +140,17 @@ impl BbCode {
             let translates: Vec<Vec<usize>> = (0..self.l)
                 .flat_map(|a| (0..self.m).map(move |b| (a, b)))
                 .map(|s| {
-                    let map = self.data_map(Automorphism { shift: s, dual: false });
+                    let map = self.data_map(Automorphism {
+                        shift: s,
+                        dual: false,
+                    });
                     op.iter().map(|&q| map[q]).collect()
                 })
                 .collect();
-            spans[i] = hx.stack(&BitMatrix::from_rows(self.num_data(), &translates)).rank() - rank_hx;
+            spans[i] = hx
+                .stack(&BitMatrix::from_rows(self.num_data(), &translates))
+                .rank()
+                - rank_hx;
             // Translates equal modulo the X stabilizers count once.
             let mut reps: Vec<&Vec<usize>> = Vec::new();
             for t in &translates {
@@ -148,7 +167,12 @@ impl BbCode {
             }
             classes[i] = reps.len();
         }
-        Ok(AutoReport { order: distinct.len(), trivial_shifts, spans, classes })
+        Ok(AutoReport {
+            order: distinct.len(),
+            trivial_shifts,
+            spans,
+            classes,
+        })
     }
 }
 
@@ -176,8 +200,15 @@ mod tests {
             let s = gross_operator(name).unwrap();
             assert_eq!(s.len(), weight, "{name}");
             let row = BitMatrix::from_rows(code.num_data(), std::slice::from_ref(&s));
-            assert!(hz.mul(&row.transpose()).is_zero(), "{name} commutes with the Z checks");
-            assert_eq!(hx.stack(&row).rank(), hx.rank() + 1, "{name} is not a stabilizer");
+            assert!(
+                hz.mul(&row.transpose()).is_zero(),
+                "{name} commutes with the Z checks"
+            );
+            assert_eq!(
+                hx.stack(&row).rank(),
+                hx.rank() + 1,
+                "{name} is not a stabilizer"
+            );
         }
     }
 
@@ -189,20 +220,29 @@ mod tests {
         let code = BbCode::gross();
         let (hx, hz) = (code.hx(), code.hz());
         let permute = |m: &BitMatrix, map: &[usize]| {
-            let rows: Vec<Vec<usize>> = (0..m.rows).map(|r| m.row_ones(r).iter().map(|&q| map[q]).collect()).collect();
+            let rows: Vec<Vec<usize>> = (0..m.rows)
+                .map(|r| m.row_ones(r).iter().map(|&q| map[q]).collect())
+                .collect();
             BitMatrix::from_rows(m.cols, &rows)
         };
         for a in 0..code.l {
             for b in 0..code.m {
                 for dual in [false, true] {
-                    let auto = Automorphism { shift: (a, b), dual };
+                    let auto = Automorphism {
+                        shift: (a, b),
+                        dual,
+                    };
                     let map = code.data_map(auto);
                     let (px, pz) = (permute(&hx, &map), permute(&hz, &map));
                     let (to_x, to_z) = if dual { (&hz, &hx) } else { (&hx, &hz) };
                     assert_eq!(to_x.stack(&px).rank(), to_x.rank(), "{auto:?}: X checks");
                     assert_eq!(to_z.stack(&pz).rank(), to_z.rank(), "{auto:?}: Z checks");
                     let m = code.logical_action(auto).unwrap();
-                    assert_eq!(m.mul(&omega(12)).mul(&m.transpose()), omega(12), "{auto:?}: symplectic");
+                    assert_eq!(
+                        m.mul(&omega(12)).mul(&m.transpose()),
+                        omega(12),
+                        "{auto:?}: symplectic"
+                    );
                 }
             }
         }
@@ -212,10 +252,20 @@ mod tests {
     #[test]
     fn actions_compose() {
         let code = BbCode::gross();
-        let act = |a, b, dual| code.logical_action(Automorphism { shift: (a, b), dual }).unwrap();
+        let act = |a, b, dual| {
+            code.logical_action(Automorphism {
+                shift: (a, b),
+                dual,
+            })
+            .unwrap()
+        };
         assert_eq!(act(0, 0, false), BitMatrix::identity(24));
         assert_eq!(act(1, 0, false).mul(&act(0, 1, false)), act(1, 1, false));
-        assert_eq!(act(0, 0, true).mul(&act(0, 0, true)), BitMatrix::identity(24), "the duality is an involution");
+        assert_eq!(
+            act(0, 0, true).mul(&act(0, 0, true)),
+            BitMatrix::identity(24),
+            "the duality is an involution"
+        );
     }
 
     /// The 144 actions are closed under composition, so they are the group.
@@ -223,8 +273,20 @@ mod tests {
     fn the_report_is_a_group() {
         let r = BbCode::gross().automorphism_report().unwrap();
         eprintln!("{r:?}");
-        assert!(r.order >= 2 && 144 % r.order == 0, "order {} divides 144", r.order);
-        assert_eq!(72 / r.trivial_shifts.len() * 2, r.order, "the shifts' quotient, doubled by the duality");
-        assert!(r.spans.iter().all(|&s| (1..=12).contains(&s)), "{:?}", r.spans);
+        assert!(
+            r.order >= 2 && 144 % r.order == 0,
+            "order {} divides 144",
+            r.order
+        );
+        assert_eq!(
+            72 / r.trivial_shifts.len() * 2,
+            r.order,
+            "the shifts' quotient, doubled by the duality"
+        );
+        assert!(
+            r.spans.iter().all(|&s| (1..=12).contains(&s)),
+            "{:?}",
+            r.spans
+        );
     }
 }

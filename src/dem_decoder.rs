@@ -43,7 +43,12 @@ pub fn int_weight(wf: f64) -> i64 {
 /// very heavy and sums of weights cannot overflow.
 pub fn edge_weight(p: f64) -> (f64, i64) {
     let ratio = (1.0 - p) / p;
-    let wf = if ratio.is_finite() { ratio.ln() } else { (1.0 - p).ln() - p.ln() }.min(MAX_WEIGHT);
+    let wf = if ratio.is_finite() {
+        ratio.ln()
+    } else {
+        (1.0 - p).ln() - p.ln()
+    }
+    .min(MAX_WEIGHT);
     (wf, int_weight(wf))
 }
 
@@ -155,7 +160,12 @@ pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
                 [] => continue,
                 [a] => (*a, boundary),
                 [a, b] => (*a.min(b), *a.max(b)),
-                other => return Err(format!("piece with {} detectors cannot be an edge", other.len())),
+                other => {
+                    return Err(format!(
+                        "piece with {} detectors cannot be an edge",
+                        other.len()
+                    ))
+                }
             };
             match edges.get_mut(&key) {
                 None => {
@@ -171,11 +181,16 @@ pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
             }
         }
     }
-    let mut out: Vec<(u32, u32, f64, u64)> = edges.into_iter().map(|((u, v), (p, o))| (u, v, p, o)).collect();
+    let mut out: Vec<(u32, u32, f64, u64)> = edges
+        .into_iter()
+        .map(|((u, v), (p, o))| (u, v, p, o))
+        .collect();
     out.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
     for &(u, v, p, _) in &out {
         if !(p > 0.0 && p <= 0.5) {
-            return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
+            return Err(format!(
+                "edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"
+            ));
         }
     }
     Ok((out, conflicts))
@@ -226,7 +241,11 @@ impl DemDecoder {
     /// The rules correlated matching reweights by, built on first use.
     pub fn correlations(&self) -> &Correlations {
         self.corr.get_or_init(|| {
-            let faults = self.faults.borrow_mut().take().expect("the faults are kept until the rules are built");
+            let faults = self
+                .faults
+                .borrow_mut()
+                .take()
+                .expect("the faults are kept until the rules are built");
             Correlations::from_faults(&faults)
         })
     }
@@ -237,12 +256,21 @@ impl DemDecoder {
         if correlated {
             self.correlations();
         }
-        let corr = if correlated { self.corr.into_inner() } else { None };
+        let corr = if correlated {
+            self.corr.into_inner()
+        } else {
+            None
+        };
         (self.sparse, corr)
     }
 
     pub fn decode_bools(&self, dets: &[bool]) -> Result<Prediction, DecodeError> {
-        let defects: Vec<u32> = dets.iter().enumerate().filter(|(_, &b)| b).map(|(i, _)| i as u32).collect();
+        let defects: Vec<u32> = dets
+            .iter()
+            .enumerate()
+            .filter(|(_, &b)| b)
+            .map(|(i, _)| i as u32)
+            .collect();
         self.decode(&defects)
     }
 
@@ -265,7 +293,8 @@ impl DemDecoder {
         if !defects.windows(2).all(|w| w[0] < w[1]) {
             return self.decode_to_edges(&cancel_repeats(defects));
         }
-        self.sparse.decode_to_edges(&mut self.scratch.borrow_mut(), defects)
+        self.sparse
+            .decode_to_edges(&mut self.scratch.borrow_mut(), defects)
     }
 
     /// Correlated matching, as PyMatching's `enable_correlations=True`.
@@ -273,20 +302,38 @@ impl DemDecoder {
         if !defects.windows(2).all(|w| w[0] < w[1]) {
             return self.decode_correlated(&cancel_repeats(defects));
         }
-        self.sparse.decode_correlated(self.correlations(), &mut self.scratch.borrow_mut(), defects)
+        self.sparse
+            .decode_correlated(self.correlations(), &mut self.scratch.borrow_mut(), defects)
     }
 
     /// Correlated matching's second pass alone, from edges given as endpoints
     /// (`num_detectors` for the boundary), as PyMatching's
     /// `decode_to_edges_array` returns them.
-    pub fn decode_pass2(&self, defects: &[u32], edges: &[(u32, u32)]) -> Result<Prediction, String> {
-        let defects = if defects.windows(2).all(|w| w[0] < w[1]) { defects.to_vec() } else { cancel_repeats(defects) };
+    pub fn decode_pass2(
+        &self,
+        defects: &[u32],
+        edges: &[(u32, u32)],
+    ) -> Result<Prediction, String> {
+        let defects = if defects.windows(2).all(|w| w[0] < w[1]) {
+            defects.to_vec()
+        } else {
+            cancel_repeats(defects)
+        };
         let ids = edges
             .iter()
-            .map(|&(u, v)| self.sparse.edge_id(u, v).ok_or_else(|| format!("({u}, {v}) is not an edge of the graph")))
+            .map(|&(u, v)| {
+                self.sparse
+                    .edge_id(u, v)
+                    .ok_or_else(|| format!("({u}, {v}) is not an edge of the graph"))
+            })
             .collect::<Result<Vec<u32>, String>>()?;
         self.sparse
-            .decode_pass2(self.correlations(), &mut self.scratch.borrow_mut(), &defects, &ids)
+            .decode_pass2(
+                self.correlations(),
+                &mut self.scratch.borrow_mut(),
+                &defects,
+                &ids,
+            )
             .map_err(|e| format!("{e:?}"))
     }
 
@@ -299,7 +346,11 @@ impl DemDecoder {
         }
         let k = defects.len();
         if k == 0 {
-            return Ok(Prediction { observables: 0, weight: 0.0, iweight: 0 });
+            return Ok(Prediction {
+                observables: 0,
+                weight: 0.0,
+                iweight: 0,
+            });
         }
         if 2 * k > MAX_VERTICES {
             return Err(DecodeError::TooManyDefects(k));
@@ -319,7 +370,12 @@ impl DemDecoder {
     }
 
     /// The dense matcher's work, on a workspace whose `slot` names the defects.
-    fn dense_match(g: &SparseGraph, ws: &mut DenseScratch, defects: &[u32], boundary: usize) -> Result<Prediction, DecodeError> {
+    fn dense_match(
+        g: &SparseGraph,
+        ws: &mut DenseScratch,
+        defects: &[u32],
+        boundary: usize,
+    ) -> Result<Prediction, DecodeError> {
         let k = defects.len();
         let row = k + 1;
         // Row i: distance, observable parity and float weight from defect i to
@@ -406,7 +462,11 @@ impl DemDecoder {
         }
         let mate = min_weight_perfect_matching(n, &ws.cost).ok_or(DecodeError::MatcherDeclined)?;
 
-        let mut prediction = Prediction { observables: 0, weight: 0.0, iweight: 0 };
+        let mut prediction = Prediction {
+            observables: 0,
+            weight: 0.0,
+            iweight: 0,
+        };
         for i in 0..k {
             let j = mate[i];
             let at = if j >= k {
@@ -474,7 +534,11 @@ mod tests {
         if !best.is_finite() {
             return None;
         }
-        let mut masks: Vec<u64> = found.iter().filter(|f| f.0 <= best + 1e-4).map(|f| f.1).collect();
+        let mut masks: Vec<u64> = found
+            .iter()
+            .filter(|f| f.0 <= best + 1e-4)
+            .map(|f| f.1)
+            .collect();
         masks.sort_unstable();
         masks.dedup();
         Some((best, masks))
@@ -490,7 +554,11 @@ mod tests {
             let mut seen = HashSet::new();
             while edges.len() < 2 * nd {
                 let a = (rng.next_u64() % nd as u64) as u32;
-                let b = if rng.next_u64().is_multiple_of(3) { None } else { Some((rng.next_u64() % nd as u64) as u32) };
+                let b = if rng.next_u64().is_multiple_of(3) {
+                    None
+                } else {
+                    Some((rng.next_u64() % nd as u64) as u32)
+                };
                 if b == Some(a) {
                     continue;
                 }
@@ -501,7 +569,12 @@ mod tests {
                 if !seen.insert(key) {
                     continue;
                 }
-                edges.push((key.0, key.1, 0.01 + 0.3 * rng.next_f64(), rng.next_u64() % 2));
+                edges.push((
+                    key.0,
+                    key.1,
+                    0.01 + 0.3 * rng.next_f64(),
+                    rng.next_u64() % 2,
+                ));
             }
             let mut text = String::new();
             for &(a, b, p, obs) in &edges {
@@ -518,14 +591,27 @@ mod tests {
                 text.push_str(&format!("detector D{d}\n"));
             }
             let dec = DemDecoder::new(&Dem::parse(&text).unwrap()).unwrap();
-            let defects: Vec<u32> = (0..nd as u32).filter(|_| rng.next_u64().is_multiple_of(2)).collect();
+            let defects: Vec<u32> = (0..nd as u32)
+                .filter(|_| rng.next_u64().is_multiple_of(2))
+                .collect();
             let brute = brute_force(&edges, &defects);
-            for (name, got) in [("sparse", dec.decode(&defects)), ("dense", dec.decode_dense(&defects))] {
+            for (name, got) in [
+                ("sparse", dec.decode(&defects)),
+                ("dense", dec.decode_dense(&defects)),
+            ] {
                 match (&brute, got) {
                     (None, Err(DecodeError::Unmatchable)) => {}
                     (Some((w, masks)), Ok(pred)) => {
-                        assert!((pred.weight - w).abs() < 1e-4, "{name} trial {trial}: weight {} vs brute {w}", pred.weight);
-                        assert!(masks.contains(&pred.observables), "{name} trial {trial}: obs {} not in {masks:?}", pred.observables);
+                        assert!(
+                            (pred.weight - w).abs() < 1e-4,
+                            "{name} trial {trial}: weight {} vs brute {w}",
+                            pred.weight
+                        );
+                        assert!(
+                            masks.contains(&pred.observables),
+                            "{name} trial {trial}: obs {} not in {masks:?}",
+                            pred.observables
+                        );
                         compared += !defects.is_empty() as usize;
                     }
                     (b, d) => panic!("{name} trial {trial}: brute {b:?}, decoder {d:?}"),
@@ -542,7 +628,11 @@ mod tests {
         let dec = DemDecoder::new(&dem).unwrap();
         for m in &dem.mechanisms {
             let pred = dec.decode(&m.detectors).unwrap();
-            assert_eq!(pred.observables, m.observables, "mechanism {:?}", m.detectors);
+            assert_eq!(
+                pred.observables, m.observables,
+                "mechanism {:?}",
+                m.detectors
+            );
         }
         assert_eq!(dec.conflicts, 0);
     }
@@ -559,7 +649,10 @@ mod tests {
         let text: String = (0..300).map(|d| format!("error(0.1) D{d}\n")).collect();
         let dec = DemDecoder::new(&Dem::parse(&text).unwrap()).unwrap();
         let defects: Vec<u32> = (0..257).collect();
-        assert_eq!(dec.decode_dense(&defects), Err(DecodeError::TooManyDefects(257)));
+        assert_eq!(
+            dec.decode_dense(&defects),
+            Err(DecodeError::TooManyDefects(257))
+        );
         // The sparse matcher has no such ceiling.
         assert!(dec.decode(&defects).is_ok());
     }
@@ -574,7 +667,10 @@ mod tests {
 
     #[test]
     fn repeated_detectors_cancel() {
-        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1").unwrap()).unwrap();
+        let dec = DemDecoder::new(
+            &Dem::parse("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1").unwrap(),
+        )
+        .unwrap();
         assert_eq!(dec.decode(&[1, 0, 0]), dec.decode(&[1]));
         assert_eq!(dec.decode(&[1, 1]).unwrap().observables, 0);
     }
@@ -583,7 +679,8 @@ mod tests {
     fn integer_weights_are_even_and_reported() {
         assert_eq!(int_weight(1.0) % 2, 0);
         assert_eq!(int_weight(0.0), 0);
-        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D1").unwrap()).unwrap();
+        let dec =
+            DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D1").unwrap()).unwrap();
         let pred = dec.decode_dense(&[0, 1]).unwrap();
         assert_eq!(pred.iweight, int_weight((0.9f64 / 0.1).ln()));
         assert_eq!(pred.iweight % 2, 0);
@@ -597,7 +694,8 @@ mod tests {
     #[test]
     fn parallel_edges_merge_like_pymatching() {
         // PyMatching 2.4 gives this pair one edge of p = 0.26, weight 1.0459685551826876.
-        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1 L0").unwrap()).unwrap();
+        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1 L0").unwrap())
+            .unwrap();
         let pred = dec.decode_dense(&[0, 1]).unwrap();
         assert_eq!(pred.observables, 1);
         assert!((pred.weight - 1.0459685551826876).abs() < 1e-12);
@@ -610,7 +708,8 @@ mod tests {
 
     #[test]
     fn conflicting_parallel_edges_are_counted() {
-        let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1").unwrap()).unwrap();
+        let dec =
+            DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1").unwrap()).unwrap();
         assert_eq!(dec.conflicts, 1);
         assert_eq!(dec.decode(&[0, 1]).unwrap().observables, 0);
     }
@@ -619,7 +718,10 @@ mod tests {
     fn a_piece_of_observables_alone_is_no_edge() {
         // Stim's split of a fault through a conflicting piece; PyMatching builds
         // the same two edges from it.
-        let dem = Dem::parse("error(0.05) D0 D1 L0 ^ D2 ^ L0\nerror(0.1) D0 D1\nerror(0.1) D2\nerror(0.2) D0 D1 L0").unwrap();
+        let dem = Dem::parse(
+            "error(0.05) D0 D1 L0 ^ D2 ^ L0\nerror(0.1) D0 D1\nerror(0.1) D2\nerror(0.2) D0 D1 L0",
+        )
+        .unwrap();
         let dec = DemDecoder::new(&dem).unwrap();
         assert_eq!(dec.graph().num_edges(), 2);
         assert!(dec.decode(&[0, 1, 2]).is_ok());

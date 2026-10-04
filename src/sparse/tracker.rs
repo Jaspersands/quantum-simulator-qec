@@ -44,7 +44,12 @@ pub(crate) struct RadixHeap<T> {
 
 impl<T: Ord + Copy> Default for RadixHeap<T> {
     fn default() -> Self {
-        RadixHeap { last: 0, current: BinaryHeap::new(), buckets: std::array::from_fn(|_| Vec::new()), occupied: 0 }
+        RadixHeap {
+            last: 0,
+            current: BinaryHeap::new(),
+            buckets: std::array::from_fn(|_| Vec::new()),
+            occupied: 0,
+        }
     }
 }
 
@@ -64,7 +69,11 @@ impl<T: Ord + Copy> RadixHeap<T> {
     }
 
     pub fn push(&mut self, t: i64, item: T) {
-        debug_assert!(t >= self.last, "a reminder at {t} before the last time taken, {}", self.last);
+        debug_assert!(
+            t >= self.last,
+            "a reminder at {t} before the last time taken, {}",
+            self.last
+        );
         if t == self.last {
             self.current.push(Reverse(item));
         } else {
@@ -83,7 +92,11 @@ impl<T: Ord + Copy> RadixHeap<T> {
             let b = self.occupied.trailing_zeros() as usize;
             self.occupied &= !(1 << b);
             let mut moving = std::mem::take(&mut self.buckets[b]);
-            self.last = moving.iter().map(|x| x.0).min().expect("an occupied bucket is not empty");
+            self.last = moving
+                .iter()
+                .map(|x| x.0)
+                .min()
+                .expect("an occupied bucket is not empty");
             for &(t, item) in &moving {
                 if t == self.last {
                     self.current.push(Reverse(item));

@@ -88,7 +88,9 @@ pub fn fused(a: f64, b: f64, c: f64) -> f64 {
 pub fn pauli_channel_1_independent(px: f64, py: f64, pz: f64) -> Result<(f64, f64, f64), String> {
     match disjoint_to_independent(px, py, pz, 50) {
         (true, [a, b, c]) => Ok((a, b, c)),
-        _ => Err(format!("PAULI_CHANNEL_1({px}, {py}, {pz}) has no equivalent set of independent errors")),
+        _ => Err(format!(
+            "PAULI_CHANNEL_1({px}, {py}, {pz}) has no equivalent set of independent errors"
+        )),
     }
 }
 
@@ -143,7 +145,6 @@ pub fn xor_prob(a: f64, b: f64) -> f64 {
     a * (1.0 - b) + b * (1.0 - a)
 }
 
-
 impl Dem {
     pub fn from_circuit(circuit: &Circuit) -> Result<Dem, String> {
         Dem::build(circuit, true, None)
@@ -154,7 +155,11 @@ impl Dem {
     /// the heralded errors, and PAULI_CHANNEL_1 where no independent equivalent exists);
     /// `Some(t)` approximates each case as an independent fault, refusing a channel with an
     /// argument above `t` (`Some(1.0)` is Stim's `True`).
-    pub fn from_circuit_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>) -> Result<Dem, String> {
+    pub fn from_circuit_with(
+        circuit: &Circuit,
+        decompose: bool,
+        approximate: Option<f64>,
+    ) -> Result<Dem, String> {
         Dem::build(circuit, decompose, approximate)
     }
 
@@ -188,7 +193,13 @@ fn push_targets(s: &mut String, dets: &[u32], obs: u64) {
 impl Dem {
     pub fn to_stim(&self, with_pieces: bool) -> String {
         let mut s = String::new();
-        let tagged = |t: &str| if t.is_empty() { String::new() } else { format!("[{t}]") };
+        let tagged = |t: &str| {
+            if t.is_empty() {
+                String::new()
+            } else {
+                format!("[{t}]")
+            }
+        };
         for (i, c) in self.detector_coords.iter().enumerate() {
             let tag = tagged(self.detector_tags.get(i).map_or("", |t| t.as_str()));
             if c.is_empty() {
@@ -199,7 +210,10 @@ impl Dem {
         }
         // Observables no fault flips are declared, so the model keeps its count; tagged ones,
         // so it keeps their tags.
-        let flipped = self.mechanisms.iter().fold(0u64, |acc, m| acc | m.observables);
+        let flipped = self
+            .mechanisms
+            .iter()
+            .fold(0u64, |acc, m| acc | m.observables);
         for k in 0..self.num_observables.min(64) {
             let tag = self.observable_tags.get(k).map_or("", |t| t.as_str());
             if !tag.is_empty() || (flipped >> k) & 1 == 0 {
@@ -222,7 +236,6 @@ impl Dem {
         }
         s
     }
-
 
     /// Stim's text read (repeat blocks unrolled) into a flat model, faults in the text's order.
     pub fn parse(text: &str) -> Result<Dem, String> {
@@ -248,7 +261,9 @@ pub struct Comparison {
 fn merged(d: &Dem) -> HashMap<(Vec<u32>, u64), f64> {
     let mut out: HashMap<(Vec<u32>, u64), f64> = HashMap::new();
     for m in &d.mechanisms {
-        let e = out.entry((m.detectors.clone(), m.observables)).or_insert(0.0);
+        let e = out
+            .entry((m.detectors.clone(), m.observables))
+            .or_insert(0.0);
         *e = xor_prob(*e, m.p);
     }
     out
@@ -258,7 +273,14 @@ fn merged(d: &Dem) -> HashMap<(Vec<u32>, u64), f64> {
 pub fn compare(ours: &Dem, theirs: &Dem, tol: f64) -> Comparison {
     let a = merged(ours);
     let b = merged(theirs);
-    let mut c = Comparison { ours: a.len(), theirs: b.len(), missing: 0, extra: 0, differing: 0, max_rel: 0.0 };
+    let mut c = Comparison {
+        ours: a.len(),
+        theirs: b.len(),
+        missing: 0,
+        extra: 0,
+        differing: 0,
+        max_rel: 0.0,
+    };
     for (k, &pa) in &a {
         match b.get(k) {
             Some(&pb) => {
@@ -285,7 +307,11 @@ mod tests {
     }
 
     fn p_of(d: &Dem, dets: &[u32], obs: u64) -> f64 {
-        d.mechanisms.iter().find(|m| m.detectors == dets && m.observables == obs).map(|m| m.p).unwrap()
+        d.mechanisms
+            .iter()
+            .find(|m| m.detectors == dets && m.observables == obs)
+            .map(|m| m.p)
+            .unwrap()
     }
 
     fn close(a: f64, b: f64) -> bool {
@@ -297,7 +323,11 @@ mod tests {
     fn depolarizing_channels_match_stim() {
         let d = dem("R 0\nDEPOLARIZE1(0.01) 0\nM 0\nDETECTOR rec[-1]");
         assert_eq!(d.mechanisms.len(), 1);
-        assert!(close(d.mechanisms[0].p, 0.006666666666666613), "{}", d.mechanisms[0].p);
+        assert!(
+            close(d.mechanisms[0].p, 0.006666666666666613),
+            "{}",
+            d.mechanisms[0].p
+        );
 
         let d = dem("R 0 1\nDEPOLARIZE2(0.01) 0 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]");
         assert_eq!(d.mechanisms.len(), 3);
@@ -308,8 +338,10 @@ mod tests {
 
     #[test]
     fn pauli_channel_and_flips_match_stim() {
-        let d = dem("R 0\nPAULI_CHANNEL_1(0.01, 0.02, 0.03) 0\nM 0\nDETECTOR rec[-1]\n\
-                     RX 1\nPAULI_CHANNEL_1(0.01, 0.02, 0.03) 1\nMX 1\nDETECTOR rec[-1]");
+        let d = dem(
+            "R 0\nPAULI_CHANNEL_1(0.01, 0.02, 0.03) 0\nM 0\nDETECTOR rec[-1]\n\
+                     RX 1\nPAULI_CHANNEL_1(0.01, 0.02, 0.03) 1\nMX 1\nDETECTOR rec[-1]",
+        );
         assert!(close(p_of(&d, &[0], 0), 0.03) && close(p_of(&d, &[1], 0), 0.05));
 
         let d = dem("R 0\nX_ERROR(0.01) 0\nM(0.02) 0\nDETECTOR rec[-1]\nRX 1\nY_ERROR(0.1) 1\nMRX 1\nDETECTOR rec[-1]");
@@ -325,7 +357,8 @@ mod tests {
         let d = dem("RX 0 1\nZ_ERROR(0.2) 1\nCX 0 1\nMX 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]");
         assert!(close(p_of(&d, &[0, 1], 0), 0.2));
         // X before CZ becomes X on its own qubit and Z on the other.
-        let d = dem("R 0\nRX 1\nX_ERROR(0.1) 0\nCZ 0 1\nM 0\nMX 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]");
+        let d =
+            dem("R 0\nRX 1\nX_ERROR(0.1) 0\nCZ 0 1\nM 0\nMX 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]");
         assert!(close(p_of(&d, &[0, 1], 0), 0.1));
         // H swaps: X before H flips an X-basis readout, Z before H does not.
         let d = dem("R 0\nX_ERROR(0.1) 0\nZ_ERROR(0.2) 0\nH 0\nMX 0\nDETECTOR rec[-1]");
@@ -335,16 +368,20 @@ mod tests {
 
     #[test]
     fn nondeterministic_detectors_are_errors() {
-        let e = Dem::from_circuit(&Circuit::parse("RX 0\nM 0\nDETECTOR rec[-1]").unwrap()).unwrap_err();
+        let e =
+            Dem::from_circuit(&Circuit::parse("RX 0\nM 0\nDETECTOR rec[-1]").unwrap()).unwrap_err();
         assert!(e.contains("not deterministic"), "{e}");
-        let e = Dem::from_circuit(&Circuit::parse("M 0\nMX 0\nDETECTOR rec[-1]").unwrap()).unwrap_err();
+        let e =
+            Dem::from_circuit(&Circuit::parse("M 0\nMX 0\nDETECTOR rec[-1]").unwrap()).unwrap_err();
         assert!(e.contains("not deterministic"), "{e}");
     }
 
     #[test]
     fn undetectable_logical_errors_are_errors() {
-        let e = Dem::from_circuit(&Circuit::parse("R 0\nX_ERROR(0.1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]").unwrap())
-            .unwrap_err();
+        let e = Dem::from_circuit(
+            &Circuit::parse("R 0\nX_ERROR(0.1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]").unwrap(),
+        )
+        .unwrap_err();
         assert!(e.contains("undetectable"), "{e}");
     }
 
@@ -386,7 +423,10 @@ mod tests {
         let a = Dem::parse("error(0.1) D0\nerror(0.2) D1").unwrap();
         let b = Dem::parse("error(0.1) D0\nerror(0.25) D1\nerror(0.1) D0 D1").unwrap();
         let c = compare(&a, &b, 1e-9);
-        assert_eq!((c.ours, c.theirs, c.missing, c.extra, c.differing), (2, 3, 1, 0, 1));
+        assert_eq!(
+            (c.ours, c.theirs, c.missing, c.extra, c.differing),
+            (2, 3, 1, 0, 1)
+        );
         assert!((c.max_rel - 0.2).abs() < 1e-12);
     }
 
@@ -394,10 +434,14 @@ mod tests {
     fn pauli_gates_and_sweep_bits_leave_the_model_alone() {
         // They flip signs, never which detectors a fault sets off.
         let base = Circuit::parse(crate::fixtures::REP3).unwrap();
-        let text = crate::fixtures::REP3.replacen("TICK\n", "TICK\nX 0 1\nY 2\nCX sweep[0] 1\nI 0\n", 1);
+        let text =
+            crate::fixtures::REP3.replacen("TICK\n", "TICK\nX 0 1\nY 2\nCX sweep[0] 1\nI 0\n", 1);
         let with = Circuit::parse(&text).unwrap();
         assert_ne!(with, base);
-        assert_eq!(Dem::from_circuit(&with).unwrap().to_stim(true), Dem::from_circuit(&base).unwrap().to_stim(true));
+        assert_eq!(
+            Dem::from_circuit(&with).unwrap().to_stim(true),
+            Dem::from_circuit(&base).unwrap().to_stim(true)
+        );
     }
 
     /// A model as a set of lines, "p pieces", each piece's targets sorted and
@@ -412,15 +456,24 @@ mod tests {
                     .pieces
                     .iter()
                     .map(|pc| {
-                        let mut t: Vec<String> = pc.detectors.iter().map(|d| format!("D{d}")).collect();
-                        t.extend((0..64).filter(|i| (pc.observables >> i) & 1 == 1).map(|i| format!("L{i}")));
+                        let mut t: Vec<String> =
+                            pc.detectors.iter().map(|d| format!("D{d}")).collect();
+                        t.extend(
+                            (0..64)
+                                .filter(|i| (pc.observables >> i) & 1 == 1)
+                                .map(|i| format!("L{i}")),
+                        );
                         t.sort();
                         t.join(" ")
                     })
                     .collect();
                 pieces.sort();
                 let p = format!("{:.9}", m.p);
-                format!("{} {}", p.trim_end_matches('0').trim_end_matches('.'), pieces.join(" ^ "))
+                format!(
+                    "{} {}",
+                    p.trim_end_matches('0').trim_end_matches('.'),
+                    pieces.join(" ^ ")
+                )
             })
             .collect();
         out.sort();
@@ -445,7 +498,11 @@ mod tests {
         ];
         for &(name, text, stim) in cases {
             let dem = Dem::from_circuit(&Circuit::parse(text).unwrap()).unwrap();
-            assert_eq!(normalised(&dem), stim.iter().map(|s| s.to_string()).collect::<Vec<_>>(), "{name}");
+            assert_eq!(
+                normalised(&dem),
+                stim.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                "{name}"
+            );
         }
     }
 }

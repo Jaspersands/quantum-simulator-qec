@@ -23,7 +23,16 @@ fn shots(d: usize, p: f64, n: usize) -> (DemDecoder, Vec<Vec<u32>>) {
     let sampler = FrameSampler::new(&c).unwrap();
     let mut rng = Xorshift::new(3);
     let shots = (0..n)
-        .map(|_| sampler.sample(&mut rng).detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect())
+        .map(|_| {
+            sampler
+                .sample(&mut rng)
+                .detectors
+                .iter()
+                .enumerate()
+                .filter(|x| *x.1)
+                .map(|x| x.0 as u32)
+                .collect()
+        })
         .collect();
     (dec, shots)
 }
@@ -61,7 +70,9 @@ fn main() {
             while t.elapsed().as_secs_f64() < secs {
                 for sh in &shots {
                     if corr {
-                        dec.graph().decode_correlated(dec.correlations(), &mut s, sh).unwrap();
+                        dec.graph()
+                            .decode_correlated(dec.correlations(), &mut s, sh)
+                            .unwrap();
                     } else {
                         dec.graph().decode(&mut s, sh).unwrap();
                     }
@@ -77,16 +88,27 @@ fn main() {
                 for p in [0.003, 0.006] {
                     let (dec, shots) = shots(d, p, 2000);
                     let mut s = Scratch::new(dec.graph());
-                    let sparse = time_us(&shots, |sh| { dec.graph().decode(&mut s, sh).unwrap(); });
-                    let corr = time_us(&shots, |sh| { dec.graph().decode_correlated(dec.correlations(), &mut s, sh).unwrap(); });
-                    let dense = time_us(&shots[..300], |sh| { let _ = dec.decode_dense(sh); });
+                    let sparse = time_us(&shots, |sh| {
+                        dec.graph().decode(&mut s, sh).unwrap();
+                    });
+                    let corr = time_us(&shots, |sh| {
+                        dec.graph()
+                            .decode_correlated(dec.correlations(), &mut s, sh)
+                            .unwrap();
+                    });
+                    let dense = time_us(&shots[..300], |sh| {
+                        let _ = dec.decode_dense(sh);
+                    });
                     println!("d = {d}, p = {p}: sparse {sparse:.2} us, correlated {corr:.2} us, dense {dense:.1} us");
                     let _ = write!(json, "{} {{\"d\": {d}, \"p\": {p}, \"sparse_us\": {sparse}, \"correlated_us\": {corr}, \"dense_us\": {dense}}}",
                         if first { "" } else { ",\n" });
                     first = false;
                 }
             }
-            json.push_str(&format!("\n], \"target\": \"{}\"}}\n", std::env::consts::ARCH));
+            json.push_str(&format!(
+                "\n], \"target\": \"{}\"}}\n",
+                std::env::consts::ARCH
+            ));
             std::fs::write(&a[2], json).unwrap();
         }
         _ => eprintln!("usage: matcher_profile profile D P plain|corr SECONDS | timing OUT.json"),

@@ -25,7 +25,9 @@ use std::sync::Arc;
 
 use crate::batch_sampler::Counts;
 use crate::circuit::{Basis, Circuit, Control, Instr};
-use crate::dem::{depolarize1_component, depolarize2_component, fused, pauli_channel_1_independent};
+use crate::dem::{
+    depolarize1_component, depolarize2_component, fused, pauli_channel_1_independent,
+};
 use crate::dem_program::{DemInstr, DemProgram, OBS};
 
 /// Sorted, distinct targets: detectors by index, observables with the `OBS` bit.
@@ -90,7 +92,9 @@ fn dets(s: &[u64]) -> Vec<u64> {
 
 /// The observables of a symptom, as a mask.
 fn obs_mask(s: &[u64]) -> u64 {
-    s.iter().filter(|t| *t & OBS != 0).fold(0, |m, t| m ^ (1u64 << (t & !OBS)))
+    s.iter()
+        .filter(|t| *t & OBS != 0)
+        .fold(0, |m, t| m ^ (1u64 << (t & !OBS)))
 }
 
 fn subset(a: &[u64], b: &[u64]) -> bool {
@@ -114,7 +118,10 @@ fn or(a: &[u64], b: &[u64]) -> Sym {
 }
 
 fn and_not(a: &[u64], b: &[u64]) -> Sym {
-    a.iter().copied().filter(|x| b.binary_search(x).is_err()).collect()
+    a.iter()
+        .copied()
+        .filter(|x| b.binary_search(x).is_err())
+        .collect()
 }
 
 fn disjoint(a: &[u64], b: &[u64]) -> bool {
@@ -123,7 +130,14 @@ fn disjoint(a: &[u64], b: &[u64]) -> bool {
 
 /// `a` with every detector moved by `by` equals `b`.
 fn shifted_eq(a: &[u64], b: &[u64], by: i128) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| if x & OBS == 0 { x as i128 + by == y as i128 } else { x == y })
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(&x, &y)| {
+            if x & OBS == 0 {
+                x as i128 + by == y as i128
+            } else {
+                x == y
+            }
+        })
 }
 
 fn shift_sym(s: &mut Sym, by: i128) {
@@ -154,9 +168,21 @@ impl Tracker {
         let dm = other.m as i128 - self.m as i128;
         let dd = other.d as i128 - self.d as i128;
         self.rec.len() == other.rec.len()
-            && self.rec.iter().zip(&other.rec).all(|((ka, a), (kb, b))| *ka as i128 + dm == *kb as i128 && shifted_eq(a, b, dd))
-            && self.sx.iter().zip(&other.sx).all(|(a, b)| shifted_eq(a, b, dd))
-            && self.sz.iter().zip(&other.sz).all(|(a, b)| shifted_eq(a, b, dd))
+            && self
+                .rec
+                .iter()
+                .zip(&other.rec)
+                .all(|((ka, a), (kb, b))| *ka as i128 + dm == *kb as i128 && shifted_eq(a, b, dd))
+            && self
+                .sx
+                .iter()
+                .zip(&other.sx)
+                .all(|(a, b)| shifted_eq(a, b, dd))
+            && self
+                .sz
+                .iter()
+                .zip(&other.sz)
+                .all(|(a, b)| shifted_eq(a, b, dd))
     }
 
     fn shift(&mut self, dm: i128, dd: i128) {
@@ -176,14 +202,19 @@ impl Tracker {
     }
 
     fn take_record(&mut self) -> Result<Sym, String> {
-        self.m = self.m.checked_sub(1).ok_or("a measurement before the first measurement")?;
+        self.m = self
+            .m
+            .checked_sub(1)
+            .ok_or("a measurement before the first measurement")?;
         Ok(self.rec.remove(&self.m).unwrap_or_default())
     }
 
     /// The record `lookback` measurements before the current point, toggled by `with`.
     fn feed(&mut self, lookback: u32, with: &[u64]) -> Result<(), String> {
         if lookback == 0 || u64::from(lookback) > self.m {
-            return Err(format!("rec[-{lookback}] reaches before the first measurement"));
+            return Err(format!(
+                "rec[-{lookback}] reaches before the first measurement"
+            ));
         }
         let k = self.m - u64::from(lookback);
         let entry = self.rec.entry(k).or_default();
@@ -213,8 +244,20 @@ fn pauli_name(p: u8) -> &'static str {
 impl Origin {
     fn describe(&self) -> String {
         match self.b {
-            Some(b) => format!("{} {}⊗{} on qubits {}, {}", self.name, pauli_name(self.pauli.0), pauli_name(self.pauli.1), self.a, b),
-            None => format!("{} {} on qubit {}", self.name, pauli_name(self.pauli.0), self.a),
+            Some(b) => format!(
+                "{} {}⊗{} on qubits {}, {}",
+                self.name,
+                pauli_name(self.pauli.0),
+                pauli_name(self.pauli.1),
+                self.a,
+                b
+            ),
+            None => format!(
+                "{} {} on qubit {}",
+                self.name,
+                pauli_name(self.pauli.0),
+                self.a
+            ),
         }
     }
 }
@@ -238,7 +281,14 @@ struct Window {
 }
 
 impl Window {
-    fn add(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>, decompose: bool) {
+    fn add(
+        &mut self,
+        p: f64,
+        pieces: Vec<Sym>,
+        origin: Origin,
+        tag: &Option<Arc<str>>,
+        decompose: bool,
+    ) {
         if p <= 0.0 {
             return;
         }
@@ -258,7 +308,10 @@ impl Window {
             return;
         }
         let tag = tag.as_deref().unwrap_or("").to_string();
-        let c = self.classes.entry((key, tag)).or_insert(Class { p: 0.0, origin });
+        let c = self
+            .classes
+            .entry((key, tag))
+            .or_insert(Class { p: 0.0, origin });
         c.p = join(c.p, p);
     }
 }
@@ -279,7 +332,6 @@ fn components(key: &[u64]) -> impl Iterator<Item = &[u64]> {
 fn graphlike(key: &[u64]) -> bool {
     components(key).all(|c| c.iter().filter(|&&t| t & OBS == 0).count() <= 2)
 }
-
 
 /* -- The walk -------------------------------------------------------------- */
 
@@ -363,7 +415,9 @@ impl Analyzer {
         for ins in instrs.iter().rev() {
             // A tagged instruction is a gate holding it untagged.
             let (ins, tag) = match ins {
-                Instr::Gate { body, tag, .. } if !tag.is_empty() && body.len() == 1 => (&body[0], Some(Arc::<str>::from(tag.as_str()))),
+                Instr::Gate { body, tag, .. } if !tag.is_empty() && body.len() == 1 => {
+                    (&body[0], Some(Arc::<str>::from(tag.as_str())))
+                }
                 _ => (ins, outer.clone()),
             };
             self.spend(1 + ins.qubits().len() as u64)?;
@@ -373,9 +427,21 @@ impl Analyzer {
                     xor_into(&mut sym, &self.sym_of(q as usize, pauli));
                 }
                 let (a, pa) = paulis.first().copied().unwrap_or((0, 0));
-                let (b, pb) = paulis.get(1).copied().map_or((None, 0), |(q, p)| (Some(q), p));
-                let name = if *chained { "ELSE_CORRELATED_ERROR" } else { "correlated error" };
-                let origin = Origin { name, a, b, pauli: (pa, pb) };
+                let (b, pb) = paulis
+                    .get(1)
+                    .copied()
+                    .map_or((None, 0), |(q, p)| (Some(q), p));
+                let name = if *chained {
+                    "ELSE_CORRELATED_ERROR"
+                } else {
+                    "correlated error"
+                };
+                let origin = Origin {
+                    name,
+                    a,
+                    b,
+                    pauli: (pa, pb),
+                };
                 if *chained {
                     chain.push((*p, sym, origin));
                     continue;
@@ -402,22 +468,42 @@ impl Analyzer {
                 continue;
             }
             if !chain.is_empty() {
-                return Err("ELSE_CORRELATED_ERROR is not preceded by E or another ELSE_CORRELATED_ERROR".into());
+                return Err(
+                    "ELSE_CORRELATED_ERROR is not preceded by E or another ELSE_CORRELATED_ERROR"
+                        .into(),
+                );
             }
             self.undo(ins, &tag)?;
         }
         if !chain.is_empty() {
-            return Err("ELSE_CORRELATED_ERROR is not preceded by E or another ELSE_CORRELATED_ERROR".into());
+            return Err(
+                "ELSE_CORRELATED_ERROR is not preceded by E or another ELSE_CORRELATED_ERROR"
+                    .into(),
+            );
         }
         Ok(())
     }
 
     fn undo(&mut self, ins: &Instr, tag: &Option<Arc<str>>) -> Result<(), String> {
-        let reset_name = |basis: Basis| if basis == Basis::Z { "a Z-basis reset" } else { "an X-basis reset" };
+        let reset_name = |basis: Basis| {
+            if basis == Basis::Z {
+                "a Z-basis reset"
+            } else {
+                "an X-basis reset"
+            }
+        };
         match ins {
-            Instr::Repeat { count, body, tag: own } => self.run_loop(body, *count, own, tag)?,
+            Instr::Repeat {
+                count,
+                body,
+                tag: own,
+            } => self.run_loop(body, *count, own, tag)?,
             Instr::Gate { body, tag: own, .. } => {
-                let inner = if own.is_empty() { tag.clone() } else { Some(Arc::<str>::from(own.as_str())) };
+                let inner = if own.is_empty() {
+                    tag.clone()
+                } else {
+                    Some(Arc::<str>::from(own.as_str()))
+                };
                 self.undo_block(body, &inner)?;
             }
             Instr::Reset { basis, qubits } => {
@@ -428,7 +514,12 @@ impl Analyzer {
                     self.t.sz[q].clear();
                 }
             }
-            Instr::Measure { basis, reset, flip, qubits } => {
+            Instr::Measure {
+                basis,
+                reset,
+                flip,
+                qubits,
+            } => {
                 for &q in qubits.iter().rev() {
                     let qi = q as usize;
                     let r = self.t.take_record()?;
@@ -442,7 +533,12 @@ impl Analyzer {
                         Basis::X => xor_into(&mut self.t.sz[qi], &r),
                     }
                     if *flip > 0.0 {
-                        let origin = Origin { name: "measurement flip", a: q, b: None, pauli: (1, 0) };
+                        let origin = Origin {
+                            name: "measurement flip",
+                            a: q,
+                            b: None,
+                            pauli: (1, 0),
+                        };
                         self.add(*flip, vec![r], origin, tag);
                     }
                 }
@@ -482,25 +578,44 @@ impl Analyzer {
                 for _ in values.iter().rev() {
                     let r = self.t.take_record()?;
                     if *flip > 0.0 {
-                        let origin = Origin { name: "MPAD flip", a: 0, b: None, pauli: (1, 0) };
+                        let origin = Origin {
+                            name: "MPAD flip",
+                            a: 0,
+                            b: None,
+                            pauli: (1, 0),
+                        };
                         self.add(*flip, vec![r], origin, tag);
                     }
                 }
             }
             Instr::Detector { coords, recs } => {
-                self.t.d = self.t.d.checked_sub(1).ok_or("a detector before the first detector")?;
+                self.t.d = self
+                    .t
+                    .d
+                    .checked_sub(1)
+                    .ok_or("a detector before the first detector")?;
                 let id = self.t.d;
                 for &k in recs {
                     self.t.feed(k, &[id])?;
                 }
                 let tag = tag.as_deref().unwrap_or("").to_string();
-                self.reversed.push(DemInstr::Detector { coords: coords.clone(), targets: vec![id], tag });
+                self.reversed.push(DemInstr::Detector {
+                    coords: coords.clone(),
+                    targets: vec![id],
+                    tag,
+                });
             }
             // A Pauli target: errors before it that anticommute with it flip the observable,
             // a Z component an X target and an X component a Z target.
-            Instr::Observable { index, recs, paulis } => {
+            Instr::Observable {
+                index,
+                recs,
+                paulis,
+            } => {
                 if *index >= 64 {
-                    return Err(format!("OBSERVABLE_INCLUDE({index}): at most 64 observables are supported"));
+                    return Err(format!(
+                        "OBSERVABLE_INCLUDE({index}): at most 64 observables are supported"
+                    ));
                 }
                 let target = OBS | u64::from(*index);
                 for &k in recs {
@@ -516,19 +631,34 @@ impl Analyzer {
                     }
                 }
                 let tag = tag.as_deref().unwrap_or("").to_string();
-                self.reversed.push(DemInstr::Observable { targets: vec![*index], tag });
+                self.reversed.push(DemInstr::Observable {
+                    targets: vec![*index],
+                    tag,
+                });
             }
             Instr::ShiftCoords(c) => {
                 let tag = tag.as_deref().unwrap_or("").to_string();
-                self.reversed.push(DemInstr::Shift { coords: c.clone(), by: 0, tag });
+                self.reversed.push(DemInstr::Shift {
+                    coords: c.clone(),
+                    by: 0,
+                    tag,
+                });
             }
             // An error flipping the controlling record also flips the Pauli here.
-            Instr::Feedback { pauli, control: Control::Rec(k), qubit } => {
+            Instr::Feedback {
+                pauli,
+                control: Control::Rec(k),
+                qubit,
+            } => {
                 let sym = self.sym_of(*qubit as usize, *pauli);
                 self.t.feed(*k, &sym)?;
             }
             // A sweep bit moves only the noiseless reference: what it moves, where asked.
-            Instr::Feedback { pauli, control: Control::Sweep(k), qubit } => {
+            Instr::Feedback {
+                pauli,
+                control: Control::Sweep(k),
+                qubit,
+            } => {
                 let sym = self.sym_of(*qubit as usize, *pauli);
                 if let Some(sweeps) = self.sweeps.as_mut() {
                     xor_into(&mut sweeps[*k as usize], &sym);
@@ -548,7 +678,12 @@ impl Analyzer {
                     let (a, b) = (qa as usize, qb as usize);
                     // Stim's basis: the second qubit's X and Z errors, then the first's.
                     let t = &self.t;
-                    let combos = channel_combinations(&[t.sx[b].clone(), t.sz[b].clone(), t.sx[a].clone(), t.sz[a].clone()]);
+                    let combos = channel_combinations(&[
+                        t.sx[b].clone(),
+                        t.sz[b].clone(),
+                        t.sx[a].clone(),
+                        t.sz[a].clone(),
+                    ]);
                     // Case k + 1 in Stim's order: the first qubit's Pauli (k + 1) / 4, the
                     // second's (k + 1) % 4, each I, X, Y, Z, as bits (X 1, Z 2).
                     const BITS: [usize; 4] = [0b00, 0b01, 0b11, 0b10];
@@ -556,24 +691,52 @@ impl Analyzer {
                     for (k, &p) in probs.iter().enumerate() {
                         by_combo[BITS[(k + 1) % 4] | (BITS[(k + 1) / 4] << 2)] = p;
                     }
-                    let origin = Origin { name: "PAULI_CHANNEL_2", a: qa, b: Some(qb), pauli: (0, 0) };
+                    let origin = Origin {
+                        name: "PAULI_CHANNEL_2",
+                        a: qa,
+                        b: Some(qb),
+                        pauli: (0, 0),
+                    };
                     self.add_disjoint(by_combo, &combos, origin, tag);
                 }
             }
-            Instr::Heralded { erase, args, probs, qubits } => {
-                let name = if *erase { "HERALDED_ERASE" } else { "HERALDED_PAULI_CHANNEL_1" };
+            Instr::Heralded {
+                erase,
+                args,
+                probs,
+                qubits,
+            } => {
+                let name = if *erase {
+                    "HERALDED_ERASE"
+                } else {
+                    "HERALDED_PAULI_CHANNEL_1"
+                };
                 self.approximated(name, args, !*erase)?;
                 for &q in qubits.iter().rev() {
                     let herald = self.t.take_record()?;
                     let qi = q as usize;
                     // Stim's basis: the Z error, the X error, the herald.
-                    let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone(), herald]);
+                    let combos = channel_combinations(&[
+                        self.t.sz[qi].clone(),
+                        self.t.sx[qi].clone(),
+                        herald,
+                    ]);
                     // The herald with I, X, Y or Z.
                     let mut by_combo = vec![0.0; 8];
-                    for (p, k) in [(probs[0], 0b100), (probs[1], 0b110), (probs[2], 0b111), (probs[3], 0b101)] {
+                    for (p, k) in [
+                        (probs[0], 0b100),
+                        (probs[1], 0b110),
+                        (probs[2], 0b111),
+                        (probs[3], 0b101),
+                    ] {
                         by_combo[k] = p;
                     }
-                    let origin = Origin { name: "heralded error", a: q, b: None, pauli: (0, 0) };
+                    let origin = Origin {
+                        name: "heralded error",
+                        a: q,
+                        b: None,
+                        pauli: (0, 0),
+                    };
                     self.add_disjoint(by_combo, &combos, origin, tag);
                 }
             }
@@ -582,7 +745,12 @@ impl Analyzer {
             Instr::PauliError { pauli, p, qubits } => {
                 for &q in qubits {
                     let sym = self.sym_of(q as usize, *pauli);
-                    let origin = Origin { name: "Pauli error", a: q, b: None, pauli: (*pauli, 0) };
+                    let origin = Origin {
+                        name: "Pauli error",
+                        a: q,
+                        b: None,
+                        pauli: (*pauli, 0),
+                    };
                     self.add(*p, vec![sym], origin, tag);
                 }
             }
@@ -596,36 +764,60 @@ impl Analyzer {
                 let q1 = depolarize1_component(*p);
                 for &q in qubits {
                     let qi = q as usize;
-                    let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone()]);
+                    let combos =
+                        channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone()]);
                     for (k, pieces) in combos.into_iter().enumerate() {
-                        let origin = Origin { name: "DEPOLARIZE1", a: q, b: None, pauli: ([2u8, 1, 3][k], 0) };
+                        let origin = Origin {
+                            name: "DEPOLARIZE1",
+                            a: q,
+                            b: None,
+                            pauli: ([2u8, 1, 3][k], 0),
+                        };
                         self.add(q1, pieces, origin, tag);
                     }
                 }
             }
-            Instr::PauliChannel1 { px, py, pz, qubits } => match pauli_channel_1_independent(*px, *py, *pz) {
-                Err(_) => {
-                    // No independent equivalent: approximately, each case its own fault.
-                    self.approximated("PAULI_CHANNEL_1", &[*px, *py, *pz], true)?;
-                    for &q in qubits {
-                        let qi = q as usize;
-                        let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
-                        let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (0, 0) };
-                        self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag);
+            Instr::PauliChannel1 { px, py, pz, qubits } => {
+                match pauli_channel_1_independent(*px, *py, *pz) {
+                    Err(_) => {
+                        // No independent equivalent: approximately, each case its own fault.
+                        self.approximated("PAULI_CHANNEL_1", &[*px, *py, *pz], true)?;
+                        for &q in qubits {
+                            let qi = q as usize;
+                            let combos = channel_combinations(&[
+                                self.t.sx[qi].clone(),
+                                self.t.sz[qi].clone(),
+                            ]);
+                            let origin = Origin {
+                                name: "PAULI_CHANNEL_1",
+                                a: q,
+                                b: None,
+                                pauli: (0, 0),
+                            };
+                            self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag);
+                        }
                     }
-                }
-                Ok((qx, qy, qz)) => {
-                    for &q in qubits {
-                        let qi = q as usize;
-                        let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
-                        for (k, pieces) in combos.into_iter().enumerate() {
-                            let (pauli, prob) = [(1u8, qx), (2, qz), (3, qy)][k];
-                            let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (pauli, 0) };
-                            self.add(prob, pieces, origin, tag);
+                    Ok((qx, qy, qz)) => {
+                        for &q in qubits {
+                            let qi = q as usize;
+                            let combos = channel_combinations(&[
+                                self.t.sx[qi].clone(),
+                                self.t.sz[qi].clone(),
+                            ]);
+                            for (k, pieces) in combos.into_iter().enumerate() {
+                                let (pauli, prob) = [(1u8, qx), (2, qz), (3, qy)][k];
+                                let origin = Origin {
+                                    name: "PAULI_CHANNEL_1",
+                                    a: q,
+                                    b: None,
+                                    pauli: (pauli, 0),
+                                };
+                                self.add(prob, pieces, origin, tag);
+                            }
                         }
                     }
                 }
-            },
+            }
             Instr::Depolarize2 { p, pairs } => {
                 if *p > 15.0 / 16.0 {
                     return Err(format!("DEPOLARIZE2({p}) exceeds 15/16"));
@@ -634,12 +826,22 @@ impl Analyzer {
                 for &(qa, qb) in pairs {
                     let (a, b) = (qa as usize, qb as usize);
                     let t = &self.t;
-                    let basis = [t.sz[a].clone(), t.sx[a].clone(), t.sz[b].clone(), t.sx[b].clone()];
+                    let basis = [
+                        t.sz[a].clone(),
+                        t.sx[a].clone(),
+                        t.sz[b].clone(),
+                        t.sx[b].clone(),
+                    ];
                     for (i, pieces) in channel_combinations(&basis).into_iter().enumerate() {
                         let k = i + 1;
                         let pa = ((k >> 1) & 1) as u8 | (((k & 1) as u8) << 1);
                         let pb = ((k >> 3) & 1) as u8 | ((((k >> 2) & 1) as u8) << 1);
-                        let origin = Origin { name: "DEPOLARIZE2", a: qa, b: Some(qb), pauli: (pa, pb) };
+                        let origin = Origin {
+                            name: "DEPOLARIZE2",
+                            a: qa,
+                            b: Some(qb),
+                            pauli: (pa, pb),
+                        };
                         self.add(q2, pieces, origin, tag);
                     }
                 }
@@ -654,10 +856,20 @@ impl Analyzer {
     /// basis errors, `combos[k - 1]` its pieces. Cases that cannot be told apart (whose XOR fires
     /// nothing) are summed into the lowest-numbered, in Stim's order, and each combination is
     /// then recorded in turn.
-    fn add_disjoint(&mut self, mut by_combo: Vec<f64>, combos: &[Vec<Sym>], origin: Origin, tag: &Option<Arc<str>>) {
+    fn add_disjoint(
+        &mut self,
+        mut by_combo: Vec<f64>,
+        combos: &[Vec<Sym>],
+        origin: Origin,
+        tag: &Option<Arc<str>>,
+    ) {
         let n = by_combo.len();
         for k in 1..n {
-            if combos[k - 1].iter().fold(Sym::new(), |acc, x| xor(&acc, x)).is_empty() {
+            if combos[k - 1]
+                .iter()
+                .fold(Sym::new(), |acc, x| xor(&acc, x))
+                .is_empty()
+            {
                 for dst in 0..n {
                     let src = dst ^ k;
                     if src > dst {
@@ -674,7 +886,13 @@ impl Analyzer {
 
     /// Stim's `run_loop`: find the loop's period by tortoise and hare, and fold whole periods
     /// into a `repeat` block.
-    fn run_loop(&mut self, body: &[Instr], iterations: u64, loop_tag: &str, tag: &Option<Arc<str>>) -> Result<(), String> {
+    fn run_loop(
+        &mut self,
+        body: &[Instr],
+        iterations: u64,
+        loop_tag: &str,
+        tag: &Option<Arc<str>>,
+    ) -> Result<(), String> {
         if !self.fold {
             for _ in 0..iterations {
                 self.undo_block(body, tag)?;
@@ -740,11 +958,22 @@ impl Analyzer {
                 if remaining > 0 {
                     match folded.first_mut() {
                         Some(DemInstr::Shift { by, .. }) => *by += remaining,
-                        _ => folded.insert(0, DemInstr::Shift { coords: Vec::new(), by: remaining, tag: String::new() }),
+                        _ => folded.insert(
+                            0,
+                            DemInstr::Shift {
+                                coords: Vec::new(),
+                                by: remaining,
+                                tag: String::new(),
+                            },
+                        ),
                     }
                 }
                 self.reversed = before;
-                self.reversed.push(DemInstr::Repeat { count: period_iterations, body: folded, tag: loop_tag.to_string() });
+                self.reversed.push(DemInstr::Repeat {
+                    count: period_iterations,
+                    body: folded,
+                    tag: loop_tag.to_string(),
+                });
             }
         }
         // The iterations left after whole periods.
@@ -792,9 +1021,15 @@ impl Analyzer {
                 }
                 let mut out = Vec::new();
                 for comp in components(key) {
-                    let parts = brute_force_known(comp, &known).or_else(|| greedy_known(comp, &known)).ok_or_else(|| {
-                        format!("cannot split {} into graph-like pieces: it fires detectors {:?}", c.origin.describe(), dets(comp))
-                    })?;
+                    let parts = brute_force_known(comp, &known)
+                        .or_else(|| greedy_known(comp, &known))
+                        .ok_or_else(|| {
+                            format!(
+                                "cannot split {} into graph-like pieces: it fires detectors {:?}",
+                                c.origin.describe(),
+                                dets(comp)
+                            )
+                        })?;
                     for part in parts {
                         if dets(&part).len() > 2 {
                             return Err(format!(
@@ -812,14 +1047,21 @@ impl Analyzer {
             }
             for (old, new) in rewrites {
                 let c = classes.remove(&old).expect("a class just listed");
-                let slot = classes.entry((new, old.1)).or_insert(Class { p: 0.0, origin: c.origin });
+                let slot = classes.entry((new, old.1)).or_insert(Class {
+                    p: 0.0,
+                    origin: c.origin,
+                });
                 slot.p = join(slot.p, c.p);
             }
         }
         for ((key, tag), c) in classes.into_iter().rev() {
             if c.p > 0.0 && !key.is_empty() {
                 let pieces = components(&key).map(<[u64]>::to_vec).collect();
-                self.reversed.push(DemInstr::Error { p: c.p, pieces, tag });
+                self.reversed.push(DemInstr::Error {
+                    p: c.p,
+                    pieces,
+                    tag,
+                });
             }
         }
         Ok(())
@@ -851,13 +1093,28 @@ fn unreversed(rev: &[DemInstr], base: &mut u64, seen: &mut HashSet<u64>) -> Vec<
             }
             DemInstr::Error { p, pieces, tag } => {
                 seen.extend(pieces.iter().flatten().copied());
-                let pieces = pieces.iter().map(|x| x.iter().map(|&t| relative(t, *base)).collect()).collect();
-                out.push(DemInstr::Error { p: *p, pieces, tag: tag.clone() });
+                let pieces = pieces
+                    .iter()
+                    .map(|x| x.iter().map(|&t| relative(t, *base)).collect())
+                    .collect();
+                out.push(DemInstr::Error {
+                    p: *p,
+                    pieces,
+                    tag: tag.clone(),
+                });
             }
-            DemInstr::Detector { coords, targets, tag } => {
+            DemInstr::Detector {
+                coords,
+                targets,
+                tag,
+            } => {
                 if !coords.is_empty() || !tag.is_empty() || !seen.contains(&targets[0]) {
                     let targets = targets.iter().map(|&t| relative(t, *base)).collect();
-                    out.push(DemInstr::Detector { coords: coords.clone(), targets, tag: tag.clone() });
+                    out.push(DemInstr::Detector {
+                        coords: coords.clone(),
+                        targets,
+                        tag: tag.clone(),
+                    });
                 }
             }
             DemInstr::Observable { targets, tag } => {
@@ -869,7 +1126,11 @@ fn unreversed(rev: &[DemInstr], base: &mut u64, seen: &mut HashSet<u64>) -> Vec<
                 if *count > 0 {
                     let old = *base;
                     let body = unreversed(body, base, seen);
-                    out.push(DemInstr::Repeat { count: *count, body, tag: tag.clone() });
+                    out.push(DemInstr::Repeat {
+                        count: *count,
+                        body,
+                        tag: tag.clone(),
+                    });
                     let loop_shift = *base - old;
                     *base += loop_shift * (count - 1);
                 }
@@ -882,11 +1143,22 @@ fn unreversed(rev: &[DemInstr], base: &mut u64, seen: &mut HashSet<u64>) -> Vec<
 /// A circuit's model as a program, its loops folded where they repeat (`fold`), or walked in
 /// full. `decompose` splits faults into graph-like pieces as Stim does; `approximate` is Stim's
 /// `approximate_disjoint_errors` threshold.
-pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool) -> Result<DemProgram, String> {
+pub fn build(
+    circuit: &Circuit,
+    decompose: bool,
+    approximate: Option<f64>,
+    fold: bool,
+) -> Result<DemProgram, String> {
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
-        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        t: Tracker {
+            sx: vec![Sym::new(); nq],
+            sz: vec![Sym::new(); nq],
+            rec: BTreeMap::new(),
+            m: counts.measurements,
+            d: counts.detectors,
+        },
         accumulate: true,
         fold,
         decompose,
@@ -903,7 +1175,9 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
     }
     a.flush()?;
     let (mut base, mut seen) = (0u64, HashSet::new());
-    Ok(DemProgram { instrs: unreversed(&a.reversed, &mut base, &mut seen) })
+    Ok(DemProgram {
+        instrs: unreversed(&a.reversed, &mut base, &mut seen),
+    })
 }
 
 /// What each sweep bit's X flips, as (detectors, observables), and a check that every detector
@@ -914,14 +1188,24 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> 
         instrs.iter().any(|i| match i {
             Instr::Repeat { body, .. } => sweeps_in_loops(body, true),
             Instr::Gate { body, .. } => sweeps_in_loops(body, inside),
-            Instr::SweepX(_) | Instr::Feedback { control: Control::Sweep(_), .. } => inside,
+            Instr::SweepX(_)
+            | Instr::Feedback {
+                control: Control::Sweep(_),
+                ..
+            } => inside,
             _ => false,
         })
     }
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
-        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        t: Tracker {
+            sx: vec![Sym::new(); nq],
+            sz: vec![Sym::new(); nq],
+            rec: BTreeMap::new(),
+            m: counts.measurements,
+            d: counts.detectors,
+        },
         accumulate: false,
         fold: !sweeps_in_loops(&circuit.instrs, false),
         decompose: false,
@@ -936,7 +1220,11 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> 
     for q in 0..nq {
         a.check_reset(q, Basis::Z, "the initial |0>")?;
     }
-    Ok(a.sweeps.unwrap_or_default().iter().map(|s| (dets(s).into_iter().map(|d| d as u32).collect(), obs_mask(s))).collect())
+    Ok(a.sweeps
+        .unwrap_or_default()
+        .iter()
+        .map(|s| (dets(s).into_iter().map(|d| d as u32).collect(), obs_mask(s)))
+        .collect())
 }
 
 /* -- Decomposition --------------------------------------------------------- */
@@ -989,8 +1277,9 @@ fn channel_combinations(basis: &[Sym]) -> Vec<Vec<Sym>> {
         let mut remnants;
         if subset(goal, &single_union) {
             remnants = goal.clone();
-        } else if let Some(&kp) =
-            irreducible.iter().find(|&&kp| subset(&mask[kp], goal) && subset(goal, &or(&single_union, &mask[kp])))
+        } else if let Some(&kp) = irreducible
+            .iter()
+            .find(|&&kp| subset(&mask[kp], goal) && subset(goal, &or(&single_union, &mask[kp])))
         {
             pieces.push(sym[kp].clone());
             remnants = and_not(goal, &mask[kp]);
@@ -1008,7 +1297,11 @@ fn channel_combinations(basis: &[Sym]) -> Vec<Vec<Sym>> {
             match found {
                 Some((k1, k2, both)) => {
                     // Stim appends the pair whose targets sort first first.
-                    let (k1, k2) = if sym[k2] < sym[k1] { (k2, k1) } else { (k1, k2) };
+                    let (k1, k2) = if sym[k2] < sym[k1] {
+                        (k2, k1)
+                    } else {
+                        (k1, k2)
+                    };
                     pieces.push(sym[k1].clone());
                     pieces.push(sym[k2].clone());
                     remnants = and_not(goal, &both);
@@ -1047,7 +1340,13 @@ fn channel_combinations(basis: &[Sym]) -> Vec<Vec<Sym>> {
 /// unused detector with each later one in turn, then alone.
 fn brute_force_known(x: &[u64], known: &HashMap<Vec<u64>, Sym>) -> Option<Vec<Sym>> {
     let d = dets(x);
-    fn go(d: &[u64], used: &mut [bool], remaining: u64, known: &HashMap<Vec<u64>, Sym>, out: &mut Vec<Sym>) -> bool {
+    fn go(
+        d: &[u64],
+        used: &mut [bool],
+        remaining: u64,
+        known: &HashMap<Vec<u64>, Sym>,
+        out: &mut Vec<Sym>,
+    ) -> bool {
         let Some(start) = (0..d.len()).find(|&i| !used[i]) else {
             return remaining == 0;
         };
@@ -1146,21 +1445,47 @@ mod tests {
                             let mut v: Vec<(String, f64)> = d
                                 .mechanisms
                                 .iter()
-                                .map(|m| (format!("{:?} {} {:?} {}", m.detectors, m.observables, m.pieces, m.tag), m.p))
+                                .map(|m| {
+                                    (
+                                        format!(
+                                            "{:?} {} {:?} {}",
+                                            m.detectors, m.observables, m.pieces, m.tag
+                                        ),
+                                        m.p,
+                                    )
+                                })
                                 .collect();
                             v.sort_by(|x, y| x.0.cmp(&y.0));
                             v
                         };
                         let (na, nb) = (norm(a), norm(b));
-                        let keys = |v: &[(String, f64)]| v.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
-                        assert_eq!(keys(&na), keys(&nb), "decompose={decompose} fold={fold}\n{text}");
+                        let keys =
+                            |v: &[(String, f64)]| v.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
+                        assert_eq!(
+                            keys(&na),
+                            keys(&nb),
+                            "decompose={decompose} fold={fold}\n{text}"
+                        );
                         for (x, y) in na.iter().zip(&nb) {
-                            assert!((x.1 - y.1).abs() <= 1e-12 * x.1.max(1e-300), "{} {} {}", x.0, x.1, y.1);
+                            assert!(
+                                (x.1 - y.1).abs() <= 1e-12 * x.1.max(1e-300),
+                                "{} {} {}",
+                                x.0,
+                                x.1,
+                                y.1
+                            );
                         }
-                        assert_eq!((a.num_detectors, a.num_observables), (b.num_detectors, b.num_observables));
+                        assert_eq!(
+                            (a.num_detectors, a.num_observables),
+                            (b.num_detectors, b.num_observables)
+                        );
                     }
                     (Err(_), Err(_)) => {}
-                    (a, b) => panic!("decompose={decompose} fold={fold}: {:?} vs {:?}\n{text}", a.as_ref().err(), b.as_ref().err()),
+                    (a, b) => panic!(
+                        "decompose={decompose} fold={fold}: {:?} vs {:?}\n{text}",
+                        a.as_ref().err(),
+                        b.as_ref().err()
+                    ),
                 }
             }
         }

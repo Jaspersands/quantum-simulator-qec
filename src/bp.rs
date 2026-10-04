@@ -75,7 +75,11 @@ impl Bp {
     /// probability.
     pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64]) -> Result<Bp, String> {
         if columns.len() != priors.len() {
-            return Err(format!("{} columns but {} priors", columns.len(), priors.len()));
+            return Err(format!(
+                "{} columns but {} priors",
+                columns.len(),
+                priors.len()
+            ));
         }
         let mut var_start = vec![0u32];
         let (mut edge_check, mut edge_var) = (Vec::new(), Vec::new());
@@ -86,7 +90,9 @@ impl Bp {
             col.dedup();
             for &c in &col {
                 if c as usize >= num_checks {
-                    return Err(format!("variable {v} touches check {c}, beyond {num_checks}"));
+                    return Err(format!(
+                        "variable {v} touches check {c}, beyond {num_checks}"
+                    ));
                 }
                 edge_check.push(c);
                 edge_var.push(v as u32);
@@ -107,7 +113,16 @@ impl Bp {
             fill[c as usize] += 1;
         }
         let prior_llr = priors.iter().map(|&p| ((1.0 - p) / p).ln()).collect();
-        Ok(Bp { num_checks, num_vars: columns.len(), var_start, edge_check, edge_var, chk_start, chk_edges, prior_llr })
+        Ok(Bp {
+            num_checks,
+            num_vars: columns.len(),
+            var_start,
+            edge_check,
+            edge_var,
+            chk_start,
+            chk_edges,
+            prior_llr,
+        })
     }
 
     pub fn work(&self) -> BpWork {
@@ -134,18 +149,38 @@ impl Bp {
     /// Run BP on `syndrome` (one byte per check, nonzero where it fired) for
     /// at most `max_iter` iterations. A zero syndrome converges at once to the
     /// empty correction, as `ldpc` does, without iterating.
-    pub fn decode(&self, syndrome: &[u8], method: Method, max_iter: usize, w: &mut BpWork) -> BpOutcome {
+    pub fn decode(
+        &self,
+        syndrome: &[u8],
+        method: Method,
+        max_iter: usize,
+        w: &mut BpWork,
+    ) -> BpOutcome {
         self.iterate(syndrome, method, max_iter, true, w)
     }
 
     /// `decode`, or with `stop` false, every iteration whatever the decision:
     /// the posteriors after exactly `max_iter` iterations.
-    pub(crate) fn iterate(&self, syndrome: &[u8], method: Method, max_iter: usize, stop: bool, w: &mut BpWork) -> BpOutcome {
-        assert_eq!(syndrome.len(), self.num_checks, "one syndrome bit per check");
+    pub(crate) fn iterate(
+        &self,
+        syndrome: &[u8],
+        method: Method,
+        max_iter: usize,
+        stop: bool,
+        w: &mut BpWork,
+    ) -> BpOutcome {
+        assert_eq!(
+            syndrome.len(),
+            self.num_checks,
+            "one syndrome bit per check"
+        );
         if syndrome.iter().all(|&s| s == 0) {
             w.hard.fill(0);
             w.llr.copy_from_slice(&self.prior_llr);
-            return BpOutcome { converged: true, iterations: 0 };
+            return BpOutcome {
+                converged: true,
+                iterations: 0,
+            };
         }
         for v in 0..self.num_vars {
             for e in self.var_start[v] as usize..self.var_start[v + 1] as usize {
@@ -169,9 +204,16 @@ impl Bp {
             for (e, &c) in self.edge_check.iter().enumerate() {
                 w.candidate[c as usize] ^= w.hard[self.edge_var[e] as usize];
             }
-            let converged = w.candidate.iter().zip(syndrome).all(|(&a, &b)| a == u8::from(b != 0));
+            let converged = w
+                .candidate
+                .iter()
+                .zip(syndrome)
+                .all(|(&a, &b)| a == u8::from(b != 0));
             if converged && (stop || it == max_iter) {
-                return BpOutcome { converged: true, iterations: it };
+                return BpOutcome {
+                    converged: true,
+                    iterations: it,
+                };
             }
             // Finish the outgoing messages with the suffix sums.
             for v in 0..self.num_vars {
@@ -182,7 +224,10 @@ impl Bp {
                 }
             }
         }
-        BpOutcome { converged: false, iterations: max_iter }
+        BpOutcome {
+            converged: false,
+            iterations: max_iter,
+        }
     }
 
     fn check_update(&self, syndrome: &[u8], method: Method, it: usize, w: &mut BpWork) {
@@ -207,7 +252,11 @@ impl Bp {
                     }
                 }
                 Method::MinSum { scale } => {
-                    let scale = if scale == 0.0 { 1.0 - 2f64.powi(-(it as i32)) } else { scale };
+                    let scale = if scale == 0.0 {
+                        1.0 - 2f64.powi(-(it as i32))
+                    } else {
+                        scale
+                    };
                     let mut total_sign = u32::from(syndrome[c] != 0);
                     // The minimum over no messages is the largest finite
                     // double, as ldpc starts it: a check on one variable sends
@@ -246,7 +295,12 @@ mod tests {
     use super::*;
 
     /// Exact posteriors by summing over every error pattern.
-    fn brute_force(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], syndrome: &[u8]) -> Vec<f64> {
+    fn brute_force(
+        num_checks: usize,
+        columns: &[Vec<u32>],
+        priors: &[f64],
+        syndrome: &[u8],
+    ) -> Vec<f64> {
         let n = columns.len();
         let mut p1 = vec![0.0; n];
         let mut total = 0.0;
@@ -280,10 +334,16 @@ mod tests {
     /// repetition code) and a branching one with checks of degree three.
     #[test]
     fn product_sum_is_exact_on_trees() {
-        let path: (usize, Vec<Vec<u32>>, Vec<f64>) =
-            (4, vec![vec![0], vec![0, 1], vec![1, 2], vec![2, 3], vec![3]], vec![0.1, 0.05, 0.2, 0.15, 0.3]);
-        let branch: (usize, Vec<Vec<u32>>, Vec<f64>) =
-            (3, vec![vec![0], vec![0], vec![0, 1], vec![1, 2], vec![2], vec![2]], vec![0.1, 0.2, 0.05, 0.3, 0.15, 0.25]);
+        let path: (usize, Vec<Vec<u32>>, Vec<f64>) = (
+            4,
+            vec![vec![0], vec![0, 1], vec![1, 2], vec![2, 3], vec![3]],
+            vec![0.1, 0.05, 0.2, 0.15, 0.3],
+        );
+        let branch: (usize, Vec<Vec<u32>>, Vec<f64>) = (
+            3,
+            vec![vec![0], vec![0], vec![0, 1], vec![1, 2], vec![2], vec![2]],
+            vec![0.1, 0.2, 0.05, 0.3, 0.15, 0.25],
+        );
         for (checks, columns, priors) in [path, branch] {
             let bp = Bp::new(checks, &columns, &priors).unwrap();
             let mut w = bp.work();
@@ -293,7 +353,11 @@ mod tests {
                 bp.iterate(&syndrome, Method::ProductSum, 30, false, &mut w);
                 for v in 0..columns.len() {
                     let p = 1.0 / (1.0 + w.llr[v].exp());
-                    assert!((p - exact[v]).abs() < 1e-12, "{syndrome:?} var {v}: {p} vs {}", exact[v]);
+                    assert!(
+                        (p - exact[v]).abs() < 1e-12,
+                        "{syndrome:?} var {v}: {p} vs {}",
+                        exact[v]
+                    );
                 }
             }
         }
@@ -307,7 +371,10 @@ mod tests {
         let mut w = bp.work();
         for pattern in 1u32..16 {
             let syndrome: Vec<u8> = (0..4).map(|c| (pattern >> c & 1) as u8).collect();
-            if bp.decode(&syndrome, Method::ProductSum, 20, &mut w).converged {
+            if bp
+                .decode(&syndrome, Method::ProductSum, 20, &mut w)
+                .converged
+            {
                 let mut s = vec![0u8; 4];
                 for v in 0..5 {
                     if w.hard[v] == 1 {
@@ -326,7 +393,13 @@ mod tests {
         let bp = Bp::new(2, &[vec![0], vec![0, 1], vec![1]], &[0.1, 0.1, 0.1]).unwrap();
         let mut w = bp.work();
         let out = bp.decode(&[0, 0], Method::ProductSum, 20, &mut w);
-        assert_eq!(out, BpOutcome { converged: true, iterations: 0 });
+        assert_eq!(
+            out,
+            BpOutcome {
+                converged: true,
+                iterations: 0
+            }
+        );
         assert_eq!(w.hard, vec![0, 0, 0]);
     }
 
@@ -336,7 +409,11 @@ mod tests {
         let columns: Vec<Vec<u32>> = vec![vec![0], vec![0, 1], vec![1, 2], vec![2]];
         let bp = Bp::new(3, &columns, &[0.01, 0.01, 0.01, 0.01]).unwrap();
         let mut w = bp.work();
-        for method in [Method::ProductSum, Method::MinSum { scale: 1.0 }, Method::MinSum { scale: 0.625 }] {
+        for method in [
+            Method::ProductSum,
+            Method::MinSum { scale: 1.0 },
+            Method::MinSum { scale: 0.625 },
+        ] {
             let out = bp.decode(&[0, 1, 1], method, 20, &mut w);
             assert!(out.converged, "{method:?}");
             assert_eq!(w.hard, vec![0, 0, 1, 0], "{method:?}");
@@ -366,9 +443,16 @@ mod tests {
         let llr: Vec<f64> = priors.iter().map(|p: &f64| ((1.0 - p) / p).ln()).collect();
         bp.decode(&[1], Method::MinSum { scale: 0.5 }, 1, &mut w);
         for v in 0..3 {
-            let others = (0..3).filter(|&u| u != v).map(|u| llr[u]).fold(f64::INFINITY, f64::min);
+            let others = (0..3)
+                .filter(|&u| u != v)
+                .map(|u| llr[u])
+                .fold(f64::INFINITY, f64::min);
             let want = llr[v] - 0.5 * others;
-            assert!((w.llr[v] - want).abs() < 1e-12, "var {v}: {} vs {want}", w.llr[v]);
+            assert!(
+                (w.llr[v] - want).abs() < 1e-12,
+                "var {v}: {} vs {want}",
+                w.llr[v]
+            );
         }
     }
 }

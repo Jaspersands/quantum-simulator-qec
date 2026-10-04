@@ -61,7 +61,13 @@ pub enum Noise {
 /// assert_eq!((c.num_detectors(), c.num_observables()), (24, 1));
 /// # Ok::<(), stabilizer_qec::Error>(())
 /// ```
-pub fn memory_circuit(code: SurfaceCode, distance: usize, rounds: usize, noise: Noise, basis: Basis) -> Result<Circuit> {
+pub fn memory_circuit(
+    code: SurfaceCode,
+    distance: usize,
+    rounds: usize,
+    noise: Noise,
+    basis: Basis,
+) -> Result<Circuit> {
     let kind = match code {
         SurfaceCode::Rotated => CodeKind::Rotated,
         SurfaceCode::Xzzx => CodeKind::Xzzx,
@@ -70,7 +76,13 @@ pub fn memory_circuit(code: SurfaceCode, distance: usize, rounds: usize, noise: 
         Noise::Sd6 { p } => NoiseModel::Sd6 { p },
         Noise::Biased { p, eta } => NoiseModel::Current { p, eta },
     };
-    Circuit::from_engine(crate::memory::generate(kind, distance, rounds, noise, basis.engine())?)
+    Circuit::from_engine(crate::memory::generate(
+        kind,
+        distance,
+        rounds,
+        noise,
+        basis.engine(),
+    )?)
 }
 
 /// A weight-12 logical X of the gross code whose measurement is built (see
@@ -192,7 +204,19 @@ pub fn stream_memory(
         WindowMode::Parallel => crate::window::Mode::Parallel,
     };
     let batches = shots.max(1).div_ceil(64);
-    let out = crate::batch::stream_shots(kind, distance, p, rounds, commit, buffer, mode, correlations, batches, seed, threads)?;
+    let out = crate::batch::stream_shots(
+        kind,
+        distance,
+        p,
+        rounds,
+        commit,
+        buffer,
+        mode,
+        correlations,
+        batches,
+        seed,
+        threads,
+    )?;
     stream_result(out)
 }
 
@@ -213,14 +237,29 @@ pub fn stream_memory(
 /// assert!(r.failures < 8);
 /// # Ok::<(), stabilizer_qec::Error>(())
 /// ```
-pub fn stream_circuit(circuit: &Circuit, windows: WindowOptions, shots: usize, seed: u64, threads: usize) -> Result<StreamResult> {
+pub fn stream_circuit(
+    circuit: &Circuit,
+    windows: WindowOptions,
+    shots: usize,
+    seed: u64,
+    threads: usize,
+) -> Result<StreamResult> {
     let (commit, buffer, mode, correlations) = windows.parts();
     let mode = match mode {
         WindowMode::Sliding => crate::window::Mode::Sliding,
         WindowMode::Parallel => crate::window::Mode::Parallel,
     };
     let batches = shots.max(1).div_ceil(64);
-    let out = crate::batch::stream_circuit(&circuit.inner, commit, buffer, mode, correlations, batches, seed, threads)?;
+    let out = crate::batch::stream_circuit(
+        &circuit.inner,
+        commit,
+        buffer,
+        mode,
+        correlations,
+        batches,
+        seed,
+        threads,
+    )?;
     stream_result(out)
 }
 
@@ -263,12 +302,18 @@ pub struct BivariateBicycleCode {
 impl BivariateBicycleCode {
     /// The gross code, [[144, 12, 12]].
     pub fn gross() -> BivariateBicycleCode {
-        BivariateBicycleCode { inner: crate::bb::BbCode::gross(), gross: true }
+        BivariateBicycleCode {
+            inner: crate::bb::BbCode::gross(),
+            gross: true,
+        }
     }
 
     /// [[72, 12, 6]].
     pub fn bb72() -> BivariateBicycleCode {
-        BivariateBicycleCode { inner: crate::bb::BbCode::bb72(), gross: false }
+        BivariateBicycleCode {
+            inner: crate::bb::BbCode::bb72(),
+            gross: false,
+        }
     }
 
     /// Data qubits.
@@ -326,8 +371,15 @@ impl BivariateBicycleCode {
         for a in 0..self.inner.l {
             for b in 0..self.inner.m {
                 for dual in [false, true] {
-                    let m = self.inner.logical_action(Engine { shift: (a, b), dual })?;
-                    out.push(Automorphism { shift: (a, b), dual, action: (0..m.rows).map(|r| m.row_ones(r)).collect() });
+                    let m = self.inner.logical_action(Engine {
+                        shift: (a, b),
+                        dual,
+                    })?;
+                    out.push(Automorphism {
+                        shift: (a, b),
+                        dual,
+                        action: (0..m.rows).map(|r| m.row_ones(r)).collect(),
+                    });
                 }
             }
         }
@@ -349,7 +401,9 @@ impl BivariateBicycleCode {
     /// ```
     pub fn gauging(&self, operator: GrossOperator, expanded: bool) -> Result<Gauging> {
         if !self.gross {
-            return Err(Error::new("logical measurements are built for the gross code only"));
+            return Err(Error::new(
+                "logical measurements are built for the gross code only",
+            ));
         }
         let support = crate::bb::gross_operator(operator.name())?;
         let g = if expanded {
@@ -391,9 +445,14 @@ impl BivariateBicycleCode {
         expanded: bool,
     ) -> Result<Circuit> {
         if !self.gross {
-            return Err(Error::new("logical measurements are built for the gross code only"));
+            return Err(Error::new(
+                "logical measurements are built for the gross code only",
+            ));
         }
-        crate::bb::check_cycles(pre.saturating_add(merged).saturating_add(post).max(1), merged)?;
+        crate::bb::check_cycles(
+            pre.saturating_add(merged).saturating_add(post).max(1),
+            merged,
+        )?;
         probability(p, "p")?;
         let support = crate::bb::gross_operator(operator.name())?;
         let g = if expanded {
@@ -401,6 +460,14 @@ impl BivariateBicycleCode {
         } else {
             crate::bb_gauge::Gauging::new(&self.inner, &support)
         }?;
-        Circuit::from_engine(crate::bb_circuit::logical_measurement(&self.inner, &g, basis.engine(), pre, merged, post, p)?)
+        Circuit::from_engine(crate::bb_circuit::logical_measurement(
+            &self.inner,
+            &g,
+            basis.engine(),
+            pre,
+            merged,
+            post,
+            p,
+        )?)
     }
 }

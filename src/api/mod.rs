@@ -14,11 +14,17 @@ mod decoders;
 pub mod lattice_surgery;
 
 pub use bits::BitTable;
-pub use circuits::{Circuit, DemOptions, DetectorErrorModel, DetectorSampler, MeasurementConverter, Pauli, Samples, Target};
-pub use codes::{memory_circuit, stream_circuit, stream_memory, Automorphism, Basis, BivariateBicycleCode, Gauging, GrossOperator, Noise, StreamResult, SurfaceCode};
+pub use circuits::{
+    Circuit, DemOptions, DetectorErrorModel, DetectorSampler, DiagramKind, MeasurementConverter,
+    Pauli, Samples, Target,
+};
+pub use codes::{
+    memory_circuit, stream_circuit, stream_memory, Automorphism, Basis, BivariateBicycleCode,
+    Gauging, GrossOperator, Noise, StreamResult, SurfaceCode,
+};
 pub use decoders::{
-    BeliefMatching, BpDecoder, BpMethod, BpOptions, BpOsd, BpOsdDecoder, BpOsdOutcome, BpOutcome, Matching, OsdMethod,
-    Prediction, UnionFind, Window, WindowMatching, WindowMode, WindowOptions,
+    BeliefMatching, BpDecoder, BpMethod, BpOptions, BpOsd, BpOsdDecoder, BpOsdOutcome, BpOutcome,
+    Matching, OsdMethod, Prediction, UnionFind, Window, WindowMatching, WindowMode, WindowOptions,
 };
 
 /// Why a call failed: the input was not something the engine can take, with a message saying
@@ -30,7 +36,9 @@ pub struct Error {
 
 impl Error {
     pub(crate) fn new(message: impl Into<String>) -> Error {
-        Error { message: message.into() }
+        Error {
+            message: message.into(),
+        }
     }
 
     /// What went wrong, for a person to read.

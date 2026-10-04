@@ -21,6 +21,16 @@ minor release before a major release removes it. The Rust crate is versioned on 
   round by round and window-decoded as it streams, its windows from a template of its folded
   model. The template's middle spans a whole number of window periods that is also a whole
   number of the loop's passes, so loops Stim folds two rounds at a time are served.
+- Diagrams, after Stim's `diagram`: `Circuit.diagram(type, tick=...)` (Rust:
+  `Circuit::diagram(DiagramKind)`) draws `"timeline-text"` and `"timeline-svg"`, every
+  operation in its column with `TICK` groups bracketed, loops drawn once with their count and
+  measurements numbered; `"detslice-text"` and `"detslice-svg"`, what each detector compares
+  after `tick` `TICK`s, its Paulis drawn as shapes over the qubits at their coordinates (the
+  same slices as Stim's at every tick of its generated surface, colour and repetition
+  codes); and `"matchgraph-svg"`, a decomposed model's matching graph
+  (`DetectorErrorModel.diagram`). The result is a `Diagram`: it prints as its text, shows as
+  a picture in a notebook, and `save`s to a file. The pictures follow the reader's light or
+  dark theme.
 
 ## 1.3.0 — 2026-10-04
 
