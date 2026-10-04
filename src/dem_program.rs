@@ -108,14 +108,30 @@ fn block_stats(instrs: &[DemInstr]) -> BlockStats {
     s
 }
 
-/// A number as Stim prints one in a model: C++'s default stream format at precision 16 (`%.16g`):
-/// sixteen significant digits, trailing zeros dropped, and an exponent below 10⁻⁴ or from
-/// 10¹⁶.
+/// The significant digits Stim prints a model's numbers to on this machine: its stream's
+/// precision is `numeric_limits<long double>::digits10 + 1`, and `long double` is a double on
+/// Windows and Apple silicon (16), x87's 80-bit extended on other x86-64 (19), and IEEE quad
+/// on other ARM64 (34).
+pub const STIM_PRECISION: usize = if cfg!(all(target_arch = "x86_64", not(target_os = "windows"))) {
+    19
+} else if cfg!(all(target_arch = "aarch64", not(any(target_os = "windows", target_vendor = "apple")))) {
+    34
+} else {
+    16
+};
+
+/// A number as Stim prints one in a model on this machine (`fmt_g` at `STIM_PRECISION`).
 pub fn fmt_g16(x: f64) -> String {
+    fmt_g(x, STIM_PRECISION)
+}
+
+/// C++'s default stream format at precision `digits` (`%.{digits}g`): that many significant
+/// digits, trailing zeros dropped, and an exponent below 10⁻⁴ or from 10^digits.
+pub fn fmt_g(x: f64, digits: usize) -> String {
     if x == 0.0 || !x.is_finite() {
         return if x == 0.0 { "0".into() } else { format!("{x}") };
     }
-    let sci = format!("{x:.15e}");
+    let sci = format!("{x:.*e}", digits - 1);
     let (mantissa, exp) = sci.split_once('e').expect("an exponent");
     let exp: i32 = exp.parse().expect("an integer exponent");
     let trim = |t: &str| -> String {
@@ -125,11 +141,11 @@ pub fn fmt_g16(x: f64) -> String {
             t.to_string()
         }
     };
-    if !(-4..16).contains(&exp) {
+    if exp < -4 || exp >= digits as i32 {
         let sign = if exp < 0 { '-' } else { '+' };
         format!("{}e{sign}{:02}", trim(mantissa), exp.abs())
     } else {
-        trim(&format!("{x:.*}", (15 - exp) as usize))
+        trim(&format!("{x:.*}", (digits as i32 - 1 - exp) as usize))
     }
 }
 
@@ -496,10 +512,15 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
 
 #[cfg(test)]
 mod tests {
-    use super::fmt_g16;
+    use super::fmt_g;
 
     #[test]
     fn numbers_print_as_stims_do() {
+        // At 19 digits, as Stim prints on x86-64 Linux, and 34, as on ARM64 Linux.
+        assert_eq!(fmt_g(0.0025961611285238335, 19), "0.002596161128523833544");
+        assert_eq!(fmt_g(0.5, 34), "0.5");
+        assert_eq!(fmt_g(0.1, 19), "0.1000000000000000056");
+        let fmt_g16 = |x| fmt_g(x, 16);
         for (x, want) in [
             (0.002596161128523834, "0.002596161128523834"),
             (6.669779853440971e-05, "6.669779853440971e-05"),
