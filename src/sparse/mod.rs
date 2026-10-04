@@ -30,6 +30,7 @@ mod matcher;
 mod paths;
 mod state;
 mod tracker;
+mod union_find;
 #[cfg(test)]
 mod correlated_tests;
 #[cfg(test)]
@@ -39,6 +40,7 @@ pub use correlated::Correlations;
 pub(crate) use correlated::FaultEdges;
 pub use graph::SparseGraph;
 pub use state::Scratch;
+pub use union_find::UfScratch;
 
 use crate::dem_decoder::{DecodeError, Prediction};
 

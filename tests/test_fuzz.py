@@ -124,7 +124,7 @@ def test_any_circuit_text(text):
         survives(c.detector_error_model, decompose_errors=decompose, approximate_disjoint_errors=True)
         dets = np.zeros((2, dem.num_detectors), dtype=bool)
         dets[1, ::3] = True
-        for make in (lambda: sq.Matching(dem), lambda: sq.Matching(dem, enable_correlations=True), lambda: sq.BeliefMatching(dem, max_bp_iters=3)):
+        for make in (lambda: sq.Matching(dem), lambda: sq.Matching(dem, enable_correlations=True), lambda: sq.BeliefMatching(dem, max_bp_iters=3), lambda: sq.UnionFind(dem)):
             try:
                 decoder = make()
             except ALLOWED:
@@ -181,7 +181,7 @@ def test_any_model_text(text):
     assert again.num_errors <= dem.num_errors and again.num_observables == dem.num_observables
     shots = np.zeros((2, dem.num_detectors), dtype=bool)
     shots[1, ::2] = True
-    for make in (lambda: sq.Matching(dem), lambda: sq.BpOsd(dem, max_iter=5, osd_order=2), lambda: sq.WindowMatching(dem, commit=1, buffer=1)):
+    for make in (lambda: sq.Matching(dem), lambda: sq.BpOsd(dem, max_iter=5, osd_order=2), lambda: sq.WindowMatching(dem, commit=1, buffer=1), lambda: sq.UnionFind(dem)):
         try:
             decoder = make()
         except ALLOWED:

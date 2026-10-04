@@ -401,8 +401,8 @@ impl DetectorErrorModel {
     /// ```
     /// use stabilizer_qec::DetectorErrorModel;
     ///
-    /// let folded: DetectorErrorModel = "repeat 2 {\n error(0.1) D0\n shift_detectors 1\n}".parse()?;
-    /// assert_eq!(folded.flattened()?.to_string(), "error(0.1) D0\nerror(0.1) D1\n");
+    /// let folded: DetectorErrorModel = "repeat 2 {\n error(0.125) D0\n shift_detectors 1\n}".parse()?;
+    /// assert_eq!(folded.flattened()?.to_string(), "error(0.125) D0\nerror(0.125) D1\n");
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn flattened(&self) -> Result<DetectorErrorModel> {

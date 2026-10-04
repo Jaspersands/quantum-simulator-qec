@@ -10,7 +10,7 @@
 
 use std::fmt::Write as _;
 
-use crate::circuit::{fmt_args, split_instruction, strip_comment};
+use crate::circuit::{split_instruction, strip_comment};
 use crate::dem::{xor_prob, Dem, Mechanism, Piece};
 
 /// An observable's target: its index with the top bit set, so that within a sorted list of
@@ -108,6 +108,51 @@ fn block_stats(instrs: &[DemInstr]) -> BlockStats {
     s
 }
 
+/// The significant digits Stim prints a model's numbers to on this machine: its stream's
+/// precision is `numeric_limits<long double>::digits10 + 1`, and `long double` is a double on
+/// Windows and Apple silicon (16), x87's 80-bit extended on other x86-64 (19), and IEEE quad
+/// on other ARM64 (34).
+pub const STIM_PRECISION: usize = if cfg!(all(target_arch = "x86_64", not(target_os = "windows"))) {
+    19
+} else if cfg!(all(target_arch = "aarch64", not(any(target_os = "windows", target_vendor = "apple")))) {
+    34
+} else {
+    16
+};
+
+/// A number as Stim prints one in a model on this machine (`fmt_g` at `STIM_PRECISION`).
+pub fn fmt_g16(x: f64) -> String {
+    fmt_g(x, STIM_PRECISION)
+}
+
+/// C++'s default stream format at precision `digits` (`%.{digits}g`): that many significant
+/// digits, trailing zeros dropped, and an exponent below 10⁻⁴ or from 10^digits.
+pub fn fmt_g(x: f64, digits: usize) -> String {
+    if x == 0.0 || !x.is_finite() {
+        return if x == 0.0 { "0".into() } else { format!("{x}") };
+    }
+    let sci = format!("{x:.*e}", digits - 1);
+    let (mantissa, exp) = sci.split_once('e').expect("an exponent");
+    let exp: i32 = exp.parse().expect("an integer exponent");
+    let trim = |t: &str| -> String {
+        if t.contains('.') {
+            t.trim_end_matches('0').trim_end_matches('.').to_string()
+        } else {
+            t.to_string()
+        }
+    };
+    if exp < -4 || exp >= digits as i32 {
+        let sign = if exp < 0 { '-' } else { '+' };
+        format!("{}e{sign}{:02}", trim(mantissa), exp.abs())
+    } else {
+        trim(&format!("{x:.*}", (digits as i32 - 1 - exp) as usize))
+    }
+}
+
+fn g16_args(args: &[f64]) -> String {
+    args.iter().map(|&v| fmt_g16(v)).collect::<Vec<_>>().join(", ")
+}
+
 fn tagged(tag: &str) -> String {
     if tag.is_empty() {
         String::new()
@@ -119,7 +164,7 @@ fn tagged(tag: &str) -> String {
 fn with_args(name: &str, tag: &str, args: &[f64]) -> String {
     let mut s = format!("{name}{}", tagged(tag));
     if !args.is_empty() {
-        let _ = write!(s, "({})", fmt_args(args));
+        let _ = write!(s, "({})", g16_args(args));
     }
     s
 }
@@ -463,4 +508,35 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         return Err("unterminated repeat block".into());
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fmt_g;
+
+    #[test]
+    fn numbers_print_as_stims_do() {
+        // At 19 digits, as Stim prints on x86-64 Linux, and 34, as on ARM64 Linux.
+        assert_eq!(fmt_g(0.0025961611285238335, 19), "0.002596161128523833544");
+        assert_eq!(fmt_g(0.5, 34), "0.5");
+        assert_eq!(fmt_g(0.1, 19), "0.1000000000000000056");
+        let fmt_g16 = |x| fmt_g(x, 16);
+        for (x, want) in [
+            (0.002596161128523834, "0.002596161128523834"),
+            (6.669779853440971e-05, "6.669779853440971e-05"),
+            (0.001, "0.001"),
+            (0.5, "0.5"),
+            (1.0, "1"),
+            (2.0, "2"),
+            (-1.5, "-1.5"),
+            (0.0, "0"),
+            (1e-300, "1e-300"),
+            (123456789.0, "123456789"),
+            (1e16, "1e+16"),
+            (0.0001, "0.0001"),
+            (0.00001, "1e-05"),
+        ] {
+            assert_eq!(fmt_g16(x), want, "{x}");
+        }
+    }
 }

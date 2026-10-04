@@ -70,16 +70,72 @@ pub fn depolarize2_component(p: f64) -> f64 {
     0.5 - 0.5 * (1.0 - 16.0 * p / 15.0).powf(0.125)
 }
 
-/// Independent (qx, qy, qz) equivalent to `PAULI_CHANNEL_1(px, py, pz)`.
-pub fn pauli_channel_1_independent(px: f64, py: f64, pz: f64) -> Result<(f64, f64, f64), String> {
-    let lx = 1.0 - 2.0 * (py + pz);
-    let ly = 1.0 - 2.0 * (px + pz);
-    let lz = 1.0 - 2.0 * (px + py);
-    if lx <= 0.0 || ly <= 0.0 || lz <= 0.0 {
-        return Err(format!("PAULI_CHANNEL_1({px}, {py}, {pz}) has no equivalent set of independent errors"));
+/// `a·b + c`, rounded as Stim's build for this machine rounds it: clang fuses the product into
+/// the sum on ARM64 (one rounding); an x86-64 build cannot (two).
+pub fn fused(a: f64, b: f64, c: f64) -> f64 {
+    if cfg!(target_arch = "aarch64") {
+        a.mul_add(b, c)
+    } else {
+        a * b + c
     }
-    let q = |a: f64| 0.5 * (1.0 - a);
-    Ok((q((ly * lz / lx).sqrt()), q((lx * lz / ly).sqrt()), q((lx * ly / lz).sqrt())))
+}
+
+/// Independent (qx, qy, qz) equivalent to `PAULI_CHANNEL_1(px, py, pz)`, found as Stim finds
+/// them (`try_disjoint_to_independent_xyz_errors_approx`): the cases relabelled so that
+/// identity is the likeliest, the exact solution where one exists, and otherwise 50 Newton
+/// steps, accepted if they come within 10⁻¹⁴. Where they do not, the channel has no
+/// independent equivalent, and an error model holds it only approximately.
+pub fn pauli_channel_1_independent(px: f64, py: f64, pz: f64) -> Result<(f64, f64, f64), String> {
+    match disjoint_to_independent(px, py, pz, 50) {
+        (true, [a, b, c]) => Ok((a, b, c)),
+        _ => Err(format!("PAULI_CHANNEL_1({px}, {py}, {pz}) has no equivalent set of independent errors")),
+    }
+}
+
+fn disjoint_to_independent(x: f64, y: f64, z: f64, max_steps: usize) -> (bool, [f64; 3]) {
+    let i = (1.0 - x - y - z).max(0.0);
+    if i < x {
+        let (ok, [a, b, c]) = disjoint_to_independent(i, z, y, max_steps);
+        return (ok, [1.0 - a, b, c]);
+    }
+    if i < y {
+        let (ok, [a, b, c]) = disjoint_to_independent(z, i, x, max_steps);
+        return (ok, [a, 1.0 - b, c]);
+    }
+    if i < z {
+        let (ok, [a, b, c]) = disjoint_to_independent(y, x, i, max_steps);
+        return (ok, [a, b, 1.0 - c]);
+    }
+    if x + z < 0.5 && x + y < 0.5 && y + z < 0.5 {
+        let s_xz = (1.0 - 2.0 * x - 2.0 * z).sqrt();
+        let s_xy = (1.0 - 2.0 * x - 2.0 * y).sqrt();
+        let s_yz = (1.0 - 2.0 * y - 2.0 * z).sqrt();
+        let a = 0.5 - 0.5 * s_xz * s_xy / s_yz;
+        let b = 0.5 - 0.5 * s_xy * s_yz / s_xz;
+        let c = 0.5 - 0.5 * s_xz * s_yz / s_xy;
+        if a >= 0.0 && b >= 0.0 && c >= 0.0 {
+            return (true, [a, b, c]);
+        }
+    }
+    let (mut a, mut b, mut c) = (x, y, z);
+    for _ in 0..max_steps {
+        let (ab, ac, bc) = (a * b, a * c, b * c);
+        let (a_i, b_i, c_i) = (1.0 - a, 1.0 - b, 1.0 - c);
+        let (ab_i, ac_i, bc_i) = (a_i * b_i, a_i * c_i, b_i * c_i);
+        let x2 = fused(a, bc_i, a_i * bc);
+        let y2 = fused(b, ac_i, b_i * ac);
+        let z2 = fused(c, ab_i, c_i * ab);
+        let (dx, dy, dz) = (x2 - x, y2 - y, z2 - z);
+        if dx.abs() + dy.abs() + dz.abs() < 1e-14 {
+            return (true, [a, b, c]);
+        }
+        // Stim's step, its third derivative as written there (`ab_i - ac`).
+        let (da, db, dc) = (bc_i - bc, ac_i - ac, ab_i - ac);
+        a = (a - dx / da).max(0.0);
+        b = (b - dy / db).max(0.0);
+        c = (c - dz / dc).max(0.0);
+    }
+    (false, [a, b, c])
 }
 
 /// Probability that exactly one of two independent events happens.

@@ -4,6 +4,47 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 1.3.0 — 2026-10-04
+
+The Python package and the Rust crate both at 1.3.0: error models whose text is Stim's,
+character for character; a union-find decoder; and a measurement converter that never unrolls.
+
+
+### Added
+
+- `UnionFind` (Python and Rust), weighted union-find decoding (Delfosse and Nickerson, with
+  Huang, Newman and Brown's weighted growth) on the matching graph, and `"union_find"` in the
+  sinter adapter. Its corrections always explain the detection events, every single fault is
+  corrected, and its logical error rate is a little above matching's (d = 9 at p = 0.005:
+  0.70% against 0.65%). It is the standard baseline rather than the fast option here: this
+  engine's matcher, near-linear too, is about twice as fast at every noise strength measured.
+
+- The measurement converter no longer unrolls a circuit: its reference is one tableau run
+  through the loops as written, determinism and the sweep bits' effects come from the error
+  model's backward walk (folding loops; seven extra random runs, and one per sweep bit, are
+  gone), and shots are read by a program of the circuit's measurements and detectors with its
+  loops kept. A memory of millions of rounds converts; the 2²⁴-instruction limit is gone.
+
+### Fixed
+
+- Building an error model, or a converter, for a circuit whose walk never settles into a
+  period (a qubit read every round and never reset) is refused once its work passes the limit,
+  rather than running for hours: the limit now counts the sensitivity sets merged, not only
+  the instructions.
+
+### Changed
+
+- Error models print as Stim prints them, character for character (515 of 515 random,
+  disjoint, tagged, Pauli-observable and looped circuits, and Stim's generated memories). Fault
+  classes are Stim's: a fault's pieces in the order they arose, so a fault Stim lists once per
+  order is listed so here too, and `num_errors` equals Stim's. Probabilities are accumulated in
+  Stim's order and rounded as Stim's build for the machine rounds them (its ARM64 build fuses a
+  multiply into an add), and printed to Stim's 16 significant digits.
+- `PAULI_CHANNEL_1` is converted to independent errors as Stim converts it: with the cases
+  relabelled so that identity is the likeliest, and by Newton's method where no exact solution
+  exists, so channels Stim treats as independent need no `approximate_disjoint_errors` here
+  either. Disjoint cases that cannot be told apart are merged in Stim's order.
+
 ## 1.2.0 — 2026-10-02
 
 The Python package and the Rust crate both at 1.2.0: circuits built in code, error models

@@ -158,3 +158,24 @@ def test_bposd_matrix_decoder_agrees_with_ldpc():
             total += 1
     # Equal but for ties among columns of equal posterior, which ldpc orders with std::sort.
     assert agree >= 0.95 * total
+
+
+def test_union_find(d3):
+    import pickle
+
+    c = sq.memory_circuit(distance=5, rounds=5, p=0.004)
+    dem = c.detector_error_model(decompose_errors=True)
+    dets, obs = shots_of(c, 20_000, seed=21)
+    uf = sq.UnionFind(dem)
+    pred = uf.decode_batch(dets, threads=0)
+    mwpm = failure_rate(sq.Matching(dem).decode_batch(dets, threads=0), obs)
+    ufr = failure_rate(pred, obs)
+    assert mwpm <= ufr < 1.5 * mwpm + 0.002, (ufr, mwpm)
+    # The same shots, bit-packed in and out, on one thread or many, and after pickling.
+    packed = np.packbits(dets, axis=1, bitorder="little")
+    assert np.array_equal(np.unpackbits(uf.decode_batch(packed, bit_packed_shots=True, bit_packed_predictions=True), axis=1, bitorder="little", count=1), pred)
+    assert np.array_equal(pickle.loads(pickle.dumps(uf)).decode_batch(dets[:500]), pred[:500])
+    assert np.array_equal(uf.decode(dets[3]), pred[3])
+    # A detection event with no partner and no boundary cannot be explained.
+    with pytest.raises(ValueError, match="no correction explains"):
+        sq.UnionFind("error(0.1) D0 D1\nerror(0.1) D1 D2").decode_batch(np.array([[1, 0, 0]], dtype=bool))

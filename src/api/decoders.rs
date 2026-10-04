@@ -1,5 +1,5 @@
 use super::{probability, BitTable, DetectorErrorModel, Error, Result};
-use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots};
+use crate::batch::{belief_shots, bposd_shots, match_shots, union_find_shots, window_info, window_shots};
 use crate::dem_decoder::{DecodeError, DemDecoder};
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::{Mode, Model, WindowDecoder};
@@ -177,6 +177,76 @@ impl OsdMethod {
             OsdMethod::Exhaustive(k) => crate::osd::OsdMethod::Exhaustive(k),
             OsdMethod::CombinationSweep(k) => crate::osd::OsdMethod::CombinationSweep(k),
         }
+    }
+}
+
+/// Weighted union-find decoding (Delfosse and Nickerson, with Huang, Newman and Brown's
+/// weighted growth) on the same graph matching uses: clusters around the detection events grow
+/// edge weight by edge weight until their events can pair inside them, and a spanning tree of
+/// each is peeled for the correction. Linear time in practice, its logical error rate a little
+/// above matching's; the standard baseline (this engine's matcher, near-linear too, is about
+/// twice as fast). The model's faults must flip at most two detectors each, or be decomposed.
+///
+/// ```
+/// use stabilizer_qec::{memory_circuit, Basis, DemOptions, Noise, SurfaceCode, UnionFind};
+///
+/// let c = memory_circuit(SurfaceCode::Rotated, 5, 5, Noise::Sd6 { p: 0.003 }, Basis::Z)?;
+/// let dem = c.detector_error_model(&DemOptions::new().decompose_errors(true))?;
+/// let samples = c.detector_sampler(1)?.sample(2000, 0);
+/// let predictions = UnionFind::new(&dem)?.decode_batch(&samples.detectors, 0)?;
+/// let wrong = (0..2000).filter(|&s| predictions[s].flips(0) != samples.observables.get(s, 0)).count();
+/// assert!(wrong < 100);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+pub struct UnionFind {
+    graph: SparseGraph,
+    num_detectors: usize,
+    num_observables: usize,
+}
+
+impl UnionFind {
+    /// The decoder for a decomposed model.
+    pub fn new(dem: &DetectorErrorModel) -> Result<UnionFind> {
+        let (graph, _) = DemDecoder::new(dem.flat()?)?.into_parts(false);
+        Ok(UnionFind { graph, num_detectors: dem.num_detectors(), num_observables: dem.num_observables() })
+    }
+
+    /// Detectors in the model.
+    pub fn num_detectors(&self) -> usize {
+        self.num_detectors
+    }
+
+    /// Observables in the model.
+    pub fn num_observables(&self) -> usize {
+        self.num_observables
+    }
+
+    /// One shot, given the detectors that fired.
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut sorted = defects.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        let mut scratch = self.graph.union_find_scratch();
+        let o = self
+            .graph
+            .decode_union_find(&mut scratch, &sorted)
+            .ok_or_else(|| Error::new("no correction explains the detection events (an odd component with no boundary)"))?;
+        Ok(Prediction { observables: o, weight: None, bp_converged: None })
+    }
+
+    /// A batch of shots (one row per shot, one bit per detector), across `threads` threads
+    /// (`0` is every core). A shot no correction explains is an error naming it.
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = union_find_shots(&self.graph, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        out.into_iter()
+            .enumerate()
+            .map(|(s, o)| match o {
+                Some(observables) => Ok(Prediction { observables, weight: None, bp_converged: None }),
+                None => Err(Error::new(format!("shot {s}: no correction explains its detection events"))),
+            })
+            .collect()
     }
 }
 

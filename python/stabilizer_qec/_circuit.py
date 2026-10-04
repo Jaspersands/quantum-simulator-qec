@@ -200,7 +200,9 @@ class Circuit:
 
     def compile_m2d_converter(self) -> "MeasurementsToDetectionEventsConverter":
         """A converter from raw measurements (and sweep bits) to detection events, as
-        ``stim m2d``. Its reference run keeps a dense tableau: at most 16,384 qubits."""
+        ``stim m2d``. Loops are run pass by pass, never unrolled into memory, so a circuit of
+        millions of rounds converts. Its reference run keeps a dense tableau: at most 16,384
+        qubits."""
         return MeasurementsToDetectionEventsConverter(self)
 
 
