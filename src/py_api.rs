@@ -452,12 +452,25 @@ fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
     crate::bb::check_cycles(total, least).map_err(err)
 }
 
-fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
-    match name {
-        "gross" | "144" => Ok(crate::bb::BbCode::gross()),
-        "72" => Ok(crate::bb::BbCode::bb72()),
-        other => Err(err(format!("unknown bivariate bicycle code '{other}' (gross or 72)"))),
-    }
+/// A bivariate bicycle code as (ℓ, m, A's monomials, B's monomials), each monomial (i, j) for
+/// x^i y^j.
+type BbSpec = (usize, usize, [(usize, usize); 3], [(usize, usize); 3]);
+
+fn bb_code((l, m, a, b): BbSpec) -> PyResult<crate::bb::BbCode> {
+    crate::bb::BbCode::new(l, m, a, b).map_err(err)
+}
+
+/// One of Bravyi et al.'s codes by name ("72", "90", "108", "144" or "gross", "288"), or the
+/// code of the given polynomials once checked, as its spec.
+#[pyfunction]
+#[pyo3(signature = (name=None, spec=None))]
+fn bb_spec(name: Option<&str>, spec: Option<BbSpec>) -> PyResult<BbSpec> {
+    let c = match (name, spec) {
+        (Some(n), None) => crate::bb::BbCode::named(n).map_err(err)?,
+        (None, Some(s)) => bb_code(s)?,
+        _ => return Err(err("give a name or a spec".to_string())),
+    };
+    Ok((c.l, c.m, c.a, c.b))
 }
 
 /// A bivariate bicycle code's check matrices and paired logical operators,
@@ -465,17 +478,17 @@ fn bb_code(name: &str) -> PyResult<crate::bb::BbCode> {
 /// (H_X, H_Z, logical X, logical Z).
 #[pyfunction]
 #[allow(clippy::type_complexity)]
-fn bb_matrices(code: &str) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
+fn bb_matrices(code: BbSpec) -> PyResult<(Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
     let c = bb_code(code)?;
     let rows = |m: &crate::gf2::BitMatrix| (0..m.rows).map(|r| m.row_ones(r)).collect::<Vec<_>>();
     let (lx, lz) = c.logicals();
     Ok((rows(&c.hx()), rows(&c.hz()), rows(&lx), rows(&lz)))
 }
 
-/// The paper's Z-basis memory on a bivariate bicycle code ("gross" or "72"),
+/// The paper's Z-basis memory on a bivariate bicycle code (a spec, see `bb_spec`),
 /// `cycles` depth-8 syndrome cycles under circuit noise `p`, as Stim text.
 #[pyfunction]
-fn bb_memory_circuit(code: &str, cycles: usize, p: f64) -> PyResult<String> {
+fn bb_memory_circuit(code: BbSpec, cycles: usize, p: f64) -> PyResult<String> {
     bb_cycles(cycles, cycles)?;
     crate::memory::probability(p).map_err(err)?;
     Ok(bb_code(code)?.memory_z(cycles, p))
@@ -488,7 +501,7 @@ fn bb_memory_circuit(code: &str, cycles: usize, p: f64) -> PyResult<String> {
 /// basis `bb_matrices` gives).
 #[pyfunction]
 #[allow(clippy::type_complexity)]
-fn bb_automorphisms(code: &str) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usize>>)>> {
+fn bb_automorphisms(code: BbSpec) -> PyResult<Vec<(usize, usize, bool, Vec<Vec<usize>>)>> {
     use crate::bb_auto::Automorphism;
     let c = bb_code(code)?;
     let mut out = Vec::new();
@@ -558,7 +571,7 @@ fn bb_gauging(
 /// A memory of a bivariate bicycle code in either basis, by the cycle
 /// writer (in "z" it is `bb_memory_circuit`'s model), as Stim text.
 #[pyfunction]
-fn bb_memory_basis_circuit(code: &str, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
+fn bb_memory_basis_circuit(code: BbSpec, basis: &str, cycles: usize, p: f64) -> PyResult<String> {
     bb_cycles(cycles, cycles)?;
     crate::memory::probability(p).map_err(err)?;
     Ok(crate::bb_circuit::memory(&bb_code(code)?, basis_of(basis)?, cycles, p).to_stim())
@@ -728,6 +741,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
     m.add_function(wrap_pyfunction!(generated_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(bb_spec, m)?)?;
     m.add_function(wrap_pyfunction!(bb_matrices, m)?)?;
     m.add_function(wrap_pyfunction!(bb_memory_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bposd_decode, m)?)?;

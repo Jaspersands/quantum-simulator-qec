@@ -14,6 +14,14 @@ minor release before a major release removes it. The Rust crate is versioned on 
   four noise parameters. The text is Stim's character for character (every task at distances
   2 to 7 and 25, one to seven rounds and 50, with and without each kind of noise), and the
   arguments Stim refuses are refused.
+- Every bivariate bicycle code of Bravyi et al.'s Table 3: `BivariateBicycleCode("90")`
+  ([[90, 8, 10]]), `"108"` ([[108, 8, 10]]) and `"288"` ([[288, 12, 18]]) beside `"72"` and
+  `"144"`/`"gross"` (Rust: `bb90`, `bb108`, `bb288`, `named`), and any other from its
+  polynomials, `BivariateBicycleCode.from_polynomials(l, m, a, b)` (Rust: `from_polynomials`),
+  checked for weight-six checks and at least one logical qubit. Each comes with the paper's
+  depth-8 syndrome cycle, its memories in both bases, its logicals and its automorphisms; a
+  noiseless memory of each is checked to fire no detector. `polynomials` gives a code's torus
+  and monomials.
 
 ### Changed
 

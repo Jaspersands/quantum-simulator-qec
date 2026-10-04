@@ -263,12 +263,53 @@ pub struct BivariateBicycleCode {
 impl BivariateBicycleCode {
     /// The gross code, [[144, 12, 12]].
     pub fn gross() -> BivariateBicycleCode {
-        BivariateBicycleCode { inner: crate::bb::BbCode::gross(), gross: true }
+        BivariateBicycleCode::wrap(crate::bb::BbCode::gross())
     }
 
     /// [[72, 12, 6]].
     pub fn bb72() -> BivariateBicycleCode {
-        BivariateBicycleCode { inner: crate::bb::BbCode::bb72(), gross: false }
+        BivariateBicycleCode::wrap(crate::bb::BbCode::bb72())
+    }
+
+    /// [[90, 8, 10]]: A = x⁹ + y + y², B = 1 + x² + x⁷ on a 15 × 3 torus.
+    pub fn bb90() -> BivariateBicycleCode {
+        BivariateBicycleCode::wrap(crate::bb::BbCode::bb90())
+    }
+
+    /// [[108, 8, 10]].
+    pub fn bb108() -> BivariateBicycleCode {
+        BivariateBicycleCode::wrap(crate::bb::BbCode::bb108())
+    }
+
+    /// [[288, 12, 18]]: A = x³ + y² + y⁷, B = y³ + x + x² on a 12 × 12 torus.
+    pub fn bb288() -> BivariateBicycleCode {
+        BivariateBicycleCode::wrap(crate::bb::BbCode::bb288())
+    }
+
+    /// One of the codes of Bravyi et al.'s Table 3 by its number of data qubits: `"72"`,
+    /// `"90"`, `"108"`, `"144"` (or `"gross"`) or `"288"`.
+    pub fn named(name: &str) -> Result<BivariateBicycleCode> {
+        Ok(BivariateBicycleCode::wrap(crate::bb::BbCode::named(name)?))
+    }
+
+    /// The code of A = Σ x^i y^j over the monomials `(i, j)` of `a`, and B over `b`, on an
+    /// `l` × `m` torus: H_X = [A | B], H_Z = [Bᵀ | Aᵀ]. Each polynomial's three monomials must
+    /// differ, and the code must encode a qubit.
+    ///
+    /// ```
+    /// use stabilizer_qec::BivariateBicycleCode;
+    ///
+    /// let code = BivariateBicycleCode::from_polynomials(9, 6, [(3, 0), (0, 1), (0, 2)], [(0, 3), (1, 0), (2, 0)])?;
+    /// assert_eq!((code.n(), code.k()), (108, 8));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn from_polynomials(l: usize, m: usize, a: [(usize, usize); 3], b: [(usize, usize); 3]) -> Result<BivariateBicycleCode> {
+        Ok(BivariateBicycleCode::wrap(crate::bb::BbCode::new(l, m, a, b)?))
+    }
+
+    fn wrap(inner: crate::bb::BbCode) -> BivariateBicycleCode {
+        let gross = inner == crate::bb::BbCode::gross();
+        BivariateBicycleCode { inner, gross }
     }
 
     /// Data qubits.

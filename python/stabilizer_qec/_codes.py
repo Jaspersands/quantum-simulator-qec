@@ -2,7 +2,7 @@
 logical operations, and the streamed million-round memory."""
 
 
-from typing import NamedTuple
+from typing import NamedTuple, Sequence, Union
 
 import numpy as np
 
@@ -86,21 +86,56 @@ class Gauging(NamedTuple):
 
 
 class BivariateBicycleCode:
-    """One of IBM's bivariate bicycle codes (Bravyi et al., Nature 627, 778, 2024):
-    ``"gross"``, the [[144, 12, 12]] gross code, or ``"72"``, [[72, 12, 6]], with the paper's
-    depth-8 syndrome cycle."""
+    """One of IBM's bivariate bicycle codes (Bravyi et al., Nature 627, 778, 2024), with the
+    paper's depth-8 syndrome cycle: by its number of data qubits, the codes of the paper's
+    Table 3, ``"72"`` ([[72, 12, 6]]), ``"90"`` ([[90, 8, 10]]), ``"108"`` ([[108, 8, 10]]),
+    ``"144"`` or ``"gross"`` (the gross code, [[144, 12, 12]]) and ``"288"`` ([[288, 12, 18]]);
+    or any other from its polynomials with ``from_polynomials``."""
 
-    def __init__(self, name: str = "gross") -> None:
-        name = {"144": "gross"}.get(name, name)
-        self.name = _choice(name, ("gross", "72"), "name")
-        hx, hz, lx, lz = call(_core.bb_matrices, self.name)
+    def __init__(self, name: Union[str, int] = "gross") -> None:
+        name = str(name)
+        self._init(call(_core.bb_spec, name, None), "gross" if name in ("gross", "144") else name)
+
+    @classmethod
+    def from_polynomials(cls, l: int, m: int, a: Sequence, b: Sequence) -> "BivariateBicycleCode":
+        """The code of A = Σ x^i y^j over the three ``(i, j)`` in ``a`` and B likewise over
+        ``b``, on an ``l`` × ``m`` torus: H_X = [A | B], H_Z = [Bᵀ | Aᵀ]. Each polynomial's
+        three monomials must differ, and the code must encode a qubit.
+
+        >>> BivariateBicycleCode.from_polynomials(12, 6, [(3, 0), (0, 1), (0, 2)], [(0, 3), (1, 0), (2, 0)]).k
+        12
+        """
+        monomials = []
+        for poly, name in ((a, "a"), (b, "b")):
+            terms = [tuple(count(e, f"{name}'s exponents") for e in t) for t in poly]
+            if len(terms) != 3 or any(len(t) != 2 for t in terms):
+                raise ValueError(f"{name} must be three monomials (i, j), for x^i y^j")
+            monomials.append(terms)
+        code = cls.__new__(cls)
+        code._init(call(_core.bb_spec, None, (count(l, "l", 1), count(m, "m", 1), *monomials)), None)
+        return code
+
+    def _init(self, spec: tuple, name: Union[str, None]) -> None:
+        self._spec = spec
+        self.name = name
+        hx, hz, lx, lz = call(_core.bb_matrices, spec)
         self.n = 2 * len(hx)
         self._hx, self._hz = _rows(hx, self.n), _rows(hz, self.n)
         self._lx, self._lz = _rows(lx, self.n), _rows(lz, self.n)
         self.k = len(lx)
 
+    @property
+    def polynomials(self) -> tuple:
+        """``(l, m, a, b)``: the torus and A's and B's monomials, as ``from_polynomials`` takes
+        them."""
+        l, m, a, b = self._spec
+        return l, m, [tuple(t) for t in a], [tuple(t) for t in b]
+
     def __repr__(self) -> str:
-        return f"stabilizer_qec.BivariateBicycleCode({self.name!r})"
+        if self.name is not None:
+            return f"stabilizer_qec.BivariateBicycleCode({self.name!r})"
+        l, m, a, b = self.polynomials
+        return f"stabilizer_qec.BivariateBicycleCode.from_polynomials({l}, {m}, {a}, {b})"
 
     def check_matrices(self) -> tuple:
         """(H_X, H_Z), each check a row over the ``n`` data qubits, uint8."""
@@ -115,7 +150,7 @@ class BivariateBicycleCode:
         """Every shift x^a y^b, with and without the ZX-duality, as an ``Automorphism``."""
         return [
             Automorphism((a, b), bool(dual), _rows(rows, 2 * self.k))
-            for a, b, dual, rows in call(_core.bb_automorphisms, self.name)
+            for a, b, dual, rows in call(_core.bb_automorphisms, self._spec)
         ]
 
     def memory_circuit(self, cycles: int, p: float, *, basis: str = "z") -> Circuit:
@@ -125,11 +160,11 @@ class BivariateBicycleCode:
         _choice(basis, _BASES, "basis")
         cycles, p = count(cycles, "cycles", 1), probability(p)
         if basis == "z":
-            return Circuit(call(_core.bb_memory_circuit, self.name, cycles, p))
-        return Circuit(call(_core.bb_memory_basis_circuit, self.name, basis, cycles, p))
+            return Circuit(call(_core.bb_memory_circuit, self._spec, cycles, p))
+        return Circuit(call(_core.bb_memory_basis_circuit, self._spec, basis, cycles, p))
 
     def _gross_only(self) -> None:
-        if self.name != "gross":
+        if self._spec != call(_core.bb_spec, "gross", None):
             raise ValueError("logical measurements are built for the gross code only")
 
     def gauging(self, operator: str, *, expanded: bool = False) -> Gauging:
