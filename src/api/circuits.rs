@@ -217,6 +217,34 @@ impl Circuit {
         Ok(DetectorSampler { sampler: BatchSampler::new(&self.inner)?, seed, next: 0 })
     }
 
+    /// A picture of the circuit, after Stim's `diagram` (see [`DiagramKind`]): its timeline as
+    /// text or SVG, what its detectors compare at a moment, or its matching graph.
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, DiagramKind};
+    ///
+    /// let c: Circuit = "R 0 1\nH 0\nTICK\nCX 0 1\nTICK\nM 0 1\nDETECTOR rec[-1] rec[-2]".parse()?;
+    /// let text = c.diagram(DiagramKind::TimelineText)?;
+    /// assert!(text.contains("q0: -R-H-@-M:rec[0]-DETECTOR:D0=rec[1]*rec[0]-"));
+    /// assert!(text.contains("q1: -R---X-M:rec[1]-"));
+    /// // Just before the measurements, the detector compares Z0 Z1.
+    /// assert_eq!(c.diagram(DiagramKind::DetectorSliceText { tick: 2 })?, "D0: Z0 Z1\n");
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn diagram(&self, kind: DiagramKind) -> Result<String> {
+        use crate::diagram as d;
+        Ok(match kind {
+            DiagramKind::TimelineText => d::timeline_text(&self.inner)?,
+            DiagramKind::TimelineSvg => d::timeline_svg(&self.inner)?,
+            DiagramKind::DetectorSliceText { tick } => d::detslice_text(&self.inner, tick)?,
+            DiagramKind::DetectorSliceSvg { tick } => d::detslice_svg(&self.inner, tick)?,
+            DiagramKind::MatchGraphSvg => {
+                let dem = self.detector_error_model(&DemOptions::new().decompose_errors(true).approximate_disjoint_errors(Some(1.0)))?;
+                dem.matchgraph_svg()?
+            }
+        })
+    }
+
     /// A converter from raw measurement records (and sweep bits) to detection events and
     /// observable flips, as `stim m2d`. Its reference run keeps a dense tableau: at most 16,384
     /// qubits.
@@ -304,6 +332,30 @@ impl fmt::Display for Circuit {
     }
 }
 
+/// A kind of [`Circuit::diagram`], after Stim's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DiagramKind {
+    /// The timeline as text (Stim's `timeline-text`): a row per qubit, each operation in the
+    /// first column its wires are free, `TICK` groups bracketed, loops drawn once.
+    TimelineText,
+    /// The timeline as an SVG picture (`timeline-svg`).
+    TimelineSvg,
+    /// What each detector compares after `tick` `TICK`s, as text (`detslice-text`): a line per
+    /// detector, its Paulis.
+    DetectorSliceText {
+        /// The moment: after this many `TICK`s (0 is the start).
+        tick: u64,
+    },
+    /// The same as an SVG picture over the qubits' coordinates (`detslice-svg`).
+    DetectorSliceSvg {
+        /// The moment.
+        tick: u64,
+    },
+    /// The decomposed model's matching graph as an SVG picture (`matchgraph-svg`).
+    MatchGraphSvg,
+}
+
 /// How [`Circuit::detector_error_model`] builds a model.
 ///
 /// ```
@@ -369,6 +421,11 @@ impl DetectorErrorModel {
         DetectorErrorModel { stats: program.stats(), program, flat: OnceLock::new() }
     }
 
+    /// The model as written.
+    pub(crate) fn program(&self) -> &DemProgram {
+        &self.program
+    }
+
     /// The model unrolled, for a decoder.
     pub(crate) fn flat(&self) -> Result<&Dem> {
         self.flat.get_or_init(|| self.program.to_dem()).as_ref().map_err(|e| Error::new(e.clone()))
@@ -392,6 +449,14 @@ impl DetectorErrorModel {
     /// Faults: `error` lines, counted through loops.
     pub fn num_errors(&self) -> usize {
         usize::try_from(self.stats.num_errors).unwrap_or(usize::MAX)
+    }
+
+
+    /// The matching graph as an SVG picture: each detector at its coordinates, each graph-like
+    /// fault an edge, those flipping an observable heavier. The model must be decomposed, and
+    /// unroll.
+    pub fn matchgraph_svg(&self) -> Result<String> {
+        Ok(crate::diagram::matchgraph_svg(self.flat()?)?)
     }
 
     /// The model without `repeat` blocks or `shift_detectors`, as Stim's `flattened`: every

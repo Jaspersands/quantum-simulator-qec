@@ -59,6 +59,13 @@ fn api_err(e: crate::api::Error) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
 
+impl PyCircuit {
+    /// The engine's circuit.
+    pub(crate) fn engine(&self) -> &Circuit {
+        &self.circuit.inner
+    }
+}
+
 #[pymethods]
 impl PyCircuit {
     #[new]
@@ -117,6 +124,23 @@ impl PyCircuit {
 
     fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
         Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
+    }
+
+    /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
+    /// detslice-svg, matchgraph-svg); `tick` the moment of a detector slice.
+    #[pyo3(signature = (kind, tick=None))]
+    fn diagram(&self, kind: &str, tick: Option<u64>) -> PyResult<String> {
+        use crate::api::DiagramKind as K;
+        let need_tick = || tick.ok_or_else(|| err(format!("a {kind} diagram needs tick=")));
+        let kind = match kind {
+            "timeline-text" => K::TimelineText,
+            "timeline-svg" => K::TimelineSvg,
+            "detslice-text" => K::DetectorSliceText { tick: need_tick()? },
+            "detslice-svg" => K::DetectorSliceSvg { tick: need_tick()? },
+            "matchgraph-svg" => K::MatchGraphSvg,
+            other => return Err(err(format!("unknown diagram '{other}': timeline-text, timeline-svg, detslice-text, detslice-svg or matchgraph-svg"))),
+        };
+        self.circuit.diagram(kind).map_err(api_err)
     }
 
     fn copy(&self) -> PyCircuit {
@@ -179,6 +203,10 @@ impl PyDem {
 
     fn __str__(&self) -> String {
         self.dem.to_string()
+    }
+
+    fn matchgraph_svg(&self) -> PyResult<String> {
+        self.dem.matchgraph_svg().map_err(api_err)
     }
 
     fn flattened(&self) -> PyResult<PyDem> {
@@ -420,7 +448,7 @@ impl PyDemBpOsd {
 /// Window decoding of a model cut by time.
 #[pyclass(name = "WindowMatcher", module = "stabilizer_qec._core")]
 pub struct PyWindowMatcher {
-    wd: WindowDecoder,
+    wd: PyWindows,
     correlated: bool,
     #[pyo3(get)]
     num_detectors: usize,
@@ -428,22 +456,50 @@ pub struct PyWindowMatcher {
     num_observables: usize,
 }
 
+enum PyWindows {
+    Whole(Box<WindowDecoder>),
+    Streamed(Box<crate::batch::StreamedWindows>),
+}
+
 #[pymethods]
 impl PyWindowMatcher {
+    /// `template`: windows from a template of the model's loop (True), from the whole model
+    /// (False), or the template for a model of more than a million faults (None).
     #[new]
-    fn new(dem: &PyDem, commit: usize, buffer: usize, mode: &str, correlated: bool) -> PyResult<Self> {
+    #[pyo3(signature = (dem, commit, buffer, mode, correlated, template=None))]
+    fn new(dem: &PyDem, commit: usize, buffer: usize, mode: &str, correlated: bool, template: Option<bool>) -> PyResult<Self> {
         let mode = match mode {
             "sliding" => Mode::Sliding,
             "parallel" => Mode::Parallel,
             other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
         };
-        let d = dem.flat()?;
-        let wd = WindowDecoder::new(Model::new(d).map_err(err)?, commit, buffer, mode).map_err(err)?;
-        Ok(PyWindowMatcher { wd, correlated, num_detectors: d.num_detectors, num_observables: d.num_observables })
+        let (nd, no) = (dem.dem.num_detectors(), dem.dem.num_observables());
+        let streamed = || crate::batch::StreamedWindows::new(dem.dem.program(), commit, buffer, mode).map(Box::new);
+        let whole = || -> PyResult<PyWindows> {
+            Ok(PyWindows::Whole(Box::new(WindowDecoder::new(Model::new(dem.flat()?).map_err(err)?, commit, buffer, mode).map_err(err)?)))
+        };
+        let wd = match template {
+            Some(true) => PyWindows::Streamed(streamed().map_err(err)?),
+            None if dem.dem.num_errors() > 1_000_000 => match streamed() {
+                Ok(s) => PyWindows::Streamed(s),
+                Err(_) => whole()?,
+            },
+            _ => whole()?,
+        };
+        Ok(PyWindowMatcher { wd, correlated, num_detectors: nd, num_observables: no })
     }
 
     fn windows(&self) -> Vec<WindowInfo> {
-        window_info(&self.wd)
+        match &self.wd {
+            PyWindows::Whole(wd) => window_info(wd),
+            PyWindows::Streamed(sw) => sw.windows(),
+        }
+    }
+
+    /// Whether the windows come from a template of the model's loop.
+    #[getter]
+    fn streamed(&self) -> bool {
+        matches!(self.wd, PyWindows::Streamed(_))
     }
 
     /// (observables as u64 per shot, the defects left unexplained, each window's decode
@@ -460,7 +516,10 @@ impl PyWindowMatcher {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let (wd, correlated) = (&self.wd, self.correlated);
-        let out = py.detach(|| window_shots(wd, packed, nd, shots, correlated, threads, timings));
+        let out = py.detach(|| match wd {
+            PyWindows::Whole(wd) => window_shots(wd, packed, nd, shots, correlated, threads, timings),
+            PyWindows::Streamed(sw) => crate::batch::streamed_window_shots(sw, packed, nd, shots, correlated, threads, timings),
+        });
         let unexplained = out.iter().map(|x| x.1).sum();
         let times = le_f64(out.iter().flat_map(|x| x.2.iter().copied()));
         let failed = out.iter().enumerate().filter(|(_, x)| x.3).map(|(s, _)| s).collect();

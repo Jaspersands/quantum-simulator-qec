@@ -30,8 +30,9 @@ assert!(failures < 1_000);
 - **Decoders** on an error model: [`Matching`] (exact, sparse blossom; plain or correlated, as
   fast as PyMatching), [`BeliefMatching`], [`BpOsd`], [`WindowMatching`]. On a check matrix:
   [`BpDecoder`] and [`BpOsdDecoder`], equal to `ldpc`'s. All `Send + Sync`.
-- **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`stream_memory`] (a million
-  rounds, window-decoded as they stream), [`BivariateBicycleCode`] (the gross code, its
+- **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`stream_memory`] and
+  [`stream_circuit`] (a million rounds of a memory, or of any circuit with a loop,
+  window-decoded as they stream), [`BivariateBicycleCode`] (the gross code, its
   automorphisms' logical action, and the gauging measurement of its logicals),
   [`lattice_surgery`] (Z⊗Z and X⊗X merges, a logical CNOT).
 

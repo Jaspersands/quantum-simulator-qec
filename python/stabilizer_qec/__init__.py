@@ -48,7 +48,7 @@ and `*` one into a `REPEAT` block.
 Circuits written for you: `memory_circuit` (rotated and XZZX surface codes),
 `BivariateBicycleCode` (the gross code and [[72, 12, 6]], with their logical operations), the
 `surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`
-(a million rounds, window-decoded as they stream).
+(a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).
 
 ## Shots
 
@@ -103,7 +103,7 @@ from importlib.metadata import PackageNotFoundError as _NotFound
 from importlib.metadata import version as _version
 
 from . import _core, surgery
-from ._circuit import Circuit, DetectorErrorModel, DetectorSampler, MeasurementsToDetectionEventsConverter
+from ._circuit import Circuit, DetectorErrorModel, DetectorSampler, Diagram, MeasurementsToDetectionEventsConverter
 from ._codes import Automorphism, BivariateBicycleCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
 
@@ -167,6 +167,7 @@ __all__ = [
     "Circuit",
     "DetectorErrorModel",
     "DetectorSampler",
+    "Diagram",
     "Gauging",
     "Matching",
     "MeasurementsToDetectionEventsConverter",

@@ -193,6 +193,9 @@
                                 <a class="function" href="#Circuit.detector_error_model">detector_error_model</a>
                         </li>
                         <li>
+                                <a class="function" href="#Circuit.diagram">diagram</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#Circuit.compile_detector_sampler">compile_detector_sampler</a>
                         </li>
                         <li>
@@ -220,6 +223,9 @@
                                 <a class="variable" href="#DetectorErrorModel.num_errors">num_errors</a>
                         </li>
                         <li>
+                                <a class="function" href="#DetectorErrorModel.diagram">diagram</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#DetectorErrorModel.flattened">flattened</a>
                         </li>
                 </ul>
@@ -239,6 +245,21 @@
                         </li>
                         <li>
                                 <a class="function" href="#DetectorSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#Diagram">Diagram</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Diagram.__init__">Diagram</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Diagram.type">type</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Diagram.save">save</a>
                         </li>
                 </ul>
 
@@ -391,6 +412,9 @@
                                 <a class="function" href="#WindowMatching.__init__">WindowMatching</a>
                         </li>
                         <li>
+                                <a class="variable" href="#WindowMatching.streamed">streamed</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#WindowMatching.windows">windows</a>
                         </li>
                         <li>
@@ -411,7 +435,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.3.0</footer>
+            <footer>stabilizer-qec 1.4.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -479,7 +503,7 @@ and <code>*</code> one into a <code>REPEAT</code> block.</p>
 <p>Circuits written for you: <code><a href="#memory_circuit">memory_circuit</a></code> (rotated and XZZX surface codes),
 <code><a href="#BivariateBicycleCode">BivariateBicycleCode</a></code> (the gross code and [[72, 12, 6]], with their logical operations), the
 <code>surgery</code> module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and <code><a href="#stream_memory">stream_memory</a></code>
-(a million rounds, window-decoded as they stream).</p>
+(a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).</p>
 
 <h2 id="shots">Shots</h2>
 
@@ -1229,6 +1253,39 @@ probability above it.</p>
 
 
                             </div>
+                            <div id="Circuit.diagram" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">diagram</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'timeline-text'</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">tick</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Diagram">Diagram</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.diagram"></a>
+    
+            <div class="docstring"><p>A picture of the circuit, after Stim's <code><a href="#Circuit.diagram">diagram</a></code>:</p>
+
+<ul>
+<li><code>"timeline-text"</code>, <code>"timeline-svg"</code>: every operation in its column, <code>TICK</code>
+groups bracketed, loops drawn once with their count, measurements numbered.</li>
+<li><code>"detslice-text"</code>, <code>"detslice-svg"</code>: what each detector compares after <code>tick</code>
+<code>TICK</code>s, its Paulis over the qubits (drawn at their <code>QUBIT_COORDS</code>).</li>
+<li><code>"matchgraph-svg"</code>: the decomposed model's matching graph.</li>
+</ul>
+
+<p>The result prints as its text, and shows as a picture in a notebook.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">(</span><span class="s2">"R 0 1</span><span class="se">\n</span><span class="s2">H 0</span><span class="se">\n</span><span class="s2">TICK</span><span class="se">\n</span><span class="s2">CX 0 1</span><span class="se">\n</span><span class="s2">TICK</span><span class="se">\n</span><span class="s2">M 0 1</span><span class="se">\n</span><span class="s2">DETECTOR rec[-1] rec[-2]"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">diagram</span><span class="p">(</span><span class="s2">"detslice-text"</span><span class="p">,</span> <span class="n">tick</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+<span class="go">D0: Z0 Z1</span>
+<span class="go">&lt;BLANKLINE&gt;</span>
+</code></pre>
+</div>
+</div>
+
+
+                            </div>
                             <div id="Circuit.compile_detector_sampler" class="classattr">
                                 <div class="attr function">
             
@@ -1346,6 +1403,22 @@ made from it unrolls it once.</p>
 
 
                             </div>
+                            <div id="DetectorErrorModel.diagram" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">diagram</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'matchgraph-svg'</span></span><span class="return-annotation">) -> <span class="n"><a href="#Diagram">Diagram</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DetectorErrorModel.diagram"></a>
+    
+            <div class="docstring"><p>A picture of the model: <code>"matchgraph-svg"</code>, its matching graph (it must be
+decomposed), each detector at its coordinates, each graph-like fault an edge.</p>
+</div>
+
+
+                            </div>
                             <div id="DetectorErrorModel.flattened" class="classattr">
                                 <div class="attr function">
             
@@ -1430,6 +1503,60 @@ row's detectors. <code>threads = 0</code> uses every core; the shots do not depe
 
 <p>Successive calls continue the stream. Shots are drawn 64 at a time, and a call that
 ends partway through 64 discards the rest of them.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="Diagram">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">Diagram</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#Diagram"></a>
+    
+            <div class="docstring"><p>A circuit's or model's picture (<code><a href="#Circuit.diagram">Circuit.diagram</a></code>): text, or SVG. <code>str()</code> gives it
+as written; a notebook shows an SVG one as a picture.</p>
+</div>
+
+
+                            <div id="Diagram.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Diagram</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">text</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="nb">type</span><span class="p">:</span> <span class="nb">str</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Diagram.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Diagram.type" class="classattr">
+                                <div class="attr variable">
+            <span class="name">type</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Diagram.type"></a>
+    
+    
+
+                            </div>
+                            <div id="Diagram.save" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">save</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">path</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Diagram.save"></a>
+    
+            <div class="docstring"><p>Write it to a file (an <code>.svg</code> for the pictures).</p>
 </div>
 
 
@@ -2032,19 +2159,40 @@ rounds, each matched alone and committing only its middle. <code>mode="sliding"<
 in order; <code>"parallel"</code> decodes alternate windows at once, then the gaps between. Each
 window commits <code>commit</code> rounds with <code>buffer</code> rounds on either side. The model's
 detectors need a time coordinate (their last), as Stim's generated circuits give them.</p>
+
+<p>A long model is not unrolled: with <code>template=True</code> (and by default, for a model of more
+than a million faults with a loop), the windows' graphs come from a short template of the
+model's longest loop, whose middle windows serve every window away from the model's ends,
+shifted. Shots are still given whole, so a d = 11 memory of 10,000 rounds decodes from its
+folded model. <code>template=False</code> cuts every window from the whole model; both give the same
+predictions. With a template, <code>return_timings</code> times the first shot of each 64 (the rest
+are NaN).</p>
 </div>
 
 
                             <div id="WindowMatching.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">WindowMatching</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">commit</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">buffer</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">enable_correlations</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span>)</span>
+        <span class="name">WindowMatching</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">commit</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">buffer</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">enable_correlations</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">template</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
     <a class="headerlink" href="#WindowMatching.__init__"></a>
     
     
+
+                            </div>
+                            <div id="WindowMatching.streamed" class="classattr">
+                                <div class="attr variable">
+            <span class="name">streamed</span><span class="annotation">: bool</span>
+
+        
+    </div>
+    <a class="headerlink" href="#WindowMatching.streamed"></a>
+    
+            <div class="docstring"><p>Whether the windows come from a template of the model's loop (see <code>template</code>).</p>
+</div>
+
 
                             </div>
                             <div id="WindowMatching.windows" class="classattr">
@@ -2080,7 +2228,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;1.3.0&#39;</span>
+<span class="default_value">&#39;1.4.0&#39;</span>
 
         
     </div>
@@ -2115,7 +2263,7 @@ the engine's own model, with bias <code>eta</code> = p_Z / (p_X + p_Y).</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">stream_memory</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'rotated'</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">commit</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">buffer</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">enable_correlations</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="n"><a href="#StreamResult">StreamResult</a></span>:</span></span>
+        <span class="name">stream_memory</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">code</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'rotated'</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">commit</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">buffer</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">enable_correlations</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#StreamResult">StreamResult</a></span>:</span></span>
 
         
     </div>
@@ -2125,6 +2273,10 @@ the engine's own model, with bias <code>eta</code> = p_Z / (p_X + p_Y).</p>
 streams: an SD6 memory of <code>rounds</code> rounds (a million is fine), its windows' graphs
 built once from a short template. <code>shots</code> is rounded up to a multiple of 64. The same
 seed gives the same failures on any number of threads.</p>
+
+<p>Or any <code>circuit</code> with a loop (Stim's generated ones among them), in place of <code>code</code>,
+<code>distance</code>, <code>rounds</code> and <code>p</code>: its windows come from a template of its folded error
+model, and its detectors need a time coordinate (their last).</p>
 </div>
 
 

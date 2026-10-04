@@ -43,7 +43,7 @@ pub extern "C" fn wasm_rt_setup(d: usize, rounds: usize, p: f64, commit: usize, 
     let mode = if parallel != 0 { Mode::Parallel } else { Mode::Sliding };
     let built = (|| -> Result<Setup, String> {
         let stream = StreamDecoder::new(CodeKind::Rotated, d, p, Basis::Z, commit, buffer, mode, rounds)?;
-        let plan = stream.plan(rounds)?;
+        let plan = stream.plan()?;
         let circuit = generate_repeat(CodeKind::Rotated, d, rounds, p, Basis::Z)?;
         let sampler = BatchSampler::new(&circuit)?;
         let global = DemDecoder::new(&Dem::from_circuit(&circuit)?)?;
@@ -56,7 +56,7 @@ pub extern "C" fn wasm_rt_setup(d: usize, rounds: usize, p: f64, commit: usize, 
                 "{{\"ok\":true,\"windows\":{},\"layers\":{},\"template\":{},\"detectors\":{}}}",
                 s.plan.specs.len(),
                 s.plan.layers,
-                s.stream.template_rounds,
+                s.stream.template_layers,
                 s.sampler.num_detectors
             );
             unsafe { *std::ptr::addr_of_mut!(SETUP) = Some(s) };

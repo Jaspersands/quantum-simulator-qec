@@ -253,7 +253,15 @@ class WindowMatching(_DemDecoder):
     rounds, each matched alone and committing only its middle. ``mode="sliding"`` runs them
     in order; ``"parallel"`` decodes alternate windows at once, then the gaps between. Each
     window commits ``commit`` rounds with ``buffer`` rounds on either side. The model's
-    detectors need a time coordinate (their last), as Stim's generated circuits give them."""
+    detectors need a time coordinate (their last), as Stim's generated circuits give them.
+
+    A long model is not unrolled: with ``template=True`` (and by default, for a model of more
+    than a million faults with a loop), the windows' graphs come from a short template of the
+    model's longest loop, whose middle windows serve every window away from the model's ends,
+    shifted. Shots are still given whole, so a d = 11 memory of 10,000 rounds decodes from its
+    folded model. ``template=False`` cuts every window from the whole model; both give the same
+    predictions. With a template, ``return_timings`` times the first shot of each 64 (the rest
+    are NaN)."""
 
     __slots__ = ()
 
@@ -265,9 +273,17 @@ class WindowMatching(_DemDecoder):
         buffer: int,
         mode: str = "parallel",
         enable_correlations: bool = False,
+        template: "bool | None" = None,
     ) -> None:
-        model = self._made(_model(model), commit=commit, buffer=buffer, mode=mode, enable_correlations=enable_correlations)
-        self._x = call(_core.WindowMatcher, model._d, count(commit, "commit"), count(buffer, "buffer"), mode, bool(enable_correlations))
+        model = self._made(_model(model), commit=commit, buffer=buffer, mode=mode, enable_correlations=enable_correlations, template=template)
+        if template is not None and not isinstance(template, bool):
+            raise TypeError(f"template must be True, False or None, not {type(template).__name__}")
+        self._x = call(_core.WindowMatcher, model._d, count(commit, "commit"), count(buffer, "buffer"), mode, bool(enable_correlations), template)
+
+    @property
+    def streamed(self) -> bool:
+        """Whether the windows come from a template of the model's loop (see ``template``)."""
+        return self._x.streamed
 
     @property
     def windows(self) -> list:

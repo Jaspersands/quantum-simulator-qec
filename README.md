@@ -71,7 +71,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.3, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.4, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -124,7 +124,9 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   the reference sampler's speed, and a pool of workers that puts every core on the page to work.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
   detector error model built by walking any circuit backwards, a Pauli-frame sampler, and Stim's
-  `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge.
+  `01`/`b8` shot formats. Checked against Stim and PyMatching, edge for edge. Diagrams after
+  Stim's: timelines, detector slices (the same as Stim's at every tick of its generated codes)
+  and matching graphs, as text or SVG.
 - **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
   gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
   (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
@@ -1844,6 +1846,7 @@ src/fixtures.rs       circuit texts shared by several modules' tests
 src/sparse/           sparse blossom: exact matching by growing regions on the detector graph,
                       and correlated matching's two passes on top of it
 src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
+src/diagram.rs        timelines, detector slices and matching graphs, as text and SVG
 src/bp.rs             belief propagation on a Tanner graph, reproducing ldpc's arithmetic
 src/belief.rs         belief-matching, as the authors' beliefmatching package does it
 src/gf2.rs            linear algebra over GF(2): rank, kernel, inverse, on bit-packed rows

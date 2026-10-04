@@ -193,6 +193,27 @@ class Circuit:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
         return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops)))
 
+    def diagram(self, type: str = "timeline-text", *, tick: Union[int, None] = None) -> "Diagram":
+        """A picture of the circuit, after Stim's ``diagram``:
+
+        - ``"timeline-text"``, ``"timeline-svg"``: every operation in its column, ``TICK``
+          groups bracketed, loops drawn once with their count, measurements numbered.
+        - ``"detslice-text"``, ``"detslice-svg"``: what each detector compares after ``tick``
+          ``TICK``s, its Paulis over the qubits (drawn at their ``QUBIT_COORDS``).
+        - ``"matchgraph-svg"``: the decomposed model's matching graph.
+
+        The result prints as its text, and shows as a picture in a notebook.
+
+        >>> c = Circuit("R 0 1\\nH 0\\nTICK\\nCX 0 1\\nTICK\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
+        >>> print(c.diagram("detslice-text", tick=2))
+        D0: Z0 Z1
+        <BLANKLINE>
+        """
+        if not isinstance(type, str):
+            raise TypeError(f"type must be a str, not {builtins_type(type).__name__}")
+        t = None if tick is None else count(tick, "tick")
+        return Diagram(call(self._c.diagram, type, t), type)
+
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
         shots on any machine and any number of threads; ``None`` draws a seed."""
@@ -260,6 +281,39 @@ def _stim_text(obj: Any) -> str:
     raise TypeError(f"cannot append a {type(obj).__name__}: give an instruction's name, a Circuit, or a Stim circuit, instruction or repeat block")
 
 
+import builtins as _builtins
+
+builtins_type = _builtins.type
+
+
+class Diagram:
+    """A circuit's or model's picture (``Circuit.diagram``): text, or SVG. ``str()`` gives it
+    as written; a notebook shows an SVG one as a picture."""
+
+    __slots__ = ("_text", "type")
+
+    def __init__(self, text: str, type: str) -> None:
+        self._text = text
+        self.type = type
+
+    def __str__(self) -> str:
+        return self._text
+
+    def __repr__(self) -> str:
+        return f"stabilizer_qec.Diagram(type={self.type!r}, {len(self._text)} characters)"
+
+    def _repr_svg_(self) -> Union[str, None]:
+        return self._text if self._text.startswith("<svg") else None
+
+    def _repr_pretty_(self, p: Any, cycle: bool) -> None:
+        p.text(self._text)
+
+    def save(self, path: Union[str, PathLike]) -> None:
+        """Write it to a file (an ``.svg`` for the pictures)."""
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(self._text)
+
+
 class DetectorErrorModel:
     """A detector error model in Stim's format: independent faults, each with a probability,
     the detectors it flips and the observables it flips.
@@ -314,6 +368,13 @@ class DetectorErrorModel:
     def num_errors(self) -> int:
         """The number of faults (``error`` lines), counted through loops."""
         return self._d.num_errors
+
+    def diagram(self, type: str = "matchgraph-svg") -> "Diagram":
+        """A picture of the model: ``"matchgraph-svg"``, its matching graph (it must be
+        decomposed), each detector at its coordinates, each graph-like fault an edge."""
+        if type != "matchgraph-svg":
+            raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
+        return Diagram(call(self._d.matchgraph_svg), type)
 
     def flattened(self) -> "DetectorErrorModel":
         """The model without ``repeat`` blocks or ``shift_detectors``, as Stim's ``flattened``:

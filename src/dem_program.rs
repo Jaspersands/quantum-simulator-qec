@@ -217,6 +217,54 @@ impl DemProgram {
         Ok(DemProgram { instrs: out })
     }
 
+    /// Every detector's time (its last coordinate, shifts applied), by detector, walking the
+    /// declarations alone: a model of millions of faults costs only its detectors. Refuses a
+    /// detector without coordinates, or more than `MAX_DETECTOR` + 1 detectors.
+    pub fn detector_times(&self) -> Result<Vec<f64>, String> {
+        let n = self.stats().num_detectors;
+        if n > MAX_DETECTOR + 1 {
+            return Err(format!("the model has {n} detectors, past the largest index, {MAX_DETECTOR}"));
+        }
+        let mut times = vec![f64::NAN; n as usize];
+        fn walk(instrs: &[DemInstr], offset: &mut u64, coords: &mut Vec<f64>, times: &mut [f64]) -> Result<(), String> {
+            for ins in instrs {
+                match ins {
+                    DemInstr::Detector { coords: c, targets, .. } => {
+                        let k = c.len().checked_sub(1).ok_or("a detector has no coordinates; windows need its time")?;
+                        let t = c[k] + coords.get(k).copied().unwrap_or(0.0);
+                        for &d in targets {
+                            times[(d + *offset) as usize] = t;
+                        }
+                    }
+                    DemInstr::Shift { coords: c, by, .. } => {
+                        if coords.len() < c.len() {
+                            coords.resize(c.len(), 0.0);
+                        }
+                        for (a, b) in coords.iter_mut().zip(c) {
+                            *a += b;
+                        }
+                        *offset += by;
+                    }
+                    DemInstr::Repeat { count, body, .. } => {
+                        // A body that declares nothing and shifts nothing changes nothing.
+                        if body.iter().any(|i| !matches!(i, DemInstr::Error { .. } | DemInstr::Observable { .. })) {
+                            for _ in 0..*count {
+                                walk(body, offset, coords, times)?;
+                            }
+                        }
+                    }
+                    DemInstr::Error { .. } | DemInstr::Observable { .. } => {}
+                }
+            }
+            Ok(())
+        }
+        walk(&self.instrs, &mut 0, &mut Vec::new(), &mut times)?;
+        if let Some(d) = times.iter().position(|t| t.is_nan()) {
+            return Err(format!("detector D{d} is not declared with coordinates; windows need its time"));
+        }
+        Ok(times)
+    }
+
     /// The flat model the decoders take, in the program's order.
     pub fn to_dem(&self) -> Result<Dem, String> {
         let stats = self.stats();

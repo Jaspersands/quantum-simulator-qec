@@ -38,6 +38,8 @@ pub mod dem_build;
 #[doc(hidden)]
 pub mod dem_program;
 #[doc(hidden)]
+pub mod diagram;
+#[doc(hidden)]
 pub mod dem_decoder;
 #[doc(hidden)]
 pub mod sparse;
