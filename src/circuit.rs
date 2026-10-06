@@ -1116,6 +1116,17 @@ fn join_recs(r: &[u32]) -> String {
     r.iter().map(|k| format!("rec[-{k}]")).collect::<Vec<_>>().join(" ")
 }
 
+/// One instruction as its line of Stim's text (a loop as its `REPEAT n {` line).
+pub(crate) fn instr_line(ins: &Instr) -> String {
+    if let Instr::Repeat { count, tag, .. } = ins {
+        let tag = if tag.is_empty() { String::new() } else { format!("[{tag}]") };
+        return format!("REPEAT{tag} {count} {{");
+    }
+    let mut s = String::new();
+    emit(std::slice::from_ref(ins), "", &mut s);
+    s.lines().next().unwrap_or("").to_string()
+}
+
 fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
     for ins in instrs {
         let line = match ins {

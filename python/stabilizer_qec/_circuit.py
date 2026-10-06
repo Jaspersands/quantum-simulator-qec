@@ -250,6 +250,25 @@ class Circuit:
         )
         return cls(text)
 
+    def explain_detector_error_model_errors(
+        self, *, dem_filter: Union["DetectorErrorModel", str, Any, None] = None, reduce_to_one_representative_error: bool = False
+    ) -> list:
+        """Where the faults of the circuit's error model arise, as Stim's method of the same name
+        explains them: for each fault class (each fault of ``dem_filter`` when given), every
+        place in the circuit such a fault arises, or with ``reduce_to_one_representative_error``
+        one. Loops are walked in full. Each result prints as Stim's text.
+
+        >>> c = Circuit("R 0\\nX_ERROR(0.1) 0\\nM 0\\nDETECTOR rec[-1]")
+        >>> e = c.explain_detector_error_model_errors()[0]
+        >>> [t.dem_target for t in e.dem_error_terms], e.circuit_error_locations[0].instruction_targets.gate
+        (['D0'], 'X_ERROR')
+        """
+        from . import _explain
+
+        f = None if dem_filter is None else (dem_filter if isinstance(dem_filter, DetectorErrorModel) else DetectorErrorModel(dem_filter))
+        raw = call(self._c.explain, None if f is None else f._d, bool(reduce_to_one_representative_error))
+        return _explain.build(raw)
+
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
         shots on any machine and any number of threads; ``None`` draws a seed."""

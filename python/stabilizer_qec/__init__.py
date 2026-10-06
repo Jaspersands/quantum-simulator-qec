@@ -106,6 +106,15 @@ from importlib.metadata import version as _version
 
 from . import _core, surgery
 from ._circuit import Circuit, DetectorErrorModel, DetectorSampler, Diagram, MeasurementsToDetectionEventsConverter
+from ._explain import (
+    CircuitErrorLocation,
+    CircuitErrorLocationStackFrame,
+    CircuitTargetsInsideInstruction,
+    DemTargetWithCoords,
+    ExplainedError,
+    FlippedMeasurement,
+    GateTargetWithCoords,
+)
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
 
@@ -164,6 +173,13 @@ __all__ = [
     "BeliefMatching",
     "BivariateBicycleCode",
     "CssCode",
+    "CircuitErrorLocation",
+    "CircuitErrorLocationStackFrame",
+    "CircuitTargetsInsideInstruction",
+    "DemTargetWithCoords",
+    "ExplainedError",
+    "FlippedMeasurement",
+    "GateTargetWithCoords",
     "BpDecoder",
     "BpOsd",
     "BpOsdDecoder",

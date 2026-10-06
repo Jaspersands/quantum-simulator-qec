@@ -55,6 +55,14 @@ pub struct PyCircuit {
     circuit: crate::api::Circuit,
 }
 
+/// A target as (text, coordinates).
+type PyTarget = (String, Vec<f64>);
+/// An error location: (ticks before it, Pauli product, flipped measurement, (gate, tag, args),
+/// target range, targets in range, stack frames).
+type PyLocation = (u64, Vec<PyTarget>, Option<(u64, Vec<PyTarget>)>, (String, String, Vec<f64>), (u32, u32), Vec<PyTarget>, Vec<(u64, u64, u64)>);
+/// An explained error: (Stim's text, terms, locations).
+type PyExplained = (String, Vec<PyTarget>, Vec<PyLocation>);
+
 fn api_err(e: crate::api::Error) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
@@ -124,6 +132,29 @@ impl PyCircuit {
 
     fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
         Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
+    }
+
+    /// The circuit's faults explained (see `Circuit::explain_errors`): per explained error,
+    /// (Stim's text, its terms, its locations), targets as (text, coordinates).
+    #[pyo3(signature = (filter=None, reduce=false))]
+    fn explain(&self, py: Python<'_>, filter: Option<PyRef<'_, PyDem>>, reduce: bool) -> PyResult<Vec<PyExplained>> {
+        let filter = filter.map(|f| f.dem.clone());
+        let circuit = self.circuit.clone();
+        let out = py.detach(move || circuit.explain_errors(filter.as_ref(), reduce)).map_err(api_err)?;
+        let tw = |v: Vec<crate::api::TargetWithCoords>| v.into_iter().map(|t| (t.target, t.coords)).collect::<Vec<_>>();
+        Ok(out
+            .into_iter()
+            .map(|e| {
+                let locations = e
+                    .circuit_error_locations()
+                    .into_iter()
+                    .map(|l| {
+                        (l.tick_offset, tw(l.flipped_pauli_product), l.flipped_measurement.map(|(i, o)| (i, tw(o))), (l.gate, l.tag, l.args), l.target_range, tw(l.targets_in_range), l.stack_frames)
+                    })
+                    .collect();
+                (e.to_string(), tw(e.terms_with_coords()), locations)
+            })
+            .collect())
     }
 
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,

@@ -122,6 +122,40 @@ impl Circuit {
         Circuit::from_engine(circuit::Circuit::parse(text)?)
     }
 
+    /// Where the faults of the circuit's error model come from (Stim's
+    /// `explain_detector_error_model_errors`): for each fault class (each fault of `filter`
+    /// when given), every place in the circuit such a fault arises, or with `reduce` one
+    /// representative. Loops are walked in full. The text of each is Stim's.
+    ///
+    /// ```
+    /// use stabilizer_qec::Circuit;
+    ///
+    /// let c: Circuit = "R 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR rec[-1]".parse()?;
+    /// let explained = c.explain_errors(None, false)?;
+    /// assert_eq!(explained[0].dem_error_terms(), vec!["D0".to_string()]);
+    /// assert!(explained[0].to_string().contains("resolving to X_ERROR(0.1) 0"));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn explain_errors(&self, filter: Option<&DetectorErrorModel>, reduce: bool) -> Result<Vec<ExplainedError>> {
+        let terms = match filter {
+            Some(f) => Some(
+                f.flat()?
+                    .mechanisms
+                    .iter()
+                    .map(|m| {
+                        let mut t: Vec<u64> = m.detectors.iter().map(|&d| u64::from(d)).collect();
+                        t.extend((0..64).filter(|k| m.observables >> k & 1 == 1).map(|k| crate::dem_program::OBS | k));
+                        t
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            None => None,
+        };
+        let coords = std::sync::Arc::new(crate::explain::Coords::of(&self.inner)?);
+        let out = crate::explain::explain(&self.inner, terms.as_deref(), reduce)?;
+        Ok(out.into_iter().map(|inner| ExplainedError { inner, coords: coords.clone() }).collect())
+    }
+
     /// One of Stim's generated memory experiments (`stim.Circuit.generated`), character for
     /// character as Stim writes it: `task` is `"repetition_code:memory"`,
     /// `"surface_code:rotated_memory_x"` or `_z`, `"surface_code:unrotated_memory_x"` or `_z`,
@@ -371,6 +405,111 @@ pub enum DiagramKind {
     },
     /// The decomposed model's matching graph as an SVG picture (`matchgraph-svg`).
     MatchGraphSvg,
+}
+
+/// A fault class of a circuit's error model and the places in the circuit it arises (see
+/// [`Circuit::explain_errors`]). Its `Display` is Stim's text.
+#[derive(Clone, Debug)]
+pub struct ExplainedError {
+    inner: crate::explain::Explained,
+    coords: std::sync::Arc<crate::explain::Coords>,
+}
+
+/// A target of an explained error with its coordinates (empty for none).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TargetWithCoords {
+    /// As Stim writes it: `D3`, `L0`, `X5`, `!Z2`, `7`.
+    pub target: String,
+    /// Its coordinates: a detector's, or a qubit's last `QUBIT_COORDS`.
+    pub coords: Vec<f64>,
+}
+
+/// One place a fault arises (Stim's `CircuitErrorLocation`).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CircuitErrorLocation {
+    /// `TICK`s before it.
+    pub tick_offset: u64,
+    /// The Paulis it applies, in target order.
+    pub flipped_pauli_product: Vec<TargetWithCoords>,
+    /// The measurement it flips: its record index and the observable measured.
+    pub flipped_measurement: Option<(u64, Vec<TargetWithCoords>)>,
+    /// The instruction's name.
+    pub gate: String,
+    /// The instruction's tag (empty for none).
+    pub tag: String,
+    /// The instruction's arguments.
+    pub args: Vec<f64>,
+    /// Its targets' range in the instruction, `[start, end)`.
+    pub target_range: (u32, u32),
+    /// Those targets.
+    pub targets_in_range: Vec<TargetWithCoords>,
+    /// From the outermost block in: (instruction offset, completed iterations, repetitions).
+    pub stack_frames: Vec<(u64, u64, u64)>,
+}
+
+impl ExplainedError {
+    /// What the fault sets off: detectors (`D3`), then observables (`L0`).
+    pub fn dem_error_terms(&self) -> Vec<String> {
+        self.terms_with_coords().into_iter().map(|t| t.target).collect()
+    }
+
+    /// The same, with each detector's coordinates.
+    pub fn terms_with_coords(&self) -> Vec<TargetWithCoords> {
+        self.inner
+            .terms
+            .iter()
+            .map(|&t| {
+                if t & crate::dem_program::OBS != 0 {
+                    TargetWithCoords { target: format!("L{}", t & !crate::dem_program::OBS), coords: Vec::new() }
+                } else {
+                    TargetWithCoords { target: format!("D{t}"), coords: self.coords.of_detector(t) }
+                }
+            })
+            .collect()
+    }
+
+    /// Every place it arises (empty when no single fault of the circuit has these symptoms).
+    pub fn circuit_error_locations(&self) -> Vec<CircuitErrorLocation> {
+        let c = &self.coords;
+        let paulis = |ps: &[(u32, u8)]| -> Vec<TargetWithCoords> {
+            ps.iter()
+                .map(|&(q, p)| TargetWithCoords {
+                    target: format!("{}{}{q}", if p & 16 != 0 { "!" } else { "" }, ["I", "X", "Z", "Y"][(p & 3) as usize]),
+                    coords: c.of_qubit(q),
+                })
+                .collect()
+        };
+        self.inner
+            .locations
+            .iter()
+            .map(|l| CircuitErrorLocation {
+                tick_offset: l.tick_offset,
+                flipped_pauli_product: paulis(&l.pauli),
+                flipped_measurement: l.measurement.as_ref().map(|(i, obs)| (*i, paulis(obs))),
+                gate: l.gate.clone(),
+                tag: l.tag.clone(),
+                args: l.args.clone(),
+                target_range: l.range,
+                targets_in_range: l
+                    .targets
+                    .iter()
+                    .map(|t| {
+                        let q = t.trim_start_matches('!').trim_start_matches(['X', 'Y', 'Z']).parse::<u32>().ok();
+                        TargetWithCoords { target: t.clone(), coords: q.map(|q| c.of_qubit(q)).unwrap_or_default() }
+                    })
+                    .collect(),
+                stack_frames: l.stack.clone(),
+            })
+            .collect()
+    }
+}
+
+impl fmt::Display for ExplainedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.inner.to_stim(&self.coords))
+    }
 }
 
 /// The noise of [`Circuit::generated`]: Stim's four strengths, each zero (left out) unless set.

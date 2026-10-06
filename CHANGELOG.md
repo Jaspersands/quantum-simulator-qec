@@ -4,6 +4,20 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Unreleased
+
+### Added
+
+- `Circuit.explain_detector_error_model_errors(*, dem_filter=None,
+  reduce_to_one_representative_error=False)` (Rust: `Circuit::explain_errors`): where each
+  fault of a circuit's error model comes from: the instruction (numbered as Stim numbers
+  them, adjacent identical instructions joined), its targets, the Pauli product or the
+  measurement it flips, the `TICK`s before it and the loop passes around it. The results
+  (`ExplainedError`, `CircuitErrorLocation` and their parts, Stim's names) print as Stim's
+  character for character, for every location and for the representative Stim picks, on
+  Stim's generated memories and on 1,000 random circuits using every gate, noise channel and
+  tag.
+
 ## 1.5.0 — 2026-10-04
 
 The Python package and the Rust crate both at 1.5.0: Stim's generated circuits character for

@@ -27,6 +27,7 @@ use crate::batch_sampler::Counts;
 use crate::circuit::{Basis, Circuit, Control, Instr};
 use crate::dem::{depolarize1_component, depolarize2_component, fused, pauli_channel_1_independent};
 use crate::dem_program::{DemInstr, DemProgram, OBS};
+use crate::explain::{rank, Detail, Location, Recorder};
 
 /// Sorted, distinct targets: detectors by index, observables with the `OBS` bit.
 type Sym = Vec<u64>;
@@ -298,6 +299,8 @@ struct Analyzer {
     work: u64,
     /// When set, what each sweep bit's X flips, gathered as the walk passes it.
     sweeps: Option<Vec<Sym>>,
+    /// When set, where each fault comes from (`explain`).
+    prov: Option<Box<Recorder>>,
 }
 
 impl Analyzer {
@@ -313,7 +316,13 @@ impl Analyzer {
         Ok(())
     }
 
-    fn add(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>) {
+    /// A fault, and (when recording) where it arises.
+    fn add_at(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>, detail: Option<Detail>) {
+        if let (Some(r), Some(d)) = (self.prov.as_mut(), detail) {
+            if p > 0.0 {
+                r.record(pieces.iter().fold(Sym::new(), |acc, x| xor(&acc, x)), d);
+            }
+        }
         if self.accumulate {
             self.window.add(p, pieces, origin, tag, self.decompose);
         }
@@ -359,8 +368,15 @@ impl Analyzer {
 
     fn undo_block(&mut self, instrs: &[Instr], outer: &Option<Arc<str>>) -> Result<(), String> {
         // The ELSE_CORRELATED_ERRORs met walking backwards, until their E.
-        let mut chain: Vec<(f64, Sym, Origin)> = Vec::new();
-        for ins in instrs.iter().rev() {
+        let mut chain: Vec<(f64, Sym, Origin, Option<Detail>)> = Vec::new();
+        let view = match self.prov.as_mut() {
+            Some(r) if !r.in_gate() => Some(r.view(instrs)),
+            _ => None,
+        };
+        for (i, ins) in instrs.iter().enumerate().rev() {
+            if let (Some(r), Some(v)) = (self.prov.as_mut(), view.as_ref()) {
+                r.enter(&v[i]);
+            }
             // A tagged instruction is a gate holding it untagged.
             let (ins, tag) = match ins {
                 Instr::Gate { body, tag, .. } if !tag.is_empty() && body.len() == 1 => (&body[0], Some(Arc::<str>::from(tag.as_str()))),
@@ -376,8 +392,9 @@ impl Analyzer {
                 let (b, pb) = paulis.get(1).copied().map_or((None, 0), |(q, p)| (Some(q), p));
                 let name = if *chained { "ELSE_CORRELATED_ERROR" } else { "correlated error" };
                 let origin = Origin { name, a, b, pauli: (pa, pb) };
+                let detail = self.prov.as_ref().map(|r| Detail { range: r.whole(), pauli: paulis.iter().map(|&(q, p)| (q, p)).collect(), meas: None, rank: 0, item: r.current() });
                 if *chained {
-                    chain.push((*p, sym, origin));
+                    chain.push((*p, sym, origin, detail));
                     continue;
                 }
                 if !chain.is_empty() {
@@ -385,9 +402,9 @@ impl Analyzer {
                     self.approximated("ELSE_CORRELATED_ERROR", &[], false)?;
                 }
                 let mut none_yet = 1.0 - p;
-                let mut cases = vec![(*p, sym, origin)];
-                for (q, sym, origin) in chain.drain(..).rev() {
-                    cases.push((q * none_yet, sym, origin));
+                let mut cases = vec![(*p, sym, origin, detail)];
+                for (q, sym, origin, detail) in chain.drain(..).rev() {
+                    cases.push((q * none_yet, sym, origin, detail));
                     none_yet *= 1.0 - q;
                 }
                 let t = self.approximate.unwrap_or(1.0);
@@ -396,8 +413,13 @@ impl Analyzer {
                         "an E / ELSE_CORRELATED_ERROR chain has a case of probability {actual}, above the approximate_disjoint_errors threshold ({t})"
                     ));
                 }
-                for (p, sym, origin) in cases {
-                    self.add(p, vec![sym], origin, &tag);
+                // Recording (nothing accumulates then), the cases go in the order the walk met
+                // their instructions: the last ELSE_CORRELATED_ERROR first.
+                if self.prov.is_some() {
+                    cases.reverse();
+                }
+                for (p, sym, origin, detail) in cases {
+                    self.add_at(p, vec![sym], origin, &tag, detail);
                 }
                 continue;
             }
@@ -418,7 +440,14 @@ impl Analyzer {
             Instr::Repeat { count, body, tag: own } => self.run_loop(body, *count, own, tag)?,
             Instr::Gate { body, tag: own, .. } => {
                 let inner = if own.is_empty() { tag.clone() } else { Some(Arc::<str>::from(own.as_str())) };
-                self.undo_block(body, &inner)?;
+                if let Some(r) = self.prov.as_mut() {
+                    r.enter_gate();
+                }
+                let done = self.undo_block(body, &inner);
+                if let Some(r) = self.prov.as_mut() {
+                    r.leave_gate();
+                }
+                done?;
             }
             Instr::Reset { basis, qubits } => {
                 for &q in qubits.iter().rev() {
@@ -429,9 +458,18 @@ impl Analyzer {
                 }
             }
             Instr::Measure { basis, reset, flip, qubits } => {
-                for &q in qubits.iter().rev() {
+                for (j, &q) in qubits.iter().enumerate().rev() {
                     let qi = q as usize;
                     let r = self.t.take_record()?;
+                    let index = self.t.m;
+                    let detail = self.prov.as_mut().map(|p| {
+                        let (range, observable) = if p.in_gate() {
+                            p.gate_measurement().unwrap_or(((0, 0), Vec::new()))
+                        } else {
+                            ((j as u32, j as u32 + 1), vec![(q, if *basis == Basis::X { 1 } else { 2 })])
+                        };
+                        Detail { range, pauli: Vec::new(), meas: Some((index, observable)), rank: 0, item: None }
+                    });
                     if *reset {
                         self.check_reset(qi, *basis, reset_name(*basis))?;
                         self.t.sx[qi].clear();
@@ -443,7 +481,7 @@ impl Analyzer {
                     }
                     if *flip > 0.0 {
                         let origin = Origin { name: "measurement flip", a: q, b: None, pauli: (1, 0) };
-                        self.add(*flip, vec![r], origin, tag);
+                        self.add_at(*flip, vec![r], origin, tag, detail);
                     }
                 }
             }
@@ -479,11 +517,13 @@ impl Analyzer {
                 }
             }
             Instr::Pad { flip, values } => {
-                for _ in values.iter().rev() {
+                for (j, _) in values.iter().enumerate().rev() {
                     let r = self.t.take_record()?;
+                    let index = self.t.m;
                     if *flip > 0.0 {
                         let origin = Origin { name: "MPAD flip", a: 0, b: None, pauli: (1, 0) };
-                        self.add(*flip, vec![r], origin, tag);
+                        let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: Vec::new(), meas: Some((index, Vec::new())), rank: 0, item: None });
+                        self.add_at(*flip, vec![r], origin, tag, detail);
                     }
                 }
             }
@@ -544,7 +584,7 @@ impl Analyzer {
             Instr::Correlated { .. } => unreachable!("undo_block takes correlated errors"),
             Instr::PauliChannel2 { probs, pairs } => {
                 self.approximated("PAULI_CHANNEL_2", probs, true)?;
-                for &(qa, qb) in pairs {
+                for (j, &(qa, qb)) in pairs.iter().enumerate() {
                     let (a, b) = (qa as usize, qb as usize);
                     // Stim's basis: the second qubit's X and Z errors, then the first's.
                     let t = &self.t;
@@ -557,14 +597,19 @@ impl Analyzer {
                         by_combo[BITS[(k + 1) % 4] | (BITS[(k + 1) / 4] << 2)] = p;
                     }
                     let origin = Origin { name: "PAULI_CHANNEL_2", a: qa, b: Some(qb), pauli: (0, 0) };
-                    self.add_disjoint(by_combo, &combos, origin, tag);
+                    let detail = |k: usize| {
+                        let (pa, pb) = ((k >> 2 & 1) as u8 | ((k >> 3 & 1) as u8) << 1, (k & 1) as u8 | ((k >> 1 & 1) as u8) << 1);
+                        Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None }
+                    };
+                    self.add_disjoint(by_combo, &combos, origin, tag, &detail);
                 }
             }
             Instr::Heralded { erase, args, probs, qubits } => {
                 let name = if *erase { "HERALDED_ERASE" } else { "HERALDED_PAULI_CHANNEL_1" };
                 self.approximated(name, args, !*erase)?;
-                for &q in qubits.iter().rev() {
+                for (j, &q) in qubits.iter().enumerate().rev() {
                     let herald = self.t.take_record()?;
+                    let index = self.t.m;
                     let qi = q as usize;
                     // Stim's basis: the Z error, the X error, the herald.
                     let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone(), herald]);
@@ -574,16 +619,21 @@ impl Analyzer {
                         by_combo[k] = p;
                     }
                     let origin = Origin { name: "heralded error", a: q, b: None, pauli: (0, 0) };
-                    self.add_disjoint(by_combo, &combos, origin, tag);
+                    let detail = |k: usize| {
+                        let p = (k >> 1 & 1) as u8 | ((k & 1) as u8) << 1;
+                        Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, p)]), meas: (k & 4 != 0).then(|| (index, Vec::new())), rank: rank(&[p]), item: None }
+                    };
+                    self.add_disjoint(by_combo, &combos, origin, tag, &detail);
                 }
             }
             // X_ERROR, Y_ERROR and Z_ERROR are single faults and stay whole, a Y included, as
             // Stim leaves them; anything wider than a pair is split at the flush.
             Instr::PauliError { pauli, p, qubits } => {
-                for &q in qubits {
+                for (j, &q) in qubits.iter().enumerate() {
                     let sym = self.sym_of(q as usize, *pauli);
                     let origin = Origin { name: "Pauli error", a: q, b: None, pauli: (*pauli, 0) };
-                    self.add(*p, vec![sym], origin, tag);
+                    let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, *pauli)], meas: None, rank: 0, item: None });
+                    self.add_at(*p, vec![sym], origin, tag, detail);
                 }
             }
             // The composite channels are split combination by combination, with Stim's basis
@@ -594,12 +644,13 @@ impl Analyzer {
                     return Err(format!("DEPOLARIZE1({p}) exceeds 3/4"));
                 }
                 let q1 = depolarize1_component(*p);
-                for &q in qubits {
+                for (j, &q) in qubits.iter().enumerate() {
                     let qi = q as usize;
                     let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone()]);
                     for (k, pieces) in combos.into_iter().enumerate() {
                         let origin = Origin { name: "DEPOLARIZE1", a: q, b: None, pauli: ([2u8, 1, 3][k], 0) };
-                        self.add(q1, pieces, origin, tag);
+                        let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, [2u8, 1, 3][k])], meas: None, rank: rank(&[[2u8, 1, 3][k]]), item: None });
+                        self.add_at(q1, pieces, origin, tag, detail);
                     }
                 }
             }
@@ -607,21 +658,23 @@ impl Analyzer {
                 Err(_) => {
                     // No independent equivalent: approximately, each case its own fault.
                     self.approximated("PAULI_CHANNEL_1", &[*px, *py, *pz], true)?;
-                    for &q in qubits {
+                    for (j, &q) in qubits.iter().enumerate() {
                         let qi = q as usize;
                         let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
                         let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (0, 0) };
-                        self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag);
+                        let detail = |k: usize| Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, k as u8)]), meas: None, rank: rank(&[k as u8]), item: None };
+                        self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag, &detail);
                     }
                 }
                 Ok((qx, qy, qz)) => {
-                    for &q in qubits {
+                    for (j, &q) in qubits.iter().enumerate() {
                         let qi = q as usize;
                         let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
                         for (k, pieces) in combos.into_iter().enumerate() {
                             let (pauli, prob) = [(1u8, qx), (2, qz), (3, qy)][k];
                             let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (pauli, 0) };
-                            self.add(prob, pieces, origin, tag);
+                            let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, pauli)], meas: None, rank: rank(&[pauli]), item: None });
+                            self.add_at(prob, pieces, origin, tag, detail);
                         }
                     }
                 }
@@ -631,7 +684,7 @@ impl Analyzer {
                     return Err(format!("DEPOLARIZE2({p}) exceeds 15/16"));
                 }
                 let q2 = depolarize2_component(*p);
-                for &(qa, qb) in pairs {
+                for (j, &(qa, qb)) in pairs.iter().enumerate() {
                     let (a, b) = (qa as usize, qb as usize);
                     let t = &self.t;
                     let basis = [t.sz[a].clone(), t.sx[a].clone(), t.sz[b].clone(), t.sx[b].clone()];
@@ -640,11 +693,17 @@ impl Analyzer {
                         let pa = ((k >> 1) & 1) as u8 | (((k & 1) as u8) << 1);
                         let pb = ((k >> 3) & 1) as u8 | ((((k >> 2) & 1) as u8) << 1);
                         let origin = Origin { name: "DEPOLARIZE2", a: qa, b: Some(qb), pauli: (pa, pb) };
-                        self.add(q2, pieces, origin, tag);
+                        let detail = self.prov.as_ref().map(|_| Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None });
+                        self.add_at(q2, pieces, origin, tag, detail);
                     }
                 }
             }
-            Instr::QubitCoords { .. } | Instr::Tick | Instr::Pauli { .. } => {}
+            Instr::Tick => {
+                if let Some(r) = self.prov.as_mut() {
+                    r.ticks = r.ticks.saturating_sub(1);
+                }
+            }
+            Instr::QubitCoords { .. } | Instr::Pauli { .. } => {}
         }
         Ok(())
     }
@@ -654,8 +713,16 @@ impl Analyzer {
     /// basis errors, `combos[k - 1]` its pieces. Cases that cannot be told apart (whose XOR fires
     /// nothing) are summed into the lowest-numbered, in Stim's order, and each combination is
     /// then recorded in turn.
-    fn add_disjoint(&mut self, mut by_combo: Vec<f64>, combos: &[Vec<Sym>], origin: Origin, tag: &Option<Arc<str>>) {
+    fn add_disjoint(&mut self, mut by_combo: Vec<f64>, combos: &[Vec<Sym>], origin: Origin, tag: &Option<Arc<str>>, detail: &dyn Fn(usize) -> Detail) {
         let n = by_combo.len();
+        // Every case is a place a fault arises, merged into its twins or not.
+        if let Some(r) = self.prov.as_mut() {
+            for k in 1..n {
+                if by_combo[k] > 0.0 {
+                    r.record(combos[k - 1].iter().fold(Sym::new(), |acc, x| xor(&acc, x)), detail(k));
+                }
+            }
+        }
         for k in 1..n {
             if combos[k - 1].iter().fold(Sym::new(), |acc, x| xor(&acc, x)).is_empty() {
                 for dst in 0..n {
@@ -668,7 +735,7 @@ impl Analyzer {
             }
         }
         for k in 1..n {
-            self.add(by_combo[k], combos[k - 1].clone(), origin, tag);
+            self.add_at(by_combo[k], combos[k - 1].clone(), origin, tag, None);
         }
     }
 
@@ -676,8 +743,16 @@ impl Analyzer {
     /// into a `repeat` block.
     fn run_loop(&mut self, body: &[Instr], iterations: u64, loop_tag: &str, tag: &Option<Arc<str>>) -> Result<(), String> {
         if !self.fold {
-            for _ in 0..iterations {
-                self.undo_block(body, tag)?;
+            let index = self.prov.as_ref().map(|r| r.current_index());
+            for i in 0..iterations {
+                if let (Some(r), Some(ix)) = (self.prov.as_mut(), index) {
+                    r.push_frame(ix, iterations - 1 - i, iterations);
+                }
+                let done = self.undo_block(body, tag);
+                if let Some(r) = self.prov.as_mut() {
+                    r.pop_frame();
+                }
+                done?;
             }
             return Ok(());
         }
@@ -691,6 +766,7 @@ impl Analyzer {
             reversed: Vec::new(),
             work: self.work,
             sweeps: None,
+            prov: None,
         };
         let (mut hare_iter, mut tortoise_iter) = (0u64, 0u64);
         while hare_iter < iterations {
@@ -895,6 +971,7 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
         reversed: Vec::new(),
         work: 0,
         sweeps: None,
+        prov: None,
     };
     a.undo_block(&circuit.instrs, &None)?;
     // Every qubit starts in |0>, which is a Z-basis reset at time zero.
@@ -904,6 +981,45 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
     a.flush()?;
     let (mut base, mut seen) = (0u64, HashSet::new());
     Ok(DemProgram { instrs: unreversed(&a.reversed, &mut base, &mut seen) })
+}
+
+/// The Pauli product of a fault's cases, identities dropped, in target order.
+fn product(paulis: &[(u32, u8)]) -> Vec<(u32, u8)> {
+    paulis.iter().copied().filter(|&(_, p)| p != 0).collect()
+}
+
+/// `TICK`s in the circuit, loops counted in full.
+fn count_ticks(instrs: &[Instr]) -> u64 {
+    instrs
+        .iter()
+        .map(|i| match i {
+            Instr::Tick => 1,
+            Instr::Repeat { count, body, .. } => count.saturating_mul(count_ticks(body)),
+            Instr::Gate { body, .. } => count_ticks(body),
+            _ => 0,
+        })
+        .fold(0u64, u64::saturating_add)
+}
+
+/// Every fault of the circuit (its loops walked in full) with what it sets off and where it
+/// arises, in the order the backward walk meets them (`explain`).
+pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>, String> {
+    let counts = Counts::of(&circuit.instrs)?;
+    let nq = counts.qubits;
+    let mut a = Analyzer {
+        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        accumulate: false,
+        fold: false,
+        decompose: false,
+        approximate: Some(1.0),
+        window: Window::default(),
+        reversed: Vec::new(),
+        work: 0,
+        sweeps: None,
+        prov: Some(Box::new(Recorder::new(count_ticks(&circuit.instrs)))),
+    };
+    a.undo_block(&circuit.instrs, &None)?;
+    Ok(a.prov.take().map(|r| r.records).unwrap_or_default())
 }
 
 /// What each sweep bit's X flips, as (detectors, observables), and a check that every detector
@@ -931,6 +1047,7 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> 
         reversed: Vec::new(),
         work: 0,
         sweeps: Some(vec![Sym::new(); counts.sweep_bits]),
+        prov: None,
     };
     a.undo_block(&circuit.instrs, &None)?;
     for q in 0..nq {
