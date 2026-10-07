@@ -36,6 +36,11 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - `write_shot_data_file` and `read_shot_data_file`, Stim's functions with Stim's arguments, in
   all six of its result formats (`01`, `b8`, `r8`, `ptb64`, `hits`, `dets`): files byte for
   byte as Stim writes them, and Stim's read back to the same shots.
+- `DetectorErrorModel.compile_sampler(seed=...)` (Rust: `DetectorErrorModel::sampler`): shots
+  drawn from a model's faults directly, as Stim's `CompiledDemSampler`, with the faults that
+  fired (`return_errors`) and recorded faults replayed (`recorded_errors_to_replay`); rates
+  and pairwise correlations agree with Stim's sampler, and a seed's shots do not depend on the
+  number of threads.
 - `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
   `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
   into graph-like pieces is kept whole. The text equals Stim's on its colour codes.

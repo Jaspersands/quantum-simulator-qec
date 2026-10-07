@@ -24,13 +24,13 @@ use crate::surface_code::Xorshift;
 
 /// A probability, with what geometric skipping needs precomputed.
 #[derive(Clone, Copy, Debug)]
-struct Noise {
+pub(crate) struct Noise {
     p: f64,
     log1mp: f64,
 }
 
 impl Noise {
-    fn new(p: f64) -> Noise {
+    pub(crate) fn new(p: f64) -> Noise {
         // ln_1p keeps ln(1 − p) nonzero for p far below 1e-16, where 1 − p
         // rounds to 1; a p it still cannot resolve is treated as zero.
         let log1mp = if p > 0.0 && p < 1.0 { (-p).ln_1p() } else { 0.0 };
@@ -40,7 +40,7 @@ impl Noise {
 
 /// A word whose bits are independently set with probability `n.p`.
 #[inline]
-fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
+pub(crate) fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
     if n.p <= 0.0 {
         return 0;
     }
@@ -707,7 +707,7 @@ impl BatchSampler {
     }
 }
 
-fn splitmix64(mut z: u64) -> u64 {
+pub(crate) fn splitmix64(mut z: u64) -> u64 {
     z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
@@ -715,7 +715,7 @@ fn splitmix64(mut z: u64) -> u64 {
 }
 
 /// The seed of batch `b`'s stream, from the sampler's seed and the batch alone.
-fn batch_seed(seed: u64, b: u64) -> u64 {
+pub(crate) fn batch_seed(seed: u64, b: u64) -> u64 {
     splitmix64(seed ^ splitmix64(b ^ 0x632B_E59B_D9B4_E019))
 }
 

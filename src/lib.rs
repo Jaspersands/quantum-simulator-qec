@@ -42,6 +42,8 @@ pub mod dem_build;
 #[doc(hidden)]
 pub mod dem_program;
 #[doc(hidden)]
+pub mod dem_sampler;
+#[doc(hidden)]
 pub mod distance;
 #[doc(hidden)]
 pub mod explain;

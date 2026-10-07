@@ -473,6 +473,12 @@ class DetectorErrorModel:
             raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
         return Diagram(call(self._d.matchgraph_svg), type)
 
+    def compile_sampler(self, *, seed: Union[int, None] = None) -> "DemSampler":
+        """A sampler of the model's faults, as Stim's: each fault fires independently with its
+        probability. The same seed gives the same shots on any machine and number of threads;
+        ``None`` draws a seed."""
+        return DemSampler(self, seed)
+
     def distance(self, method: str = "milp", *, time_limit: float = 60.0) -> int:
         """The fewest of the model's faults that together flip an observable and set off no
         detector: its distance.
@@ -590,6 +596,55 @@ def _milp_distance(text: str, time_limit: float) -> int:
         found = "none found" if res.x is None else f"best found {round(res.fun)}"
         raise RuntimeError(f"the distance was not proven within {time_limit} s ({found}); raise time_limit, or use method='search' for a bound")
     return int(round(res.fun))
+
+
+class DemSampler:
+    """Shots drawn from a detector error model's faults, as ``stim.CompiledDemSampler``. Made
+    by ``DetectorErrorModel.compile_sampler``."""
+
+    def __init__(self, model: "DetectorErrorModel", seed: Union[int, None] = None) -> None:
+        if not isinstance(model, DetectorErrorModel):
+            model = DetectorErrorModel(model)
+        self._s = call(model._d.sampler, seed_of(seed))
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a DemSampler is a position in a stream of shots, which a copy would restart; send the model and a seed instead")
+
+    @property
+    def num_detectors(self) -> int:
+        return self._s.num_detectors
+
+    @property
+    def num_observables(self) -> int:
+        return self._s.num_observables
+
+    @property
+    def num_errors(self) -> int:
+        return self._s.num_errors
+
+    def sample(
+        self,
+        shots: int,
+        *,
+        bit_packed: bool = False,
+        return_errors: bool = False,
+        recorded_errors_to_replay: Any = None,
+        threads: int = 1,
+    ) -> tuple:
+        """``(detectors, observables, errors)``: (shots, n) bool arrays, or bit-packed uint8
+        rows with ``bit_packed``. ``errors`` (which faults fired, one column per fault in the
+        model's order) is returned with ``return_errors``, else ``None``.
+        ``recorded_errors_to_replay`` (such an array) replays those faults instead of drawing."""
+        shots = count(shots, "shots")
+        nd, no, ne = self.num_detectors, self.num_observables, self.num_errors
+        if recorded_errors_to_replay is not None:
+            raw, n = rows_to_b8(recorded_errors_to_replay, ne, np.asarray(recorded_errors_to_replay).dtype == np.uint8, "recorded_errors_to_replay")
+            d, o = call(self._s.replay, raw, n)
+            shots, e = n, (b8_to_rows(raw, n, ne, bit_packed) if return_errors else None)
+        else:
+            d, o, e = call(self._s.sample, shots, count(threads, "threads"), bool(return_errors))
+            e = b8_to_rows(e, shots, ne, bit_packed) if return_errors else None
+        return b8_to_rows(d, shots, nd, bit_packed), b8_to_rows(o, shots, no, bit_packed), e
 
 
 class DetectorSampler:

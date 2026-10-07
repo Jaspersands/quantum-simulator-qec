@@ -262,6 +262,11 @@ impl PyDem {
         Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase)).map_err(api_err)? })
     }
 
+    /// A sampler of the model's faults (see `DemSampler`).
+    fn sampler(&self, seed: u64) -> PyResult<PyDemSampler> {
+        Ok(PyDemSampler { sampler: crate::dem_sampler::DemSampler::new(self.dem.flat().map_err(api_err)?), seed, next: 0.into() })
+    }
+
     fn matchgraph_svg(&self) -> PyResult<String> {
         self.dem.matchgraph_svg().map_err(api_err)
     }
@@ -302,6 +307,47 @@ impl PySampler {
         let (sampler, seed) = (&self.sampler, self.seed);
         let (d, o) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
+}
+
+/// A detector error model's own sampler, batch after batch from per-batch streams.
+#[pyclass(name = "DemSampler", module = "stabilizer_qec._core")]
+pub struct PyDemSampler {
+    sampler: crate::dem_sampler::DemSampler,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyDemSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.sampler.num_detectors
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.sampler.num_observables
+    }
+
+    #[getter]
+    fn num_errors(&self) -> usize {
+        self.sampler.num_errors()
+    }
+
+    /// `shots` shots as b8 rows of detectors, of observables, and (with `errors`) of the faults
+    /// that fired.
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize, errors: bool) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let (d, o, e) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads, errors));
+        (PyBytes::new(py, &d), PyBytes::new(py, &o), PyBytes::new(py, &e))
+    }
+
+    /// The detection events and observable flips of recorded faults (b8 rows).
+    fn replay<'py>(&self, py: Python<'py>, errors: &[u8], shots: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let (d, o) = self.sampler.replay(errors, shots).map_err(err)?;
+        Ok((PyBytes::new(py, &d), PyBytes::new(py, &o)))
     }
 }
 
@@ -645,6 +691,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
     m.add_class::<PySampler>()?;
+    m.add_class::<PyDemSampler>()?;
     m.add_class::<PyM2d>()?;
     m.add_class::<PyMatcher>()?;
     m.add_class::<PyUnionFinder>()?;

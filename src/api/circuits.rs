@@ -707,6 +707,22 @@ impl DetectorErrorModel {
         DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
     }
 
+    /// A sampler of the model's faults (Stim's `compile_sampler`): each fault fires
+    /// independently with its probability; the same seed gives the same shots on any number
+    /// of threads.
+    ///
+    /// ```
+    /// use stabilizer_qec::DetectorErrorModel;
+    ///
+    /// let dem: DetectorErrorModel = "error(0.5) D0 L0\nerror(0.1) D0 D1".parse()?;
+    /// let shots = dem.sampler(7)?.sample(1000, 1);
+    /// assert_eq!((shots.detectors.num_rows(), shots.errors.num_bits()), (1000, 2));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn sampler(&self, seed: u64) -> Result<DemSampler> {
+        Ok(DemSampler { inner: crate::dem_sampler::DemSampler::new(self.flat()?), seed, next: 0 })
+    }
+
     /// The matching graph as an SVG picture: each detector at its coordinates, each graph-like
     /// fault an edge, those flipping an observable heavier. The model must be decomposed, and
     /// unroll.
@@ -792,6 +808,38 @@ impl DetectorSampler {
         Samples {
             detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
             observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
+        }
+    }
+}
+
+/// Shots drawn from a detector error model's faults. Made by [`DetectorErrorModel::sampler`].
+pub struct DemSampler {
+    inner: crate::dem_sampler::DemSampler,
+    seed: u64,
+    next: u64,
+}
+
+/// A detector error model's shots: detection events, observable flips, and the faults that
+/// fired (one bit per fault, in the model's order).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DemSamples {
+    /// One bit per detector.
+    pub detectors: BitTable,
+    /// One bit per observable.
+    pub observables: BitTable,
+    /// One bit per fault of the model.
+    pub errors: BitTable,
+}
+
+impl DemSampler {
+    /// `shots` more shots. `threads = 0` uses every core; the shots do not depend on it.
+    pub fn sample(&mut self, shots: usize, threads: usize) -> DemSamples {
+        let (d, o, e) = self.inner.sample_seeded(self.seed, self.next, shots, threads, true);
+        self.next += shots.div_ceil(64) as u64;
+        DemSamples {
+            detectors: BitTable::from_packed(shots, self.inner.num_detectors, d).expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.inner.num_observables, o).expect("the sampler writes whole rows"),
+            errors: BitTable::from_packed(shots, self.inner.num_errors(), e).expect("the sampler writes whole rows"),
         }
     }
 }
