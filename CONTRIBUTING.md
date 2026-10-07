@@ -4,6 +4,14 @@ Issues and pull requests are welcome. The project's one rule is that a claim is 
 change to the engine comes with a test, and wherever a reference implementation exists (Stim,
 PyMatching, `ldpc`, `beliefmatching`), the test compares against it.
 
+## Questions, bugs and support
+
+Ask a question, report a bug or request a feature by opening an issue at
+[github.com/Jaspersands/quantum-simulator-qec/issues](https://github.com/Jaspersands/quantum-simulator-qec/issues).
+A bug report is most useful with the smallest circuit or model that shows it, the version
+(`stabilizer_qec.__version__`), and, where it applies, what Stim, PyMatching or `ldpc` give on
+the same input.
+
 ## Building
 
 ```bash
