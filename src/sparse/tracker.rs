@@ -17,10 +17,38 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
+/// A reminder's subject: a node or a region, packed in one word so that the reminders due at
+/// the same time compare as integers. Nodes come before regions, each in index order, as the
+/// enum `Node(u32) | Region(u32)` it replaced ordered them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Item {
+pub(crate) struct Item(u64);
+
+/// What a reminder is about.
+pub(crate) enum Subject {
     Node(u32),
     Region(u32),
+}
+
+impl Item {
+    const REGION: u64 = 1 << 32;
+
+    #[allow(non_snake_case)]
+    pub fn Node(v: u32) -> Item {
+        Item(u64::from(v))
+    }
+
+    #[allow(non_snake_case)]
+    pub fn Region(r: u32) -> Item {
+        Item(Item::REGION | u64::from(r))
+    }
+
+    pub fn subject(self) -> Subject {
+        if self.0 & Item::REGION == 0 {
+            Subject::Node(self.0 as u32)
+        } else {
+            Subject::Region(self.0 as u32)
+        }
+    }
 }
 
 /// The flooder's queue of reminders.

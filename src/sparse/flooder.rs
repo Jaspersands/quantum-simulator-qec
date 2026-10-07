@@ -10,7 +10,7 @@
 use crate::dem_decoder::DecodeError;
 
 use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NOBODY, NONE, NO_TIME, NO_TOP};
-use super::tracker::Item;
+use super::tracker::{Item, Subject};
 use super::Solver;
 
 /// Guard against a bug looping forever: events allowed per defect, and the
@@ -354,8 +354,8 @@ impl<'a> Solver<'a> {
             if self.s.events > limit {
                 return Err(DecodeError::MatcherDeclined);
             }
-            match item {
-                Item::Node(v) => {
+            match item.subject() {
+                Subject::Node(v) => {
                     if self.s.queued[v as usize] != t {
                         continue;
                     }
@@ -374,7 +374,7 @@ impl<'a> Solver<'a> {
                         None => {}
                     }
                 }
-                Item::Region(r) => {
+                Subject::Region(r) => {
                     if self.s.regions[r as usize].queued != t {
                         continue;
                     }
