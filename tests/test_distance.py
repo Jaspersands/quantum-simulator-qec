@@ -58,3 +58,38 @@ def test_canonicalized_errors_have_one_location():
 def test_no_logical_error_is_an_error():
     with pytest.raises(ValueError, match="undetectable"):
         sq.DetectorErrorModel("error(0.1) D0 D1\nerror(0.1) D1").shortest_graphlike_error()
+
+
+SEARCH = dict(dont_explore_detection_event_sets_with_size_above=4, dont_explore_edges_with_degree_above=4, dont_explore_edges_increasing_symptom_degree=False)
+
+HYPER = [
+    ("color d=3", lambda: stim.Circuit.generated("color_code:memory_xyz", distance=3, rounds=3, after_clifford_depolarization=0.001)),
+    ("color d=5", lambda: stim.Circuit.generated("color_code:memory_xyz", distance=5, rounds=3, after_clifford_depolarization=0.001)),
+    ("surface d=5", lambda: noisy("surface_code:rotated_memory_x", 5)),
+    ("steane", lambda: stim.Circuit(str(sq.CssCode.color_code(3).memory_circuit(2, 0.001)))),
+    ("bb72", lambda: stim.Circuit(str(sq.BivariateBicycleCode("72").memory_circuit(1, 0.001)))),
+]
+
+
+@pytest.mark.parametrize("name,make", HYPER)
+def test_heuristic_search_matches_stims_length(name, make):
+    c = make()
+    for kw in (SEARCH, {**SEARCH, "dont_explore_edges_increasing_symptom_degree": True}):
+        try:
+            want = len(c.search_for_undetectable_logical_errors(**kw))
+        except ValueError:
+            # Where Stim's search finds nothing within its limits, neither does this one.
+            with pytest.raises(ValueError, match="no undetectable"):
+                sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw)
+            continue
+        got = sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw)
+        assert len(got) == want, (name, kw)
+        assert all(e.circuit_error_locations for e in got)
+
+
+def test_search_on_models_and_limits():
+    dem = sq.DetectorErrorModel("error(0.1) D0 D1 D2\nerror(0.1) D0\nerror(0.1) D1 D2 L0")
+    found = dem.search_for_undetectable_logical_errors(**SEARCH)
+    assert found.num_errors == 3 and undetected_logical(str(found))
+    with pytest.raises(ValueError, match="undetectable"):
+        dem.search_for_undetectable_logical_errors(**{**SEARCH, "dont_explore_edges_with_degree_above": 2})

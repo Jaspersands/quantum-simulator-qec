@@ -130,6 +130,115 @@ pub fn shortest_graphlike(dem: &Dem, ignore_ungraphlike: bool) -> Result<Vec<Fau
     Ok(out)
 }
 
+/// The most search states `search_undetectable` visits before giving up.
+const MAX_STATES: usize = 20_000_000;
+
+/// Stim's `search_for_undetectable_logical_errors`: a breadth-first search over sets of fired
+/// detectors (and flipped observables). Each fault of at most `max_degree` detectors is an edge
+/// (the whole fault, hyperedges included); a search starts from each, and a step adds a fault
+/// touching the set's lowest detector, never growing the set past `max_symptoms` (nor at all
+/// with `no_increase`). The first set with no detector and an observable flipped is the
+/// answer: the fewest faults this search can reach.
+pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no_increase: bool) -> Result<Vec<Fault>, String> {
+    let mut edges: Vec<Fault> = Vec::new();
+    let mut seen = HashSet::new();
+    for m in &dem.mechanisms {
+        if m.detectors.is_empty() {
+            if m.observables != 0 {
+                return Ok(vec![(Vec::new(), m.observables)]);
+            }
+            continue;
+        }
+        if m.detectors.len() <= max_degree && seen.insert((m.detectors.clone(), m.observables)) {
+            edges.push((m.detectors.clone(), m.observables));
+        }
+    }
+    let mut touching: HashMap<u32, Vec<usize>> = HashMap::new();
+    for (k, (dets, _)) in edges.iter().enumerate() {
+        for &d in dets {
+            touching.entry(d).or_default().push(k);
+        }
+    }
+    let xor = |a: &[u32], b: &[u32]| -> Vec<u32> {
+        let (mut i, mut j, mut out) = (0, 0, Vec::with_capacity(a.len() + b.len()));
+        while i < a.len() || j < b.len() {
+            match (a.get(i), b.get(j)) {
+                (Some(x), Some(y)) if x == y => {
+                    i += 1;
+                    j += 1;
+                }
+                (Some(x), Some(y)) if x < y => {
+                    out.push(*x);
+                    i += 1;
+                }
+                (Some(_), Some(y)) => {
+                    out.push(*y);
+                    j += 1;
+                }
+                (Some(x), None) => {
+                    out.push(*x);
+                    i += 1;
+                }
+                (None, Some(y)) => {
+                    out.push(*y);
+                    j += 1;
+                }
+                (None, None) => unreachable!(),
+            }
+        }
+        out
+    };
+    // States as (detectors, observables), each with the state it came from and the fault added.
+    let mut states: Vec<(Vec<u32>, u64, usize, usize)> = Vec::new();
+    let mut index: HashMap<(Vec<u32>, u64), usize> = HashMap::new();
+    let mut queue = VecDeque::new();
+    for (k, (dets, obs)) in edges.iter().enumerate() {
+        if dets.len() > max_symptoms {
+            continue;
+        }
+        if let std::collections::hash_map::Entry::Vacant(slot) = index.entry((dets.clone(), *obs)) {
+            slot.insert(states.len());
+            states.push((dets.clone(), *obs, usize::MAX, k));
+            queue.push_back(states.len() - 1);
+        }
+    }
+    let path = |states: &Vec<(Vec<u32>, u64, usize, usize)>, mut s: usize| -> Vec<Fault> {
+        let mut out = Vec::new();
+        while s != usize::MAX {
+            out.push(edges[states[s].3].clone());
+            s = states[s].2;
+        }
+        out.sort();
+        out
+    };
+    while let Some(s) = queue.pop_front() {
+        let (dets, obs) = (states[s].0.clone(), states[s].1);
+        if dets.is_empty() {
+            if obs != 0 {
+                return Ok(path(&states, s));
+            }
+            continue;
+        }
+        for &k in touching.get(&dets[0]).map(Vec::as_slice).unwrap_or(&[]) {
+            let next = xor(&dets, &edges[k].0);
+            if next.len() > max_symptoms || (no_increase && next.len() > dets.len()) {
+                continue;
+            }
+            let key = (next, obs ^ edges[k].1);
+            if index.contains_key(&key) {
+                continue;
+            }
+            if states.len() >= MAX_STATES {
+                return Err(format!("the search visited {MAX_STATES} sets of detectors without finding an undetectable logical error; lower its limits"));
+            }
+            index.insert(key.clone(), states.len());
+            states.push((key.0, key.1, s, k));
+            queue.push_back(states.len() - 1);
+        }
+    }
+    Err("the search found no undetectable logical error within its limits".into())
+}
+
 /// The faults as a model's text, each `error(1)`, as Stim writes the result.
 pub fn to_dem_text(faults: &[Fault]) -> String {
     let mut s = String::new();

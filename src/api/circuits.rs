@@ -179,6 +179,19 @@ impl Circuit {
         self.explained(Some(&crate::distance::as_terms(&faults)), canonicalize)
     }
 
+    /// The circuit's distance through hyperedges too, as Stim's
+    /// `search_for_undetectable_logical_errors` finds it: a breadth-first search over sets of
+    /// fired detectors in its error model (undecomposed), adding a fault at the set's lowest
+    /// detector each step; faults of more than `max_degree` detectors are left out, sets larger
+    /// than `max_symptoms` are not explored, nor (with `no_increase`) larger sets at all. Each
+    /// fault found is explained (with `canonicalize`, by one location). It is the fewest faults
+    /// within those limits: an upper bound on the distance.
+    pub fn search_for_undetectable_logical_errors(&self, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> Result<Vec<ExplainedError>> {
+        let dem = self.detector_error_model(&DemOptions::new().approximate_disjoint_errors(Some(1.0)))?;
+        let faults = crate::distance::search_undetectable(dem.flat()?, max_symptoms, max_degree, no_increase)?;
+        self.explained(Some(&crate::distance::as_terms(&faults)), canonicalize)
+    }
+
     /// One of Stim's generated memory experiments (`stim.Circuit.generated`), character for
     /// character as Stim writes it: `task` is `"repetition_code:memory"`,
     /// `"surface_code:rotated_memory_x"` or `_z`, `"surface_code:unrotated_memory_x"` or `_z`,
@@ -683,6 +696,14 @@ impl DetectorErrorModel {
     /// refused otherwise.
     pub fn shortest_graphlike_error(&self, ignore_ungraphlike: bool) -> Result<DetectorErrorModel> {
         let faults = crate::distance::shortest_graphlike(self.flat()?, ignore_ungraphlike)?;
+        DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
+    }
+
+    /// Stim's `search_for_undetectable_logical_errors` on the model (see
+    /// [`Circuit::search_for_undetectable_logical_errors`]): the faults found, each with
+    /// probability 1.
+    pub fn search_for_undetectable_logical_errors(&self, max_symptoms: usize, max_degree: usize, no_increase: bool) -> Result<DetectorErrorModel> {
+        let faults = crate::distance::search_undetectable(self.flat()?, max_symptoms, max_degree, no_increase)?;
         DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
     }
 

@@ -287,6 +287,30 @@ class Circuit:
 
         return _explain.build(call(self._c.shortest_graphlike, bool(ignore_ungraphlike_errors), bool(canonicalize_circuit_errors)))
 
+    def search_for_undetectable_logical_errors(
+        self,
+        *,
+        dont_explore_detection_event_sets_with_size_above: int,
+        dont_explore_edges_with_degree_above: int,
+        dont_explore_edges_increasing_symptom_degree: bool,
+        canonicalize_circuit_errors: bool = False,
+    ) -> list:
+        """The circuit's distance through hyperedges too, as Stim's method of the same name
+        finds it: a breadth-first search over sets of fired detectors in its (undecomposed)
+        error model, a fault added at the set's lowest detector each step, within the limits
+        given. The faults found, each explained (by one location with
+        ``canonicalize_circuit_errors``); their number bounds the distance from above."""
+        from . import _explain
+
+        raw = call(
+            self._c.search_undetectable,
+            count(dont_explore_detection_event_sets_with_size_above, "dont_explore_detection_event_sets_with_size_above"),
+            count(dont_explore_edges_with_degree_above, "dont_explore_edges_with_degree_above"),
+            bool(dont_explore_edges_increasing_symptom_degree),
+            bool(canonicalize_circuit_errors),
+        )
+        return _explain.build(raw)
+
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
         shots on any machine and any number of threads; ``None`` draws a seed."""
@@ -448,6 +472,25 @@ class DetectorErrorModel:
         if type != "matchgraph-svg":
             raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
         return Diagram(call(self._d.matchgraph_svg), type)
+
+    def search_for_undetectable_logical_errors(
+        self,
+        *,
+        dont_explore_detection_event_sets_with_size_above: int,
+        dont_explore_edges_with_degree_above: int,
+        dont_explore_edges_increasing_symptom_degree: bool,
+    ) -> "DetectorErrorModel":
+        """Stim's search for undetectable logical errors on the model (see
+        ``Circuit.search_for_undetectable_logical_errors``): the faults found, as a model with
+        each at probability 1."""
+        return DetectorErrorModel._wrap(
+            call(
+                self._d.search_undetectable,
+                count(dont_explore_detection_event_sets_with_size_above, "dont_explore_detection_event_sets_with_size_above"),
+                count(dont_explore_edges_with_degree_above, "dont_explore_edges_with_degree_above"),
+                bool(dont_explore_edges_increasing_symptom_degree),
+            )
+        )
 
     def shortest_graphlike_error(self, ignore_ungraphlike_errors: bool = True) -> "DetectorErrorModel":
         """The fewest of the model's graph-like pieces (each fault's ``^``-separated pieces) that

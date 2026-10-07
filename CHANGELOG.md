@@ -23,6 +23,9 @@ minor release before a major release removes it. The Rust crate is versioned on 
   an observable and no detector, found as Stim finds it (decomposed faults left out unless
   `ignore_ungraphlike_errors=False`). Its length equals Stim's on Stim's generated surface,
   repetition and colour codes up to d = 15, in about Stim's time.
+- `search_for_undetectable_logical_errors` on circuits and models: Stim's breadth-first
+  search through hyperedges, with its three limits, giving the same number of faults as
+  Stim's on its colour codes, surface codes, the Steane code and the [[72, 12, 6]] code.
 - `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
   `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
   into graph-like pieces is kept whole. The text equals Stim's on its colour codes.

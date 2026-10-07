@@ -161,6 +161,14 @@ impl PyCircuit {
         Ok(out.into_iter().map(explained_tuple).collect())
     }
 
+    /// Stim's search for undetectable logical errors, explained (see
+    /// `Circuit::search_for_undetectable_logical_errors`).
+    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
+        let circuit = self.circuit.clone();
+        let out = py.detach(move || circuit.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase, canonicalize)).map_err(api_err)?;
+        Ok(out.into_iter().map(explained_tuple).collect())
+    }
+
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
     /// detslice-svg, matchgraph-svg); `tick` the moment of a detector slice.
     #[pyo3(signature = (kind, tick=None))]
@@ -246,6 +254,12 @@ impl PyDem {
     fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
         let dem = self.dem.clone();
         Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)? })
+    }
+
+    /// Stim's search for undetectable logical errors on the model.
+    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool) -> PyResult<PyDem> {
+        let dem = self.dem.clone();
+        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase)).map_err(api_err)? })
     }
 
     fn matchgraph_svg(&self) -> PyResult<String> {
