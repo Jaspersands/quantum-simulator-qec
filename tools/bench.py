@@ -72,6 +72,8 @@ def benchmarks(sq, stim, pymatching, quick):
     return [
         ("error_model", "Error model of a d = 11 rotated memory, 11 rounds (decomposed)", 1, "model",
          lambda: ours_c.detector_error_model(decompose_errors=True), lambda: stim_c.detector_error_model(decompose_errors=True)),
+        ("shortest_graphlike", "Its graph-like distance (shortest_graphlike_error on the model)", 1, "model",
+         lambda: ours_dem.shortest_graphlike_error(), lambda: stim_dem.shortest_graphlike_error()),
         ("sample", f"Sampling its detection events, {shots:,} shots", shots, "shot",
          lambda: ours_s.sample(shots, separate_observables=True), lambda: stim_s.sample(shots, separate_observables=True)),
         ("m2d", f"Measurements to detection events, {shots:,} shots", shots, "shot",

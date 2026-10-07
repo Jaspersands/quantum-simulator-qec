@@ -1270,6 +1270,66 @@ and after. That is the sum-of-parts law a resource estimate assumes, measured. *
 merged at once**, measuring Z₁Z₂ and Z₂Z₃ together, fail 18.04%, 9.36% and 4.61% at d = 3, 5, 7
 and p = 0.3%.
 
+## Circuit distance
+
+A code's distance counts the fewest errors on its data qubits that change a logical value
+unnoticed. A circuit that measures the code can do worse: one fault in the middle of a
+syndrome cycle can spread to several qubits. The *circuit distance* is the fewest faults of the
+whole circuit that flip an observable and set off no detector. It is measured three ways:
+
+- `shortest_graphlike_error`: the shortest such set among faults of at most two detectors, by
+  Stim's algorithm, on circuits and on models;
+- `search_for_undetectable_logical_errors`: Stim's breadth-first search through every fault,
+  hyperedges included, within its limits (here: sets of up to 6 detectors, faults of up to
+  6), which gives an upper bound;
+- `DetectorErrorModel.distance()`: an integer program over every fault, which proves the
+  distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
+  found is still a real undetectable logical error, and so an upper bound.
+
+Both searches give the same number of faults as Stim's own on every circuit compared (Stim's
+surface, repetition and colour codes up to d = 15, the Steane code and the [[72, 12, 6]] code),
+and each fault they return is explained: the gate it comes from, its targets, and the Pauli
+product or measurement it flips, as Stim's `explain_detector_error_model_errors` prints it.
+Every memory the package builds, measured by `tools/distances.py` (d rounds; the bivariate
+bicycle memories 2):
+
+| memory | code distance | faults | graph-like search | Stim's search | integer program |
+|---|---|---|---|---|---|
+| surface, rotated (Stim's) | 3 | 219 | 3 | 3 | **3** |
+| surface, rotated (Stim's) | 5 | 1,677 | 5 | — | **5** |
+| surface, rotated (Stim's) | 7 | 6,023 | 7 | — | ≤ 7 (not proven in 300 s) |
+| surface, unrotated (Stim's) | 3 | 423 | 3 | 3 | **3** |
+| surface, unrotated (Stim's) | 5 | 3,139 | 5 | — | **5** |
+| colour code XYZ (Stim's) | 3 | 72 | 2 | 2 | **2** |
+| colour code XYZ (Stim's) | 5 | 1,104 | 3 | 3 | **3** |
+| colour code XYZ (Stim's) | 7 | 3,651 | 4 | — | **4** |
+| surface, rotated, SD6 | 3 | 219 | 3 | 3 | **3** |
+| surface, rotated, SD6 | 5 | 1,677 | 5 | — | **5** |
+| surface, XZZX, SD6 | 3 | 219 | 3 | 3 | **3** |
+| surface, XZZX, SD6 | 5 | 1,677 | 5 | — | **5** |
+| colour code 6.6.6 (CssCode) | 3 | 277 | 2 | 2 | **2** |
+| colour code 6.6.6 (CssCode) | 5 | 2,388 | 3 | 3 | **3** |
+| Hamming hypergraph product [[58, 16, 3]] (CssCode) | 3 | 3,564 | 3 | 3 | **3** |
+| bivariate bicycle [[72, 12, 6]] | 6 | 792 | — | 6 | ≤ 6 (not proven in 300 s) |
+| bivariate bicycle [[90, 8, 10]] | 10 | 990 | — | — | ≤ 9 (not proven in 300 s) |
+| bivariate bicycle [[108, 8, 10]] | 10 | 1,188 | — | — | ≤ 11 (not proven in 300 s) |
+| bivariate bicycle [[144, 12, 12]] (gross) | 12 | 1,584 | — | — | ≤ 12 (not proven in 300 s) |
+
+- **The surface codes keep their distance.** Rotated, unrotated and XZZX, Stim's circuits and
+  the SD6 ones: d at d = 3 and 5, proven.
+- **The colour code does not.** Stim's generated XYZ colour-code memory has circuit distance 2,
+  3 and 4 at code distance 3, 5 and 7, proven, and Stim's own search agrees where it reaches. Two
+  or three correlated two-qubit faults do the work of d data errors. The generic `CssCode`
+  schedule loses the colour code's distance the same way, so the loss belongs to the code's
+  schedules, not only to one circuit.
+- **The bivariate bicycle codes were not settled.** Five minutes proved none of them. For
+  [[90, 8, 10]] the integer program found 9 faults that flip a logical qubit unnoticed, so this
+  2-round memory has circuit distance at most 9, below the code's 10. Bravyi et al. (their
+  Table 1) bound the circuit distance at 6, 8, 8 and 10 for [[72, 12, 6]], [[90, 8, 10]],
+  [[108, 8, 10]] and the gross code. Ours are 6, 9, 11 and 12, so at this time limit the
+  larger two are loose and say nothing new. The graph-like search does not apply (their
+  faults are not graph-like), and Stim's search finds nothing within its limits.
+
 ## What it would take: a resource estimate
 
 Every section above measures one ingredient of a quantum computer's cost. `js/estimator.js`

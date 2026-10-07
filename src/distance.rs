@@ -58,18 +58,21 @@ pub fn shortest_graphlike(dem: &Dem, ignore_ungraphlike: bool) -> Result<Vec<Fau
         adj[a as usize].push((b, k));
         adj[b as usize].push((a, k));
     }
-    // From every node: a breadth-first tree labelled by the observables its paths flip. An edge
+    // From each start: a breadth-first tree labelled by the observables its paths flip. An edge
     // between two reached nodes whose labels it does not reconcile closes a walk that flips an
-    // observable and no detector; the shortest over all starts is a shortest such cycle.
+    // observable and no detector; the shortest over all starts is a shortest such cycle. Such a
+    // cycle contains an edge flipping an observable, so the starts are those edges' ends; and
+    // once a start is searched, every cycle through it is covered, so later searches skip it.
+    let mut starts: Vec<usize> = edges.iter().filter(|e| e.2 != 0).flat_map(|&(a, b, _)| [a as usize, b as usize]).collect();
+    starts.sort_unstable();
+    starts.dedup();
+    let mut done = vec![false; n];
     let mut best: Option<(usize, Vec<usize>)> = None;
     let mut dist = vec![u32::MAX; n];
     let mut label = vec![0u64; n];
     let mut parent = vec![usize::MAX; n];
     let mut touched: Vec<usize> = Vec::new();
-    for s in 0..n {
-        if adj[s].is_empty() {
-            continue;
-        }
+    for s in starts {
         for &v in &touched {
             dist[v] = u32::MAX;
             parent[v] = usize::MAX;
@@ -82,13 +85,17 @@ pub fn shortest_graphlike(dem: &Dem, ignore_ungraphlike: bool) -> Result<Vec<Fau
         while let Some(u) = queue.pop_front() {
             let du = dist[u] as usize;
             if let Some((len, _)) = &best {
-                // A walk closed from here is at least 2·du long.
-                if 2 * du >= *len {
+                // A walk closed from here is at least 2·du + 1 long: an edge to a node a layer
+                // up was looked at from that node.
+                if 2 * du + 1 >= *len {
                     break;
                 }
             }
             for &(w, e) in &adj[u] {
                 let w = w as usize;
+                if done[w] {
+                    continue;
+                }
                 let through = label[u] ^ edges[e].2;
                 if dist[w] == u32::MAX {
                     dist[w] = du as u32 + 1;
@@ -116,6 +123,7 @@ pub fn shortest_graphlike(dem: &Dem, ignore_ungraphlike: bool) -> Result<Vec<Fau
                 }
             }
         }
+        done[s] = true;
     }
     let (_, chosen) = best.ok_or("there is no undetectable logical error among the model's graph-like faults")?;
     let mut out: Vec<Fault> = chosen

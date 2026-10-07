@@ -446,6 +446,15 @@ def build_values(F):
     v["ls.cnot_d7"] = pct(PG["cnot/d7/T7/p0.002/z/correlated"]["rate_any"], 2)
     v["ls.line3"] = ", ".join(pct(PG[f"line/d{d}/n3/p0.003"]["rate_any"], 2) for d in (3, 5, 7))
 
+    # Circuit distances: every memory the package builds, three ways.
+    DI = load("data/distances.json")
+    t["distances"] = table(["memory", "code distance", "faults", "graph-like search", "Stim's search", "integer program"],
+                           [[c.replace("**", "") for c in cells(r)] for r in readme_tables.circuit_distances()], "lrrrrl")
+    v["dist.time_limit"] = f"{DI['time_limit'] / 60:.0f} minutes"
+    colour = sorted((m for m in DI["memories"] if m["memory"] == "colour code XYZ (Stim's)"), key=lambda m: m["code_distance"])
+    v["dist.colour"] = ", ".join(str(m["exact"]) for m in colour[:-1]) + " and " + str(colour[-1]["exact"])
+    v["dist.bb90"] = str(next(m["upper"] for m in DI["memories"] if m["memory"] == "bivariate bicycle [[90, 8, 10]]"))
+
     # The resource estimate, by the page's own model (js/estimator.js via tools/estimate.mjs).
     est_path = BUILD / "estimate.json"
     subprocess.run(["node", "tools/estimate.mjs", "--json", str(est_path)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)

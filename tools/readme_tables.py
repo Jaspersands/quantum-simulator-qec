@@ -168,6 +168,22 @@ def surgery_sequences():
 GROSS_OPS = [("f", "X(f, 0)"), ("gh", "X(g, h)"), ("f+gh", "X(f, 0) X(g, h)")]
 
 
+def circuit_distances():
+    doc = load("data/distances.json")
+    order = list(dict.fromkeys(m["memory"] for m in doc["memories"]))
+    rows = []
+    for m in sorted(doc["memories"], key=lambda m: (order.index(m["memory"]), m["code_distance"])):
+        dash = lambda v: "—" if v is None else str(v)  # noqa: E731
+        if m["proven"]:
+            exact = f"**{m['exact']}**"
+        elif m.get("upper") is not None:
+            exact = f"≤ {m['upper']} (not proven in {doc['time_limit']:.0f} s)"
+        else:
+            exact = f"not proven in {doc['time_limit']:.0f} s"
+        rows.append(f"| {m['memory']} | {m['code_distance']} | {m['faults']:,} | {dash(m['graphlike'])} | {dash(m['search'])} | {exact} |")
+    return rows
+
+
 def distance_text(d):
     """12 when exact, "≥ 11" for a bound the integer program stopped at."""
     return str(d["value"]) if d["exact"] else f"≥ {d['lower']}"
@@ -279,6 +295,7 @@ TABLES = [
     ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
     ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
     ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
+    ("circuit distances", r"\| memory \| code distance \| faults \| graph-like search \| Stim's search \| integer program \|", circuit_distances),
     ("estimate noise", r"\| p \| d = 3 \| d = 5 \| d = 7 \| d = 9 \| d = 11 \|", estimate_noise),
     ("estimate validation", r"\| case \| d \| physical qubits \(× source\) \| time \(× source\) \|", estimate_validation),
     ("estimate full", r"\| algorithm \| decoder \| d \| physical qubits \(block \+ factories \+ storage\) \| per Toffoli \| run time \| bound \|", estimate_full),

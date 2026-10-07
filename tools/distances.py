@@ -1,9 +1,10 @@
 """The circuit distance of every memory the package builds, three ways: the graph-like search
 (`shortest_graphlike_error`, graph-like faults only), Stim's search through hyperedges
 (`search_for_undetectable_logical_errors`, an upper bound), and the integer program
-(`DetectorErrorModel.distance()`, exact when it finishes within its time limit, else a bound).
+(`DetectorErrorModel.distance()`, exact when it finishes within its time limit; otherwise the
+best solution it found, a real undetectable logical error, is recorded as an upper bound).
 
-    python tools/distances.py            # compute, write data/distances.json
+    python tools/distances.py --time-limit 300   # compute, write data/distances.json
     python tools/distances.py --quick    # the small ones only, nothing written
 
 Each memory runs d rounds (bivariate bicycle and CSS memories: their stated rounds) under
@@ -15,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import time
 
 import stabilizer_qec as sq
@@ -73,6 +75,9 @@ def measure(circuit, time_limit):
     except RuntimeError as ex:
         out["exact"], out["proven"] = None, False
         out["note"] = str(ex)
+        # A solution found before the time limit is a real undetectable logical error: a bound.
+        found = re.search(r"best found (\d+)", str(ex))
+        out["upper"] = int(found.group(1)) if found else None
     out["milp_seconds"] = round(time.perf_counter() - t0, 1)
     return out
 
@@ -89,7 +94,7 @@ def main():
         print(f"{name:52} d={d:2}  graph-like {r['graphlike']}  search {r['search']}  exact {r['exact']}  ({r['milp_seconds']} s)", flush=True)
         rows.append(r)
     if not args.quick:
-        OUT.write_text(json.dumps(dict(version=sq.__version__, search_limits=SEARCH, memories=rows), indent=1) + "\n")
+        OUT.write_text(json.dumps(dict(version=sq.__version__, search_limits=SEARCH, time_limit=args.time_limit, memories=rows), indent=1) + "\n")
         print(f"wrote {OUT.relative_to(ROOT)}")
 
 

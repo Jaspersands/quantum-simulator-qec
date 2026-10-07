@@ -152,14 +152,14 @@ impl PyCircuit {
     #[pyo3(signature = (filter=None, reduce=false))]
     fn explain(&self, py: Python<'_>, filter: Option<PyRef<'_, PyDem>>, reduce: bool) -> PyResult<Vec<PyExplained>> {
         let filter = filter.map(|f| f.dem.clone());
-        let circuit = self.circuit.clone();
+        let circuit = &self.circuit;
         let out = py.detach(move || circuit.explain_errors(filter.as_ref(), reduce)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
 
     /// The graph-like distance's faults, explained (see `Circuit::shortest_graphlike_error`).
     fn shortest_graphlike(&self, py: Python<'_>, ignore: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
-        let circuit = self.circuit.clone();
+        let circuit = &self.circuit;
         let out = py.detach(move || circuit.shortest_graphlike_error(ignore, canonicalize)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
@@ -167,7 +167,7 @@ impl PyCircuit {
     /// Stim's search for undetectable logical errors, explained (see
     /// `Circuit::search_for_undetectable_logical_errors`).
     fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
-        let circuit = self.circuit.clone();
+        let circuit = &self.circuit;
         let out = py.detach(move || circuit.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase, canonicalize)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
@@ -291,13 +291,13 @@ impl PyDem {
     /// The graph-like distance's faults as a model (see
     /// `DetectorErrorModel::shortest_graphlike_error`).
     fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
-        let dem = self.dem.clone();
+        let dem = &self.dem;
         Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)? })
     }
 
     /// Stim's search for undetectable logical errors on the model.
     fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool) -> PyResult<PyDem> {
-        let dem = self.dem.clone();
+        let dem = &self.dem;
         Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase)).map_err(api_err)? })
     }
 

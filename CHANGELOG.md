@@ -33,7 +33,8 @@ minor release before a major release removes it. The Rust crate is versioned on 
   graph-like circuit distance, the fewest faults of at most two detectors that together flip
   an observable and no detector, found as Stim finds it (decomposed faults left out unless
   `ignore_ungraphlike_errors=False`). Its length equals Stim's on Stim's generated surface,
-  repetition and colour codes up to d = 15, in about Stim's time.
+  repetition and colour codes up to d = 15. On a model it takes Stim's time at d = 11 (3.5 ms)
+  and 2.5 times it at d = 15; `tools/bench.py` holds it to Stim's.
 - `search_for_undetectable_logical_errors` on circuits and models: Stim's breadth-first
   search through hyperedges, with its three limits, giving the same number of faults as
   Stim's on its colour codes, surface codes, the Steane code and the [[72, 12, 6]] code.
@@ -65,6 +66,14 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
   `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
   into graph-like pieces is kept whole. The text equals Stim's on its colour codes.
+- Documentation: the guide's "Knowing a circuit" and "The command line"; tutorial 01's "How
+  far from failing"; the README's and the report's "Circuit distance", every memory the package
+  builds measured three ways (`tools/distances.py`, `data/distances.json`), where the
+  integer program's best solution is kept as an upper bound when it does not finish. It finds
+  the 2-round [[90, 8, 10]] memory has circuit distance at most 9 (checked: 9 faults, no
+  detector, five logical qubits flipped).
+- A paper for the Journal of Open Source Software (`paper/`, built by the Paper workflow) and
+  its submission checklist (`docs/joss.md`); `CONTRIBUTING.md` says where to ask for help.
 
 ### Changed
 
