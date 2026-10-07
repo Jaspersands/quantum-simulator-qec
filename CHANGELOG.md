@@ -19,6 +19,9 @@ minor release before a major release removes it. The Rust crate is versioned on 
   allocates for every combination of a noise channel's errors, and the pass that looks ahead
   for a loop's period skips noise, which it never collects. The models are unchanged (their
   text is fingerprinted on each platform).
+- Measurements are converted to detection events 64 shots at a time, as Stim converts them
+  (each detector the XOR of its records' words, rows moved in and out by 64×64 bit
+  transposes): 0.24 of Stim's time on Apple silicon (1.6: 1.26), the output unchanged.
 
 ### Added
 
