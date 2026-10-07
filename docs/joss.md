@@ -28,8 +28,9 @@ Submitting is done by the author, from their own account, at
 - [x] API documentation ([qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/), docs.rs).
 - [x] Automated tests, run in CI on every push.
 - [x] Community guidelines: how to contribute, report issues and get support (`CONTRIBUTING.md`).
-- [ ] An archived release with a DOI. Zenodo archives each GitHub Release from 1.6.0 on (see
-      `docs/zenodo.md`); the DOI goes in `CITATION.cff` and the submission form.
+- [x] An archived release with a DOI: 1.6.0 is [10.5281/zenodo.23212076](https://doi.org/10.5281/zenodo.23212076)
+      (concept DOI 10.5281/zenodo.23212075, in `CITATION.cff`). Give the version being reviewed in the
+      submission form; at acceptance, the final version's DOI.
 
 **Submitting.**
 
