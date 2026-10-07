@@ -13,6 +13,7 @@ Also ``python -m stabilizer_qec``. ``stabilizer-qec help <command>`` describes e
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from typing import List, Optional
 
@@ -59,7 +60,9 @@ def _read_bytes(path: Optional[str]) -> bytes:
 
 
 def _write(path: Optional[str], data) -> None:
-    raw = data.encode() if isinstance(data, str) else data
+    # Text (circuits, models, explanations, diagrams) ends its lines as the platform does, as
+    # Stim's text-mode output does (\r\n on Windows); shot data is written as it is.
+    raw = data.replace("\n", os.linesep).encode() if isinstance(data, str) else data
     if path is None:
         sys.stdout.buffer.write(raw)
         sys.stdout.buffer.flush()

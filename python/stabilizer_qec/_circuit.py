@@ -591,6 +591,17 @@ def _milp_distance(text: str, time_limit: float) -> int:
     nf, nd, no = len(faults), len(detectors), len(observables)
     dpos = {d: i for i, d in enumerate(detectors)}
     opos = {k: i for i, k in enumerate(observables)}
+    # Whether one exists is linear algebra over GF(2), decided here rather than by the solver
+    # (whose verdict on an infeasible program differs between scipy versions): one does exactly
+    # when some observable's row of faults lies outside the span of the detectors' rows.
+    det_rows, obs_rows = [0] * nd, [0] * no
+    for j, (dets, obs) in enumerate(faults):
+        for d in dets:
+            det_rows[dpos[d]] |= 1 << j
+        for k in obs:
+            obs_rows[opos[k]] |= 1 << j
+    if _gf2_rank(det_rows + obs_rows) == _gf2_rank(det_rows):
+        raise ValueError("there is no undetectable logical error: no set of faults flips an observable and no detector")
     # Variables: x (faults), y (detector halves), z (observable halves), w (observable flipped).
     n = nf + nd + 2 * no
     rows, cols, vals = [], [], []
@@ -613,12 +624,27 @@ def _milp_distance(text: str, time_limit: float) -> int:
     ub = np.concatenate([np.ones(nf), np.floor(degree[:nd] / 2), np.floor(degree[nd : nd + no] / 2), np.ones(no)])
     cost = np.concatenate([np.ones(nf), np.zeros(n - nf)])
     res = milp(cost, constraints=LinearConstraint(a, lower, upper), integrality=np.ones(n), bounds=(0, ub), options={"time_limit": time_limit})
-    if res.status == 2:
-        raise ValueError("there is no undetectable logical error: no set of faults flips an observable and no detector")
-    if res.status != 0:
+    if res.status != 0 or res.x is None:
         found = "none found" if res.x is None else f"best found {round(res.fun)}"
         raise RuntimeError(f"the distance was not proven within {time_limit} s ({found}); raise time_limit, or use method='search' for a bound")
-    return int(round(res.fun))
+    # The solver's answer, checked: its faults set off no detector and flip an observable.
+    chosen = sum(1 << j for j in range(nf) if res.x[j] > 0.5)
+    if any(bin(r & chosen).count("1") % 2 for r in det_rows) or not any(bin(r & chosen).count("1") % 2 for r in obs_rows):
+        raise RuntimeError("the integer program returned faults that are not an undetectable logical error; please report this")
+    return bin(chosen).count("1")
+
+
+def _gf2_rank(rows: list) -> int:
+    """The rank over GF(2) of rows given as integers (bit j: column j)."""
+    pivots: dict = {}
+    for r in rows:
+        while r:
+            top = r.bit_length() - 1
+            if top not in pivots:
+                pivots[top] = r
+                break
+            r ^= pivots[top]
+    return len(pivots)
 
 
 class MeasurementSampler:

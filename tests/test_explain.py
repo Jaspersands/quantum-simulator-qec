@@ -11,7 +11,8 @@ import pytest
 
 import stabilizer_qec as sq
 
-stim = pytest.importorskip("stim")
+# Stim 1.16 orders a fault's locations as these do; Stim 1.15 (the last for Python 3.9) does not.
+stim = pytest.importorskip("stim", minversion="1.16")
 
 TASKS = ["repetition_code:memory", "surface_code:rotated_memory_x", "surface_code:unrotated_memory_z", "color_code:memory_xyz"]
 NOISES = [

@@ -180,7 +180,7 @@ pub(crate) struct Recorder {
     frames: Vec<(u64, u64, u64)>,
     current: Option<Rc<Item>>,
     gates: Vec<GateCtx>,
-    views: HashMap<usize, Rc<Vec<Rc<Item>>>>,
+    views: HashMap<(usize, usize), Rc<Vec<Rc<Item>>>>,
     pub(crate) records: Vec<(Vec<u64>, Location, u32)>,
 }
 
@@ -191,7 +191,7 @@ impl Recorder {
 
     /// The items of a block (cached: loops visit their bodies again and again).
     pub(crate) fn view(&mut self, instrs: &[Instr]) -> Rc<Vec<Rc<Item>>> {
-        let key = instrs.as_ptr() as usize ^ (instrs.len() << 48);
+        let key = (instrs.as_ptr() as usize, instrs.len());
         self.views.entry(key).or_insert_with(|| Rc::new(block_items(instrs))).clone()
     }
 
