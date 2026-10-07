@@ -33,6 +33,9 @@ minor release before a major release removes it. The Rust crate is versioned on 
   search agrees given room), and that the generic `CssCode` schedule loses the colour code's
   distance likewise, while the surface codes and the Hamming hypergraph product keep theirs.
   `tools/distances.py` measures every memory the package builds.
+- `write_shot_data_file` and `read_shot_data_file`, Stim's functions with Stim's arguments, in
+  all six of its result formats (`01`, `b8`, `r8`, `ptb64`, `hits`, `dets`): files byte for
+  byte as Stim writes them, and Stim's read back to the same shots.
 - `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
   `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
   into graph-like pieces is kept whole. The text equals Stim's on its colour codes.

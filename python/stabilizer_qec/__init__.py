@@ -115,6 +115,7 @@ from ._explain import (
     FlippedMeasurement,
     GateTargetWithCoords,
 )
+from ._shots import read_shot_data_file, write_shot_data_file
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
 
@@ -173,6 +174,8 @@ __all__ = [
     "BeliefMatching",
     "BivariateBicycleCode",
     "CssCode",
+    "read_shot_data_file",
+    "write_shot_data_file",
     "CircuitErrorLocation",
     "CircuitErrorLocationStackFrame",
     "CircuitTargetsInsideInstruction",
