@@ -8,6 +8,11 @@ minor release before a major release removes it. The Rust crate is versioned on 
 
 ### Added
 
+- The text timeline (`diagram("timeline-text")`, and the command line's) is now Stim's,
+  character for character: Stim's moments, labels and boxes, loops between `|` columns headed
+  `/REP n` with records, detectors and coordinates in terms of `iter`, detectors drawn at their
+  qubit's coordinates. Checked on hand-made circuits pinning each rule, Stim's generated
+  memories and 200 random circuits using every gate.
 - `Circuit.explain_detector_error_model_errors(*, dem_filter=None,
   reduce_to_one_representative_error=False)` (Rust: `Circuit::explain_errors`): where each
   fault of a circuit's error model comes from: the instruction (numbered as Stim numbers
@@ -54,6 +59,11 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
   `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
   into graph-like pieces is kept whole. The text equals Stim's on its colour codes.
+
+### Changed
+
+- An explicit zero argument on `M`, `MX`, `MR`, `MRX` and `MPAD` (`M(0) 0`) is kept and
+  written back, as Stim keeps it.
 
 ## 1.5.0 — 2026-10-04
 

@@ -598,7 +598,7 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
             if args.len() > 1 {
                 return Err(format!("{name} takes at most one argument"));
             }
-            let flip = if args.is_empty() { 0.0 } else { prob(0)? };
+            let flip = explicit_zero(if args.is_empty() { 0.0 } else { prob(0)? }, &args);
             let basis = if name.contains('X') { Basis::X } else { Basis::Z };
             let reset = name.starts_with("MR");
             if !t.iter().any(|x| x.starts_with('!')) {
@@ -745,7 +745,7 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
             if args.len() > 1 {
                 return Err(format!("{name} takes at most one argument"));
             }
-            let flip = if args.is_empty() { 0.0 } else { prob(0)? };
+            let flip = explicit_zero(if args.is_empty() { 0.0 } else { prob(0)? }, &args);
             let values = t
                 .iter()
                 .map(|v| match *v {
@@ -1116,6 +1116,21 @@ fn join_recs(r: &[u32]) -> String {
     r.iter().map(|k| format!("rec[-{k}]")).collect::<Vec<_>>().join(" ")
 }
 
+/// A flip probability written as `(0)` is kept as −0.0: zero everywhere it is used, but written
+/// back as Stim writes it (Stim keeps an argument it was given).
+fn explicit_zero(p: f64, args: &[f64]) -> f64 {
+    if p == 0.0 && !args.is_empty() {
+        -0.0
+    } else {
+        p
+    }
+}
+
+/// Whether a measurement's flip probability is written: positive, or an explicit zero.
+fn written(p: f64) -> bool {
+    p > 0.0 || (p == 0.0 && p.is_sign_negative())
+}
+
 /// One instruction as its line of Stim's text (a loop as its `REPEAT n {` line).
 pub(crate) fn instr_line(ins: &Instr) -> String {
     if let Instr::Repeat { count, tag, .. } = ins {
@@ -1148,7 +1163,7 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                     (true, Basis::Z) => "MR",
                     (true, Basis::X) => "MRX",
                 };
-                let args: &[f64] = if *flip > 0.0 { std::slice::from_ref(flip) } else { &[] };
+                let args: &[f64] = if written(*flip) { std::slice::from_ref(flip) } else { &[] };
                 format!("{} {}", with_args(name, args), join_q(qubits))
             }
             Instr::PauliError { pauli, p, qubits } => {
@@ -1193,7 +1208,7 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                 format!("{} {}", with_args(name, args), join_q(qubits))
             }
             Instr::Pad { flip, values } => {
-                let args: &[f64] = if *flip > 0.0 { std::slice::from_ref(flip) } else { &[] };
+                let args: &[f64] = if written(*flip) { std::slice::from_ref(flip) } else { &[] };
                 let v: Vec<&str> = values.iter().map(|&b| if b { "1" } else { "0" }).collect();
                 format!("{} {}", with_args("MPAD", args), v.join(" "))
             }

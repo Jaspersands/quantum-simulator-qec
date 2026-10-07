@@ -76,6 +76,8 @@ pub mod surgery;
 #[doc(hidden)]
 pub mod belief;
 #[doc(hidden)]
+pub mod stim_timeline;
+#[doc(hidden)]
 pub mod stream;
 #[doc(hidden)]
 pub mod frame_sampler;

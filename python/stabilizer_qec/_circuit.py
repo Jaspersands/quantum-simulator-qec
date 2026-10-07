@@ -200,8 +200,10 @@ class Circuit:
     def diagram(self, type: str = "timeline-text", *, tick: Union[int, None] = None) -> "Diagram":
         """A picture of the circuit, after Stim's ``diagram``:
 
-        - ``"timeline-text"``, ``"timeline-svg"``: every operation in its column, ``TICK``
-          groups bracketed, loops drawn once with their count, measurements numbered.
+        - ``"timeline-text"``: Stim's text timeline, character for character: every operation in
+          its moment, ``TICK`` groups boxed, loops drawn once with records, detectors and
+          coordinates in terms of ``iter``.
+        - ``"timeline-svg"``: the same as a picture.
         - ``"detslice-text"``, ``"detslice-svg"``: what each detector compares after ``tick``
           ``TICK``s, its Paulis over the qubits (drawn at their ``QUBIT_COORDS``).
         - ``"matchgraph-svg"``: the decomposed model's matching graph.

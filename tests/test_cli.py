@@ -102,6 +102,7 @@ def test_deterministic_samples_and_diagrams(files):
         both("sample", "--in", str(files / "det.stim"), "--shots", "70", "--out_format", fmt)
         both("detect", "--in", str(files / "det.stim"), "--shots", "70", "--out_format", fmt, "--append_observables")
     assert ours("diagram", "--in", str(files / "c.stim"), "--type", "timeline-svg").startswith(b"<svg")
+    both("diagram", "--in", str(files / "c.stim"), "--type", "timeline-text")
 
 
 def test_sample_dem_and_decode(files):
