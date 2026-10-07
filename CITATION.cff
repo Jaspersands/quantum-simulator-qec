@@ -12,6 +12,7 @@ authors:
   - given-names: Jasper
     family-names: Sands
 version: 1.6.0
+doi: 10.5281/zenodo.23212075
 date-released: 2026-10-07
 license: MIT
 repository-code: "https://github.com/Jaspersands/quantum-simulator-qec"

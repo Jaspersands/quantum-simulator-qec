@@ -1,0 +1,34 @@
+# The JOSS paper (paper/paper.md), built into the journal's PDF by the Open Journals action on
+# every change to it. The PDF is uploaded as the run's artifact `paper`.
+name: Paper
+
+on:
+  push:
+    paths:
+      - paper/**
+      - .github/workflows/paper.yml
+  pull_request:
+    paths:
+      - paper/**
+      - .github/workflows/paper.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paper:
+    name: The JOSS paper builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the draft PDF
+        uses: openjournals/openjournals-draft-action@v1.0
+        with:
+          journal: joss
+          paper-path: paper/paper.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          path: paper/paper.pdf
+          if-no-files-found: error

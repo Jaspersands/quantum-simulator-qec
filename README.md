@@ -1,6 +1,7 @@
 # Quantum Error Correction (QEC) Simulator
 
 [![CI](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml/badge.svg)](https://github.com/Jaspersands/quantum-simulator-qec/actions/workflows/ci.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23212075.svg)](https://doi.org/10.5281/zenodo.23212075)
 
 A Rust stabilizer circuit simulator and decoder. It covers rotated and XZZX surface codes, IBM's
 bivariate bicycle codes (the gross code) and lattice surgery between surface-code patches, and it
@@ -1468,9 +1469,9 @@ Node, pandoc, matplotlib and Chrome.
 ## Citing
 
 `CITATION.cff` gives the citation (GitHub's **Cite this repository** reads it, in APA and
-BibTeX). Releases are set up for archiving on Zenodo, which gives each version a DOI:
-`.zenodo.json` holds the record's metadata, and [docs/zenodo.md](docs/zenodo.md) the one-time
-linking.
+BibTeX). Every release from 1.6.0 on is archived on Zenodo with a DOI of its own; the concept
+DOI [10.5281/zenodo.23212075](https://doi.org/10.5281/zenodo.23212075) always resolves to the latest. `.zenodo.json` holds the
+record's metadata, and [docs/zenodo.md](docs/zenodo.md) how the archiving is set up.
 
 ## Engine defects found and fixed
 

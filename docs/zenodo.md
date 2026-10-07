@@ -1,5 +1,8 @@
 # Archiving releases on Zenodo (a DOI for citing)
 
+Linked: 1.6.0 was the first version archived ([10.5281/zenodo.23212076](https://doi.org/10.5281/zenodo.23212076));
+the concept DOI is [10.5281/zenodo.23212075](https://doi.org/10.5281/zenodo.23212075).
+
 Zenodo archives each GitHub Release of the repository and gives it a DOI, plus one *concept*
 DOI that always resolves to the latest version. `.zenodo.json` holds the metadata it uses
 (title, author, description, licence, keywords, links); the version and date come from the
