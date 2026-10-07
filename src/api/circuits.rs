@@ -151,9 +151,32 @@ impl Circuit {
             ),
             None => None,
         };
+        self.explained(terms.as_deref(), reduce)
+    }
+
+    fn explained(&self, terms: Option<&[Vec<u64>]>, reduce: bool) -> Result<Vec<ExplainedError>> {
         let coords = std::sync::Arc::new(crate::explain::Coords::of(&self.inner)?);
-        let out = crate::explain::explain(&self.inner, terms.as_deref(), reduce)?;
+        let out = crate::explain::explain(&self.inner, terms, reduce)?;
         Ok(out.into_iter().map(|inner| ExplainedError { inner, coords: coords.clone() }).collect())
+    }
+
+    /// The circuit's graph-like distance, as Stim's `shortest_graphlike_error` finds it: the
+    /// fewest graph-like pieces of its decomposed error model that together flip an observable
+    /// and no detector, each explained (with `canonicalize`, by one location). Pieces of three
+    /// or more detectors are skipped with `ignore_ungraphlike`, refused otherwise.
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, GeneratedNoise};
+    ///
+    /// let noise = GeneratedNoise::new().after_clifford_depolarization(0.001);
+    /// let c = Circuit::generated("surface_code:rotated_memory_z", 5, 5, &noise)?;
+    /// assert_eq!(c.shortest_graphlike_error(true, false)?.len(), 5);
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn shortest_graphlike_error(&self, ignore_ungraphlike: bool, canonicalize: bool) -> Result<Vec<ExplainedError>> {
+        let dem = self.detector_error_model(&DemOptions::new().decompose_errors(true).approximate_disjoint_errors(Some(1.0)).ignore_decomposition_failures(true))?;
+        let faults = crate::distance::shortest_graphlike(dem.flat()?, ignore_ungraphlike)?;
+        self.explained(Some(&crate::distance::as_terms(&faults)), canonicalize)
     }
 
     /// One of Stim's generated memory experiments (`stim.Circuit.generated`), character for
@@ -258,7 +281,7 @@ impl Circuit {
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn detector_error_model(&self, options: &DemOptions) -> Result<DetectorErrorModel> {
-        let program = crate::dem_build::build(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops)?;
+        let program = crate::dem_build::build_with(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops, options.ignore_decomposition_failures)?;
         Ok(DetectorErrorModel::from_program(program))
     }
 
@@ -562,6 +585,7 @@ pub struct DemOptions {
     decompose_errors: bool,
     approximate_disjoint_errors: Option<f64>,
     flatten_loops: bool,
+    ignore_decomposition_failures: bool,
 }
 
 impl DemOptions {
@@ -583,6 +607,13 @@ impl DemOptions {
     /// case, refusing any with a probability above `t` (`Some(1.0)` is Stim's `True`).
     pub fn approximate_disjoint_errors(mut self, threshold: Option<f64>) -> DemOptions {
         self.approximate_disjoint_errors = threshold;
+        self
+    }
+
+    /// Stim's `ignore_decomposition_failures`: with `decompose_errors`, keep a fault that cannot
+    /// be split into graph-like pieces whole, rather than refuse the model.
+    pub fn ignore_decomposition_failures(mut self, yes: bool) -> DemOptions {
+        self.ignore_decomposition_failures = yes;
         self
     }
 
@@ -644,6 +675,16 @@ impl DetectorErrorModel {
         usize::try_from(self.stats.num_errors).unwrap_or(usize::MAX)
     }
 
+
+    /// The fewest of the model's graph-like pieces (each fault's `^`-separated pieces) that
+    /// together flip an observable and no detector, as a model of those faults, each with
+    /// probability 1: Stim's `shortest_graphlike_error`. Its fault count is the graph-like
+    /// distance. Pieces of three or more detectors are skipped with `ignore_ungraphlike`,
+    /// refused otherwise.
+    pub fn shortest_graphlike_error(&self, ignore_ungraphlike: bool) -> Result<DetectorErrorModel> {
+        let faults = crate::distance::shortest_graphlike(self.flat()?, ignore_ungraphlike)?;
+        DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
+    }
 
     /// The matching graph as an SVG picture: each detector at its coordinates, each graph-like
     /// fault an edge, those flipping an observable heavier. The model must be decomposed, and

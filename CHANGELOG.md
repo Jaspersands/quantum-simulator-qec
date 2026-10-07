@@ -17,6 +17,15 @@ minor release before a major release removes it. The Rust crate is versioned on 
   character for character, for every location and for the representative Stim picks, on
   Stim's generated memories and on 1,000 random circuits using every gate, noise channel and
   tag.
+- `shortest_graphlike_error` on circuits and on detector error models (Rust:
+  `Circuit::shortest_graphlike_error`, `DetectorErrorModel::shortest_graphlike_error`): the
+  graph-like circuit distance, the fewest faults of at most two detectors that together flip
+  an observable and no detector, found as Stim finds it (decomposed faults left out unless
+  `ignore_ungraphlike_errors=False`). Its length equals Stim's on Stim's generated surface,
+  repetition and colour codes up to d = 15, in about Stim's time.
+- `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
+  `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
+  into graph-like pieces is kept whole. The text equals Stim's on its colour codes.
 
 ## 1.5.0 — 2026-10-04
 

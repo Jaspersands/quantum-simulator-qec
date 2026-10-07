@@ -301,6 +301,9 @@ struct Analyzer {
     sweeps: Option<Vec<Sym>>,
     /// When set, where each fault comes from (`explain`).
     prov: Option<Box<Recorder>>,
+    /// Keep a piece that cannot be split into graph-like pieces whole (Stim's
+    /// `ignore_decomposition_failures`) rather than refuse the model.
+    ignore_failures: bool,
 }
 
 impl Analyzer {
@@ -767,6 +770,7 @@ impl Analyzer {
             work: self.work,
             sweeps: None,
             prov: None,
+            ignore_failures: false,
         };
         let (mut hare_iter, mut tortoise_iter) = (0u64, 0u64);
         while hare_iter < iterations {
@@ -868,11 +872,13 @@ impl Analyzer {
                 }
                 let mut out = Vec::new();
                 for comp in components(key) {
-                    let parts = brute_force_known(comp, &known).or_else(|| greedy_known(comp, &known)).ok_or_else(|| {
-                        format!("cannot split {} into graph-like pieces: it fires detectors {:?}", c.origin.describe(), dets(comp))
-                    })?;
+                    let parts = match brute_force_known(comp, &known).or_else(|| greedy_known(comp, &known)) {
+                        Some(parts) => parts,
+                        None if self.ignore_failures => vec![comp.to_vec()],
+                        None => return Err(format!("cannot split {} into graph-like pieces: it fires detectors {:?}", c.origin.describe(), dets(comp))),
+                    };
                     for part in parts {
-                        if dets(&part).len() > 2 {
+                        if dets(&part).len() > 2 && !self.ignore_failures {
                             return Err(format!(
                                 "cannot split {} into graph-like pieces: a piece fires detectors {:?}",
                                 c.origin.describe(),
@@ -959,6 +965,12 @@ fn unreversed(rev: &[DemInstr], base: &mut u64, seen: &mut HashSet<u64>) -> Vec<
 /// full. `decompose` splits faults into graph-like pieces as Stim does; `approximate` is Stim's
 /// `approximate_disjoint_errors` threshold.
 pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool) -> Result<DemProgram, String> {
+    build_with(circuit, decompose, approximate, fold, false)
+}
+
+/// `build`, keeping pieces that cannot be split whole when `ignore_failures` (Stim's
+/// `ignore_decomposition_failures`).
+pub fn build_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool) -> Result<DemProgram, String> {
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
@@ -972,6 +984,7 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
         work: 0,
         sweeps: None,
         prov: None,
+        ignore_failures,
     };
     a.undo_block(&circuit.instrs, &None)?;
     // Every qubit starts in |0>, which is a Z-basis reset at time zero.
@@ -1017,6 +1030,7 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
         work: 0,
         sweeps: None,
         prov: Some(Box::new(Recorder::new(count_ticks(&circuit.instrs)))),
+        ignore_failures: false,
     };
     a.undo_block(&circuit.instrs, &None)?;
     Ok(a.prov.take().map(|r| r.records).unwrap_or_default())
@@ -1048,6 +1062,7 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> 
         work: 0,
         sweeps: Some(vec![Sym::new(); counts.sweep_bits]),
         prov: None,
+        ignore_failures: false,
     };
     a.undo_block(&circuit.instrs, &None)?;
     for q in 0..nq {

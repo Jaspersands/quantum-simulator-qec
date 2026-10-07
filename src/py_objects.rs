@@ -63,6 +63,16 @@ type PyLocation = (u64, Vec<PyTarget>, Option<(u64, Vec<PyTarget>)>, (String, St
 /// An explained error: (Stim's text, terms, locations).
 type PyExplained = (String, Vec<PyTarget>, Vec<PyLocation>);
 
+fn explained_tuple(e: crate::api::ExplainedError) -> PyExplained {
+    let tw = |v: Vec<crate::api::TargetWithCoords>| v.into_iter().map(|t| (t.target, t.coords)).collect::<Vec<_>>();
+    let locations = e
+        .circuit_error_locations()
+        .into_iter()
+        .map(|l| (l.tick_offset, tw(l.flipped_pauli_product), l.flipped_measurement.map(|(i, o)| (i, tw(o))), (l.gate, l.tag, l.args), l.target_range, tw(l.targets_in_range), l.stack_frames))
+        .collect();
+    (e.to_string(), tw(e.terms_with_coords()), locations)
+}
+
 fn api_err(e: crate::api::Error) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
@@ -141,20 +151,14 @@ impl PyCircuit {
         let filter = filter.map(|f| f.dem.clone());
         let circuit = self.circuit.clone();
         let out = py.detach(move || circuit.explain_errors(filter.as_ref(), reduce)).map_err(api_err)?;
-        let tw = |v: Vec<crate::api::TargetWithCoords>| v.into_iter().map(|t| (t.target, t.coords)).collect::<Vec<_>>();
-        Ok(out
-            .into_iter()
-            .map(|e| {
-                let locations = e
-                    .circuit_error_locations()
-                    .into_iter()
-                    .map(|l| {
-                        (l.tick_offset, tw(l.flipped_pauli_product), l.flipped_measurement.map(|(i, o)| (i, tw(o))), (l.gate, l.tag, l.args), l.target_range, tw(l.targets_in_range), l.stack_frames)
-                    })
-                    .collect();
-                (e.to_string(), tw(e.terms_with_coords()), locations)
-            })
-            .collect())
+        Ok(out.into_iter().map(explained_tuple).collect())
+    }
+
+    /// The graph-like distance's faults, explained (see `Circuit::shortest_graphlike_error`).
+    fn shortest_graphlike(&self, py: Python<'_>, ignore: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
+        let circuit = self.circuit.clone();
+        let out = py.detach(move || circuit.shortest_graphlike_error(ignore, canonicalize)).map_err(api_err)?;
+        Ok(out.into_iter().map(explained_tuple).collect())
     }
 
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
@@ -180,10 +184,11 @@ impl PyCircuit {
 
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
     /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
-    /// `flatten` writes it without folding its loops.
-    #[pyo3(signature = (decompose, approximate=None, flatten=false))]
-    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool) -> PyResult<PyDem> {
-        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten);
+    /// `flatten` writes it without folding its loops; `ignore_failures` keeps faults that cannot
+    /// be decomposed whole.
+    #[pyo3(signature = (decompose, approximate=None, flatten=false, ignore_failures=false))]
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool, ignore_failures: bool) -> PyResult<PyDem> {
+        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten).ignore_decomposition_failures(ignore_failures);
         Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
     }
 
@@ -234,6 +239,13 @@ impl PyDem {
 
     fn __str__(&self) -> String {
         self.dem.to_string()
+    }
+
+    /// The graph-like distance's faults as a model (see
+    /// `DetectorErrorModel::shortest_graphlike_error`).
+    fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
+        let dem = self.dem.clone();
+        Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)? })
     }
 
     fn matchgraph_svg(&self) -> PyResult<String> {

@@ -173,6 +173,7 @@ class Circuit:
         decompose_errors: bool = False,
         approximate_disjoint_errors: Union[bool, float] = False,
         flatten_loops: bool = False,
+        ignore_decomposition_failures: bool = False,
     ) -> "DetectorErrorModel":
         """The circuit's detector error model, built by walking it backwards, as Stim's error
         analyzer does. ``decompose_errors`` splits each fault into graph-like pieces (at most
@@ -186,12 +187,15 @@ class Circuit:
         than independent (``PAULI_CHANNEL_2``, ``ELSE_CORRELATED_ERROR``, the heralded errors,
         and a ``PAULI_CHANNEL_1`` with no independent equivalent) are refused unless it is set,
         and then approximated case by case; a number refuses any such channel with a
-        probability above it."""
+        probability above it.
+
+        ``ignore_decomposition_failures`` is Stim's too: with ``decompose_errors``, a fault that
+        cannot be split into graph-like pieces is kept whole rather than refused."""
         if isinstance(approximate_disjoint_errors, bool):
             threshold = 1.0 if approximate_disjoint_errors else None
         else:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
-        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops)))
+        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures)))
 
     def diagram(self, type: str = "timeline-text", *, tick: Union[int, None] = None) -> "Diagram":
         """A picture of the circuit, after Stim's ``diagram``:
@@ -268,6 +272,20 @@ class Circuit:
         f = None if dem_filter is None else (dem_filter if isinstance(dem_filter, DetectorErrorModel) else DetectorErrorModel(dem_filter))
         raw = call(self._c.explain, None if f is None else f._d, bool(reduce_to_one_representative_error))
         return _explain.build(raw)
+
+    def shortest_graphlike_error(self, *, ignore_ungraphlike_errors: bool = True, canonicalize_circuit_errors: bool = False) -> list:
+        """The circuit's graph-like distance, as Stim's method of the same name finds it: the
+        fewest graph-like pieces of its decomposed error model that together flip an
+        observable and no detector, each explained (by one location with
+        ``canonicalize_circuit_errors``). Its length is the distance.
+
+        >>> c = Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, after_clifford_depolarization=0.001)
+        >>> len(c.shortest_graphlike_error())
+        3
+        """
+        from . import _explain
+
+        return _explain.build(call(self._c.shortest_graphlike, bool(ignore_ungraphlike_errors), bool(canonicalize_circuit_errors)))
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
@@ -430,6 +448,14 @@ class DetectorErrorModel:
         if type != "matchgraph-svg":
             raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
         return Diagram(call(self._d.matchgraph_svg), type)
+
+    def shortest_graphlike_error(self, ignore_ungraphlike_errors: bool = True) -> "DetectorErrorModel":
+        """The fewest of the model's graph-like pieces (each fault's ``^``-separated pieces) that
+        together flip an observable and no detector, as a model of those faults with
+        probability 1, as Stim's method of the same name: its ``num_errors`` is the graph-like
+        distance. Pieces of three or more detectors are skipped, or with
+        ``ignore_ungraphlike_errors=False`` refused."""
+        return DetectorErrorModel._wrap(call(self._d.shortest_graphlike, bool(ignore_ungraphlike_errors)))
 
     def flattened(self) -> "DetectorErrorModel":
         """The model without ``repeat`` blocks or ``shift_detectors``, as Stim's ``flattened``:
