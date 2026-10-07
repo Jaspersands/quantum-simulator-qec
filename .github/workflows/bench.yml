@@ -14,6 +14,9 @@ on:
       rustflags:
         description: RUSTFLAGS for the wheel (to measure, say, a target CPU)
         default: ""
+      profile:
+        description: A job of examples/hot.rs to profile with perf on each runner instead (dem, match, corr, ...)
+        default: ""
   release:
     types: [published]
   workflow_call:
@@ -27,6 +30,7 @@ permissions:
 
 jobs:
   bench:
+    if: ${{ !inputs.profile }}
     name: Benchmarks (${{ matrix.runner }})
     strategy:
       fail-fast: false
@@ -57,3 +61,30 @@ jobs:
         with:
           name: benchmarks-${{ matrix.runner }}
           path: bench.json
+
+  profile:
+    if: ${{ inputs.profile }}
+    name: Profile ${{ inputs.profile }} (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ fromJSON(inputs.runners || '["ubuntu-latest", "ubuntu-24.04-arm"]') }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: perf
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q linux-tools-common "linux-tools-$(uname -r)" || sudo apt-get install -y -q linux-tools-generic
+          sudo sysctl -w kernel.perf_event_paranoid=-1
+      - name: Profile the native job
+        env:
+          RUSTFLAGS: ${{ inputs.rustflags }} -C force-frame-pointers=yes
+          CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+        run: |
+          cargo build --release --no-default-features --example hot
+          ./target/release/examples/hot ${{ inputs.profile }} 5
+          PERF=$(ls /usr/lib/linux-tools/*/perf 2>/dev/null | head -1); PERF=${PERF:-perf}
+          $PERF record -o perf.data ./target/release/examples/hot ${{ inputs.profile }} 40 2>/dev/null
+          $PERF report -i perf.data --stdio --no-children --percent-limit 0.5 | head -60
+          $PERF annotate -i perf.data --stdio -s next_node_event 2>/dev/null | grep -E "^ +[0-9]+\.[0-9]+" | sort -rn | head -40 || true
