@@ -11,6 +11,8 @@ pub struct SparseGraph {
     pub(crate) num_nodes: usize,
     offsets: Vec<u32>,
     pub(crate) to: Vec<u32>,
+    /// `to`, with the boundary as `num_nodes`: the node a scan reads, past the graph's last.
+    pub(crate) reach: Vec<u32>,
     /// Even integer weights, from `int_weight`.
     pub(crate) w: Vec<i64>,
     pub(crate) obs: Vec<u64>,
@@ -64,7 +66,8 @@ impl SparseGraph {
             }
             ends.push((u, if boundary { num_nodes as u32 } else { v }));
         }
-        SparseGraph { num_nodes, offsets, to, w, obs, edge_of, halves, ends, wf }
+        let reach = to.iter().map(|&b| if b == BOUNDARY { num_nodes as u32 } else { b }).collect();
+        SparseGraph { num_nodes, offsets, to, reach, w, obs, edge_of, halves, ends, wf }
     }
 
     pub(crate) fn edges(&self, v: u32) -> std::ops::Range<usize> {

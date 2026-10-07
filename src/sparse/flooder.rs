@@ -9,7 +9,7 @@
 
 use crate::dem_decoder::DecodeError;
 
-use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NOBODY, NONE, NO_TIME};
+use super::state::{AltNode, CEdge, NodeState, Radius, Region, BOUNDARY, NOBODY, NONE, NO_TIME, NO_TOP};
 use super::tracker::Item;
 use super::Solver;
 
@@ -170,9 +170,8 @@ impl<'a> Solver<'a> {
         let nodes = &self.s.nodes;
         let regions = &self.s.regions;
         let nv = &nodes[v as usize];
-        let (lv, sv) = if nv.top == NONE {
-            (0, 0)
-        } else {
+        // An empty node's top is nobody's region: radius 0, not growing.
+        let (lv, sv) = {
             let r = &regions[nv.top as usize].radius;
             (r.at(now) + nv.wrapped, r.slope)
         };
@@ -184,17 +183,17 @@ impl<'a> Solver<'a> {
         let range = self.g.edges(v);
         let first = range.start;
         let to = &self.g.to[range.clone()];
+        let reach = &self.g.reach[range.clone()];
         let w = &self.s.w[range];
         let mut best_dt = i64::MAX;
         let mut best_k = usize::MAX;
-        // The boundary reads the node past the graph's last, which is never
-        // reached; an empty node reads nobody's region. So every edge is the
+        // The boundary reads the node past the graph's last (`reach`), which is never
+        // reached; an empty node's top is nobody's region. So every edge is the
         // same loads and arithmetic, and the one branch left is the rarely
         // taken "earlier than the best so far".
-        let beyond = nodes.len() - 1;
-        for (k, (&u, &wt)) in to.iter().zip(w).enumerate() {
-            let nu = &nodes[if u == BOUNDARY { beyond } else { u as usize }];
-            let r = &regions[if nu.top == NONE { NOBODY } else { nu.top as usize }].radius;
+        for (k, (&u, &wt)) in reach.iter().zip(w).enumerate() {
+            let nu = &nodes[u as usize];
+            let r = &regions[nu.top as usize].radius;
             let lu = r.at(now) + nu.wrapped;
             let rate = sv + r.slope;
             let gap = wt - lv - lu;
@@ -215,9 +214,9 @@ impl<'a> Solver<'a> {
         let (u, e) = (to[best_k], first + best_k);
         let ev = if u == BOUNDARY {
             NodeEvent::Boundary { v, e }
-        } else if nodes[u as usize].top == NONE {
+        } else if nodes[u as usize].top == NO_TOP {
             NodeEvent::Arrive { from: v, to: u, e }
-        } else if nv.top == NONE {
+        } else if nv.top == NO_TOP {
             NodeEvent::Arrive { from: u, to: v, e }
         } else {
             NodeEvent::Collide { v, u, e }
@@ -410,7 +409,7 @@ impl<'a> Solver<'a> {
         let nobody = &self.s.regions[NOBODY];
         assert!(nobody.dead && nobody.radius.y0 == 0 && nobody.radius.slope == 0, "region 0 is no longer nobody's");
         let beyond = &self.s.nodes[self.g.num_nodes];
-        assert!(beyond.top == NONE && beyond.wrapped == 0, "the boundary's node has been reached");
+        assert!(beyond.top == NO_TOP && beyond.wrapped == 0, "the boundary's node has been reached");
         for (i, r) in self.s.regions.iter().enumerate() {
             if !r.dead {
                 assert!(r.radius.at(now) >= 0, "region {i} has radius {} at {now}", r.radius.at(now));
@@ -418,7 +417,7 @@ impl<'a> Solver<'a> {
         }
         for v in 0..self.g.num_nodes as u32 {
             let n = self.s.nodes[v as usize];
-            if n.top == NONE {
+            if n.top == NO_TOP {
                 continue;
             }
             let mut r = n.region;
@@ -435,7 +434,7 @@ impl<'a> Solver<'a> {
                     continue;
                 }
                 let nu = self.s.nodes[u as usize];
-                if nu.top == NONE {
+                if nu.top == NO_TOP {
                     assert!(lv <= w, "node {v} overlaps empty node {u}");
                 } else if nu.top != n.top {
                     assert!(lv + self.local_radius(u) <= w, "nodes {v} and {u} overlap");

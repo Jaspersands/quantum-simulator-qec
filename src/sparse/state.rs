@@ -40,6 +40,10 @@ impl Radius {
 /// which an empty node's neighbours read in place of a branch.
 pub(crate) const NOBODY: usize = 0;
 
+/// The `top` of an empty node: nobody's region, so that reading an empty node's radius needs
+/// no branch.
+pub(crate) const NO_TOP: u32 = NOBODY as u32;
+
 pub(crate) struct Region {
     pub radius: Radius,
     pub blossom_parent: u32,
@@ -94,7 +98,7 @@ const _: () = assert!(std::mem::size_of::<NodeState>() == 32);
 impl NodeState {
     pub const EMPTY: NodeState = NodeState {
         region: NONE,
-        top: NONE,
+        top: NO_TOP,
         source: NONE,
         obs: 0,
         wrapped: 0,
