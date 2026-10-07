@@ -194,5 +194,75 @@
    }
   },
   "note": "median of three runs, nine repeats each, on a machine another job kept about 7 cores busy"
+ },
+ {
+  "version": "1.6.0",
+  "date": "2026-10-07",
+  "machine": "Linux x86_64, Python 3.12.14",
+  "kind": "Linux x86_64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 31293.890999990028,
+    "reference_us": 37876.78000000483,
+    "ratio": 0.8262025177426919
+   },
+   "shortest_graphlike": {
+    "what": "Its graph-like distance (shortest_graphlike_error on the model)",
+    "unit": "model",
+    "ours_us": 4321.9920000012735,
+    "reference_us": 4286.575999998377,
+    "ratio": 1.0082620721067141
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 3.473600649999753,
+    "reference_us": 4.63689404999883,
+    "ratio": 0.74912228154116
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 5.979893100000311,
+    "reference_us": 8.247445649999463,
+    "ratio": 0.7250600190376156
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 7.995390499999643,
+    "reference_us": 5.682894550000128,
+    "ratio": 1.4069221995328882
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 21.86575989999966,
+    "reference_us": 16.145319899999322,
+    "ratio": 1.3543094863051044
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 20.756129100000464,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 2542.6660833333394,
+    "reference_us": null,
+    "ratio": null
+   }
+  },
+  "note": "a GitHub Actions ubuntu-latest runner, CI run 37616325500"
  }
 ]
