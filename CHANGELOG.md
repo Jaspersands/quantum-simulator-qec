@@ -26,6 +26,13 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - `search_for_undetectable_logical_errors` on circuits and models: Stim's breadth-first
   search through hyperedges, with its three limits, giving the same number of faults as
   Stim's on its colour codes, surface codes, the Steane code and the [[72, 12, 6]] code.
+- `DetectorErrorModel.distance()`: the exact distance of a model by integer programming (scipy's
+  HiGHS), hyperedges included, proven optimal or refused; `method="graphlike"` or `"search"`
+  for the two searches. It finds that Stim's generated XYZ colour-code memory has circuit
+  distance 2 at d = 3 and 3 at d = 5 (two or three correlated two-qubit faults; Stim's own
+  search agrees given room), and that the generic `CssCode` schedule loses the colour code's
+  distance likewise, while the surface codes and the Hamming hypergraph product keep theirs.
+  `tools/distances.py` measures every memory the package builds.
 - `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
   `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
   into graph-like pieces is kept whole. The text equals Stim's on its colour codes.

@@ -473,6 +473,31 @@ class DetectorErrorModel:
             raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
         return Diagram(call(self._d.matchgraph_svg), type)
 
+    def distance(self, method: str = "milp", *, time_limit: float = 60.0) -> int:
+        """The fewest of the model's faults that together flip an observable and set off no
+        detector: its distance.
+
+        - ``"milp"`` (default): exact, by integer programming over every fault, hyperedges
+          included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
+          optimum within ``time_limit`` seconds, or this raises). Exponential at worst; meant
+          for models of up to a few thousand faults.
+        - ``"graphlike"``: ``shortest_graphlike_error``'s length (graph-like faults only).
+        - ``"search"``: ``search_for_undetectable_logical_errors`` with limits of 4 and 4, an
+          upper bound.
+
+        >>> DetectorErrorModel("error(0.1) D0\\nerror(0.1) D0 D1\\nerror(0.1) D1 L0").distance()
+        3
+        """
+        if method == "graphlike":
+            return self.shortest_graphlike_error().num_errors
+        if method == "search":
+            return self.search_for_undetectable_logical_errors(
+                dont_explore_detection_event_sets_with_size_above=4, dont_explore_edges_with_degree_above=4, dont_explore_edges_increasing_symptom_degree=False
+            ).num_errors
+        if method != "milp":
+            raise ValueError(f"method must be 'milp', 'graphlike' or 'search', not {method!r}")
+        return _milp_distance(str(self.flattened()), real(time_limit, "time_limit"))
+
     def search_for_undetectable_logical_errors(
         self,
         *,
@@ -504,6 +529,67 @@ class DetectorErrorModel:
         """The model without ``repeat`` blocks or ``shift_detectors``, as Stim's ``flattened``:
         every detector absolute, every coordinate shifted."""
         return DetectorErrorModel._wrap(call(self._d.flattened))
+
+
+def _milp_distance(text: str, time_limit: float) -> int:
+    """The fewest faults of a flattened model flipping an observable and no detector, by an
+    integer program: a 0/1 variable per distinct fault; each detector's faults sum to twice an
+    integer; each observable's to twice an integer plus a 0/1 that must be 1 for at least one."""
+    try:
+        import numpy as np
+        from scipy.optimize import LinearConstraint, milp
+        from scipy.sparse import coo_matrix
+    except ImportError as ex:
+        raise ImportError("an exact distance needs scipy: pip install scipy") from ex
+    faults = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("error"):
+            continue
+        dets, obs = set(), set()
+        for t in line.split(")", 1)[1].replace("^", " ").split():
+            (dets if t[0] == "D" else obs).symmetric_difference_update({int(t[1:])})
+        if dets or obs:
+            faults.add((frozenset(dets), frozenset(obs)))
+    for dets, obs in faults:
+        if not dets and obs:
+            return 1
+    faults = sorted(faults, key=lambda f: (sorted(f[0]), sorted(f[1])))
+    detectors = sorted({d for f in faults for d in f[0]})
+    observables = sorted({k for f in faults for k in f[1]})
+    if not observables:
+        raise ValueError("there is no undetectable logical error: no fault flips an observable")
+    nf, nd, no = len(faults), len(detectors), len(observables)
+    dpos = {d: i for i, d in enumerate(detectors)}
+    opos = {k: i for i, k in enumerate(observables)}
+    # Variables: x (faults), y (detector halves), z (observable halves), w (observable flipped).
+    n = nf + nd + 2 * no
+    rows, cols, vals = [], [], []
+    for j, (dets, obs) in enumerate(faults):
+        for d in dets:
+            rows.append(dpos[d]); cols.append(j); vals.append(1)
+        for k in obs:
+            rows.append(nd + opos[k]); cols.append(j); vals.append(1)
+    for i in range(nd):
+        rows.append(i); cols.append(nf + i); vals.append(-2)
+    for i in range(no):
+        rows.append(nd + i); cols.append(nf + nd + i); vals.append(-2)
+        rows.append(nd + i); cols.append(nf + nd + no + i); vals.append(-1)
+        rows.append(nd + no); cols.append(nf + nd + no + i); vals.append(1)
+    a = coo_matrix((vals, (rows, cols)), shape=(nd + no + 1, n)).tocsr()
+    lower = np.zeros(nd + no + 1)
+    upper = np.zeros(nd + no + 1)
+    lower[-1], upper[-1] = 1, np.inf
+    degree = np.asarray(abs(a[:, :nf]).sum(axis=1)).ravel()
+    ub = np.concatenate([np.ones(nf), np.floor(degree[:nd] / 2), np.floor(degree[nd : nd + no] / 2), np.ones(no)])
+    cost = np.concatenate([np.ones(nf), np.zeros(n - nf)])
+    res = milp(cost, constraints=LinearConstraint(a, lower, upper), integrality=np.ones(n), bounds=(0, ub), options={"time_limit": time_limit})
+    if res.status == 2:
+        raise ValueError("there is no undetectable logical error: no set of faults flips an observable and no detector")
+    if res.status != 0:
+        found = "none found" if res.x is None else f"best found {round(res.fun)}"
+        raise RuntimeError(f"the distance was not proven within {time_limit} s ({found}); raise time_limit, or use method='search' for a bound")
+    return int(round(res.fun))
 
 
 class DetectorSampler:
