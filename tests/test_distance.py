@@ -1,6 +1,7 @@
 """Circuit distance: the smallest set of faults that flips an observable and no detector, found
-as Stim finds it: over the graph-like pieces of a decomposed model (``shortest_graphlike_error``)
-and by Stim's search over hyperedges (``search_for_undetectable_logical_errors``)."""
+as Stim finds it: over the graph-like pieces of a decomposed model (``shortest_graphlike_error``,
+Stim's own answer, fault for fault and character for character) and by Stim's search over
+hyperedges (``search_for_undetectable_logical_errors``)."""
 
 from __future__ import annotations
 
@@ -9,6 +10,8 @@ import pytest
 import stabilizer_qec as sq
 
 stim = pytest.importorskip("stim")
+# Stim 1.16 orders an explained fault's locations as these do; 1.15 (the last for Python 3.9) does not.
+EXPLAINS_AS_STIM = tuple(int(x) for x in stim.__version__.split(".")[:2]) >= (1, 16)
 
 GRAPHLIKE = [(t, d) for t in ["repetition_code:memory", "surface_code:rotated_memory_x", "surface_code:rotated_memory_z", "surface_code:unrotated_memory_z"] for d in (3, 5)]
 
@@ -32,11 +35,62 @@ def test_graphlike_distance_equals_stims(task, d):
     c = noisy(task, d)
     ours = sq.Circuit(str(c))
     found = ours.detector_error_model(decompose_errors=True).shortest_graphlike_error()
-    assert found.num_errors == len(c.shortest_graphlike_error()) == d
+    assert found.num_errors == d
     assert undetected_logical(str(found))
-    explained = ours.shortest_graphlike_error()
-    assert len(explained) == d
-    assert all(e.circuit_error_locations for e in explained)
+    # Stim's own faults, in Stim's order, explained as Stim explains them.
+    assert str(found) == str(c.detector_error_model(decompose_errors=True).shortest_graphlike_error()) + "\n"
+    for canonicalize in (True, False) if EXPLAINS_AS_STIM else ():
+        want = [str(e) for e in c.shortest_graphlike_error(canonicalize_circuit_errors=canonicalize)]
+        assert [str(e).rstrip("\n") for e in ours.shortest_graphlike_error(canonicalize_circuit_errors=canonicalize)] == want
+
+
+GENERATED = ["repetition_code:memory", "surface_code:rotated_memory_x", "surface_code:unrotated_memory_z", "color_code:memory_xyz"]
+
+
+@pytest.mark.parametrize("task", GENERATED)
+@pytest.mark.parametrize("decompose", [True, False])
+def test_graphlike_models_are_stims_character_for_character(task, decompose):
+    for d in (3, 5, 7):
+        model = noisy(task, d).detector_error_model(decompose_errors=decompose, ignore_decomposition_failures=True)
+        for ignore in (True, False):
+            try:
+                want = str(model.shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) + "\n"
+            except ValueError:
+                with pytest.raises(ValueError):
+                    sq.DetectorErrorModel(str(model)).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)
+                continue
+            assert str(sq.DetectorErrorModel(str(model)).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) == want, (task, d, ignore)
+
+
+def test_graphlike_random_models_and_circuits_are_stims():
+    import random
+
+    from test_stim_gates import random_case
+
+    rng = random.Random(5)
+    for _ in range(300):
+        nd = rng.randint(2, 12)
+        lines = []
+        for _ in range(rng.randint(2, 25)):
+            ds = rng.sample(range(nd), min(rng.choice([1, 1, 2, 2, 2, 3]), nd))
+            obs = [f"L{j}" for j in range(2) if rng.random() < 0.25]
+            lines.append(f"error({rng.choice([0.1, 0.01, 0])}) " + " ".join([f"D{x}" for x in ds] + obs))
+        text = "\n".join(lines + [f"detector D{nd - 1}"])
+        for ignore in (True, False):
+            try:
+                want = str(stim.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) + "\n"
+            except ValueError:
+                with pytest.raises(ValueError):
+                    sq.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)
+                continue
+            assert str(sq.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) == want, text
+    for seed in range(100 if EXPLAINS_AS_STIM else 0):
+        text = random_case(seed, disjoint=False)
+        try:
+            want = [str(e) for e in stim.Circuit(text).shortest_graphlike_error()]
+        except ValueError:
+            continue
+        assert [str(e).rstrip("\n") for e in sq.Circuit(text).shortest_graphlike_error()] == want, text
 
 
 @pytest.mark.parametrize("d", [3, 5, 7])

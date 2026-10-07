@@ -4,6 +4,30 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## Unreleased
+
+### Changed
+
+- `shortest_graphlike_error`, on circuits and on models, now runs Stim's own search (one
+  breadth-first search over pairs of detection events from every edge that flips an
+  observable) and so returns Stim's own faults, in Stim's order: its model text, and its
+  explained errors with and without `canonicalize_circuit_errors`, equal Stim's character for
+  character (checked on Stim's generated codes, 300 random models and 100 random circuits;
+  1.6 matched Stim's length only). It takes 0.11 to 0.12 of Stim's time from d = 11 to 19,
+  where 1.6 took 0.71 to 1.82.
+- Error models are built in 0.6 of Stim's time on Apple silicon (1.6: 2.0): the walk no longer
+  allocates for every combination of a noise channel's errors, and the pass that looks ahead
+  for a loop's period skips noise, which it never collects. The models are unchanged (their
+  text is fingerprinted on each platform).
+
+### Added
+
+- `tools/fingerprints.py` and `tests/test_fingerprints.py`: a hash of 152 results (error models,
+  shots for a seed at any thread count, raw measurements, model samples, m2d, every decoder,
+  the distance searches), checked on Linux, macOS and Windows, so work on speed cannot change
+  a result unnoticed. `examples/hot.rs` runs each benchmark's job natively for a profiler;
+  benchmarks run on Linux arm64 as well as x86_64 (`.github/workflows/bench.yml`).
+
 ## 1.6.0 — 2026-10-07
 
 The Python package and the Rust crate both at 1.6.0, "know your circuit": where each fault of
