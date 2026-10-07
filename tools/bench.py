@@ -11,6 +11,7 @@ run, and the site's benchmarks page plots the runs recorded at each release.
                                                 # recorded run's by more than --tolerance
     python tools/bench.py --summary FILE        # also write the table as Markdown (CI's job summary)
     python tools/bench.py --add RUN.json        # record a run made elsewhere (CI's, from --json)
+    python tools/bench.py --only error_model    # just these benchmarks (comma-separated keys)
 
 Runs are compared with the last recorded run on the same kind of machine (system and
 processor), so CI's Linux runners are held to a Linux run.
@@ -93,7 +94,7 @@ def kind():
     return f"{platform.system()} {platform.machine().lower().replace('amd64', 'x86_64')}"
 
 
-def run(quick, repeats):
+def run(quick, repeats, only=None):
     import pymatching
     import stim
 
@@ -101,6 +102,8 @@ def run(quick, repeats):
 
     results = {}
     for key, what, units, unit, ours, theirs in benchmarks(sq, stim, pymatching, quick):
+        if only and key not in only:
+            continue
         t_ours = best(ours, repeats)
         t_ref = best(theirs, repeats) if theirs else None
         results[key] = dict(
@@ -151,6 +154,7 @@ def main() -> int:
     ap.add_argument("--summary", help="write the table as Markdown here")
     ap.add_argument("--json", help="write this run as JSON here")
     ap.add_argument("--add", help="record this run (a --json file) without running")
+    ap.add_argument("--only", help="comma-separated benchmark keys to run (not with --record)")
     args = ap.parse_args()
 
     runs = json.loads(RUNS.read_text(encoding="utf-8")) if RUNS.exists() else []
@@ -163,7 +167,9 @@ def main() -> int:
     same = [r for r in runs if r.get("kind") == kind()]
     last = same[-1] if same else None
     print(f"{'benchmark':20} {'ours':>10} {'reference':>10} {'ratio':>6}")
-    this = run(args.quick, args.repeats)
+    if args.only and args.record:
+        ap.error("--only runs part of the suite, which is not a run to record")
+    this = run(args.quick, args.repeats, set(args.only.split(",")) if args.only else None)
     if args.summary:
         with open(args.summary, "a", encoding="utf-8") as f:
             f.write(markdown(this, last))

@@ -1,0 +1,50 @@
+# The benchmarks against Stim and PyMatching on both kinds of Linux runner, x86_64 and arm64,
+# each with a wheel built natively on it, so every ratio comes from the machine it describes.
+# CI calls it on every push with `check` (a ratio twice the last run recorded for the same kind
+# of machine fails); run it by hand, or let a release run it, for runs to record with
+# `tools/bench.py --add` (each run's JSON is printed in its log and uploaded).
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      check:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: Benchmarks (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build and install the wheel, with Stim and PyMatching
+        run: |
+          python -m pip install --upgrade pip maturin
+          maturin build --out dist
+          python -m pip install dist/*.whl numpy stim pymatching
+      # Ratios to Stim's and PyMatching's times on this runner; the table goes to the summary.
+      - name: Benchmarks
+        run: |
+          python tools/bench.py ${{ inputs.check && '--check' || '' }} --summary "$GITHUB_STEP_SUMMARY" --json bench.json
+          cat bench.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmarks-${{ matrix.runner }}
+          path: bench.json
