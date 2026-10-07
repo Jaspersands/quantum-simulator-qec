@@ -472,6 +472,18 @@ fn css_memory_circuit(n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, rounds
     code.memory(rounds, p, basis_of(basis)? == Basis::X).map_err(err)
 }
 
+/// The comment block `stim gen` writes before one of its generated circuits.
+#[pyfunction]
+fn generated_header(task: &str, distance: u32, rounds: u64, clifford: f64, round_data: f64, measure: f64, reset: f64) -> PyResult<String> {
+    let noise = crate::generated::Noise {
+        after_clifford_depolarization: clifford,
+        before_round_data_depolarization: round_data,
+        before_measure_flip_probability: measure,
+        after_reset_flip_probability: reset,
+    };
+    crate::generated::header(task, distance, rounds, &noise).map_err(err)
+}
+
 fn bb_cycles(total: usize, least: usize) -> PyResult<()> {
     crate::bb::check_cycles(total, least).map_err(err)
 }
@@ -776,6 +788,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
     m.add_function(wrap_pyfunction!(generated_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(generated_header, m)?)?;
     m.add_function(wrap_pyfunction!(css_code, m)?)?;
     m.add_function(wrap_pyfunction!(css_memory_circuit, m)?)?;
     m.add_function(wrap_pyfunction!(bb_spec, m)?)?;

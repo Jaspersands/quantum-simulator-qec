@@ -24,13 +24,13 @@ use crate::surface_code::Xorshift;
 
 /// A probability, with what geometric skipping needs precomputed.
 #[derive(Clone, Copy, Debug)]
-struct Noise {
+pub(crate) struct Noise {
     p: f64,
     log1mp: f64,
 }
 
 impl Noise {
-    fn new(p: f64) -> Noise {
+    pub(crate) fn new(p: f64) -> Noise {
         // ln_1p keeps ln(1 − p) nonzero for p far below 1e-16, where 1 − p
         // rounds to 1; a p it still cannot resolve is treated as zero.
         let log1mp = if p > 0.0 && p < 1.0 { (-p).ln_1p() } else { 0.0 };
@@ -40,7 +40,7 @@ impl Noise {
 
 /// A word whose bits are independently set with probability `n.p`.
 #[inline]
-fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
+pub(crate) fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
     if n.p <= 0.0 {
         return 0;
     }
@@ -400,6 +400,8 @@ struct State {
     shift: Vec<f64>,
     /// The lanes where the current chain of correlated errors has fired.
     chain: u64,
+    /// When kept, every measurement's flips, in order (a measurement sampler's shots).
+    all: Option<Vec<u64>>,
 }
 
 impl State {
@@ -464,6 +466,9 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                         Basis::X => st.z[q],
                     } ^ bernoulli(rng, *flip);
                     st.ring[st.m & st.mask] = rec;
+                    if let Some(all) = st.all.as_mut() {
+                        all.push(rec);
+                    }
                     st.m += 1;
                     match basis {
                         Basis::Z => st.z[q] = rng.next_u64(),
@@ -615,6 +620,9 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
                 for &q in qubits {
                     let w = bernoulli(rng, *any);
                     st.ring[st.m & st.mask] = w;
+                    if let Some(all) = st.all.as_mut() {
+                        all.push(w);
+                    }
                     st.m += 1;
                     let mut lanes = w;
                     while lanes != 0 {
@@ -628,7 +636,11 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
             }
             Op::Pad { flip, count } => {
                 for _ in 0..*count {
-                    st.ring[st.m & st.mask] = bernoulli(rng, *flip);
+                    let w = bernoulli(rng, *flip);
+                    st.ring[st.m & st.mask] = w;
+                    if let Some(all) = st.all.as_mut() {
+                        all.push(w);
+                    }
                     st.m += 1;
                 }
             }
@@ -673,9 +685,54 @@ impl BatchSampler {
             obs: vec![0; self.num_observables],
             shift: Vec::new(),
             chain: 0,
+            all: None,
         };
         exec(&self.ops, &mut st, rng, sink);
         st.obs
+    }
+
+    /// 64 shots' measurement flips (how each shot's record differs from a noiseless run), one
+    /// word per measurement.
+    pub fn measurement_flips(&self, rng: &mut Xorshift) -> Vec<u64> {
+        let mut st = State {
+            x: vec![0; self.num_qubits],
+            z: (0..self.num_qubits).map(|_| rng.next_u64()).collect(),
+            ring: vec![0; self.ring_mask + 1],
+            mask: self.ring_mask,
+            m: 0,
+            det: 0,
+            obs: vec![0; self.num_observables],
+            shift: Vec::new(),
+            chain: 0,
+            all: Some(Vec::with_capacity(self.num_measurements.min(1 << 24))),
+        };
+        exec(&self.ops, &mut st, rng, &mut |_, _, _| {});
+        st.all.unwrap_or_default()
+    }
+
+    /// `shots` shots' measurement records as b8 rows: each the `reference` record (empty: all
+    /// zeros) with the shot's flips, batches drawn as `sample_seeded` draws them.
+    pub fn sample_measurements_seeded(&self, seed: u64, first: u64, shots: usize, threads: usize, reference: &[bool]) -> Vec<u8> {
+        let n = self.num_measurements;
+        let stride = n.div_ceil(8);
+        let parts = crate::parallel::parallel(shots.div_ceil(64), threads, |range| {
+            let mut out = Vec::new();
+            for b in range {
+                let mut rng = Xorshift::new(batch_seed(seed, first + b as u64));
+                let flips = self.measurement_flips(&mut rng);
+                for k in 0..(shots - b * 64).min(64) {
+                    let start = out.len();
+                    out.resize(start + stride, 0u8);
+                    for (j, w) in flips.iter().enumerate() {
+                        if (w >> k & 1 == 1) != reference.get(j).copied().unwrap_or(false) {
+                            out[start + j / 8] |= 1 << (j % 8);
+                        }
+                    }
+                }
+            }
+            vec![out]
+        });
+        parts.concat()
     }
 
     /// `shots` shots as b8 rows (detectors, observables), batch `first + k` drawn from a stream
@@ -707,7 +764,7 @@ impl BatchSampler {
     }
 }
 
-fn splitmix64(mut z: u64) -> u64 {
+pub(crate) fn splitmix64(mut z: u64) -> u64 {
     z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
@@ -715,7 +772,7 @@ fn splitmix64(mut z: u64) -> u64 {
 }
 
 /// The seed of batch `b`'s stream, from the sampler's seed and the batch alone.
-fn batch_seed(seed: u64, b: u64) -> u64 {
+pub(crate) fn batch_seed(seed: u64, b: u64) -> u64 {
     splitmix64(seed ^ splitmix64(b ^ 0x632B_E59B_D9B4_E019))
 }
 

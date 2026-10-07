@@ -112,3 +112,16 @@ def test_detector_slices_match_stims(code):
     ours = sq.Circuit(str(sc))
     for tick in range(sc.num_ticks + 1):
         assert _our_slice(ours, tick) == _stim_slice(sc, tick), f"tick {tick}"
+
+
+@pytest.mark.parametrize("kind", ["timeslice-svg", "detslice-with-ops-svg", "detslice-svg"])
+def test_slices_over_ranges(kind):
+    c = sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=2, after_clifford_depolarization=0.001)
+    root = ET.fromstring(str(c.diagram(kind, tick=range(1, 7), rows=2)))
+    titles = [t.text for t in root.iter("{http://www.w3.org/2000/svg}title")]
+    assert [t for t in titles if t.startswith("Tick")] == [f"Tick {k}" for k in range(1, 7)]
+    if kind != "detslice-svg":
+        texts = [t.text for t in root.iter("{http://www.w3.org/2000/svg}text")]
+        assert "H" in texts or any(t and "MR" in t for t in texts)
+    with pytest.raises(ValueError):
+        c.diagram(kind, tick=range(3, 3))

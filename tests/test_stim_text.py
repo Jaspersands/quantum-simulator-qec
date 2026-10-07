@@ -62,3 +62,17 @@ def test_numbers_print_with_stims_sixteen_digits():
     text = "R 0\nX_ERROR(0.1) 0\nX_ERROR(0.2) 0\nX_ERROR(0.0000123) 0\nM 0\nDETECTOR(1.5, 0.0001, 1e-05) rec[-1]"
     assert_same_text(text)
     assert "e-05" in str(sq.Circuit(text).detector_error_model())
+
+
+@pytest.mark.parametrize("d", [5, 7])
+def test_ignoring_decomposition_failures_is_stims(d):
+    c = stim.Circuit.generated("color_code:memory_xyz", distance=d, rounds=4, after_clifford_depolarization=0.001, before_measure_flip_probability=0.002)
+    want = str(c.detector_error_model(decompose_errors=True, ignore_decomposition_failures=True))
+    got = str(sq.Circuit(str(c)).detector_error_model(decompose_errors=True, ignore_decomposition_failures=True))
+    assert got == want + "\n"
+    # Without it, a model Stim cannot decompose is refused here too.
+    try:
+        c.detector_error_model(decompose_errors=True)
+    except ValueError:
+        with pytest.raises(ValueError):
+            sq.Circuit(str(c)).detector_error_model(decompose_errors=True)

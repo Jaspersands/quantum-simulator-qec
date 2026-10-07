@@ -4,6 +4,88 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 1.6.0 — 2026-10-07
+
+The Python package and the Rust crate both at 1.6.0, "know your circuit": where each fault of
+an error model comes from and how few faults defeat a circuit, both as Stim reports them, and
+the exact circuit distance by integer programming; Stim's result formats, samplers and command
+line; Stim's text timeline and time-slice diagrams; and a paper for the Journal of Open Source
+Software. The first release archived on Zenodo.
+
+### Added
+
+- The text timeline (`diagram("timeline-text")`, and the command line's) is now Stim's,
+  character for character: Stim's moments, labels and boxes, loops between `|` columns headed
+  `/REP n` with records, detectors and coordinates in terms of `iter`, detectors drawn at their
+  qubit's coordinates. Checked on hand-made circuits pinning each rule, Stim's generated
+  memories and 200 random circuits using every gate.
+- `diagram("timeslice-svg")` and `diagram("detslice-with-ops-svg")`, and `tick` as a `range`
+  (with `rows`) for these and `detslice-svg`: a panel per tick, each the qubits at their
+  coordinates with that tick's operations and/or the detector slice after them (Rust:
+  `DiagramKind::TimeSliceSvg`, `DetectorSliceWithOpsSvg`, `DetectorSlicesSvg`).
+- `Circuit.explain_detector_error_model_errors(*, dem_filter=None,
+  reduce_to_one_representative_error=False)` (Rust: `Circuit::explain_errors`): where each
+  fault of a circuit's error model comes from: the instruction (numbered as Stim numbers
+  them, adjacent identical instructions joined), its targets, the Pauli product or the
+  measurement it flips, the `TICK`s before it and the loop passes around it. The results
+  (`ExplainedError`, `CircuitErrorLocation` and their parts, Stim's names) print as Stim's
+  character for character, each part on its own as well (Rust: `Display` for
+  `TargetWithCoords` and `CircuitErrorLocation`, and `CircuitErrorLocation::instruction_text`),
+  for every location and for the representative Stim picks, on
+  Stim's generated memories and on 1,000 random circuits using every gate, noise channel and
+  tag.
+- `shortest_graphlike_error` on circuits and on detector error models (Rust:
+  `Circuit::shortest_graphlike_error`, `DetectorErrorModel::shortest_graphlike_error`): the
+  graph-like circuit distance, the fewest faults of at most two detectors that together flip
+  an observable and no detector, found as Stim finds it (decomposed faults left out unless
+  `ignore_ungraphlike_errors=False`). Its length equals Stim's on Stim's generated surface,
+  repetition and colour codes up to d = 15. On a model it takes Stim's time at d = 11 (3.5 ms)
+  and 2.5 times it at d = 15; `tools/bench.py` holds it to Stim's.
+- `search_for_undetectable_logical_errors` on circuits and models: Stim's breadth-first
+  search through hyperedges, with its three limits, giving the same number of faults as
+  Stim's on its colour codes, surface codes, the Steane code and the [[72, 12, 6]] code.
+- `DetectorErrorModel.distance()`: the exact distance of a model by integer programming (scipy's
+  HiGHS), hyperedges included, proven optimal or refused; `method="graphlike"` or `"search"`
+  for the two searches. It finds that Stim's generated XYZ colour-code memory has circuit
+  distance 2 at d = 3 and 3 at d = 5 (two or three correlated two-qubit faults; Stim's own
+  search agrees given room), and that the generic `CssCode` schedule loses the colour code's
+  distance likewise, while the surface codes and the Hamming hypergraph product keep theirs.
+  `tools/distances.py` measures every memory the package builds.
+- `write_shot_data_file` and `read_shot_data_file`, Stim's functions with Stim's arguments, in
+  all six of its result formats (`01`, `b8`, `r8`, `ptb64`, `hits`, `dets`): files byte for
+  byte as Stim writes them, and Stim's read back to the same shots.
+- The command line, `stabilizer-qec` (or `python -m stabilizer_qec`), after Stim's: `gen`,
+  `sample`, `detect`, `m2d`, `analyze_errors`, `explain_errors`, `diagram`, `convert`,
+  `sample_dem` and `help`, with Stim's flags and formats, and `decode` after PyMatching's
+  `predict` (any of the package's decoders). Tested end to end against the `stim` command: the
+  same bytes from `gen` (its header and qubit layout included), `analyze_errors`, `m2d`,
+  `convert`, `explain_errors`, and from `sample` and `detect` on deterministic circuits.
+- `Circuit.reference_sample()`: the noiseless run's measurement record, as Stim's.
+- `Circuit.compile_sampler(*, skip_reference_sample=False, seed=None)`: raw measurement
+  records, as Stim's measurement sampler: a noiseless reference run with each shot's flips,
+  equal to Stim's on deterministic circuits and to its rates otherwise.
+- `DetectorErrorModel.compile_sampler(seed=...)` (Rust: `DetectorErrorModel::sampler`): shots
+  drawn from a model's faults directly, as Stim's `CompiledDemSampler`, with the faults that
+  fired (`return_errors`) and recorded faults replayed (`recorded_errors_to_replay`); rates
+  and pairwise correlations agree with Stim's sampler, and a seed's shots do not depend on the
+  number of threads.
+- `detector_error_model(..., ignore_decomposition_failures=True)` (Rust:
+  `DemOptions::ignore_decomposition_failures`), Stim's option: a fault that cannot be split
+  into graph-like pieces is kept whole. The text equals Stim's on its colour codes.
+- Documentation: the guide's "Knowing a circuit" and "The command line"; tutorial 01's "How
+  far from failing"; the README's and the report's "Circuit distance", every memory the package
+  builds measured three ways (`tools/distances.py`, `data/distances.json`), where the
+  integer program's best solution is kept as an upper bound when it does not finish. It finds
+  the 2-round [[90, 8, 10]] memory has circuit distance at most 9 (checked: 9 faults, no
+  detector, five logical qubits flipped).
+- A paper for the Journal of Open Source Software (`paper/`, built by the Paper workflow) and
+  its submission checklist (`docs/joss.md`); `CONTRIBUTING.md` says where to ask for help.
+
+### Changed
+
+- An explicit zero argument on `M`, `MX`, `MR`, `MRX` and `MPAD` (`M(0) 0`) is kept and
+  written back, as Stim keeps it.
+
 ## 1.5.0 — 2026-10-04
 
 The Python package and the Rust crate both at 1.5.0: Stim's generated circuits character for

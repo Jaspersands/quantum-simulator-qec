@@ -52,11 +52,46 @@ code of Bravyi et al.'s Table 3 or any other, the gross code's logical operation
 `surgery` module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and `stream_memory`
 (a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).
 
+## Knowing a circuit
+
+Where each fault of the error model comes from, as Stim prints it
+(`explain_detector_error_model_errors`, every `ExplainedError` naming the gate, its targets
+and the Pauli product or measurement it flips); how few faults defeat the circuit
+(`shortest_graphlike_error` and `search_for_undetectable_logical_errors`, Stim's two searches,
+on circuits and on models, and `DetectorErrorModel.distance()`, exact by integer programming
+with scipy installed):
+
+>>> c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=2, after_clifford_depolarization=0.01)
+>>> len(c.shortest_graphlike_error())
+3
+>>> print(c.shortest_graphlike_error()[0].circuit_error_locations[0].instruction_targets)
+DEPOLARIZE2(0.01) 0 1
+
+Diagrams after Stim's (`Circuit.diagram`): `timeline-text` (Stim's, character for
+character), `timeline-svg`, `detslice-svg`, `timeslice-svg` and `detslice-with-ops-svg` (one
+panel per tick of a `range`), and the matching graph.
+
 ## Shots
 
 Shots are numpy arrays: one row per shot, `bool` per detector, or bit-packed `uint8` rows
 (bit k of a row in byte k // 8, at position k % 8: `numpy.packbits(..., bitorder="little")`),
-the layout Stim and PyMatching use. Predictions are `uint8` 0/1 per observable.
+the layout Stim and PyMatching use. Predictions are `uint8` 0/1 per observable. Files in
+Stim's six formats (`01`, `b8`, `r8`, `hits`, `dets`, `ptb64`) are read and written by
+`read_shot_data_file` and `write_shot_data_file`; raw measurements come from
+`Circuit.compile_sampler`, and faults of a model straight from
+`DetectorErrorModel.compile_sampler`.
+
+## The command line
+
+`stabilizer-qec` (or `python -m stabilizer_qec`) takes Stim's commands and flags (`gen`,
+`sample`, `detect`, `m2d`, `analyze_errors`, `sample_dem`, `convert`, `explain_errors`,
+`diagram`) and gives Stim's bytes wherever Stim's output is deterministic, plus `decode`:
+
+    stabilizer-qec gen --code surface_code --task rotated_memory_z --distance 5 --rounds 5 \
+        --after_clifford_depolarization 0.001 > c.stim
+    stabilizer-qec detect --in c.stim --shots 1000 --out_format b8 > d.b8
+    stabilizer-qec analyze_errors --in c.stim --decompose_errors > c.dem
+    stabilizer-qec decode --dem c.dem --in d.b8 --in_format b8
 
 ## Many processes, and sinter
 
@@ -105,7 +140,17 @@ from importlib.metadata import PackageNotFoundError as _NotFound
 from importlib.metadata import version as _version
 
 from . import _core, surgery
-from ._circuit import Circuit, DetectorErrorModel, DetectorSampler, Diagram, MeasurementsToDetectionEventsConverter
+from ._circuit import Circuit, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, MeasurementSampler, MeasurementsToDetectionEventsConverter
+from ._explain import (
+    CircuitErrorLocation,
+    CircuitErrorLocationStackFrame,
+    CircuitTargetsInsideInstruction,
+    DemTargetWithCoords,
+    ExplainedError,
+    FlippedMeasurement,
+    GateTargetWithCoords,
+)
+from ._shots import read_shot_data_file, write_shot_data_file
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
 
@@ -164,12 +209,23 @@ __all__ = [
     "BeliefMatching",
     "BivariateBicycleCode",
     "CssCode",
+    "read_shot_data_file",
+    "write_shot_data_file",
+    "CircuitErrorLocation",
+    "CircuitErrorLocationStackFrame",
+    "CircuitTargetsInsideInstruction",
+    "DemTargetWithCoords",
+    "ExplainedError",
+    "FlippedMeasurement",
+    "GateTargetWithCoords",
     "BpDecoder",
     "BpOsd",
     "BpOsdDecoder",
     "Circuit",
     "DetectorErrorModel",
     "DetectorSampler",
+    "DemSampler",
+    "MeasurementSampler",
     "Diagram",
     "Gauging",
     "Matching",

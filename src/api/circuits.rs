@@ -122,6 +122,80 @@ impl Circuit {
         Circuit::from_engine(circuit::Circuit::parse(text)?)
     }
 
+    /// Where the faults of the circuit's error model come from (Stim's
+    /// `explain_detector_error_model_errors`): for each fault class (each fault of `filter`
+    /// when given), every place in the circuit such a fault arises, or with `reduce` one
+    /// representative. Loops are walked in full. The text of each is Stim's.
+    ///
+    /// ```
+    /// use stabilizer_qec::Circuit;
+    ///
+    /// let c: Circuit = "QUBIT_COORDS(1, 2) 0\nR 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR(3) rec[-1]".parse()?;
+    /// let explained = c.explain_errors(None, false)?;
+    /// assert_eq!(explained[0].dem_error_terms(), vec!["D0".to_string()]);
+    /// assert_eq!(explained[0].terms_with_coords()[0].to_string(), "D0[coords 3]");
+    /// let location = &explained[0].circuit_error_locations()[0];
+    /// assert_eq!(location.instruction_text(), "X_ERROR(0.1) 0[coords 1,2]");
+    /// assert!(location.to_string().starts_with("CircuitErrorLocation {"));
+    /// assert!(explained[0].to_string().contains("resolving to X_ERROR(0.1) 0[coords 1,2]"));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn explain_errors(&self, filter: Option<&DetectorErrorModel>, reduce: bool) -> Result<Vec<ExplainedError>> {
+        let terms = match filter {
+            Some(f) => Some(
+                f.flat()?
+                    .mechanisms
+                    .iter()
+                    .map(|m| {
+                        let mut t: Vec<u64> = m.detectors.iter().map(|&d| u64::from(d)).collect();
+                        t.extend((0..64).filter(|k| m.observables >> k & 1 == 1).map(|k| crate::dem_program::OBS | k));
+                        t
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            None => None,
+        };
+        self.explained(terms.as_deref(), reduce)
+    }
+
+    fn explained(&self, terms: Option<&[Vec<u64>]>, reduce: bool) -> Result<Vec<ExplainedError>> {
+        let coords = std::sync::Arc::new(crate::explain::Coords::of(&self.inner)?);
+        let out = crate::explain::explain(&self.inner, terms, reduce)?;
+        Ok(out.into_iter().map(|inner| ExplainedError { inner, coords: coords.clone() }).collect())
+    }
+
+    /// The circuit's graph-like distance, as Stim's `shortest_graphlike_error` finds it: the
+    /// fewest graph-like pieces of its decomposed error model that together flip an observable
+    /// and no detector, each explained (with `canonicalize`, by one location). Pieces of three
+    /// or more detectors are skipped with `ignore_ungraphlike`, refused otherwise.
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, GeneratedNoise};
+    ///
+    /// let noise = GeneratedNoise::new().after_clifford_depolarization(0.001);
+    /// let c = Circuit::generated("surface_code:rotated_memory_z", 5, 5, &noise)?;
+    /// assert_eq!(c.shortest_graphlike_error(true, false)?.len(), 5);
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn shortest_graphlike_error(&self, ignore_ungraphlike: bool, canonicalize: bool) -> Result<Vec<ExplainedError>> {
+        let dem = self.detector_error_model(&DemOptions::new().decompose_errors(true).approximate_disjoint_errors(Some(1.0)).ignore_decomposition_failures(true))?;
+        let faults = crate::distance::shortest_graphlike(dem.flat()?, ignore_ungraphlike)?;
+        self.explained(Some(&crate::distance::as_terms(&faults)), canonicalize)
+    }
+
+    /// The circuit's distance through hyperedges too, as Stim's
+    /// `search_for_undetectable_logical_errors` finds it: a breadth-first search over sets of
+    /// fired detectors in its error model (undecomposed), adding a fault at the set's lowest
+    /// detector each step; faults of more than `max_degree` detectors are left out, sets larger
+    /// than `max_symptoms` are not explored, nor (with `no_increase`) larger sets at all. Each
+    /// fault found is explained (with `canonicalize`, by one location). It is the fewest faults
+    /// within those limits: an upper bound on the distance.
+    pub fn search_for_undetectable_logical_errors(&self, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> Result<Vec<ExplainedError>> {
+        let dem = self.detector_error_model(&DemOptions::new().approximate_disjoint_errors(Some(1.0)))?;
+        let faults = crate::distance::search_undetectable(dem.flat()?, max_symptoms, max_degree, no_increase)?;
+        self.explained(Some(&crate::distance::as_terms(&faults)), canonicalize)
+    }
+
     /// One of Stim's generated memory experiments (`stim.Circuit.generated`), character for
     /// character as Stim writes it: `task` is `"repetition_code:memory"`,
     /// `"surface_code:rotated_memory_x"` or `_z`, `"surface_code:unrotated_memory_x"` or `_z`,
@@ -224,7 +298,7 @@ impl Circuit {
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn detector_error_model(&self, options: &DemOptions) -> Result<DetectorErrorModel> {
-        let program = crate::dem_build::build(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops)?;
+        let program = crate::dem_build::build_with(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops, options.ignore_decomposition_failures)?;
         Ok(DetectorErrorModel::from_program(program))
     }
 
@@ -255,6 +329,9 @@ impl Circuit {
             DiagramKind::TimelineSvg => d::timeline_svg(&self.inner)?,
             DiagramKind::DetectorSliceText { tick } => d::detslice_text(&self.inner, tick)?,
             DiagramKind::DetectorSliceSvg { tick } => d::detslice_svg(&self.inner, tick)?,
+            DiagramKind::DetectorSlicesSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, true, false)?,
+            DiagramKind::TimeSliceSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, false, true)?,
+            DiagramKind::DetectorSliceWithOpsSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, true, true)?,
             DiagramKind::MatchGraphSvg => {
                 let dem = self.detector_error_model(&DemOptions::new().decompose_errors(true).approximate_disjoint_errors(Some(1.0)))?;
                 dem.matchgraph_svg()?
@@ -371,6 +448,163 @@ pub enum DiagramKind {
     },
     /// The decomposed model's matching graph as an SVG picture (`matchgraph-svg`).
     MatchGraphSvg,
+    /// Detector slices after each tick of `[start, end)`, a panel each, in `rows` rows
+    /// (`detslice-svg` over a range).
+    DetectorSlicesSvg {
+        /// The ticks, `[start, end)`.
+        ticks: (u64, u64),
+        /// Rows of panels (`None`: about square).
+        rows: Option<u32>,
+    },
+    /// The operations of each tick of `[start, end)` over the qubits' coordinates
+    /// (`timeslice-svg`).
+    TimeSliceSvg {
+        /// The ticks, `[start, end)`.
+        ticks: (u64, u64),
+        /// Rows of panels (`None`: about square).
+        rows: Option<u32>,
+    },
+    /// Each tick's operations with the detector slice after them (`detslice-with-ops-svg`).
+    DetectorSliceWithOpsSvg {
+        /// The ticks, `[start, end)`.
+        ticks: (u64, u64),
+        /// Rows of panels (`None`: about square).
+        rows: Option<u32>,
+    },
+}
+
+/// A fault class of a circuit's error model and the places in the circuit it arises (see
+/// [`Circuit::explain_errors`]). Its `Display` is Stim's text.
+#[derive(Clone, Debug)]
+pub struct ExplainedError {
+    inner: crate::explain::Explained,
+    coords: std::sync::Arc<crate::explain::Coords>,
+}
+
+/// A target of an explained error with its coordinates (empty for none). Its `Display` is
+/// Stim's text: `D3[coords 1,2,0]`, or the bare target without coordinates.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TargetWithCoords {
+    /// As Stim writes it: `D3`, `L0`, `X5`, `!Z2`, `7`.
+    pub target: String,
+    /// Its coordinates: a detector's, or a qubit's last `QUBIT_COORDS`.
+    pub coords: Vec<f64>,
+}
+
+/// One place a fault arises (Stim's `CircuitErrorLocation`). Its `Display` is Stim's text.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CircuitErrorLocation {
+    /// `TICK`s before it.
+    pub tick_offset: u64,
+    /// The Paulis it applies, in target order.
+    pub flipped_pauli_product: Vec<TargetWithCoords>,
+    /// The measurement it flips: its record index and the observable measured.
+    pub flipped_measurement: Option<(u64, Vec<TargetWithCoords>)>,
+    /// The instruction's name.
+    pub gate: String,
+    /// The instruction's tag (empty for none).
+    pub tag: String,
+    /// The instruction's arguments.
+    pub args: Vec<f64>,
+    /// Its targets' range in the instruction, `[start, end)`.
+    pub target_range: (u32, u32),
+    /// Those targets.
+    pub targets_in_range: Vec<TargetWithCoords>,
+    /// From the outermost block in: (instruction offset, completed iterations, repetitions).
+    pub stack_frames: Vec<(u64, u64, u64)>,
+    text: String,
+    instruction: String,
+}
+
+impl CircuitErrorLocation {
+    /// The instruction and the targets the fault covers, with coordinates, as Stim writes them
+    /// (`DEPOLARIZE2(0.001) 1[coords 1,1] 9[coords 2,2]`).
+    pub fn instruction_text(&self) -> &str {
+        &self.instruction
+    }
+}
+
+impl fmt::Display for TargetWithCoords {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.coords.is_empty() {
+            f.write_str(&self.target)
+        } else {
+            write!(f, "{}[coords {}]", self.target, crate::explain::Coords::at(&self.coords))
+        }
+    }
+}
+
+impl fmt::Display for CircuitErrorLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.text)
+    }
+}
+
+impl ExplainedError {
+    /// What the fault sets off: detectors (`D3`), then observables (`L0`).
+    pub fn dem_error_terms(&self) -> Vec<String> {
+        self.terms_with_coords().into_iter().map(|t| t.target).collect()
+    }
+
+    /// The same, with each detector's coordinates.
+    pub fn terms_with_coords(&self) -> Vec<TargetWithCoords> {
+        self.inner
+            .terms
+            .iter()
+            .map(|&t| {
+                if t & crate::dem_program::OBS != 0 {
+                    TargetWithCoords { target: format!("L{}", t & !crate::dem_program::OBS), coords: Vec::new() }
+                } else {
+                    TargetWithCoords { target: format!("D{t}"), coords: self.coords.of_detector(t) }
+                }
+            })
+            .collect()
+    }
+
+    /// Every place it arises (empty when no single fault of the circuit has these symptoms).
+    pub fn circuit_error_locations(&self) -> Vec<CircuitErrorLocation> {
+        let c = &self.coords;
+        let paulis = |ps: &[(u32, u8)]| -> Vec<TargetWithCoords> {
+            ps.iter()
+                .map(|&(q, p)| TargetWithCoords {
+                    target: format!("{}{}{q}", if p & 16 != 0 { "!" } else { "" }, ["I", "X", "Z", "Y"][(p & 3) as usize]),
+                    coords: c.of_qubit(q),
+                })
+                .collect()
+        };
+        self.inner
+            .locations
+            .iter()
+            .map(|l| CircuitErrorLocation {
+                tick_offset: l.tick_offset,
+                flipped_pauli_product: paulis(&l.pauli),
+                flipped_measurement: l.measurement.as_ref().map(|(i, obs)| (*i, paulis(obs))),
+                gate: l.gate.clone(),
+                tag: l.tag.clone(),
+                args: l.args.clone(),
+                target_range: l.range,
+                targets_in_range: l
+                    .targets
+                    .iter()
+                    .map(|t| {
+                        let q = t.trim_start_matches('!').trim_start_matches(['X', 'Y', 'Z']).parse::<u32>().ok();
+                        TargetWithCoords { target: t.clone(), coords: q.map(|q| c.of_qubit(q)).unwrap_or_default() }
+                    })
+                    .collect(),
+                stack_frames: l.stack.clone(),
+                text: l.to_stim(c),
+                instruction: l.instruction_text(c),
+            })
+            .collect()
+    }
+}
+
+impl fmt::Display for ExplainedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.inner.to_stim(&self.coords))
+    }
 }
 
 /// The noise of [`Circuit::generated`]: Stim's four strengths, each zero (left out) unless set.
@@ -423,6 +657,7 @@ pub struct DemOptions {
     decompose_errors: bool,
     approximate_disjoint_errors: Option<f64>,
     flatten_loops: bool,
+    ignore_decomposition_failures: bool,
 }
 
 impl DemOptions {
@@ -444,6 +679,13 @@ impl DemOptions {
     /// case, refusing any with a probability above `t` (`Some(1.0)` is Stim's `True`).
     pub fn approximate_disjoint_errors(mut self, threshold: Option<f64>) -> DemOptions {
         self.approximate_disjoint_errors = threshold;
+        self
+    }
+
+    /// Stim's `ignore_decomposition_failures`: with `decompose_errors`, keep a fault that cannot
+    /// be split into graph-like pieces whole, rather than refuse the model.
+    pub fn ignore_decomposition_failures(mut self, yes: bool) -> DemOptions {
+        self.ignore_decomposition_failures = yes;
         self
     }
 
@@ -505,6 +747,40 @@ impl DetectorErrorModel {
         usize::try_from(self.stats.num_errors).unwrap_or(usize::MAX)
     }
 
+
+    /// The fewest of the model's graph-like pieces (each fault's `^`-separated pieces) that
+    /// together flip an observable and no detector, as a model of those faults, each with
+    /// probability 1: Stim's `shortest_graphlike_error`. Its fault count is the graph-like
+    /// distance. Pieces of three or more detectors are skipped with `ignore_ungraphlike`,
+    /// refused otherwise.
+    pub fn shortest_graphlike_error(&self, ignore_ungraphlike: bool) -> Result<DetectorErrorModel> {
+        let faults = crate::distance::shortest_graphlike(self.flat()?, ignore_ungraphlike)?;
+        DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
+    }
+
+    /// Stim's `search_for_undetectable_logical_errors` on the model (see
+    /// [`Circuit::search_for_undetectable_logical_errors`]): the faults found, each with
+    /// probability 1.
+    pub fn search_for_undetectable_logical_errors(&self, max_symptoms: usize, max_degree: usize, no_increase: bool) -> Result<DetectorErrorModel> {
+        let faults = crate::distance::search_undetectable(self.flat()?, max_symptoms, max_degree, no_increase)?;
+        DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
+    }
+
+    /// A sampler of the model's faults (Stim's `compile_sampler`): each fault fires
+    /// independently with its probability; the same seed gives the same shots on any number
+    /// of threads.
+    ///
+    /// ```
+    /// use stabilizer_qec::DetectorErrorModel;
+    ///
+    /// let dem: DetectorErrorModel = "error(0.5) D0 L0\nerror(0.1) D0 D1".parse()?;
+    /// let shots = dem.sampler(7)?.sample(1000, 1);
+    /// assert_eq!((shots.detectors.num_rows(), shots.errors.num_bits()), (1000, 2));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn sampler(&self, seed: u64) -> Result<DemSampler> {
+        Ok(DemSampler { inner: crate::dem_sampler::DemSampler::new(self.flat()?), seed, next: 0 })
+    }
 
     /// The matching graph as an SVG picture: each detector at its coordinates, each graph-like
     /// fault an edge, those flipping an observable heavier. The model must be decomposed, and
@@ -591,6 +867,38 @@ impl DetectorSampler {
         Samples {
             detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
             observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
+        }
+    }
+}
+
+/// Shots drawn from a detector error model's faults. Made by [`DetectorErrorModel::sampler`].
+pub struct DemSampler {
+    inner: crate::dem_sampler::DemSampler,
+    seed: u64,
+    next: u64,
+}
+
+/// A detector error model's shots: detection events, observable flips, and the faults that
+/// fired (one bit per fault, in the model's order).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DemSamples {
+    /// One bit per detector.
+    pub detectors: BitTable,
+    /// One bit per observable.
+    pub observables: BitTable,
+    /// One bit per fault of the model.
+    pub errors: BitTable,
+}
+
+impl DemSampler {
+    /// `shots` more shots. `threads = 0` uses every core; the shots do not depend on it.
+    pub fn sample(&mut self, shots: usize, threads: usize) -> DemSamples {
+        let (d, o, e) = self.inner.sample_seeded(self.seed, self.next, shots, threads, true);
+        self.next += shots.div_ceil(64) as u64;
+        DemSamples {
+            detectors: BitTable::from_packed(shots, self.inner.num_detectors, d).expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.inner.num_observables, o).expect("the sampler writes whole rows"),
+            errors: BitTable::from_packed(shots, self.inner.num_errors(), e).expect("the sampler writes whole rows"),
         }
     }
 }

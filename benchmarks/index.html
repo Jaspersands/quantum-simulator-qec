@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Benchmarks: stabilizer-qec against Stim and PyMatching</title>
-<meta name="description" content="stabilizer-qec timed against Stim and PyMatching on the same machine and one thread: error models, sampling, measurement conversion, matching and correlated matching, recorded at each release and checked on every push.">
+<meta name="description" content="stabilizer-qec timed against Stim and PyMatching on the same machine and one thread: error models, the graph-like distance, sampling, measurement conversion, matching and correlated matching, recorded at each release and checked on every push.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231c1d1f'/%3E%3Ccircle cx='5' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='5' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='5' cy='11' r='1.6' fill='%23f4f2ec'/%3E%3Ccircle cx='11' cy='11' r='1.6' fill='%23c0392b'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,7 +34,7 @@
 <section>
   <h2>Method</h2>
   <p>Each benchmark times one job in this package and the same job in the reference: Stim for error
-  models, sampling and measurement conversion, PyMatching for matching. Each time is the fastest of several
+  models, the graph-like distance, sampling and measurement conversion, PyMatching for matching. Each time is the fastest of several
   runs after a warm-up (five by default), on one thread. The <em>ratio</em> is this package's time over the reference's,
   so below 1 is faster. Times depend on the machine; ratios carry from machine to machine far better, so
   they are what is recorded and compared.</p>

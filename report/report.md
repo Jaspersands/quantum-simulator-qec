@@ -613,6 +613,29 @@ corrected at d = 3.
 
 {{table:surgery_seq}}
 
+## Circuit distance
+
+A code's distance counts data errors; a circuit that measures it can do worse, since one fault
+mid-cycle can spread to several qubits. The circuit distance is the fewest faults of the whole
+circuit that flip an observable and set off no detector. The engine finds it three ways:
+Stim's graph-like search (`shortest_graphlike_error`), Stim's breadth-first search through
+hyperedges (`search_for_undetectable_logical_errors`, with sets of up to 6 detectors), and an
+integer program over every fault that proves it exactly when it finishes
+(`DetectorErrorModel.distance()`, scipy's HiGHS, {{dist.time_limit}} each). Both searches give
+the same number of faults as Stim's own wherever they were compared, and each fault they return
+is explained down to its gate, as Stim's `explain_detector_error_model_errors` prints it.
+
+{{table:distances}}
+
+- **The surface codes keep their distance**, under Stim's noise and under SD6, at d = 3 and 5.
+- **The colour code loses it.** Stim's generated XYZ colour-code memory has circuit distance
+  {{dist.colour}} at code distance 3, 5 and 7, proven; two or three correlated two-qubit faults do
+  the work of d data errors. The generic `CssCode` schedule loses it the same way.
+- **The bivariate bicycle codes are bounded, not settled.** For [[90, 8, 10]] the integer program
+  found an undetectable logical error of {{dist.bb90}} faults, below the code's 10. Bravyi et al.
+  bound the circuit distance of their circuits at 6, 8, 8 and 10 for the four codes; the bounds
+  found here for the larger two are looser than theirs.
+
 ## What it would take
 
 Each section above measures one ingredient of a quantum computer's cost. The estimate puts them
@@ -693,7 +716,8 @@ Every number in this report is filled in by `tools/report.py` from these committ
 - `data/realtime/`: latency, the million-round stream, and windowed accuracy;
 - `data/gross/`: the gross code's memory, its checks, automorphisms, gauging and logical measurement;
 - `data/surgery/`: lattice surgery's timing law and programs;
-- `data/estimate/`: the noise fit, distillation and sources the estimate rests on.
+- `data/estimate/`: the noise fit, distillation and sources the estimate rests on;
+- `data/distances.json`: the circuit distance of every memory the package builds.
 
 The report fails to build if a value it quotes is missing. To regenerate the data:
 
@@ -711,6 +735,7 @@ VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --pr
 .venv/bin/python tools/surgery.py run                  # and programs
 .venv/bin/python tools/estimate_noise.py               # the estimate's noise fit
 .venv/bin/python tools/distill.py                      # 15-to-1 distillation
+.venv/bin/python tools/distances.py --time-limit 300   # circuit distances
 node tools/lambda.mjs                                  # every fit
 python3 tools/report.py                                # this report
 ```

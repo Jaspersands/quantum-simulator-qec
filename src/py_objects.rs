@@ -55,6 +55,27 @@ pub struct PyCircuit {
     circuit: crate::api::Circuit,
 }
 
+/// A target as (target, coordinates, Stim's text).
+type PyTarget = (String, Vec<f64>, String);
+/// An error location: (ticks before it, Pauli product, flipped measurement, (gate, tag, args),
+/// target range, targets in range, stack frames, Stim's text, the instruction's text).
+type PyLocation = (u64, Vec<PyTarget>, Option<(u64, Vec<PyTarget>)>, (String, String, Vec<f64>), (u32, u32), Vec<PyTarget>, Vec<(u64, u64, u64)>, String, String);
+/// An explained error: (Stim's text, terms, locations).
+type PyExplained = (String, Vec<PyTarget>, Vec<PyLocation>);
+
+fn explained_tuple(e: crate::api::ExplainedError) -> PyExplained {
+    let tw = |v: Vec<crate::api::TargetWithCoords>| v.into_iter().map(|t| (t.to_string(), t)).map(|(s, t)| (t.target, t.coords, s)).collect::<Vec<_>>();
+    let locations = e
+        .circuit_error_locations()
+        .into_iter()
+        .map(|l| {
+            let (text, instruction) = (l.to_string(), l.instruction_text().to_string());
+            (l.tick_offset, tw(l.flipped_pauli_product), l.flipped_measurement.map(|(i, o)| (i, tw(o))), (l.gate, l.tag, l.args), l.target_range, tw(l.targets_in_range), l.stack_frames, text, instruction)
+        })
+        .collect();
+    (e.to_string(), tw(e.terms_with_coords()), locations)
+}
+
 fn api_err(e: crate::api::Error) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
@@ -126,19 +147,52 @@ impl PyCircuit {
         Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
     }
 
+    /// The circuit's faults explained (see `Circuit::explain_errors`): per explained error,
+    /// (Stim's text, its terms, its locations), targets as (text, coordinates).
+    #[pyo3(signature = (filter=None, reduce=false))]
+    fn explain(&self, py: Python<'_>, filter: Option<PyRef<'_, PyDem>>, reduce: bool) -> PyResult<Vec<PyExplained>> {
+        let filter = filter.map(|f| f.dem.clone());
+        let circuit = &self.circuit;
+        let out = py.detach(move || circuit.explain_errors(filter.as_ref(), reduce)).map_err(api_err)?;
+        Ok(out.into_iter().map(explained_tuple).collect())
+    }
+
+    /// The graph-like distance's faults, explained (see `Circuit::shortest_graphlike_error`).
+    fn shortest_graphlike(&self, py: Python<'_>, ignore: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
+        let circuit = &self.circuit;
+        let out = py.detach(move || circuit.shortest_graphlike_error(ignore, canonicalize)).map_err(api_err)?;
+        Ok(out.into_iter().map(explained_tuple).collect())
+    }
+
+    /// Stim's search for undetectable logical errors, explained (see
+    /// `Circuit::search_for_undetectable_logical_errors`).
+    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
+        let circuit = &self.circuit;
+        let out = py.detach(move || circuit.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase, canonicalize)).map_err(api_err)?;
+        Ok(out.into_iter().map(explained_tuple).collect())
+    }
+
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
-    /// detslice-svg, matchgraph-svg); `tick` the moment of a detector slice.
-    #[pyo3(signature = (kind, tick=None))]
-    fn diagram(&self, kind: &str, tick: Option<u64>) -> PyResult<String> {
+    /// detslice-svg, timeslice-svg, detslice-with-ops-svg, matchgraph-svg); `tick` the moment of
+    /// a slice, or with `tick_end` the range `[tick, tick_end)`; `rows` the panels' rows.
+    #[pyo3(signature = (kind, tick=None, tick_end=None, rows=None))]
+    fn diagram(&self, kind: &str, tick: Option<u64>, tick_end: Option<u64>, rows: Option<u32>) -> PyResult<String> {
         use crate::api::DiagramKind as K;
         let need_tick = || tick.ok_or_else(|| err(format!("a {kind} diagram needs tick=")));
+        let range = || -> PyResult<(u64, u64)> {
+            let t = need_tick()?;
+            Ok((t, tick_end.unwrap_or(t + 1)))
+        };
         let kind = match kind {
             "timeline-text" => K::TimelineText,
             "timeline-svg" => K::TimelineSvg,
             "detslice-text" => K::DetectorSliceText { tick: need_tick()? },
-            "detslice-svg" => K::DetectorSliceSvg { tick: need_tick()? },
+            "detslice-svg" if tick_end.is_none() && rows.is_none() => K::DetectorSliceSvg { tick: need_tick()? },
+            "detslice-svg" => K::DetectorSlicesSvg { ticks: range()?, rows },
+            "timeslice-svg" => K::TimeSliceSvg { ticks: range()?, rows },
+            "detslice-with-ops-svg" => K::DetectorSliceWithOpsSvg { ticks: range()?, rows },
             "matchgraph-svg" => K::MatchGraphSvg,
-            other => return Err(err(format!("unknown diagram '{other}': timeline-text, timeline-svg, detslice-text, detslice-svg or matchgraph-svg"))),
+            other => return Err(err(format!("unknown diagram '{other}': timeline-text, timeline-svg, detslice-text, detslice-svg, timeslice-svg, detslice-with-ops-svg or matchgraph-svg"))),
         };
         self.circuit.diagram(kind).map_err(api_err)
     }
@@ -149,11 +203,40 @@ impl PyCircuit {
 
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
     /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
-    /// `flatten` writes it without folding its loops.
-    #[pyo3(signature = (decompose, approximate=None, flatten=false))]
-    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool) -> PyResult<PyDem> {
-        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten);
+    /// `flatten` writes it without folding its loops; `ignore_failures` keeps faults that cannot
+    /// be decomposed whole.
+    #[pyo3(signature = (decompose, approximate=None, flatten=false, ignore_failures=false))]
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool, ignore_failures: bool) -> PyResult<PyDem> {
+        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten).ignore_decomposition_failures(ignore_failures);
         Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
+    }
+
+    /// The noiseless reference run's measurement record (the one the converter compares with),
+    /// as one b8 row.
+    fn reference_sample<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let inner = &self.circuit.inner;
+        let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
+        let bits = py.detach(|| crate::m2d::run(inner, qubits, &[], 1));
+        let mut row = vec![0u8; bits.len().div_ceil(8)];
+        for (k, &b) in bits.iter().enumerate() {
+            if b {
+                row[k / 8] |= 1 << (k % 8);
+            }
+        }
+        Ok(PyBytes::new(py, &row))
+    }
+
+    /// A sampler of raw measurement records (`skip_reference`: flips from all zeros).
+    fn measurement_sampler(&self, py: Python<'_>, seed: u64, skip_reference: bool) -> PyResult<PyMeasurementSampler> {
+        let inner = &self.circuit.inner;
+        let sampler = BatchSampler::new(inner).map_err(err)?;
+        let reference = if skip_reference {
+            Vec::new()
+        } else {
+            let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
+            py.detach(|| crate::m2d::run(inner, qubits, &[], 1))
+        };
+        Ok(PyMeasurementSampler { sampler, reference, seed, next: 0.into() })
     }
 
     fn sampler(&self, seed: u64) -> PyResult<PySampler> {
@@ -205,6 +288,24 @@ impl PyDem {
         self.dem.to_string()
     }
 
+    /// The graph-like distance's faults as a model (see
+    /// `DetectorErrorModel::shortest_graphlike_error`).
+    fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
+        let dem = &self.dem;
+        Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)? })
+    }
+
+    /// Stim's search for undetectable logical errors on the model.
+    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool) -> PyResult<PyDem> {
+        let dem = &self.dem;
+        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase)).map_err(api_err)? })
+    }
+
+    /// A sampler of the model's faults (see `DemSampler`).
+    fn sampler(&self, seed: u64) -> PyResult<PyDemSampler> {
+        Ok(PyDemSampler { sampler: crate::dem_sampler::DemSampler::new(self.dem.flat().map_err(api_err)?), seed, next: 0.into() })
+    }
+
     fn matchgraph_svg(&self) -> PyResult<String> {
         self.dem.matchgraph_svg().map_err(api_err)
     }
@@ -245,6 +346,72 @@ impl PySampler {
         let (sampler, seed) = (&self.sampler, self.seed);
         let (d, o) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
+}
+
+/// Raw measurement records, batch after batch: a noiseless reference run with each shot's flips.
+#[pyclass(name = "MeasurementSampler", module = "stabilizer_qec._core")]
+pub struct PyMeasurementSampler {
+    sampler: BatchSampler,
+    reference: Vec<bool>,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyMeasurementSampler {
+    #[getter]
+    fn num_measurements(&self) -> usize {
+        self.sampler.num_measurements
+    }
+
+    /// `shots` measurement records as b8 rows.
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> Bound<'py, PyBytes> {
+        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed, reference) = (&self.sampler, self.seed, &self.reference);
+        let rows = py.detach(|| sampler.sample_measurements_seeded(seed, first, shots, threads, reference));
+        PyBytes::new(py, &rows)
+    }
+}
+
+/// A detector error model's own sampler, batch after batch from per-batch streams.
+#[pyclass(name = "DemSampler", module = "stabilizer_qec._core")]
+pub struct PyDemSampler {
+    sampler: crate::dem_sampler::DemSampler,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyDemSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.sampler.num_detectors
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.sampler.num_observables
+    }
+
+    #[getter]
+    fn num_errors(&self) -> usize {
+        self.sampler.num_errors()
+    }
+
+    /// `shots` shots as b8 rows of detectors, of observables, and (with `errors`) of the faults
+    /// that fired.
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize, errors: bool) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let (d, o, e) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads, errors));
+        (PyBytes::new(py, &d), PyBytes::new(py, &o), PyBytes::new(py, &e))
+    }
+
+    /// The detection events and observable flips of recorded faults (b8 rows).
+    fn replay<'py>(&self, py: Python<'py>, errors: &[u8], shots: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let (d, o) = self.sampler.replay(errors, shots).map_err(err)?;
+        Ok((PyBytes::new(py, &d), PyBytes::new(py, &o)))
     }
 }
 
@@ -588,6 +755,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
     m.add_class::<PySampler>()?;
+    m.add_class::<PyDemSampler>()?;
+    m.add_class::<PyMeasurementSampler>()?;
     m.add_class::<PyM2d>()?;
     m.add_class::<PyMatcher>()?;
     m.add_class::<PyUnionFinder>()?;

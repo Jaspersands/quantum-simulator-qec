@@ -173,6 +173,7 @@ class Circuit:
         decompose_errors: bool = False,
         approximate_disjoint_errors: Union[bool, float] = False,
         flatten_loops: bool = False,
+        ignore_decomposition_failures: bool = False,
     ) -> "DetectorErrorModel":
         """The circuit's detector error model, built by walking it backwards, as Stim's error
         analyzer does. ``decompose_errors`` splits each fault into graph-like pieces (at most
@@ -186,20 +187,28 @@ class Circuit:
         than independent (``PAULI_CHANNEL_2``, ``ELSE_CORRELATED_ERROR``, the heralded errors,
         and a ``PAULI_CHANNEL_1`` with no independent equivalent) are refused unless it is set,
         and then approximated case by case; a number refuses any such channel with a
-        probability above it."""
+        probability above it.
+
+        ``ignore_decomposition_failures`` is Stim's too: with ``decompose_errors``, a fault that
+        cannot be split into graph-like pieces is kept whole rather than refused."""
         if isinstance(approximate_disjoint_errors, bool):
             threshold = 1.0 if approximate_disjoint_errors else None
         else:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
-        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops)))
+        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures)))
 
-    def diagram(self, type: str = "timeline-text", *, tick: Union[int, None] = None) -> "Diagram":
+    def diagram(self, type: str = "timeline-text", *, tick: Union[int, range, None] = None, rows: Union[int, None] = None) -> "Diagram":
         """A picture of the circuit, after Stim's ``diagram``:
 
-        - ``"timeline-text"``, ``"timeline-svg"``: every operation in its column, ``TICK``
-          groups bracketed, loops drawn once with their count, measurements numbered.
+        - ``"timeline-text"``: Stim's text timeline, character for character: every operation in
+          its moment, ``TICK`` groups boxed, loops drawn once with records, detectors and
+          coordinates in terms of ``iter``.
+        - ``"timeline-svg"``: the same as a picture.
         - ``"detslice-text"``, ``"detslice-svg"``: what each detector compares after ``tick``
           ``TICK``s, its Paulis over the qubits (drawn at their ``QUBIT_COORDS``).
+        - ``"timeslice-svg"``: the operations of tick ``tick`` (or of each tick in a
+          ``range``, a panel each, in ``rows`` rows) over the qubits' coordinates.
+        - ``"detslice-with-ops-svg"``: the same, with the detector slice after them.
         - ``"matchgraph-svg"``: the decomposed model's matching graph.
 
         The result prints as its text, and shows as a picture in a notebook.
@@ -211,8 +220,14 @@ class Circuit:
         """
         if not isinstance(type, str):
             raise TypeError(f"type must be a str, not {builtins_type(type).__name__}")
-        t = None if tick is None else count(tick, "tick")
-        return Diagram(call(self._c.diagram, type, t), type)
+        if isinstance(tick, range):
+            if tick.step != 1 or len(tick) == 0:
+                raise ValueError("tick must be a non-empty range with step 1")
+            t, end = tick.start, tick.stop
+        else:
+            t, end = (None if tick is None else count(tick, "tick")), None
+        r = None if rows is None else count(rows, "rows", 1)
+        return Diagram(call(self._c.diagram, type, t, end, r), type)
 
     @classmethod
     def generated(
@@ -249,6 +264,75 @@ class Circuit:
             probability(after_reset_flip_probability, "after_reset_flip_probability"),
         )
         return cls(text)
+
+    def explain_detector_error_model_errors(
+        self, *, dem_filter: Union["DetectorErrorModel", str, Any, None] = None, reduce_to_one_representative_error: bool = False
+    ) -> list:
+        """Where the faults of the circuit's error model arise, as Stim's method of the same name
+        explains them: for each fault class (each fault of ``dem_filter`` when given), every
+        place in the circuit such a fault arises, or with ``reduce_to_one_representative_error``
+        one. Loops are walked in full. Each result prints as Stim's text.
+
+        >>> c = Circuit("R 0\\nX_ERROR(0.1) 0\\nM 0\\nDETECTOR rec[-1]")
+        >>> e = c.explain_detector_error_model_errors()[0]
+        >>> [t.dem_target for t in e.dem_error_terms], e.circuit_error_locations[0].instruction_targets.gate
+        (['D0'], 'X_ERROR')
+        """
+        from . import _explain
+
+        f = None if dem_filter is None else (dem_filter if isinstance(dem_filter, DetectorErrorModel) else DetectorErrorModel(dem_filter))
+        raw = call(self._c.explain, None if f is None else f._d, bool(reduce_to_one_representative_error))
+        return _explain.build(raw)
+
+    def shortest_graphlike_error(self, *, ignore_ungraphlike_errors: bool = True, canonicalize_circuit_errors: bool = False) -> list:
+        """The circuit's graph-like distance, as Stim's method of the same name finds it: the
+        fewest graph-like pieces of its decomposed error model that together flip an
+        observable and no detector, each explained (by one location with
+        ``canonicalize_circuit_errors``). Its length is the distance.
+
+        >>> c = Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, after_clifford_depolarization=0.001)
+        >>> len(c.shortest_graphlike_error())
+        3
+        """
+        from . import _explain
+
+        return _explain.build(call(self._c.shortest_graphlike, bool(ignore_ungraphlike_errors), bool(canonicalize_circuit_errors)))
+
+    def search_for_undetectable_logical_errors(
+        self,
+        *,
+        dont_explore_detection_event_sets_with_size_above: int,
+        dont_explore_edges_with_degree_above: int,
+        dont_explore_edges_increasing_symptom_degree: bool,
+        canonicalize_circuit_errors: bool = False,
+    ) -> list:
+        """The circuit's distance through hyperedges too, as Stim's method of the same name
+        finds it: a breadth-first search over sets of fired detectors in its (undecomposed)
+        error model, a fault added at the set's lowest detector each step, within the limits
+        given. The faults found, each explained (by one location with
+        ``canonicalize_circuit_errors``); their number bounds the distance from above."""
+        from . import _explain
+
+        raw = call(
+            self._c.search_undetectable,
+            count(dont_explore_detection_event_sets_with_size_above, "dont_explore_detection_event_sets_with_size_above"),
+            count(dont_explore_edges_with_degree_above, "dont_explore_edges_with_degree_above"),
+            bool(dont_explore_edges_increasing_symptom_degree),
+            bool(canonicalize_circuit_errors),
+        )
+        return _explain.build(raw)
+
+    def reference_sample(self, *, bit_packed: bool = False) -> np.ndarray:
+        """A noiseless run's measurement record, as Stim's: the reference each shot's flips are
+        taken from (and the converter compares with). Random outcomes take fixed values."""
+        n = self.num_measurements
+        return b8_to_rows(call(self._c.reference_sample), 1, n, bit_packed)[0]
+
+    def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None) -> "MeasurementSampler":
+        """A sampler of raw measurement records, as Stim's: a noiseless reference run with each
+        shot's flips (with ``skip_reference_sample``, the flips alone). The same seed gives the
+        same shots on any machine and number of threads; ``None`` draws a seed."""
+        return MeasurementSampler(self, seed, skip_reference_sample)
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
@@ -412,10 +496,226 @@ class DetectorErrorModel:
             raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
         return Diagram(call(self._d.matchgraph_svg), type)
 
+    def compile_sampler(self, *, seed: Union[int, None] = None) -> "DemSampler":
+        """A sampler of the model's faults, as Stim's: each fault fires independently with its
+        probability. The same seed gives the same shots on any machine and number of threads;
+        ``None`` draws a seed."""
+        return DemSampler(self, seed)
+
+    def distance(self, method: str = "milp", *, time_limit: float = 60.0) -> int:
+        """The fewest of the model's faults that together flip an observable and set off no
+        detector: its distance.
+
+        - ``"milp"`` (default): exact, by integer programming over every fault, hyperedges
+          included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
+          optimum within ``time_limit`` seconds, or this raises). Exponential at worst; meant
+          for models of up to a few thousand faults.
+        - ``"graphlike"``: ``shortest_graphlike_error``'s length (graph-like faults only).
+        - ``"search"``: ``search_for_undetectable_logical_errors`` with limits of 4 and 4, an
+          upper bound.
+
+        >>> DetectorErrorModel("error(0.1) D0\\nerror(0.1) D0 D1\\nerror(0.1) D1 L0").distance()
+        3
+        """
+        if method == "graphlike":
+            return self.shortest_graphlike_error().num_errors
+        if method == "search":
+            return self.search_for_undetectable_logical_errors(
+                dont_explore_detection_event_sets_with_size_above=4, dont_explore_edges_with_degree_above=4, dont_explore_edges_increasing_symptom_degree=False
+            ).num_errors
+        if method != "milp":
+            raise ValueError(f"method must be 'milp', 'graphlike' or 'search', not {method!r}")
+        return _milp_distance(str(self.flattened()), real(time_limit, "time_limit"))
+
+    def search_for_undetectable_logical_errors(
+        self,
+        *,
+        dont_explore_detection_event_sets_with_size_above: int,
+        dont_explore_edges_with_degree_above: int,
+        dont_explore_edges_increasing_symptom_degree: bool,
+    ) -> "DetectorErrorModel":
+        """Stim's search for undetectable logical errors on the model (see
+        ``Circuit.search_for_undetectable_logical_errors``): the faults found, as a model with
+        each at probability 1."""
+        return DetectorErrorModel._wrap(
+            call(
+                self._d.search_undetectable,
+                count(dont_explore_detection_event_sets_with_size_above, "dont_explore_detection_event_sets_with_size_above"),
+                count(dont_explore_edges_with_degree_above, "dont_explore_edges_with_degree_above"),
+                bool(dont_explore_edges_increasing_symptom_degree),
+            )
+        )
+
+    def shortest_graphlike_error(self, ignore_ungraphlike_errors: bool = True) -> "DetectorErrorModel":
+        """The fewest of the model's graph-like pieces (each fault's ``^``-separated pieces) that
+        together flip an observable and no detector, as a model of those faults with
+        probability 1, as Stim's method of the same name: its ``num_errors`` is the graph-like
+        distance. Pieces of three or more detectors are skipped, or with
+        ``ignore_ungraphlike_errors=False`` refused."""
+        return DetectorErrorModel._wrap(call(self._d.shortest_graphlike, bool(ignore_ungraphlike_errors)))
+
     def flattened(self) -> "DetectorErrorModel":
         """The model without ``repeat`` blocks or ``shift_detectors``, as Stim's ``flattened``:
         every detector absolute, every coordinate shifted."""
         return DetectorErrorModel._wrap(call(self._d.flattened))
+
+
+def _milp_distance(text: str, time_limit: float) -> int:
+    """The fewest faults of a flattened model flipping an observable and no detector, by an
+    integer program: a 0/1 variable per distinct fault; each detector's faults sum to twice an
+    integer; each observable's to twice an integer plus a 0/1 that must be 1 for at least one."""
+    try:
+        import numpy as np
+        from scipy.optimize import LinearConstraint, milp
+        from scipy.sparse import coo_matrix
+    except ImportError as ex:
+        raise ImportError("an exact distance needs scipy: pip install scipy") from ex
+    faults = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("error"):
+            continue
+        dets, obs = set(), set()
+        for t in line.split(")", 1)[1].replace("^", " ").split():
+            (dets if t[0] == "D" else obs).symmetric_difference_update({int(t[1:])})
+        if dets or obs:
+            faults.add((frozenset(dets), frozenset(obs)))
+    for dets, obs in faults:
+        if not dets and obs:
+            return 1
+    faults = sorted(faults, key=lambda f: (sorted(f[0]), sorted(f[1])))
+    detectors = sorted({d for f in faults for d in f[0]})
+    observables = sorted({k for f in faults for k in f[1]})
+    if not observables:
+        raise ValueError("there is no undetectable logical error: no fault flips an observable")
+    nf, nd, no = len(faults), len(detectors), len(observables)
+    dpos = {d: i for i, d in enumerate(detectors)}
+    opos = {k: i for i, k in enumerate(observables)}
+    # Whether one exists is linear algebra over GF(2), decided here rather than by the solver
+    # (whose verdict on an infeasible program differs between scipy versions): one does exactly
+    # when some observable's row of faults lies outside the span of the detectors' rows.
+    det_rows, obs_rows = [0] * nd, [0] * no
+    for j, (dets, obs) in enumerate(faults):
+        for d in dets:
+            det_rows[dpos[d]] |= 1 << j
+        for k in obs:
+            obs_rows[opos[k]] |= 1 << j
+    if _gf2_rank(det_rows + obs_rows) == _gf2_rank(det_rows):
+        raise ValueError("there is no undetectable logical error: no set of faults flips an observable and no detector")
+    # Variables: x (faults), y (detector halves), z (observable halves), w (observable flipped).
+    n = nf + nd + 2 * no
+    rows, cols, vals = [], [], []
+    for j, (dets, obs) in enumerate(faults):
+        for d in dets:
+            rows.append(dpos[d]); cols.append(j); vals.append(1)
+        for k in obs:
+            rows.append(nd + opos[k]); cols.append(j); vals.append(1)
+    for i in range(nd):
+        rows.append(i); cols.append(nf + i); vals.append(-2)
+    for i in range(no):
+        rows.append(nd + i); cols.append(nf + nd + i); vals.append(-2)
+        rows.append(nd + i); cols.append(nf + nd + no + i); vals.append(-1)
+        rows.append(nd + no); cols.append(nf + nd + no + i); vals.append(1)
+    a = coo_matrix((vals, (rows, cols)), shape=(nd + no + 1, n)).tocsr()
+    lower = np.zeros(nd + no + 1)
+    upper = np.zeros(nd + no + 1)
+    lower[-1], upper[-1] = 1, np.inf
+    degree = np.asarray(abs(a[:, :nf]).sum(axis=1)).ravel()
+    ub = np.concatenate([np.ones(nf), np.floor(degree[:nd] / 2), np.floor(degree[nd : nd + no] / 2), np.ones(no)])
+    cost = np.concatenate([np.ones(nf), np.zeros(n - nf)])
+    res = milp(cost, constraints=LinearConstraint(a, lower, upper), integrality=np.ones(n), bounds=(0, ub), options={"time_limit": time_limit})
+    if res.status != 0 or res.x is None:
+        found = "none found" if res.x is None else f"best found {round(res.fun)}"
+        raise RuntimeError(f"the distance was not proven within {time_limit} s ({found}); raise time_limit, or use method='search' for a bound")
+    # The solver's answer, checked: its faults set off no detector and flip an observable.
+    chosen = sum(1 << j for j in range(nf) if res.x[j] > 0.5)
+    if any(bin(r & chosen).count("1") % 2 for r in det_rows) or not any(bin(r & chosen).count("1") % 2 for r in obs_rows):
+        raise RuntimeError("the integer program returned faults that are not an undetectable logical error; please report this")
+    return bin(chosen).count("1")
+
+
+def _gf2_rank(rows: list) -> int:
+    """The rank over GF(2) of rows given as integers (bit j: column j)."""
+    pivots: dict = {}
+    for r in rows:
+        while r:
+            top = r.bit_length() - 1
+            if top not in pivots:
+                pivots[top] = r
+                break
+            r ^= pivots[top]
+    return len(pivots)
+
+
+class MeasurementSampler:
+    """Raw measurement records, as ``stim.CompiledMeasurementSampler``. Made by
+    ``Circuit.compile_sampler``."""
+
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, skip_reference_sample: bool = False) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample))
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a MeasurementSampler is a position in a stream of shots, which a copy would restart; send the circuit and a seed instead")
+
+    @property
+    def num_measurements(self) -> int:
+        return self._s.num_measurements
+
+    def sample(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> np.ndarray:
+        """``shots`` measurement records: (shots, measurements) bool, or bit-packed uint8 rows."""
+        shots = count(shots, "shots")
+        return b8_to_rows(call(self._s.sample, shots, count(threads, "threads")), shots, self.num_measurements, bit_packed)
+
+
+class DemSampler:
+    """Shots drawn from a detector error model's faults, as ``stim.CompiledDemSampler``. Made
+    by ``DetectorErrorModel.compile_sampler``."""
+
+    def __init__(self, model: "DetectorErrorModel", seed: Union[int, None] = None) -> None:
+        if not isinstance(model, DetectorErrorModel):
+            model = DetectorErrorModel(model)
+        self._s = call(model._d.sampler, seed_of(seed))
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a DemSampler is a position in a stream of shots, which a copy would restart; send the model and a seed instead")
+
+    @property
+    def num_detectors(self) -> int:
+        return self._s.num_detectors
+
+    @property
+    def num_observables(self) -> int:
+        return self._s.num_observables
+
+    @property
+    def num_errors(self) -> int:
+        return self._s.num_errors
+
+    def sample(
+        self,
+        shots: int,
+        *,
+        bit_packed: bool = False,
+        return_errors: bool = False,
+        recorded_errors_to_replay: Any = None,
+        threads: int = 1,
+    ) -> tuple:
+        """``(detectors, observables, errors)``: (shots, n) bool arrays, or bit-packed uint8
+        rows with ``bit_packed``. ``errors`` (which faults fired, one column per fault in the
+        model's order) is returned with ``return_errors``, else ``None``.
+        ``recorded_errors_to_replay`` (such an array) replays those faults instead of drawing."""
+        shots = count(shots, "shots")
+        nd, no, ne = self.num_detectors, self.num_observables, self.num_errors
+        if recorded_errors_to_replay is not None:
+            raw, n = rows_to_b8(recorded_errors_to_replay, ne, np.asarray(recorded_errors_to_replay).dtype == np.uint8, "recorded_errors_to_replay")
+            d, o = call(self._s.replay, raw, n)
+            shots, e = n, (b8_to_rows(raw, n, ne, bit_packed) if return_errors else None)
+        else:
+            d, o, e = call(self._s.sample, shots, count(threads, "threads"), bool(return_errors))
+            e = b8_to_rows(e, shots, ne, bit_packed) if return_errors else None
+        return b8_to_rows(d, shots, nd, bit_packed), b8_to_rows(o, shots, no, bit_packed), e
 
 
 class DetectorSampler:
