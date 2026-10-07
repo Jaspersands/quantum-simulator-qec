@@ -3,7 +3,7 @@ fault of its error model arises, with Stim's class and field names and Stim's te
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 
@@ -13,6 +13,10 @@ class DemTargetWithCoords:
 
     dem_target: str
     coords: List[float]
+    _text: str = field(default="", repr=False, compare=False)
+
+    def __str__(self) -> str:
+        return self._text or self.dem_target
 
 
 @dataclass(frozen=True)
@@ -22,6 +26,10 @@ class GateTargetWithCoords:
 
     gate_target: str
     coords: List[float]
+    _text: str = field(default="", repr=False, compare=False)
+
+    def __str__(self) -> str:
+        return self._text or self.gate_target
 
 
 @dataclass(frozen=True)
@@ -53,11 +61,15 @@ class CircuitTargetsInsideInstruction:
     target_range_start: int
     target_range_end: int
     targets_in_range: List[GateTargetWithCoords]
+    _text: str = field(default="", repr=False, compare=False)
+
+    def __str__(self) -> str:
+        return self._text
 
 
 @dataclass(frozen=True)
 class CircuitErrorLocation:
-    """One place in the circuit a fault arises."""
+    """One place in the circuit a fault arises; ``str()`` gives Stim's text."""
 
     tick_offset: int
     flipped_pauli_product: List[GateTargetWithCoords]
@@ -65,6 +77,10 @@ class CircuitErrorLocation:
     instruction_targets: CircuitTargetsInsideInstruction
     stack_frames: List[CircuitErrorLocationStackFrame]
     noise_tag: str
+    _text: str = field(default="", repr=False, compare=False)
+
+    def __str__(self) -> str:
+        return self._text
 
 
 @dataclass(frozen=True, repr=False)
@@ -84,8 +100,8 @@ class ExplainedError:
         return f"<stabilizer_qec.ExplainedError {terms}: {len(self.circuit_error_locations)} locations>"
 
 
-def _targets(raw: List[Tuple[str, List[float]]]) -> List[GateTargetWithCoords]:
-    return [GateTargetWithCoords(t, list(c)) for t, c in raw]
+def _targets(raw: List[Tuple[str, List[float], str]]) -> List[GateTargetWithCoords]:
+    return [GateTargetWithCoords(t, list(c), s) for t, c, s in raw]
 
 
 def build(raw: list) -> List[ExplainedError]:
@@ -93,16 +109,17 @@ def build(raw: list) -> List[ExplainedError]:
     out = []
     for text, terms, locations in raw:
         locs = []
-        for tick, pauli, meas, (gate, tag, args), (start, end), targets, stack in locations:
+        for tick, pauli, meas, (gate, tag, args), (start, end), targets, stack, shown, instruction in locations:
             locs.append(
                 CircuitErrorLocation(
                     tick_offset=tick,
                     flipped_pauli_product=_targets(pauli),
                     flipped_measurement=None if meas is None else FlippedMeasurement(meas[0], _targets(meas[1])),
-                    instruction_targets=CircuitTargetsInsideInstruction(gate, tag, list(args), start, end, _targets(targets)),
+                    instruction_targets=CircuitTargetsInsideInstruction(gate, tag, list(args), start, end, _targets(targets), instruction),
                     stack_frames=[CircuitErrorLocationStackFrame(*f) for f in stack],
                     noise_tag=tag,
+                    _text=shown,
                 )
             )
-        out.append(ExplainedError([DemTargetWithCoords(t, list(c)) for t, c in terms], locs, text))
+        out.append(ExplainedError([DemTargetWithCoords(t, list(c), s) for t, c, s in terms], locs, text))
     return out

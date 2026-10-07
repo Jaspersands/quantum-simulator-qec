@@ -55,20 +55,23 @@ pub struct PyCircuit {
     circuit: crate::api::Circuit,
 }
 
-/// A target as (text, coordinates).
-type PyTarget = (String, Vec<f64>);
+/// A target as (target, coordinates, Stim's text).
+type PyTarget = (String, Vec<f64>, String);
 /// An error location: (ticks before it, Pauli product, flipped measurement, (gate, tag, args),
-/// target range, targets in range, stack frames).
-type PyLocation = (u64, Vec<PyTarget>, Option<(u64, Vec<PyTarget>)>, (String, String, Vec<f64>), (u32, u32), Vec<PyTarget>, Vec<(u64, u64, u64)>);
+/// target range, targets in range, stack frames, Stim's text, the instruction's text).
+type PyLocation = (u64, Vec<PyTarget>, Option<(u64, Vec<PyTarget>)>, (String, String, Vec<f64>), (u32, u32), Vec<PyTarget>, Vec<(u64, u64, u64)>, String, String);
 /// An explained error: (Stim's text, terms, locations).
 type PyExplained = (String, Vec<PyTarget>, Vec<PyLocation>);
 
 fn explained_tuple(e: crate::api::ExplainedError) -> PyExplained {
-    let tw = |v: Vec<crate::api::TargetWithCoords>| v.into_iter().map(|t| (t.target, t.coords)).collect::<Vec<_>>();
+    let tw = |v: Vec<crate::api::TargetWithCoords>| v.into_iter().map(|t| (t.to_string(), t)).map(|(s, t)| (t.target, t.coords, s)).collect::<Vec<_>>();
     let locations = e
         .circuit_error_locations()
         .into_iter()
-        .map(|l| (l.tick_offset, tw(l.flipped_pauli_product), l.flipped_measurement.map(|(i, o)| (i, tw(o))), (l.gate, l.tag, l.args), l.target_range, tw(l.targets_in_range), l.stack_frames))
+        .map(|l| {
+            let (text, instruction) = (l.to_string(), l.instruction_text().to_string());
+            (l.tick_offset, tw(l.flipped_pauli_product), l.flipped_measurement.map(|(i, o)| (i, tw(o))), (l.gate, l.tag, l.args), l.target_range, tw(l.targets_in_range), l.stack_frames, text, instruction)
+        })
         .collect();
     (e.to_string(), tw(e.terms_with_coords()), locations)
 }

@@ -130,10 +130,14 @@ impl Circuit {
     /// ```
     /// use stabilizer_qec::Circuit;
     ///
-    /// let c: Circuit = "R 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR rec[-1]".parse()?;
+    /// let c: Circuit = "QUBIT_COORDS(1, 2) 0\nR 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR(3) rec[-1]".parse()?;
     /// let explained = c.explain_errors(None, false)?;
     /// assert_eq!(explained[0].dem_error_terms(), vec!["D0".to_string()]);
-    /// assert!(explained[0].to_string().contains("resolving to X_ERROR(0.1) 0"));
+    /// assert_eq!(explained[0].terms_with_coords()[0].to_string(), "D0[coords 3]");
+    /// let location = &explained[0].circuit_error_locations()[0];
+    /// assert_eq!(location.instruction_text(), "X_ERROR(0.1) 0[coords 1,2]");
+    /// assert!(location.to_string().starts_with("CircuitErrorLocation {"));
+    /// assert!(explained[0].to_string().contains("resolving to X_ERROR(0.1) 0[coords 1,2]"));
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn explain_errors(&self, filter: Option<&DetectorErrorModel>, reduce: bool) -> Result<Vec<ExplainedError>> {
@@ -477,7 +481,8 @@ pub struct ExplainedError {
     coords: std::sync::Arc<crate::explain::Coords>,
 }
 
-/// A target of an explained error with its coordinates (empty for none).
+/// A target of an explained error with its coordinates (empty for none). Its `Display` is
+/// Stim's text: `D3[coords 1,2,0]`, or the bare target without coordinates.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TargetWithCoords {
@@ -487,7 +492,7 @@ pub struct TargetWithCoords {
     pub coords: Vec<f64>,
 }
 
-/// One place a fault arises (Stim's `CircuitErrorLocation`).
+/// One place a fault arises (Stim's `CircuitErrorLocation`). Its `Display` is Stim's text.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CircuitErrorLocation {
@@ -509,6 +514,32 @@ pub struct CircuitErrorLocation {
     pub targets_in_range: Vec<TargetWithCoords>,
     /// From the outermost block in: (instruction offset, completed iterations, repetitions).
     pub stack_frames: Vec<(u64, u64, u64)>,
+    text: String,
+    instruction: String,
+}
+
+impl CircuitErrorLocation {
+    /// The instruction and the targets the fault covers, with coordinates, as Stim writes them
+    /// (`DEPOLARIZE2(0.001) 1[coords 1,1] 9[coords 2,2]`).
+    pub fn instruction_text(&self) -> &str {
+        &self.instruction
+    }
+}
+
+impl fmt::Display for TargetWithCoords {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.coords.is_empty() {
+            f.write_str(&self.target)
+        } else {
+            write!(f, "{}[coords {}]", self.target, crate::explain::Coords::at(&self.coords))
+        }
+    }
+}
+
+impl fmt::Display for CircuitErrorLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.text)
+    }
 }
 
 impl ExplainedError {
@@ -563,6 +594,8 @@ impl ExplainedError {
                     })
                     .collect(),
                 stack_frames: l.stack.clone(),
+                text: l.to_stim(c),
+                instruction: l.instruction_text(c),
             })
             .collect()
     }

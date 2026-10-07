@@ -78,7 +78,27 @@ failures = (predicted != obs).any(axis=1)
 print(f"logical error rate: {failures.mean():.2e} ({failures.sum()} of {len(failures)} shots)")
 
 # %% [markdown]
-# ## 4. Finding the threshold
+# ## 4. How far from failing
+#
+# The code has distance 3, but a circuit can have a smaller distance than its code: a single
+# fault in the middle of a syndrome cycle can spread to several qubits. The *circuit
+# distance* is the fewest faults that flip the observable without tripping a detector.
+# `shortest_graphlike_error` finds such a set, and each fault comes with the gates that cause
+# it. Here it takes three faults, so the circuit keeps the code's distance:
+
+# %%
+errors = circuit.shortest_graphlike_error()
+for e in errors:
+    print(" ".join(str(t) for t in e.dem_error_terms))
+print(errors[-1].circuit_error_locations[0])
+
+# %% [markdown]
+# `explain_detector_error_model_errors` does the same for every fault in the model, and
+# `DetectorErrorModel.distance()` proves the circuit distance exactly by integer programming
+# (with scipy installed). Stim's generated colour-code memories turn out to have a smaller
+# circuit distance than their code.
+#
+# ## 5. Finding the threshold
 #
 # Below threshold, a larger code fails less often; above it, more. Sweeping three distances
 # over a range of noise strengths shows the curves crossing.
@@ -118,7 +138,7 @@ ax.set_title("Rotated surface code, uniform circuit noise")
 # noise model (every operation noisy at strength p). Below it, each step up in distance
 # divides the logical error rate; above it, larger codes only collect more errors.
 #
-# ## 5. Agreement with Stim
+# ## 6. Agreement with Stim
 #
 # Where Stim is installed, its circuit and its error model are the same text as these:
 

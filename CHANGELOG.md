@@ -23,7 +23,9 @@ minor release before a major release removes it. The Rust crate is versioned on 
   them, adjacent identical instructions joined), its targets, the Pauli product or the
   measurement it flips, the `TICK`s before it and the loop passes around it. The results
   (`ExplainedError`, `CircuitErrorLocation` and their parts, Stim's names) print as Stim's
-  character for character, for every location and for the representative Stim picks, on
+  character for character, each part on its own as well (Rust: `Display` for
+  `TargetWithCoords` and `CircuitErrorLocation`, and `CircuitErrorLocation::instruction_text`),
+  for every location and for the representative Stim picks, on
   Stim's generated memories and on 1,000 random circuits using every gate, noise channel and
   tag.
 - `shortest_graphlike_error` on circuits and on detector error models (Rust:

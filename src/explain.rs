@@ -301,7 +301,7 @@ impl Coords {
         Ok(Coords { qubits, detectors: circuit.resolve()?.detector_coords })
     }
 
-    fn at(c: &[f64]) -> String {
+    pub(crate) fn at(c: &[f64]) -> String {
         c.iter().map(|&x| fmt_args(&[x])).collect::<Vec<_>>().join(",")
     }
 
@@ -316,7 +316,7 @@ impl Coords {
     }
 
     fn qubit(&self, q: u32) -> String {
-        match self.qubits.get(&q) {
+        match self.qubits.get(&q).filter(|c| !c.is_empty()) {
             Some(c) => format!("{q}[coords {}]", Coords::at(c)),
             None => q.to_string(),
         }
@@ -354,6 +354,57 @@ impl Coords {
     }
 }
 
+impl Location {
+    /// Stim's text for it (`str(stim.CircuitErrorLocation)`).
+    pub fn to_stim(&self, coords: &Coords) -> String {
+        let mut s = String::from("CircuitErrorLocation {\n");
+        if !self.tag.is_empty() {
+            s += &format!("    noise_tag: {}\n", self.tag);
+        }
+        if !self.pauli.is_empty() {
+            s += &format!("    flipped_pauli_product: {}\n", coords.paulis(&self.pauli));
+        }
+        if let Some((index, observable)) = &self.measurement {
+            s += &format!("    flipped_measurement.measurement_record_index: {index}\n");
+            if !observable.is_empty() {
+                s += &format!("    flipped_measurement.measured_observable: {}\n", coords.paulis(observable));
+            }
+        }
+        s += "    Circuit location stack trace:\n";
+        s += &format!("        (after {} TICKs)\n", self.tick_offset);
+        for (depth, &(index, iteration, reps)) in self.stack.iter().enumerate() {
+            let place = if depth == 0 { "the circuit" } else { "the REPEAT block" };
+            let what = if depth + 1 < self.stack.len() { format!("a REPEAT {reps} block") } else { self.gate.clone() };
+            s += &format!("        at instruction #{} ({what}) in {place}\n", index + 1);
+            if depth + 1 < self.stack.len() {
+                s += &format!("        after {iteration} completed iterations\n");
+            }
+        }
+        let (a, b) = self.range;
+        if b == a + 1 {
+            s += &format!("        at target #{} of the instruction\n", a + 1);
+        } else {
+            s += &format!("        at targets #{} to #{} of the instruction\n", a + 1, b);
+        }
+        s += &format!("        resolving to {}\n", self.instruction_text(coords));
+        s += "}";
+        s
+    }
+
+    /// The instruction and the targets it covers, with coordinates
+    /// (`str(stim.CircuitTargetsInsideInstruction)`).
+    pub fn instruction_text(&self, coords: &Coords) -> String {
+        let mut shown = String::new();
+        for (k, t) in self.targets.iter().enumerate() {
+            if t != "*" && k > 0 && self.targets[k - 1] != "*" {
+                shown.push(' ');
+            }
+            shown += &if t == "*" { "*".to_string() } else { coords.token(t) };
+        }
+        format!("{} {}", self.head, shown)
+    }
+}
+
 impl Explained {
     /// Stim's text for it.
     pub fn to_stim(&self, coords: &Coords) -> String {
@@ -364,44 +415,9 @@ impl Explained {
             s += "    [no single circuit error had these exact symptoms]\n";
         }
         for loc in &self.locations {
-            s += "    CircuitErrorLocation {\n";
-            if !loc.tag.is_empty() {
-                s += &format!("        noise_tag: {}\n", loc.tag);
+            for line in loc.to_stim(coords).lines() {
+                s += &format!("    {line}\n");
             }
-            if !loc.pauli.is_empty() {
-                s += &format!("        flipped_pauli_product: {}\n", coords.paulis(&loc.pauli));
-            }
-            if let Some((index, observable)) = &loc.measurement {
-                s += &format!("        flipped_measurement.measurement_record_index: {index}\n");
-                if !observable.is_empty() {
-                    s += &format!("        flipped_measurement.measured_observable: {}\n", coords.paulis(observable));
-                }
-            }
-            s += "        Circuit location stack trace:\n";
-            s += &format!("            (after {} TICKs)\n", loc.tick_offset);
-            for (depth, &(index, iteration, reps)) in loc.stack.iter().enumerate() {
-                let place = if depth == 0 { "the circuit" } else { "the REPEAT block" };
-                let what = if depth + 1 < loc.stack.len() { format!("a REPEAT {reps} block") } else { loc.gate.clone() };
-                s += &format!("            at instruction #{} ({what}) in {place}\n", index + 1);
-                if depth + 1 < loc.stack.len() {
-                    s += &format!("            after {iteration} completed iterations\n");
-                }
-            }
-            let (a, b) = loc.range;
-            if b == a + 1 {
-                s += &format!("            at target #{} of the instruction\n", a + 1);
-            } else {
-                s += &format!("            at targets #{} to #{} of the instruction\n", a + 1, b);
-            }
-            let mut shown = String::new();
-            for (k, t) in loc.targets.iter().enumerate() {
-                if t != "*" && k > 0 && loc.targets[k - 1] != "*" {
-                    shown.push(' ');
-                }
-                shown += &if t == "*" { "*".to_string() } else { coords.token(t) };
-            }
-            s += &format!("            resolving to {} {}\n", loc.head, shown);
-            s += "    }\n";
         }
         s += "}";
         s

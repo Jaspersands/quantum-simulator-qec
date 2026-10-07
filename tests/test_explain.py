@@ -89,3 +89,32 @@ def test_random_circuits_using_every_gate():
             assert texts(sq.Circuit(text).explain_detector_error_model_errors(reduce_to_one_representative_error=reduce)) == want, text
             checked += 1
     assert checked >= 300
+
+
+def parts(explained):
+    """Every piece of an explanation as ``str()`` gives it: terms, locations, their instructions,
+    and the targets of each."""
+    out = []
+    for e in explained:
+        out.append([str(t) for t in e.dem_error_terms])
+        for loc in e.circuit_error_locations:
+            out.append(str(loc))
+            out.append(str(loc.instruction_targets))
+            out.append([str(t) for t in loc.flipped_pauli_product])
+            out.append([str(t) for t in loc.instruction_targets.targets_in_range])
+    return out
+
+
+def test_pieces_print_as_stims():
+    import numpy as np
+    from test_stim_gates import random_case
+
+    cases = [str(c) for c in circuits()] + SMALL + ["QUBIT_COORDS(0.5, -2) 0\nQUBIT_COORDS 1\nX_ERROR(0.125) 0 1\nM 0 1\nDETECTOR(1e-5, 3) rec[-1]\nDETECTOR rec[-2]"]
+    cases += [random_case(seed, disjoint=False) for seed in range(60)]
+    for text in cases:
+        try:
+            want = parts(stim.Circuit(text).explain_detector_error_model_errors())
+        except ValueError:
+            continue
+        assert parts(sq.Circuit(text).explain_detector_error_model_errors()) == want, text
+    del np
