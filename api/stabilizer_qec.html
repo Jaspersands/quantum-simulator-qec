@@ -26,7 +26,9 @@
             <ul>
   <li><a href="#getting-started">Getting started</a></li>
   <li><a href="#circuits">Circuits</a></li>
+  <li><a href="#knowing-a-circuit">Knowing a circuit</a></li>
   <li><a href="#shots">Shots</a></li>
+  <li><a href="#the-command-line">The command line</a></li>
   <li><a href="#many-processes-and-sinter">Many processes, and sinter</a></li>
   <li><a href="#promises">Promises</a></li>
 </ul>
@@ -127,6 +129,144 @@
 
             </li>
             <li>
+                    <a class="function" href="#read_shot_data_file">read_shot_data_file</a>
+            </li>
+            <li>
+                    <a class="function" href="#write_shot_data_file">write_shot_data_file</a>
+            </li>
+            <li>
+                    <a class="class" href="#CircuitErrorLocation">CircuitErrorLocation</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CircuitErrorLocation.__init__">CircuitErrorLocation</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocation.tick_offset">tick_offset</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocation.flipped_pauli_product">flipped_pauli_product</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocation.flipped_measurement">flipped_measurement</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocation.instruction_targets">instruction_targets</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocation.stack_frames">stack_frames</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocation.noise_tag">noise_tag</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CircuitErrorLocationStackFrame">CircuitErrorLocationStackFrame</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CircuitErrorLocationStackFrame.__init__">CircuitErrorLocationStackFrame</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocationStackFrame.instruction_offset">instruction_offset</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocationStackFrame.iteration_index">iteration_index</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitErrorLocationStackFrame.instruction_repetitions_arg">instruction_repetitions_arg</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CircuitTargetsInsideInstruction">CircuitTargetsInsideInstruction</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CircuitTargetsInsideInstruction.__init__">CircuitTargetsInsideInstruction</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitTargetsInsideInstruction.gate">gate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitTargetsInsideInstruction.tag">tag</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitTargetsInsideInstruction.args">args</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitTargetsInsideInstruction.target_range_start">target_range_start</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitTargetsInsideInstruction.target_range_end">target_range_end</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CircuitTargetsInsideInstruction.targets_in_range">targets_in_range</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#DemTargetWithCoords">DemTargetWithCoords</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#DemTargetWithCoords.__init__">DemTargetWithCoords</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemTargetWithCoords.dem_target">dem_target</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemTargetWithCoords.coords">coords</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#ExplainedError">ExplainedError</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ExplainedError.__init__">ExplainedError</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExplainedError.dem_error_terms">dem_error_terms</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExplainedError.circuit_error_locations">circuit_error_locations</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#FlippedMeasurement">FlippedMeasurement</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#FlippedMeasurement.__init__">FlippedMeasurement</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#FlippedMeasurement.record_index">record_index</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#FlippedMeasurement.observable">observable</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#GateTargetWithCoords">GateTargetWithCoords</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#GateTargetWithCoords.__init__">GateTargetWithCoords</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#GateTargetWithCoords.gate_target">gate_target</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#GateTargetWithCoords.coords">coords</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#BpDecoder">BpDecoder</a>
                             <ul class="memberlist">
                         <li>
@@ -220,6 +360,21 @@
                                 <a class="function" href="#Circuit.generated">generated</a>
                         </li>
                         <li>
+                                <a class="function" href="#Circuit.explain_detector_error_model_errors">explain_detector_error_model_errors</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.shortest_graphlike_error">shortest_graphlike_error</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.search_for_undetectable_logical_errors">search_for_undetectable_logical_errors</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.reference_sample">reference_sample</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.compile_sampler">compile_sampler</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#Circuit.compile_detector_sampler">compile_detector_sampler</a>
                         </li>
                         <li>
@@ -250,6 +405,18 @@
                                 <a class="function" href="#DetectorErrorModel.diagram">diagram</a>
                         </li>
                         <li>
+                                <a class="function" href="#DetectorErrorModel.compile_sampler">compile_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DetectorErrorModel.distance">distance</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DetectorErrorModel.search_for_undetectable_logical_errors">search_for_undetectable_logical_errors</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DetectorErrorModel.shortest_graphlike_error">shortest_graphlike_error</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#DetectorErrorModel.flattened">flattened</a>
                         </li>
                 </ul>
@@ -269,6 +436,42 @@
                         </li>
                         <li>
                                 <a class="function" href="#DetectorSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#DemSampler">DemSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#DemSampler.__init__">DemSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemSampler.num_detectors">num_detectors</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemSampler.num_observables">num_observables</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemSampler.num_errors">num_errors</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#MeasurementSampler">MeasurementSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#MeasurementSampler.__init__">MeasurementSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#MeasurementSampler.num_measurements">num_measurements</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#MeasurementSampler.sample">sample</a>
                         </li>
                 </ul>
 
@@ -459,7 +662,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.5.0</footer>
+            <footer>stabilizer-qec 1.6.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -531,11 +734,49 @@ code of Bravyi et al.'s Table 3 or any other, the gross code's logical operation
 <code>surgery</code> module (Z⊗Z and X⊗X merges, a logical CNOT, merges in a row), and <code><a href="#stream_memory">stream_memory</a></code>
 (a million rounds of a memory, or of any circuit with a loop, window-decoded as they stream).</p>
 
+<h2 id="knowing-a-circuit">Knowing a circuit</h2>
+
+<p>Where each fault of the error model comes from, as Stim prints it
+(<code>explain_detector_error_model_errors</code>, every <code><a href="#ExplainedError">ExplainedError</a></code> naming the gate, its targets
+and the Pauli product or measurement it flips); how few faults defeat the circuit
+(<code>shortest_graphlike_error</code> and <code>search_for_undetectable_logical_errors</code>, Stim's two searches,
+on circuits and on models, and <code><a href="#DetectorErrorModel.distance">DetectorErrorModel.distance()</a></code>, exact by integer programming
+with scipy installed):</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">sq</span><span class="o">.</span><span class="n">Circuit</span><span class="o">.</span><span class="n">generated</span><span class="p">(</span><span class="s2">"repetition_code:memory"</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rounds</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">after_clifford_depolarization</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">shortest_graphlike_error</span><span class="p">())</span>
+<span class="go">3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">shortest_graphlike_error</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">circuit_error_locations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">instruction_targets</span><span class="p">)</span>
+<span class="go">DEPOLARIZE2(0.01) 0 1</span>
+</code></pre>
+</div>
+
+<p>Diagrams after Stim's (<code><a href="#Circuit.diagram">Circuit.diagram</a></code>): <code>timeline-text</code> (Stim's, character for
+character), <code>timeline-svg</code>, <code>detslice-svg</code>, <code>timeslice-svg</code> and <code>detslice-with-ops-svg</code> (one
+panel per tick of a <code>range</code>), and the matching graph.</p>
+
 <h2 id="shots">Shots</h2>
 
 <p>Shots are numpy arrays: one row per shot, <code>bool</code> per detector, or bit-packed <code>uint8</code> rows
 (bit k of a row in byte k // 8, at position k % 8: <code>numpy.packbits(..., bitorder="little")</code>),
-the layout Stim and PyMatching use. Predictions are <code>uint8</code> 0/1 per observable.</p>
+the layout Stim and PyMatching use. Predictions are <code>uint8</code> 0/1 per observable. Files in
+Stim's six formats (<code>01</code>, <code>b8</code>, <code>r8</code>, <code>hits</code>, <code>dets</code>, <code>ptb64</code>) are read and written by
+<code><a href="#read_shot_data_file">read_shot_data_file</a></code> and <code><a href="#write_shot_data_file">write_shot_data_file</a></code>; raw measurements come from
+<code><a href="#Circuit.compile_sampler">Circuit.compile_sampler</a></code>, and faults of a model straight from
+<code><a href="#DetectorErrorModel.compile_sampler">DetectorErrorModel.compile_sampler</a></code>.</p>
+
+<h2 id="the-command-line">The command line</h2>
+
+<p><code>stabilizer-qec</code> (or <code>python -m stabilizer_qec</code>) takes Stim's commands and flags (<code>gen</code>,
+<code>sample</code>, <code>detect</code>, <code>m2d</code>, <code>analyze_errors</code>, <code>sample_dem</code>, <code>convert</code>, <code>explain_errors</code>,
+<code>diagram</code>) and gives Stim's bytes wherever Stim's output is deterministic, plus <code>decode</code>:</p>
+
+<pre><code>stabilizer-qec gen --code surface_code --task rotated_memory_z --distance 5 --rounds 5         --after_clifford_depolarization 0.001 &gt; c.stim
+stabilizer-qec detect --in c.stim --shots 1000 --out_format b8 &gt; d.b8
+stabilizer-qec analyze_errors --in c.stim --decompose_errors &gt; c.dem
+stabilizer-qec decode --dem c.dem --in d.b8 --in_format b8
+</code></pre>
 
 <h2 id="many-processes-and-sinter">Many processes, and sinter</h2>
 
@@ -995,6 +1236,492 @@ observables are the <code>k</code> logicals of that basis. Its hyperedges want <
 
                             </div>
                 </section>
+                <section id="read_shot_data_file">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">read_shot_data_file</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">path</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">]</span>,</span><span class="param">	<span class="nb">format</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">num_measurements</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">num_detectors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">num_observables</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#read_shot_data_file"></a>
+    
+            <div class="docstring"><p>Read shots from a file in one of Stim's result formats, as <code>stim.read_shot_data_file</code>:
+(shots, n) bool, or bit-packed uint8 rows.</p>
+</div>
+
+
+                </section>
+                <section id="write_shot_data_file">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">write_shot_data_file</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">data</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>,</span><span class="param">	<span class="n">path</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">]</span>,</span><span class="param">	<span class="nb">format</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">num_measurements</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">num_detectors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">num_observables</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#write_shot_data_file"></a>
+    
+            <div class="docstring"><p>Write shots to a file in one of Stim's result formats, as <code>stim.write_shot_data_file</code>.
+<code>data</code> is (shots, n) bool, or bit-packed uint8 rows (n = measurements + detectors +
+observables).</p>
+</div>
+
+
+                </section>
+                <section id="CircuitErrorLocation">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">CircuitErrorLocation</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation"></a>
+    
+            <div class="docstring"><p>One place in the circuit a fault arises; <code>str()</code> gives Stim's text.</p>
+</div>
+
+
+                            <div id="CircuitErrorLocation.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CircuitErrorLocation</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">tick_offset</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">flipped_pauli_product</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#GateTargetWithCoords">GateTargetWithCoords</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">flipped_measurement</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#FlippedMeasurement">FlippedMeasurement</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">instruction_targets</span><span class="p">:</span> <span class="n"><a href="#CircuitTargetsInsideInstruction">CircuitTargetsInsideInstruction</a></span>,</span><span class="param">	<span class="n">stack_frames</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#CircuitErrorLocationStackFrame">CircuitErrorLocationStackFrame</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">noise_tag</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocation.tick_offset" class="classattr">
+                                <div class="attr variable">
+            <span class="name">tick_offset</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.tick_offset"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocation.flipped_pauli_product" class="classattr">
+                                <div class="attr variable">
+            <span class="name">flipped_pauli_product</span><span class="annotation">: List[<a href="#GateTargetWithCoords">GateTargetWithCoords</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.flipped_pauli_product"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocation.flipped_measurement" class="classattr">
+                                <div class="attr variable">
+            <span class="name">flipped_measurement</span><span class="annotation">: Optional[<a href="#FlippedMeasurement">FlippedMeasurement</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.flipped_measurement"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocation.instruction_targets" class="classattr">
+                                <div class="attr variable">
+            <span class="name">instruction_targets</span><span class="annotation">: <a href="#CircuitTargetsInsideInstruction">CircuitTargetsInsideInstruction</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.instruction_targets"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocation.stack_frames" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stack_frames</span><span class="annotation">: List[<a href="#CircuitErrorLocationStackFrame">CircuitErrorLocationStackFrame</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.stack_frames"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocation.noise_tag" class="classattr">
+                                <div class="attr variable">
+            <span class="name">noise_tag</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocation.noise_tag"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="CircuitErrorLocationStackFrame">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">CircuitErrorLocationStackFrame</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocationStackFrame"></a>
+    
+            <div class="docstring"><p>One block level of a location: the instruction's offset in its block, how many passes
+of the enclosing loop came before, and the loop's repetitions (0 at the innermost level).</p>
+</div>
+
+
+                            <div id="CircuitErrorLocationStackFrame.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CircuitErrorLocationStackFrame</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">instruction_offset</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">iteration_index</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">instruction_repetitions_arg</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocationStackFrame.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocationStackFrame.instruction_offset" class="classattr">
+                                <div class="attr variable">
+            <span class="name">instruction_offset</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocationStackFrame.instruction_offset"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocationStackFrame.iteration_index" class="classattr">
+                                <div class="attr variable">
+            <span class="name">iteration_index</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocationStackFrame.iteration_index"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitErrorLocationStackFrame.instruction_repetitions_arg" class="classattr">
+                                <div class="attr variable">
+            <span class="name">instruction_repetitions_arg</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitErrorLocationStackFrame.instruction_repetitions_arg"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="CircuitTargetsInsideInstruction">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">CircuitTargetsInsideInstruction</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction"></a>
+    
+            <div class="docstring"><p>The instruction a fault came from and the targets of it the fault covers.</p>
+</div>
+
+
+                            <div id="CircuitTargetsInsideInstruction.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CircuitTargetsInsideInstruction</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">gate</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">tag</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">args</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>,</span><span class="param">	<span class="n">target_range_start</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">target_range_end</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">targets_in_range</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#GateTargetWithCoords">GateTargetWithCoords</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitTargetsInsideInstruction.gate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">gate</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.gate"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitTargetsInsideInstruction.tag" class="classattr">
+                                <div class="attr variable">
+            <span class="name">tag</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.tag"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitTargetsInsideInstruction.args" class="classattr">
+                                <div class="attr variable">
+            <span class="name">args</span><span class="annotation">: List[float]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.args"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitTargetsInsideInstruction.target_range_start" class="classattr">
+                                <div class="attr variable">
+            <span class="name">target_range_start</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.target_range_start"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitTargetsInsideInstruction.target_range_end" class="classattr">
+                                <div class="attr variable">
+            <span class="name">target_range_end</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.target_range_end"></a>
+    
+    
+
+                            </div>
+                            <div id="CircuitTargetsInsideInstruction.targets_in_range" class="classattr">
+                                <div class="attr variable">
+            <span class="name">targets_in_range</span><span class="annotation">: List[<a href="#GateTargetWithCoords">GateTargetWithCoords</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CircuitTargetsInsideInstruction.targets_in_range"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="DemTargetWithCoords">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">DemTargetWithCoords</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#DemTargetWithCoords"></a>
+    
+            <div class="docstring"><p>A detector (<code>"D3"</code>) or observable (<code>"L0"</code>) with the detector's coordinates.</p>
+</div>
+
+
+                            <div id="DemTargetWithCoords.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">DemTargetWithCoords</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">dem_target</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">coords</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>, </span><span class="param"><span class="n">_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemTargetWithCoords.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="DemTargetWithCoords.dem_target" class="classattr">
+                                <div class="attr variable">
+            <span class="name">dem_target</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemTargetWithCoords.dem_target"></a>
+    
+    
+
+                            </div>
+                            <div id="DemTargetWithCoords.coords" class="classattr">
+                                <div class="attr variable">
+            <span class="name">coords</span><span class="annotation">: List[float]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemTargetWithCoords.coords"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="ExplainedError">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True, repr=False)</div>
+
+    <span class="def">class</span>
+    <span class="name">ExplainedError</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#ExplainedError"></a>
+    
+            <div class="docstring"><p>A fault class of the error model (<code><a href="#ExplainedError.dem_error_terms">dem_error_terms</a></code>: what it sets off) and every place
+in the circuit such a fault arises; <code>str()</code> gives Stim's text.</p>
+</div>
+
+
+                            <div id="ExplainedError.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ExplainedError</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_error_terms</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#DemTargetWithCoords">DemTargetWithCoords</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">circuit_error_locations</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#CircuitErrorLocation">CircuitErrorLocation</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">_text</span><span class="p">:</span> <span class="nb">str</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExplainedError.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="ExplainedError.dem_error_terms" class="classattr">
+                                <div class="attr variable">
+            <span class="name">dem_error_terms</span><span class="annotation">: List[<a href="#DemTargetWithCoords">DemTargetWithCoords</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExplainedError.dem_error_terms"></a>
+    
+    
+
+                            </div>
+                            <div id="ExplainedError.circuit_error_locations" class="classattr">
+                                <div class="attr variable">
+            <span class="name">circuit_error_locations</span><span class="annotation">: List[<a href="#CircuitErrorLocation">CircuitErrorLocation</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExplainedError.circuit_error_locations"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="FlippedMeasurement">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">FlippedMeasurement</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#FlippedMeasurement"></a>
+    
+            <div class="docstring"><p>The measurement a fault flips: its index in the measurement record, and the observable
+it measured.</p>
+</div>
+
+
+                            <div id="FlippedMeasurement.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">FlippedMeasurement</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">record_index</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">observable</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#GateTargetWithCoords">GateTargetWithCoords</a></span><span class="p">]</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#FlippedMeasurement.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="FlippedMeasurement.record_index" class="classattr">
+                                <div class="attr variable">
+            <span class="name">record_index</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#FlippedMeasurement.record_index"></a>
+    
+    
+
+                            </div>
+                            <div id="FlippedMeasurement.observable" class="classattr">
+                                <div class="attr variable">
+            <span class="name">observable</span><span class="annotation">: List[<a href="#GateTargetWithCoords">GateTargetWithCoords</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#FlippedMeasurement.observable"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="GateTargetWithCoords">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">GateTargetWithCoords</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#GateTargetWithCoords"></a>
+    
+            <div class="docstring"><p>A circuit target as Stim writes it (<code>"X5"</code>, <code>"!Z2"</code>, <code>"7"</code>) with its qubit's
+coordinates (its last <code>QUBIT_COORDS</code>).</p>
+</div>
+
+
+                            <div id="GateTargetWithCoords.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">GateTargetWithCoords</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">gate_target</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">coords</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>, </span><span class="param"><span class="n">_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#GateTargetWithCoords.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="GateTargetWithCoords.gate_target" class="classattr">
+                                <div class="attr variable">
+            <span class="name">gate_target</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#GateTargetWithCoords.gate_target"></a>
+    
+    
+
+                            </div>
+                            <div id="GateTargetWithCoords.coords" class="classattr">
+                                <div class="attr variable">
+            <span class="name">coords</span><span class="annotation">: List[float]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#GateTargetWithCoords.coords"></a>
+    
+    
+
+                            </div>
+                </section>
                 <section id="BpDecoder">
                     <div class="attr class">
             
@@ -1388,7 +2115,7 @@ raises <code>ValueError</code> and leaves the circuit as it was.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">approximate_disjoint_errors</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">flatten_loops</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">approximate_disjoint_errors</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">flatten_loops</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">ignore_decomposition_failures</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
 
         
     </div>
@@ -1407,6 +2134,9 @@ than independent (<code>PAULI_CHANNEL_2</code>, <code>ELSE_CORRELATED_ERROR</cod
 and a <code>PAULI_CHANNEL_1</code> with no independent equivalent) are refused unless it is set,
 and then approximated case by case; a number refuses any such channel with a
 probability above it.</p>
+
+<p><code>ignore_decomposition_failures</code> is Stim's too: with <code>decompose_errors</code>, a fault that
+cannot be split into graph-like pieces is kept whole rather than refused.</p>
 </div>
 
 
@@ -1415,7 +2145,7 @@ probability above it.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">diagram</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'timeline-text'</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">tick</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Diagram">Diagram</a></span>:</span></span>
+        <span class="name">diagram</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'timeline-text'</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">tick</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">rows</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Diagram">Diagram</a></span>:</span></span>
 
         
     </div>
@@ -1424,10 +2154,15 @@ probability above it.</p>
             <div class="docstring"><p>A picture of the circuit, after Stim's <code><a href="#Circuit.diagram">diagram</a></code>:</p>
 
 <ul>
-<li><code>"timeline-text"</code>, <code>"timeline-svg"</code>: every operation in its column, <code>TICK</code>
-groups bracketed, loops drawn once with their count, measurements numbered.</li>
+<li><code>"timeline-text"</code>: Stim's text timeline, character for character: every operation in
+its moment, <code>TICK</code> groups boxed, loops drawn once with records, detectors and
+coordinates in terms of <code>iter</code>.</li>
+<li><code>"timeline-svg"</code>: the same as a picture.</li>
 <li><code>"detslice-text"</code>, <code>"detslice-svg"</code>: what each detector compares after <code>tick</code>
 <code>TICK</code>s, its Paulis over the qubits (drawn at their <code>QUBIT_COORDS</code>).</li>
+<li><code>"timeslice-svg"</code>: the operations of tick <code>tick</code> (or of each tick in a
+<code>range</code>, a panel each, in <code>rows</code> rows) over the qubits' coordinates.</li>
+<li><code>"detslice-with-ops-svg"</code>: the same, with the detector slice after them.</li>
 <li><code>"matchgraph-svg"</code>: the decomposed model's matching graph.</li>
 </ul>
 
@@ -1467,6 +2202,109 @@ groups bracketed, loops drawn once with their count, measurements numbered.</li>
 <span class="go">(26, 40)</span>
 </code></pre>
 </div>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.explain_detector_error_model_errors" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">explain_detector_error_model_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dem_filter</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">reduce_to_one_representative_error</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.explain_detector_error_model_errors"></a>
+    
+            <div class="docstring"><p>Where the faults of the circuit's error model arise, as Stim's method of the same name
+explains them: for each fault class (each fault of <code>dem_filter</code> when given), every
+place in the circuit such a fault arises, or with <code>reduce_to_one_representative_error</code>
+one. Loops are walked in full. Each result prints as Stim's text.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">(</span><span class="s2">"R 0</span><span class="se">\n</span><span class="s2">X_ERROR(0.1) 0</span><span class="se">\n</span><span class="s2">M 0</span><span class="se">\n</span><span class="s2">DETECTOR rec[-1]"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">e</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">explain_detector_error_model_errors</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">dem_target</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">dem_error_terms</span><span class="p">],</span> <span class="n">e</span><span class="o">.</span><span class="n">circuit_error_locations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">instruction_targets</span><span class="o">.</span><span class="n">gate</span>
+<span class="go">(['D0'], 'X_ERROR')</span>
+</code></pre>
+</div>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.shortest_graphlike_error" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">shortest_graphlike_error</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">ignore_ungraphlike_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">canonicalize_circuit_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.shortest_graphlike_error"></a>
+    
+            <div class="docstring"><p>The circuit's graph-like distance, as Stim's method of the same name finds it: the
+fewest graph-like pieces of its decomposed error model that together flip an
+observable and no detector, each explained (by one location with
+<code>canonicalize_circuit_errors</code>). Its length is the distance.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n"><a href="#Circuit.generated">Circuit.generated</a></span><span class="p">(</span><span class="s2">"surface_code:rotated_memory_z"</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rounds</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">after_clifford_depolarization</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">shortest_graphlike_error</span><span class="p">())</span>
+<span class="go">3</span>
+</code></pre>
+</div>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.search_for_undetectable_logical_errors" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">search_for_undetectable_logical_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dont_explore_detection_event_sets_with_size_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_with_degree_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_increasing_symptom_degree</span><span class="p">:</span> <span class="nb">bool</span>,</span><span class="param">	<span class="n">canonicalize_circuit_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.search_for_undetectable_logical_errors"></a>
+    
+            <div class="docstring"><p>The circuit's distance through hyperedges too, as Stim's method of the same name
+finds it: a breadth-first search over sets of fired detectors in its (undecomposed)
+error model, a fault added at the set's lowest detector each step, within the limits
+given. The faults found, each explained (by one location with
+<code>canonicalize_circuit_errors</code>); their number bounds the distance from above.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.reference_sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">reference_sample</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.reference_sample"></a>
+    
+            <div class="docstring"><p>A noiseless run's measurement record, as Stim's: the reference each shot's flips are
+taken from (and the converter compares with). Random outcomes take fixed values.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.compile_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">skip_reference_sample</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#MeasurementSampler">MeasurementSampler</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.compile_sampler"></a>
+    
+            <div class="docstring"><p>A sampler of raw measurement records, as Stim's: a noiseless reference run with each
+shot's flips (with <code>skip_reference_sample</code>, the flips alone). The same seed gives the
+same shots on any machine and number of threads; <code>None</code> draws a seed.</p>
 </div>
 
 
@@ -1604,6 +2442,91 @@ decomposed), each detector at its coordinates, each graph-like fault an edge.</p
 
 
                             </div>
+                            <div id="DetectorErrorModel.compile_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#DemSampler">DemSampler</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DetectorErrorModel.compile_sampler"></a>
+    
+            <div class="docstring"><p>A sampler of the model's faults, as Stim's: each fault fires independently with its
+probability. The same seed gives the same shots on any machine and number of threads;
+<code>None</code> draws a seed.</p>
+</div>
+
+
+                            </div>
+                            <div id="DetectorErrorModel.distance" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">distance</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'milp'</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">time_limit</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">60.0</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DetectorErrorModel.distance"></a>
+    
+            <div class="docstring"><p>The fewest of the model's faults that together flip an observable and set off no
+detector: its distance.</p>
+
+<ul>
+<li><code>"milp"</code> (default): exact, by integer programming over every fault, hyperedges
+included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
+optimum within <code>time_limit</code> seconds, or this raises). Exponential at worst; meant
+for models of up to a few thousand faults.</li>
+<li><code>"graphlike"</code>: <code><a href="#DetectorErrorModel.shortest_graphlike_error">shortest_graphlike_error</a></code>'s length (graph-like faults only).</li>
+<li><code>"search"</code>: <code><a href="#DetectorErrorModel.search_for_undetectable_logical_errors">search_for_undetectable_logical_errors</a></code> with limits of 4 and 4, an
+upper bound.</li>
+</ul>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">DetectorErrorModel</span><span class="p">(</span><span class="s2">"error(0.1) D0</span><span class="se">\n</span><span class="s2">error(0.1) D0 D1</span><span class="se">\n</span><span class="s2">error(0.1) D1 L0"</span><span class="p">)</span><span class="o">.</span><span class="n">distance</span><span class="p">()</span>
+<span class="go">3</span>
+</code></pre>
+</div>
+</div>
+
+
+                            </div>
+                            <div id="DetectorErrorModel.search_for_undetectable_logical_errors" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">search_for_undetectable_logical_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dont_explore_detection_event_sets_with_size_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_with_degree_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_increasing_symptom_degree</span><span class="p">:</span> <span class="nb">bool</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DetectorErrorModel.search_for_undetectable_logical_errors"></a>
+    
+            <div class="docstring"><p>Stim's search for undetectable logical errors on the model (see
+<code><a href="#Circuit.search_for_undetectable_logical_errors">Circuit.search_for_undetectable_logical_errors</a></code>): the faults found, as a model with
+each at probability 1.</p>
+</div>
+
+
+                            </div>
+                            <div id="DetectorErrorModel.shortest_graphlike_error" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">shortest_graphlike_error</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">ignore_ungraphlike_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DetectorErrorModel.shortest_graphlike_error"></a>
+    
+            <div class="docstring"><p>The fewest of the model's graph-like pieces (each fault's <code>^</code>-separated pieces) that
+together flip an observable and no detector, as a model of those faults with
+probability 1, as Stim's method of the same name: its <code><a href="#DetectorErrorModel.num_errors">num_errors</a></code> is the graph-like
+distance. Pieces of three or more detectors are skipped, or with
+<code>ignore_ungraphlike_errors=False</code> refused.</p>
+</div>
+
+
+                            </div>
                             <div id="DetectorErrorModel.flattened" class="classattr">
                                 <div class="attr function">
             
@@ -1688,6 +2611,139 @@ row's detectors. <code>threads = 0</code> uses every core; the shots do not depe
 
 <p>Successive calls continue the stream. Shots are drawn 64 at a time, and a call that
 ends partway through 64 discards the rest of them.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="DemSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">DemSampler</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#DemSampler"></a>
+    
+            <div class="docstring"><p>Shots drawn from a detector error model's faults, as <code>stim.CompiledDemSampler</code>. Made
+by <code><a href="#DetectorErrorModel.compile_sampler">DetectorErrorModel.compile_sampler</a></code>.</p>
+</div>
+
+
+                            <div id="DemSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">DemSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSampler.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="DemSampler.num_detectors" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_detectors</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSampler.num_detectors"></a>
+    
+    
+
+                            </div>
+                            <div id="DemSampler.num_observables" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_observables</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSampler.num_observables"></a>
+    
+    
+
+                            </div>
+                            <div id="DemSampler.num_errors" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_errors</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSampler.num_errors"></a>
+    
+    
+
+                            </div>
+                            <div id="DemSampler.sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">sample</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">return_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">recorded_errors_to_replay</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSampler.sample"></a>
+    
+            <div class="docstring"><p><code>(detectors, observables, errors)</code>: (shots, n) bool arrays, or bit-packed uint8
+rows with <code>bit_packed</code>. <code>errors</code> (which faults fired, one column per fault in the
+model's order) is returned with <code>return_errors</code>, else <code>None</code>.
+<code>recorded_errors_to_replay</code> (such an array) replays those faults instead of drawing.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="MeasurementSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">MeasurementSampler</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementSampler"></a>
+    
+            <div class="docstring"><p>Raw measurement records, as <code>stim.CompiledMeasurementSampler</code>. Made by
+<code><a href="#Circuit.compile_sampler">Circuit.compile_sampler</a></code>.</p>
+</div>
+
+
+                            <div id="MeasurementSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">MeasurementSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">skip_reference_sample</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementSampler.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="MeasurementSampler.num_measurements" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_measurements</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementSampler.num_measurements"></a>
+    
+    
+
+                            </div>
+                            <div id="MeasurementSampler.sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">sample</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementSampler.sample"></a>
+    
+            <div class="docstring"><p><code>shots</code> measurement records: (shots, measurements) bool, or bit-packed uint8 rows.</p>
 </div>
 
 
@@ -2413,7 +3469,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;1.5.0&#39;</span>
+<span class="default_value">&#39;1.6.0&#39;</span>
 
         
     </div>

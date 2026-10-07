@@ -14,10 +14,10 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 1.5.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 1.6.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 4 October 2026 · commit <code>3594ef2</code></p>
+  <p class="byline">Jasper Sands · 7 October 2026 · commit <code>7de2b6d</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -57,7 +57,8 @@
 <li><a href="#real-time"><span class="toc-section-number">4.6</span> Real time</a></li>
 <li><a href="#beyond-the-surface-code-the-gross-code"><span class="toc-section-number">4.7</span> Beyond the surface code: the gross code</a></li>
 <li><a href="#lattice-surgery"><span class="toc-section-number">4.8</span> Lattice surgery</a></li>
-<li><a href="#what-it-would-take"><span class="toc-section-number">4.9</span> What it would take</a></li>
+<li><a href="#circuit-distance"><span class="toc-section-number">4.9</span> Circuit distance</a></li>
+<li><a href="#what-it-would-take"><span class="toc-section-number">4.10</span> What it would take</a></li>
 </ul></li>
 <li><a href="#limits-and-next-steps"><span class="toc-section-number">5</span> Limits and next steps</a></li>
 <li><a href="#reproducing-everything"><span class="toc-section-number">6</span> Reproducing everything</a></li>
@@ -1843,7 +1844,188 @@
 </tr>
 </tbody>
 </table>
-<h2 data-number="4.9" id="what-it-would-take"><span class="header-section-number">4.9</span> What it would take</h2>
+<h2 data-number="4.9" id="circuit-distance"><span class="header-section-number">4.9</span> Circuit distance</h2>
+<p>A code’s distance counts data errors; a circuit that measures it can do worse, since one fault mid-cycle can spread to several qubits. The circuit distance is the fewest faults of the whole circuit that flip an observable and set off no detector. The engine finds it three ways: Stim’s graph-like search (<code>shortest_graphlike_error</code>), Stim’s breadth-first search through hyperedges (<code>search_for_undetectable_logical_errors</code>, with sets of up to 6 detectors), and an integer program over every fault that proves it exactly when it finishes (<code>DetectorErrorModel.distance()</code>, scipy’s HiGHS, 5 minutes each). Both searches give the same number of faults as Stim’s own wherever they were compared, and each fault they return is explained down to its gate, as Stim’s <code>explain_detector_error_model_errors</code> prints it.</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">memory</th>
+<th style="text-align: right;">code distance</th>
+<th style="text-align: right;">faults</th>
+<th style="text-align: right;">graph-like search</th>
+<th style="text-align: right;">Stim’s search</th>
+<th style="text-align: left;">integer program</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">surface, rotated (Stim’s)</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">219</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">surface, rotated (Stim’s)</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">1,677</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">5</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">surface, rotated (Stim’s)</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">6,023</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">≤ 7 (not proven in 300 s)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">surface, unrotated (Stim’s)</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">423</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">surface, unrotated (Stim’s)</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">3,139</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">5</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">colour code XYZ (Stim’s)</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">72</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: left;">2</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">colour code XYZ (Stim’s)</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">1,104</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">colour code XYZ (Stim’s)</td>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">3,651</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">4</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">surface, rotated, SD6</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">219</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">surface, rotated, SD6</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">1,677</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">5</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">surface, XZZX, SD6</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">219</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">surface, XZZX, SD6</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">1,677</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">5</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">colour code 6.6.6 (CssCode)</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">277</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: left;">2</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">colour code 6.6.6 (CssCode)</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">2,388</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Hamming hypergraph product [[58, 16, 3]] (CssCode)</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3,564</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: left;">3</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">bivariate bicycle [[72, 12, 6]]</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;">792</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">6</td>
+<td style="text-align: left;">≤ 6 (not proven in 300 s)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">bivariate bicycle [[90, 8, 10]]</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">990</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">≤ 9 (not proven in 300 s)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">bivariate bicycle [[108, 8, 10]]</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">1,188</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">≤ 11 (not proven in 300 s)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">bivariate bicycle [[144, 12, 12]] (gross)</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">1,584</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: left;">≤ 12 (not proven in 300 s)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The surface codes keep their distance</strong>, under Stim’s noise and under SD6, at d = 3 and 5.</li>
+<li><strong>The colour code loses it.</strong> Stim’s generated XYZ colour-code memory has circuit distance 2, 3 and 4 at code distance 3, 5 and 7, proven; two or three correlated two-qubit faults do the work of d data errors. The generic <code>CssCode</code> schedule loses it the same way.</li>
+<li><strong>The bivariate bicycle codes are bounded, not settled.</strong> For [[90, 8, 10]] the integer program found an undetectable logical error of 9 faults, below the code’s 10. Bravyi et al. bound the circuit distance of their circuits at 6, 8, 8 and 10 for the four codes; the bounds found here for the larger two are looser than theirs.</li>
+</ul>
+<h2 data-number="4.10" id="what-it-would-take"><span class="header-section-number">4.10</span> What it would take</h2>
 <p>Each section above measures one ingredient of a quantum computer’s cost. The estimate puts them together with what the papers that price real algorithms report. Every number it reads from a paper is recorded with its page or table.</p>
 <ul>
 <li><strong>Algorithms:</strong> RSA-2048 (Gidney, 1,409 logical qubits, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>6.5</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">6.5 \times 10^9</annotation></semantics></math> Toffolis), FeMoco by tensor hypercontraction (Lee et al.), and three illustrations.</li>
@@ -2208,7 +2390,8 @@
 <li><code>data/realtime/</code>: latency, the million-round stream, and windowed accuracy;</li>
 <li><code>data/gross/</code>: the gross code’s memory, its checks, automorphisms, gauging and logical measurement;</li>
 <li><code>data/surgery/</code>: lattice surgery’s timing law and programs;</li>
-<li><code>data/estimate/</code>: the noise fit, distillation and sources the estimate rests on.</li>
+<li><code>data/estimate/</code>: the noise fit, distillation and sources the estimate rests on;</li>
+<li><code>data/distances.json</code>: the circuit distance of every memory the package builds.</li>
 </ul>
 <p>The report fails to build if a value it quotes is missing. To regenerate the data:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv <span class="kw">&amp;&amp;</span> <span class="ex">.venv/bin/pip</span> install stim pymatching numpy maturin</span>
@@ -2224,8 +2407,9 @@
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/surgery.py run                  <span class="co"># and programs</span></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/estimate_noise.py               <span class="co"># the estimate&#39;s noise fit</span></span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/distill.py                      <span class="co"># 15-to-1 distillation</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> tools/lambda.mjs                                  <span class="co"># every fit</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/distances.py <span class="at">--time-limit</span> 300   <span class="co"># circuit distances</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> tools/lambda.mjs                                  <span class="co"># every fit</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
 <p>The package installs with <code>pip install stabilizer-qec</code>, or from a wheel built by <code>maturin build</code>. Software: Stim 1.16.0, PyMatching 2.4.0. Google’s datasets are CC BY 4.0 (Google Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.</p>
 </main>
 </body>

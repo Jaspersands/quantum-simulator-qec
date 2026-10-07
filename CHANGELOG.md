@@ -4,7 +4,13 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## Unreleased
+## 1.6.0 — 2026-10-07
+
+The Python package and the Rust crate both at 1.6.0, "know your circuit": where each fault of
+an error model comes from and how few faults defeat a circuit, both as Stim reports them, and
+the exact circuit distance by integer programming; Stim's result formats, samplers and command
+line; Stim's text timeline and time-slice diagrams; and a paper for the Journal of Open Source
+Software. The first release archived on Zenodo.
 
 ### Added
 
