@@ -6,8 +6,11 @@ each hashed (sha256) and recorded in data/fingerprints.json.
     python tools/fingerprints.py            # compute, write data/fingerprints.json
     python tools/fingerprints.py --check    # recompute; exit 1 on any difference
 
-The same file must hold on every platform: CI checks it on Linux, macOS and Windows
-(tests/test_fingerprints.py), which also checks that a seed gives the same shots everywhere.
+Shots, decodes and searches must be the same on every platform: CI checks them on Linux, macOS
+and Windows (tests/test_fingerprints.py), which also checks that a seed gives the same shots
+everywhere. Error-model text is recorded per platform instead: the engine rounds as Stim's own
+build does on each (a fused multiply-add on ARM64, the platform's `pow`), so its text, like
+Stim's, can differ in a last digit between them.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import platform
 import sys
 from typing import Callable, Dict
 
@@ -27,6 +31,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "fingerprints.json"
 SEEDS = (0, 1, 2**63 + 5)
 SHOTS = (1, 63, 64, 65, 1000, 4097)
+PLATFORM = f"{platform.system()}-{platform.machine().lower()}"
+
+
+def per_platform(name: str) -> bool:
+    """Whether a case's result may differ between platforms (error-model text: see above)."""
+    return "/model" in name
+
+
+def expected(recorded: Dict[str, object], name: str):
+    """The recorded fingerprint of a case on this platform, or None if none is recorded here."""
+    v = recorded.get(name)
+    return v.get(PLATFORM) if isinstance(v, dict) else v
 
 
 def digest(*parts) -> str:
@@ -110,17 +126,33 @@ def compute(names=None) -> Dict[str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--add", metavar="NAME=HASH", nargs="*", default=[], help="record another platform's per-platform fingerprints (from CI's failures), for this --platform")
+    ap.add_argument("--platform", default=PLATFORM)
     args = ap.parse_args()
+    recorded = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else {}
+    if args.add:
+        for item in args.add:
+            name, value = item.split("=", 1)
+            assert per_platform(name), name
+            recorded.setdefault(name, {})[args.platform] = value
+        OUT.write_text(json.dumps(recorded, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"recorded {len(args.add)} fingerprints for {args.platform}")
+        return 0
     got = compute()
     if args.check:
-        want = json.loads(OUT.read_text(encoding="utf-8"))
-        bad = sorted(k for k in set(want) | set(got) if want.get(k) != got.get(k))
+        bad = sorted(k for k in set(recorded) | set(got) if expected(recorded, k) != got.get(k))
         for k in bad:
-            print(f"DIFFERS: {k}")
-        print(f"{len(got) - len(bad)} of {len(got)} fingerprints unchanged")
+            print(f"DIFFERS on {PLATFORM}: {k}")
+        print(f"{len(got) - len(bad)} of {len(got)} fingerprints unchanged on {PLATFORM}")
         return 1 if bad else 0
-    OUT.write_text(json.dumps(got, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"wrote {len(got)} fingerprints to {OUT.relative_to(ROOT)}")
+    for k, v in got.items():
+        if per_platform(k):
+            old = recorded.get(k)
+            recorded[k] = {**(old if isinstance(old, dict) else {}), PLATFORM: v}
+        else:
+            recorded[k] = v
+    OUT.write_text(json.dumps(recorded, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"wrote {len(got)} fingerprints to {OUT.relative_to(ROOT)} ({PLATFORM} for error-model text)")
     return 0
 
 

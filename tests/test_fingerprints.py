@@ -1,6 +1,7 @@
 """Every result the package computes, against the fingerprints recorded in
-data/fingerprints.json (tools/fingerprints.py): the same model text, the same shots for a seed
-at any thread count, the same predictions, on every platform. A change to any of them is a
+data/fingerprints.json (tools/fingerprints.py): the same shots for a seed at any thread count
+and the same predictions on every platform, and the same model text on each (recorded per
+platform, as Stim's own text differs between them in a last digit). A change to any of them is a
 change to a result, which work on speed must never make."""
 
 from __future__ import annotations
@@ -25,4 +26,7 @@ def test_every_case_is_recorded():
 
 @pytest.mark.parametrize("name", sorted(RECORDED))
 def test_fingerprint(name):
-    assert CASES[name]() == RECORDED[name]
+    got = CASES[name]()
+    want = fingerprints.expected(RECORDED, name)
+    # A platform with no record fails too, naming what to record (tools/fingerprints.py --add).
+    assert got == want, f"{name} on {fingerprints.PLATFORM}: {got} (recorded: {want})"

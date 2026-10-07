@@ -67,9 +67,15 @@
  "gross/measure/seed1/t0": "325207690cc226ebe606bc45b8a931c4c7a4bcd6f7a1e53b6f37fa9b71987b35",
  "gross/measure/seed9223372036854775813": "a71f28a0a5e5c606ebc0db6e89360dc0add93b7706961b7726fb247cc7f70f26",
  "gross/measure/seed9223372036854775813/t0": "a71f28a0a5e5c606ebc0db6e89360dc0add93b7706961b7726fb247cc7f70f26",
- "gross/model": "746a541f4da766264107fd1928c8261e77059738dd943c26339cbbe7897f0fb2",
- "gross/model/disjoint": "746a541f4da766264107fd1928c8261e77059738dd943c26339cbbe7897f0fb2",
- "gross/model/flat": "746a541f4da766264107fd1928c8261e77059738dd943c26339cbbe7897f0fb2",
+ "gross/model": {
+  "Darwin-arm64": "746a541f4da766264107fd1928c8261e77059738dd943c26339cbbe7897f0fb2"
+ },
+ "gross/model/disjoint": {
+  "Darwin-arm64": "746a541f4da766264107fd1928c8261e77059738dd943c26339cbbe7897f0fb2"
+ },
+ "gross/model/flat": {
+  "Darwin-arm64": "746a541f4da766264107fd1928c8261e77059738dd943c26339cbbe7897f0fb2"
+ },
  "surface/decode/belief_matching/t0": "f0562ed986691f45cee0c0f6b13b5ebd550e2f8d683dd74539c15c004c29cda1",
  "surface/decode/belief_matching/t1": "f0562ed986691f45cee0c0f6b13b5ebd550e2f8d683dd74539c15c004c29cda1",
  "surface/decode/bposd/t0": "e7103c9d0446ed1240cd4922d38cfe1a360f86623cf9e58c89bbabf38ab5fda8",
@@ -145,10 +151,18 @@
  "surface/measure/seed1/t0": "628a4e1c4bd6bf87c12a4762bac18d3b506a36db0fbae6df026ab64aa251bc63",
  "surface/measure/seed9223372036854775813": "ec5e3a2499689063f992bdab597c99149fecad01fff7f9c8067b9a2192e962a8",
  "surface/measure/seed9223372036854775813/t0": "ec5e3a2499689063f992bdab597c99149fecad01fff7f9c8067b9a2192e962a8",
- "surface/model": "a09e378b8edc3173555ab9aa9434e179380c0b9e8619d4915954b95bd458a518",
- "surface/model/decomposed": "9e2463235cea10207aed0c9a58d11c109e968c83d9c36e5bf8bd4ee46d535a0b",
- "surface/model/disjoint": "a09e378b8edc3173555ab9aa9434e179380c0b9e8619d4915954b95bd458a518",
- "surface/model/flat": "a09e378b8edc3173555ab9aa9434e179380c0b9e8619d4915954b95bd458a518",
+ "surface/model": {
+  "Darwin-arm64": "a09e378b8edc3173555ab9aa9434e179380c0b9e8619d4915954b95bd458a518"
+ },
+ "surface/model/decomposed": {
+  "Darwin-arm64": "9e2463235cea10207aed0c9a58d11c109e968c83d9c36e5bf8bd4ee46d535a0b"
+ },
+ "surface/model/disjoint": {
+  "Darwin-arm64": "a09e378b8edc3173555ab9aa9434e179380c0b9e8619d4915954b95bd458a518"
+ },
+ "surface/model/flat": {
+  "Darwin-arm64": "a09e378b8edc3173555ab9aa9434e179380c0b9e8619d4915954b95bd458a518"
+ },
  "surface_d3/graphlike": "f03a0ddd0906b382cdbe0537a7296694081160446db2db55287ff771fbe9ac4b",
  "surface_d3/search": "f03a0ddd0906b382cdbe0537a7296694081160446db2db55287ff771fbe9ac4b"
 }
