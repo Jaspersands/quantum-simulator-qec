@@ -197,7 +197,7 @@ class Circuit:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
         return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures)))
 
-    def diagram(self, type: str = "timeline-text", *, tick: Union[int, None] = None) -> "Diagram":
+    def diagram(self, type: str = "timeline-text", *, tick: Union[int, range, None] = None, rows: Union[int, None] = None) -> "Diagram":
         """A picture of the circuit, after Stim's ``diagram``:
 
         - ``"timeline-text"``: Stim's text timeline, character for character: every operation in
@@ -206,6 +206,9 @@ class Circuit:
         - ``"timeline-svg"``: the same as a picture.
         - ``"detslice-text"``, ``"detslice-svg"``: what each detector compares after ``tick``
           ``TICK``s, its Paulis over the qubits (drawn at their ``QUBIT_COORDS``).
+        - ``"timeslice-svg"``: the operations of tick ``tick`` (or of each tick in a
+          ``range``, a panel each, in ``rows`` rows) over the qubits' coordinates.
+        - ``"detslice-with-ops-svg"``: the same, with the detector slice after them.
         - ``"matchgraph-svg"``: the decomposed model's matching graph.
 
         The result prints as its text, and shows as a picture in a notebook.
@@ -217,8 +220,14 @@ class Circuit:
         """
         if not isinstance(type, str):
             raise TypeError(f"type must be a str, not {builtins_type(type).__name__}")
-        t = None if tick is None else count(tick, "tick")
-        return Diagram(call(self._c.diagram, type, t), type)
+        if isinstance(tick, range):
+            if tick.step != 1 or len(tick) == 0:
+                raise ValueError("tick must be a non-empty range with step 1")
+            t, end = tick.start, tick.stop
+        else:
+            t, end = (None if tick is None else count(tick, "tick")), None
+        r = None if rows is None else count(rows, "rows", 1)
+        return Diagram(call(self._c.diagram, type, t, end, r), type)
 
     @classmethod
     def generated(

@@ -325,6 +325,9 @@ impl Circuit {
             DiagramKind::TimelineSvg => d::timeline_svg(&self.inner)?,
             DiagramKind::DetectorSliceText { tick } => d::detslice_text(&self.inner, tick)?,
             DiagramKind::DetectorSliceSvg { tick } => d::detslice_svg(&self.inner, tick)?,
+            DiagramKind::DetectorSlicesSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, true, false)?,
+            DiagramKind::TimeSliceSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, false, true)?,
+            DiagramKind::DetectorSliceWithOpsSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, true, true)?,
             DiagramKind::MatchGraphSvg => {
                 let dem = self.detector_error_model(&DemOptions::new().decompose_errors(true).approximate_disjoint_errors(Some(1.0)))?;
                 dem.matchgraph_svg()?
@@ -441,6 +444,29 @@ pub enum DiagramKind {
     },
     /// The decomposed model's matching graph as an SVG picture (`matchgraph-svg`).
     MatchGraphSvg,
+    /// Detector slices after each tick of `[start, end)`, a panel each, in `rows` rows
+    /// (`detslice-svg` over a range).
+    DetectorSlicesSvg {
+        /// The ticks, `[start, end)`.
+        ticks: (u64, u64),
+        /// Rows of panels (`None`: about square).
+        rows: Option<u32>,
+    },
+    /// The operations of each tick of `[start, end)` over the qubits' coordinates
+    /// (`timeslice-svg`).
+    TimeSliceSvg {
+        /// The ticks, `[start, end)`.
+        ticks: (u64, u64),
+        /// Rows of panels (`None`: about square).
+        rows: Option<u32>,
+    },
+    /// Each tick's operations with the detector slice after them (`detslice-with-ops-svg`).
+    DetectorSliceWithOpsSvg {
+        /// The ticks, `[start, end)`.
+        ticks: (u64, u64),
+        /// Rows of panels (`None`: about square).
+        rows: Option<u32>,
+    },
 }
 
 /// A fault class of a circuit's error model and the places in the circuit it arises (see

@@ -170,18 +170,26 @@ impl PyCircuit {
     }
 
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
-    /// detslice-svg, matchgraph-svg); `tick` the moment of a detector slice.
-    #[pyo3(signature = (kind, tick=None))]
-    fn diagram(&self, kind: &str, tick: Option<u64>) -> PyResult<String> {
+    /// detslice-svg, timeslice-svg, detslice-with-ops-svg, matchgraph-svg); `tick` the moment of
+    /// a slice, or with `tick_end` the range `[tick, tick_end)`; `rows` the panels' rows.
+    #[pyo3(signature = (kind, tick=None, tick_end=None, rows=None))]
+    fn diagram(&self, kind: &str, tick: Option<u64>, tick_end: Option<u64>, rows: Option<u32>) -> PyResult<String> {
         use crate::api::DiagramKind as K;
         let need_tick = || tick.ok_or_else(|| err(format!("a {kind} diagram needs tick=")));
+        let range = || -> PyResult<(u64, u64)> {
+            let t = need_tick()?;
+            Ok((t, tick_end.unwrap_or(t + 1)))
+        };
         let kind = match kind {
             "timeline-text" => K::TimelineText,
             "timeline-svg" => K::TimelineSvg,
             "detslice-text" => K::DetectorSliceText { tick: need_tick()? },
-            "detslice-svg" => K::DetectorSliceSvg { tick: need_tick()? },
+            "detslice-svg" if tick_end.is_none() && rows.is_none() => K::DetectorSliceSvg { tick: need_tick()? },
+            "detslice-svg" => K::DetectorSlicesSvg { ticks: range()?, rows },
+            "timeslice-svg" => K::TimeSliceSvg { ticks: range()?, rows },
+            "detslice-with-ops-svg" => K::DetectorSliceWithOpsSvg { ticks: range()?, rows },
             "matchgraph-svg" => K::MatchGraphSvg,
-            other => return Err(err(format!("unknown diagram '{other}': timeline-text, timeline-svg, detslice-text, detslice-svg or matchgraph-svg"))),
+            other => return Err(err(format!("unknown diagram '{other}': timeline-text, timeline-svg, detslice-text, detslice-svg, timeslice-svg, detslice-with-ops-svg or matchgraph-svg"))),
         };
         self.circuit.diagram(kind).map_err(api_err)
     }

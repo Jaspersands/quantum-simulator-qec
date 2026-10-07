@@ -1064,6 +1064,238 @@ pub fn matchgraph_svg(dem: &crate::dem::Dem) -> Result<String, String> {
     Ok(s)
 }
 
+/* -- Time slices ----------------------------------------------------------- */
+
+/// One operation drawn in a time slice.
+enum Drawn {
+    /// A label on one qubit.
+    One(u32, String),
+    /// A two-qubit gate: its qubits and each end's label (`@` a control dot, `⊕` a CX target).
+    Pair(u32, u32, String, String),
+    /// A Pauli product (`MPP`, `SPP`, `E`): its factors, joined.
+    Product(Vec<(u32, String)>, String),
+}
+
+/// The operations a circuit applies during tick `tick` (after `tick` `TICK`s, before the next),
+/// loops unrolled, as Stim draws them in a time slice.
+fn tick_ops(circuit: &Circuit, tick: u64) -> Result<Vec<Drawn>, String> {
+    let flat = circuit.flattened();
+    let mut t = 0u64;
+    let mut out = Vec::new();
+    for ins in &flat.instrs {
+        if matches!(ins, Instr::Tick) {
+            t += 1;
+            if t > tick {
+                break;
+            }
+            continue;
+        }
+        if t != tick {
+            continue;
+        }
+        let line = crate::circuit::instr_line(ins);
+        let Ok((name, _, a, tokens)) = split_instruction(&line) else { continue };
+        let q = |s: &str| s.trim_start_matches('!').parse::<u32>().ok();
+        match name.as_str() {
+            "DETECTOR" | "OBSERVABLE_INCLUDE" | "QUBIT_COORDS" | "SHIFT_COORDS" | "MPAD" => {}
+            "MPP" | "SPP" | "SPP_DAG" | "E" | "ELSE_CORRELATED_ERROR" => {
+                let products: Vec<String> = if name.starts_with('E') { vec![tokens.join("*")] } else { tokens.iter().map(|s| s.to_string()).collect() };
+                for p in products {
+                    let cells = p
+                        .split('*')
+                        .filter_map(|f| {
+                            let f = f.trim_start_matches('!');
+                            Some((f.get(1..)?.parse().ok()?, f[..1].to_string()))
+                        })
+                        .collect();
+                    out.push(Drawn::Product(cells, name.clone()));
+                }
+            }
+            _ => {
+                let two = crate::gates::find(&name).is_some_and(|g| g.arity == 2)
+                    || ["CX", "CY", "CZ", "SWAP", "MXX", "MYY", "MZZ", "DEPOLARIZE2", "PAULI_CHANNEL_2", "II", "II_ERROR"].contains(&name.as_str());
+                if two {
+                    for pair in tokens.chunks(2) {
+                        let [t0, t1] = pair else { continue };
+                        match (q(t0), q(t1)) {
+                            (Some(a0), Some(a1)) => {
+                                let (l0, l1) = match name.as_str() {
+                                    "CX" => ("@", "⊕"),
+                                    "CY" => ("@", "Y"),
+                                    "CZ" => ("@", "@"),
+                                    "XCX" => ("X", "X"),
+                                    "XCY" => ("X", "Y"),
+                                    "XCZ" => ("X", "@"),
+                                    "YCX" => ("Y", "X"),
+                                    "YCY" => ("Y", "Y"),
+                                    "YCZ" => ("Y", "@"),
+                                    _ => ("", ""),
+                                };
+                                let label = |l: &str| if l.is_empty() { name.clone() } else { l.to_string() };
+                                out.push(Drawn::Pair(a0, a1, label(l0), label(l1)));
+                            }
+                            (None, Some(a1)) => out.push(Drawn::One(a1, format!("{}^", &name[1..2]))),
+                            (Some(a0), None) => out.push(Drawn::One(a0, format!("{}^", &name[..1]))),
+                            _ => {}
+                        }
+                    }
+                } else {
+                    let label = if a.is_empty() || !(name.contains("ERROR") || name.starts_with("DEPOLARIZE") || name.starts_with("PAULI_CHANNEL")) {
+                        name.clone()
+                    } else {
+                        format!("{name}({})", a.iter().map(|x| fmt_args(&[*x])).collect::<Vec<_>>().join(","))
+                    };
+                    for s in &tokens {
+                        if let Some(qq) = q(s) {
+                            out.push(Drawn::One(qq, label.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn noisy(label: &str) -> bool {
+    label.contains("ERROR") || label.starts_with("DEPOLARIZE") || label.starts_with("PAULI_CHANNEL") || label.starts_with("HERALDED")
+}
+
+/// Panels of a range of ticks, in a grid of `rows` rows (by default about square): each the
+/// qubits at their coordinates, with the detector slice after its tick's operations
+/// (`slice`) and those operations (`ops`). `detslice-svg` over a range, `timeslice-svg` and
+/// `detslice-with-ops-svg`.
+pub fn slices_svg(circuit: &Circuit, ticks: std::ops::Range<u64>, rows: Option<u32>, slice: bool, ops: bool) -> Result<String, String> {
+    let n = ticks.end.saturating_sub(ticks.start) as usize;
+    if n == 0 {
+        return Err("the range of ticks is empty".into());
+    }
+    if n > 400 {
+        return Err(format!("{n} ticks: at most 400 panels"));
+    }
+    let nq = crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits;
+    let pos = qubit_positions(circuit, nq);
+    let (minx, maxx) = pos.iter().flatten().fold((0.0f64, 0.0f64), |(a, b), p| (a.min(p.0), b.max(p.0)));
+    let (miny, maxy) = pos.iter().flatten().fold((0.0f64, 0.0f64), |(a, b), p| (a.min(p.1), b.max(p.1)));
+    let scale = 48.0;
+    let (pw, ph) = (80.0 + (maxx - minx) * scale, 80.0 + (maxy - miny) * scale + 22.0);
+    let rows = rows.map_or_else(|| (n as f64).sqrt().ceil() as usize, |r| r.max(1) as usize).min(n);
+    let cols = n.div_ceil(rows);
+    let mut s = open_svg(cols as f64 * pw, rows as f64 * ph, 10);
+    let colour = |support: &[(u32, char)]| {
+        let has = |c: char| support.iter().any(|x| x.1 == c);
+        match (has('X'), has('Z'), has('Y')) {
+            (true, false, false) => "#c0392b",
+            (false, true, false) => "#2c5f9e",
+            (false, false, true) => "#2e8b57",
+            _ => "#8e6bbf",
+        }
+    };
+    for (k, tick) in ticks.enumerate() {
+        let (ox, oy) = ((k % cols) as f64 * pw, (k / cols) as f64 * ph);
+        let px = |q: u32| -> (f64, f64) {
+            let p = pos.get(q as usize).copied().flatten().unwrap_or_default();
+            (ox + 40.0 + (p.0 - minx) * scale, oy + 40.0 + (p.1 - miny) * scale)
+        };
+        let _ = write!(s, "<g><title>Tick {tick}</title><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"none\" class=\"tick\" stroke=\"#ccc\"/>", ox + 2.0, oy + 2.0, pw - 4.0, ph - 4.0);
+        let _ = write!(s, "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"12\">Tick {tick}</text>", ox + 8.0, oy + 16.0);
+        if slice {
+            for (name, support) in &detector_slice(circuit, tick + u64::from(ops))? {
+                let pts: Vec<(f64, f64)> = support.iter().map(|&(q, _)| px(q)).collect();
+                let c = colour(support);
+                let title = format!("<title>{name}</title>");
+                match pts.len() {
+                    1 => {
+                        let _ = write!(s, "<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"12\" fill=\"{c}\" fill-opacity=\"0.3\" stroke=\"{c}\">{title}</circle>", pts[0].0, pts[0].1);
+                    }
+                    2 => {
+                        let _ = write!(s, "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke=\"{c}\" stroke-width=\"10\" stroke-opacity=\"0.35\" stroke-linecap=\"round\">{title}</line>", pts[0].0, pts[0].1, pts[1].0, pts[1].1);
+                    }
+                    _ => {
+                        let hull: Vec<String> = convex_hull(&pts).iter().map(|p| format!("{:.1},{:.1}", p.0, p.1)).collect();
+                        let _ = write!(s, "<polygon points=\"{}\" fill=\"{c}\" fill-opacity=\"0.3\" stroke=\"{c}\">{title}</polygon>", hull.join(" "));
+                    }
+                }
+            }
+        }
+        for q in 0..nq as u32 {
+            if pos[q as usize].is_some() {
+                let (x, y) = px(q);
+                let _ = write!(s, "<circle class=\"dot\" cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"2.5\"><title>qubit {q}</title></circle>");
+            }
+        }
+        if ops {
+            // A second operation on a qubit in one tick is drawn a little down and right.
+            let mut seen: std::collections::HashMap<u32, f64> = std::collections::HashMap::new();
+            let mut nudge = |q: u32| {
+                let k = seen.entry(q).or_insert(-1.0);
+                *k += 1.0;
+                *k * 9.0
+            };
+            let boxed = |s: &mut String, q: u32, label: &str, d: f64| {
+                let (x, y) = px(q);
+                let (x, y) = (x + d, y + d);
+                let w = (7.0 * label.chars().count() as f64 + 8.0).max(18.0);
+                let stroke = if noisy(label) { "#c0392b" } else { "currentColor" };
+                let _ = write!(
+                    s,
+                    "<rect class=\"box\" x=\"{:.1}\" y=\"{:.1}\" width=\"{w:.1}\" height=\"18\" rx=\"2\" style=\"stroke:{stroke}\"/><text x=\"{x:.1}\" y=\"{:.1}\" text-anchor=\"middle\" font-size=\"11\">{}</text>",
+                    x - w / 2.0,
+                    y - 9.0,
+                    y + 4.0,
+                    esc(label)
+                );
+            };
+            for op in tick_ops(circuit, tick)? {
+                match op {
+                    Drawn::One(q, label) => {
+                        let d = nudge(q);
+                        boxed(&mut s, q, &label, d);
+                    }
+                    Drawn::Pair(a, b, la, lb) => {
+                        let (da, db) = (nudge(a), nudge(b));
+                        let ((x0, y0), (x1, y1)) = (px(a), px(b));
+                        let _ = write!(s, "<line class=\"join\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke-width=\"2.5\"/>", x0 + da, y0 + da, x1 + db, y1 + db);
+                        for (q, l, d) in [(a, la, da), (b, lb, db)] {
+                            let (x, y) = px(q);
+                            let (x, y) = (x + d, y + d);
+                            match l.as_str() {
+                                "@" => {
+                                    let _ = write!(s, "<circle class=\"dot\" cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"6\"/>");
+                                }
+                                "⊕" => {
+                                    let _ = write!(
+                                        s,
+                                        "<circle class=\"box\" cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"9\"/><path class=\"join\" d=\"M{:.1},{y:.1} L{:.1},{y:.1} M{x:.1},{:.1} L{x:.1},{:.1}\"/>",
+                                        x - 9.0,
+                                        x + 9.0,
+                                        y - 9.0,
+                                        y + 9.0
+                                    );
+                                }
+                                other => boxed(&mut s, q, other, d),
+                            }
+                        }
+                    }
+                    Drawn::Product(cells, name) => {
+                        let ds: Vec<f64> = cells.iter().map(|c| nudge(c.0)).collect();
+                        for w in 0..cells.len().saturating_sub(1) {
+                            let ((x0, y0), (x1, y1)) = (px(cells[w].0), px(cells[w + 1].0));
+                            let _ = write!(s, "<line class=\"join\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke-width=\"2\" stroke-dasharray=\"4 2\"/>", x0 + ds[w], y0 + ds[w], x1 + ds[w + 1], y1 + ds[w + 1]);
+                        }
+                        for ((q, p), d) in cells.iter().zip(ds) {
+                            boxed(&mut s, *q, &format!("{name}[{p}]"), d);
+                        }
+                    }
+                }
+            }
+        }
+        s.push_str("</g>");
+    }
+    s.push_str("</svg>");
+    Ok(s)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

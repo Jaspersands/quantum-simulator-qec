@@ -13,6 +13,10 @@ minor release before a major release removes it. The Rust crate is versioned on 
   `/REP n` with records, detectors and coordinates in terms of `iter`, detectors drawn at their
   qubit's coordinates. Checked on hand-made circuits pinning each rule, Stim's generated
   memories and 200 random circuits using every gate.
+- `diagram("timeslice-svg")` and `diagram("detslice-with-ops-svg")`, and `tick` as a `range`
+  (with `rows`) for these and `detslice-svg`: a panel per tick, each the qubits at their
+  coordinates with that tick's operations and/or the detector slice after them (Rust:
+  `DiagramKind::TimeSliceSvg`, `DetectorSliceWithOpsSvg`, `DetectorSlicesSvg`).
 - `Circuit.explain_detector_error_model_errors(*, dem_filter=None,
   reduce_to_one_representative_error=False)` (Rust: `Circuit::explain_errors`): where each
   fault of a circuit's error model comes from: the instruction (numbered as Stim numbers
