@@ -200,6 +200,19 @@ impl PyCircuit {
         Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
     }
 
+    /// A sampler of raw measurement records (`skip_reference`: flips from all zeros).
+    fn measurement_sampler(&self, py: Python<'_>, seed: u64, skip_reference: bool) -> PyResult<PyMeasurementSampler> {
+        let inner = &self.circuit.inner;
+        let sampler = BatchSampler::new(inner).map_err(err)?;
+        let reference = if skip_reference {
+            Vec::new()
+        } else {
+            let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
+            py.detach(|| crate::m2d::run(inner, qubits, &[], 1))
+        };
+        Ok(PyMeasurementSampler { sampler, reference, seed, next: 0.into() })
+    }
+
     fn sampler(&self, seed: u64) -> PyResult<PySampler> {
         Ok(PySampler { sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
     }
@@ -307,6 +320,31 @@ impl PySampler {
         let (sampler, seed) = (&self.sampler, self.seed);
         let (d, o) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
+}
+
+/// Raw measurement records, batch after batch: a noiseless reference run with each shot's flips.
+#[pyclass(name = "MeasurementSampler", module = "stabilizer_qec._core")]
+pub struct PyMeasurementSampler {
+    sampler: BatchSampler,
+    reference: Vec<bool>,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyMeasurementSampler {
+    #[getter]
+    fn num_measurements(&self) -> usize {
+        self.sampler.num_measurements
+    }
+
+    /// `shots` measurement records as b8 rows.
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> Bound<'py, PyBytes> {
+        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed, reference) = (&self.sampler, self.seed, &self.reference);
+        let rows = py.detach(|| sampler.sample_measurements_seeded(seed, first, shots, threads, reference));
+        PyBytes::new(py, &rows)
     }
 }
 
@@ -692,6 +730,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDem>()?;
     m.add_class::<PySampler>()?;
     m.add_class::<PyDemSampler>()?;
+    m.add_class::<PyMeasurementSampler>()?;
     m.add_class::<PyM2d>()?;
     m.add_class::<PyMatcher>()?;
     m.add_class::<PyUnionFinder>()?;

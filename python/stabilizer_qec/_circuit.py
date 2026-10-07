@@ -311,6 +311,12 @@ class Circuit:
         )
         return _explain.build(raw)
 
+    def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None) -> "MeasurementSampler":
+        """A sampler of raw measurement records, as Stim's: a noiseless reference run with each
+        shot's flips (with ``skip_reference_sample``, the flips alone). The same seed gives the
+        same shots on any machine and number of threads; ``None`` draws a seed."""
+        return MeasurementSampler(self, seed, skip_reference_sample)
+
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
         shots on any machine and any number of threads; ``None`` draws a seed."""
@@ -596,6 +602,28 @@ def _milp_distance(text: str, time_limit: float) -> int:
         found = "none found" if res.x is None else f"best found {round(res.fun)}"
         raise RuntimeError(f"the distance was not proven within {time_limit} s ({found}); raise time_limit, or use method='search' for a bound")
     return int(round(res.fun))
+
+
+class MeasurementSampler:
+    """Raw measurement records, as ``stim.CompiledMeasurementSampler``. Made by
+    ``Circuit.compile_sampler``."""
+
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, skip_reference_sample: bool = False) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample))
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a MeasurementSampler is a position in a stream of shots, which a copy would restart; send the circuit and a seed instead")
+
+    @property
+    def num_measurements(self) -> int:
+        return self._s.num_measurements
+
+    def sample(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> np.ndarray:
+        """``shots`` measurement records: (shots, measurements) bool, or bit-packed uint8 rows."""
+        shots = count(shots, "shots")
+        return b8_to_rows(call(self._s.sample, shots, count(threads, "threads")), shots, self.num_measurements, bit_packed)
 
 
 class DemSampler:

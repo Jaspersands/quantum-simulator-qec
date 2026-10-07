@@ -36,6 +36,9 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - `write_shot_data_file` and `read_shot_data_file`, Stim's functions with Stim's arguments, in
   all six of its result formats (`01`, `b8`, `r8`, `ptb64`, `hits`, `dets`): files byte for
   byte as Stim writes them, and Stim's read back to the same shots.
+- `Circuit.compile_sampler(*, skip_reference_sample=False, seed=None)`: raw measurement
+  records, as Stim's measurement sampler: a noiseless reference run with each shot's flips,
+  equal to Stim's on deterministic circuits and to its rates otherwise.
 - `DetectorErrorModel.compile_sampler(seed=...)` (Rust: `DetectorErrorModel::sampler`): shots
   drawn from a model's faults directly, as Stim's `CompiledDemSampler`, with the faults that
   fired (`return_errors`) and recorded faults replayed (`recorded_errors_to_replay`); rates
