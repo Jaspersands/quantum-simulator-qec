@@ -311,6 +311,12 @@ class Circuit:
         )
         return _explain.build(raw)
 
+    def reference_sample(self, *, bit_packed: bool = False) -> np.ndarray:
+        """A noiseless run's measurement record, as Stim's: the reference each shot's flips are
+        taken from (and the converter compares with). Random outcomes take fixed values."""
+        n = self.num_measurements
+        return b8_to_rows(call(self._c.reference_sample), 1, n, bit_packed)[0]
+
     def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None) -> "MeasurementSampler":
         """A sampler of raw measurement records, as Stim's: a noiseless reference run with each
         shot's flips (with ``skip_reference_sample``, the flips alone). The same seed gives the

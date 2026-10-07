@@ -67,6 +67,116 @@ pub fn generate(task: &str, distance: u32, rounds: u64, noise: &Noise) -> Result
     Ok(lines.join("\n") + "\n")
 }
 
+/// The comment block `stim gen` writes before a generated circuit: its parameters, a picture of
+/// its qubits (each cell padded to the widest label, rows from the top) and a legend.
+pub fn header(task: &str, distance: u32, rounds: u64, noise: &Noise) -> Result<String, String> {
+    generate(task, distance, rounds, noise)?;
+    let (code, name) = task.split_once(':').unwrap_or((task, ""));
+    let g = |x: f64| crate::dem_program::fmt_g(x, 6);
+    let mut s = format!("# Generated {code} circuit.\n# task: {name}\n# rounds: {rounds}\n# distance: {distance}\n");
+    s += &format!("# before_round_data_depolarization: {}\n", g(noise.before_round_data_depolarization));
+    s += &format!("# before_measure_flip_probability: {}\n", g(noise.before_measure_flip_probability));
+    s += &format!("# after_reset_flip_probability: {}\n", g(noise.after_reset_flip_probability));
+    s += &format!("# after_clifford_depolarization: {}\n", g(noise.after_clifford_depolarization));
+    let d = i64::from(distance);
+    // (x, y, label) for every qubit, in the layout's own coordinates.
+    let mut cells: Vec<(i64, i64, String)> = Vec::new();
+    let legend: &[&str] = match task {
+        "repetition_code:memory" => {
+            for q in 0..2 * d - 1 {
+                let kind = if q == 0 { 'L' } else if q % 2 == 1 { 'Z' } else { 'd' };
+                cells.push((q, 0, format!("{kind}{q}")));
+            }
+            &["#     Z# = measurement qubit"]
+        }
+        "surface_code:rotated_memory_x" | "surface_code:rotated_memory_z" => {
+            let memory_x = task.ends_with('x');
+            let index = |x: i64, y: i64| x + (y / 2) * (2 * d + 1);
+            for x in 0..d {
+                for y in 0..d {
+                    let observable = if memory_x { x == 0 } else { y == 0 };
+                    let (cx, cy) = (2 * x + 1, 2 * y + 1);
+                    cells.push((cx, cy, format!("{}{}", if observable { 'L' } else { 'd' }, index(cx, cy))));
+                }
+            }
+            for x in 0..=d {
+                for y in 0..=d {
+                    let parity = x % 2 != y % 2;
+                    if (x == 0 || x == d) && parity || (y == 0 || y == d) && !parity {
+                        continue;
+                    }
+                    cells.push((2 * x, 2 * y, format!("{}{}", if parity { 'X' } else { 'Z' }, index(2 * x, 2 * y))));
+                }
+            }
+            &["#     X# = measurement qubit (X stabilizer)", "#     Z# = measurement qubit (Z stabilizer)"]
+        }
+        "surface_code:unrotated_memory_x" | "surface_code:unrotated_memory_z" => {
+            let memory_x = task.ends_with('x');
+            let w = 2 * d - 1;
+            for x in 0..w {
+                for y in 0..w {
+                    let kind = match (x % 2, y % 2) {
+                        (a, b) if a == b => {
+                            let observable = if memory_x { x == 0 } else { y == 0 };
+                            if observable {
+                                'L'
+                            } else {
+                                'd'
+                            }
+                        }
+                        (1, _) => 'X',
+                        _ => 'Z',
+                    };
+                    cells.push((x, y, format!("{kind}{}", x + y * w)));
+                }
+            }
+            &["#     X# = measurement qubit (X stabilizer)", "#     Z# = measurement qubit (Z stabilizer)"]
+        }
+        _ => {
+            let w = d + (d - 1) / 2;
+            let mut q = 0;
+            for y in 0..w {
+                for i in 0..w - y {
+                    let kind = if (i + 2 * y) % 3 == 2 {
+                        ['G', 'B', 'R'][(y % 3) as usize]
+                    } else if y == 0 {
+                        'L'
+                    } else {
+                        'd'
+                    };
+                    cells.push((y + 2 * i, y, format!("{kind}{q}")));
+                    q += 1;
+                }
+            }
+            &["#     R# = measurement qubit (red hex)", "#     G# = measurement qubit (green hex)", "#     B# = measurement qubit (blue hex)"]
+        }
+    };
+    let width = cells.iter().map(|c| c.2.len()).max().unwrap_or(0);
+    let rows = cells.iter().map(|c| c.1).max().unwrap_or(0) + 1;
+    let mut grid: Vec<Vec<String>> = vec![Vec::new(); rows as usize];
+    for (x, y, label) in cells {
+        let row = &mut grid[y as usize];
+        if row.len() <= x as usize {
+            row.resize(x as usize + 1, String::new());
+        }
+        row[x as usize] = label;
+    }
+    s += "# layout:\n";
+    for row in grid.iter().rev() {
+        s.push('#');
+        for entry in row {
+            s += &format!(" {entry:<width$}");
+        }
+        s.push('\n');
+    }
+    s += "# Legend:\n#     d# = data qubit\n#     L# = data qubit with logical observable crossing\n";
+    for line in legend {
+        s += line;
+        s.push('\n');
+    }
+    Ok(s)
+}
+
 fn list(targets: &[u32]) -> String {
     targets.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(" ")
 }

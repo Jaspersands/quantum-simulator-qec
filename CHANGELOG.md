@@ -36,6 +36,13 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - `write_shot_data_file` and `read_shot_data_file`, Stim's functions with Stim's arguments, in
   all six of its result formats (`01`, `b8`, `r8`, `ptb64`, `hits`, `dets`): files byte for
   byte as Stim writes them, and Stim's read back to the same shots.
+- The command line, `stabilizer-qec` (or `python -m stabilizer_qec`), after Stim's: `gen`,
+  `sample`, `detect`, `m2d`, `analyze_errors`, `explain_errors`, `diagram`, `convert`,
+  `sample_dem` and `help`, with Stim's flags and formats, and `decode` after PyMatching's
+  `predict` (any of the package's decoders). Tested end to end against the `stim` command: the
+  same bytes from `gen` (its header and qubit layout included), `analyze_errors`, `m2d`,
+  `convert`, `explain_errors`, and from `sample` and `detect` on deterministic circuits.
+- `Circuit.reference_sample()`: the noiseless run's measurement record, as Stim's.
 - `Circuit.compile_sampler(*, skip_reference_sample=False, seed=None)`: raw measurement
   records, as Stim's measurement sampler: a noiseless reference run with each shot's flips,
   equal to Stim's on deterministic circuits and to its rates otherwise.

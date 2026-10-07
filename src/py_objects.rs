@@ -200,6 +200,21 @@ impl PyCircuit {
         Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
     }
 
+    /// The noiseless reference run's measurement record (the one the converter compares with),
+    /// as one b8 row.
+    fn reference_sample<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let inner = &self.circuit.inner;
+        let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
+        let bits = py.detach(|| crate::m2d::run(inner, qubits, &[], 1));
+        let mut row = vec![0u8; bits.len().div_ceil(8)];
+        for (k, &b) in bits.iter().enumerate() {
+            if b {
+                row[k / 8] |= 1 << (k % 8);
+            }
+        }
+        Ok(PyBytes::new(py, &row))
+    }
+
     /// A sampler of raw measurement records (`skip_reference`: flips from all zeros).
     fn measurement_sampler(&self, py: Python<'_>, seed: u64, skip_reference: bool) -> PyResult<PyMeasurementSampler> {
         let inner = &self.circuit.inner;
