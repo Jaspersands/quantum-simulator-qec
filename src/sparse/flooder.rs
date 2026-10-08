@@ -65,6 +65,7 @@ impl<'a> Solver<'a> {
                 s.spare_cycles.push(v);
             }
         }
+        s.growing = 0;
         for a in s.alt.drain(..) {
             if a.children.capacity() > 0 {
                 let mut v = a.children;
@@ -85,6 +86,7 @@ impl<'a> Solver<'a> {
     }
 
     pub(crate) fn new_region(&mut self, region: Region) -> u32 {
+        self.s.growing += u32::from(region.radius.slope > 0);
         self.s.regions.push(region);
         (self.s.regions.len() - 1) as u32
     }
@@ -166,6 +168,10 @@ impl<'a> Solver<'a> {
     /// winning edge's event is (reaching an empty node, being reached, a
     /// collision, the boundary) is decided only for the winner.
     pub(crate) fn next_node_event(&self, v: u32) -> Option<(i64, NodeEvent)> {
+        // Two sides meet only if one grows: with no region growing, nothing does.
+        if self.s.growing == 0 {
+            return None;
+        }
         let now = self.s.now;
         let nodes = &self.s.nodes;
         let regions = &self.s.regions;
@@ -302,6 +308,7 @@ impl<'a> Solver<'a> {
         let now = self.s.now;
         let rad = &mut self.s.regions[r as usize].radius;
         let y = rad.at(now);
+        self.s.growing = self.s.growing + u32::from(slope > 0) - u32::from(rad.slope > 0);
         *rad = Radius { y0: y - slope * now, slope };
     }
 
@@ -406,6 +413,8 @@ impl<'a> Solver<'a> {
         let now = self.s.now;
         // What next_node_event reads in place of branches: nobody's region,
         // dead and of radius zero, and the boundary's node, empty.
+        let growing = self.s.regions.iter().filter(|r| r.radius.slope > 0).count();
+        assert_eq!(self.s.growing as usize, growing, "the count of growing regions is wrong");
         let nobody = &self.s.regions[NOBODY];
         assert!(nobody.dead && nobody.radius.y0 == 0 && nobody.radius.slope == 0, "region 0 is no longer nobody's");
         let beyond = &self.s.nodes[self.g.num_nodes];

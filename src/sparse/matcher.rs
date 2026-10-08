@@ -255,6 +255,7 @@ impl<'a> Solver<'a> {
         self.done_with_nodes(nodes);
         let reg = &mut self.s.regions[c as usize];
         let y = reg.radius.at(now);
+        self.s.growing -= u32::from(reg.radius.slope > 0);
         reg.radius = Radius { y0: y, slope: 0 };
         reg.blossom_parent = b;
         reg.tree = NONE;

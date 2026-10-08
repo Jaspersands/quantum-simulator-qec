@@ -116,6 +116,9 @@ pub struct Scratch {
     pub(crate) dirty: Vec<bool>,
     pub(crate) touched: Vec<u32>,
     pub(crate) regions: Vec<Region>,
+    /// How many regions grow (positive slope). With none, nothing can meet anything, which
+    /// `next_node_event` knows without a scan.
+    pub(crate) growing: u32,
     pub(crate) alt: Vec<AltNode>,
     pub(crate) queue: Tracker,
     pub(crate) now: i64,
@@ -176,6 +179,7 @@ impl Scratch {
                 queued: NO_TIME,
                 dead: true,
             }],
+            growing: 0,
             alt: Vec::new(),
             queue: Tracker::default(),
             now: 0,
