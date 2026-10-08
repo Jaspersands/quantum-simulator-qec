@@ -215,7 +215,10 @@ impl Circuit {
 
     /// Stim's generated colour code (`"color_code:memory_xyz"`) flattened, each detector
     /// `(x, y, t)` given Chromobius's colour and basis as a 4th coordinate, `(y + t) mod 3`, as
-    /// Chromobius's authors annotate it: what `ColorMatching` decodes.
+    /// Chromobius's authors annotate it. Chromobius does not decode these circuits under
+    /// circuit noise (its tests leave them out: their faults cannot all be split into basic
+    /// ones), and neither does [`ColorMatching`](crate::ColorMatching); it does decode the
+    /// [`CssCode`](crate::CssCode) colour memories.
     ///
     /// ```
     /// use stabilizer_qec::{Circuit, GeneratedNoise};

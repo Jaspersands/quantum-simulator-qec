@@ -929,6 +929,44 @@ impl PyDemRelay {
     }
 }
 
+/// Colour-code matching (Chromobius's construction) on an annotated model.
+#[pyclass(name = "DemColorMatcher", module = "stabilizer_qec._core")]
+pub struct PyDemColorMatcher {
+    dec: crate::color::ColorDecoder,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemColorMatcher {
+    #[new]
+    fn new(dem: &PyDem, ignore_decomposition_failures: bool) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let dec = crate::color::ColorDecoder::from_dem(d, ignore_decomposition_failures).map_err(err)?;
+        Ok(PyDemColorMatcher { dec, num_detectors: d.num_detectors, num_observables: d.num_observables })
+    }
+
+    /// The Möbius model, as Stim's text.
+    fn mobius_model(&self) -> String {
+        self.dec.mobius_text().to_string()
+    }
+
+    /// (observables as u64 per shot, weights as f64, one byte per shot 1 where the lifting
+    /// used an ambiguous table entry, the shots that failed).
+    #[allow(clippy::type_complexity)]
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::color_shots(dec, packed, nd, shots, threads));
+        let failed = out.iter().enumerate().filter(|(_, x)| x.2 == 2).map(|(s, _)| s).collect();
+        let tied: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &tied), failed))
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
@@ -947,5 +985,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBpLsd>()?;
     m.add_class::<PyRelay>()?;
     m.add_class::<PyDemRelay>()?;
+    m.add_class::<PyDemColorMatcher>()?;
     Ok(())
 }

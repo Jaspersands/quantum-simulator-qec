@@ -117,6 +117,38 @@ def test_relay_bp_on_a_model(d3):
         sq.RelayBp(dem, gamma_range=(0.5, 0.1))
 
 
+def test_color_matching_decodes_colour_codes():
+    for d, limit in [(3, 0.03), (5, 0.012)]:
+        c = sq.CssCode.color_code(d).memory_circuit(d, 0.001, annotate_colors=True)
+        dem = c.detector_error_model()
+        dets, obs = shots_of(c, 4000, seed=6)
+        m = sq.ColorMatching(dem)
+        pred, w = m.decode_batch(dets, return_weights=True, threads=0)
+        assert failure_rate(pred, obs) < limit
+        assert np.array_equal(m.decode_batch(dets, threads=1), pred)
+        assert np.array_equal(m.decode(dets[5]), pred[5])
+        assert m.mobius_model.num_detectors == 2 * dem.num_detectors
+        assert np.all(w[~dets.any(axis=1)] == 0)
+    # Without the annotation, or on the surface code, it says why.
+    with pytest.raises(ValueError, match="4 coordinates|colour"):
+        sq.ColorMatching(sq.CssCode.color_code(3).memory_circuit(2, 0.001).detector_error_model())
+
+
+def test_color_matching_equals_chromobius():
+    stim = pytest.importorskip("stim")
+    chromobius = pytest.importorskip("chromobius")
+    for d, basis in [(3, "z"), (5, "x")]:
+        c = sq.CssCode.color_code(d).memory_circuit(d, 0.002, basis=basis, annotate_colors=True)
+        dem = stim.DetectorErrorModel(str(c.detector_error_model()))
+        dets, _ = stim.Circuit(str(c)).compile_detector_sampler(seed=2).sample(3000, separate_observables=True, bit_packed=True)
+        theirs, tw = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
+        ours, w = sq.ColorMatching(str(dem)).decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        # The Möbius matchings weigh the same on every shot, and the predictions differ only
+        # where two matchings of that weight differ (ties).
+        assert np.allclose(w, tw, rtol=1e-4, atol=1e-3)
+        assert np.mean(np.all(ours == theirs, axis=1)) > 0.99
+
+
 def test_window_matching(d3):
     c = sq.memory_circuit(distance=3, rounds=30, p=0.005)
     dem = c.detector_error_model(decompose_errors=True)

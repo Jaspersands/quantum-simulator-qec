@@ -2,7 +2,7 @@
 
 use stabilizer_qec::{
     lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpLsd, BpLsdDecoder, BpMethod,
-    BpOptions, BpOsd, BpOsdDecoder, LsdOptions, RelayBp, RelayBpDecoder, RelayOptions, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
+    BpOptions, BpOsd, BpOsdDecoder, ColorMatching, LsdOptions, RelayBp, RelayBpDecoder, RelayOptions, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
     SurfaceCode, Target, WindowMatching, WindowMode, WindowOptions,
 };
 
@@ -30,6 +30,7 @@ fn decoders_and_samplers_cross_threads() {
     shareable::<BpLsdDecoder>();
     shareable::<RelayBp>();
     shareable::<RelayBpDecoder>();
+    shareable::<ColorMatching>();
     fn sendable<T: Send>() {}
     sendable::<stabilizer_qec::DetectorSampler>();
     sendable::<stabilizer_qec::MeasurementConverter>();

@@ -386,6 +386,56 @@ class RelayBp(_DemDecoder):
         return out
 
 
+class ColorMatching(_DemDecoder):
+    """Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023):
+    each detector doubled into the two sub-graphs leaving out a colour other than its own,
+    every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
+    minimum-weight matching of it found by this package's matcher, and the matching lifted
+    back to the code by carrying colour charge around its cycles. Predictions equal to the
+    ``chromobius`` package's but for ties between equally light matchings.
+
+    The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
+    colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):
+    ``CssCode.color_code(d).memory_circuit(..., annotate_colors=True)`` writes it. Faults it
+    cannot split into basic ones are an error, as in Chromobius, unless
+    ``ignore_decomposition_failures``. Give it the undecomposed model."""
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike, *, ignore_decomposition_failures: bool = False) -> None:
+        model = self._made(_model(model), ignore_decomposition_failures=ignore_decomposition_failures)
+        self._x = call(_core.DemColorMatcher, model._d, bool(ignore_decomposition_failures))
+
+    @property
+    def mobius_model(self) -> DetectorErrorModel:
+        """The Möbius model the matching is found on: two detectors per detector, edges only."""
+        return DetectorErrorModel(self._x.mobius_model())
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        return_weights: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+        """As ``Matching.decode_batch``; ``return_weights`` also returns each shot's Möbius
+        matching weight (as ``chromobius``'s ``predict_weighted_obs_flips_from_dets_bit_packed``)."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, weights, _tied, failed = call(self._x.decode_batch, packed, n, threads)
+        _failed(failed, "no lifting of the matching explains the detection events (are the colour annotations right?)")
+        out = self._predictions(preds, n, bit_packed_predictions)
+        if return_weights:
+            return out, np.frombuffer(weights, dtype="<f8").copy()
+        return out
+
+    def _decode_with_ties(self, shots: Any) -> tuple:
+        packed, n, _ = self._shots(shots, False, 1)
+        preds, weights, tied, failed = call(self._x.decode_batch, packed, n, 1)
+        return self._predictions(preds, n, False), np.frombuffer(weights, dtype="<f8").copy(), np.frombuffer(tied, dtype=np.uint8).astype(bool), failed
+
+
 class Window(NamedTuple):
     """A window of a window decoder: it decodes rounds ``[first_layer, end_layer)`` and
     commits the corrections in ``[commit_start, commit_end)``. Windows of phase 0 run first;

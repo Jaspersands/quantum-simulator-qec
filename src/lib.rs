@@ -77,6 +77,8 @@ mod chacha;
 #[doc(hidden)]
 pub mod relay;
 #[doc(hidden)]
+pub mod color;
+#[doc(hidden)]
 pub mod lsd;
 #[doc(hidden)]
 pub mod surgery;

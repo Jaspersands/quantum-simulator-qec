@@ -22,6 +22,12 @@ Sections (each skipped, and said so, when its reference is not installed):
           iteration count must be identical: there is no sort and no tie, and the random
           strengths are drawn with the same generator.
 
+  color   ColorMatching against chromobius on annotated colour-code memories (d = 3 to 9, both
+          bases, two noise strengths) and Chromobius's own colour repetition code: the Möbius
+          matching's weight equal on every shot (a check of the whole Möbius graph), and the
+          predictions equal except where they differ at that equal weight, which is a tie
+          between two minimum-weight matchings.
+
 Exits non-zero if any check fails.
 """
 
@@ -164,9 +170,55 @@ def check_relay(quick):
     return ok, rows
 
 
+COLOR_REP_CODE = """
+X_ERROR(0.1) 0 1 2 3 4 5 6 7 8
+M 0 1 2 3 4 5 6 7 8
+DETECTOR(0, 0, 0, 0) rec[-9] rec[-8] rec[-7]
+DETECTOR(1, 0, 0, 1) rec[-8] rec[-7] rec[-6]
+DETECTOR(2, 0, 0, 2) rec[-7] rec[-6] rec[-5]
+DETECTOR(3, 0, 0, 0) rec[-6] rec[-5] rec[-4]
+DETECTOR(4, 0, 0, 1) rec[-5] rec[-4] rec[-3]
+DETECTOR(5, 0, 0, 2) rec[-4] rec[-3] rec[-2]
+DETECTOR(6, 0, 0, 0) rec[-3] rec[-2] rec[-1]
+DETECTOR(7, 0, 0, 1) rec[-2] rec[-1]
+""" + "".join(f"OBSERVABLE_INCLUDE({k}) rec[-{k + 1}]\n" for k in range(9))
+
+
+def check_color(quick):
+    import chromobius
+    import stim
+
+    ok, rows = True, []
+    cases = [("Chromobius's colour repetition code (its test)", sq.Circuit(COLOR_REP_CODE))]
+    for d in (3, 5, 7) if quick else (3, 5, 7, 9):
+        for basis in ("z", "x"):
+            for p in (0.001, 0.003):
+                cases.append((f"colour code d={d} {basis} p={p}", sq.CssCode.color_code(d).memory_circuit(d, p, basis=basis, annotate_colors=True)))
+    for name, c in cases:
+        dem = stim.DetectorErrorModel(str(c.detector_error_model()))
+        n = 2000 if quick else 20000
+        dets, _ = stim.Circuit(str(c)).compile_detector_sampler(seed=3).sample(n, separate_observables=True, bit_packed=True)
+        t0 = time.perf_counter()
+        theirs, tw = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
+        t1 = time.perf_counter()
+        ours, w = sq.ColorMatching(str(dem)).decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        t2 = time.perf_counter()
+        same = np.all(ours == theirs, axis=1)
+        wsame = np.isclose(w, tw, rtol=1e-4, atol=1e-3)
+        row = dict(case=name, shots=n, agree=int(same.sum()), tied=int(np.sum(~same & wsame)), untied=int(np.sum(~same & ~wsame)),
+                   weights_differ=int(np.sum(~wsame)), ours_s=t2 - t1, chromobius_s=t1 - t0)
+        good = row["untied"] == 0 and row["weights_differ"] == 0
+        ok &= good
+        rows.append(row)
+        print(f"  {name:48} agree {row['agree']:6}  tied {row['tied']:4}  untied {row['untied']}  weights differ {row['weights_differ']}  "
+              f"{1e6 * row['ours_s'] / n:.1f} vs {1e6 * row['chromobius_s'] / n:.1f} us/shot  {'ok' if good else 'FAIL'}", flush=True)
+    return ok, rows
+
+
 SECTIONS = {
     "lsd": ("BP+LSD against ldpc", "ldpc", check_lsd),
     "relay": ("Relay-BP against IBM's relay_bp", "relay-bp", check_relay),
+    "color": ("Colour-code matching against Chromobius", "chromobius", check_color),
 }
 
 

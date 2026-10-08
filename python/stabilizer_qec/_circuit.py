@@ -248,9 +248,10 @@ class Circuit:
         ``"surface_code:unrotated_memory_x"`` (or ``_z``), or ``"color_code:memory_xyz"``.
 
         ``annotate_colors`` (the colour code only) flattens the circuit and gives each
-        detector ``(x, y, t)`` a 4th coordinate, ``(y + t) mod 3``: the colour and basis
-        Chromobius (and ``ColorMatching``) decode by, as Chromobius's authors annotate these
-        circuits.
+        detector ``(x, y, t)`` a 4th coordinate, ``(y + t) mod 3``: Chromobius's colour and
+        basis annotation, as its authors annotate these circuits. Chromobius does not decode
+        them under circuit noise (its tests leave them out), and neither does
+        ``ColorMatching``; it does decode ``CssCode.color_code`` memories.
 
         >>> c = Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=5,
         ...                       after_clifford_depolarization=0.001)

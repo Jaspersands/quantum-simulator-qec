@@ -536,6 +536,79 @@ impl RelayBp {
     }
 }
 
+/// Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023): each
+/// detector doubled into the two sub-graphs that leave out a colour other than its own, every
+/// fault split into basic faults drawn as edges of that doubled (Möbius) graph, a minimum-
+/// weight matching of it found by this crate's matcher, and the matching lifted back to the
+/// code by carrying colour charge around its cycles. Predictions equal to the `chromobius`
+/// package's but for ties between equally light matchings.
+///
+/// The model's detectors need Chromobius's annotation: a 4th coordinate giving the basis and
+/// colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; −1 to ignore the detector), as
+/// [`CssCode::memory_circuit_with_colors`](crate::CssCode::memory_circuit_with_colors) writes
+/// it. Give it the undecomposed model.
+///
+/// ```
+/// use stabilizer_qec::{Basis, ColorMatching, CssCode, DemOptions};
+///
+/// let c = CssCode::color_code(5)?.memory_circuit_with_colors(5, 0.001, Basis::Z)?;
+/// let decoder = ColorMatching::new(&c.detector_error_model(&DemOptions::new())?)?;
+/// let samples = c.detector_sampler(1)?.sample(2000, 0);
+/// let predictions = decoder.decode_batch(&samples.detectors, 0)?;
+/// let wrong = (0..2000).filter(|&s| predictions[s].flips(0) != samples.observables.get(s, 0)).count();
+/// assert!(wrong < 40);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+pub struct ColorMatching {
+    inner: crate::color::ColorDecoder,
+    num_detectors: usize,
+}
+
+impl ColorMatching {
+    /// The decoder for an annotated model; an error where a fault cannot be split into the
+    /// code's basic faults (as in Chromobius).
+    pub fn new(dem: &DetectorErrorModel) -> Result<ColorMatching> {
+        ColorMatching::build(dem, false)
+    }
+
+    /// The same, leaving out of the Möbius graph what cannot be decomposed.
+    pub fn ignoring_decomposition_failures(dem: &DetectorErrorModel) -> Result<ColorMatching> {
+        ColorMatching::build(dem, true)
+    }
+
+    fn build(dem: &DetectorErrorModel, ignore: bool) -> Result<ColorMatching> {
+        let d = dem.flat()?;
+        Ok(ColorMatching { inner: crate::color::ColorDecoder::from_dem(d, ignore)?, num_detectors: d.num_detectors })
+    }
+
+    /// The Möbius model the matching is found on: two detectors per detector, edges only.
+    pub fn mobius_model(&self) -> Result<DetectorErrorModel> {
+        DetectorErrorModel::parse(self.inner.mobius_text())
+    }
+
+    /// One shot, given the detectors that fired. `weight` is the Möbius matching's.
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core). A shot no lifting of
+    /// the matching explains (wrong annotations, or a model Chromobius cannot decode either)
+    /// is an error naming it.
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = crate::batch::color_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        if let Some(s) = out.iter().position(|x| x.2 == 2) {
+            return Err(Error::new(format!("shot {s}: no lifting of the matching explains its detection events (are the colour annotations right?)")));
+        }
+        Ok(out.into_iter().map(|(o, w, _)| Prediction { observables: o, weight: Some(w), bp_converged: None }).collect())
+    }
+}
+
 /// The order a window decoder runs its windows in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]

@@ -88,6 +88,14 @@ impl SparseGraph {
         Ok(solver.s.edge_set.iter().map(|&id| self.ends[id as usize]).collect())
     }
 
+    /// The matching and the edges it uses, at once (see `decode_to_edges`).
+    pub(crate) fn decode_with_edges(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<(Prediction, Vec<(u32, u32)>), DecodeError> {
+        self.check_scratch(scratch);
+        let mut solver = Solver { g: self, s: scratch };
+        let prediction = solver.pass_one(defects)?;
+        Ok((prediction, solver.s.edge_set.iter().map(|&id| self.ends[id as usize]).collect()))
+    }
+
     /// Pass one's edge set, as edge ids: what a window decoder commits from.
     pub fn decode_edge_ids(&self, scratch: &mut Scratch, defects: &[u32]) -> Result<Vec<u32>, DecodeError> {
         self.check_scratch(scratch);

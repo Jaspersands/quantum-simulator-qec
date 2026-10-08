@@ -2,6 +2,7 @@
 //! Stim's b8 rows, cut across threads, results in shot order.
 
 use crate::belief::BeliefMatching;
+use crate::color::ColorDecoder;
 use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
 use crate::relay::Relay;
@@ -140,6 +141,28 @@ fn shot_seed(seed: u64, s: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
     z ^ (z >> 31)
+}
+
+/// Colour-code matching of b8 shots: per shot (observables, the Möbius matching's weight,
+/// 0 decoded / 1 decoded through an ambiguous table entry / 2 failed).
+pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, u8)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                let row = &packed[s * stride..(s + 1) * stride];
+                defects.clear();
+                crate::shots::defects_from_b8(row, nd, &mut defects);
+                let fired = |d: u32| (row[d as usize / 8] >> (d % 8)) & 1 == 1;
+                match dec.decode(&defects, &fired, &mut work) {
+                    Ok((o, w)) => (o, w, u8::from(work.tied)),
+                    Err(_) => (u64::MAX, f64::NAN, 2),
+                }
+            })
+            .collect()
+    })
 }
 
 /// BP+OSD of b8 shots on a model's faults: (observables, BP converged).
