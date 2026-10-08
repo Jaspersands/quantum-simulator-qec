@@ -22,7 +22,7 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - Measurements are converted to detection events 64 shots at a time, as Stim converts them
   (each detector the XOR of its records' words, rows moved in and out by 64×64 bit
   transposes): 0.24 of Stim's time on Apple silicon (1.6: 1.26), the output unchanged.
-- Matching is 14% faster plain and 10% correlated, every decision unchanged (the matcher's
+- Matching is 14% faster plain and 12% correlated, every decision unchanged (the matcher's
   fingerprints): a reminder for a node with nothing ahead is passed over without a scan while
   nothing that could change that has happened, no scan at all when no region grows, the scan
   reads one array with no selects, and reminders compare as integers. Against PyMatching,
