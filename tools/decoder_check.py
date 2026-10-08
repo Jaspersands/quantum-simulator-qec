@@ -5,7 +5,8 @@ Run from the repository root, with the package built and the references installe
 
     python tools/decoder_check.py                 # every check; writes data/decoders/check.json
     python tools/decoder_check.py --quick         # fewer shots, writes nothing (CI)
-    python tools/decoder_check.py --only lsd      # some sections (comma-separated)
+    python tools/decoder_check.py --only lsd      # some sections (comma-separated); replaces
+                                                  # their part of data/decoders/check.json
 
 Sections (each skipped, and said so, when its reference is not installed):
   lsd     BP+LSD against ldpc's BpLsdDecoder on the same check matrix: random matrices, a
@@ -203,10 +204,11 @@ def check_color(quick):
         dem = stim.DetectorErrorModel(str(c.detector_error_model()))
         n = 2000 if quick else 20000
         dets, _ = stim.Circuit(str(c)).compile_detector_sampler(seed=3).sample(n, separate_observables=True, bit_packed=True)
+        their_decoder, our_decoder = chromobius.compile_decoder_for_dem(dem), sq.ColorMatching(str(dem))
         t0 = time.perf_counter()
-        theirs, tw = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
+        theirs, tw = their_decoder.predict_weighted_obs_flips_from_dets_bit_packed(dets)
         t1 = time.perf_counter()
-        ours, w = sq.ColorMatching(str(dem)).decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        ours, w = our_decoder.decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
         t2 = time.perf_counter()
         same = np.all(ours == theirs, axis=1)
         wsame = np.isclose(w, tw, rtol=1e-4, atol=1e-3)
@@ -285,9 +287,11 @@ def main():
         good, rows = run(args.quick)
         ok &= good
         results[key] = dict(reference=f"{package} {version(package)}", rows=rows)
-    if not args.quick and not only:
+    if not args.quick:
+        # A partial run (--only) replaces its sections of the last full one.
         OUT.parent.mkdir(parents=True, exist_ok=True)
-        OUT.write_text(json.dumps(dict(version=sq.__version__, sections=results), indent=1) + "\n")
+        old = json.loads(OUT.read_text())["sections"] if OUT.exists() else {}
+        OUT.write_text(json.dumps(dict(version=sq.__version__, sections={**old, **results}), indent=1) + "\n")
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")
     return 0 if ok else 1
 
