@@ -22,6 +22,16 @@ minor release before a major release removes it. The Rust crate is versioned on 
 - Measurements are converted to detection events 64 shots at a time, as Stim converts them
   (each detector the XOR of its records' words, rows moved in and out by 64×64 bit
   transposes): 0.24 of Stim's time on Apple silicon (1.6: 1.26), the output unchanged.
+- Matching is 14% faster plain and 10% correlated, every decision unchanged (the matcher's
+  fingerprints): a reminder for a node with nothing ahead is passed over without a scan while
+  nothing that could change that has happened, no scan at all when no region grows, the scan
+  reads one array with no selects, and reminders compare as integers. Against PyMatching,
+  plain matching now takes 0.98 of its time on Apple silicon, 1.08 on Linux arm64 and about
+  1.2 on Linux x86_64 (whose spare registers the loop exhausts); correlated matching 0.91 to
+  0.98, 0.85 and about 1.2.
+- `tools/bench.py` adds sampling and decoding at 4 threads and on every core (no reference:
+  Stim's sampler and PyMatching's batch decoding are single-threaded), and records the core
+  count.
 
 ### Added
 
