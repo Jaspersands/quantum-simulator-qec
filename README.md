@@ -79,7 +79,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.6, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.7, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -185,13 +185,13 @@ runners, `.github/workflows/bench.yml`); every push is held to them, and the
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
-| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 2.02 | 0.83 | — |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.91 | 1.01 | — |
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.83 | — |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 1.01 | — |
 | Sampling its detection events, 20,000 shots | 0.93 | 0.75 | — |
-| Measurements to detection events, 20,000 shots | 1.26 | 0.73 | — |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 1.12 | 1.41 | — |
-| Correlated matching, 20,000 shots (against PyMatching's) | 0.86 | 1.35 | — |
-| *recorded with* | 1.6.0 | 1.6.0 | — |
+| Measurements to detection events, 20,000 shots | 0.24 | 0.73 | — |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.94 | 1.41 | — |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.95 | 1.35 | — |
+| *recorded with* | 1.7.0 | 1.6.0 | — |
 
 ## A note on quoted figures
 

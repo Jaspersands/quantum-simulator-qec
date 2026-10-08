@@ -264,5 +264,111 @@
    }
   },
   "note": "a GitHub Actions ubuntu-latest runner, CI run 37616325500"
+ },
+ {
+  "version": "1.7.0",
+  "date": "2026-10-08",
+  "machine": "Darwin arm64, Python 3.13.5",
+  "cores": 10,
+  "kind": "Darwin arm64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 14762.458973564208,
+    "reference_us": 23764.95802309364,
+    "ratio": 0.6139536635829329
+   },
+   "shortest_graphlike": {
+    "what": "Its graph-like distance (shortest_graphlike_error on the model)",
+    "unit": "model",
+    "ours_us": 367.9159563034773,
+    "reference_us": 3575.291018933058,
+    "ratio": 0.10419932235554605
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 2.3383437539450824,
+    "reference_us": 2.5203833472914994,
+    "ratio": 0.9277730534356833
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 0.7397020992357284,
+    "reference_us": 2.991637500235811,
+    "ratio": 0.24375872171412744
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 4.149877047166228,
+    "reference_us": 4.302341700531542,
+    "ratio": 0.9384274269188071
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 11.082610447192565,
+    "reference_us": 11.67449164786376,
+    "ratio": 0.9493013298973493
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 11.089079198427498,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@4": {
+    "what": "Sampling, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 0.8273145474959165,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@all": {
+    "what": "Sampling, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 0.6447708001360297,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@4": {
+    "what": "Matching, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 1.118991698604077,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@all": {
+    "what": "Matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 0.7733083504717797,
+    "reference_us": null,
+    "ratio": null
+   },
+   "correlated_matching@all": {
+    "what": "Correlated matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 1.8043999967630953,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 1483.6475000871967,
+    "reference_us": null,
+    "ratio": null
+   }
+  },
+  "note": "median of three runs, nine repeats each"
  }
 ]

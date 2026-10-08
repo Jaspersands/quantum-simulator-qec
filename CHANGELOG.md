@@ -4,7 +4,13 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## Unreleased
+## 1.7.0 — 2026-10-08
+
+The Python package and the Rust crate both at 1.7.0, "faster": error models in 0.4 to 0.6 of
+Stim's time, measurement conversion in 0.1 to 0.25, the graph-like distance in 0.1 to 0.2 and
+now as Stim's own answer, and matching at or below PyMatching's time on Apple silicon (about 1.1
+times on Linux arm64 and 1.2 on x86_64), with every result unchanged and fingerprinted on every
+platform. Benchmarks run on Linux arm64 as well as x86_64, and at 4 threads and every core.
 
 ### Changed
 
