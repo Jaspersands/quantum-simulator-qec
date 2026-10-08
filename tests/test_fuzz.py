@@ -181,7 +181,16 @@ def test_any_model_text(text):
     assert again.num_errors <= dem.num_errors and again.num_observables == dem.num_observables
     shots = np.zeros((2, dem.num_detectors), dtype=bool)
     shots[1, ::2] = True
-    for make in (lambda: sq.Matching(dem), lambda: sq.BpOsd(dem, max_iter=5, osd_order=2), lambda: sq.WindowMatching(dem, commit=1, buffer=1), lambda: sq.UnionFind(dem)):
+    for make in (
+        lambda: sq.Matching(dem),
+        lambda: sq.BpOsd(dem, max_iter=5, osd_order=2),
+        lambda: sq.WindowMatching(dem, commit=1, buffer=1),
+        lambda: sq.UnionFind(dem),
+        lambda: sq.BpLsd(dem, max_iter=5, lsd_method="lsd_cs", lsd_order=3),
+        lambda: sq.RelayBp(dem, legs=3, pre_iterations=5, iterations=5),
+        lambda: sq.ColorMatching(dem),
+        lambda: sq.SearchDecoder(dem, pqlimit=1000, num_det_orders=1),
+    ):
         try:
             decoder = make()
         except ALLOWED:
@@ -248,7 +257,14 @@ def test_sampler_arguments(shots, threads, seed, packed, separate):
 def test_decoder_inputs(rows, cols, dtype, packed, threads):
     dem = sq.memory_circuit(distance=3, rounds=3, p=0.01).detector_error_model(decompose_errors=True)
     shots = np.ones((rows, cols), dtype=dtype)
-    for decoder in (sq.Matching(dem), sq.BeliefMatching(dem), sq.BpOsd(dem, max_iter=5, osd_order=2)):
+    for decoder in (
+        sq.Matching(dem),
+        sq.BeliefMatching(dem),
+        sq.BpOsd(dem, max_iter=5, osd_order=2),
+        sq.BpLsd(dem, max_iter=5),
+        sq.RelayBp(dem, legs=2),
+        sq.SearchDecoder(dem, num_det_orders=1),
+    ):
         survives(decoder.decode_batch, shots, bit_packed_shots=packed, threads=threads)
     survives(sq.Matching(dem).decode, np.ones(cols, dtype=dtype))
 
@@ -259,6 +275,8 @@ def test_check_matrix_decoders(m, n, rate, method):
     for make in (
         lambda: sq.BpDecoder(pcm, error_rate=rate, bp_method=method),
         lambda: sq.BpOsdDecoder(pcm, error_rate=rate, bp_method=method),
+        lambda: sq.BpLsdDecoder(pcm, error_rate=rate, bp_method=method, lsd_method="lsd_e", lsd_order=2),
+        lambda: sq.RelayBpDecoder(pcm, error_rate=rate, legs=2),
     ):
         try:
             dec = make()

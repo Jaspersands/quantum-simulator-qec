@@ -14,7 +14,8 @@
 //!   where the last check stopped (`rref_with_y_image_check`), which stops as soon as the
 //!   syndrome is in the image, leaving later columns uneliminated;
 //! - its quirks are kept: an empty column is not added at all, and a check with no new columns
-//!   answers from the syndrome vector as it stood after the last elimination.
+//!   answers from the syndrome vector as it stood after the last elimination (rows that vector
+//!   never covered, where ldpc reads out of bounds, are read from the syndrome).
 
 /// The factorisation of a matrix held column by column (`csc[j]` lists column `j`'s rows).
 #[derive(Clone, Debug, Default)]
@@ -135,7 +136,9 @@ impl Plu {
     /// whether it is. Starting from column 0 starts over.
     pub(crate) fn rref_with_y_image_check(&mut self, y: &[u8], start: usize) -> bool {
         if start == self.col_count {
-            return (self.matrix_rank..self.row_count).all(|i| self.y_check.get(i).copied().unwrap_or(0) == 0);
+            // ldpc reads its check vector as the last elimination left it; rows it never
+            // covered (no column eliminated yet, where ldpc reads past its end) come from `y`.
+            return (self.matrix_rank..self.row_count).all(|i| self.y_check.get(i).copied().unwrap_or(y[i]) == 0);
         }
         if start == 0 {
             self.reset();

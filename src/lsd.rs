@@ -493,6 +493,11 @@ impl BpLsd {
             OsdMethod::Exhaustive(k) | OsdMethod::CombinationSweep(k) => k,
         };
         w.correction.fill(0);
+        if !solved {
+            // Some cluster never became valid, and may never have been factorised.
+            w.ties += s.ties;
+            return false;
+        }
         if order > 0 {
             self.apply_lsdw(&mut s, order, weights, w);
         } else {

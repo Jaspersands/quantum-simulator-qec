@@ -64,6 +64,34 @@ def test_belief_matching_and_bposd_run_under_sinter():
         assert s.shots >= 3000 and rate < 0.05, name
 
 
+def test_the_18_decoders_run_under_sinter():
+    gross = sq.BivariateBicycleCode("gross").memory_circuit(2, 0.002)
+    colour = sq.CssCode.color_code(3).memory_circuit(3, 0.002, annotate_colors=True)
+    tasks = [
+        sinter.Task(circuit=stim.Circuit(str(gross)), json_metadata={"code": "gross"}),
+        sinter.Task(circuit=stim.Circuit(str(colour)), json_metadata={"code": "colour"}),
+    ]
+    custom = {
+        "sq_bplsd": sq_sinter.Decoder("bplsd", max_iter=30),
+        "sq_relay_bp": sq_sinter.Decoder("relay_bp", legs=10, solutions=1),
+        "sq_search": sq_sinter.Decoder("search", num_det_orders=2),
+        "sq_color_matching": sq_sinter.Decoder("color_matching"),
+        "sq_sim_bplsd": sq_sinter.Sampler("bplsd", max_iter=30),
+    }
+    stats = sinter.collect(
+        num_workers=1,
+        tasks=tasks,
+        decoders=["sq_bplsd", "sq_relay_bp", "sq_search", "sq_sim_bplsd"],
+        custom_decoders=custom,
+        max_shots=300,
+        max_errors=10**9,
+    )
+    stats += sinter.collect(num_workers=1, tasks=tasks[1:], decoders=["sq_color_matching"], custom_decoders=custom, max_shots=1000, max_errors=10**9)
+    assert len(stats) == 9
+    for s in stats:
+        assert s.shots >= 300 and s.errors / s.shots < 0.1, (s.decoder, s.json_metadata)
+
+
 def test_postselection_discards_as_sinter_discards():
     # The reference is the rate Stim's own shots fire a postselected detector. (Not sinter's
     # "pymatching" path: some sinter versions mis-size its predictions when a small ramp-up
