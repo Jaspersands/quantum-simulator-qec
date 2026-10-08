@@ -119,6 +119,13 @@ pub struct Scratch {
     /// How many regions grow (positive slope). With none, nothing can meet anything, which
     /// `next_node_event` knows without a scan.
     pub(crate) growing: u32,
+    /// Bumped at every change that can make two nodes meet that could not before: a node
+    /// reached or given up, a node's top region changed, a region starting to grow faster. It
+    /// is never reset, so it only ever moves on.
+    pub(crate) creates: u64,
+    /// Per node, `creates` when a look last found nothing ahead of it (else `u64::MAX`): while
+    /// `creates` has not moved, nothing still lies ahead, and its reminder needs no scan.
+    pub(crate) quiet: Vec<u64>,
     pub(crate) alt: Vec<AltNode>,
     pub(crate) queue: Tracker,
     pub(crate) now: i64,
@@ -190,6 +197,8 @@ impl Scratch {
                 dead: true,
             }],
             growing: 0,
+            creates: 0,
+            quiet: vec![u64::MAX; graph.num_nodes],
             alt: Vec::new(),
             queue: Tracker::default(),
             now: 0,

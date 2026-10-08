@@ -246,6 +246,7 @@ impl<'a> Solver<'a> {
     fn enclose(&mut self, c: u32, b: u32) {
         let now = self.s.now;
         let nodes = self.nodes_under(c);
+        self.s.creates += 1;
         for &v in &nodes {
             let l = self.local_radius(v);
             let n = &mut self.s.nodes[v as usize];
@@ -280,6 +281,7 @@ impl<'a> Solver<'a> {
         for &(c, _) in &children {
             let yc = self.s.regions[c as usize].radius.at(now);
             let nodes = self.nodes_under(c);
+            self.s.creates += 1;
             for &v in &nodes {
                 let l = self.local_radius(v);
                 let nd = &mut self.s.nodes[v as usize];

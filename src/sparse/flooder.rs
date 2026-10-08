@@ -87,6 +87,7 @@ impl<'a> Solver<'a> {
 
     pub(crate) fn new_region(&mut self, region: Region) -> u32 {
         self.s.growing += u32::from(region.radius.slope > 0);
+        self.s.creates += u64::from(region.radius.slope > 0);
         self.s.regions.push(region);
         (self.s.regions.len() - 1) as u32
     }
@@ -150,6 +151,7 @@ impl<'a> Solver<'a> {
         });
         self.s.regions[r as usize].tree = a;
         self.touch(d);
+        self.s.creates += 1;
         let n = &mut self.s.nodes[d as usize];
         n.region = r;
         n.top = r;
@@ -231,8 +233,12 @@ impl<'a> Solver<'a> {
     }
 
     pub(crate) fn look_at_node(&mut self, v: u32) {
-        if let Some((t, _)) = self.next_node_event(v) {
-            self.schedule_node(v, t);
+        match self.next_node_event(v) {
+            Some((t, _)) => {
+                self.s.quiet[v as usize] = u64::MAX;
+                self.schedule_node(v, t);
+            }
+            None => self.s.quiet[v as usize] = self.s.creates,
         }
     }
 
@@ -283,6 +289,7 @@ impl<'a> Solver<'a> {
         let y = self.s.regions[top as usize].radius.at(self.s.now);
         let obs = nf.obs ^ self.g.obs[e];
         self.touch(to);
+        self.s.creates += 1;
         let n = &mut self.s.nodes[to as usize];
         n.region = top;
         n.top = top;
@@ -299,6 +306,7 @@ impl<'a> Solver<'a> {
         let n = self.s.nodes[v as usize];
         // Its reminder and touch flag live apart, and stay as they are.
         self.s.nodes[v as usize] = NodeState { own: n.own, ..NodeState::EMPTY };
+        self.s.creates += 1;
         self.look_at_node(v);
         self.look_at_region(r);
     }
@@ -309,6 +317,7 @@ impl<'a> Solver<'a> {
         let rad = &mut self.s.regions[r as usize].radius;
         let y = rad.at(now);
         self.s.growing = self.s.growing + u32::from(slope > 0) - u32::from(rad.slope > 0);
+        self.s.creates += u64::from(slope > rad.slope);
         *rad = Radius { y0: y - slope * now, slope };
     }
 
@@ -367,6 +376,14 @@ impl<'a> Solver<'a> {
                         continue;
                     }
                     self.s.queued[v as usize] = NO_TIME;
+                    // Nothing lay ahead at its last look, and nothing since can have changed that.
+                    if self.s.quiet[v as usize] == self.s.creates {
+                        debug_assert!(self.next_node_event(v).is_none());
+                        if check {
+                            assert!(self.next_node_event(v).is_none(), "node {v} was quiet but has an event");
+                        }
+                        continue;
+                    }
                     match self.next_node_event(v) {
                         Some((te, ev)) if te == t => {
                             // An arrival has already looked at both its nodes,
