@@ -515,4 +515,11 @@ impl CssCode {
     pub fn memory_circuit(&self, rounds: usize, p: f64, basis: Basis) -> Result<Circuit> {
         Circuit::parse(&self.inner.memory(rounds, p, basis == Basis::X)?)
     }
+
+    /// `memory_circuit` with each detector given Chromobius's colour and basis annotation as a
+    /// 4th coordinate (its check's colour, plus 3 for a Z check), for `ColorMatching`. Colour
+    /// codes only.
+    pub fn memory_circuit_with_colors(&self, rounds: usize, p: f64, basis: Basis) -> Result<Circuit> {
+        Circuit::parse(&self.inner.memory_annotated(rounds, p, basis == Basis::X, true)?)
+    }
 }

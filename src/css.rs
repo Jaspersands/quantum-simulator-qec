@@ -22,6 +22,9 @@ pub struct CssCode {
     /// Each check as the data qubits it acts on.
     pub hx: Vec<Vec<usize>>,
     pub hz: Vec<Vec<usize>>,
+    /// Each check's colour (0, 1, 2) where the code is a colour code, the X and Z checks
+    /// alike (one colour per plaquette).
+    pub colors: Option<Vec<u8>>,
 }
 
 /// Rows as bit-packed words, for elimination.
@@ -94,7 +97,7 @@ impl CssCode {
                 .collect()
         };
         let (hx, hz) = (clean(hx, "X")?, clean(hz, "Z")?);
-        let code = CssCode { n, hx, hz };
+        let code = CssCode { n, hx, hz, colors: None };
         let zp = packed(n, &code.hz);
         for (i, x) in packed(n, &code.hx).iter().enumerate() {
             for (j, z) in zp.iter().enumerate() {
@@ -228,7 +231,11 @@ impl CssCode {
             .iter()
             .map(|&(x, y)| [(2, 0), (1, 1), (1, -1), (-2, 0), (-1, 1), (-1, -1)].iter().filter_map(|(dx, dy)| data.get(&(x + dx, y + dy)).copied()).collect())
             .collect();
-        CssCode::new(data.len(), checks.clone(), checks)
+        let mut code = CssCode::new(data.len(), checks.clone(), checks)?;
+        // Plaquettes one or two rows apart can share a qubit, and three apart cannot, so the
+        // row mod 3 colours them properly.
+        code.colors = Some(plaquettes.iter().map(|&(_, y)| (y % 3) as u8).collect());
+        Ok(code)
     }
 
     /// A memory experiment as Stim's text: the data prepared in the Z basis (or X), `rounds`
@@ -240,6 +247,21 @@ impl CssCode {
     /// last value (from the first round for the checks the preparation fixes) and with the
     /// final readout; the observables are the `k` logicals of the basis.
     pub fn memory(&self, rounds: usize, p: f64, x_basis: bool) -> Result<String, String> {
+        self.memory_annotated(rounds, p, x_basis, false)
+    }
+
+    /// `memory`, and with `annotate` each detector given Chromobius's colour and basis as a 4th
+    /// coordinate (the check's colour, plus 3 for a Z check). Colour codes only.
+    pub fn memory_annotated(&self, rounds: usize, p: f64, x_basis: bool, annotate: bool) -> Result<String, String> {
+        let tag = |x: bool, c: usize| -> String {
+            match (&self.colors, annotate) {
+                (Some(colors), true) => format!(", {}", colors[c] + if x { 0 } else { 3 }),
+                _ => String::new(),
+            }
+        };
+        if annotate && self.colors.is_none() {
+            return Err("colour annotations are for colour codes (CssCode.color_code)".into());
+        }
         crate::memory::probability(p)?;
         if rounds == 0 || rounds > 1_000_000 {
             return Err(format!("{rounds} rounds: from 1 to 1,000,000"));
@@ -303,7 +325,7 @@ impl CssCode {
         for (x, count) in [(true, rx), (false, rz)] {
             if fixed(x) {
                 for c in 0..count {
-                    lines.push(format!("DETECTOR({c}, 0, {}) {}", u8::from(!x), recs(&[rec(x, c, 0)])));
+                    lines.push(format!("DETECTOR({c}, 0, {}{}) {}", u8::from(!x), tag(x, c), recs(&[rec(x, c, 0)])));
                 }
             }
         }
@@ -312,7 +334,7 @@ impl CssCode {
             body.push("SHIFT_COORDS(0, 1)".into());
             for (x, count) in [(true, rx), (false, rz)] {
                 for c in 0..count {
-                    body.push(format!("DETECTOR({c}, 0, {}) {}", u8::from(!x), recs(&[rec(x, c, 0), rec(x, c, 1)])));
+                    body.push(format!("DETECTOR({c}, 0, {}{}) {}", u8::from(!x), tag(x, c), recs(&[rec(x, c, 0), rec(x, c, 1)])));
                 }
             }
             if rounds == 2 {
@@ -332,7 +354,7 @@ impl CssCode {
             let mut r: Vec<usize> = row.iter().map(|&q| n - q).collect();
             r.push(n + rec(x_basis, c, 0));
             r.sort_unstable();
-            lines.push(format!("DETECTOR({c}, 1, {}) {}", u8::from(!x_basis), recs(&r)));
+            lines.push(format!("DETECTOR({c}, 1, {}{}) {}", u8::from(!x_basis), tag(x_basis, c), recs(&r)));
         }
         let (lx, lz) = self.logicals();
         for (i, l) in (if x_basis { lx } else { lz }).iter().enumerate() {
@@ -380,6 +402,30 @@ mod tests {
             let c = CssCode::hypergraph_product(&repetition(d), d, &repetition(d), d).unwrap();
             assert_eq!((c.n, c.k()), (d * d + (d - 1) * (d - 1), 1));
         }
+    }
+
+    /// The colour code's plaquette colours are a proper 3-colouring: plaquettes sharing a qubit
+    /// differ. The annotated memory carries them, plus 3 on the Z checks.
+    #[test]
+    fn colour_codes_are_properly_coloured() {
+        for d in [3, 5, 7, 9] {
+            let c = CssCode::color_code(d).unwrap();
+            let colors = c.colors.as_ref().unwrap();
+            assert_eq!(colors.len(), c.hx.len());
+            for (a, ra) in c.hx.iter().enumerate() {
+                for (b, rb) in c.hx.iter().enumerate().skip(a + 1) {
+                    if ra.iter().any(|q| rb.contains(q)) {
+                        assert_ne!(colors[a], colors[b], "d={d}: plaquettes {a} and {b}");
+                    }
+                }
+            }
+            let text = c.memory_annotated(3, 0.001, false, true).unwrap();
+            assert!(text.lines().filter(|l| l.trim_start().starts_with("DETECTOR")).all(|l| l.split(')').next().unwrap().matches(',').count() == 3));
+            assert!(text.contains(&format!("DETECTOR(0, 0, 1, {})", colors[0] + 3)));
+            assert_eq!(c.memory_annotated(3, 0.001, false, false).unwrap(), c.memory(3, 0.001, false).unwrap());
+        }
+        let plain = CssCode::new(3, vec![vec![0, 1], vec![1, 2]], vec![]).unwrap();
+        assert!(plain.memory_annotated(2, 0.001, true, true).is_err());
     }
 
     #[test]

@@ -240,11 +240,17 @@ class Circuit:
         before_round_data_depolarization: float = 0.0,
         before_measure_flip_probability: float = 0.0,
         after_reset_flip_probability: float = 0.0,
+        annotate_colors: bool = False,
     ) -> "Circuit":
         """One of Stim's generated memory experiments, character for character as
         ``stim.Circuit.generated`` writes it, with the same arguments. ``code_task`` is
         ``"repetition_code:memory"``, ``"surface_code:rotated_memory_x"`` (or ``_z``),
         ``"surface_code:unrotated_memory_x"`` (or ``_z``), or ``"color_code:memory_xyz"``.
+
+        ``annotate_colors`` (the colour code only) flattens the circuit and gives each
+        detector ``(x, y, t)`` a 4th coordinate, ``(y + t) mod 3``: the colour and basis
+        Chromobius (and ``ColorMatching``) decode by, as Chromobius's authors annotate these
+        circuits.
 
         >>> c = Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=5,
         ...                       after_clifford_depolarization=0.001)
@@ -262,6 +268,7 @@ class Circuit:
             probability(before_round_data_depolarization, "before_round_data_depolarization"),
             probability(before_measure_flip_probability, "before_measure_flip_probability"),
             probability(after_reset_flip_probability, "after_reset_flip_probability"),
+            bool(annotate_colors),
         )
         return cls(text)
 

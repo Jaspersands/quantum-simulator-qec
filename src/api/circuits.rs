@@ -213,6 +213,22 @@ impl Circuit {
         Circuit::parse(&crate::generated::generate(task, distance, rounds, &noise.inner)?)
     }
 
+    /// Stim's generated colour code (`"color_code:memory_xyz"`) flattened, each detector
+    /// `(x, y, t)` given Chromobius's colour and basis as a 4th coordinate, `(y + t) mod 3`, as
+    /// Chromobius's authors annotate it: what `ColorMatching` decodes.
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, GeneratedNoise};
+    ///
+    /// let noise = GeneratedNoise::new().after_clifford_depolarization(0.001);
+    /// let c = Circuit::generated_with_colors("color_code:memory_xyz", 3, 3, &noise)?;
+    /// assert!(c.to_string().contains("DETECTOR(2, 0, 0, 0)"));
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn generated_with_colors(task: &str, distance: u32, rounds: u64, noise: &GeneratedNoise) -> Result<Circuit> {
+        Circuit::parse(&crate::generated::generate_annotated(task, distance, rounds, &noise.inner)?)
+    }
+
     pub(crate) fn from_engine(inner: circuit::Circuit) -> Result<Circuit> {
         let counts = Counts::of(&inner.instrs)?;
         fits(&counts)?;

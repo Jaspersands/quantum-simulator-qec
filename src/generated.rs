@@ -67,6 +67,26 @@ pub fn generate(task: &str, distance: u32, rounds: u64, noise: &Noise) -> Result
     Ok(lines.join("\n") + "\n")
 }
 
+/// A generated colour-code circuit flattened, each detector `(x, y, t)` given Chromobius's
+/// colour and basis annotation as a 4th coordinate: `(y + t) mod 3`, the X basis with the
+/// colour turning with the round, as Chromobius's authors annotate Stim's `memory_xyz`
+/// circuits (clorco's `make_mxyz_color_code_from_stim_gen`). The circuit is flattened because
+/// the annotation changes from round to round.
+pub fn generate_annotated(task: &str, distance: u32, rounds: u64, noise: &Noise) -> Result<String, String> {
+    if task != "color_code:memory_xyz" {
+        return Err(format!("colour annotations are for the colour code (color_code:memory_xyz), not '{task}'"));
+    }
+    let text = generate(task, distance, rounds, noise)?;
+    let mut flat = crate::circuit::Circuit::parse(&text)?.flattened();
+    for ins in &mut flat.instrs {
+        if let crate::circuit::Instr::Detector { coords, .. } = ins {
+            let (y, t) = (coords[1], coords[2]);
+            coords.push((y + t).rem_euclid(3.0));
+        }
+    }
+    Ok(flat.to_stim())
+}
+
 /// The comment block `stim gen` writes before a generated circuit: its parameters, a picture of
 /// its qubits (each cell padded to the widest label, rows from the top) and a legend.
 pub fn header(task: &str, distance: u32, rounds: u64, noise: &Noise) -> Result<String, String> {
