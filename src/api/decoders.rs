@@ -1,5 +1,5 @@
 use super::{probability, BitTable, DetectorErrorModel, Error, Result};
-use crate::batch::{StreamedWindows, belief_shots, bposd_shots, match_shots, streamed_window_shots, union_find_shots, window_info, window_shots};
+use crate::batch::{StreamedWindows, belief_shots, bposd_shots, match_shots, streamed_window_shots, syndrome_shots, union_find_shots, window_info, window_shots};
 use crate::dem_decoder::{DecodeError, DemDecoder};
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::{Mode, Model, WindowDecoder};
@@ -328,6 +328,83 @@ impl BpOsd {
     }
 }
 
+/// How BP+LSD's localized statistics decoding grows and solves its clusters.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LsdOptions {
+    method: OsdMethod,
+    bits_per_step: usize,
+    always_run: bool,
+}
+
+impl LsdOptions {
+    /// LSD with `method` searched inside each cluster: `OsdMethod::Osd0` solves each cluster
+    /// once (LSD-0); the higher orders grow each cluster until it has that many free columns
+    /// and search them as OSD does (LSD-E, LSD-CS). One fault joins a cluster per step.
+    pub fn new(method: OsdMethod) -> LsdOptions {
+        LsdOptions { method, bits_per_step: 1, always_run: false }
+    }
+
+    /// Faults joining each cluster per growth step (`0`: every candidate at once).
+    pub fn with_bits_per_step(mut self, bits: usize) -> LsdOptions {
+        self.bits_per_step = bits;
+        self
+    }
+
+    /// Run LSD even where BP converges.
+    pub fn with_always_run(mut self, yes: bool) -> LsdOptions {
+        self.always_run = yes;
+        self
+    }
+
+    fn engine(&self, num_checks: usize, columns: Vec<Vec<u32>>, priors: &[f64], bp: BpOptions) -> Result<crate::lsd::BpLsd> {
+        Ok(crate::lsd::BpLsd::new(num_checks, columns, priors, bp.method.engine(), bp.max_iter, self.method.engine(), self.bits_per_step, self.always_run)?)
+    }
+}
+
+/// BP+LSD on a detector error model (Hillmann et al., 2024): belief propagation, and where it
+/// does not converge, localized statistics decoding, which grows a cluster around each
+/// detection event by BP's posteriors, merges clusters that touch, and solves each alone.
+/// Corrections equal to `ldpc`'s `BpLsdDecoder` but for ties among equally likely columns (and
+/// the order `ldpc` merges three or more clusters in, which it takes from pointer hashes).
+/// Faster than BP+OSD on large codes: its eliminations are cluster-sized. Give it the
+/// undecomposed model.
+pub struct BpLsd {
+    inner: crate::lsd::BpLsd,
+    observables: Vec<u64>,
+    num_detectors: usize,
+}
+
+impl BpLsd {
+    /// BP+LSD with the given BP and LSD settings.
+    pub fn new(dem: &DetectorErrorModel, bp: BpOptions, lsd: LsdOptions) -> Result<BpLsd> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        let inner = lsd.engine(d.num_detectors, columns, &priors, bp)?;
+        Ok(BpLsd { inner, observables: d.mechanisms.iter().map(|m| m.observables).collect(), num_detectors: d.num_detectors })
+    }
+
+    /// One shot, given the detectors that fired.
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core).
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = syndrome_shots(&self.inner, &self.observables, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        if let Some(s) = out.iter().position(|x| x.1 == 2) {
+            return Err(Error::new(format!("shot {s}: no correction explains the detection events")));
+        }
+        Ok(out.into_iter().map(|(o, c)| Prediction { observables: o, weight: None, bp_converged: Some(c == 1) }).collect())
+    }
+}
+
 /// The order a window decoder runs its windows in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -555,6 +632,32 @@ impl BpOsdDecoder {
         let s = syndrome_bytes(syndrome, self.num_checks)?;
         let mut w = self.inner.work();
         let out = self.inner.decode(&s, &mut w);
+        Ok(BpOsdOutcome { correction: w.correction.iter().map(|&b| b != 0).collect(), converged: out.converged, iterations: out.iterations })
+    }
+}
+
+/// BP+LSD on a check matrix given by its columns, as `ldpc`'s `BpLsdDecoder` (flooding
+/// schedule).
+pub struct BpLsdDecoder {
+    inner: crate::lsd::BpLsd,
+    num_checks: usize,
+}
+
+impl BpLsdDecoder {
+    /// A decoder for `num_checks` checks and the given columns, each with its prior.
+    pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], bp: BpOptions, lsd: LsdOptions) -> Result<BpLsdDecoder> {
+        check_matrix(num_checks, columns, priors)?;
+        Ok(BpLsdDecoder { inner: lsd.engine(num_checks, columns.to_vec(), priors, bp)?, num_checks })
+    }
+
+    /// Decode one syndrome (one bit per check). An error if no correction explains it.
+    pub fn decode(&self, syndrome: &[bool]) -> Result<BpOsdOutcome> {
+        let s = syndrome_bytes(syndrome, self.num_checks)?;
+        let mut w = self.inner.work();
+        let out = self.inner.decode(&s, &mut w);
+        if !out.solved {
+            return Err(Error::new("no correction explains the syndrome"));
+        }
         Ok(BpOsdOutcome { correction: w.correction.iter().map(|&b| b != 0).collect(), converged: out.converged, iterations: out.iterations })
     }
 }

@@ -2,6 +2,7 @@
 //! Stim's b8 rows, cut across threads, results in shot order.
 
 use crate::belief::BeliefMatching;
+use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
 use crate::parallel::parallel;
 use crate::sparse::{Correlations, Scratch, SparseGraph};
@@ -51,8 +52,46 @@ pub fn belief_shots(bm: &BeliefMatching, packed: &[u8], nd: usize, num_shots: us
     })
 }
 
-/// BP+OSD of b8 shots on a model's faults: (observables, BP converged).
-pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
+/// A decoder of syndromes over a model's faults: the faults it sets are XORed into the
+/// predicted observables.
+pub trait SyndromeDecoder: Sync {
+    type Work;
+    fn work(&self) -> Self::Work;
+    /// Decode one syndrome (one byte per detector): 1 where BP converged by itself, 0 where
+    /// the post-processing ran, 2 where no correction explains the syndrome.
+    fn decode_syndrome(&self, syndrome: &[u8], work: &mut Self::Work) -> u8;
+    fn correction<'w>(&self, work: &'w Self::Work) -> &'w [u8];
+}
+
+impl SyndromeDecoder for BpOsd {
+    type Work = crate::osd::BpOsdWork;
+    fn work(&self) -> Self::Work {
+        BpOsd::work(self)
+    }
+    fn decode_syndrome(&self, syndrome: &[u8], work: &mut Self::Work) -> u8 {
+        u8::from(self.decode(syndrome, work).converged)
+    }
+    fn correction<'w>(&self, work: &'w Self::Work) -> &'w [u8] {
+        &work.correction
+    }
+}
+
+impl SyndromeDecoder for BpLsd {
+    type Work = crate::lsd::BpLsdWork;
+    fn work(&self) -> Self::Work {
+        BpLsd::work(self)
+    }
+    fn decode_syndrome(&self, syndrome: &[u8], work: &mut Self::Work) -> u8 {
+        let o = self.decode(syndrome, work);
+        if !o.solved { 2 } else { u8::from(o.converged) }
+    }
+    fn correction<'w>(&self, work: &'w Self::Work) -> &'w [u8] {
+        &work.correction
+    }
+}
+
+/// A syndrome decoder over b8 shots on a model's faults: (observables, its flag).
+pub fn syndrome_shots<D: SyndromeDecoder>(dec: &D, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
     let stride = nd.div_ceil(8);
     parallel(num_shots, threads, |range| {
         let mut work = dec.work();
@@ -63,12 +102,17 @@ pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots
                 for (i, x) in syndrome.iter_mut().enumerate() {
                     *x = (row[i / 8] >> (i % 8)) & 1;
                 }
-                let o = dec.decode(&syndrome, &mut work);
-                let pred = work.correction.iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
-                (pred, u8::from(o.converged))
+                let flag = dec.decode_syndrome(&syndrome, &mut work);
+                let pred = dec.correction(&work).iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
+                (pred, flag)
             })
             .collect()
     })
+}
+
+/// BP+OSD of b8 shots on a model's faults: (observables, BP converged).
+pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
+    syndrome_shots(dec, obs, packed, nd, num_shots, threads)
 }
 
 /// Window decoding of b8 shots: per shot (observables or u64::MAX where a window refused, the

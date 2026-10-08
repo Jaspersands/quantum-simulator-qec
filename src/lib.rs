@@ -72,6 +72,9 @@ pub mod bb_gauge;
 #[doc(hidden)]
 pub mod osd;
 mod plu;
+mod robin;
+#[doc(hidden)]
+pub mod lsd;
 #[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]

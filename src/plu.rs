@@ -55,6 +55,7 @@ impl Plu {
     }
 
     /// The full factorisation, stopping once the rank is as large as it can be.
+    #[cfg(test)]
     pub(crate) fn rref(&mut self) {
         self.reset();
         self.rows.extend(0..self.row_count);

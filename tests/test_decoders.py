@@ -90,6 +90,18 @@ def test_bposd_on_a_model(d3):
     assert conv.mean() > 0.5
 
 
+def test_bplsd_on_a_model(d3):
+    dem = d3.detector_error_model()
+    dets, obs = shots_of(d3, 2000, seed=4)
+    lsd = sq.BpLsd(dem)
+    pred, conv = lsd.decode_batch(dets, return_converged=True, threads=0)
+    plain = failure_rate(sq.Matching(d3.detector_error_model(decompose_errors=True)).decode_batch(dets), obs)
+    assert failure_rate(pred, obs) < 1.5 * plain + 0.01
+    assert 0 < conv.mean() < 1
+    assert np.array_equal(lsd.decode_batch(dets, threads=1), pred)
+    assert np.array_equal(lsd.decode(dets[3]), pred[3])
+
+
 def test_window_matching(d3):
     c = sq.memory_circuit(distance=3, rounds=30, p=0.005)
     dem = c.detector_error_model(decompose_errors=True)
@@ -158,6 +170,46 @@ def test_bposd_matrix_decoder_agrees_with_ldpc():
             total += 1
     # Equal but for ties among columns of equal posterior, which ldpc orders with std::sort.
     assert agree >= 0.95 * total
+
+
+@pytest.mark.parametrize("bp_method", ["minimum_sum", "product_sum"])
+def test_bplsd_matrix_decoder_equals_ldpc(bp_method):
+    ldpc = pytest.importorskip("ldpc")
+    agree = tied = total = 0
+    for seed in range(6):
+        rng, pcm, channel = random_code(seed + 40, m=24, n=48)
+        kw = dict(max_iter=3, bp_method=bp_method, ms_scaling_factor=0.625, lsd_method="lsd_0", lsd_order=0)
+        ours = sq.BpLsdDecoder(pcm, error_channel=channel, **kw)
+        theirs = ldpc.BpLsdDecoder(pcm, error_channel=list(channel), **kw)
+        for _ in range(40):
+            syndrome = ((pcm @ (rng.random(pcm.shape[1]) < channel)) % 2).astype(np.uint8)
+            mine = ours.decode(syndrome)
+            assert np.array_equal(pcm @ mine % 2, syndrome)
+            same = np.array_equal(mine, theirs.decode(syndrome))
+            agree += same
+            tied += not same and ours.last_tied
+            total += 1
+            # A disagreement is only ever where ldpc's order is not reproducible.
+            assert same or ours.last_tied
+            # (ldpc skips BP on a zero syndrome and leaves its iteration count stale.)
+            assert ours.converge == theirs.converge and (ours.iter == theirs.iter or not syndrome.any())
+    assert agree >= 0.95 * total
+
+
+def test_bplsd_matrix_decoder_reads_ldpcs_arguments():
+    _, pcm, channel = random_code(3)
+    # osd_* aliases, LSD-0 forcing the order to 0, and max_iter=0 meaning the block length.
+    a = sq.BpLsdDecoder(pcm, error_channel=channel, osd_method="osd_cs", osd_order=4, max_iter=0)
+    b = sq.BpLsdDecoder(pcm, error_channel=channel, lsd_method="lsd_cs", lsd_order=4, max_iter=pcm.shape[1])
+    c = sq.BpLsdDecoder(pcm, error_channel=channel, lsd_method="lsd_0", lsd_order=7)
+    syndrome = pcm[:, 0]
+    assert np.array_equal(a.decode(syndrome), b.decode(syndrome))
+    assert np.array_equal(pcm @ c.decode(syndrome) % 2, syndrome)
+    for bad in (dict(lsd_method="lsd_x"), dict(lsd_method=3), dict(lsd_order=-1), dict(schedule="serial"), dict(bp_method="nope")):
+        with pytest.raises(ValueError):
+            sq.BpLsdDecoder(pcm, error_channel=channel, **bad)
+    with pytest.raises(ValueError):
+        a.decode(np.zeros(pcm.shape[0] + 1))
 
 
 def test_union_find(d3):

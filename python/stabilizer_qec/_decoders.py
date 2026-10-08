@@ -235,6 +235,92 @@ class BpOsd(_DemDecoder):
         return out
 
 
+_PRODUCT_SUM = ("prod_sum", "product_sum", "ps", "0", "prod sum")
+_MINIMUM_SUM = ("min_sum", "minimum_sum", "ms", "1", "minimum sum", "min sum")
+
+
+def _bp_method(method: Any) -> str:
+    """``ldpc``'s names for the BP methods."""
+    m = str(method).lower()
+    if m in _PRODUCT_SUM:
+        return "product_sum"
+    if m in _MINIMUM_SUM:
+        return "minimum_sum"
+    raise ValueError(f"bp_method must be product_sum or minimum_sum (or ldpc's aliases), not {method!r}")
+
+
+_LSD_NAMES = ("osd_0", "osd_e", "osd_cs", "osde", "osdcs", "osd0", "lsd_0", "lsd_e", "lsd_cs", "lsd0", "lsdcs", "lsde")
+
+
+def _lsd_method(method: Any, order: Any) -> tuple:
+    """(engine method name, order) as ``ldpc``'s ``BpLsdDecoder`` reads them: the constructor's
+    check, then its ``lsd_method`` setter, which sets the order to 0 for LSD-0."""
+    order = count(order, "lsd_order")
+    if isinstance(method, str):
+        if method.lower() not in _LSD_NAMES:
+            raise ValueError(f"lsd_method must be one of 'LSD_0', 'LSD_E', 'LSD_CS', not {method!r}")
+    elif isinstance(method, int) and not isinstance(method, bool):
+        if method not in (0, 1, 2):
+            raise ValueError(f"lsd_method must be one of 0, 1, 2, not {method!r}")
+    else:
+        raise ValueError(f"lsd_method must be one of 'LSD_0' (0), 'LSD_E' (1), 'LSD_CS' (2), not {method!r}")
+    m = str(method).lower()
+    if m in ("osd_0", "0", "osd0", "lsd_0", "lsd0"):
+        return "osd_0", 0
+    if m in ("osd_e", "e", "exhaustive", "lsd_e", "lsde"):
+        return "osd_e", order
+    if m in ("osd_cs", "1", "cs", "combination_sweep", "lsd_cs"):
+        return "osd_cs", order
+    raise ValueError(f"lsd_method {method!r} is not one of 'LSD_0', 'LSD_E' or 'LSD_CS'")
+
+
+class BpLsd(_DemDecoder):
+    """BP+LSD on a detector error model (Hillmann et al., 2024): belief propagation, and where
+    it does not converge, localized statistics decoding, which grows a cluster around each
+    detection event by BP's posteriors and solves each cluster alone. Corrections equal to
+    ``ldpc``'s ``BpLsdDecoder`` on the same matrix but for ties among equally likely columns.
+    For codes whose faults flip three or more detectors: give it the undecomposed model. The
+    defaults are ``ldpc``'s sinter decoder's (``max_iter=0`` is one iteration per fault)."""
+
+    __slots__ = ()
+
+    def __init__(
+        self,
+        model: ModelLike,
+        *,
+        max_iter: int = 0,
+        bp_method: str = "minimum_sum",
+        ms_scaling_factor: float = 0.625,
+        lsd_method: Any = "lsd_0",
+        lsd_order: int = 0,
+        bits_per_step: int = 1,
+    ) -> None:
+        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, lsd_method=lsd_method, lsd_order=lsd_order, bits_per_step=bits_per_step)
+        model = self._made(_model(model), **options)
+        method, order = _lsd_method(lsd_method, lsd_order)
+        self._x = call(_core.DemBpLsd, model._d, count(max_iter, "max_iter"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"), method, order, count(bits_per_step, "bits_per_step"))
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        return_converged: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+        """As ``Matching.decode_batch``; ``return_converged`` also returns, per shot, whether
+        BP converged before LSD."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, flags = call(self._x.decode_batch, packed, n, threads)
+        flags = np.frombuffer(flags, dtype=np.uint8)
+        _failed(list(np.flatnonzero(flags == 2)), "no correction explains the detection events")
+        out = self._predictions(preds, n, bit_packed_predictions)
+        if return_converged:
+            return out, flags == 1
+        return out
+
+
 class Window(NamedTuple):
     """A window of a window decoder: it decodes rounds ``[first_layer, end_layer)`` and
     commits the corrections in ``[commit_start, commit_end)``. Windows of phase 0 run first;
@@ -429,3 +515,74 @@ class BpOsdDecoder:
         correction, converged, iterations = call(self._x.decode, _syndrome(syndrome, self._m))
         self.converge, self.iter = bool(converged), int(iterations)
         return np.asarray(correction, dtype=np.uint8)
+
+
+class BpLsdDecoder:
+    """BP+LSD on a check matrix, as ``ldpc``'s ``BpLsdDecoder``, with its arguments, defaults
+    and aliases (``osd_method``/``osd_order`` for ``lsd_method``/``lsd_order``; ``max_iter=0``
+    and ``bits_per_step=0`` mean the block length; LSD-0 sets the order to 0). The flooding
+    schedule only. After ``decode``, ``converge`` and ``iter`` describe BP's run."""
+
+    def __init__(
+        self,
+        pcm: Any,
+        error_rate: Union[float, None] = None,
+        error_channel: Any = None,
+        *,
+        max_iter: int = 0,
+        bp_method: str = "minimum_sum",
+        ms_scaling_factor: float = 1.0,
+        schedule: str = "parallel",
+        bits_per_step: int = 1,
+        lsd_order: int = 0,
+        lsd_method: Any = 0,
+        always_run_lsd: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        if "osd_method" in kwargs:
+            lsd_method = kwargs.pop("osd_method")
+        if "osd_order" in kwargs:
+            lsd_order = kwargs.pop("osd_order")
+        if kwargs:
+            raise TypeError(f"unexpected keyword arguments: {', '.join(sorted(kwargs))}")
+        if schedule != "parallel":
+            raise ValueError("only the parallel (flooding) schedule is supported")
+        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, bits_per_step=bits_per_step, lsd_order=lsd_order, lsd_method=lsd_method, always_run_lsd=always_run_lsd)
+        self._made_from = ((pcm, error_rate, error_channel), options)
+        self._m, self._n, cols = _columns(pcm)
+        method, order = _lsd_method(lsd_method, lsd_order)
+        iters = count(max_iter, "max_iter") or self._n
+        self._x = call(
+            _core.BpLsd,
+            self._m,
+            cols,
+            _channel(self._n, error_rate, error_channel),
+            iters,
+            _bp_method(bp_method),
+            real(ms_scaling_factor, "ms_scaling_factor"),
+            method,
+            order,
+            count(bits_per_step, "bits_per_step"),
+            bool(always_run_lsd),
+        )
+        self.converge = False
+        self.iter = 0
+        self.last_tied = False
+
+    def __reduce__(self) -> tuple:
+        return (_rebuild, (type(self), *self._made_from), {"converge": self.converge, "iter": self.iter, "last_tied": self.last_tied})
+
+    def decode(self, syndrome: Any) -> np.ndarray:
+        """The correction (uint8 per column). ``last_tied`` says whether this decode made a
+        choice ``ldpc`` might make otherwise (equal keys in a long sort, or a merge of many
+        clusters at once), where the two corrections can differ."""
+        correction, converged, iterations, solved, ties, _ = call(self._x.decode, _syndrome(syndrome, self._m))
+        if not solved:
+            raise ValueError("no correction explains the syndrome")
+        self.converge, self.iter, self.last_tied = bool(converged), int(iterations), ties > 0
+        return np.asarray(correction, dtype=np.uint8)
+
+    def _cluster_bits(self, syndrome: Any) -> list:
+        """Each final cluster's (id, bits in robin-set order): for checking against ldpc's
+        statistics."""
+        return call(self._x.decode, _syndrome(syndrome, self._m), True)[5]

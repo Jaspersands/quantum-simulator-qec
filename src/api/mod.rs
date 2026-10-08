@@ -17,8 +17,8 @@ pub use bits::BitTable;
 pub use circuits::{Circuit, CircuitErrorLocation, DemOptions, DemSampler, DemSamples, DetectorErrorModel, DetectorSampler, DiagramKind, ExplainedError, GeneratedNoise, MeasurementConverter, Pauli, Samples, Target, TargetWithCoords};
 pub use codes::{memory_circuit, stream_circuit, stream_memory, Automorphism, Basis, BivariateBicycleCode, CssCode, Gauging, GrossOperator, Noise, StreamResult, SurfaceCode};
 pub use decoders::{
-    BeliefMatching, BpDecoder, BpMethod, BpOptions, BpOsd, BpOsdDecoder, BpOsdOutcome, BpOutcome, Matching, OsdMethod,
-    Prediction, UnionFind, Window, WindowMatching, WindowMode, WindowOptions,
+    BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpMethod, BpOptions, BpOsd, BpOsdDecoder, BpOsdOutcome, BpOutcome, LsdOptions, Matching,
+    OsdMethod, Prediction, UnionFind, Window, WindowMatching, WindowMode, WindowOptions,
 };
 
 /// Why a call failed: the input was not something the engine can take, with a message saying

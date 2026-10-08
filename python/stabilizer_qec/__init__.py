@@ -152,7 +152,7 @@ from ._explain import (
 )
 from ._shots import read_shot_data_file, write_shot_data_file
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
+from ._decoders import BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -219,6 +219,8 @@ __all__ = [
     "FlippedMeasurement",
     "GateTargetWithCoords",
     "BpDecoder",
+    "BpLsd",
+    "BpLsdDecoder",
     "BpOsd",
     "BpOsdDecoder",
     "Circuit",

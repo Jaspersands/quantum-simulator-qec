@@ -1,8 +1,8 @@
 //! The crate's public API, used as a dependent crate would use it.
 
 use stabilizer_qec::{
-    lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpMethod, BpOptions,
-    BpOsd, BpOsdDecoder, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
+    lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpLsd, BpLsdDecoder, BpMethod,
+    BpOptions, BpOsd, BpOsdDecoder, LsdOptions, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
     SurfaceCode, Target, WindowMatching, WindowMode, WindowOptions,
 };
 
@@ -26,6 +26,8 @@ fn decoders_and_samplers_cross_threads() {
     shareable::<WindowMatching>();
     shareable::<BpDecoder>();
     shareable::<BpOsdDecoder>();
+    shareable::<BpLsd>();
+    shareable::<BpLsdDecoder>();
     fn sendable<T: Send>() {}
     sendable::<stabilizer_qec::DetectorSampler>();
     sendable::<stabilizer_qec::MeasurementConverter>();
@@ -108,6 +110,8 @@ fn belief_matching_bposd_and_windows() {
     let undecomposed = c.detector_error_model(&DemOptions::new()).unwrap();
     let osd = BpOsd::new(&undecomposed, BpOptions::new(30, BpMethod::MinimumSum { scaling_factor: 0.0 }), OsdMethod::CombinationSweep(4)).unwrap();
     assert!(failure_rate(&osd.decode_batch(&samples.detectors, 0).unwrap(), &samples.observables) < 1.5 * glob + 0.02);
+    let lsd = BpLsd::new(&undecomposed, BpOptions::new(30, BpMethod::MinimumSum { scaling_factor: 0.625 }), LsdOptions::new(OsdMethod::Osd0)).unwrap();
+    assert!(failure_rate(&lsd.decode_batch(&samples.detectors, 0).unwrap(), &samples.observables) < 1.5 * glob + 0.02);
     for mode in [WindowMode::Sliding, WindowMode::Parallel] {
         let w = WindowMatching::new(&dem, WindowOptions::new(4, 4, mode)).unwrap();
         assert!(!w.windows().is_empty());
@@ -128,6 +132,13 @@ fn check_matrix_decoders() {
         let explained: Vec<bool> = (0..3u32).map(|r| columns.iter().zip(&c).filter(|(col, &x)| x && col.contains(&r)).count() % 2 == 1).collect();
         assert_eq!(explained, syndrome);
         assert_eq!(bp.decode(&syndrome).unwrap().log_prob_ratios.len(), 7);
+    }
+    let lsd = BpLsdDecoder::new(3, &columns, &priors, BpOptions::new(1, BpMethod::ProductSum), LsdOptions::new(OsdMethod::Osd0).with_always_run(true)).unwrap();
+    for e in 0..7 {
+        let syndrome: Vec<bool> = (0..3).map(|r| columns[e].contains(&r)).collect();
+        let c = lsd.decode(&syndrome).unwrap().correction;
+        let explained: Vec<bool> = (0..3u32).map(|r| columns.iter().zip(&c).filter(|(col, &x)| x && col.contains(&r)).count() % 2 == 1).collect();
+        assert_eq!(explained, syndrome);
     }
     assert!(BpDecoder::new(3, &columns, &[0.05; 6], BpOptions::new(10, BpMethod::ProductSum)).is_err());
     assert!(bp.decode(&[true]).is_err());

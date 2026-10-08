@@ -18,7 +18,8 @@ use crate::dem::Dem;
 use crate::dem_decoder::DemDecoder;
 use crate::m2d::M2d;
 use crate::osd::{BpOsd, OsdMethod};
-use crate::batch::{belief_shots, bposd_shots, match_shots, window_info, window_shots, WindowInfo};
+use crate::batch::{belief_shots, bposd_shots, match_shots, syndrome_shots, window_info, window_shots, WindowInfo};
+use crate::lsd::BpLsd;
 use crate::window::{Mode, Model, WindowDecoder};
 
 fn err(e: String) -> PyErr {
@@ -612,6 +613,44 @@ impl PyDemBpOsd {
     }
 }
 
+/// BP+LSD on an undecomposed model: each fault a column, its prior the model's.
+#[pyclass(name = "DemBpLsd", module = "stabilizer_qec._core")]
+pub struct PyDemBpLsd {
+    dec: BpLsd,
+    obs: Vec<u64>,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemBpLsd {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, lsd: &str, order: usize, bits_per_step: usize) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        // As ldpc: no iteration limit given means one per fault.
+        let max_iter = if max_iter == 0 { columns.len() } else { max_iter };
+        let dec = BpLsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(lsd, order)?, bits_per_step, false).map_err(err)?;
+        let obs = d.mechanisms.iter().map(|m| m.observables).collect();
+        Ok(PyDemBpLsd { dec, obs, num_detectors: d.num_detectors, num_observables: d.num_observables })
+    }
+
+    /// (observables as u64 per shot, one byte per shot: 1 where BP converged, 0 where LSD
+    /// ran, 2 where no correction explains the shot).
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let (dec, obs) = (&self.dec, &self.obs);
+        let out = py.detach(|| syndrome_shots(dec, obs, packed, nd, shots, threads));
+        let flags: Vec<u8> = out.iter().map(|x| x.1).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &flags)))
+    }
+}
+
 /// Window decoding of a model cut by time.
 #[pyclass(name = "WindowMatcher", module = "stabilizer_qec._core")]
 pub struct PyWindowMatcher {
@@ -751,6 +790,37 @@ impl PyBpOsd {
     }
 }
 
+/// BP+LSD on a check matrix given by its columns.
+#[pyclass(name = "BpLsd", module = "stabilizer_qec._core")]
+pub struct PyBpLsd {
+    dec: BpLsd,
+    num_checks: usize,
+}
+
+#[pymethods]
+impl PyBpLsd {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64, lsd: &str, order: usize, bits_per_step: usize, always_run: bool) -> PyResult<Self> {
+        let dec = BpLsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(lsd, order)?, bits_per_step, always_run).map_err(err)?;
+        Ok(PyBpLsd { dec, num_checks })
+    }
+
+    /// (correction, BP converged, iterations, solved, ties, each final cluster's bits in
+    /// set order by cluster id when `record`).
+    #[pyo3(signature = (syndrome, record=false))]
+    #[allow(clippy::type_complexity)]
+    fn decode(&self, syndrome: Vec<u8>, record: bool) -> PyResult<(Vec<u32>, bool, usize, bool, u32, Vec<(u32, Vec<u32>)>)> {
+        if syndrome.len() != self.num_checks {
+            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.num_checks)));
+        }
+        let mut w = self.dec.work();
+        w.record = record;
+        let out = self.dec.decode(&syndrome, &mut w);
+        Ok((bits(&w.correction), out.converged, out.iterations, out.solved, w.ties, std::mem::take(&mut w.cluster_bits)))
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
@@ -765,5 +835,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyWindowMatcher>()?;
     m.add_class::<PyBp>()?;
     m.add_class::<PyBpOsd>()?;
+    m.add_class::<PyDemBpLsd>()?;
+    m.add_class::<PyBpLsd>()?;
     Ok(())
 }
