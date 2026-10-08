@@ -185,13 +185,13 @@ runners, `.github/workflows/bench.yml`); every push is held to them, and the
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
-| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.83 | — |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 1.01 | — |
-| Sampling its detection events, 20,000 shots | 0.93 | 0.75 | — |
-| Measurements to detection events, 20,000 shots | 0.24 | 0.73 | — |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.94 | 1.41 | — |
-| Correlated matching, 20,000 shots (against PyMatching's) | 0.95 | 1.35 | — |
-| *recorded with* | 1.7.0 | 1.6.0 | — |
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.42 | 0.53 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 0.08 | 0.17 |
+| Sampling its detection events, 20,000 shots | 0.93 | 0.69 | 0.57 |
+| Measurements to detection events, 20,000 shots | 0.24 | 0.15 | 0.12 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.94 | 1.16 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.95 | 1.09 | 0.88 |
+| *recorded with* | 1.7.0 | 1.7.0 | 1.7.0 |
 
 ## A note on quoted figures
 
