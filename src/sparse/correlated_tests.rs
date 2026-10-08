@@ -243,7 +243,7 @@ fn weights_are_restored_after_every_decode() {
     for _ in 0..300 {
         let defects = defects_of(&sampler.sample(&mut rng).detectors);
         let two = g.decode_correlated(corr, &mut scratch, &defects).unwrap();
-        assert_eq!(scratch.w, g.w);
+        assert_eq!(scratch.scan, g.scan);
         assert!(scratch.undo.is_empty());
         assert_eq!(g.decode(&mut scratch, &defects).unwrap(), dec.decode(&defects).unwrap());
         assert_eq!(two, g.decode_correlated(corr, &mut Scratch::new(g), &defects).unwrap());

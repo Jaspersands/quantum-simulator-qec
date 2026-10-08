@@ -257,7 +257,7 @@ fn edge_ids_name_both_halves() {
     assert_eq!(g.halves[eb as usize][1], NONE);
     assert_eq!(g.weight_of(e01), crate::dem_decoder::edge_weight(0.1).1);
     let scratch = Scratch::new(g);
-    assert_eq!(scratch.w, g.w);
+    assert_eq!(scratch.scan, g.scan);
 }
 
 #[test]
