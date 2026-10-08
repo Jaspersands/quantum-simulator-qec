@@ -1,7 +1,8 @@
 """A quantum error-correction simulator and decoder, in Rust: Stim's circuit and error-model
-formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP and BP+OSD,
-window decoding, IBM's bivariate bicycle codes and lattice surgery. It agrees with Stim,
-PyMatching, `ldpc` and `beliefmatching` on every check in its test suite.
+formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP, BP+OSD and
+BP+LSD, Relay-BP, colour-code matching, a search decoder, window decoding, IBM's bivariate
+bicycle codes and lattice surgery. It agrees with Stim, PyMatching, `ldpc`, `beliefmatching`,
+IBM's `relay_bp`, Chromobius and Tesseract on every check in its test suite.
 
     pip install stabilizer-qec
 
@@ -26,7 +27,7 @@ True
 The names follow the tools this is checked against, so code written for them mostly carries
 over: `Circuit`, `compile_detector_sampler` and `separate_observables` are Stim's; `Matching`,
 `decode_batch` and `enable_correlations` are PyMatching's; `BpDecoder`, `BpOsdDecoder`,
-`error_channel` and `osd_order` are `ldpc`'s.
+`BpLsdDecoder`, `error_channel`, `osd_order` and `lsd_order` are `ldpc`'s.
 
 ## Circuits
 
@@ -81,6 +82,22 @@ Stim's six formats (`01`, `b8`, `r8`, `hits`, `dets`, `ptb64`) are read and writ
 `Circuit.compile_sampler`, and faults of a model straight from
 `DetectorErrorModel.compile_sampler`.
 
+## Decoders
+
+On a detector error model, each with `decode` and `decode_batch` (any thread count) and
+pickling:
+
+- `Matching` (sparse blossom, PyMatching's results), with `enable_correlations`;
+  `UnionFind`; `BeliefMatching`; `WindowMatching` (sliding or parallel windows): for models
+  whose faults set off at most two detectors, or decomposed;
+- `BpOsd` and `BpLsd` (`ldpc`'s corrections), `RelayBp` (IBM's), `SearchDecoder`
+  (Tesseract's A*, exact on request): for any model, such as the gross code's;
+- `ColorMatching` (Chromobius's): colour codes whose detectors carry its colour annotation
+  (`CssCode.color_code(d).memory_circuit(..., annotate_colors=True)`).
+
+On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
+`RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
+
 ## The command line
 
 `stabilizer-qec` (or `python -m stabilizer_qec`) takes Stim's commands and flags (`gen`,
@@ -101,7 +118,8 @@ and options). A sampler does not: send the circuit and a seed.
 
 `stabilizer_qec.sinter` puts the decoders into [sinter](https://pypi.org/project/sinter/)'s
 sweeps, decoding the shots Stim samples (`sq_matching`, `sq_correlated_matching`,
-`sq_belief_matching`, `sq_bposd`) or running the whole pipeline here (`sq_sim_matching`, ...):
+`sq_belief_matching`, `sq_union_find`, `sq_bposd`, `sq_bplsd`, `sq_relay_bp`,
+`sq_color_matching`, `sq_search`) or running the whole pipeline here (`sq_sim_matching`, ...):
 
     import sinter
     from stabilizer_qec import sinter as sq_sinter
@@ -152,7 +170,7 @@ from ._explain import (
 )
 from ._shots import read_shot_data_file, write_shot_data_file
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import BeliefMatching, BpDecoder, BpOsd, BpOsdDecoder, Matching, UnionFind, Window, WindowMatching
+from ._decoders import BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, UnionFind, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -219,9 +237,12 @@ __all__ = [
     "FlippedMeasurement",
     "GateTargetWithCoords",
     "BpDecoder",
+    "BpLsd",
+    "BpLsdDecoder",
     "BpOsd",
     "BpOsdDecoder",
     "Circuit",
+    "ColorMatching",
     "DetectorErrorModel",
     "DetectorSampler",
     "DemSampler",
@@ -229,6 +250,9 @@ __all__ = [
     "Diagram",
     "Gauging",
     "Matching",
+    "RelayBp",
+    "RelayBpDecoder",
+    "SearchDecoder",
     "MeasurementsToDetectionEventsConverter",
     "StreamResult",
     "UnionFind",

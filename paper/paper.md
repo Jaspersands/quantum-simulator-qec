@@ -33,8 +33,10 @@ It reads and writes Stim's circuit and error-model formats [@gidney2021stim], so
 freely between the two. It provides a bit-parallel Pauli-frame sampler; an error-model builder
 that walks a circuit backwards; exact minimum-weight perfect matching by sparse blossom
 [@higgott2025sparse], plain and correlated; belief propagation, BP+OSD
-[@roffe2020decoding; @panteleev2021degenerate] and belief-matching [@higgott2023improved];
-union-find [@delfosse2021almost]; and sliding and parallel window decoders for real-time decoding
+[@roffe2020decoding; @panteleev2021degenerate], BP+LSD [@hillmann2025localized], Relay-BP
+[@muller2025improved] and belief-matching [@higgott2023improved]; colour-code matching
+[@gidney2023new]; a search decoder [@beni2025tesseract]; union-find [@delfosse2021almost];
+and sliding and parallel window decoders for real-time decoding
 [@skoric2023parallel; @tan2022scalable]. Beyond the rotated and XZZX surface codes
 [@bonilla2021xzzx], it builds IBM's bivariate bicycle codes [@bravyi2024high], any CSS code from
 its checks (hypergraph products [@tillich2014quantum] and colour codes among them), and lattice
@@ -87,8 +89,9 @@ fault, decomposed and not. On 15 circuits the largest relative probability diffe
 $1.1\times10^{-15}$. They are also checked on random circuits that use all 49 of Stim's one-
 and two-qubit gates. Matchings must tie PyMatching's: there were 13 disagreements in 600,000
 shots, and every one was a tie between equal-weight corrections. BP posteriors equal `ldpc`'s bit
-for bit, and BP+OSD corrections equal `ldpc`'s except where tied corrections are chosen
-differently. Explained errors and the text timeline diagram match Stim's output character for
+for bit, and BP+OSD and BP+LSD corrections equal `ldpc`'s except where tied corrections are
+chosen differently. Relay-BP is identical to IBM's implementation, the search decoder finds
+Tesseract's faults, and colour-code matching weighs every Möbius matching as Chromobius does. Explained errors and the text timeline diagram match Stim's output character for
 character. The command line is byte-identical to Stim's wherever Stim's output is
 deterministic.
 

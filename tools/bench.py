@@ -16,7 +16,8 @@ run, and the site's benchmarks page plots the runs recorded at each release.
 Runs are compared with the last recorded run on the same kind of machine (system and
 processor), so CI's Linux runners are held to a Linux run.
 
-Needs the package, numpy, stim and pymatching.
+Needs the package, numpy, stim and pymatching; scipy and the 1.8 decoders' references (ldpc,
+relay-bp, chromobius, tesseract-decoder) where installed, for those rows' ratios.
 """
 
 from __future__ import annotations
@@ -94,7 +95,95 @@ def benchmarks(sq, stim, pymatching, quick):
         ("correlated_matching@all", f"Correlated matching, {shots:,} shots, on every core", shots, "shot", lambda: corr_mine.decode_batch(dets, threads=0), None),
         ("bposd_gross", f"BP+OSD on the gross code, 6 cycles at p = 0.3%, {len(gross_dets)} shots", len(gross_dets), "shot",
          lambda: bposd.decode_batch(gross_dets), None),
-    ]
+    ] + more_decoders(sq, stim, quick)
+
+
+def check_matrix(stim, dem):
+    """A model's faults, as Stim flattens them, as a scipy check matrix and priors."""
+    import scipy.sparse
+
+    rows, cols, priors = [], [], []
+    for inst in stim.DetectorErrorModel(str(dem)).flattened():
+        if inst.type == "error":
+            dets = {t.val for t in inst.targets_copy() if t.is_relative_detector_id()}
+            rows.extend(sorted(dets))
+            cols.extend([len(priors)] * len(dets))
+            priors.append(inst.args_copy()[0])
+    shape = (dem.num_detectors, len(priors))
+    return scipy.sparse.csr_matrix((np.ones(len(rows), dtype=np.uint8), (rows, cols)), shape=shape), np.array(priors)
+
+
+def more_decoders(sq, stim, quick):
+    """1.8's decoders against their authors' packages, where installed (else ours alone)."""
+    def optional(name):
+        try:
+            return __import__(name, fromlist=["_"])
+        except ImportError:
+            return None
+
+    ldpc, relay_bp, chromobius = optional("ldpc"), optional("relay_bp"), optional("chromobius")
+    tesseract = optional("tesseract_decoder.tesseract")
+    gross = sq.BivariateBicycleCode("gross").memory_circuit(6, 0.003)
+    gdem = gross.detector_error_model()
+    gdets, _ = gross.compile_detector_sampler(seed=5).sample(30 if quick else 200, separate_observables=True)
+    gdets8 = gdets.astype(np.uint8)
+    rows = []
+
+    lsd = sq.BpLsd(gdem, max_iter=30, ms_scaling_factor=0.625)
+    their_lsd = None
+    if ldpc is not None:
+        h, priors = check_matrix(stim, gdem)
+        ref = ldpc.BpLsdDecoder(h, error_channel=list(priors), max_iter=30, bp_method="minimum_sum", ms_scaling_factor=0.625, lsd_order=0)
+        their_lsd = lambda: [ref.decode(d) for d in gdets8]  # noqa: E731
+    rows.append(("bplsd_gross", f"BP+LSD on the gross code, 6 cycles at p = 0.3%, {len(gdets)} shots (against ldpc)", len(gdets), "shot",
+                 lambda: lsd.decode_batch(gdets), their_lsd))
+
+    relay = sq.RelayBp(gdem)
+    their_relay = None
+    if relay_bp is not None:
+        h, priors = check_matrix(stim, gdem)
+        ref_relay = relay_bp.RelayDecoderF64(h, error_priors=priors, gamma0=0.1, pre_iter=60, num_sets=60, set_max_iter=60, stop_nconv=5)
+        their_relay = lambda: ref_relay.decode_batch(gdets8)  # noqa: E731
+    rows.append(("relay_gross", f"Relay-BP on the same shots (against IBM's relay_bp)", len(gdets), "shot",
+                 lambda: relay.decode_batch(gdets), their_relay))
+
+    colour = sq.CssCode.color_code(7).memory_circuit(7, 0.002, annotate_colors=True)
+    cdem = colour.detector_error_model()
+    n = 2_000 if quick else 20_000
+    cdets, _ = colour.compile_detector_sampler(seed=6).sample(n, separate_observables=True, bit_packed=True)
+    cm = sq.ColorMatching(cdem)
+    their_cm = None
+    if chromobius is not None:
+        ref_cm = chromobius.compile_decoder_for_dem(stim.DetectorErrorModel(str(cdem)))
+        their_cm = lambda: ref_cm.predict_obs_flips_from_dets_bit_packed(cdets)  # noqa: E731
+    rows.append(("color_matching", f"Colour-code matching, d = 7 colour code at p = 0.2%, {n:,} shots (against Chromobius)", n, "shot",
+                 lambda: cm.decode_batch(cdets, bit_packed_shots=True, bit_packed_predictions=True), their_cm))
+
+    small = sq.CssCode.color_code(5).memory_circuit(5, 0.002)
+    sdem = small.detector_error_model()
+    m = 100 if quick else 1_000
+    sdets = small.compile_detector_sampler(seed=7).sample(m)
+    search = sq.SearchDecoder(sdem)
+    their_search = None
+    if tesseract is not None:
+        ref_search = tesseract.TesseractDecoder(tesseract.TesseractConfig(stim.DetectorErrorModel(str(sdem))))
+        their_search = lambda: [ref_search.decode(d) for d in sdets]  # noqa: E731
+    rows.append(("search_color", f"The search decoder, d = 5 colour code at p = 0.2%, {m:,} shots (against Tesseract)", m, "shot",
+                 lambda: search.decode_batch(sdets), their_search))
+    return rows
+
+
+def references(stim, pymatching):
+    """The references' versions, those of the optional ones only where installed."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    out = dict(stim=stim.__version__, pymatching=pymatching.__version__)
+    for package in ("ldpc", "relay-bp", "chromobius", "tesseract-decoder"):
+        try:
+            out[package] = version(package)
+        except PackageNotFoundError:
+            pass
+    return out
 
 
 def kind():
@@ -130,7 +219,7 @@ def run(quick, repeats, only=None):
         machine=f"{platform.system()} {platform.machine()}, Python {platform.python_version()}",
         cores=os.cpu_count(),
         kind=kind(),
-        references=dict(stim=stim.__version__, pymatching=pymatching.__version__),
+        references=references(stim, pymatching),
         quick=quick,
         results=results,
     )

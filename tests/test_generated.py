@@ -87,3 +87,23 @@ def test_bad_arguments_are_refused(task, kw, message):
         sq.Circuit.generated(task, **args)
     with pytest.raises(TypeError):
         sq.Circuit.generated(3, distance=3, rounds=3)
+
+
+def test_colour_annotations_are_clorcos():
+    """Chromobius's authors annotate Stim's colour code by flattening it and giving each
+    detector (x, y, t) a 4th coordinate (y + t) mod 3 (clorco's
+    make_mxyz_color_code_from_stim_gen); annotate_colors gives the same circuit."""
+    stim = pytest.importorskip("stim")
+    for d, r in [(3, 2), (5, 5), (7, 4)]:
+        kw = dict(distance=d, rounds=r, after_clifford_depolarization=0.001, before_measure_flip_probability=0.002)
+        ref = stim.Circuit()
+        for inst in stim.Circuit.generated("color_code:memory_xyz", **kw).flattened():
+            if inst.name == "DETECTOR":
+                x, y, t = inst.gate_args_copy()
+                ref.append("DETECTOR", inst.targets_copy(), [x, y, t, (y + t) % 3])
+            else:
+                ref.append(inst)
+        ours = sq.Circuit.generated("color_code:memory_xyz", annotate_colors=True, **kw)
+        assert str(ours) == str(ref) + "\n"
+    with pytest.raises(ValueError, match="colour code"):
+        sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, annotate_colors=True)

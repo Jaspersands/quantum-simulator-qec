@@ -438,13 +438,18 @@ fn decode_b8_belief<'py>(
 /// One of Stim's generated memory experiments as Stim's text: (task, distance, rounds, and the
 /// four noise strengths in Stim's order).
 #[pyfunction]
-fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, round_data: f64, measure: f64, reset: f64) -> PyResult<String> {
+#[pyo3(signature = (task, distance, rounds, clifford, round_data, measure, reset, annotate_colors=false))]
+#[allow(clippy::too_many_arguments)]
+fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, round_data: f64, measure: f64, reset: f64, annotate_colors: bool) -> PyResult<String> {
     let noise = crate::generated::Noise {
         after_clifford_depolarization: clifford,
         before_round_data_depolarization: round_data,
         before_measure_flip_probability: measure,
         after_reset_flip_probability: reset,
     };
+    if annotate_colors {
+        return crate::generated::generate_annotated(task, distance, rounds, &noise).map_err(err);
+    }
     crate::generated::generate(task, distance, rounds, &noise).map_err(err)
 }
 
@@ -453,7 +458,7 @@ fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, roun
 /// are h1 and h2, `n` and `n2` their bits) or "color" (`n` the distance).
 #[pyfunction]
 #[allow(clippy::type_complexity)]
-fn css_code(kind: &str, n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, n2: usize) -> PyResult<(usize, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>)> {
+fn css_code(kind: &str, n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, n2: usize) -> PyResult<(usize, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Vec<Vec<usize>>, Option<Vec<u8>>)> {
     let code = match kind {
         "checks" => crate::css::CssCode::new(n, hx, hz),
         "hgp" => crate::css::CssCode::hypergraph_product(&hx, n, &hz, n2),
@@ -462,14 +467,18 @@ fn css_code(kind: &str, n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, n2: 
     }
     .map_err(err)?;
     let (lx, lz) = code.logicals();
-    Ok((code.n, code.hx, code.hz, lx, lz))
+    Ok((code.n, code.hx, code.hz, lx, lz, code.colors))
 }
 
 /// A CSS code's memory experiment (see `CssCode::memory`) as Stim's text.
 #[pyfunction]
-fn css_memory_circuit(n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, rounds: usize, p: f64, basis: &str) -> PyResult<String> {
-    let code = crate::css::CssCode::new(n, hx, hz).map_err(err)?;
-    code.memory(rounds, p, basis_of(basis)? == Basis::X).map_err(err)
+#[pyo3(signature = (n, hx, hz, rounds, p, basis, colors=None))]
+#[allow(clippy::too_many_arguments)]
+fn css_memory_circuit(n: usize, hx: Vec<Vec<usize>>, hz: Vec<Vec<usize>>, rounds: usize, p: f64, basis: &str, colors: Option<Vec<u8>>) -> PyResult<String> {
+    let mut code = crate::css::CssCode::new(n, hx, hz).map_err(err)?;
+    let annotate = colors.is_some();
+    code.colors = colors;
+    code.memory_annotated(rounds, p, basis_of(basis)? == Basis::X, annotate).map_err(err)
 }
 
 /// The comment block `stim gen` writes before one of its generated circuits.

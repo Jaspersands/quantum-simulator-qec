@@ -90,6 +90,97 @@ def test_bposd_on_a_model(d3):
     assert conv.mean() > 0.5
 
 
+def test_bplsd_on_a_model(d3):
+    dem = d3.detector_error_model()
+    dets, obs = shots_of(d3, 2000, seed=4)
+    lsd = sq.BpLsd(dem)
+    pred, conv = lsd.decode_batch(dets, return_converged=True, threads=0)
+    plain = failure_rate(sq.Matching(d3.detector_error_model(decompose_errors=True)).decode_batch(dets), obs)
+    assert failure_rate(pred, obs) < 1.5 * plain + 0.01
+    assert 0 < conv.mean() < 1
+    assert np.array_equal(lsd.decode_batch(dets, threads=1), pred)
+    assert np.array_equal(lsd.decode(dets[3]), pred[3])
+
+
+def test_relay_bp_on_a_model(d3):
+    dem = d3.detector_error_model()
+    dets, obs = shots_of(d3, 2000, seed=4)
+    relay = sq.RelayBp(dem, legs=10, solutions=1)
+    pred, conv = relay.decode_batch(dets, return_converged=True, threads=0)
+    plain = failure_rate(sq.Matching(d3.detector_error_model(decompose_errors=True)).decode_batch(dets), obs)
+    assert failure_rate(pred, obs) < 1.5 * plain + 0.01
+    assert conv.mean() > 0.9
+    # Shot k draws from the seed and k: the same on any thread count, and shot 0 alone.
+    assert np.array_equal(relay.decode_batch(dets[:300], threads=3), pred[:300])
+    assert np.array_equal(relay.decode(dets[0]), pred[0])
+    with pytest.raises(ValueError):
+        sq.RelayBp(dem, gamma_range=(0.5, 0.1))
+
+
+def test_color_matching_decodes_colour_codes():
+    for d, limit in [(3, 0.03), (5, 0.012)]:
+        c = sq.CssCode.color_code(d).memory_circuit(d, 0.001, annotate_colors=True)
+        dem = c.detector_error_model()
+        dets, obs = shots_of(c, 4000, seed=6)
+        m = sq.ColorMatching(dem)
+        pred, w = m.decode_batch(dets, return_weights=True, threads=0)
+        assert failure_rate(pred, obs) < limit
+        assert np.array_equal(m.decode_batch(dets, threads=1), pred)
+        assert np.array_equal(m.decode(dets[5]), pred[5])
+        assert m.mobius_model.num_detectors == 2 * dem.num_detectors
+        assert np.all(w[~dets.any(axis=1)] == 0)
+    # Without the annotation, or on the surface code, it says why.
+    with pytest.raises(ValueError, match="4 coordinates|colour"):
+        sq.ColorMatching(sq.CssCode.color_code(3).memory_circuit(2, 0.001).detector_error_model())
+
+
+def test_color_matching_equals_chromobius():
+    stim = pytest.importorskip("stim")
+    chromobius = pytest.importorskip("chromobius")
+    for d, basis in [(3, "z"), (5, "x")]:
+        c = sq.CssCode.color_code(d).memory_circuit(d, 0.002, basis=basis, annotate_colors=True)
+        dem = stim.DetectorErrorModel(str(c.detector_error_model()))
+        dets, _ = stim.Circuit(str(c)).compile_detector_sampler(seed=2).sample(3000, separate_observables=True, bit_packed=True)
+        theirs, tw = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
+        ours, w = sq.ColorMatching(str(dem)).decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        # The Möbius matchings weigh the same on every shot, and the predictions differ only
+        # where two matchings of that weight differ (ties).
+        assert np.allclose(w, tw, rtol=1e-4, atol=1e-3)
+        assert np.mean(np.all(ours == theirs, axis=1)) > 0.99
+
+
+def test_search_decoder(d3):
+    dem = d3.detector_error_model()
+    dets, obs = shots_of(d3, 1000, seed=8)
+    search = sq.SearchDecoder(dem)
+    pred, cost, gave_up = search.decode_batch(dets, return_weights=True, return_low_confidence=True, threads=0)
+    plain = failure_rate(sq.Matching(d3.detector_error_model(decompose_errors=True)).decode_batch(dets), obs)
+    assert failure_rate(pred, obs) < 1.5 * plain + 0.01
+    assert not gave_up.any() and np.all(cost[~dets.any(axis=1)] == 0)
+    assert len(search.det_orders) == 20
+    assert np.array_equal(search.decode_batch(dets, threads=1), pred)
+    faults = search.decode_to_faults(dets[3])
+    assert np.array_equal(search.decode(dets[3]), pred[3]) and isinstance(faults, list)
+    with pytest.raises(ValueError):
+        sq.SearchDecoder(dem, det_orders=[[0, 1]])
+    with pytest.raises(ValueError):
+        sq.SearchDecoder(dem, det_order_method="spiral")
+
+
+def test_search_decoder_equals_tesseract():
+    stim = pytest.importorskip("stim")
+    tesseract = pytest.importorskip("tesseract_decoder.tesseract")
+    c = sq.CssCode.color_code(3).memory_circuit(3, 0.003)
+    dem = stim.DetectorErrorModel(str(c.detector_error_model()))
+    dets = stim.Circuit(str(c)).compile_detector_sampler(seed=9).sample(300)
+    for kw in ({}, dict(det_orders=[list(range(dem.num_detectors))[::-1]]), dict(beam_climbing=True)):
+        theirs = tesseract.TesseractDecoder(tesseract.TesseractConfig(dem, **kw))
+        ours = sq.SearchDecoder(str(dem), **kw)
+        for d in dets:
+            theirs.decode_to_errors(d)
+            assert ours.decode_to_faults(d) == list(theirs.predicted_errors_buffer)
+
+
 def test_window_matching(d3):
     c = sq.memory_circuit(distance=3, rounds=30, p=0.005)
     dem = c.detector_error_model(decompose_errors=True)
@@ -158,6 +249,73 @@ def test_bposd_matrix_decoder_agrees_with_ldpc():
             total += 1
     # Equal but for ties among columns of equal posterior, which ldpc orders with std::sort.
     assert agree >= 0.95 * total
+
+
+@pytest.mark.parametrize("bp_method,lsd_method,lsd_order", [("minimum_sum", "lsd_0", 0), ("product_sum", "lsd_0", 0), ("minimum_sum", "lsd_e", 4), ("minimum_sum", "lsd_cs", 8)])
+def test_bplsd_matrix_decoder_equals_ldpc(bp_method, lsd_method, lsd_order):
+    ldpc = pytest.importorskip("ldpc")
+    agree = tied = total = 0
+    for seed in range(6):
+        rng, pcm, channel = random_code(seed + 40, m=24, n=48)
+        kw = dict(max_iter=3, bp_method=bp_method, ms_scaling_factor=0.625, lsd_method=lsd_method, lsd_order=lsd_order)
+        ours = sq.BpLsdDecoder(pcm, error_channel=channel, **kw)
+        theirs = ldpc.BpLsdDecoder(pcm, error_channel=list(channel), **kw)
+        for _ in range(40):
+            syndrome = ((pcm @ (rng.random(pcm.shape[1]) < channel)) % 2).astype(np.uint8)
+            mine = ours.decode(syndrome)
+            assert np.array_equal(pcm @ mine % 2, syndrome)
+            same = np.array_equal(mine, theirs.decode(syndrome))
+            agree += same
+            tied += not same and ours.last_tied
+            total += 1
+            # A disagreement is only ever where ldpc's order is not reproducible.
+            assert same or ours.last_tied
+            # (ldpc skips BP on a zero syndrome and leaves its iteration count stale.)
+            assert ours.converge == theirs.converge and (ours.iter == theirs.iter or not syndrome.any())
+    assert agree >= 0.95 * total
+
+
+def test_bplsd_matrix_decoder_reads_ldpcs_arguments():
+    _, pcm, channel = random_code(3)
+    # osd_* aliases, LSD-0 forcing the order to 0, and max_iter=0 meaning the block length.
+    a = sq.BpLsdDecoder(pcm, error_channel=channel, osd_method="osd_cs", osd_order=4, max_iter=0)
+    b = sq.BpLsdDecoder(pcm, error_channel=channel, lsd_method="lsd_cs", lsd_order=4, max_iter=pcm.shape[1])
+    c = sq.BpLsdDecoder(pcm, error_channel=channel, lsd_method="lsd_0", lsd_order=7)
+    syndrome = pcm[:, 0]
+    assert np.array_equal(a.decode(syndrome), b.decode(syndrome))
+    assert np.array_equal(pcm @ c.decode(syndrome) % 2, syndrome)
+    for bad in (dict(lsd_method="lsd_x"), dict(lsd_method=3), dict(lsd_order=-1), dict(schedule="serial"), dict(bp_method="nope")):
+        with pytest.raises(ValueError):
+            sq.BpLsdDecoder(pcm, error_channel=channel, **bad)
+    with pytest.raises(ValueError):
+        a.decode(np.zeros(pcm.shape[0] + 1))
+
+
+def relay_reference_case():
+    relay_bp = pytest.importorskip("relay_bp")
+    scipy_sparse = pytest.importorskip("scipy.sparse")
+    rng, pcm, channel = random_code(77, m=24, n=48)
+    return relay_bp, scipy_sparse, rng, pcm, channel
+
+
+@pytest.mark.parametrize("options", [dict(seed=3), dict(seed=4, solutions=3), dict(seed=5, solutions=None, legs=12), dict(gamma0=None), dict(alpha=0.0, seed=6), dict(gammas="explicit")])
+def test_relay_bp_matrix_decoder_equals_ibms(options):
+    relay_bp, scipy_sparse, rng, pcm, channel = relay_reference_case()
+    options = dict(options)
+    if options.get("gammas") == "explicit":
+        options["gammas"] = rng.uniform(-0.24, 0.66, size=(5, pcm.shape[1]))
+    kw = dict(pre_iterations=4, legs=30, iterations=8, solutions=1, gamma0=0.1, gammas=None, alpha=None, seed=0)
+    kw.update(options)
+    ours = sq.RelayBpDecoder(pcm, error_channel=channel, **kw)
+    stop = dict(stopping_criterion="all") if kw["solutions"] is None else dict(stop_nconv=kw["solutions"])
+    theirs = relay_bp.RelayDecoderF64(scipy_sparse.csr_matrix(pcm), error_priors=np.asarray(channel, dtype=np.float64), pre_iter=kw["pre_iterations"], num_sets=kw["legs"],
+                                      set_max_iter=kw["iterations"], gamma0=kw["gamma0"], explicit_gammas=kw["gammas"], alpha=kw["alpha"], seed=kw["seed"], **stop)
+    for _ in range(60):
+        syndrome = ((pcm @ (rng.random(pcm.shape[1]) < 2 * channel)) % 2).astype(np.uint8)
+        mine = ours.decode(syndrome)
+        r = theirs.decode_detailed(syndrome)
+        assert np.array_equal(mine, r.decoding)
+        assert (ours.converge, ours.iter) == (r.success, r.iterations)
 
 
 def test_union_find(d3):

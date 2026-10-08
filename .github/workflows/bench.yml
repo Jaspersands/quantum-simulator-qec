@@ -51,6 +51,12 @@ jobs:
           python -m pip install --upgrade pip maturin
           maturin build --out dist
           python -m pip install dist/*.whl numpy stim pymatching
+      # The 1.8 decoders' references, for those rows' ratios; a row runs without its ratio if
+      # one cannot be installed (relay-bp builds from source, tesseract-decoder is a pre-release).
+      - name: The new decoders' references
+        run: |
+          python -m pip install scipy ldpc chromobius relay-bp || echo "::notice::not all of ldpc, chromobius and relay-bp installed"
+          python -m pip install --pre tesseract-decoder || echo "::notice::tesseract-decoder not installed"
       # Ratios to Stim's and PyMatching's times on this runner; the table goes to the summary.
       - name: Benchmarks
         run: |

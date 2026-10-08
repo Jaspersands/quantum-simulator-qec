@@ -82,7 +82,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.7.0</footer>
+            <footer>stabilizer-qec 1.8.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -120,9 +120,12 @@ from the command line. <code>Decoder(kind, **options)</code> and <code>Sampler(k
 others: the options are the decoder class's (<code>Decoder("bposd", osd_order=10)</code>).</p>
 
 <p>The decoder kinds are <code>"matching"</code> (<code>Matching</code>), <code>"correlated_matching"</code> (<code>Matching</code>
-with <code>enable_correlations</code>), <code>"belief_matching"</code> (<code>BeliefMatching</code>) and <code>"bposd"</code>
-(<code>BpOsd</code>, for codes whose faults flip three or more detectors, such as the bivariate bicycle
-codes), and <code>"union_find"</code> (<code>UnionFind</code>, the standard baseline). Requires sinter.</p>
+with <code>enable_correlations</code>), <code>"belief_matching"</code> (<code>BeliefMatching</code>), <code>"union_find"</code>
+(<code>UnionFind</code>, the standard baseline), and for codes whose faults flip three or more
+detectors, such as the bivariate bicycle codes, <code>"bposd"</code> (<code>BpOsd</code>), <code>"bplsd"</code>
+(<code>BpLsd</code>), <code>"relay_bp"</code> (<code>RelayBp</code>) and <code>"search"</code> (<code>SearchDecoder</code>), and for colour
+codes with Chromobius's annotations, <code>"color_matching"</code> (<code>ColorMatching</code>). Requires
+sinter.</p>
 </div>
 
                 
@@ -132,7 +135,8 @@ codes), and <code>"union_find"</code> (<code>UnionFind</code>, the standard base
                 <section id="KINDS">
                     <div class="attr variable">
             <span class="name">KINDS</span>        =
-<span class="default_value">(&#39;matching&#39;, &#39;correlated_matching&#39;, &#39;belief_matching&#39;, &#39;bposd&#39;, &#39;union_find&#39;)</span>
+<input id="KINDS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="KINDS-view-value"></label><span class="default_value">(&#39;matching&#39;, &#39;correlated_matching&#39;, &#39;belief_matching&#39;, &#39;bposd&#39;, &#39;union_find&#39;, &#39;bplsd&#39;, &#39;relay_bp&#39;, &#39;color_matching&#39;, &#39;search&#39;)</span>
 
         
     </div>

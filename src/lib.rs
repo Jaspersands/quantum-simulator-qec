@@ -71,6 +71,17 @@ pub mod bb_circuit;
 pub mod bb_gauge;
 #[doc(hidden)]
 pub mod osd;
+mod plu;
+mod robin;
+mod chacha;
+#[doc(hidden)]
+pub mod relay;
+#[doc(hidden)]
+pub mod color;
+#[doc(hidden)]
+pub mod search;
+#[doc(hidden)]
+pub mod lsd;
 #[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]

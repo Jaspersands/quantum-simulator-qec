@@ -1,5 +1,5 @@
 use super::{probability, BitTable, DetectorErrorModel, Error, Result};
-use crate::batch::{StreamedWindows, belief_shots, bposd_shots, match_shots, streamed_window_shots, union_find_shots, window_info, window_shots};
+use crate::batch::{StreamedWindows, belief_shots, bposd_shots, match_shots, streamed_window_shots, syndrome_shots, union_find_shots, window_info, window_shots};
 use crate::dem_decoder::{DecodeError, DemDecoder};
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::{Mode, Model, WindowDecoder};
@@ -328,6 +328,465 @@ impl BpOsd {
     }
 }
 
+/// How BP+LSD's localized statistics decoding grows and solves its clusters.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LsdOptions {
+    method: OsdMethod,
+    bits_per_step: usize,
+    always_run: bool,
+}
+
+impl LsdOptions {
+    /// LSD with `method` searched inside each cluster: `OsdMethod::Osd0` solves each cluster
+    /// once (LSD-0); the higher orders grow each cluster until it has that many free columns
+    /// and search them as OSD does (LSD-E, LSD-CS). One fault joins a cluster per step.
+    pub fn new(method: OsdMethod) -> LsdOptions {
+        LsdOptions { method, bits_per_step: 1, always_run: false }
+    }
+
+    /// Faults joining each cluster per growth step (`0`: every candidate at once).
+    pub fn with_bits_per_step(mut self, bits: usize) -> LsdOptions {
+        self.bits_per_step = bits;
+        self
+    }
+
+    /// Run LSD even where BP converges.
+    pub fn with_always_run(mut self, yes: bool) -> LsdOptions {
+        self.always_run = yes;
+        self
+    }
+
+    fn engine(&self, num_checks: usize, columns: Vec<Vec<u32>>, priors: &[f64], bp: BpOptions) -> Result<crate::lsd::BpLsd> {
+        Ok(crate::lsd::BpLsd::new(num_checks, columns, priors, bp.method.engine(), bp.max_iter, self.method.engine(), self.bits_per_step, self.always_run)?)
+    }
+}
+
+/// BP+LSD on a detector error model (Hillmann et al., 2024): belief propagation, and where it
+/// does not converge, localized statistics decoding, which grows a cluster around each
+/// detection event by BP's posteriors, merges clusters that touch, and solves each alone.
+/// Corrections equal to `ldpc`'s `BpLsdDecoder` but for ties among equally likely columns (and
+/// the order `ldpc` merges three or more clusters in, which it takes from pointer hashes).
+/// Faster than BP+OSD on large codes: its eliminations are cluster-sized. Give it the
+/// undecomposed model.
+pub struct BpLsd {
+    inner: crate::lsd::BpLsd,
+    observables: Vec<u64>,
+    num_detectors: usize,
+}
+
+impl BpLsd {
+    /// BP+LSD with the given BP and LSD settings.
+    pub fn new(dem: &DetectorErrorModel, bp: BpOptions, lsd: LsdOptions) -> Result<BpLsd> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        let inner = lsd.engine(d.num_detectors, columns, &priors, bp)?;
+        Ok(BpLsd { inner, observables: d.mechanisms.iter().map(|m| m.observables).collect(), num_detectors: d.num_detectors })
+    }
+
+    /// One shot, given the detectors that fired.
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core).
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = syndrome_shots(&self.inner, &self.observables, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        if let Some(s) = out.iter().position(|x| x.1 == 2) {
+            return Err(Error::new(format!("shot {s}: no correction explains the detection events")));
+        }
+        Ok(out.into_iter().map(|(o, c)| Prediction { observables: o, weight: None, bp_converged: Some(c == 1) }).collect())
+    }
+}
+
+/// How Relay-BP runs: its legs, their memory strengths and when it stops.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RelayOptions {
+    config: crate::relay::RelayConfig,
+}
+
+impl Default for RelayOptions {
+    fn default() -> Self {
+        RelayOptions::new()
+    }
+}
+
+impl RelayOptions {
+    /// `relay_bp`'s sinter defaults: a first leg of 60 iterations with memory strength 0.1, then
+    /// up to 60 legs of 60 iterations with strengths drawn from [−0.24, 0.66), stopping once 5
+    /// have converged; min-sum unscaled; seed 0.
+    pub fn new() -> RelayOptions {
+        RelayOptions {
+            config: crate::relay::RelayConfig {
+                pre_iter: 60,
+                legs: 60,
+                leg_iter: 60,
+                solutions: Some(5),
+                gamma0: Some(0.1),
+                gamma_range: (-0.24, 0.66),
+                gammas: None,
+                alpha: None,
+                alpha_scaling: 1.0,
+                seed: 0,
+            },
+        }
+    }
+
+    /// Legs after the first, at most.
+    pub fn legs(mut self, legs: usize) -> Self {
+        self.config.legs = legs;
+        self
+    }
+
+    /// Stop once this many legs have converged (`None`: run every leg).
+    pub fn solutions(mut self, solutions: Option<usize>) -> Self {
+        self.config.solutions = solutions;
+        self
+    }
+
+    /// Iterations of the first leg.
+    pub fn pre_iterations(mut self, iterations: usize) -> Self {
+        self.config.pre_iter = iterations;
+        self
+    }
+
+    /// Iterations of each later leg.
+    pub fn iterations(mut self, iterations: usize) -> Self {
+        self.config.leg_iter = iterations;
+        self
+    }
+
+    /// The first leg's memory strength (`None`: no memory, plain min-sum in every leg).
+    pub fn gamma0(mut self, gamma0: Option<f64>) -> Self {
+        self.config.gamma0 = gamma0;
+        self
+    }
+
+    /// The interval later legs draw memory strengths from, uniformly.
+    pub fn gamma_range(mut self, low: f64, high: f64) -> Self {
+        self.config.gamma_range = (low, high);
+        self
+    }
+
+    /// Explicit memory strengths instead of random ones: one row per leg (reused cyclically),
+    /// one strength per fault.
+    pub fn gammas(mut self, rows: Vec<Vec<f64>>) -> Self {
+        self.config.gammas = Some(rows);
+        self
+    }
+
+    /// The min-sum scaling (`None`: 1; `Some(0.0)`: 1 − 2^−t at iteration t).
+    pub fn alpha(mut self, alpha: Option<f64>) -> Self {
+        self.config.alpha = alpha;
+        self
+    }
+
+    /// The seed of the random memory strengths.
+    pub fn seed(mut self, seed: u64) -> Self {
+        self.config.seed = seed;
+        self
+    }
+}
+
+/// Relay-BP on a detector error model (Müller et al., IBM, 2025): min-sum BP with memory, run
+/// in legs that each draw fresh memory strengths and start from the last leg's posteriors; the
+/// lightest of the first few converged corrections wins. No elimination: fast and simple
+/// enough for hardware, and on the gross code about as accurate as BP+OSD. IBM's `relay_bp`
+/// gives the same corrections on the same check matrix (see `RelayBpDecoder`). Shot `k` of a
+/// batch draws its memory strengths from the seed and `k`, so results do not depend on the
+/// thread count. Give it the undecomposed model.
+pub struct RelayBp {
+    inner: crate::relay::Relay,
+    observables: Vec<u64>,
+    num_detectors: usize,
+}
+
+impl RelayBp {
+    /// Relay-BP with the given options.
+    pub fn new(dem: &DetectorErrorModel, options: RelayOptions) -> Result<RelayBp> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        let inner = crate::relay::Relay::new(d.num_detectors, &columns, &priors, options.config)?;
+        Ok(RelayBp { inner, observables: d.mechanisms.iter().map(|m| m.observables).collect(), num_detectors: d.num_detectors })
+    }
+
+    /// One shot, given the detectors that fired (decoded as shot 0 of a batch).
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core). `bp_converged` says
+    /// whether a leg converged; where none did, the prediction is the first leg's last guess.
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = crate::batch::relay_shots(&self.inner, &self.observables, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        Ok(out.into_iter().map(|(o, c)| Prediction { observables: o, weight: None, bp_converged: Some(c == 1) }).collect())
+    }
+}
+
+/// Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023): each
+/// detector doubled into the two sub-graphs that leave out a colour other than its own, every
+/// fault split into basic faults drawn as edges of that doubled (Möbius) graph, a minimum-
+/// weight matching of it found by this crate's matcher, and the matching lifted back to the
+/// code by carrying colour charge around its cycles. Predictions equal to the `chromobius`
+/// package's but for ties between equally light matchings.
+///
+/// The model's detectors need Chromobius's annotation: a 4th coordinate giving the basis and
+/// colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; −1 to ignore the detector), as
+/// [`CssCode::memory_circuit_with_colors`](crate::CssCode::memory_circuit_with_colors) writes
+/// it. Give it the undecomposed model.
+///
+/// ```
+/// use stabilizer_qec::{Basis, ColorMatching, CssCode, DemOptions};
+///
+/// let c = CssCode::color_code(5)?.memory_circuit_with_colors(5, 0.001, Basis::Z)?;
+/// let decoder = ColorMatching::new(&c.detector_error_model(&DemOptions::new())?)?;
+/// let samples = c.detector_sampler(1)?.sample(2000, 0);
+/// let predictions = decoder.decode_batch(&samples.detectors, 0)?;
+/// let wrong = (0..2000).filter(|&s| predictions[s].flips(0) != samples.observables.get(s, 0)).count();
+/// assert!(wrong < 40);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+pub struct ColorMatching {
+    inner: crate::color::ColorDecoder,
+    num_detectors: usize,
+}
+
+impl ColorMatching {
+    /// The decoder for an annotated model; an error where a fault cannot be split into the
+    /// code's basic faults (as in Chromobius).
+    pub fn new(dem: &DetectorErrorModel) -> Result<ColorMatching> {
+        ColorMatching::build(dem, false)
+    }
+
+    /// The same, leaving out of the Möbius graph what cannot be decomposed.
+    pub fn ignoring_decomposition_failures(dem: &DetectorErrorModel) -> Result<ColorMatching> {
+        ColorMatching::build(dem, true)
+    }
+
+    fn build(dem: &DetectorErrorModel, ignore: bool) -> Result<ColorMatching> {
+        let d = dem.flat()?;
+        Ok(ColorMatching { inner: crate::color::ColorDecoder::from_dem(d, ignore)?, num_detectors: d.num_detectors })
+    }
+
+    /// The Möbius model the matching is found on: two detectors per detector, edges only.
+    pub fn mobius_model(&self) -> Result<DetectorErrorModel> {
+        DetectorErrorModel::parse(self.inner.mobius_text())
+    }
+
+    /// One shot, given the detectors that fired. `weight` is the Möbius matching's.
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core). A shot no lifting of
+    /// the matching explains (wrong annotations, or a model Chromobius cannot decode either)
+    /// is an error naming it.
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = crate::batch::color_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        if let Some(s) = out.iter().position(|x| x.2 == 2) {
+            return Err(Error::new(format!("shot {s}: no lifting of the matching explains its detection events (are the colour annotations right?)")));
+        }
+        Ok(out.into_iter().map(|(o, w, _)| Prediction { observables: o, weight: Some(w), bp_converged: None }).collect())
+    }
+}
+
+/// How the search decoder generates detector orders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DetectorOrder {
+    /// Detector index order or its reverse, by a coin (Tesseract's, exactly).
+    Index,
+    /// Breadth-first over the detectors faults join, from random roots.
+    Bfs,
+    /// By the coordinates' projection on a random direction.
+    Coordinate,
+}
+
+/// The search decoder's settings; the defaults are Tesseract's.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SearchOptions {
+    beam: Option<usize>,
+    beam_climbing: bool,
+    no_revisit: bool,
+    queue_limit: Option<usize>,
+    orders: Option<Vec<Vec<u32>>>,
+    method: DetectorOrder,
+    num_orders: usize,
+    seed: u64,
+    penalty: f64,
+    merge: bool,
+}
+
+impl Default for SearchOptions {
+    fn default() -> Self {
+        SearchOptions::new()
+    }
+}
+
+impl SearchOptions {
+    /// Tesseract's defaults: beam 5, no revisits, a queue of at most 200,000, 20 index orders
+    /// from seed 2384753, no detector penalty, indistinguishable faults merged.
+    pub fn new() -> SearchOptions {
+        SearchOptions { beam: Some(5), beam_climbing: false, no_revisit: true, queue_limit: Some(200_000), orders: None, method: DetectorOrder::Index, num_orders: 20, seed: 2384753, penalty: 0.0, merge: true }
+    }
+
+    /// Drop states lighting more than `beam` detectors above the fewest seen (`None`: no beam).
+    pub fn beam(mut self, beam: Option<usize>) -> Self {
+        self.beam = beam;
+        self
+    }
+
+    /// Search with every beam from 0 up, cycling through the orders.
+    pub fn beam_climbing(mut self, yes: bool) -> Self {
+        self.beam_climbing = yes;
+        self
+    }
+
+    /// Skip patterns of lit detectors already expanded: much faster, not exact.
+    pub fn no_revisit(mut self, yes: bool) -> Self {
+        self.no_revisit = yes;
+        self
+    }
+
+    /// Give up after this many states have been queued (`None`: never).
+    pub fn queue_limit(mut self, limit: Option<usize>) -> Self {
+        self.queue_limit = limit;
+        self
+    }
+
+    /// Search these detector orders (each a permutation of the detectors).
+    pub fn detector_orders(mut self, orders: Vec<Vec<u32>>) -> Self {
+        self.orders = Some(orders);
+        self
+    }
+
+    /// Generate `count` orders by `method` from `seed`.
+    pub fn generated_orders(mut self, method: DetectorOrder, count: usize, seed: u64) -> Self {
+        self.orders = None;
+        self.method = method;
+        self.num_orders = count;
+        self.seed = seed;
+        self
+    }
+
+    /// Add this to each lit detector's estimated cost.
+    pub fn detector_penalty(mut self, penalty: f64) -> Self {
+        self.penalty = penalty;
+        self
+    }
+
+    /// Merge faults with the same detectors and observables into one.
+    pub fn merge_errors(mut self, yes: bool) -> Self {
+        self.merge = yes;
+        self
+    }
+}
+
+/// A search for the most likely error, Tesseract's A* (Beni, Higgott and Shutty, Google, 2025),
+/// for any detector error model: sets of faults expanded cheapest first by their weight plus an
+/// admissible estimate of explaining the detectors still lit, each grown only through its first
+/// lit detector in a detector order, under a beam and a queue bound, once per order. Its
+/// answers, fault for fault, are the `tesseract_decoder` package's on the same platform (ties
+/// between equally promising states are broken as the platform's C++ library breaks them).
+/// With no beam, no queue bound and revisits allowed it is exact.
+///
+/// ```
+/// use stabilizer_qec::{CssCode, DemOptions, SearchDecoder, SearchOptions, Basis};
+///
+/// let c = CssCode::color_code(3)?.memory_circuit(3, 0.002, Basis::Z)?;
+/// let decoder = SearchDecoder::new(&c.detector_error_model(&DemOptions::new())?, SearchOptions::new())?;
+/// let samples = c.detector_sampler(1)?.sample(500, 0);
+/// let predictions = decoder.decode_batch(&samples.detectors, 0)?;
+/// let wrong = (0..500).filter(|&s| predictions[s].flips(0) != samples.observables.get(s, 0)).count();
+/// assert!(wrong < 25);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+pub struct SearchDecoder {
+    inner: crate::search::Search,
+    num_detectors: usize,
+}
+
+impl SearchDecoder {
+    /// The decoder for a model.
+    pub fn new(dem: &DetectorErrorModel, options: SearchOptions) -> Result<SearchDecoder> {
+        let d = dem.flat()?;
+        let flavour = crate::search::Flavour::native();
+        let orders = match options.orders {
+            Some(o) => o,
+            None => {
+                if options.num_orders == 0 {
+                    return Err(Error::new("at least one detector order is needed"));
+                }
+                let method = match options.method {
+                    DetectorOrder::Index => crate::search::OrderMethod::Index,
+                    DetectorOrder::Bfs => crate::search::OrderMethod::Bfs,
+                    DetectorOrder::Coordinate => crate::search::OrderMethod::Coordinate,
+                };
+                crate::search::generated_orders(d, options.num_orders, method, options.seed, flavour)
+            }
+        };
+        let config = crate::search::SearchConfig {
+            beam: options.beam,
+            beam_climbing: options.beam_climbing,
+            no_revisit: options.no_revisit,
+            queue_limit: options.queue_limit,
+            orders,
+            detector_penalty: options.penalty,
+            merge_errors: options.merge,
+            flavour,
+        };
+        Ok(SearchDecoder { inner: crate::search::Search::new(d, config)?, num_detectors: d.num_detectors })
+    }
+
+    /// One shot, given the detectors that fired. `weight` is the found faults' cost, `None`
+    /// where the search gave up (the prediction is then no flips).
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// The faults one shot's search found, as indices into the model's (flattened) faults, or
+    /// `None` where it gave up.
+    pub fn decode_to_faults(&self, defects: &[u32]) -> Result<Option<Vec<usize>>> {
+        check_defects(defects, self.num_detectors)?;
+        let mut sorted = defects.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        let found = self.inner.decode(&sorted);
+        Ok((!found.low_confidence).then_some(found.faults))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core).
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = crate::batch::search_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
+    }
+}
+
 /// The order a window decoder runs its windows in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -556,5 +1015,80 @@ impl BpOsdDecoder {
         let mut w = self.inner.work();
         let out = self.inner.decode(&s, &mut w);
         Ok(BpOsdOutcome { correction: w.correction.iter().map(|&b| b != 0).collect(), converged: out.converged, iterations: out.iterations })
+    }
+}
+
+/// BP+LSD on a check matrix given by its columns, as `ldpc`'s `BpLsdDecoder` (flooding
+/// schedule).
+pub struct BpLsdDecoder {
+    inner: crate::lsd::BpLsd,
+    num_checks: usize,
+}
+
+impl BpLsdDecoder {
+    /// A decoder for `num_checks` checks and the given columns, each with its prior.
+    pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], bp: BpOptions, lsd: LsdOptions) -> Result<BpLsdDecoder> {
+        check_matrix(num_checks, columns, priors)?;
+        Ok(BpLsdDecoder { inner: lsd.engine(num_checks, columns.to_vec(), priors, bp)?, num_checks })
+    }
+
+    /// Decode one syndrome (one bit per check). An error if no correction explains it.
+    pub fn decode(&self, syndrome: &[bool]) -> Result<BpOsdOutcome> {
+        let s = syndrome_bytes(syndrome, self.num_checks)?;
+        let mut w = self.inner.work();
+        let out = self.inner.decode(&s, &mut w);
+        if !out.solved {
+            return Err(Error::new("no correction explains the syndrome"));
+        }
+        Ok(BpOsdOutcome { correction: w.correction.iter().map(|&b| b != 0).collect(), converged: out.converged, iterations: out.iterations })
+    }
+}
+
+/// A Relay-BP run's result.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RelayOutcome {
+    /// The correction, one per column: the lightest converged leg's, or where none converged,
+    /// the first leg's last hard decision.
+    pub correction: Vec<bool>,
+    /// Whether a leg converged.
+    pub converged: bool,
+    /// Iterations over every leg run.
+    pub iterations: usize,
+    /// Legs run, the first included.
+    pub legs: usize,
+    /// The correction's weight, Σ ln((1 − p)/p) over its columns (infinite where none converged).
+    pub weight: f64,
+}
+
+/// Relay-BP on a check matrix given by its columns, as IBM's `relay_bp` `RelayDecoderF64`:
+/// the same corrections, iteration counts and convergence for the same options. As there, the
+/// random memory strengths continue from one decode to the next.
+pub struct RelayBpDecoder {
+    inner: crate::relay::Relay,
+    work: std::sync::Mutex<crate::relay::RelayWork>,
+}
+
+impl RelayBpDecoder {
+    /// A decoder for `num_checks` checks and the given columns, each with its prior.
+    pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], options: RelayOptions) -> Result<RelayBpDecoder> {
+        check_matrix(num_checks, columns, priors)?;
+        let inner = crate::relay::Relay::new(num_checks, columns, priors, options.config)?;
+        let work = std::sync::Mutex::new(inner.work());
+        Ok(RelayBpDecoder { inner, work })
+    }
+
+    /// Decode one syndrome (one bit per check).
+    pub fn decode(&self, syndrome: &[bool]) -> Result<RelayOutcome> {
+        let s = syndrome_bytes(syndrome, self.inner.num_checks)?;
+        let mut w = self.work.lock().unwrap_or_else(|e| e.into_inner());
+        let out = self.inner.decode(&s, &mut w);
+        Ok(RelayOutcome {
+            correction: w.correction.iter().map(|&b| b != 0).collect(),
+            converged: out.converged,
+            iterations: out.iterations,
+            legs: out.legs,
+            weight: if out.converged { out.weight } else { f64::INFINITY },
+        })
     }
 }

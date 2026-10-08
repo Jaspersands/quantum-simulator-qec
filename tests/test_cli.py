@@ -118,6 +118,13 @@ def test_sample_dem_and_decode(files):
     shots = sq.read_shot_data_file(path=files / "d.b8", format="b8", num_detectors=c.num_detectors)
     want = sq.Matching(c.detector_error_model(decompose_errors=True)).decode_batch(shots).astype(np.uint8)
     assert predicted == "".join("".join(map(str, row)) + "\n" for row in want).encode()
+    # The decoders for any model, on the undecomposed one.
+    (files / "u.dem").write_text(str(c.detector_error_model()))
+    shots_t = sq.read_shot_data_file(path=files / "d.b8", format="b8", num_detectors=c.num_detectors)
+    for name, make in (("bplsd", sq.BpLsd), ("relay_bp", sq.RelayBp), ("search", sq.SearchDecoder)):
+        got = ours("decode", "--dem", str(files / "u.dem"), "--in", str(files / "d.b8"), "--in_format", "b8", "--decoder", name)
+        want = make(c.detector_error_model()).decode_batch(shots_t).astype(np.uint8)
+        assert got == "".join("".join(map(str, row)) + "\n" for row in want).encode(), name
 
 
 def test_help_and_errors():

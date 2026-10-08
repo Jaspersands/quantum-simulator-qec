@@ -2,7 +2,11 @@
 //! Stim's b8 rows, cut across threads, results in shot order.
 
 use crate::belief::BeliefMatching;
+use crate::color::ColorDecoder;
+use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
+use crate::relay::Relay;
+use crate::search::Search;
 use crate::parallel::parallel;
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::WindowDecoder;
@@ -51,8 +55,46 @@ pub fn belief_shots(bm: &BeliefMatching, packed: &[u8], nd: usize, num_shots: us
     })
 }
 
-/// BP+OSD of b8 shots on a model's faults: (observables, BP converged).
-pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
+/// A decoder of syndromes over a model's faults: the faults it sets are XORed into the
+/// predicted observables.
+pub trait SyndromeDecoder: Sync {
+    type Work;
+    fn work(&self) -> Self::Work;
+    /// Decode one syndrome (one byte per detector): 1 where BP converged by itself, 0 where
+    /// the post-processing ran, 2 where no correction explains the syndrome.
+    fn decode_syndrome(&self, syndrome: &[u8], work: &mut Self::Work) -> u8;
+    fn correction<'w>(&self, work: &'w Self::Work) -> &'w [u8];
+}
+
+impl SyndromeDecoder for BpOsd {
+    type Work = crate::osd::BpOsdWork;
+    fn work(&self) -> Self::Work {
+        BpOsd::work(self)
+    }
+    fn decode_syndrome(&self, syndrome: &[u8], work: &mut Self::Work) -> u8 {
+        u8::from(self.decode(syndrome, work).converged)
+    }
+    fn correction<'w>(&self, work: &'w Self::Work) -> &'w [u8] {
+        &work.correction
+    }
+}
+
+impl SyndromeDecoder for BpLsd {
+    type Work = crate::lsd::BpLsdWork;
+    fn work(&self) -> Self::Work {
+        BpLsd::work(self)
+    }
+    fn decode_syndrome(&self, syndrome: &[u8], work: &mut Self::Work) -> u8 {
+        let o = self.decode(syndrome, work);
+        if !o.solved { 2 } else { u8::from(o.converged) }
+    }
+    fn correction<'w>(&self, work: &'w Self::Work) -> &'w [u8] {
+        &work.correction
+    }
+}
+
+/// A syndrome decoder over b8 shots on a model's faults: (observables, its flag).
+pub fn syndrome_shots<D: SyndromeDecoder>(dec: &D, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
     let stride = nd.div_ceil(8);
     parallel(num_shots, threads, |range| {
         let mut work = dec.work();
@@ -63,12 +105,87 @@ pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots
                 for (i, x) in syndrome.iter_mut().enumerate() {
                     *x = (row[i / 8] >> (i % 8)) & 1;
                 }
+                let flag = dec.decode_syndrome(&syndrome, &mut work);
+                let pred = dec.correction(&work).iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
+                (pred, flag)
+            })
+            .collect()
+    })
+}
+
+/// Relay-BP of b8 shots on a model's faults: (observables, a leg converged). Shot `s` draws
+/// its memory strengths from a generator seeded by the configured seed and `s`, so a batch's
+/// results do not depend on how it is cut across threads.
+pub fn relay_shots(dec: &Relay, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut syndrome = vec![0u8; nd];
+        range
+            .map(|s| {
+                let row = &packed[s * stride..(s + 1) * stride];
+                for (i, x) in syndrome.iter_mut().enumerate() {
+                    *x = (row[i / 8] >> (i % 8)) & 1;
+                }
+                dec.reseed(&mut work, shot_seed(dec.config.seed, s as u64));
                 let o = dec.decode(&syndrome, &mut work);
                 let pred = work.correction.iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
                 (pred, u8::from(o.converged))
             })
             .collect()
     })
+}
+
+/// A seed for shot `s` of a batch: SplitMix64's mix of the two.
+fn shot_seed(seed: u64, s: u64) -> u64 {
+    let mut z = seed.wrapping_add(s.wrapping_add(1).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 31)
+}
+
+/// Colour-code matching of b8 shots: per shot (observables, the Möbius matching's weight,
+/// 0 decoded / 1 decoded through an ambiguous table entry / 2 failed).
+pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, u8)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                let row = &packed[s * stride..(s + 1) * stride];
+                defects.clear();
+                crate::shots::defects_from_b8(row, nd, &mut defects);
+                let fired = |d: u32| (row[d as usize / 8] >> (d % 8)) & 1 == 1;
+                match dec.decode(&defects, &fired, &mut work) {
+                    Ok((o, w)) => (o, w, u8::from(work.tied)),
+                    Err(_) => (u64::MAX, f64::NAN, 2),
+                }
+            })
+            .collect()
+    })
+}
+
+/// The search decoder over b8 shots: per shot (observables, the found faults' cost, whether
+/// the search gave up).
+pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, bool)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                let found = dec.decode(&defects);
+                (dec.observables(&found.faults), dec.cost(&found.faults), found.low_confidence)
+            })
+            .collect()
+    })
+}
+
+/// BP+OSD of b8 shots on a model's faults: (observables, BP converged).
+pub fn bposd_shots(dec: &BpOsd, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
+    syndrome_shots(dec, obs, packed, nd, num_shots, threads)
 }
 
 /// Window decoding of b8 shots: per shot (observables or u64::MAX where a window refused, the

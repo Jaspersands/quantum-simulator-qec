@@ -43,6 +43,9 @@ def test_decoders_decode_the_same_after_pickling(setup):
         sq.Matching(dem, enable_correlations=True),
         sq.BeliefMatching(dem, max_bp_iters=5),
         sq.BpOsd(undecomposed, max_iter=5, osd_order=2),
+        sq.BpLsd(undecomposed, max_iter=5),
+        sq.RelayBp(undecomposed, legs=3, solutions=1),
+        sq.SearchDecoder(undecomposed, num_det_orders=2),
         sq.WindowMatching(dem, commit=1, buffer=1, mode="sliding"),
     ]
     for d in decoders:
@@ -57,7 +60,8 @@ def test_check_matrix_decoders_keep_their_last_run():
     h = np.array([[1, 1, 0, 1, 1, 0, 0], [1, 0, 1, 1, 0, 1, 0], [0, 1, 1, 1, 0, 0, 1]])
     bp = sq.BpDecoder(h, error_rate=0.05, max_iter=10)
     osd = sq.BpOsdDecoder(h, error_channel=[0.05] * 7, osd_order=0, osd_method="osd0")
-    for d in (bp, osd):
+    lsd = sq.BpLsdDecoder(h, error_channel=[0.05] * 7, max_iter=1, always_run_lsd=True)
+    for d in (bp, osd, lsd):
         out = d.decode([1, 0, 1])
         again = pickle.loads(pickle.dumps(d))
         assert (again.converge, again.iter) == (d.converge, d.iter)

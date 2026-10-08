@@ -79,7 +79,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.7, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.8, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -108,8 +108,9 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - the Python package built, installed and smoke-tested against Stim and PyMatching on Linux, macOS
   and Windows. On Linux it also runs the quick forms of the cross-check, BP and belief-matching
   against `ldpc` and `beliefmatching`, the gross code and BP+OSD against Bravyi et al., Stim and
-  `ldpc`, lattice surgery against Stim and PyMatching, and the gross code's logical measurement
-  against Stim and `ldpc`;
+  `ldpc`, lattice surgery against Stim and PyMatching, the gross code's logical measurement
+  against Stim and `ldpc`, and the 1.8 decoders against `ldpc`, IBM's `relay_bp`, Chromobius and
+  Tesseract (`tools/decoder_check.py`);
 - the test suite (`tests/`) against each platform's wheel on Python 3.9, 3.10, 3.11, 3.12, 3.13
   and 3.14;
 - `cargo fuzz` on the circuit and model parsers and everything behind them, a minute each
@@ -158,6 +159,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   al.'s depth-8 syndrome cycle, decoded by BP+OSD whose corrections equal `ldpc`'s but for ties. On
   it, every automorphism's logical action computed exactly, and the gauging measurement of a logical
   operator built from Cross et al.'s definition, with its distance proven by integer programming.
+- **More decoders**: BP+LSD equal to `ldpc`'s, Relay-BP identical to IBM's `relay_bp`, colour-code
+  matching by Chromobius's construction, and Tesseract's search for the most likely error,
+  identical to `tesseract_decoder`'s, each held to its authors' package shot for shot (see
+  [More decoders](#more-decoders)).
 - **More codes**: every bivariate bicycle code of Bravyi et al.'s Table 3 ([[72, 12, 6]] to
   [[288, 12, 18]]) or any other from its polynomials, and any CSS code from its checks:
   hypergraph products of classical codes and the 6.6.6 colour code, each with a memory
@@ -172,26 +177,32 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   at the top of the page runs the engine live, the interactive figures are driven by it, the
   threshold table is plotted as it is measured, and the bench streams its estimate.
 - **Python package** (`stabilizer-qec` on PyPI, one abi3 wheel, typed): circuits, error models,
-  sampling, plain, correlated and belief matching, BP+OSD, window decoding and streams, the gross
-  code and lattice surgery, from Python (see [Install](#install)).
+  sampling, plain, correlated and belief matching, BP+OSD, BP+LSD, Relay-BP, colour-code
+  matching, the search decoder, window decoding and streams, the gross code and lattice surgery,
+  from Python (see [Install](#install)).
 
 ## Speed against Stim and PyMatching
 
 Each benchmark times the same job here and in the reference, on the same machine and one
-thread, as a ratio: this package's time over Stim's (or PyMatching's), below 1 faster. These
+thread, as a ratio: this package's time over Stim's (or PyMatching's, or the named decoder
+package's), below 1 faster. These
 are the latest runs recorded for each kind of machine (`tools/bench.py`; Linux on GitHub's
 runners, `.github/workflows/bench.yml`); every push is held to them, and the
 [benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) plots every release's.
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
-| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.42 | 0.53 |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 0.08 | 0.17 |
-| Sampling its detection events, 20,000 shots | 0.93 | 0.69 | 0.57 |
-| Measurements to detection events, 20,000 shots | 0.24 | 0.15 | 0.12 |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.94 | 1.16 | 1.10 |
-| Correlated matching, 20,000 shots (against PyMatching's) | 0.95 | 1.09 | 0.88 |
-| *recorded with* | 1.7.0 | 1.7.0 | 1.7.0 |
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.38 | 0.51 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.11 | 0.14 | 0.18 |
+| Sampling its detection events, 20,000 shots | 0.92 | 0.74 | 0.57 |
+| Measurements to detection events, 20,000 shots | 0.24 | 0.12 | 0.12 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.99 | 1.22 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.99 | 1.21 | 0.86 |
+| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.60 | 0.61 | 0.63 |
+| Relay-BP on the same shots (against IBM's relay_bp) | 0.87 | 0.96 | 0.99 |
+| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.73 | 0.92 | 0.74 |
+| The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 0.99 | 0.66 | — |
+| *recorded with* | 1.8.0 | 1.8.0 | 1.8.0 |
 
 ## A note on quoted figures
 
@@ -1149,6 +1160,63 @@ Beside each point, the memory of the same length:
 plots these measurements, runs BP+OSD on [[72, 12, 6]] in the browser, draws the ancilla system
 that measures a logical operator, and plots that measurement against its merged cycles.
 
+## More decoders
+
+Matching needs faults that set off at most two detectors. For everything else the field
+compares against four newer decoders, and each is here, ported from its authors' code with its
+arithmetic in its order so that its answers can be held to theirs shot for shot:
+
+- **BP+LSD** (`BpLsd`, `BpLsdDecoder`; Hillmann, Berent, Quintavalle, Eisert, Wille and Roffe,
+  2024). Where BP does not converge, a cluster grows around each detection event by BP's
+  beliefs, merging with the clusters it touches, until its syndrome is in the image of its own
+  columns; each cluster is then solved alone (LSD-0) or searched as OSD searches (LSD-E,
+  LSD-CS). The clusters iterate their faults in `tsl::robin_set`'s order, which `ldpc` uses and
+  which decides the columns' order and so the answer (`src/robin.rs` reproduces it). Two of
+  `ldpc`'s choices are not reproducible: equal keys in a long `std::sort`, and the order it
+  merges three or more clusters at once, which libc++ takes from hashed pointers. A shot that
+  met one is counted as a tie.
+- **Relay-BP** (`RelayBp`, `RelayBpDecoder`; Müller et al., IBM, 2025). Min-sum BP whose
+  faults remember their last beliefs, run in legs that each draw fresh memory strengths and
+  start where the last ended; the lightest of the first few corrections to converge wins.
+  The random strengths come from `rand` 0.8's generator, reproduced in `src/chacha.rs`, so for
+  a seed the results are IBM's exactly.
+- **Colour-code matching** (`ColorMatching`; Gidney and Jones, 2023). Chromobius's Möbius
+  construction: each detector doubled into the two sub-graphs that leave out a colour other
+  than its own, each fault drawn as edges of the doubled graph, a matching of it found by this
+  package's matcher, and the matching lifted back by carrying colour charge around its cycles.
+  The detectors need Chromobius's colour annotation (`annotate_colors=True` on the colour-code
+  circuits). Where Chromobius's search for a way to drag charge would depend on `unordered_map`
+  order and two ways differ, the entry is marked and a shot using it counted as a tie.
+- **A search decoder** (`SearchDecoder`; Beni, Higgott and Shutty, Google, 2025). Tesseract's A*
+  over sets of faults, cheapest first by weight plus an admissible estimate of what the lit
+  detectors still cost, under a beam and a queue bound, over several detector orders. Equally
+  promising states leave the queue as the platform's `std::priority_queue` lets them (libc++
+  and libstdc++ are both implemented), so its faults are Tesseract's, fault for fault. With no
+  beam, no queue bound and revisits allowed it is exact (tested against brute force).
+
+**Checked** (`tools/decoder_check.py`; the quick form runs in CI): the same check matrices,
+models and shots through both. BP+LSD on random matrices, a d = 5 surface code and the gross
+code (2 and 6 cycles), LSD-0 with both BP methods, LSD-E 6 and LSD-CS 10, and each untied
+cluster's faults in `ldpc`'s order; Relay-BP on the gross code with explicit strengths, seeded
+strengths and no memory, correction, convergence and iteration count; colour-code matching on
+annotated colour codes (d = 3 to 9) and Chromobius's own test code, the Möbius matching's
+weight on every shot and the predictions; the search on surface, colour and gross-code models
+with Tesseract's defaults, literal orders and beam climbing, the faults found. "Ties" differ
+only where the reference's order is not reproducible (BP+LSD) or between two equally light
+matchings (colour codes):
+
+| decoder | against | cases | shots | equal | ties | otherwise | time (× theirs) |
+|---|---|---|---|---|---|---|---|
+| BP+LSD (LSD-0, -E, -CS) | ldpc 2.4.1 | 52 | 24,000 | 23,989 | 11 | 0 | 0.67 |
+| Relay-BP | IBM's relay_bp 0.2.2 | 8 | 8,000 | 8,000 | 0 | 0 | 0.77 |
+| Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 339,829 | 171 | 0 | 0.72 |
+| Search decoder | Tesseract 0.1.1.dev20260910235247 | 12 | 30,000 | 30,000 | 0 | 0 | 1.00 |
+
+The time is this package's over the reference's on the same shots, one thread, Apple M2 Pro,
+both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
+code. On the gross code BP+LSD fails more often than BP+OSD, as `ldpc`'s own pair does on the
+same matrix.
+
 ## Lattice surgery
 
 Every experiment above holds logical qubits still. **Lattice surgery** (Horsman, Fowler, Devitt and
@@ -1961,6 +2029,13 @@ src/bb_gauge.rs       the gauging ancilla system that measures a logical operato
 src/bb_circuit.rs     circuits on them beyond the memory: any checks on any schedule, and on it
                       the logical measurement
 src/osd.rs            BP+OSD: OSD-0, OSD-E and OSD-CS on BP's posteriors
+src/lsd.rs            BP+LSD: clusters grown by BP's posteriors and solved alone, as ldpc does
+src/plu.rs            dense GF(2) elimination column by column, ldpc's, for LSD's clusters
+src/robin.rs          a set iterating as tsl::robin_set does, for LSD's order
+src/relay.rs          Relay-BP: memory BP in legs, as IBM's relay_bp computes it
+src/chacha.rs         rand 0.8's StdRng (ChaCha12) and Uniform<f64>, for Relay-BP's strengths
+src/color/            colour-code matching: Chromobius's Möbius model, tables and lifting
+src/search.rs         the search decoder: Tesseract's A*, with libc++'s and libstdc++'s heaps
 src/surgery.rs        lattice surgery: patches on a grid of tiles merged and split by a program of
                       steps, compiled to one circuit; Z⊗Z and X⊗X, the logical CNOT, lines of patches
 src/window.rs         window decoders: models cut by time, sliding and parallel schedules
@@ -2019,6 +2094,8 @@ tools/realtime.py       window decoders' accuracy, latency, and the million-roun
 tools/bp_check.py       BP and belief-matching against ldpc and beliefmatching, exactly
 tools/belief.py         belief-matching on all of Sycamore and Willow; BP iterations
 tools/bb_check.py       the bivariate bicycle codes and BP+OSD against Bravyi et al., Stim and ldpc
+tools/decoder_check.py  BP+LSD, Relay-BP, colour-code matching and the search decoder against
+                        ldpc, relay_bp, Chromobius and Tesseract, shot for shot
 tools/gross.py          the gross code's logical error per cycle, and the surface code beside it
 tools/gross_ops.py      the gross code's automorphisms, gauging distances and logical measurement
 tools/surgery.py        lattice surgery against Stim and PyMatching, its timing law, and programs
@@ -2031,6 +2108,7 @@ data/matcher/           the matcher's timings and fingerprints
 data/sweeps/            the SD6 threshold sweeps
 data/belief/            belief-matching's results and the oracle check
 data/gross/             the gross code's results and checks, automorphisms, gauging, measurement
+data/decoders/          the 1.8 decoders' check against their authors' packages
 data/surgery/           lattice surgery's golden circuit, timing law and programs
 data/estimate/          the estimate's noise fit, distillation law and sources
 data/realtime/          latency, accuracy and million-round results

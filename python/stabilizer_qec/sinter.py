@@ -21,9 +21,12 @@ from the command line. ``Decoder(kind, **options)`` and ``Sampler(kind, **option
 others: the options are the decoder class's (``Decoder("bposd", osd_order=10)``).
 
 The decoder kinds are ``"matching"`` (``Matching``), ``"correlated_matching"`` (``Matching``
-with ``enable_correlations``), ``"belief_matching"`` (``BeliefMatching``) and ``"bposd"``
-(``BpOsd``, for codes whose faults flip three or more detectors, such as the bivariate bicycle
-codes), and ``"union_find"`` (``UnionFind``, the standard baseline). Requires sinter.
+with ``enable_correlations``), ``"belief_matching"`` (``BeliefMatching``), ``"union_find"``
+(``UnionFind``, the standard baseline), and for codes whose faults flip three or more
+detectors, such as the bivariate bicycle codes, ``"bposd"`` (``BpOsd``), ``"bplsd"``
+(``BpLsd``), ``"relay_bp"`` (``RelayBp``) and ``"search"`` (``SearchDecoder``), and for colour
+codes with Chromobius's annotations, ``"color_matching"`` (``ColorMatching``). Requires
+sinter.
 """
 
 from __future__ import annotations
@@ -39,9 +42,14 @@ except ImportError as ex:  # pragma: no cover - exercised only without sinter
     raise ImportError("stabilizer_qec.sinter needs sinter: pip install sinter") from ex
 
 from ._circuit import Circuit, DetectorErrorModel
-from ._decoders import BeliefMatching, BpOsd, Matching, UnionFind
+from ._decoders import BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
 
-KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_find")
+KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_find", "bplsd", "relay_bp", "color_matching", "search")
+
+# The kinds that match on a graph, and so want the model decomposed.
+_GRAPH_KINDS = ("matching", "correlated_matching", "belief_matching", "union_find")
+
+_CLASSES = {"belief_matching": BeliefMatching, "union_find": UnionFind, "bposd": BpOsd, "bplsd": BpLsd, "relay_bp": RelayBp, "color_matching": ColorMatching, "search": SearchDecoder}
 
 __all__ = ["KINDS", "Decoder", "Sampler", "decoders", "samplers", "sinter_decoders"]
 
@@ -57,11 +65,7 @@ def _build(kind: str, dem: DetectorErrorModel, options: dict) -> Any:
         return Matching(dem, **options)
     if kind == "correlated_matching":
         return Matching(dem, enable_correlations=True, **options)
-    if kind == "belief_matching":
-        return BeliefMatching(dem, **options)
-    if kind == "union_find":
-        return UnionFind(dem, **options)
-    return BpOsd(dem, **options)
+    return _CLASSES[kind](dem, **options)
 
 
 class _CompiledDecoder(_sinter.CompiledDecoder):
@@ -91,7 +95,7 @@ class Decoder(_sinter.Decoder):
 class _CompiledSampler(_sinter.CompiledSampler):
     def __init__(self, task: Any, kind: str, options: dict) -> None:
         circuit = Circuit(task.circuit)
-        dem = circuit.detector_error_model(decompose_errors=kind != "bposd", approximate_disjoint_errors=True)
+        dem = circuit.detector_error_model(decompose_errors=kind in _GRAPH_KINDS, approximate_disjoint_errors=True)
         self.decoder = _build(kind, dem, options)
         # A fresh seed per compiled sampler: sinter's workers must not draw the same shots.
         self.sampler = circuit.compile_detector_sampler(seed=None)

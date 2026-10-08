@@ -217,3 +217,28 @@ def test_css_code_from_checks_and_errors():
         hgp.memory_circuit(0, 0.001)
     with pytest.raises(ValueError):
         hgp.memory_circuit(2, 0.001, basis="y")
+
+
+def test_colour_code_memories_carry_chromobius_annotations():
+    code = sq.CssCode.color_code(5)
+    plain = code.memory_circuit(3, 0.001)
+    annotated = code.memory_circuit(3, 0.001, annotate_colors=True)
+    assert plain.num_detectors == annotated.num_detectors
+    def coords(c):
+        return [[float(x) for x in line.split("(")[1].split(")")[0].split(",")] for line in str(c).splitlines() if line.strip().startswith("DETECTOR")]
+
+    assert all(len(c) == 4 and c[3] in range(6) for c in coords(annotated))
+    assert {len(c) for c in coords(plain)} == {3}
+    with pytest.raises(ValueError, match="colour codes"):
+        sq.CssCode.hypergraph_product(HAMMING).memory_circuit(2, 0.001, annotate_colors=True)
+
+
+def test_chromobius_decodes_the_annotated_colour_codes():
+    stim = pytest.importorskip("stim")
+    chromobius = pytest.importorskip("chromobius")
+    for d, limit in [(3, 0.03), (5, 0.01)]:
+        for basis in ("z", "x"):
+            c = sq.CssCode.color_code(d).memory_circuit(d, 0.001, basis=basis, annotate_colors=True)
+            decoder = chromobius.compile_decoder_for_dem(stim.DetectorErrorModel(str(c.detector_error_model())))
+            dets, obs = stim.Circuit(str(c)).compile_detector_sampler(seed=1).sample(4000, separate_observables=True, bit_packed=True)
+            assert np.mean(np.any(decoder.predict_obs_flips_from_dets_bit_packed(dets) != obs, axis=1)) < limit

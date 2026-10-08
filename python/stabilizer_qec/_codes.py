@@ -258,8 +258,9 @@ class CssCode:
         return code
 
     def _init(self, parts: tuple) -> None:
-        n, hx, hz, lx, lz = parts
+        n, hx, hz, lx, lz, colors = parts
         self.n, self.k = n, len(lx)
+        self._colors = colors
         self._rows = (hx, hz)
         self._hx, self._hz = _rows(hx, n), _rows(hz, n)
         self._lx, self._lz = _rows(lx, n), _rows(lz, n)
@@ -276,15 +277,24 @@ class CssCode:
         and Z_j anticommute exactly when i = j."""
         return self._lx.copy(), self._lz.copy()
 
-    def memory_circuit(self, rounds: int, p: float, *, basis: str = "z") -> Circuit:
+    def memory_circuit(self, rounds: int, p: float, *, basis: str = "z", annotate_colors: bool = False) -> Circuit:
         """A memory: the data prepared in ``basis``, ``rounds`` rounds of syndrome extraction
         (a loop; up to a million) under circuit noise ``p`` (depolarizing on the data each
         round and after every CNOT, flips after resets and before measurements), the data read
         out. Detectors compare every check round to round and with the readout; the
-        observables are the ``k`` logicals of that basis. Its hyperedges want ``BpOsd``."""
+        observables are the ``k`` logicals of that basis. Its hyperedges want ``BpOsd``.
+
+        ``annotate_colors`` (colour codes only) gives each detector a 4th coordinate, its
+        check's colour plus 3 for a Z check: Chromobius's annotation, which ``ColorMatching``
+        decodes by."""
         _choice(basis, _BASES, "basis")
         hx, hz = self._rows
-        return Circuit(call(_core.css_memory_circuit, self.n, hx, hz, count(rounds, "rounds", 1), probability(p), basis))
+        colors = None
+        if annotate_colors:
+            if self._colors is None:
+                raise ValueError("colour annotations are for colour codes (CssCode.color_code)")
+            colors = self._colors
+        return Circuit(call(_core.css_memory_circuit, self.n, hx, hz, count(rounds, "rounds", 1), probability(p), basis, colors))
 
 
 class StreamResult(NamedTuple):

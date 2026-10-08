@@ -301,6 +301,31 @@ def estimate_noise():
     return rows
 
 
+def decoder_checks():
+    """tools/decoder_check.py's full run, by decoder: shots, how many equal the reference's,
+    how many differ only by a tie, how many otherwise, and the time against the reference's."""
+    data = load("data/decoders/check.json")["sections"]
+    names = {
+        "lsd": ("BP+LSD (LSD-0, -E, -CS)", "ldpc"),
+        "relay": ("Relay-BP", "IBM's relay_bp"),
+        "color": ("Colour-code matching", "Chromobius"),
+        "search": ("Search decoder", "Tesseract"),
+    }
+    rows = []
+    for key, (decoder, against) in names.items():
+        sec = data[key]
+        version = sec["reference"].split()[-1]
+        rs = sec["rows"]
+        shots = sum(r["shots"] for r in rs)
+        equal = sum(r.get("agree", r.get("identical", 0)) for r in rs)
+        tied = sum(r.get("tied", 0) for r in rs)
+        other = sum(r.get("untied", r.get("different", 0)) for r in rs)
+        ours = sum(r["ours_s"] for r in rs)
+        theirs = sum(r[[k for k in r if k.endswith("_s") and k != "ours_s"][0]] for r in rs)
+        rows.append(f"| {decoder} | {against} {version} | {len(rs)} | {shots:,} | {equal:,} | {tied:,} | {other} | {ours / theirs:.2f} |")
+    return rows
+
+
 # Each table's header row (as a regex), and the function giving its body.
 TABLES = [
     ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
@@ -315,6 +340,7 @@ TABLES = [
     ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
     ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
     ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
+    ("decoder checks", r"\| decoder \| against \| cases \| shots \| equal \| ties \| otherwise \| time \(× theirs\) \|", decoder_checks),
     ("circuit distances", r"\| memory \| code distance \| faults \| graph-like search \| Stim's search \| integer program \|", circuit_distances),
     ("estimate noise", r"\| p \| d = 3 \| d = 5 \| d = 7 \| d = 9 \| d = 11 \|", estimate_noise),
     ("estimate validation", r"\| case \| d \| physical qubits \(× source\) \| time \(× source\) \|", estimate_validation),

@@ -4,6 +4,47 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 1.8.0 — 2026-10-08
+
+The Python package and the Rust crate both at 1.8.0, "more decoders": four decoders the field
+compares against, each ported from its authors' code and held to it shot for shot
+(`tools/decoder_check.py`, run in CI). API additions only.
+
+### Added
+
+- **BP+LSD** (`BpLsd` on a model, `BpLsdDecoder` on a check matrix with `ldpc`'s arguments;
+  Rust `BpLsd`, `BpLsdDecoder`, `LsdOptions`): belief propagation, then localized statistics
+  decoding (Hillmann et al., 2024), LSD-0, LSD-E and LSD-CS. Corrections equal to `ldpc`
+  2.4.1's on every shot checked; the only differences possible are where `ldpc`'s own order
+  is not reproducible (equal keys in a long `std::sort`, or several clusters merged at once,
+  which it orders by hashed pointers), and those shots are reported as ties. Each cluster's
+  faults iterate in `ldpc`'s `tsl::robin_set` order, which is reproduced. 0.6 of `ldpc`'s time
+  on the gross code.
+- **Relay-BP** (`RelayBp`, `RelayBpDecoder`; Rust `RelayBp`, `RelayBpDecoder`,
+  `RelayOptions`): min-sum BP with memory, run in legs of disordered memory strengths (Müller
+  et al., IBM, 2025). Identical to IBM's `relay_bp` 0.2.2 on every shot (correction,
+  convergence and iteration count), for explicit strengths and for a seed: its random
+  strengths come from `rand` 0.8's generator, reproduced without the dependency. A model's
+  shot k draws from the seed and k, so results do not depend on the thread count.
+- **Colour-code matching** (`ColorMatching`; Rust `ColorMatching`): Chromobius's Möbius
+  construction (Gidney and Jones, 2023) on this package's matcher. The Möbius matching weighs
+  the same as Chromobius 1.1.1's on every shot checked, and predictions differ only between
+  equally light matchings. 0.74 of Chromobius's time at d = 7.
+- **A search decoder** (`SearchDecoder`; Rust `SearchDecoder`, `SearchOptions`,
+  `DetectorOrder`): Tesseract's A* for the most likely error (Beni, Higgott and Shutty,
+  Google, 2025), for any model. The faults it finds are Tesseract's, fault for fault, on the
+  same platform (its ties are broken as the platform's C++ library breaks them). With no
+  beam, no queue bound and revisits allowed it is exact.
+- **Colour annotations**: `CssCode.memory_circuit(..., annotate_colors=True)` (Rust
+  `memory_circuit_with_colors`) gives each detector Chromobius's 4th coordinate;
+  `Circuit.generated("color_code:memory_xyz", ..., annotate_colors=True)` (Rust
+  `generated_with_colors`) flattens Stim's colour code and annotates it as Chromobius's
+  authors do.
+- The four in `stabilizer_qec.sinter` (`"bplsd"`, `"relay_bp"`, `"color_matching"`,
+  `"search"`) and in `stabilizer-qec decode --decoder`; fuzzed with Hypothesis and
+  fingerprinted; benchmarked against their references; tutorial 04 compares every decoder on a
+  colour code and the gross code.
+
 ## 1.7.0 — 2026-10-08
 
 The Python package and the Rust crate both at 1.7.0, "faster": error models in 0.4 to 0.6 of
