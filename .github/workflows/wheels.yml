@@ -29,7 +29,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --out dist
           manylinux: ${{ matrix.libc }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wheels-linux-${{ matrix.target }}-${{ matrix.libc }}
           path: dist
@@ -42,7 +42,7 @@ jobs:
         with:
           target: universal2-apple-darwin
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wheels-macos
           path: dist
@@ -66,7 +66,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wheels-windows-${{ matrix.target }}
           path: dist
@@ -98,7 +98,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --out dist -i python3.14t
           manylinux: ${{ matrix.manylinux || 'auto' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wheels-free-threaded-${{ matrix.runner }}-${{ matrix.target }}
           path: dist
@@ -111,7 +111,7 @@ jobs:
         with:
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: sdist
           path: dist
