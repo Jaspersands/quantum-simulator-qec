@@ -106,6 +106,12 @@ jobs:
         run: |
           python -m pip install ldpc beliefmatching
           python tools/bp_check.py --quick
+      - name: The 1.8 decoders against ldpc, IBM's relay_bp, Chromobius and Tesseract
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python -m pip install scipy chromobius relay-bp
+          python -m pip install --pre tesseract-decoder
+          python tools/decoder_check.py --quick
       - name: The gross code and BP+OSD against Bravyi et al.'s construction, Stim and ldpc
         if: matrix.os == 'ubuntu-latest'
         run: python tools/bb_check.py --quick

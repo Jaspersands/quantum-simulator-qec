@@ -6,13 +6,14 @@
 //!     cargo run --release --no-default-features --target aarch64-apple-darwin --example hot -- dem 20
 //!     (while it runs, in another shell: sample <pid> 5 -file $SCRATCH/dem.txt)
 //!
-//! Jobs: `dem`, `graphlike`, `sample`, `m2d`, `match`, `corr`; then the number of repetitions,
+//! Jobs: `dem`, `graphlike`, `sample`, `m2d`, `match`, `corr`, `color` (colour-code matching
+//! of a d = 7 colour code); then the number of repetitions,
 //! and optionally the distance (default 11, the benchmarks'). Each repetition's time is printed,
 //! and the best.
 use std::time::Instant;
 
 use stabilizer_qec::batch_sampler::BatchSampler;
-use stabilizer_qec::{BitTable, Circuit, DemOptions, GeneratedNoise, Matching};
+use stabilizer_qec::{Basis, BitTable, Circuit, ColorMatching, CssCode, DemOptions, GeneratedNoise, Matching};
 
 fn memory(d: u32) -> Circuit {
     let p = 0.001;
@@ -38,6 +39,9 @@ fn main() {
     let plain = Matching::new(&decomposed).unwrap();
     let correlated = Matching::with_correlations(&decomposed).unwrap();
     let mut sampler = c.detector_sampler(3).unwrap();
+    let colour = CssCode::color_code(7).unwrap().memory_circuit_with_colors(7, 0.002, Basis::Z).unwrap();
+    let colour_matching = ColorMatching::new(&colour.detector_error_model(&DemOptions::new()).unwrap()).unwrap();
+    let colour_dets = colour.detector_sampler(6).unwrap().sample(shots, 1).detectors;
     let mut run = || match job {
         "dem" => drop(c.detector_error_model(&DemOptions::new().decompose_errors(true)).unwrap()),
         "graphlike" => drop(decomposed.shortest_graphlike_error(true).unwrap()),
@@ -45,7 +49,8 @@ fn main() {
         "m2d" => drop(converter.convert(&measurements, None).unwrap()),
         "match" => drop(plain.decode_batch(&dets, 1).unwrap()),
         "corr" => drop(correlated.decode_batch(&dets, 1).unwrap()),
-        _ => panic!("unknown job {job}: dem, graphlike, sample, m2d, match or corr"),
+        "color" => drop(colour_matching.decode_batch(&colour_dets, 1).unwrap()),
+        _ => panic!("unknown job {job}: dem, graphlike, sample, m2d, match, corr or color"),
     };
     run();
     let mut best = f64::INFINITY;

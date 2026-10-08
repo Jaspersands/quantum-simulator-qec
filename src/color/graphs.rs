@@ -165,10 +165,17 @@ impl ChargeGraph {
     }
 }
 
+/// A step's 16 entries, by (charge from, charge to): the observables flipped and whether
+/// ambiguous, where defined.
+pub(crate) type StepTable = [Option<(u64, bool)>; 16];
+
 /// (from, to, charge carried from, charge arriving): the observables dragging charge flips,
 /// and whether Chromobius's search could have found another value.
 pub(crate) struct DragGraph {
     pub map: BTreeMap<(u32, u32, Charge, Charge), (u64, bool)>,
+    /// The same, for decoding: per detector, its neighbours (sorted) each with the 16 entries
+    /// for (charge from, charge to), so a step of a walk costs one search.
+    pub by_node: Vec<Vec<(u32, StepTable)>>,
 }
 
 impl DragGraph {
@@ -179,7 +186,7 @@ impl DragGraph {
 
     /// `DragGraph::from_charge_graph_paths_for_sub_edges_of_atomic_errors`.
     pub fn new(charge: &ChargeGraph, atomic: &BTreeMap<Key, u64>, reps: &[RgbEdge], colors: &[ColorBasis]) -> DragGraph {
-        let mut drag = DragGraph { map: BTreeMap::new() };
+        let mut drag = DragGraph { map: BTreeMap::new(), by_node: vec![Vec::new(); colors.len()] };
         let mut decomposed: BTreeSet<(u32, u32)> = BTreeSet::new();
         let pair = |a: u32, b: u32| (a.min(b), a.max(b));
         let dump = |drag: &mut DragGraph, a: u32, b: u32, ab_obs: u64| {
@@ -242,6 +249,19 @@ impl DragGraph {
             }
             drag.add(n1, n2, NEUTRAL, NEUTRAL, 0, false);
         }
+        for (&(n1, n2, c1, c2), &v) in &drag.map {
+            let list = &mut drag.by_node[n1 as usize];
+            if list.last().is_none_or(|e| e.0 != n2) {
+                list.push((n2, [None; 16]));
+            }
+            list.last_mut().unwrap().1[4 * c1 as usize + c2 as usize] = Some(v);
+        }
         drag
+    }
+
+    /// The 16 entries from `n1` to `n2`, if they are neighbours.
+    pub fn step(&self, n1: u32, n2: u32) -> Option<&StepTable> {
+        let list = &self.by_node[n1 as usize];
+        list.binary_search_by_key(&n2, |e| e.0).ok().map(|k| &list[k].1)
     }
 }

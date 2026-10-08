@@ -203,12 +203,14 @@ impl ColorDecoder {
             } else {
                 // Drag the charge to near the next location, perhaps changing its colour.
                 let mut after: [Option<u64>; 4] = [None; 4];
-                for (c, state) in cur.iter().enumerate() {
-                    let Some(f) = state else { continue };
-                    for (nc, slot) in after.iter_mut().enumerate() {
-                        if let Some(&(flip, ambiguous)) = self.lifted.drag.map.get(&(loc, next, c as u8, nc as u8)) {
-                            *slot = Some(f ^ flip);
-                            w.tied |= ambiguous;
+                if let Some(table) = self.lifted.drag.step(loc, next) {
+                    for (c, state) in cur.iter().enumerate() {
+                        let Some(f) = state else { continue };
+                        for (nc, slot) in after.iter_mut().enumerate() {
+                            if let Some((flip, ambiguous)) = table[4 * c + nc] {
+                                *slot = Some(f ^ flip);
+                                w.tied |= ambiguous;
+                            }
                         }
                     }
                 }
