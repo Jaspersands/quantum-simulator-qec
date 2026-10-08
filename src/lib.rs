@@ -71,6 +71,7 @@ pub mod bb_circuit;
 pub mod bb_gauge;
 #[doc(hidden)]
 pub mod osd;
+mod plu;
 #[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]
