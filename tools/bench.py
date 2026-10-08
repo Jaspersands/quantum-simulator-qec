@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import pathlib
 import platform
 import sys
@@ -85,6 +86,12 @@ def benchmarks(sq, stim, pymatching, quick):
         ("correlated_matching", f"Correlated matching, {shots:,} shots (against PyMatching's)", shots, "shot",
          lambda: corr_mine.decode_batch(dets), lambda: corr_pm.decode_batch(dets, enable_correlations=True)),
         ("union_find", f"Union-find on the same shots", shots, "shot", lambda: uf.decode_batch(dets), None),
+        # Stim's sampler and PyMatching's batch decoding run on one thread: these are ours alone.
+        ("sample@4", f"Sampling, {shots:,} shots, on 4 threads", shots, "shot", lambda: ours_s.sample(shots, separate_observables=True, threads=4), None),
+        ("sample@all", f"Sampling, {shots:,} shots, on every core", shots, "shot", lambda: ours_s.sample(shots, separate_observables=True, threads=0), None),
+        ("matching@4", f"Matching, {shots:,} shots, on 4 threads", shots, "shot", lambda: mine.decode_batch(dets, threads=4), None),
+        ("matching@all", f"Matching, {shots:,} shots, on every core", shots, "shot", lambda: mine.decode_batch(dets, threads=0), None),
+        ("correlated_matching@all", f"Correlated matching, {shots:,} shots, on every core", shots, "shot", lambda: corr_mine.decode_batch(dets, threads=0), None),
         ("bposd_gross", f"BP+OSD on the gross code, 6 cycles at p = 0.3%, {len(gross_dets)} shots", len(gross_dets), "shot",
          lambda: bposd.decode_batch(gross_dets), None),
     ]
@@ -116,11 +123,12 @@ def run(quick, repeats, only=None):
         r = results[key]
         ref = f"{r['reference_us']:10.2f}" if t_ref else f"{'':>10}"
         ratio = f"{r['ratio']:6.2f}" if t_ref else f"{'':>6}"
-        print(f"{key:20} {r['ours_us']:10.2f} {ref} {ratio}   µs per {unit}", flush=True)
+        print(f"{key:24} {r['ours_us']:10.2f} {ref} {ratio}   µs per {unit}", flush=True)
     return dict(
         version=sq.__version__,
         date=datetime.date.today().isoformat(),
         machine=f"{platform.system()} {platform.machine()}, Python {platform.python_version()}",
+        cores=os.cpu_count(),
         kind=kind(),
         references=dict(stim=stim.__version__, pymatching=pymatching.__version__),
         quick=quick,
@@ -166,7 +174,7 @@ def main() -> int:
         return 0
     same = [r for r in runs if r.get("kind") == kind()]
     last = same[-1] if same else None
-    print(f"{'benchmark':20} {'ours':>10} {'reference':>10} {'ratio':>6}")
+    print(f"{'benchmark':24} {'ours':>10} {'reference':>10} {'ratio':>6}")
     if args.only and args.record:
         ap.error("--only runs part of the suite, which is not a run to record")
     this = run(args.quick, args.repeats, set(args.only.split(",")) if args.only else None)

@@ -38,6 +38,10 @@
   runs after a warm-up (five by default), on one thread. The <em>ratio</em> is this package's time over the reference's,
   so below 1 is faster. Times depend on the machine; ratios carry from machine to machine far better, so
   they are what is recorded and compared.</p>
+  <p>Stim's sampler and PyMatching's batch decoding run on one thread. This package's run on as many as
+  it is given, giving the same shots and decisions on any number: the rows marked "4 threads" and "every
+  core" (the core count is in each run's heading) have no reference and show how its time per shot
+  scales.</p>
   <p>Every push runs the benchmarks in continuous integration and fails if any ratio is more than twice
   the one last recorded on the same kind of machine. The table appears in the run's summary. Recorded
   runs are kept in <a href="../data/bench/runs.json"><code>data/bench/runs.json</code></a>; to reproduce
@@ -72,7 +76,7 @@
     const rows = Object.values(run.results).map((r) =>
       `<tr><td>${esc(r.what)}</td><td class="num">${fmt(r.ours_us, 2)}</td><td class="num">${fmt(r.reference_us, 2)}</td>` +
       `<td class="num">${r.ratio === null ? "" : fmt(r.ratio, 2) + "×"}</td><td>${bar(r.ratio)}</td></tr>`).join("");
-    return `<p class="machine">stabilizer-qec ${esc(run.version)} · ${esc(run.date)} · ${esc(run.machine)} · Stim ${esc(run.references.stim)}, PyMatching ${esc(run.references.pymatching)}${run.note ? " · " + esc(run.note) : ""}</p>` +
+    return `<p class="machine">stabilizer-qec ${esc(run.version)} · ${esc(run.date)} · ${esc(run.machine)}${run.cores ? ", " + esc(run.cores) + " cores" : ""} · Stim ${esc(run.references.stim)}, PyMatching ${esc(run.references.pymatching)}${run.note ? " · " + esc(run.note) : ""}</p>` +
       `<table><thead><tr><th>Benchmark</th><th class="num">ours (µs)</th><th class="num">reference (µs)</th><th class="num">ratio</th><th>faster ← 1 → slower</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   fetch("../data/bench/runs.json").then((r) => r.json()).then((runs) => {
