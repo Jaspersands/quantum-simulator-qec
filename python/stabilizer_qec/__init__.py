@@ -158,7 +158,7 @@ from importlib.metadata import PackageNotFoundError as _NotFound
 from importlib.metadata import version as _version
 
 from . import _core, surgery
-from ._circuit import Circuit, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, MeasurementSampler, MeasurementsToDetectionEventsConverter
+from ._circuit import Circuit, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, ExactSampler, MeasurementSampler, MeasurementsToDetectionEventsConverter
 from ._explain import (
     CircuitErrorLocation,
     CircuitErrorLocationStackFrame,
@@ -245,6 +245,7 @@ __all__ = [
     "ColorMatching",
     "DetectorErrorModel",
     "DetectorSampler",
+    "ExactSampler",
     "DemSampler",
     "MeasurementSampler",
     "Diagram",

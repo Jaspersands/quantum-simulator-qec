@@ -347,6 +347,21 @@ class Circuit:
         shots on any machine and any number of threads; ``None`` draws a seed."""
         return DetectorSampler(self, seed)
 
+    def compile_exact_sampler(self, *, seed: Union[int, None] = None) -> "ExactSampler":
+        """An exact sampler: the full state vector (up to 24 qubits in use), running every
+        instruction, Clifford or not, including the tagged rotations, T, U3 and amplitude damping
+        (``I_ERROR[R_Z(theta=0.01)] 0``, ``I[T] 0``). Noise channels are drawn as quantum
+        trajectories. Its ``sample`` has the detector sampler's signature."""
+        return ExactSampler(self, seed)
+
+    def exact_distribution(self, *, max_branches: int = 1 << 20) -> dict:
+        """Every outcome's exact probability, following every measurement outcome and noise
+        branch: ``{(detection events, observable flips): probability}``, each a tuple of bools.
+        For small circuits; more than ``max_branches`` branches is an error."""
+        rows = call(self._c.exact_distribution, count(max_branches, "max_branches"))
+        no = self.num_observables
+        return {(tuple(d), tuple(bool(o >> k & 1) for k in range(no))): p for d, o, p in rows}
+
     def compile_m2d_converter(self) -> "MeasurementsToDetectionEventsConverter":
         """A converter from raw measurements (and sweep bits) to detection events, as
         ``stim m2d``. Loops are run pass by pass, never unrolled into memory, so a circuit of
@@ -782,6 +797,24 @@ class DetectorSampler:
         if separate_observables:
             return dets, b8_to_rows(o, shots, no, bit_packed)
         return dets
+
+
+class ExactSampler(DetectorSampler):
+    """Detection events and observable flips from the exact state vector. Made by
+    ``Circuit.compile_exact_sampler``; ``sample`` is the detector sampler's. Each shot has its
+    own random stream, so threads never change the shots and calls continue shot by shot."""
+
+    __slots__ = ()
+
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.exact_sampler, seed_of(seed))
+
+    @property
+    def num_qubits(self) -> int:
+        """The qubits in use, which the state vector holds."""
+        return self._s.num_qubits
 
 
 class MeasurementsToDetectionEventsConverter:

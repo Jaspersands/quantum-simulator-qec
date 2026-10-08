@@ -248,6 +248,51 @@ impl PyCircuit {
     fn m2d(&self) -> PyResult<PyM2d> {
         Ok(PyM2d { m2d: M2d::new(&self.circuit.inner).map_err(err)? })
     }
+
+    /// The exact state-vector sampler.
+    fn exact_sampler(&self, seed: u64) -> PyResult<PyExactSampler> {
+        Ok(PyExactSampler { program: crate::statevec::Program::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
+    }
+
+    /// Every outcome's exact probability: (detection events, observable flips, probability).
+    fn exact_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
+        let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
+        Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
+}
+
+/// The exact state-vector sampler, one stream per shot.
+#[pyclass(name = "ExactSampler", module = "stabilizer_qec._core")]
+pub struct PyExactSampler {
+    program: crate::statevec::Program,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyExactSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.program.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.program.num_observables()
+    }
+
+    #[getter]
+    fn num_qubits(&self) -> usize {
+        self.program.num_qubits()
+    }
+
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (program, seed) = (&self.program, self.seed);
+        let (d, o) = py.detach(|| crate::statevec::sample_seeded(program, seed, first, shots, threads));
+        (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
 }
 
 /// A detector error model, parsed from Stim's text or built from a circuit: the crate's, held
