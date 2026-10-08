@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "stabilizer-qec"
 # The Python package is versioned on its own; the Rust crate has its own version (Cargo.toml).
-version = "1.7.0"
+version = "1.8.0"
 description = "A quantum error-correction simulator and decoder in Rust: circuits and error models in Stim's formats, exact sparse-blossom, correlated and belief matching, BP+OSD for IBM's gross code, lattice surgery, and window decoders for real time."
 readme = "python/README.md"
 license = { file = "LICENSE" }

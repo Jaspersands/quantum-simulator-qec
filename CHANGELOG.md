@@ -4,7 +4,7 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## 1.8.0 — unreleased
+## 1.8.0 — 2026-10-08
 
 The Python package and the Rust crate both at 1.8.0, "more decoders": four decoders the field
 compares against, each ported from its authors' code and held to it shot for shot

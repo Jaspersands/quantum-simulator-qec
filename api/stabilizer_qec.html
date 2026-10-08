@@ -28,6 +28,7 @@
   <li><a href="#circuits">Circuits</a></li>
   <li><a href="#knowing-a-circuit">Knowing a circuit</a></li>
   <li><a href="#shots">Shots</a></li>
+  <li><a href="#decoders">Decoders</a></li>
   <li><a href="#the-command-line">The command line</a></li>
   <li><a href="#many-processes-and-sinter">Many processes, and sinter</a></li>
   <li><a href="#promises">Promises</a></li>
@@ -288,6 +289,39 @@
 
             </li>
             <li>
+                    <a class="class" href="#BpLsd">BpLsd</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#BpLsd.__init__">BpLsd</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#BpLsd.decode_batch">decode_batch</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#BpLsdDecoder">BpLsdDecoder</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#BpLsdDecoder.__init__">BpLsdDecoder</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#BpLsdDecoder.converge">converge</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#BpLsdDecoder.iter">iter</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#BpLsdDecoder.last_tied">last_tied</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#BpLsdDecoder.decode">decode</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#BpOsd">BpOsd</a>
                             <ul class="memberlist">
                         <li>
@@ -379,6 +413,21 @@
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.compile_m2d_converter">compile_m2d_converter</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#ColorMatching">ColorMatching</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ColorMatching.__init__">ColorMatching</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ColorMatching.mobius_model">mobius_model</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ColorMatching.decode_batch">decode_batch</a>
                         </li>
                 </ul>
 
@@ -546,6 +595,48 @@
 
             </li>
             <li>
+                    <a class="class" href="#RelayBp">RelayBp</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#RelayBp.__init__">RelayBp</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#RelayBp.decode_batch">decode_batch</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#RelayBpDecoder">RelayBpDecoder</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#RelayBpDecoder.__init__">RelayBpDecoder</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#RelayBpDecoder.decode">decode</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#SearchDecoder">SearchDecoder</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#SearchDecoder.__init__">SearchDecoder</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SearchDecoder.det_orders">det_orders</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SearchDecoder.decode_to_faults">decode_to_faults</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#SearchDecoder.decode_batch">decode_batch</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#MeasurementsToDetectionEventsConverter">MeasurementsToDetectionEventsConverter</a>
                             <ul class="memberlist">
                         <li>
@@ -662,7 +753,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.7.0</footer>
+            <footer>stabilizer-qec 1.8.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -677,9 +768,10 @@
 stabilizer_qec    </h1>
 
                         <div class="docstring"><p>A quantum error-correction simulator and decoder, in Rust: Stim's circuit and error-model
-formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP and BP+OSD,
-window decoding, IBM's bivariate bicycle codes and lattice surgery. It agrees with Stim,
-PyMatching, <code>ldpc</code> and <code>beliefmatching</code> on every check in its test suite.</p>
+formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP, BP+OSD and
+BP+LSD, Relay-BP, colour-code matching, a search decoder, window decoding, IBM's bivariate
+bicycle codes and lattice surgery. It agrees with Stim, PyMatching, <code>ldpc</code>, <code>beliefmatching</code>,
+IBM's <code>relay_bp</code>, Chromobius and Tesseract on every check in its test suite.</p>
 
 <pre><code>pip install stabilizer-qec
 </code></pre>
@@ -708,7 +800,7 @@ PyMatching, <code>ldpc</code> and <code>beliefmatching</code> on every check in 
 <p>The names follow the tools this is checked against, so code written for them mostly carries
 over: <code><a href="#Circuit">Circuit</a></code>, <code>compile_detector_sampler</code> and <code>separate_observables</code> are Stim's; <code><a href="#Matching">Matching</a></code>,
 <code>decode_batch</code> and <code>enable_correlations</code> are PyMatching's; <code><a href="#BpDecoder">BpDecoder</a></code>, <code><a href="#BpOsdDecoder">BpOsdDecoder</a></code>,
-<code>error_channel</code> and <code>osd_order</code> are <code>ldpc</code>'s.</p>
+<code><a href="#BpLsdDecoder">BpLsdDecoder</a></code>, <code>error_channel</code>, <code>osd_order</code> and <code>lsd_order</code> are <code>ldpc</code>'s.</p>
 
 <h2 id="circuits">Circuits</h2>
 
@@ -766,6 +858,24 @@ Stim's six formats (<code>01</code>, <code>b8</code>, <code>r8</code>, <code>hit
 <code><a href="#Circuit.compile_sampler">Circuit.compile_sampler</a></code>, and faults of a model straight from
 <code><a href="#DetectorErrorModel.compile_sampler">DetectorErrorModel.compile_sampler</a></code>.</p>
 
+<h2 id="decoders">Decoders</h2>
+
+<p>On a detector error model, each with <code>decode</code> and <code>decode_batch</code> (any thread count) and
+pickling:</p>
+
+<ul>
+<li><code><a href="#Matching">Matching</a></code> (sparse blossom, PyMatching's results), with <code>enable_correlations</code>;
+<code><a href="#UnionFind">UnionFind</a></code>; <code><a href="#BeliefMatching">BeliefMatching</a></code>; <code><a href="#WindowMatching">WindowMatching</a></code> (sliding or parallel windows): for models
+whose faults set off at most two detectors, or decomposed;</li>
+<li><code><a href="#BpOsd">BpOsd</a></code> and <code><a href="#BpLsd">BpLsd</a></code> (<code>ldpc</code>'s corrections), <code><a href="#RelayBp">RelayBp</a></code> (IBM's), <code><a href="#SearchDecoder">SearchDecoder</a></code>
+(Tesseract's A*, exact on request): for any model, such as the gross code's;</li>
+<li><code><a href="#ColorMatching">ColorMatching</a></code> (Chromobius's): colour codes whose detectors carry its colour annotation
+(<code><a href="#CssCode.color_code">CssCode.color_code</a>(d)<a href="#memory_circuit">.memory_circuit</a>(..., annotate_colors=True)</code>).</li>
+</ul>
+
+<p>On a check matrix, with <code>ldpc</code>'s arguments: <code><a href="#BpDecoder">BpDecoder</a></code>, <code><a href="#BpOsdDecoder">BpOsdDecoder</a></code>, <code><a href="#BpLsdDecoder">BpLsdDecoder</a></code>, and
+<code><a href="#RelayBpDecoder">RelayBpDecoder</a></code> with IBM's. <code>tools/decoder_check.py</code> holds each against its authors' package.</p>
+
 <h2 id="the-command-line">The command line</h2>
 
 <p><code>stabilizer-qec</code> (or <code>python -m stabilizer_qec</code>) takes Stim's commands and flags (<code>gen</code>,
@@ -786,7 +896,8 @@ and options). A sampler does not: send the circuit and a seed.</p>
 
 <p><code><a href="stabilizer_qec/sinter.html">stabilizer_qec.sinter</a></code> puts the decoders into <a href="https://pypi.org/project/sinter/">sinter</a>'s
 sweeps, decoding the shots Stim samples (<code>sq_matching</code>, <code>sq_correlated_matching</code>,
-<code>sq_belief_matching</code>, <code>sq_bposd</code>) or running the whole pipeline here (<code>sq_sim_matching</code>, ...):</p>
+<code>sq_belief_matching</code>, <code>sq_union_find</code>, <code>sq_bposd</code>, <code>sq_bplsd</code>, <code>sq_relay_bp</code>,
+<code>sq_color_matching</code>, <code>sq_search</code>) or running the whole pipeline here (<code>sq_sim_matching</code>, ...):</p>
 
 <pre><code>import sinter
 from stabilizer_qec import sinter as sq_sinter
@@ -1220,7 +1331,7 @@ and Z_j anticommute exactly when i = j.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">memory_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">basis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'z'</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+        <span class="name">memory_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">basis</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'z'</span>,</span><span class="param">	<span class="n">annotate_colors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
 
         
     </div>
@@ -1231,6 +1342,10 @@ and Z_j anticommute exactly when i = j.</p>
 round and after every CNOT, flips after resets and before measurements), the data read
 out. Detectors compare every check round to round and with the readout; the
 observables are the <code>k</code> logicals of that basis. Its hyperedges want <code><a href="#BpOsd">BpOsd</a></code>.</p>
+
+<p><code>annotate_colors</code> (colour codes only) gives each detector a 4th coordinate, its
+check's colour plus 3 for a Z check: Chromobius's annotation, which <code><a href="#ColorMatching">ColorMatching</a></code>
+decodes by.</p>
 </div>
 
 
@@ -1800,6 +1915,135 @@ After <code><a href="#BpDecoder.decode">decode</a></code>, <code><a href="#BpDec
 
                             </div>
                 </section>
+                <section id="BpLsd">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">BpLsd</span><wbr>(<span class="base">stabilizer_qec._decoders._DemDecoder</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsd"></a>
+    
+            <div class="docstring"><p>BP+LSD on a detector error model (Hillmann et al., 2024): belief propagation, and where
+it does not converge, localized statistics decoding, which grows a cluster around each
+detection event by BP's posteriors and solves each cluster alone. Corrections equal to
+<code>ldpc</code>'s <code><a href="#BpLsdDecoder">BpLsdDecoder</a></code> on the same matrix but for ties among equally likely columns.
+For codes whose faults flip three or more detectors: give it the undecomposed model. The
+defaults are <code>ldpc</code>'s sinter decoder's but for <code>max_iter</code>: 30 iterations, where its
+0 means one per fault (thousands on the gross code, and most of the time).</p>
+</div>
+
+
+                            <div id="BpLsd.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">BpLsd</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>,</span><span class="param">	<span class="n">bp_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'minimum_sum'</span>,</span><span class="param">	<span class="n">ms_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.625</span>,</span><span class="param">	<span class="n">lsd_method</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s1">'lsd_0'</span>,</span><span class="param">	<span class="n">lsd_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">bits_per_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsd.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="BpLsd.decode_batch" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode_batch</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">return_converged</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_shots</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_predictions</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">Union</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsd.decode_batch"></a>
+    
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_converged</code> also returns, per shot, whether
+BP converged before LSD.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="BpLsdDecoder">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">BpLsdDecoder</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsdDecoder"></a>
+    
+            <div class="docstring"><p>BP+LSD on a check matrix, as <code>ldpc</code>'s <code><a href="#BpLsdDecoder">BpLsdDecoder</a></code>, with its arguments, defaults
+and aliases (<code>osd_method</code>/<code>osd_order</code> for <code>lsd_method</code>/<code>lsd_order</code>; <code>max_iter=0</code>
+and <code>bits_per_step=0</code> mean the block length; LSD-0 sets the order to 0). The flooding
+schedule only. After <code><a href="#BpLsdDecoder.decode">decode</a></code>, <code><a href="#BpLsdDecoder.converge">converge</a></code> and <code><a href="#BpLsdDecoder.iter">iter</a></code> describe BP's run.</p>
+</div>
+
+
+                            <div id="BpLsdDecoder.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">BpLsdDecoder</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">pcm</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="n">error_rate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_channel</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">bp_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'minimum_sum'</span>,</span><span class="param">	<span class="n">ms_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>,</span><span class="param">	<span class="n">schedule</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">bits_per_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">lsd_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">lsd_method</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">always_run_lsd</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsdDecoder.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="BpLsdDecoder.converge" class="classattr">
+                                <div class="attr variable">
+            <span class="name">converge</span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsdDecoder.converge"></a>
+    
+    
+
+                            </div>
+                            <div id="BpLsdDecoder.iter" class="classattr">
+                                <div class="attr variable">
+            <span class="name">iter</span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsdDecoder.iter"></a>
+    
+    
+
+                            </div>
+                            <div id="BpLsdDecoder.last_tied" class="classattr">
+                                <div class="attr variable">
+            <span class="name">last_tied</span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsdDecoder.last_tied"></a>
+    
+    
+
+                            </div>
+                            <div id="BpLsdDecoder.decode" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">syndrome</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#BpLsdDecoder.decode"></a>
+    
+            <div class="docstring"><p>The correction (uint8 per column). <code><a href="#BpLsdDecoder.last_tied">last_tied</a></code> says whether this decode made a
+choice <code>ldpc</code> might make otherwise (equal keys in a long sort, or a merge of many
+clusters at once), where the two corrections can differ.</p>
+</div>
+
+
+                            </div>
+                </section>
                 <section id="BpOsd">
                     <div class="attr class">
             
@@ -2184,7 +2428,7 @@ coordinates in terms of <code>iter</code>.</li>
                     <div class="decorator decorator-classmethod">@classmethod</div>
 
         <span class="def">def</span>
-        <span class="name">generated</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">code_task</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">after_clifford_depolarization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">before_round_data_depolarization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">before_measure_flip_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">after_reset_flip_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+        <span class="name">generated</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">code_task</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">after_clifford_depolarization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">before_round_data_depolarization</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">before_measure_flip_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">after_reset_flip_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">annotate_colors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
 
         
     </div>
@@ -2194,6 +2438,12 @@ coordinates in terms of <code>iter</code>.</li>
 <code>stim.Circuit.generated</code> writes it, with the same arguments. <code>code_task</code> is
 <code>"repetition_code:memory"</code>, <code>"surface_code:rotated_memory_x"</code> (or <code>_z</code>),
 <code>"surface_code:unrotated_memory_x"</code> (or <code>_z</code>), or <code>"color_code:memory_xyz"</code>.</p>
+
+<p><code>annotate_colors</code> (the colour code only) flattens the circuit and gives each
+detector <code>(x, y, t)</code> a 4th coordinate, <code>(y + t) mod 3</code>: Chromobius's colour and
+basis annotation, as its authors annotate these circuits. Chromobius does not decode
+them under circuit noise (its tests leave them out), and neither does
+<code><a href="#ColorMatching">ColorMatching</a></code>; it does decode <code><a href="#CssCode.color_code">CssCode.color_code</a></code> memories.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n"><a href="#Circuit.generated">Circuit.generated</a></span><span class="p">(</span><span class="s2">"surface_code:rotated_memory_z"</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">rounds</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
@@ -2339,6 +2589,73 @@ shots on any machine and any number of threads; <code>None</code> draws a seed.<
 <code>stim m2d</code>. Loops are run pass by pass, never unrolled into memory, so a circuit of
 millions of rounds converts. Its reference run keeps a dense tableau: at most 16,384
 qubits.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="ColorMatching">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">ColorMatching</span><wbr>(<span class="base">stabilizer_qec._decoders._DemDecoder</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#ColorMatching"></a>
+    
+            <div class="docstring"><p>Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023):
+each detector doubled into the two sub-graphs leaving out a colour other than its own,
+every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
+minimum-weight matching of it found by this package's matcher, and the matching lifted
+back to the code by carrying colour charge around its cycles. Predictions equal to the
+<code>chromobius</code> package's but for ties between equally light matchings.</p>
+
+<p>The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
+colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):
+<code><a href="#CssCode.color_code">CssCode.color_code</a>(d)<a href="#memory_circuit">.memory_circuit</a>(..., annotate_colors=True)</code> writes it. Faults it
+cannot split into basic ones are an error, as in Chromobius, unless
+<code>ignore_decomposition_failures</code>. Give it the undecomposed model.</p>
+</div>
+
+
+                            <div id="ColorMatching.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ColorMatching</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">ignore_decomposition_failures</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ColorMatching.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="ColorMatching.mobius_model" class="classattr">
+                                <div class="attr variable">
+            <span class="name">mobius_model</span><span class="annotation">: <a href="#DetectorErrorModel">DetectorErrorModel</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ColorMatching.mobius_model"></a>
+    
+            <div class="docstring"><p>The Möbius model the matching is found on: two detectors per detector, edges only.</p>
+</div>
+
+
+                            </div>
+                            <div id="ColorMatching.decode_batch" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode_batch</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">return_weights</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_shots</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_predictions</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">Union</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ColorMatching.decode_batch"></a>
+    
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_weights</code> also returns each shot's Möbius
+matching weight (as <code>chromobius</code>'s <code>predict_weighted_obs_flips_from_dets_bit_packed</code>).</p>
 </div>
 
 
@@ -3033,6 +3350,193 @@ matching's weight. A shot no matching explains raises <code>ValueError</code>.</
 
                             </div>
                 </section>
+                <section id="RelayBp">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">RelayBp</span><wbr>(<span class="base">stabilizer_qec._decoders._DemDecoder</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#RelayBp"></a>
+    
+            <div class="docstring"><p>Relay-BP on a detector error model (Müller et al., IBM, 2025): min-sum belief
+propagation with memory, run in legs. Each fault's prior mixes in its own last posterior
+with a memory strength; the first leg (<code>pre_iterations</code> iterations) uses <code>gamma0</code>
+for every fault, and each of up to <code>legs</code> more (<code>iterations</code> each) draws a strength per
+fault from <code>gamma_range</code> and starts from the posteriors the last leg ended with. The
+lightest correction among the first <code>solutions</code> legs to converge is returned
+(<code>solutions=None</code> runs every leg). Defaults are <code>relay_bp</code>'s sinter decoder's.
+IBM's <code>relay_bp</code> gives the same corrections on the same check matrix (see
+<code><a href="#RelayBpDecoder">RelayBpDecoder</a></code>). Shot k of a batch draws its strengths from <code>seed</code> and k, so the
+results do not depend on the thread count. For codes whose faults flip three or more
+detectors: give it the undecomposed model.</p>
+</div>
+
+
+                            <div id="RelayBp.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">RelayBp</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">legs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span>,</span><span class="param">	<span class="n">solutions</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span>,</span><span class="param">	<span class="n">pre_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span>,</span><span class="param">	<span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span>,</span><span class="param">	<span class="n">gamma0</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.1</span>,</span><span class="param">	<span class="n">gamma_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.24</span><span class="p">,</span> <span class="mf">0.66</span><span class="p">)</span>,</span><span class="param">	<span class="n">alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#RelayBp.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="RelayBp.decode_batch" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode_batch</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">return_converged</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_shots</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_predictions</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">Union</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#RelayBp.decode_batch"></a>
+    
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_converged</code> also returns, per shot, whether a
+leg converged (where none did, the prediction is from the first leg's last guess).</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="RelayBpDecoder">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">RelayBpDecoder</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#RelayBpDecoder"></a>
+    
+            <div class="docstring"><p>Relay-BP on a check matrix, as IBM's <code>relay_bp.RelayDecoderF64</code>: the same corrections
+for the same options, explicit memory strengths (<code>gammas</code>, one row per leg) or a seed.
+Like IBM's decoder, its random memory strengths continue from decode to decode. Defaults
+are <code>relay_bp</code>'s. After <code><a href="#RelayBpDecoder.decode">decode</a></code>, <code>converge</code>, <code>iter</code> (over every leg), <code>legs</code> and
+<code>weight</code> describe the run.</p>
+</div>
+
+
+                            <div id="RelayBpDecoder.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">RelayBpDecoder</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">pcm</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="n">error_rate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_channel</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">legs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">300</span>,</span><span class="param">	<span class="n">solutions</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">pre_iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span>,</span><span class="param">	<span class="n">iterations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span>,</span><span class="param">	<span class="n">gamma0</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.1</span>,</span><span class="param">	<span class="n">gamma_range</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.24</span><span class="p">,</span> <span class="mf">0.66</span><span class="p">)</span>,</span><span class="param">	<span class="n">gammas</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">alpha_iteration_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#RelayBpDecoder.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="RelayBpDecoder.decode" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">syndrome</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#RelayBpDecoder.decode"></a>
+    
+            <div class="docstring"><p>The correction (uint8 per column); where no leg converged, the first leg's last
+hard decision.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="SearchDecoder">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">SearchDecoder</span><wbr>(<span class="base">stabilizer_qec._decoders._DemDecoder</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#SearchDecoder"></a>
+    
+            <div class="docstring"><p>A search for the most likely error, Tesseract's A* (Beni, Higgott and Shutty, Google,
+2025), for any detector error model: states are sets of faults, expanded cheapest first
+by their weight plus an admissible estimate of explaining the detectors still lit, each
+grown only by faults through its first lit detector in a detector order. <code>beam</code> drops
+states lighting more than that many detectors above the fewest seen (<code>None</code>: no beam);
+<code>no_revisit_dets</code> skips patterns of lit detectors already expanded (faster, not exact);
+<code>pqlimit</code> bounds the queue (<code>None</code>: no bound); the search runs once per detector order
+(<code><a href="#SearchDecoder.det_orders">det_orders</a></code>, or <code>num_det_orders</code> generated by <code>det_order_method</code>, <code>"index"</code>,
+<code>"bfs"</code> or <code>"coordinate"</code>, from <code>seed</code>) and keeps the cheapest answer. Defaults are
+Tesseract's. With no beam, no queue bound and <code>no_revisit_dets=False</code> it is exact.</p>
+
+<p>Answers equal to the <code>tesseract_decoder</code> package's for the same detector orders (both
+break ties between equally promising states as the platform's C++ library does; index
+orders are generated as Tesseract does, the others are this package's own). A shot the
+search gives up on predicts no flips; <code>return_low_confidence</code> says which.</p>
+</div>
+
+
+                            <div id="SearchDecoder.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">SearchDecoder</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">beam</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span>,</span><span class="param">	<span class="n">beam_climbing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">no_revisit_dets</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">pqlimit</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">200000</span>,</span><span class="param">	<span class="n">det_orders</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">num_det_orders</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">det_order_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'index'</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2384753</span>,</span><span class="param">	<span class="n">det_penalty</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">merge_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">_flavour</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'native'</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchDecoder.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="SearchDecoder.det_orders" class="classattr">
+                                <div class="attr variable">
+            <span class="name">det_orders</span><span class="annotation">: list</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchDecoder.det_orders"></a>
+    
+            <div class="docstring"><p>The detector orders searched.</p>
+</div>
+
+
+                            </div>
+                            <div id="SearchDecoder.decode_to_faults" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode_to_faults</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">syndrome</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchDecoder.decode_to_faults"></a>
+    
+            <div class="docstring"><p>The faults the search found for one shot, as indices into the model's <code>error</code>
+lines (flattened), or <code>[]</code> where it gave up.</p>
+</div>
+
+
+                            </div>
+                            <div id="SearchDecoder.decode_batch" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decode_batch</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">return_weights</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">return_low_confidence</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_shots</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed_predictions</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#SearchDecoder.decode_batch"></a>
+    
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_weights</code> also returns each shot's found cost
+(Σ −ln(p/(1 − p)) over its faults), <code>return_low_confidence</code> whether the search gave
+up (then the prediction is no flips).</p>
+</div>
+
+
+                            </div>
+                </section>
                 <section id="MeasurementsToDetectionEventsConverter">
                     <div class="attr class">
             
@@ -3469,7 +3973,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;1.7.0&#39;</span>
+<span class="default_value">&#39;1.8.0&#39;</span>
 
         
     </div>

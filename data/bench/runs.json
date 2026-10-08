@@ -582,5 +582,143 @@
    }
   },
   "note": "a GitHub Actions ubuntu-24.04-arm runner, CI run 37712005049"
+ },
+ {
+  "version": "1.8.0",
+  "date": "2026-10-08",
+  "machine": "Darwin arm64, Python 3.13.5",
+  "cores": 10,
+  "kind": "Darwin arm64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0",
+   "ldpc": "2.4.1",
+   "relay-bp": "0.2.2",
+   "chromobius": "1.1.1",
+   "tesseract-decoder": "0.1.1.dev20260910235247"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 13075.374998152256,
+    "reference_us": 21474.167006090283,
+    "ratio": 0.6088885773517525
+   },
+   "shortest_graphlike": {
+    "what": "Its graph-like distance (shortest_graphlike_error on the model)",
+    "unit": "model",
+    "ours_us": 366.2079107016325,
+    "reference_us": 3348.166006617248,
+    "ratio": 0.1093756731230968
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 2.218087500659749,
+    "reference_us": 2.417349995812401,
+    "ratio": 0.9175698614193905
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 0.7157021027524024,
+    "reference_us": 2.9522916476707906,
+    "ratio": 0.24242256123884487
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 3.981954202754423,
+    "reference_us": 4.022412496851757,
+    "ratio": 0.9899417839097805
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 11.150593747152016,
+    "reference_us": 11.236762499902397,
+    "ratio": 0.9923315320804252
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 10.849952098214999,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@4": {
+    "what": "Sampling, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 0.853777100564912,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@all": {
+    "what": "Sampling, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 0.7266437518410385,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@4": {
+    "what": "Matching, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 1.1208541982341558,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@all": {
+    "what": "Matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 0.7836541451979429,
+    "reference_us": null,
+    "ratio": null
+   },
+   "correlated_matching@all": {
+    "what": "Correlated matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 1.9987187522929162,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 1459.7891663045932,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bplsd_gross": {
+    "what": "BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc)",
+    "unit": "shot",
+    "ours_us": 1593.3579148259014,
+    "reference_us": 2656.000414863229,
+    "ratio": 0.5999087597687561
+   },
+   "relay_gross": {
+    "what": "Relay-BP on the same shots (against IBM's relay_bp)",
+    "unit": "shot",
+    "ours_us": 7332.760419812985,
+    "reference_us": 8465.803959988989,
+    "ratio": 0.8661623224999084
+   },
+   "color_matching": {
+    "what": "Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius)",
+    "unit": "shot",
+    "ours_us": 10.754268750315532,
+    "reference_us": 14.672547951340675,
+    "ratio": 0.7329516854182699
+   },
+   "search_color": {
+    "what": "The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract)",
+    "unit": "shot",
+    "ours_us": 3500.6266670534387,
+    "reference_us": 3540.812375023961,
+    "ratio": 0.9886507095789705
+   }
+  },
+  "note": "median of three runs, nine repeats each"
  }
 ]

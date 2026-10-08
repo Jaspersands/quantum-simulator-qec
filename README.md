@@ -79,7 +79,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.7, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.8, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -184,7 +184,8 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 ## Speed against Stim and PyMatching
 
 Each benchmark times the same job here and in the reference, on the same machine and one
-thread, as a ratio: this package's time over Stim's (or PyMatching's), below 1 faster. These
+thread, as a ratio: this package's time over Stim's (or PyMatching's, or the named decoder
+package's), below 1 faster. These
 are the latest runs recorded for each kind of machine (`tools/bench.py`; Linux on GitHub's
 runners, `.github/workflows/bench.yml`); every push is held to them, and the
 [benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) plots every release's.
@@ -192,12 +193,16 @@ runners, `.github/workflows/bench.yml`); every push is held to them, and the
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
 | Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.42 | 0.53 |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 0.08 | 0.17 |
-| Sampling its detection events, 20,000 shots | 0.93 | 0.69 | 0.57 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.11 | 0.08 | 0.17 |
+| Sampling its detection events, 20,000 shots | 0.92 | 0.69 | 0.57 |
 | Measurements to detection events, 20,000 shots | 0.24 | 0.15 | 0.12 |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.94 | 1.16 | 1.10 |
-| Correlated matching, 20,000 shots (against PyMatching's) | 0.95 | 1.09 | 0.88 |
-| *recorded with* | 1.7.0 | 1.7.0 | 1.7.0 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.99 | 1.16 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.99 | 1.09 | 0.88 |
+| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.60 | — | — |
+| Relay-BP on the same shots (against IBM's relay_bp) | 0.87 | — | — |
+| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.73 | — | — |
+| The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 0.99 | — | — |
+| *recorded with* | 1.8.0 | 1.7.0 | 1.7.0 |
 
 ## A note on quoted figures
 
