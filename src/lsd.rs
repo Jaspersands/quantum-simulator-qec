@@ -255,6 +255,22 @@ impl Lsd<'_> {
         larger
     }
 
+    /// `sort_non_pivot_cols`: the cluster's free columns, lightest first by BP's posteriors.
+    fn sort_non_pivot_cols(&mut self, me: usize, weights: &[f64]) {
+        let c = &mut self.clusters[me];
+        if c.plu.not_pivot_cols.len() < 2 {
+            return;
+        }
+        let wt = |col: usize| weights[c.local_to_bit[col] as usize];
+        let mut cols = std::mem::take(&mut c.plu.not_pivot_cols);
+        cols.sort_by(|&a, &b| wt(a).partial_cmp(&wt(b)).unwrap_or(std::cmp::Ordering::Equal));
+        if cols.len() > 16 && cols.windows(2).any(|p| wt(p[0]) == wt(p[1])) {
+            self.ties += 1;
+            c.tied = true;
+        }
+        c.plu.not_pivot_cols = cols;
+    }
+
     /// `apply_on_the_fly_elimination`: whether the cluster's syndrome is in its image.
     fn on_the_fly(&mut self, me: usize) -> bool {
         let c = &mut self.clusters[me];
@@ -268,6 +284,75 @@ impl Lsd<'_> {
         let start = c.plu.cols_eliminated;
         c.plu.rref_with_y_image_check(&c.syndrome, start)
     }
+}
+
+/// `DenseOsdDecoder::osd_decode` on one cluster: its LSD-0 solution, or the lightest (by
+/// Hamming weight, as ldpc weighs them here; the first of equals) of the candidates that set
+/// free columns and solve for the pivots. Exhaustive search tries every pattern of the first
+/// `order` free columns; combination sweep tries each free column alone and every pair among
+/// the first `order`. (ldpc builds patterns of `order` bits in vectors of the free-column
+/// count, so patterns beyond it repeat earlier ones; they cannot win and are not tried.)
+fn dense_osd(c: &Cluster, method: OsdMethod, order: usize) -> Vec<u8> {
+    let syndrome = &c.syndrome;
+    let best0 = c.plu.lu_solve(syndrome);
+    let free = &c.plu.not_pivot_cols;
+    let k = free.len();
+    if k == 0 {
+        return best0;
+    }
+    let mut best_weight = best0.iter().filter(|&&x| x == 1).count();
+    let mut best = best0;
+    let mut try_flips = |flips: &[usize]| {
+        let mut t = syndrome.clone();
+        for &i in flips {
+            for &e in &c.pcm[free[i]] {
+                t[e as usize] ^= 1;
+            }
+        }
+        let mut sol = c.plu.lu_solve(&t);
+        for &col in free {
+            sol[col] = 0;
+        }
+        for &i in flips {
+            sol[free[i]] = 1;
+        }
+        let mut decoded = vec![0u8; syndrome.len()];
+        let mut weight = 0;
+        for (j, &x) in sol.iter().enumerate() {
+            if x == 1 {
+                for &e in &c.pcm[j] {
+                    decoded[e as usize] ^= 1;
+                }
+                weight += 1;
+            }
+        }
+        if decoded == *syndrome && weight < best_weight {
+            best_weight = weight;
+            best = sol;
+        }
+    };
+    match method {
+        OsdMethod::Osd0 => {}
+        OsdMethod::Exhaustive(_) => {
+            let bits = order.min(k).min(24);
+            for pattern in 1u32..1 << bits {
+                let flips: Vec<usize> = (0..bits).filter(|&i| pattern >> i & 1 == 1).collect();
+                try_flips(&flips);
+            }
+        }
+        OsdMethod::CombinationSweep(_) => {
+            for i in 0..k {
+                try_flips(&[i]);
+            }
+            let first = order.min(k);
+            for i in 0..first {
+                for j in i + 1..first {
+                    try_flips(&[i, j]);
+                }
+            }
+        }
+    }
+    best
 }
 
 /// BP+LSD on a check matrix given by its columns.
@@ -427,8 +512,34 @@ impl BpLsd {
         solved
     }
 
-    fn apply_lsdw(&self, _s: &mut Lsd, _order: usize, _weights: &[f64], _w: &mut BpLsdWork) {
-        unimplemented!("higher-order LSD")
+    /// `apply_lsdw`: grow each cluster until it has `order` free columns (or `order` more
+    /// steps, or its initial size in steps, or the whole matrix), then search each.
+    fn apply_lsdw(&self, s: &mut Lsd, order: usize, weights: &[f64], w: &mut BpLsdWork) {
+        let n = self.columns.len();
+        for cl in 0..s.clusters.len() {
+            if !s.clusters[cl].active {
+                continue;
+            }
+            let initial = s.clusters[cl].bits.len();
+            let mut grown = 0;
+            while s.clusters[cl].plu.not_pivot_cols.len() < order && grown < order && s.clusters[cl].bits.len() < n && grown <= initial {
+                s.grow(cl, weights, 1);
+                grown += 1;
+            }
+        }
+        for cl in 0..s.clusters.len() {
+            if !s.clusters[cl].active {
+                continue;
+            }
+            s.sort_non_pivot_cols(cl, weights);
+            let c = &s.clusters[cl];
+            let solution = dense_osd(c, self.lsd, order);
+            for (i, &x) in solution.iter().enumerate() {
+                if x == 1 {
+                    w.correction[c.local_to_bit[i] as usize] = 1;
+                }
+            }
+        }
     }
 }
 
@@ -484,6 +595,25 @@ mod tests {
                 assert_eq!(syndrome_of(&columns, m, &w.correction), s, "bits per step {per_step}");
             }
             assert!(lsd_runs > 50, "LSD ran on {lsd_runs} of 300");
+        }
+    }
+
+    /// Higher orders explain the syndrome too, and grow clusters only where LSD runs.
+    #[test]
+    fn higher_orders_explain_the_syndrome() {
+        let mut rng = Xorshift::new(22);
+        let (m, n) = (30, 60);
+        let columns = random_code(m, n, &mut rng);
+        let priors: Vec<f64> = (0..n).map(|i| 0.02 + 0.001 * i as f64).collect();
+        for lsd in [OsdMethod::Exhaustive(5), OsdMethod::CombinationSweep(8), OsdMethod::Exhaustive(10)] {
+            let dec = BpLsd::new(m, columns.clone(), &priors, Method::MinSum { scale: 0.625 }, 2, lsd, 1, false).unwrap();
+            let mut w = dec.work();
+            for _ in 0..200 {
+                let e: Vec<u8> = (0..n).map(|_| u8::from(rng.next_f64() < 0.08)).collect();
+                let s = syndrome_of(&columns, m, &e);
+                assert!(dec.decode(&s, &mut w).solved);
+                assert_eq!(syndrome_of(&columns, m, &w.correction), s, "{lsd:?}");
+            }
         }
     }
 

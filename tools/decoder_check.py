@@ -9,8 +9,8 @@ Run from the repository root, with the package built and the references installe
 
 Sections (each skipped, and said so, when its reference is not installed):
   lsd     BP+LSD against ldpc's BpLsdDecoder on the same check matrix: random matrices, a
-          d = 5 surface code's model and the gross code's (2 and 6 cycles at p = 0.3%), both BP
-          methods. Every correction must equal ldpc's, except on shots where ours made a choice
+          d = 5 surface code's model and the gross code's (2 and 6 cycles at p = 0.3%), LSD-0 with
+          both BP methods, LSD-E 6 and LSD-CS 10. Every correction must equal ldpc's, except on shots where ours made a choice
           ldpc makes from an order that cannot be reproduced (equal keys in a long std::sort,
           or merging three or more clusters at once, which ldpc orders by hashed pointers);
           those are counted as ties. Also: each untied final cluster's bits, in the order
@@ -74,17 +74,20 @@ def lsd_cases(quick):
         yield name, pcm, priors, c.compile_detector_sampler(seed=1).sample(n).astype(np.uint8), 30
 
 
+LSD_CONFIGS = [("minimum_sum", "lsd_0", 0), ("product_sum", "lsd_0", 0), ("minimum_sum", "lsd_e", 6), ("minimum_sum", "lsd_cs", 10)]
+
+
 def check_lsd(quick):
     import ldpc
 
     ok, rows = True, []
     for name, pcm, priors, syndromes, iters in lsd_cases(quick):
-        for method in ("minimum_sum", "product_sum"):
-            kw = dict(max_iter=iters, bp_method=method, ms_scaling_factor=0.625, lsd_method="lsd_0", lsd_order=0)
+        for method, lsd, order in LSD_CONFIGS:
+            kw = dict(max_iter=iters, bp_method=method, ms_scaling_factor=0.625, lsd_method=lsd, lsd_order=order)
             theirs = ldpc.BpLsdDecoder(pcm, error_channel=list(priors), **kw)
             theirs.set_do_stats(True)
             ours = sq.BpLsdDecoder(pcm, error_channel=list(priors), **kw)
-            row = dict(case=name, method=method, shots=len(syndromes), agree=0, tied=0, untied=0, clusters_in_order=0, clusters_out_of_order=0, ours_s=0.0, ldpc_s=0.0)
+            row = dict(case=name, method=method, lsd=f"{lsd} {order}", shots=len(syndromes), agree=0, tied=0, untied=0, clusters_in_order=0, clusters_out_of_order=0, ours_s=0.0, ldpc_s=0.0)
             for s in syndromes:
                 t0 = time.perf_counter()
                 b = theirs.decode(s)
@@ -108,7 +111,7 @@ def check_lsd(quick):
             good = row["untied"] == 0 and row["clusters_out_of_order"] == 0
             ok &= good
             rows.append(row)
-            print(f"  {name:16} {method:12} agree {row['agree']:5}  tied {row['tied']:3}  untied {row['untied']}  "
+            print(f"  {name:16} {method:12} {lsd} {order:<3} agree {row['agree']:5}  tied {row['tied']:3}  untied {row['untied']}  "
                   f"clusters in order {row['clusters_in_order']:5} (out {row['clusters_out_of_order']})  "
                   f"{1e3 * row['ours_s'] / len(syndromes):.3f} vs {1e3 * row['ldpc_s'] / len(syndromes):.3f} ms/shot  "
                   f"{'ok' if good else 'FAIL'}", flush=True)

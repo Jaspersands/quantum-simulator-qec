@@ -172,13 +172,13 @@ def test_bposd_matrix_decoder_agrees_with_ldpc():
     assert agree >= 0.95 * total
 
 
-@pytest.mark.parametrize("bp_method", ["minimum_sum", "product_sum"])
-def test_bplsd_matrix_decoder_equals_ldpc(bp_method):
+@pytest.mark.parametrize("bp_method,lsd_method,lsd_order", [("minimum_sum", "lsd_0", 0), ("product_sum", "lsd_0", 0), ("minimum_sum", "lsd_e", 4), ("minimum_sum", "lsd_cs", 8)])
+def test_bplsd_matrix_decoder_equals_ldpc(bp_method, lsd_method, lsd_order):
     ldpc = pytest.importorskip("ldpc")
     agree = tied = total = 0
     for seed in range(6):
         rng, pcm, channel = random_code(seed + 40, m=24, n=48)
-        kw = dict(max_iter=3, bp_method=bp_method, ms_scaling_factor=0.625, lsd_method="lsd_0", lsd_order=0)
+        kw = dict(max_iter=3, bp_method=bp_method, ms_scaling_factor=0.625, lsd_method=lsd_method, lsd_order=lsd_order)
         ours = sq.BpLsdDecoder(pcm, error_channel=channel, **kw)
         theirs = ldpc.BpLsdDecoder(pcm, error_channel=list(channel), **kw)
         for _ in range(40):
