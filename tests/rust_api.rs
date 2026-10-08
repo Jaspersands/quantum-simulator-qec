@@ -2,7 +2,7 @@
 
 use stabilizer_qec::{
     lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpLsd, BpLsdDecoder, BpMethod,
-    BpOptions, BpOsd, BpOsdDecoder, LsdOptions, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
+    BpOptions, BpOsd, BpOsdDecoder, LsdOptions, RelayBp, RelayBpDecoder, RelayOptions, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
     SurfaceCode, Target, WindowMatching, WindowMode, WindowOptions,
 };
 
@@ -28,6 +28,8 @@ fn decoders_and_samplers_cross_threads() {
     shareable::<BpOsdDecoder>();
     shareable::<BpLsd>();
     shareable::<BpLsdDecoder>();
+    shareable::<RelayBp>();
+    shareable::<RelayBpDecoder>();
     fn sendable<T: Send>() {}
     sendable::<stabilizer_qec::DetectorSampler>();
     sendable::<stabilizer_qec::MeasurementConverter>();
@@ -110,6 +112,11 @@ fn belief_matching_bposd_and_windows() {
     let undecomposed = c.detector_error_model(&DemOptions::new()).unwrap();
     let osd = BpOsd::new(&undecomposed, BpOptions::new(30, BpMethod::MinimumSum { scaling_factor: 0.0 }), OsdMethod::CombinationSweep(4)).unwrap();
     assert!(failure_rate(&osd.decode_batch(&samples.detectors, 0).unwrap(), &samples.observables) < 1.5 * glob + 0.02);
+    let relay = RelayBp::new(&undecomposed, RelayOptions::new().legs(5).solutions(Some(1))).unwrap();
+    let r = relay.decode_batch(&samples.detectors, 0).unwrap();
+    assert!(failure_rate(&r, &samples.observables) < 1.5 * glob + 0.02);
+    let first: Vec<u32> = (0..samples.detectors.num_bits()).filter(|&d| samples.detectors.get(0, d)).map(|d| d as u32).collect();
+    assert_eq!(r[0], relay.decode(&first).unwrap());
     let lsd = BpLsd::new(&undecomposed, BpOptions::new(30, BpMethod::MinimumSum { scaling_factor: 0.625 }), LsdOptions::new(OsdMethod::Osd0)).unwrap();
     assert!(failure_rate(&lsd.decode_batch(&samples.detectors, 0).unwrap(), &samples.observables) < 1.5 * glob + 0.02);
     for mode in [WindowMode::Sliding, WindowMode::Parallel] {
@@ -140,6 +147,17 @@ fn check_matrix_decoders() {
         let explained: Vec<bool> = (0..3u32).map(|r| columns.iter().zip(&c).filter(|(col, &x)| x && col.contains(&r)).count() % 2 == 1).collect();
         assert_eq!(explained, syndrome);
     }
+    let relay = RelayBpDecoder::new(3, &columns, &priors, RelayOptions::new().pre_iterations(1).gammas(vec![vec![0.3; 7]])).unwrap();
+    for e in 0..7 {
+        let syndrome: Vec<bool> = (0..3).map(|r| columns[e].contains(&r)).collect();
+        let out = relay.decode(&syndrome).unwrap();
+        if out.converged {
+            let explained: Vec<bool> = (0..3u32).map(|r| columns.iter().zip(&out.correction).filter(|(col, &x)| x && col.contains(&r)).count() % 2 == 1).collect();
+            assert_eq!(explained, syndrome);
+            assert!(out.weight.is_finite() && out.legs >= 1);
+        }
+    }
+    assert!(RelayBpDecoder::new(3, &columns, &priors, RelayOptions::new().gamma_range(0.5, 0.1)).is_err());
     assert!(BpDecoder::new(3, &columns, &[0.05; 6], BpOptions::new(10, BpMethod::ProductSum)).is_err());
     assert!(bp.decode(&[true]).is_err());
 }

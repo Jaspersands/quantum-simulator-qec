@@ -4,6 +4,7 @@
 use crate::belief::BeliefMatching;
 use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
+use crate::relay::Relay;
 use crate::parallel::parallel;
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::WindowDecoder;
@@ -108,6 +109,37 @@ pub fn syndrome_shots<D: SyndromeDecoder>(dec: &D, obs: &[u64], packed: &[u8], n
             })
             .collect()
     })
+}
+
+/// Relay-BP of b8 shots on a model's faults: (observables, a leg converged). Shot `s` draws
+/// its memory strengths from a generator seeded by the configured seed and `s`, so a batch's
+/// results do not depend on how it is cut across threads.
+pub fn relay_shots(dec: &Relay, obs: &[u64], packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, u8)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut syndrome = vec![0u8; nd];
+        range
+            .map(|s| {
+                let row = &packed[s * stride..(s + 1) * stride];
+                for (i, x) in syndrome.iter_mut().enumerate() {
+                    *x = (row[i / 8] >> (i % 8)) & 1;
+                }
+                dec.reseed(&mut work, shot_seed(dec.config.seed, s as u64));
+                let o = dec.decode(&syndrome, &mut work);
+                let pred = work.correction.iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
+                (pred, u8::from(o.converged))
+            })
+            .collect()
+    })
+}
+
+/// A seed for shot `s` of a batch: SplitMix64's mix of the two.
+fn shot_seed(seed: u64, s: u64) -> u64 {
+    let mut z = seed.wrapping_add(s.wrapping_add(1).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 31)
 }
 
 /// BP+OSD of b8 shots on a model's faults: (observables, BP converged).

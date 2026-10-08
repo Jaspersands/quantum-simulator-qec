@@ -16,6 +16,12 @@ Sections (each skipped, and said so, when its reference is not installed):
           those are counted as ties. Also: each untied final cluster's bits, in the order
           ldpc's statistics list them (its robin-set order), must be listed in the same order.
 
+  relay   Relay-BP against IBM's relay_bp (RelayDecoderF64) on the gross code's check matrix
+          (2 and 6 cycles at p = 0.3%): explicit memory strengths, seeded random ones (its sinter
+          defaults; every leg), and no memory. Every shot's correction, convergence and
+          iteration count must be identical: there is no sort and no tie, and the random
+          strengths are drawn with the same generator.
+
 Exits non-zero if any check fails.
 """
 
@@ -118,7 +124,50 @@ def check_lsd(quick):
     return ok, rows
 
 
-SECTIONS = {"lsd": ("BP+LSD against ldpc", "ldpc", check_lsd)}
+def check_relay(quick):
+    import scipy.sparse
+    import relay_bp
+
+    ok, rows = True, []
+    rng = np.random.default_rng(11)
+    for cycles in (2, 6):
+        c = sq.BivariateBicycleCode("gross").memory_circuit(cycles, 0.003)
+        pcm, priors = check_matrix(c.detector_error_model())
+        syndromes = c.compile_detector_sampler(seed=2).sample(100 if quick else 1000).astype(np.uint8)
+        configs = {
+            "explicit strengths": dict(gammas=rng.uniform(-0.24, 0.66, size=(10, pcm.shape[1])), legs=30, solutions=1),
+            "sinter defaults, seed 0": dict(seed=0, pre_iterations=60, legs=60, iterations=60, solutions=5),
+            "every leg, seed 7": dict(seed=7, legs=20, solutions=None),
+            "no memory": dict(gamma0=None, seed=1, legs=10, solutions=1),
+        }
+        for label, kw in configs.items():
+            kw = {**dict(pre_iterations=80, iterations=60, gamma0=0.1, gammas=None, alpha=None, seed=0), **kw}
+            ours = sq.RelayBpDecoder(pcm, error_channel=priors, **kw)
+            stop = dict(stopping_criterion="all") if kw["solutions"] is None else dict(stop_nconv=kw["solutions"])
+            theirs = relay_bp.RelayDecoderF64(scipy.sparse.csr_matrix(pcm), error_priors=priors.astype(np.float64), pre_iter=kw["pre_iterations"], num_sets=kw["legs"],
+                                              set_max_iter=kw["iterations"], gamma0=kw["gamma0"], explicit_gammas=kw["gammas"], alpha=kw["alpha"], seed=kw["seed"], **stop)
+            row = dict(case=f"gross, {cycles} cycles", config=label, shots=len(syndromes), identical=0, different=0, ours_s=0.0, reference_s=0.0)
+            for s in syndromes:
+                t0 = time.perf_counter()
+                r = theirs.decode_detailed(s)
+                t1 = time.perf_counter()
+                a = ours.decode(s)
+                row["reference_s"] += t1 - t0
+                row["ours_s"] += time.perf_counter() - t1
+                same = np.array_equal(a, r.decoding) and ours.converge == r.success and ours.iter == r.iterations
+                row["identical" if same else "different"] += 1
+            ok &= row["different"] == 0
+            rows.append(row)
+            print(f"  gross, {cycles} cycles  {label:24} identical {row['identical']:5}  different {row['different']}  "
+                  f"{1e3 * row['ours_s'] / len(syndromes):.3f} vs {1e3 * row['reference_s'] / len(syndromes):.3f} ms/shot  "
+                  f"{'ok' if row['different'] == 0 else 'FAIL'}", flush=True)
+    return ok, rows
+
+
+SECTIONS = {
+    "lsd": ("BP+LSD against ldpc", "ldpc", check_lsd),
+    "relay": ("Relay-BP against IBM's relay_bp", "relay-bp", check_relay),
+}
 
 
 def main():

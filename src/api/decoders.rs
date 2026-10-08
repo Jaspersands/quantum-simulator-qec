@@ -405,6 +405,137 @@ impl BpLsd {
     }
 }
 
+/// How Relay-BP runs: its legs, their memory strengths and when it stops.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RelayOptions {
+    config: crate::relay::RelayConfig,
+}
+
+impl Default for RelayOptions {
+    fn default() -> Self {
+        RelayOptions::new()
+    }
+}
+
+impl RelayOptions {
+    /// `relay_bp`'s sinter defaults: a first leg of 60 iterations with memory strength 0.1, then
+    /// up to 60 legs of 60 iterations with strengths drawn from [−0.24, 0.66), stopping once 5
+    /// have converged; min-sum unscaled; seed 0.
+    pub fn new() -> RelayOptions {
+        RelayOptions {
+            config: crate::relay::RelayConfig {
+                pre_iter: 60,
+                legs: 60,
+                leg_iter: 60,
+                solutions: Some(5),
+                gamma0: Some(0.1),
+                gamma_range: (-0.24, 0.66),
+                gammas: None,
+                alpha: None,
+                alpha_scaling: 1.0,
+                seed: 0,
+            },
+        }
+    }
+
+    /// Legs after the first, at most.
+    pub fn legs(mut self, legs: usize) -> Self {
+        self.config.legs = legs;
+        self
+    }
+
+    /// Stop once this many legs have converged (`None`: run every leg).
+    pub fn solutions(mut self, solutions: Option<usize>) -> Self {
+        self.config.solutions = solutions;
+        self
+    }
+
+    /// Iterations of the first leg.
+    pub fn pre_iterations(mut self, iterations: usize) -> Self {
+        self.config.pre_iter = iterations;
+        self
+    }
+
+    /// Iterations of each later leg.
+    pub fn iterations(mut self, iterations: usize) -> Self {
+        self.config.leg_iter = iterations;
+        self
+    }
+
+    /// The first leg's memory strength (`None`: no memory, plain min-sum in every leg).
+    pub fn gamma0(mut self, gamma0: Option<f64>) -> Self {
+        self.config.gamma0 = gamma0;
+        self
+    }
+
+    /// The interval later legs draw memory strengths from, uniformly.
+    pub fn gamma_range(mut self, low: f64, high: f64) -> Self {
+        self.config.gamma_range = (low, high);
+        self
+    }
+
+    /// Explicit memory strengths instead of random ones: one row per leg (reused cyclically),
+    /// one strength per fault.
+    pub fn gammas(mut self, rows: Vec<Vec<f64>>) -> Self {
+        self.config.gammas = Some(rows);
+        self
+    }
+
+    /// The min-sum scaling (`None`: 1; `Some(0.0)`: 1 − 2^−t at iteration t).
+    pub fn alpha(mut self, alpha: Option<f64>) -> Self {
+        self.config.alpha = alpha;
+        self
+    }
+
+    /// The seed of the random memory strengths.
+    pub fn seed(mut self, seed: u64) -> Self {
+        self.config.seed = seed;
+        self
+    }
+}
+
+/// Relay-BP on a detector error model (Müller et al., IBM, 2025): min-sum BP with memory, run
+/// in legs that each draw fresh memory strengths and start from the last leg's posteriors; the
+/// lightest of the first few converged corrections wins. No elimination: fast and simple
+/// enough for hardware, and on the gross code about as accurate as BP+OSD. IBM's `relay_bp`
+/// gives the same corrections on the same check matrix (see `RelayBpDecoder`). Shot `k` of a
+/// batch draws its memory strengths from the seed and `k`, so results do not depend on the
+/// thread count. Give it the undecomposed model.
+pub struct RelayBp {
+    inner: crate::relay::Relay,
+    observables: Vec<u64>,
+    num_detectors: usize,
+}
+
+impl RelayBp {
+    /// Relay-BP with the given options.
+    pub fn new(dem: &DetectorErrorModel, options: RelayOptions) -> Result<RelayBp> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        let inner = crate::relay::Relay::new(d.num_detectors, &columns, &priors, options.config)?;
+        Ok(RelayBp { inner, observables: d.mechanisms.iter().map(|m| m.observables).collect(), num_detectors: d.num_detectors })
+    }
+
+    /// One shot, given the detectors that fired (decoded as shot 0 of a batch).
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core). `bp_converged` says
+    /// whether a leg converged; where none did, the prediction is the first leg's last guess.
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = crate::batch::relay_shots(&self.inner, &self.observables, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        Ok(out.into_iter().map(|(o, c)| Prediction { observables: o, weight: None, bp_converged: Some(c == 1) }).collect())
+    }
+}
+
 /// The order a window decoder runs its windows in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -659,5 +790,54 @@ impl BpLsdDecoder {
             return Err(Error::new("no correction explains the syndrome"));
         }
         Ok(BpOsdOutcome { correction: w.correction.iter().map(|&b| b != 0).collect(), converged: out.converged, iterations: out.iterations })
+    }
+}
+
+/// A Relay-BP run's result.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RelayOutcome {
+    /// The correction, one per column: the lightest converged leg's, or where none converged,
+    /// the first leg's last hard decision.
+    pub correction: Vec<bool>,
+    /// Whether a leg converged.
+    pub converged: bool,
+    /// Iterations over every leg run.
+    pub iterations: usize,
+    /// Legs run, the first included.
+    pub legs: usize,
+    /// The correction's weight, Σ ln((1 − p)/p) over its columns (infinite where none converged).
+    pub weight: f64,
+}
+
+/// Relay-BP on a check matrix given by its columns, as IBM's `relay_bp` `RelayDecoderF64`:
+/// the same corrections, iteration counts and convergence for the same options. As there, the
+/// random memory strengths continue from one decode to the next.
+pub struct RelayBpDecoder {
+    inner: crate::relay::Relay,
+    work: std::sync::Mutex<crate::relay::RelayWork>,
+}
+
+impl RelayBpDecoder {
+    /// A decoder for `num_checks` checks and the given columns, each with its prior.
+    pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], options: RelayOptions) -> Result<RelayBpDecoder> {
+        check_matrix(num_checks, columns, priors)?;
+        let inner = crate::relay::Relay::new(num_checks, columns, priors, options.config)?;
+        let work = std::sync::Mutex::new(inner.work());
+        Ok(RelayBpDecoder { inner, work })
+    }
+
+    /// Decode one syndrome (one bit per check).
+    pub fn decode(&self, syndrome: &[bool]) -> Result<RelayOutcome> {
+        let s = syndrome_bytes(syndrome, self.inner.num_checks)?;
+        let mut w = self.work.lock().unwrap_or_else(|e| e.into_inner());
+        let out = self.inner.decode(&s, &mut w);
+        Ok(RelayOutcome {
+            correction: w.correction.iter().map(|&b| b != 0).collect(),
+            converged: out.converged,
+            iterations: out.iterations,
+            legs: out.legs,
+            weight: if out.converged { out.weight } else { f64::INFINITY },
+        })
     }
 }

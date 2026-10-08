@@ -73,6 +73,9 @@ pub mod bb_gauge;
 pub mod osd;
 mod plu;
 mod robin;
+mod chacha;
+#[doc(hidden)]
+pub mod relay;
 #[doc(hidden)]
 pub mod lsd;
 #[doc(hidden)]

@@ -321,6 +321,71 @@ class BpLsd(_DemDecoder):
         return out
 
 
+def _relay_args(legs, solutions, pre_iterations, iterations, gamma0, gamma_range, alpha, seed) -> tuple:
+    lo, hi = (real(x, "gamma_range") for x in gamma_range)
+    return (
+        count(pre_iterations, "pre_iterations"),
+        count(legs, "legs"),
+        count(iterations, "iterations"),
+        None if solutions is None else count(solutions, "solutions"),
+        None if gamma0 is None else real(gamma0, "gamma0"),
+        (lo, hi),
+        None if alpha is None else real(alpha, "alpha"),
+        count(seed, "seed"),
+    )
+
+
+class RelayBp(_DemDecoder):
+    """Relay-BP on a detector error model (Müller et al., IBM, 2025): min-sum belief
+    propagation with memory, run in legs. Each fault's prior mixes in its own last posterior
+    with a memory strength; the first leg (``pre_iterations`` iterations) uses ``gamma0``
+    for every fault, and each of up to ``legs`` more (``iterations`` each) draws a strength per
+    fault from ``gamma_range`` and starts from the posteriors the last leg ended with. The
+    lightest correction among the first ``solutions`` legs to converge is returned
+    (``solutions=None`` runs every leg). Defaults are ``relay_bp``'s sinter decoder's.
+    IBM's ``relay_bp`` gives the same corrections on the same check matrix (see
+    ``RelayBpDecoder``). Shot k of a batch draws its strengths from ``seed`` and k, so the
+    results do not depend on the thread count. For codes whose faults flip three or more
+    detectors: give it the undecomposed model."""
+
+    __slots__ = ()
+
+    def __init__(
+        self,
+        model: ModelLike,
+        *,
+        legs: int = 60,
+        solutions: Union[int, None] = 5,
+        pre_iterations: int = 60,
+        iterations: int = 60,
+        gamma0: Union[float, None] = 0.1,
+        gamma_range: tuple = (-0.24, 0.66),
+        alpha: Union[float, None] = None,
+        seed: int = 0,
+    ) -> None:
+        options = dict(legs=legs, solutions=solutions, pre_iterations=pre_iterations, iterations=iterations, gamma0=gamma0, gamma_range=tuple(gamma_range), alpha=alpha, seed=seed)
+        model = self._made(_model(model), **options)
+        self._x = call(_core.DemRelay, model._d, *_relay_args(legs, solutions, pre_iterations, iterations, gamma0, gamma_range, alpha, seed))
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        return_converged: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
+        """As ``Matching.decode_batch``; ``return_converged`` also returns, per shot, whether a
+        leg converged (where none did, the prediction is from the first leg's last guess)."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, conv = call(self._x.decode_batch, packed, n, threads)
+        out = self._predictions(preds, n, bit_packed_predictions)
+        if return_converged:
+            return out, np.frombuffer(conv, dtype=np.uint8).astype(bool)
+        return out
+
+
 class Window(NamedTuple):
     """A window of a window decoder: it decodes rounds ``[first_layer, end_layer)`` and
     commits the corrections in ``[commit_start, commit_end)``. Windows of phase 0 run first;
@@ -586,3 +651,52 @@ class BpLsdDecoder:
         """Each final cluster's (id, bits in robin-set order): for checking against ldpc's
         statistics."""
         return call(self._x.decode, _syndrome(syndrome, self._m), True)[5]
+
+
+class RelayBpDecoder:
+    """Relay-BP on a check matrix, as IBM's ``relay_bp.RelayDecoderF64``: the same corrections
+    for the same options, explicit memory strengths (``gammas``, one row per leg) or a seed.
+    Like IBM's decoder, its random memory strengths continue from decode to decode. Defaults
+    are ``relay_bp``'s. After ``decode``, ``converge``, ``iter`` (over every leg), ``legs`` and
+    ``weight`` describe the run."""
+
+    def __init__(
+        self,
+        pcm: Any,
+        error_rate: Union[float, None] = None,
+        error_channel: Any = None,
+        *,
+        legs: int = 300,
+        solutions: Union[int, None] = 1,
+        pre_iterations: int = 80,
+        iterations: int = 60,
+        gamma0: Union[float, None] = 0.1,
+        gamma_range: tuple = (-0.24, 0.66),
+        gammas: Any = None,
+        alpha: Union[float, None] = None,
+        alpha_iteration_scaling_factor: float = 1.0,
+        seed: int = 0,
+    ) -> None:
+        options = dict(legs=legs, solutions=solutions, pre_iterations=pre_iterations, iterations=iterations, gamma0=gamma0, gamma_range=tuple(gamma_range), gammas=gammas, alpha=alpha, alpha_iteration_scaling_factor=alpha_iteration_scaling_factor, seed=seed)
+        self._made_from = ((pcm, error_rate, error_channel), options)
+        self._m, self._n, cols = _columns(pcm)
+        rows = None
+        if gammas is not None:
+            g = np.asarray(gammas, dtype=float)
+            if g.ndim != 2 or g.shape[1] != self._n:
+                raise ValueError(f"gammas has one row per leg of {self._n} memory strengths (one per column), not shape {g.shape}")
+            rows = g.tolist()
+        pre, nlegs, its, sols, g0, rng, a, sd = _relay_args(legs, solutions, pre_iterations, iterations, gamma0, gamma_range, alpha, seed)
+        self._x = call(_core.Relay, self._m, cols, _channel(self._n, error_rate, error_channel), pre, nlegs, its, sols, g0, rng, rows, a, real(alpha_iteration_scaling_factor, "alpha_iteration_scaling_factor"), sd)
+        self.converge, self.iter, self.legs, self.weight = False, 0, 0, float("inf")
+
+    def __reduce__(self) -> tuple:
+        # Rebuilt from its matrix and options: its generator starts again from the seed.
+        return (_rebuild, (type(self), *self._made_from), {"converge": self.converge, "iter": self.iter, "legs": self.legs, "weight": self.weight})
+
+    def decode(self, syndrome: Any) -> np.ndarray:
+        """The correction (uint8 per column); where no leg converged, the first leg's last
+        hard decision."""
+        correction, converged, iterations, legs, weight = call(self._x.decode, _syndrome(syndrome, self._m))
+        self.converge, self.iter, self.legs, self.weight = bool(converged), int(iterations), int(legs), float(weight)
+        return np.asarray(correction, dtype=np.uint8)

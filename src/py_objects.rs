@@ -20,6 +20,7 @@ use crate::m2d::M2d;
 use crate::osd::{BpOsd, OsdMethod};
 use crate::batch::{belief_shots, bposd_shots, match_shots, syndrome_shots, window_info, window_shots, WindowInfo};
 use crate::lsd::BpLsd;
+use crate::relay::{Relay, RelayConfig};
 use crate::window::{Mode, Model, WindowDecoder};
 
 fn err(e: String) -> PyErr {
@@ -821,6 +822,113 @@ impl PyBpLsd {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn relay_config(
+    pre_iter: usize,
+    legs: usize,
+    leg_iter: usize,
+    solutions: Option<usize>,
+    gamma0: Option<f64>,
+    gamma_range: (f64, f64),
+    gammas: Option<Vec<Vec<f64>>>,
+    alpha: Option<f64>,
+    alpha_scaling: f64,
+    seed: u64,
+) -> RelayConfig {
+    RelayConfig { pre_iter, legs, leg_iter, solutions, gamma0, gamma_range, gammas, alpha, alpha_scaling, seed }
+}
+
+/// Relay-BP on a check matrix given by its columns. Its random memory strengths continue from
+/// decode to decode, as IBM's decoder's do.
+#[pyclass(name = "Relay", module = "stabilizer_qec._core")]
+pub struct PyRelay {
+    dec: Relay,
+    work: std::sync::Mutex<crate::relay::RelayWork>,
+}
+
+#[pymethods]
+impl PyRelay {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        num_checks: usize,
+        columns: Vec<Vec<u32>>,
+        priors: Vec<f64>,
+        pre_iter: usize,
+        legs: usize,
+        leg_iter: usize,
+        solutions: Option<usize>,
+        gamma0: Option<f64>,
+        gamma_range: (f64, f64),
+        gammas: Option<Vec<Vec<f64>>>,
+        alpha: Option<f64>,
+        alpha_scaling: f64,
+        seed: u64,
+    ) -> PyResult<Self> {
+        let config = relay_config(pre_iter, legs, leg_iter, solutions, gamma0, gamma_range, gammas, alpha, alpha_scaling, seed);
+        let dec = Relay::new(num_checks, &columns, &priors, config).map_err(err)?;
+        let work = std::sync::Mutex::new(dec.work());
+        Ok(PyRelay { dec, work })
+    }
+
+    /// (correction, converged, iterations, legs, weight).
+    fn decode(&self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, bool, usize, usize, f64)> {
+        if syndrome.len() != self.dec.num_checks {
+            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.dec.num_checks)));
+        }
+        let mut w = self.work.lock().unwrap();
+        let out = self.dec.decode(&syndrome, &mut w);
+        Ok((bits(&w.correction), out.converged, out.iterations, out.legs, out.weight))
+    }
+}
+
+/// Relay-BP on an undecomposed model: each fault a column, its prior the model's. Shot k of a
+/// batch draws its memory strengths from a generator seeded by the seed and k.
+#[pyclass(name = "DemRelay", module = "stabilizer_qec._core")]
+pub struct PyDemRelay {
+    dec: Relay,
+    obs: Vec<u64>,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemRelay {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        dem: &PyDem,
+        pre_iter: usize,
+        legs: usize,
+        leg_iter: usize,
+        solutions: Option<usize>,
+        gamma0: Option<f64>,
+        gamma_range: (f64, f64),
+        alpha: Option<f64>,
+        seed: u64,
+    ) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        let config = relay_config(pre_iter, legs, leg_iter, solutions, gamma0, gamma_range, None, alpha, 1.0, seed);
+        let dec = Relay::new(d.num_detectors, &columns, &priors, config).map_err(err)?;
+        let obs = d.mechanisms.iter().map(|m| m.observables).collect();
+        Ok(PyDemRelay { dec, obs, num_detectors: d.num_detectors, num_observables: d.num_observables })
+    }
+
+    /// (observables as u64 per shot, one byte per shot: 1 where a leg converged).
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let (dec, obs) = (&self.dec, &self.obs);
+        let out = py.detach(|| crate::batch::relay_shots(dec, obs, packed, nd, shots, threads));
+        let flags: Vec<u8> = out.iter().map(|x| x.1).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &flags)))
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
@@ -837,5 +945,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBpOsd>()?;
     m.add_class::<PyDemBpLsd>()?;
     m.add_class::<PyBpLsd>()?;
+    m.add_class::<PyRelay>()?;
+    m.add_class::<PyDemRelay>()?;
     Ok(())
 }

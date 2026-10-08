@@ -102,6 +102,21 @@ def test_bplsd_on_a_model(d3):
     assert np.array_equal(lsd.decode(dets[3]), pred[3])
 
 
+def test_relay_bp_on_a_model(d3):
+    dem = d3.detector_error_model()
+    dets, obs = shots_of(d3, 2000, seed=4)
+    relay = sq.RelayBp(dem, legs=10, solutions=1)
+    pred, conv = relay.decode_batch(dets, return_converged=True, threads=0)
+    plain = failure_rate(sq.Matching(d3.detector_error_model(decompose_errors=True)).decode_batch(dets), obs)
+    assert failure_rate(pred, obs) < 1.5 * plain + 0.01
+    assert conv.mean() > 0.9
+    # Shot k draws from the seed and k: the same on any thread count, and shot 0 alone.
+    assert np.array_equal(relay.decode_batch(dets[:300], threads=3), pred[:300])
+    assert np.array_equal(relay.decode(dets[0]), pred[0])
+    with pytest.raises(ValueError):
+        sq.RelayBp(dem, gamma_range=(0.5, 0.1))
+
+
 def test_window_matching(d3):
     c = sq.memory_circuit(distance=3, rounds=30, p=0.005)
     dem = c.detector_error_model(decompose_errors=True)
@@ -210,6 +225,33 @@ def test_bplsd_matrix_decoder_reads_ldpcs_arguments():
             sq.BpLsdDecoder(pcm, error_channel=channel, **bad)
     with pytest.raises(ValueError):
         a.decode(np.zeros(pcm.shape[0] + 1))
+
+
+def relay_reference_case():
+    relay_bp = pytest.importorskip("relay_bp")
+    scipy_sparse = pytest.importorskip("scipy.sparse")
+    rng, pcm, channel = random_code(77, m=24, n=48)
+    return relay_bp, scipy_sparse, rng, pcm, channel
+
+
+@pytest.mark.parametrize("options", [dict(seed=3), dict(seed=4, solutions=3), dict(seed=5, solutions=None, legs=12), dict(gamma0=None), dict(alpha=0.0, seed=6), dict(gammas="explicit")])
+def test_relay_bp_matrix_decoder_equals_ibms(options):
+    relay_bp, scipy_sparse, rng, pcm, channel = relay_reference_case()
+    options = dict(options)
+    if options.get("gammas") == "explicit":
+        options["gammas"] = rng.uniform(-0.24, 0.66, size=(5, pcm.shape[1]))
+    kw = dict(pre_iterations=4, legs=30, iterations=8, solutions=1, gamma0=0.1, gammas=None, alpha=None, seed=0)
+    kw.update(options)
+    ours = sq.RelayBpDecoder(pcm, error_channel=channel, **kw)
+    stop = dict(stopping_criterion="all") if kw["solutions"] is None else dict(stop_nconv=kw["solutions"])
+    theirs = relay_bp.RelayDecoderF64(scipy_sparse.csr_matrix(pcm), error_priors=np.asarray(channel, dtype=np.float64), pre_iter=kw["pre_iterations"], num_sets=kw["legs"],
+                                      set_max_iter=kw["iterations"], gamma0=kw["gamma0"], explicit_gammas=kw["gammas"], alpha=kw["alpha"], seed=kw["seed"], **stop)
+    for _ in range(60):
+        syndrome = ((pcm @ (rng.random(pcm.shape[1]) < 2 * channel)) % 2).astype(np.uint8)
+        mine = ours.decode(syndrome)
+        r = theirs.decode_detailed(syndrome)
+        assert np.array_equal(mine, r.decoding)
+        assert (ours.converge, ours.iter) == (r.success, r.iterations)
 
 
 def test_union_find(d3):
