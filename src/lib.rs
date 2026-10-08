@@ -79,6 +79,8 @@ pub mod relay;
 #[doc(hidden)]
 pub mod color;
 #[doc(hidden)]
+pub mod search;
+#[doc(hidden)]
 pub mod lsd;
 #[doc(hidden)]
 pub mod surgery;

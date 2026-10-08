@@ -45,6 +45,7 @@ def test_decoders_decode_the_same_after_pickling(setup):
         sq.BpOsd(undecomposed, max_iter=5, osd_order=2),
         sq.BpLsd(undecomposed, max_iter=5),
         sq.RelayBp(undecomposed, legs=3, solutions=1),
+        sq.SearchDecoder(undecomposed, num_det_orders=2),
         sq.WindowMatching(dem, commit=1, buffer=1, mode="sliding"),
     ]
     for d in decoders:

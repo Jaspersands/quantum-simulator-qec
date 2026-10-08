@@ -149,6 +149,38 @@ def test_color_matching_equals_chromobius():
         assert np.mean(np.all(ours == theirs, axis=1)) > 0.99
 
 
+def test_search_decoder(d3):
+    dem = d3.detector_error_model()
+    dets, obs = shots_of(d3, 1000, seed=8)
+    search = sq.SearchDecoder(dem)
+    pred, cost, gave_up = search.decode_batch(dets, return_weights=True, return_low_confidence=True, threads=0)
+    plain = failure_rate(sq.Matching(d3.detector_error_model(decompose_errors=True)).decode_batch(dets), obs)
+    assert failure_rate(pred, obs) < 1.5 * plain + 0.01
+    assert not gave_up.any() and np.all(cost[~dets.any(axis=1)] == 0)
+    assert len(search.det_orders) == 20
+    assert np.array_equal(search.decode_batch(dets, threads=1), pred)
+    faults = search.decode_to_faults(dets[3])
+    assert np.array_equal(search.decode(dets[3]), pred[3]) and isinstance(faults, list)
+    with pytest.raises(ValueError):
+        sq.SearchDecoder(dem, det_orders=[[0, 1]])
+    with pytest.raises(ValueError):
+        sq.SearchDecoder(dem, det_order_method="spiral")
+
+
+def test_search_decoder_equals_tesseract():
+    stim = pytest.importorskip("stim")
+    tesseract = pytest.importorskip("tesseract_decoder.tesseract")
+    c = sq.CssCode.color_code(3).memory_circuit(3, 0.003)
+    dem = stim.DetectorErrorModel(str(c.detector_error_model()))
+    dets = stim.Circuit(str(c)).compile_detector_sampler(seed=9).sample(300)
+    for kw in ({}, dict(det_orders=[list(range(dem.num_detectors))[::-1]]), dict(beam_climbing=True)):
+        theirs = tesseract.TesseractDecoder(tesseract.TesseractConfig(dem, **kw))
+        ours = sq.SearchDecoder(str(dem), **kw)
+        for d in dets:
+            theirs.decode_to_errors(d)
+            assert ours.decode_to_faults(d) == list(theirs.predicted_errors_buffer)
+
+
 def test_window_matching(d3):
     c = sq.memory_circuit(distance=3, rounds=30, p=0.005)
     dem = c.detector_error_model(decompose_errors=True)

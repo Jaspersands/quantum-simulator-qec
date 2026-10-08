@@ -2,7 +2,7 @@
 
 use stabilizer_qec::{
     lattice_surgery, memory_circuit, Basis, BeliefMatching, BitTable, BivariateBicycleCode, BpDecoder, BpLsd, BpLsdDecoder, BpMethod,
-    BpOptions, BpOsd, BpOsdDecoder, ColorMatching, LsdOptions, RelayBp, RelayBpDecoder, RelayOptions, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
+    BpOptions, BpOsd, BpOsdDecoder, ColorMatching, LsdOptions, RelayBp, RelayBpDecoder, RelayOptions, SearchDecoder, SearchOptions, DetectorOrder, Circuit, DemOptions, DetectorErrorModel, Error, GrossOperator, Matching, Noise, OsdMethod, Pauli,
     SurfaceCode, Target, WindowMatching, WindowMode, WindowOptions,
 };
 
@@ -31,6 +31,7 @@ fn decoders_and_samplers_cross_threads() {
     shareable::<RelayBp>();
     shareable::<RelayBpDecoder>();
     shareable::<ColorMatching>();
+    shareable::<SearchDecoder>();
     fn sendable<T: Send>() {}
     sendable::<stabilizer_qec::DetectorSampler>();
     sendable::<stabilizer_qec::MeasurementConverter>();
@@ -118,6 +119,10 @@ fn belief_matching_bposd_and_windows() {
     assert!(failure_rate(&r, &samples.observables) < 1.5 * glob + 0.02);
     let first: Vec<u32> = (0..samples.detectors.num_bits()).filter(|&d| samples.detectors.get(0, d)).map(|d| d as u32).collect();
     assert_eq!(r[0], relay.decode(&first).unwrap());
+    let search = SearchDecoder::new(&undecomposed, SearchOptions::new().generated_orders(DetectorOrder::Index, 2, 1)).unwrap();
+    let found = search.decode_batch(&samples.detectors, 0).unwrap();
+    assert!(failure_rate(&found, &samples.observables) < 1.5 * glob + 0.02);
+    assert!(found.iter().all(|p| p.weight.is_some()));
     let lsd = BpLsd::new(&undecomposed, BpOptions::new(30, BpMethod::MinimumSum { scaling_factor: 0.625 }), LsdOptions::new(OsdMethod::Osd0)).unwrap();
     assert!(failure_rate(&lsd.decode_batch(&samples.detectors, 0).unwrap(), &samples.observables) < 1.5 * glob + 0.02);
     for mode in [WindowMode::Sliding, WindowMode::Parallel] {

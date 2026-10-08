@@ -6,6 +6,7 @@ use crate::color::ColorDecoder;
 use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
 use crate::relay::Relay;
+use crate::search::Search;
 use crate::parallel::parallel;
 use crate::sparse::{Correlations, Scratch, SparseGraph};
 use crate::window::WindowDecoder;
@@ -160,6 +161,23 @@ pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usiz
                     Ok((o, w)) => (o, w, u8::from(work.tied)),
                     Err(_) => (u64::MAX, f64::NAN, 2),
                 }
+            })
+            .collect()
+    })
+}
+
+/// The search decoder over b8 shots: per shot (observables, the found faults' cost, whether
+/// the search gave up).
+pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, bool)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                let found = dec.decode(&defects);
+                (dec.observables(&found.faults), dec.cost(&found.faults), found.low_confidence)
             })
             .collect()
     })

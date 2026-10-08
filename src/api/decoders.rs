@@ -609,6 +609,184 @@ impl ColorMatching {
     }
 }
 
+/// How the search decoder generates detector orders.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DetectorOrder {
+    /// Detector index order or its reverse, by a coin (Tesseract's, exactly).
+    Index,
+    /// Breadth-first over the detectors faults join, from random roots.
+    Bfs,
+    /// By the coordinates' projection on a random direction.
+    Coordinate,
+}
+
+/// The search decoder's settings; the defaults are Tesseract's.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SearchOptions {
+    beam: Option<usize>,
+    beam_climbing: bool,
+    no_revisit: bool,
+    queue_limit: Option<usize>,
+    orders: Option<Vec<Vec<u32>>>,
+    method: DetectorOrder,
+    num_orders: usize,
+    seed: u64,
+    penalty: f64,
+    merge: bool,
+}
+
+impl Default for SearchOptions {
+    fn default() -> Self {
+        SearchOptions::new()
+    }
+}
+
+impl SearchOptions {
+    /// Tesseract's defaults: beam 5, no revisits, a queue of at most 200,000, 20 index orders
+    /// from seed 2384753, no detector penalty, indistinguishable faults merged.
+    pub fn new() -> SearchOptions {
+        SearchOptions { beam: Some(5), beam_climbing: false, no_revisit: true, queue_limit: Some(200_000), orders: None, method: DetectorOrder::Index, num_orders: 20, seed: 2384753, penalty: 0.0, merge: true }
+    }
+
+    /// Drop states lighting more than `beam` detectors above the fewest seen (`None`: no beam).
+    pub fn beam(mut self, beam: Option<usize>) -> Self {
+        self.beam = beam;
+        self
+    }
+
+    /// Search with every beam from 0 up, cycling through the orders.
+    pub fn beam_climbing(mut self, yes: bool) -> Self {
+        self.beam_climbing = yes;
+        self
+    }
+
+    /// Skip patterns of lit detectors already expanded: much faster, not exact.
+    pub fn no_revisit(mut self, yes: bool) -> Self {
+        self.no_revisit = yes;
+        self
+    }
+
+    /// Give up after this many states have been queued (`None`: never).
+    pub fn queue_limit(mut self, limit: Option<usize>) -> Self {
+        self.queue_limit = limit;
+        self
+    }
+
+    /// Search these detector orders (each a permutation of the detectors).
+    pub fn detector_orders(mut self, orders: Vec<Vec<u32>>) -> Self {
+        self.orders = Some(orders);
+        self
+    }
+
+    /// Generate `count` orders by `method` from `seed`.
+    pub fn generated_orders(mut self, method: DetectorOrder, count: usize, seed: u64) -> Self {
+        self.orders = None;
+        self.method = method;
+        self.num_orders = count;
+        self.seed = seed;
+        self
+    }
+
+    /// Add this to each lit detector's estimated cost.
+    pub fn detector_penalty(mut self, penalty: f64) -> Self {
+        self.penalty = penalty;
+        self
+    }
+
+    /// Merge faults with the same detectors and observables into one.
+    pub fn merge_errors(mut self, yes: bool) -> Self {
+        self.merge = yes;
+        self
+    }
+}
+
+/// A search for the most likely error, Tesseract's A* (Beni, Higgott and Shutty, Google, 2025),
+/// for any detector error model: sets of faults expanded cheapest first by their weight plus an
+/// admissible estimate of explaining the detectors still lit, each grown only through its first
+/// lit detector in a detector order, under a beam and a queue bound, once per order. Its
+/// answers, fault for fault, are the `tesseract_decoder` package's on the same platform (ties
+/// between equally promising states are broken as the platform's C++ library breaks them).
+/// With no beam, no queue bound and revisits allowed it is exact.
+///
+/// ```
+/// use stabilizer_qec::{CssCode, DemOptions, SearchDecoder, SearchOptions, Basis};
+///
+/// let c = CssCode::color_code(3)?.memory_circuit(3, 0.002, Basis::Z)?;
+/// let decoder = SearchDecoder::new(&c.detector_error_model(&DemOptions::new())?, SearchOptions::new())?;
+/// let samples = c.detector_sampler(1)?.sample(500, 0);
+/// let predictions = decoder.decode_batch(&samples.detectors, 0)?;
+/// let wrong = (0..500).filter(|&s| predictions[s].flips(0) != samples.observables.get(s, 0)).count();
+/// assert!(wrong < 25);
+/// # Ok::<(), stabilizer_qec::Error>(())
+/// ```
+pub struct SearchDecoder {
+    inner: crate::search::Search,
+    num_detectors: usize,
+}
+
+impl SearchDecoder {
+    /// The decoder for a model.
+    pub fn new(dem: &DetectorErrorModel, options: SearchOptions) -> Result<SearchDecoder> {
+        let d = dem.flat()?;
+        let flavour = crate::search::Flavour::native();
+        let orders = match options.orders {
+            Some(o) => o,
+            None => {
+                if options.num_orders == 0 {
+                    return Err(Error::new("at least one detector order is needed"));
+                }
+                let method = match options.method {
+                    DetectorOrder::Index => crate::search::OrderMethod::Index,
+                    DetectorOrder::Bfs => crate::search::OrderMethod::Bfs,
+                    DetectorOrder::Coordinate => crate::search::OrderMethod::Coordinate,
+                };
+                crate::search::generated_orders(d, options.num_orders, method, options.seed, flavour)
+            }
+        };
+        let config = crate::search::SearchConfig {
+            beam: options.beam,
+            beam_climbing: options.beam_climbing,
+            no_revisit: options.no_revisit,
+            queue_limit: options.queue_limit,
+            orders,
+            detector_penalty: options.penalty,
+            merge_errors: options.merge,
+            flavour,
+        };
+        Ok(SearchDecoder { inner: crate::search::Search::new(d, config)?, num_detectors: d.num_detectors })
+    }
+
+    /// One shot, given the detectors that fired. `weight` is the found faults' cost, `None`
+    /// where the search gave up (the prediction is then no flips).
+    pub fn decode(&self, defects: &[u32]) -> Result<Prediction> {
+        check_defects(defects, self.num_detectors)?;
+        let mut row = BitTable::zeros(1, self.num_detectors);
+        for &d in defects {
+            row.set(0, d as usize, true);
+        }
+        Ok(self.decode_batch(&row, 1)?.remove(0))
+    }
+
+    /// The faults one shot's search found, as indices into the model's (flattened) faults, or
+    /// `None` where it gave up.
+    pub fn decode_to_faults(&self, defects: &[u32]) -> Result<Option<Vec<usize>>> {
+        check_defects(defects, self.num_detectors)?;
+        let mut sorted = defects.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        let found = self.inner.decode(&sorted);
+        Ok((!found.low_confidence).then_some(found.faults))
+    }
+
+    /// A batch of shots across `threads` threads (`0` is every core).
+    pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
+        check_width(shots, self.num_detectors)?;
+        let out = crate::batch::search_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
+    }
+}
+
 /// The order a window decoder runs its windows in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]

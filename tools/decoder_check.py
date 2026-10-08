@@ -28,6 +28,11 @@ Sections (each skipped, and said so, when its reference is not installed):
           predictions equal except where they differ at that equal weight, which is a tie
           between two minimum-weight matchings.
 
+  search  SearchDecoder against tesseract_decoder (Tesseract's defaults: 20 index orders; two
+          literal orders; beam 8 with beam climbing) on surface, colour and gross-code models:
+          the faults found, shot for shot, must be identical (both break ties as this
+          platform's C++ library does).
+
 Exits non-zero if any check fails.
 """
 
@@ -215,10 +220,48 @@ def check_color(quick):
     return ok, rows
 
 
+def check_search(quick):
+    import stim
+    from tesseract_decoder import tesseract
+
+    ok, rows = True, []
+    cases = [
+        ("surface d=3", sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, after_clifford_depolarization=0.003, before_measure_flip_probability=0.003)),
+        ("surface d=5", sq.Circuit.generated("surface_code:rotated_memory_z", distance=5, rounds=5, after_clifford_depolarization=0.002, before_measure_flip_probability=0.002)),
+        ("colour d=5", sq.CssCode.color_code(5).memory_circuit(5, 0.002)),
+        ("gross, 2 cycles", sq.BivariateBicycleCode("gross").memory_circuit(2, 0.002)),
+    ]
+    for name, c in cases:
+        dem = stim.DetectorErrorModel(str(c.detector_error_model()))
+        n = (100 if "gross" in name else 300) if quick else (1000 if "gross" in name else 3000)
+        dets = stim.Circuit(str(c)).compile_detector_sampler(seed=4).sample(n)
+        nd = dem.num_detectors
+        configs = {"defaults (20 index orders)": {}, "two literal orders": dict(det_orders=[list(range(nd)), list(range(nd))[::-1]]), "beam 8, climbing": dict(det_beam=8, beam_climbing=True)}
+        for label, kw in configs.items():
+            theirs = tesseract.TesseractDecoder(tesseract.TesseractConfig(dem, **kw))
+            okw = {("beam" if k == "det_beam" else k): v for k, v in kw.items()}
+            ours = sq.SearchDecoder(str(dem), **okw)
+            row = dict(case=name, config=label, shots=n, identical=0, different=0, ours_s=0.0, tesseract_s=0.0)
+            for d in dets:
+                t0 = time.perf_counter()
+                theirs.decode_to_errors(d)
+                t1 = time.perf_counter()
+                faults = ours.decode_to_faults(d)
+                row["tesseract_s"] += t1 - t0
+                row["ours_s"] += time.perf_counter() - t1
+                row["identical" if faults == list(theirs.predicted_errors_buffer) else "different"] += 1
+            ok &= row["different"] == 0
+            rows.append(row)
+            print(f"  {name:16} {label:28} identical {row['identical']:5}  different {row['different']}  "
+                  f"{1e3 * row['ours_s'] / n:.3f} vs {1e3 * row['tesseract_s'] / n:.3f} ms/shot  {'ok' if row['different'] == 0 else 'FAIL'}", flush=True)
+    return ok, rows
+
+
 SECTIONS = {
     "lsd": ("BP+LSD against ldpc", "ldpc", check_lsd),
     "relay": ("Relay-BP against IBM's relay_bp", "relay-bp", check_relay),
     "color": ("Colour-code matching against Chromobius", "chromobius", check_color),
+    "search": ("The search decoder against Tesseract", "tesseract-decoder", check_search),
 }
 
 

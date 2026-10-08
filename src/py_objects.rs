@@ -967,6 +967,83 @@ impl PyDemColorMatcher {
     }
 }
 
+/// The search decoder (Tesseract's A*) on a model.
+#[pyclass(name = "DemSearch", module = "stabilizer_qec._core")]
+pub struct PyDemSearch {
+    dec: crate::search::Search,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+    #[pyo3(get)]
+    orders: Vec<Vec<u32>>,
+}
+
+#[pymethods]
+impl PyDemSearch {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        dem: &PyDem,
+        beam: Option<usize>,
+        beam_climbing: bool,
+        no_revisit: bool,
+        queue_limit: Option<usize>,
+        orders: Option<Vec<Vec<u32>>>,
+        num_orders: usize,
+        method: &str,
+        seed: u64,
+        penalty: f64,
+        merge: bool,
+        flavour: &str,
+    ) -> PyResult<Self> {
+        use crate::search::{Flavour, OrderMethod};
+        let d = dem.flat()?;
+        let flavour = match flavour {
+            "native" => Flavour::native(),
+            "libc++" => Flavour::LibCxx,
+            "libstdc++" => Flavour::LibStdCxx,
+            other => return Err(err(format!("unknown flavour '{other}'"))),
+        };
+        let orders = match orders {
+            Some(o) => o,
+            None => {
+                let method = match method {
+                    "index" => OrderMethod::Index,
+                    "bfs" => OrderMethod::Bfs,
+                    "coordinate" => OrderMethod::Coordinate,
+                    other => return Err(err(format!("det_order_method '{other}' is not index, bfs or coordinate"))),
+                };
+                if num_orders == 0 {
+                    return Err(err("num_det_orders must be at least 1".into()));
+                }
+                crate::search::generated_orders(d, num_orders, method, seed, flavour)
+            }
+        };
+        let config = crate::search::SearchConfig { beam, beam_climbing, no_revisit, queue_limit, orders: orders.clone(), detector_penalty: penalty, merge_errors: merge, flavour };
+        let dec = crate::search::Search::new(d, config).map_err(err)?;
+        Ok(PyDemSearch { dec, num_detectors: d.num_detectors, num_observables: d.num_observables, orders })
+    }
+
+    /// (observables as u64 per shot, costs as f64, one byte per shot 1 where the search gave
+    /// up).
+    #[allow(clippy::type_complexity)]
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::search_shots(dec, packed, nd, shots, threads));
+        let gave_up: Vec<u8> = out.iter().map(|x| u8::from(x.2)).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &gave_up)))
+    }
+
+    /// The model faults one shot's search found (by index in the flattened model).
+    fn decode_to_faults(&self, defects: Vec<u32>) -> (Vec<usize>, bool) {
+        let found = self.dec.decode(&defects);
+        (found.faults, found.low_confidence)
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
@@ -986,5 +1063,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRelay>()?;
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;
+    m.add_class::<PyDemSearch>()?;
     Ok(())
 }
