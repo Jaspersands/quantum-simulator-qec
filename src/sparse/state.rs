@@ -40,6 +40,10 @@ impl Radius {
 /// which an empty node's neighbours read in place of a branch.
 pub(crate) const NOBODY: usize = 0;
 
+/// The `top` of an empty node: nobody's region, so that reading an empty node's radius needs
+/// no branch.
+pub(crate) const NO_TOP: u32 = NOBODY as u32;
+
 pub(crate) struct Region {
     pub radius: Radius,
     pub blossom_parent: u32,
@@ -94,7 +98,7 @@ const _: () = assert!(std::mem::size_of::<NodeState>() == 32);
 impl NodeState {
     pub const EMPTY: NodeState = NodeState {
         region: NONE,
-        top: NONE,
+        top: NO_TOP,
         source: NONE,
         obs: 0,
         wrapped: 0,
@@ -112,14 +116,25 @@ pub struct Scratch {
     pub(crate) dirty: Vec<bool>,
     pub(crate) touched: Vec<u32>,
     pub(crate) regions: Vec<Region>,
+    /// How many regions grow (positive slope). With none, nothing can meet anything, which
+    /// `next_node_event` knows without a scan.
+    pub(crate) growing: u32,
+    /// Bumped at every change that can make two nodes meet that could not before: a node
+    /// reached or given up, a node's top region changed, a region starting to grow faster. It
+    /// is never reset, so it only ever moves on.
+    pub(crate) creates: u64,
+    /// Per node, `creates` when a look last found nothing ahead of it (else `u64::MAX`): while
+    /// `creates` has not moved, nothing still lies ahead, and its reminder needs no scan.
+    pub(crate) quiet: Vec<u64>,
     pub(crate) alt: Vec<AltNode>,
     pub(crate) queue: Tracker,
     pub(crate) now: i64,
     pub(crate) events: u64,
-    /// This decode's edge weights, per half-edge. They are the graph's, except
-    /// while correlated matching's second pass has lowered some; `undo` holds
-    /// the old values until they are restored.
-    pub(crate) w: Vec<i64>,
+    /// Per half-edge, the node a scan reads and this decode's weight (see
+    /// `SparseGraph::scan`), together so the hot loop reads one array. The weights
+    /// are the graph's, except while correlated matching's second pass has lowered
+    /// some; `undo` holds the old values until they are restored.
+    pub(crate) scan: Vec<(u32, i32)>,
     pub(crate) undo: Vec<(u32, i64)>,
     /// The last decode's matched pairs: two defects, or a defect and BOUNDARY.
     pub(crate) pairs: Vec<(u32, u32)>,
@@ -154,6 +169,15 @@ pub struct Scratch {
 }
 
 impl Scratch {
+    /// Half-edge `e`'s weight in this decode.
+    pub(crate) fn weight(&self, e: usize) -> i64 {
+        i64::from(self.scan[e].1)
+    }
+
+    pub(crate) fn set_weight(&mut self, e: usize, w: i64) {
+        self.scan[e].1 = i32::try_from(w).expect("an edge weight fits 32 bits");
+    }
+
     pub fn new(graph: &SparseGraph) -> Scratch {
         Scratch {
             // One more than the graph's: the boundary's, never reached, which
@@ -172,11 +196,14 @@ impl Scratch {
                 queued: NO_TIME,
                 dead: true,
             }],
+            growing: 0,
+            creates: 0,
+            quiet: vec![u64::MAX; graph.num_nodes],
             alt: Vec::new(),
             queue: Tracker::default(),
             now: 0,
             events: 0,
-            w: graph.w.clone(),
+            scan: graph.scan.clone(),
             undo: Vec::new(),
             pairs: Vec::new(),
             // Sized on first use (`ensure_paths`): plain matching never traces.

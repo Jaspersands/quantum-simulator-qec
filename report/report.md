@@ -621,9 +621,10 @@ circuit that flip an observable and set off no detector. The engine finds it thr
 Stim's graph-like search (`shortest_graphlike_error`), Stim's breadth-first search through
 hyperedges (`search_for_undetectable_logical_errors`, with sets of up to 6 detectors), and an
 integer program over every fault that proves it exactly when it finishes
-(`DetectorErrorModel.distance()`, scipy's HiGHS, {{dist.time_limit}} each). Both searches give
-the same number of faults as Stim's own wherever they were compared, and each fault they return
-is explained down to its gate, as Stim's `explain_detector_error_model_errors` prints it.
+(`DetectorErrorModel.distance()`, scipy's HiGHS, {{dist.time_limit}} each). The graph-like
+search returns Stim's own faults, character for character, and the breadth-first one the same
+number as Stim's wherever they were compared; each fault they return is explained down to its
+gate, as Stim's `explain_detector_error_model_errors` prints it.
 
 {{table:distances}}
 

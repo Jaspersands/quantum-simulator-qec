@@ -86,6 +86,73 @@ fn walk(ops: &[Op], m: &mut u64, bit: &impl Fn(u64) -> bool, detector: &mut impl
     }
 }
 
+/// `walk` 64 shots at a time: `records[i]` holds record i of each shot (bit s, shot s), each
+/// detector's word goes to `detector`, and the observables' to `obs` (one word each).
+fn walk_words(ops: &[Op], m: &mut u64, records: &[u64], detector: &mut impl FnMut(u64), obs: &mut [u64; 64]) {
+    for op in ops {
+        match op {
+            Op::Records(n) => *m += n,
+            Op::Detector(recs) => detector(recs.iter().fold(0, |acc, &k| acc ^ records[(*m - u64::from(k)) as usize])),
+            Op::Observable(i, recs) => obs[*i as usize] ^= recs.iter().fold(0, |acc, &k| acc ^ records[(*m - u64::from(k)) as usize]),
+            Op::Repeat(count, body) => {
+                for _ in 0..*count {
+                    walk_words(body, m, records, detector, obs);
+                }
+            }
+        }
+    }
+}
+
+/// Transpose a 64×64 bit matrix in place (row r's bit c to row c's bit r), by swapping ever
+/// smaller off-diagonal blocks.
+fn transpose64(a: &mut [u64; 64]) {
+    let (mut j, mut m) = (32, 0x0000_0000_FFFF_FFFFu64);
+    while j != 0 {
+        for k in (0..64).filter(|k| k & j == 0) {
+            let t = ((a[k] >> j) ^ a[k | j]) & m;
+            a[k] ^= t << j;
+            a[k | j] ^= t;
+        }
+        j >>= 1;
+        m ^= m << j;
+    }
+}
+
+/// Up to 64 rows of `width` bytes (bit i of a row: byte i / 8, bit i % 8) as words, one per
+/// column: `words[i]` bit s is row s's bit i.
+fn to_words(rows: &[u8], width: usize, num_rows: usize, words: &mut [u64]) {
+    let mut block = [0u64; 64];
+    for (c, chunk) in words.chunks_mut(64).enumerate() {
+        for (s, b) in block.iter_mut().enumerate() {
+            *b = 0;
+            if s < num_rows {
+                let row = &rows[s * width..(s + 1) * width];
+                for (byte, &v) in row.iter().skip(c * 8).take(8).enumerate() {
+                    *b |= u64::from(v) << (8 * byte);
+                }
+            }
+        }
+        transpose64(&mut block);
+        chunk.copy_from_slice(&block);
+    }
+}
+
+/// The inverse: words (one per column, bit s row s) back to up to 64 rows of `width` bytes.
+fn from_words(words: &mut [u64], rows: &mut [u8], width: usize, num_rows: usize) {
+    let mut block = [0u64; 64];
+    for (c, chunk) in words.chunks_mut(64).enumerate() {
+        block[..chunk.len()].copy_from_slice(chunk);
+        block[chunk.len()..].fill(0);
+        transpose64(&mut block);
+        for (s, &b) in block.iter().enumerate().take(num_rows) {
+            let row = &mut rows[s * width..(s + 1) * width];
+            for (byte, v) in row.iter_mut().skip(c * 8).take(8).enumerate() {
+                *v = (b >> (8 * byte)) as u8;
+            }
+        }
+    }
+}
+
 pub struct M2d {
     pub num_measurements: usize,
     pub num_sweep_bits: usize,
@@ -292,16 +359,53 @@ impl M2d {
     /// Many shots in Stim's b8 layout, rows padded to whole bytes: detection events, and
     /// observable flips.
     pub fn convert_b8(&self, meas: &[u8], sweeps: &[u8], num_shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
+        self.check_sizes(meas, sweeps, num_shots)?;
         let (ms, ss) = (self.num_measurements.div_ceil(8), self.num_sweep_bits.div_ceil(8));
-        if ms.checked_mul(num_shots) != Some(meas.len()) || ss.checked_mul(num_shots) != Some(sweeps.len()) {
-            return Err(format!(
-                "{} + {} bytes is not {num_shots} shots of {} measurements and {} sweep bits",
-                meas.len(),
-                sweeps.len(),
-                self.num_measurements,
-                self.num_sweep_bits
-            ));
+        let (ds, os) = (self.num_detectors.div_ceil(8), self.num_observables.div_ceil(8));
+        let mut dets = vec![0u8; ds * num_shots];
+        let mut obs_out = vec![0u8; os * num_shots];
+        // 64 shots at a time, as words: one per measurement (bit s the block's shot s), so each
+        // detector is the XOR of its records' words, as Stim converts.
+        let mut records = vec![0u64; self.num_measurements.div_ceil(64) * 64];
+        let mut sweep_words = vec![0u64; self.num_sweep_bits.div_ceil(64) * 64];
+        let mut det_words = vec![0u64; self.num_detectors.div_ceil(64) * 64];
+        let mut obs_words = [0u64; 64];
+        for first in (0..num_shots).step_by(64) {
+            let shots = (num_shots - first).min(64);
+            to_words(&meas[first * ms..(first + shots) * ms], ms, shots, &mut records);
+            to_words(&sweeps[first * ss..(first + shots) * ss], ss, shots, &mut sweep_words);
+            for (k, w) in obs_words.iter_mut().enumerate() {
+                *w = if (self.ref_obs >> k) & 1 == 1 { u64::MAX } else { 0 };
+            }
+            let mut d = 0usize;
+            walk_words(&self.ops, &mut 0, &records, &mut |w| {
+                det_words[d] = if self.ref_det[d] { !w } else { w };
+                d += 1;
+            }, &mut obs_words);
+            for k in 0..self.num_sweep_bits {
+                let w = sweep_words[k];
+                if w != 0 {
+                    for &d in &self.sweep_det[k] {
+                        det_words[d as usize] ^= w;
+                    }
+                    for (j, o) in obs_words.iter_mut().enumerate() {
+                        if (self.sweep_obs[k] >> j) & 1 == 1 {
+                            *o ^= w;
+                        }
+                    }
+                }
+            }
+            from_words(&mut det_words, &mut dets[first * ds..(first + shots) * ds], ds, shots);
+            from_words(&mut obs_words[..], &mut obs_out[first * os..(first + shots) * os], os, shots);
         }
+        Ok((dets, obs_out))
+    }
+
+    /// The same, shot by shot: the conversion the word-wide one is checked against.
+    #[cfg(test)]
+    fn convert_b8_by_shot(&self, meas: &[u8], sweeps: &[u8], num_shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
+        self.check_sizes(meas, sweeps, num_shots)?;
+        let (ms, ss) = (self.num_measurements.div_ceil(8), self.num_sweep_bits.div_ceil(8));
         let (ds, os) = (self.num_detectors.div_ceil(8), self.num_observables.div_ceil(8));
         let mut dets = vec![0u8; ds * num_shots];
         let mut obs_out = vec![0u8; os * num_shots];
@@ -339,12 +443,69 @@ impl M2d {
         }
         Ok((dets, obs_out))
     }
+
+    fn check_sizes(&self, meas: &[u8], sweeps: &[u8], num_shots: usize) -> Result<(), String> {
+        let (ms, ss) = (self.num_measurements.div_ceil(8), self.num_sweep_bits.div_ceil(8));
+        if ms.checked_mul(num_shots) != Some(meas.len()) || ss.checked_mul(num_shots) != Some(sweeps.len()) {
+            return Err(format!(
+                "{} + {} bytes is not {num_shots} shots of {} measurements and {} sweep bits",
+                meas.len(),
+                sweeps.len(),
+                self.num_measurements,
+                self.num_sweep_bits
+            ));
+        }
+        Ok(())
+    }
+
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::circuit::Circuit;
+
+    #[test]
+    fn transpose64_transposes() {
+        let mut rng = crate::surface_code::Xorshift::new(9);
+        let mut a = [0u64; 64];
+        for x in a.iter_mut() {
+            *x = rng.next_u64();
+        }
+        let mut b = a;
+        transpose64(&mut b);
+        for r in 0..64 {
+            for c in 0..64 {
+                assert_eq!((b[c] >> r) & 1, (a[r] >> c) & 1);
+            }
+        }
+    }
+
+    #[test]
+    fn word_wide_conversion_equals_shot_by_shot() {
+        // Random circuits with loops, feedback, sweeps and many measurements; shot counts
+        // around the 64-shot blocks; random (padded) rows.
+        let mut rng = crate::surface_code::Xorshift::new(4);
+        let mut inputs = crate::fuzzing::Inputs::new(5);
+        let mut checked = 0;
+        for _ in 0..4000 {
+            let text = inputs.circuit();
+            let Ok(c) = Circuit::parse(&text) else { continue };
+            let Ok(m) = M2d::new(&c) else { continue };
+            let (ms, ss) = (m.num_measurements.div_ceil(8), m.num_sweep_bits.div_ceil(8));
+            for shots in [0usize, 1, 63, 64, 65, 130] {
+                let meas: Vec<u8> = (0..ms * shots).map(|_| rng.next_u64() as u8).collect();
+                let sweeps: Vec<u8> = (0..ss * shots).map(|_| rng.next_u64() as u8).collect();
+                assert_eq!(m.convert_b8(&meas, &sweeps, shots), m.convert_b8_by_shot(&meas, &sweeps, shots), "{text}");
+            }
+            checked += 1;
+        }
+        assert!(checked >= 100, "only {checked} circuits converted");
+        let big = crate::generated::generate("surface_code:rotated_memory_x", 5, 5, &Default::default()).unwrap();
+        let m = M2d::new(&Circuit::parse(&big).unwrap()).unwrap();
+        let meas: Vec<u8> = (0..m.num_measurements.div_ceil(8) * 200).map(|_| rng.next_u64() as u8).collect();
+        assert_eq!(m.convert_b8(&meas, &[], 200), m.convert_b8_by_shot(&meas, &[], 200));
+    }
 
     #[test]
     fn a_sweep_bit_moves_the_reference() {

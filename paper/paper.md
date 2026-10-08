@@ -95,9 +95,10 @@ deterministic.
 *One engine, three targets.* Sampling, model building and decoding run in the same process, so
 the browser, Python and Rust users all get the same results from a seed, on any machine and
 any number of threads. The sampler packs 64 shots into a machine word and runs `REPEAT` blocks
-without flattening them, taking 0.88 µs a shot at d = 7 against Stim's 1.33 µs on the recording
-machine. Sparse blossom runs at 1.01 to 1.14 times PyMatching's single-threaded time, and
-correlated matching at 0.91 to 1.01 times PyMatching's.
+without flattening them, taking 0.89 µs a shot at d = 7 against Stim's 1.44 µs on the recording
+machine (Apple silicon). There, sparse blossom runs at 0.89 to 0.99 times PyMatching's
+single-threaded time, and correlated matching at 0.75 to 0.94 times PyMatching's; on Linux x86_64
+both take about 1.2 times. Error models are built in about half of Stim's time.
 
 *Real data, not only simulation.* The engine rebuilds the detection events of every published
 Willow and Sycamore surface-code experiment from Google's raw measurements, bit for bit (550

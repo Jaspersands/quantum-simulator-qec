@@ -11,6 +11,10 @@ pub struct SparseGraph {
     pub(crate) num_nodes: usize,
     offsets: Vec<u32>,
     pub(crate) to: Vec<u32>,
+    /// What a scan reads, per half-edge in one place: `to` with the boundary as `num_nodes`
+    /// (the node past the graph's last), and the weight (every weight fits: at most 1000 at
+    /// 2^20 a unit). A decode's scratch holds its own copy, whose weights it may lower.
+    pub(crate) scan: Vec<(u32, i32)>,
     /// Even integer weights, from `int_weight`.
     pub(crate) w: Vec<i64>,
     pub(crate) obs: Vec<u64>,
@@ -64,7 +68,8 @@ impl SparseGraph {
             }
             ends.push((u, if boundary { num_nodes as u32 } else { v }));
         }
-        SparseGraph { num_nodes, offsets, to, w, obs, edge_of, halves, ends, wf }
+        let scan = to.iter().zip(&w).map(|(&b, &wt)| (if b == BOUNDARY { num_nodes as u32 } else { b }, i32::try_from(wt).expect("an edge weight fits 32 bits"))).collect();
+        SparseGraph { num_nodes, offsets, to, scan, w, obs, edge_of, halves, ends, wf }
     }
 
     pub(crate) fn edges(&self, v: u32) -> std::ops::Range<usize> {
@@ -111,7 +116,7 @@ impl SparseGraph {
     /// weights restored.
     pub(crate) fn check_scratch(&self, scratch: &Scratch) {
         assert!(
-            scratch.nodes.len() == self.num_nodes + 1 && scratch.w.len() == self.w.len(),
+            scratch.nodes.len() == self.num_nodes + 1 && scratch.scan.len() == self.scan.len(),
             "a Scratch serves the graph it was built for"
         );
         debug_assert!(scratch.undo.is_empty(), "a Scratch's weights are restored after every decode");

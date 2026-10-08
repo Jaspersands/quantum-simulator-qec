@@ -87,4 +87,9 @@ jobs:
           PERF=$(ls /usr/lib/linux-tools/*/perf 2>/dev/null | head -1); PERF=${PERF:-perf}
           $PERF record -o perf.data ./target/release/examples/hot ${{ inputs.profile }} 40 2>/dev/null
           $PERF report -i perf.data --stdio --no-children --percent-limit 0.5 | head -60
-          $PERF annotate -i perf.data --stdio -s next_node_event 2>/dev/null | grep -E "^ +[0-9]+\.[0-9]+" | sort -rn | head -40 || true
+          # The two hottest functions, instruction by instruction (the hottest lines first).
+          $PERF report -i perf.data --stdio --no-children -F sym --percent-limit 10 2>/dev/null | grep -oE "\] .*" | cut -c3- | head -2 > top.txt
+          while read -r sym; do
+            echo "=== $sym"
+            $PERF annotate -i perf.data --stdio --symbol="$sym" 2>/dev/null | grep -E "^ +[0-9]+\.[0-9]+ +:" | sort -rn | head -45
+          done < top.txt

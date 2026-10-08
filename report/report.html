@@ -14,20 +14,20 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 1.6.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 1.7.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 7 October 2026 · commit <code>7de2b6d</code></p>
+  <p class="byline">Jasper Sands · 8 October 2026 · commit <code>db00d75</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
 <h2 class="abstract__title">Summary</h2>
 <p><code>stabilizer-qec</code> is a surface-code simulator and decoder written in Rust. It runs natively, from Python, and in a web browser. Its results come in eight parts.</p>
 <ol type="1">
-<li><strong>Error models.</strong> It builds error models identical to Stim’s, fault by fault, on 15 circuits (the largest relative difference is 1.1e-15).</li>
+<li><strong>Error models.</strong> It builds error models identical to Stim’s, fault by fault, on 15 circuits (the largest relative difference is 1.0e-15).</li>
 <li><strong>Matching.</strong> Its exact matcher agrees with PyMatching on every shot but ties: 13 disagreements in 600,000 shots, 0 of them not ties. Its correlated matcher agrees with PyMatching 2.4’s correlated mode just as closely, and fails 19% less often than plain matching.</li>
 <li><strong>Google’s hardware.</strong> On Google’s own recordings (550 experiments, 27.5 million shots) it rebuilds the detection events bit for bit. Its correlated matcher, using Google’s SI1000 prior on Willow, reaches Λ = 1.95 [1.94, 1.95]. Google’s own correlated matcher on the same prior reaches 1.91. Its belief-matching reproduces <code>ldpc</code>’s posteriors bit for bit, and makes Sycamore’s d = 5 beat d = 3 as Google’s does (Λ = 1.016 [1.01, 1.02]).</li>
-<li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.88 µs a shot at d = 7, against Stim’s 1.33 µs.</li>
+<li><strong>Throughput.</strong> Its bit-parallel sampler takes 0.89 µs a shot at d = 7, against Stim’s 1.44 µs.</li>
 <li><strong>Real time.</strong> Parallel windows decode Willow’s recorded d = 5 syndromes with correlated matching and keep up with its 1.1 µs cycle on 4 cores. A simulated million-round stream at the same detection rate holds a 82 µs mean latency on 2 cores. Windowed decoding reaches the same Λ as global decoding (1.95 [1.94, 1.95]).</li>
 <li><strong>Beyond the surface code.</strong> The IBM gross code, decoded by BP+OSD that equals <code>ldpc</code>’s on every shot checked but ties, keeps 12 logical qubits failing 2.6 to 9.3 times less often than twelve d = 11 surface-code patches, on a tenth of the qubits. The logical action of each of its automorphisms is computed exactly. Its gauging measurement of a logical operator, built from the definition, loses distance: on <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>X</mi><mo stretchy="false" form="prefix">(</mo><mi>f</mi><mo>,</mo><mn>0</mn><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">X(f, 0)</annotation></semantics></math> the code while merged has distance 8 in X and 12 in Z, until 4 added edges restore 12.</li>
 <li><strong>Lattice surgery.</strong> A Z⊗Z measurement between two patches, written as one circuit and equal to Stim’s model, shows the timing law directly: the merge outcome’s failure rate stops falling at d merged rounds. A logical CNOT, compiled from two such measurements and an ancilla, fails 1.03% of the time at d = 7 and p = 0.2%, and 0.75 to 0.93 times as often as its three patches held idle for as long.</li>
@@ -203,7 +203,7 @@
 <td style="text-align: right;">24 / 120 / 336</td>
 <td style="text-align: right;">219 / 1,677 / 5,471</td>
 <td style="text-align: right;">78 / 502 / 1,558</td>
-<td style="text-align: right;">9.9e-16</td>
+<td style="text-align: right;">7.9e-16</td>
 <td style="text-align: left;">identical</td>
 </tr>
 <tr class="even">
@@ -219,7 +219,7 @@
 <td style="text-align: right;">24 / 120 / 336</td>
 <td style="text-align: right;">219 / 1,677 / 5,471</td>
 <td style="text-align: right;">78 / 502 / 1,558</td>
-<td style="text-align: right;">1.1e-15</td>
+<td style="text-align: right;">1.0e-15</td>
 <td style="text-align: left;">identical</td>
 </tr>
 <tr class="even">
@@ -235,7 +235,7 @@
 <td style="text-align: right;">24 / 120 / 336</td>
 <td style="text-align: right;">219 / 1,677 / 5,471</td>
 <td style="text-align: right;">78 / 502 / 1,558</td>
-<td style="text-align: right;">1.1e-15</td>
+<td style="text-align: right;">7.2e-16</td>
 <td style="text-align: left;">identical</td>
 </tr>
 </tbody>
@@ -265,7 +265,7 @@
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0.2</td>
-<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">0.2</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">3</td>
@@ -276,7 +276,7 @@
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0.5</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">0.4</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">5</td>
@@ -286,8 +286,8 @@
 <td style="text-align: right;">1.649%</td>
 <td style="text-align: right;">2</td>
 <td style="text-align: right;">0</td>
+<td style="text-align: right;">1.9</td>
 <td style="text-align: right;">1.7</td>
-<td style="text-align: right;">1.8</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">5</td>
@@ -297,8 +297,8 @@
 <td style="text-align: right;">9.432%</td>
 <td style="text-align: right;">4</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">4.1</td>
-<td style="text-align: right;">4.1</td>
+<td style="text-align: right;">4.0</td>
+<td style="text-align: right;">3.6</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">7</td>
@@ -308,8 +308,8 @@
 <td style="text-align: right;">1.124%</td>
 <td style="text-align: right;">0</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">5.7</td>
 <td style="text-align: right;">6.1</td>
+<td style="text-align: right;">5.5</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">7</td>
@@ -319,8 +319,8 @@
 <td style="text-align: right;">10.652%</td>
 <td style="text-align: right;">7</td>
 <td style="text-align: right;">0</td>
-<td style="text-align: right;">14.3</td>
-<td style="text-align: right;">14.8</td>
+<td style="text-align: right;">14.6</td>
+<td style="text-align: right;">13.1</td>
 </tr>
 </tbody>
 </table>
@@ -496,7 +496,7 @@
 <figure>
 <img src="figures/pymatching-agreement.svg" style="width:62.0%" alt="Our logical error rate against PyMatching’s on the same shots: plain matching at six points and correlated matching at twelve, SD6, 100,000 shots each. Every point lies on the diagonal." /><figcaption aria-hidden="true">Our logical error rate against PyMatching’s on the same shots: plain matching at six points and correlated matching at twelve, SD6, 100,000 shots each. Every point lies on the diagonal.</figcaption>
 </figure>
-<p><strong>Speed.</strong> Single-threaded, our plain matcher takes 1.01 to 1.14 times PyMatching’s time per shot, and our correlated matcher 0.91 to 1.01 times PyMatching’s correlated mode. PyMatching’s C++ has had years of tuning that this matcher has not. The gap is a roughly constant factor that does not grow with d, as the figure below shows.</p>
+<p><strong>Speed.</strong> Single-threaded, our plain matcher takes 0.89 to 0.99 times PyMatching’s time per shot, and our correlated matcher 0.75 to 0.94 times PyMatching’s correlated mode. PyMatching’s C++ has had years of tuning that this matcher has not. The gap is a roughly constant factor that does not grow with d, as the figure below shows.</p>
 <h2 data-number="4.3" id="googles-hardware"><span class="header-section-number">4.3</span> Google’s hardware</h2>
 <p>Google has published everything its chips recorded in two surface-code memory experiments:</p>
 <ul>
@@ -812,7 +812,7 @@
 <td style="text-align: left;">3</td>
 <td style="text-align: right;">0.3%</td>
 <td style="text-align: right;">0.12 µs</td>
-<td style="text-align: right;">1.26 µs</td>
+<td style="text-align: right;">1.31 µs</td>
 <td style="text-align: right;">0.08 µs</td>
 <td style="text-align: right;">1.5×</td>
 </tr>
@@ -820,48 +820,48 @@
 <td style="text-align: left;">3</td>
 <td style="text-align: right;">0.6%</td>
 <td style="text-align: right;">0.20 µs</td>
-<td style="text-align: right;">1.33 µs</td>
+<td style="text-align: right;">1.32 µs</td>
 <td style="text-align: right;">0.10 µs</td>
 <td style="text-align: right;">2.0×</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">5</td>
 <td style="text-align: right;">0.3%</td>
-<td style="text-align: right;">0.50 µs</td>
-<td style="text-align: right;">6.1 µs</td>
-<td style="text-align: right;">0.33 µs</td>
-<td style="text-align: right;">1.5×</td>
+<td style="text-align: right;">0.51 µs</td>
+<td style="text-align: right;">6.3 µs</td>
+<td style="text-align: right;">0.35 µs</td>
+<td style="text-align: right;">1.4×</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">5</td>
 <td style="text-align: right;">0.6%</td>
 <td style="text-align: right;">0.87 µs</td>
-<td style="text-align: right;">6.1 µs</td>
-<td style="text-align: right;">0.42 µs</td>
-<td style="text-align: right;">2.1×</td>
+<td style="text-align: right;">6.3 µs</td>
+<td style="text-align: right;">0.43 µs</td>
+<td style="text-align: right;">2.0×</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">7</td>
 <td style="text-align: right;">0.3%</td>
-<td style="text-align: right;">1.33 µs</td>
-<td style="text-align: right;">17.1 µs</td>
-<td style="text-align: right;">0.88 µs</td>
-<td style="text-align: right;">1.5×</td>
+<td style="text-align: right;">1.44 µs</td>
+<td style="text-align: right;">17.6 µs</td>
+<td style="text-align: right;">0.89 µs</td>
+<td style="text-align: right;">1.6×</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">7</td>
 <td style="text-align: right;">0.6%</td>
-<td style="text-align: right;">2.3 µs</td>
-<td style="text-align: right;">17.7 µs</td>
-<td style="text-align: right;">1.10 µs</td>
-<td style="text-align: right;">2.1×</td>
+<td style="text-align: right;">2.4 µs</td>
+<td style="text-align: right;">18.0 µs</td>
+<td style="text-align: right;">1.18 µs</td>
+<td style="text-align: right;">2.0×</td>
 </tr>
 </tbody>
 </table>
 <figure>
 <img src="figures/speed.svg" alt="Decoding (left) and sampling (right) per shot against distance, single-threaded, SD6 at p = 0.3%." /><figcaption aria-hidden="true">Decoding (left) and sampling (right) per shot against distance, single-threaded, SD6 at p = 0.3%.</figcaption>
 </figure>
-<p>The batch sampler is 14 to 19 times as fast as the frame sampler, and faster than Stim’s as called from Python. Decoding, not sampling, is now almost all of a shot’s cost.</p>
+<p>The batch sampler is 14 to 20 times as fast as the frame sampler, and faster than Stim’s as called from Python. Decoding, not sampling, is now almost all of a shot’s cost.</p>
 <p>On the page, work is split across a pool of workers. On the development machine the site’s section 7 threshold sweep ran 2.5 to 4.4 times faster with the pool than with one worker; the spread comes from whether workers land on performance or efficiency cores.</p>
 <h2 data-number="4.6" id="real-time"><span class="header-section-number">4.6</span> Real time</h2>
 <p>Willow runs a round of error correction every 1.1 µs. Google has decoded a d = 5 memory in real time over a million rounds with a 63 µs mean latency (arXiv:2408.13687), on its own hardware and with its own definition of latency. Here, every window’s decode time is measured natively on Apple M2 Pro, one core at a time. Those times are then scheduled with rounds arriving every 1.1 µs:</p>
@@ -1845,7 +1845,7 @@
 </tbody>
 </table>
 <h2 data-number="4.9" id="circuit-distance"><span class="header-section-number">4.9</span> Circuit distance</h2>
-<p>A code’s distance counts data errors; a circuit that measures it can do worse, since one fault mid-cycle can spread to several qubits. The circuit distance is the fewest faults of the whole circuit that flip an observable and set off no detector. The engine finds it three ways: Stim’s graph-like search (<code>shortest_graphlike_error</code>), Stim’s breadth-first search through hyperedges (<code>search_for_undetectable_logical_errors</code>, with sets of up to 6 detectors), and an integer program over every fault that proves it exactly when it finishes (<code>DetectorErrorModel.distance()</code>, scipy’s HiGHS, 5 minutes each). Both searches give the same number of faults as Stim’s own wherever they were compared, and each fault they return is explained down to its gate, as Stim’s <code>explain_detector_error_model_errors</code> prints it.</p>
+<p>A code’s distance counts data errors; a circuit that measures it can do worse, since one fault mid-cycle can spread to several qubits. The circuit distance is the fewest faults of the whole circuit that flip an observable and set off no detector. The engine finds it three ways: Stim’s graph-like search (<code>shortest_graphlike_error</code>), Stim’s breadth-first search through hyperedges (<code>search_for_undetectable_logical_errors</code>, with sets of up to 6 detectors), and an integer program over every fault that proves it exactly when it finishes (<code>DetectorErrorModel.distance()</code>, scipy’s HiGHS, 5 minutes each). The graph-like search returns Stim’s own faults, character for character, and the breadth-first one the same number as Stim’s wherever they were compared; each fault they return is explained down to its gate, as Stim’s <code>explain_detector_error_model_errors</code> prints it.</p>
 <table style="width:100%;">
 <colgroup>
 <col style="width: 16%" />
@@ -2374,7 +2374,7 @@
 <p>At Willow’s measured Λ, a thousand logical qubits running a billion operations would need d = 101, 41 million physical qubits and 31 h. At Λ = 4 the same run needs d = 51 and 10 million.</p>
 <h1 data-number="5" id="limits-and-next-steps"><span class="header-section-number">5</span> Limits and next steps</h1>
 <ul>
-<li><strong>The matcher.</strong> It is exact, and single-threaded it runs at 1.01 to 1.14 times PyMatching’s time plain and 0.91 to 1.01 times correlated. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
+<li><strong>The matcher.</strong> It is exact, and single-threaded it runs at 0.89 to 0.99 times PyMatching’s time plain and 0.75 to 0.94 times correlated. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>
 <li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
 <li><strong>Logical operations, not algorithms.</strong> Lattice-surgery programs and the gross code’s logical measurement are simulated as single operations or short sequences; the estimate prices whole algorithms from them, with the rest read from the papers it cites.</li>
 <li><strong>The gross code’s measurement schedule is not optimised.</strong> It is correct by construction and its fault distance is only bounded above; Cross et al. optimise theirs.</li>

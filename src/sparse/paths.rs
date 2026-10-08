@@ -81,7 +81,7 @@ impl<'a> Solver<'a> {
             }
             for e in g.edges(u) {
                 let v = g.to[e];
-                let nd = d + s.w[e];
+                let nd = d + s.weight(e);
                 if v == BOUNDARY {
                     if nd < exit.0 {
                         exit = (nd, u, g.edge_of[e]);

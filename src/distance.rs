@@ -9,7 +9,9 @@
 //! (`shortest_graphlike_error`, exact for what it searches), and by a bounded search over the
 //! model's faults themselves, hyperedges included (`search_for_undetectable_logical_errors`).
 
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::dem::Dem;
 
@@ -17,125 +19,167 @@ use crate::dem::Dem;
 pub type Fault = (Vec<u32>, u64);
 
 /// The smallest set of the model's graph-like faults that flips an observable and no detector,
-/// as Stim's `shortest_graphlike_error` finds it: each fault of at most two detectors an edge
-/// between them (or to the boundary), and the shortest closed walk whose edges flip an
-/// observable. With `ignore_ungraphlike`, faults that are not graph-like as written (more
-/// detectors, or decomposed into `^`-separated pieces) are left out, as Stim leaves them;
-/// without it, a decomposed fault's pieces are edges, and a piece of three or more detectors is
-/// refused.
+/// found as Stim's `shortest_graphlike_error` finds it, so that it is Stim's own answer, fault
+/// for fault (`stim/search/graphlike/algo.cc`):
+///
+/// - Each fault of nonzero probability with at most two detectors is an edge between them (or
+///   from its one detector to the boundary, which is not a node), each node's edges kept in the
+///   order they first appear, without repeats. With `ignore_ungraphlike`, a decomposed fault
+///   (`^`-separated) or one of more detectors is left out; without it, each piece of a
+///   decomposed fault is an edge, and a piece of three or more detectors is refused. A fault (or
+///   piece) flipping only observables is a logical error of one fault by itself.
+/// - One breadth-first search over states (a moving detection event, a held one, the
+///   observables flipped so far), started from every edge that flips an observable, in node
+///   order: each step moves the moving event along an edge, a state is visited once whichever
+///   event moves, and when the moving event reaches the boundary the held one moves next. The
+///   first state with no event left and an observable flipped is the answer; its faults are
+///   sorted as Stim sorts them (by their targets, observables after detectors).
 pub fn shortest_graphlike(dem: &Dem, ignore_ungraphlike: bool) -> Result<Vec<Fault>, String> {
-    let boundary = dem.num_detectors as u32;
-    let mut edges: Vec<(u32, u32, u64)> = Vec::new();
-    let mut seen = HashSet::new();
-    for m in &dem.mechanisms {
-        // A fault flipping only observables is a logical error by itself.
-        if m.detectors.is_empty() && m.observables != 0 && m.pieces.len() <= 1 {
-            return Ok(vec![(Vec::new(), m.observables)]);
+    const NONE: u32 = u32::MAX;
+    let n = dem.num_detectors;
+    let mut adj: Vec<Vec<(u32, u64)>> = vec![Vec::new(); n];
+    let add = |adj: &mut Vec<Vec<(u32, u64)>>, src: u32, dst: u32, obs: u64| {
+        let edges = &mut adj[src as usize];
+        if !edges.contains(&(dst, obs)) {
+            edges.push((dst, obs));
         }
-        let pieces: Vec<Fault> = if m.pieces.len() <= 1 {
-            vec![(m.detectors.clone(), m.observables)]
-        } else if ignore_ungraphlike {
+    };
+    let mut distance_1 = 0u64;
+    for m in dem.mechanisms.iter().filter(|m| m.p != 0.0) {
+        let decomposed = m.pieces.len() > 1;
+        if decomposed && ignore_ungraphlike {
             continue;
-        } else {
-            m.pieces.iter().map(|p| (p.detectors.clone(), p.observables)).collect()
-        };
-        for (dets, obs) in pieces {
-            let (a, b) = match dets.as_slice() {
-                [] => continue,
-                [a] => (*a, boundary),
-                [a, b] => (*a.min(b), *a.max(b)),
-                _ if ignore_ungraphlike => continue,
-                _ => return Err(format!("a fault sets off {} detectors: not graph-like (decompose the model, or ignore such faults)", dets.len())),
-            };
-            if seen.insert((a, b, obs)) {
-                edges.push((a, b, obs));
-            }
         }
-    }
-    let n = dem.num_detectors + 1;
-    let mut adj: Vec<Vec<(u32, usize)>> = vec![Vec::new(); n];
-    for (k, &(a, b, _)) in edges.iter().enumerate() {
-        adj[a as usize].push((b, k));
-        adj[b as usize].push((a, k));
-    }
-    // From each start: a breadth-first tree labelled by the observables its paths flip. An edge
-    // between two reached nodes whose labels it does not reconcile closes a walk that flips an
-    // observable and no detector; the shortest over all starts is a shortest such cycle. Such a
-    // cycle contains an edge flipping an observable, so the starts are those edges' ends; and
-    // once a start is searched, every cycle through it is covered, so later searches skip it.
-    let mut starts: Vec<usize> = edges.iter().filter(|e| e.2 != 0).flat_map(|&(a, b, _)| [a as usize, b as usize]).collect();
-    starts.sort_unstable();
-    starts.dedup();
-    let mut done = vec![false; n];
-    let mut best: Option<(usize, Vec<usize>)> = None;
-    let mut dist = vec![u32::MAX; n];
-    let mut label = vec![0u64; n];
-    let mut parent = vec![usize::MAX; n];
-    let mut touched: Vec<usize> = Vec::new();
-    for s in starts {
-        for &v in &touched {
-            dist[v] = u32::MAX;
-            parent[v] = usize::MAX;
-        }
-        touched.clear();
-        dist[s] = 0;
-        label[s] = 0;
-        touched.push(s);
-        let mut queue = VecDeque::from([s]);
-        while let Some(u) = queue.pop_front() {
-            let du = dist[u] as usize;
-            if let Some((len, _)) = &best {
-                // A walk closed from here is at least 2·du + 1 long: an edge to a node a layer
-                // up was looked at from that node.
-                if 2 * du + 1 >= *len {
-                    break;
-                }
-            }
-            for &(w, e) in &adj[u] {
-                let w = w as usize;
-                if done[w] {
-                    continue;
-                }
-                let through = label[u] ^ edges[e].2;
-                if dist[w] == u32::MAX {
-                    dist[w] = du as u32 + 1;
-                    label[w] = through;
-                    parent[w] = e;
-                    touched.push(w);
-                    queue.push_back(w);
-                } else if e != parent[u] && through != label[w] {
-                    let len = du + dist[w] as usize + 1;
-                    if best.as_ref().is_none_or(|(b, _)| len < *b) {
-                        // The walk's edges: both tree paths and this edge, shared edges cancelled.
-                        let mut count: HashMap<usize, u32> = HashMap::new();
-                        *count.entry(e).or_default() += 1;
-                        for mut v in [u, w] {
-                            while v != s {
-                                let pe = parent[v];
-                                *count.entry(pe).or_default() += 1;
-                                let (a, b, _) = edges[pe];
-                                v = if a as usize == v { b as usize } else { a as usize };
-                            }
-                        }
-                        let odd: Vec<usize> = count.into_iter().filter(|&(_, c)| c % 2 == 1).map(|(k, _)| k).collect();
-                        best = Some((odd.len(), odd));
+        let whole = [(m.detectors.as_slice(), m.observables)];
+        let split: Vec<(&[u32], u64)> = if decomposed { m.pieces.iter().map(|p| (p.detectors.as_slice(), p.observables)).collect() } else { Vec::new() };
+        for &(dets, obs) in if decomposed { split.as_slice() } else { whole.as_slice() } {
+            match *dets {
+                [] => {
+                    if distance_1 == 0 && obs != 0 {
+                        distance_1 = obs;
                     }
                 }
+                [a] => add(&mut adj, a, NONE, obs),
+                [a, b] => {
+                    add(&mut adj, a, b, obs);
+                    add(&mut adj, b, a, obs);
+                }
+                _ if ignore_ungraphlike => {}
+                _ => return Err(format!("a fault sets off {} detectors: not graph-like (decompose the model, or ignore such faults)", dets.len())),
             }
         }
-        done[s] = true;
     }
-    let (_, chosen) = best.ok_or("there is no undetectable logical error among the model's graph-like faults")?;
-    let mut out: Vec<Fault> = chosen
-        .into_iter()
-        .map(|k| {
-            let (a, b, obs) = edges[k];
-            let dets = if b == boundary { vec![a] } else { vec![a, b] };
-            (dets, obs)
-        })
-        .collect();
-    out.sort();
-    Ok(out)
+    if distance_1 != 0 {
+        return Ok(vec![(Vec::new(), distance_1)]);
+    }
+    // Each visited state keeps the state it was reached from.
+    let empty: State = (NONE, NONE, 0);
+    let mut back = Back::default();
+    back.insert(empty, empty);
+    let mut queue: VecDeque<State> = VecDeque::new();
+    for (node1, edges) in adj.iter().enumerate() {
+        for &(node2, obs) in edges {
+            if (node1 as u32) < node2 && obs != 0 {
+                let start = (node1 as u32, node2, obs);
+                queue.push_back(start);
+                back.entry(key(start)).or_insert(empty);
+            }
+        }
+    }
+    while let Some(cur) = queue.pop_front() {
+        for &(opp, obs) in &adj[cur.0 as usize] {
+            let next = (opp, cur.1, obs ^ cur.2);
+            match back.entry(key(next)) {
+                Entry::Occupied(_) => continue,
+                Entry::Vacant(v) => {
+                    v.insert(cur);
+                }
+            }
+            if next.0 == next.1 {
+                return Ok(backtrack(&back, next));
+            }
+            // One event resolved at the boundary: move the other.
+            queue.push_back(if next.0 == NONE { (next.1, next.0, next.2) } else { next });
+        }
+    }
+    Err("there is no undetectable logical error among the model's graph-like faults".into())
+}
+
+/// A state of the graph-like search: (the moving detection event, the held one, the observables
+/// flipped so far), `u32::MAX` for an event gone (or at the boundary).
+type State = (u32, u32, u64);
+
+/// Each visited state (by `key`) and the state it was reached from.
+type Back = HashMap<State, State, BuildHasherDefault<Mix>>;
+
+/// A state as visited: an unordered pair of events, both events gone being one state.
+fn key((a, b, m): State) -> State {
+    if a < b {
+        (a, b, m)
+    } else if a > b {
+        (b, a, m)
+    } else {
+        (u32::MAX, u32::MAX, m)
+    }
+}
+
+/// The faults along the search's path to `last`, each the difference between a state and the one
+/// before it, sorted by their targets as Stim sorts its model's instructions.
+fn backtrack(back: &Back, last: State) -> Vec<Fault> {
+    let mut out: Vec<Fault> = Vec::new();
+    let mut cur = last;
+    loop {
+        let prev = back[&key(cur)];
+        let mut nodes = [cur.0, cur.1, prev.0, prev.1, u32::MAX];
+        nodes.sort_unstable();
+        let mut dets = Vec::new();
+        let mut k = 0;
+        while k < 4 {
+            if nodes[k] == nodes[k + 1] {
+                k += 2;
+            } else {
+                dets.push(nodes[k]);
+                k += 1;
+            }
+        }
+        out.push((dets, cur.2 ^ prev.2));
+        if prev.0 == prev.1 {
+            break;
+        }
+        cur = prev;
+    }
+    let targets = |(dets, obs): &Fault| -> Vec<u64> {
+        let mut t: Vec<u64> = dets.iter().map(|&d| u64::from(d)).collect();
+        t.extend((0..64).filter(|k| obs >> k & 1 == 1).map(|k| 1u64 << 63 | k));
+        t
+    };
+    out.sort_by_key(targets);
+    out
+}
+
+/// A fast hash for the search's states (the default hasher's resistance to chosen keys is not
+/// needed for these, and costs most of the search's time).
+#[derive(Default)]
+struct Mix(u64);
+
+impl Hasher for Mix {
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.write_u64(u64::from(b));
+        }
+    }
+
+    fn write_u32(&mut self, x: u32) {
+        self.write_u64(u64::from(x));
+    }
+
+    fn write_u64(&mut self, x: u64) {
+        self.0 = (self.0.rotate_left(5) ^ x).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
 }
 
 /// The most search states `search_undetectable` visits before giving up.

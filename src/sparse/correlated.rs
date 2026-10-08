@@ -195,9 +195,9 @@ impl<'a> Solver<'a> {
             for r in corr.rules(c) {
                 let (a, w) = (corr.affected[r], corr.weight[r]);
                 for &slot in &g.halves[a as usize] {
-                    if slot != NONE && w < s.w[slot as usize] {
-                        s.undo.push((slot, s.w[slot as usize]));
-                        s.w[slot as usize] = w;
+                    if slot != NONE && w < i64::from(s.scan[slot as usize].1) {
+                        s.undo.push((slot, i64::from(s.scan[slot as usize].1)));
+                        s.scan[slot as usize].1 = i32::try_from(w).expect("an edge weight fits 32 bits");
                     }
                 }
             }
@@ -207,7 +207,7 @@ impl<'a> Solver<'a> {
     /// Undo `reweight`, newest first, since an edge may have been lowered twice.
     fn restore(&mut self) {
         while let Some((slot, w)) = self.s.undo.pop() {
-            self.s.w[slot as usize] = w;
+            self.s.set_weight(slot as usize, w);
         }
     }
 

@@ -69,6 +69,30 @@ fn xor(a: &[u64], b: &[u64]) -> Sym {
     out
 }
 
+/// `out` gets `a` XOR `b` appended (`out` is not `a` or `b`).
+fn xor_onto(out: &mut Vec<u64>, a: &[u64], b: &[u64]) {
+    MERGED.with(|m| m.set(m.get().wrapping_add((a.len() + b.len()) as u64)));
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        match a[i].cmp(&b[j]) {
+            std::cmp::Ordering::Less => {
+                out.push(a[i]);
+                i += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                out.push(b[j]);
+                j += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    out.extend_from_slice(&a[i..]);
+    out.extend_from_slice(&b[j..]);
+}
+
 fn xor_into(a: &mut Sym, b: &[u64]) {
     if !b.is_empty() {
         *a = xor(a, b);
@@ -105,17 +129,6 @@ fn subset(a: &[u64], b: &[u64]) -> bool {
         }
     }
     true
-}
-
-fn or(a: &[u64], b: &[u64]) -> Sym {
-    let mut out: Sym = a.iter().chain(b).copied().collect();
-    out.sort_unstable();
-    out.dedup();
-    out
-}
-
-fn and_not(a: &[u64], b: &[u64]) -> Sym {
-    a.iter().copied().filter(|x| b.binary_search(x).is_err()).collect()
 }
 
 fn disjoint(a: &[u64], b: &[u64]) -> bool {
@@ -236,30 +249,38 @@ struct Class {
 #[derive(Default)]
 struct Window {
     classes: BTreeMap<(Vec<u64>, String), Class>,
+    /// The key being looked up, reused so a fault joining a known class allocates nothing.
+    scratch: (Vec<u64>, String),
 }
 
 impl Window {
-    fn add(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>, decompose: bool) {
+    fn add(&mut self, p: f64, pieces: &[&[u64]], origin: Origin, tag: &Option<Arc<str>>, decompose: bool) {
         if p <= 0.0 {
             return;
         }
-        let key = if decompose {
-            let mut key = Vec::new();
+        let key = &mut self.scratch.0;
+        key.clear();
+        if decompose {
             for x in pieces.iter().filter(|x| !x.is_empty()) {
                 if !key.is_empty() {
                     key.push(SEP);
                 }
                 key.extend_from_slice(x);
             }
-            key
         } else {
-            pieces.iter().fold(Sym::new(), |acc, x| xor(&acc, x))
-        };
+            for x in pieces {
+                xor_into(key, x);
+            }
+        }
         if key.is_empty() {
             return;
         }
-        let tag = tag.as_deref().unwrap_or("").to_string();
-        let c = self.classes.entry((key, tag)).or_insert(Class { p: 0.0, origin });
+        self.scratch.1.clear();
+        self.scratch.1.push_str(tag.as_deref().unwrap_or(""));
+        let c = match self.classes.get_mut(&self.scratch) {
+            Some(c) => c,
+            None => self.classes.entry(self.scratch.clone()).or_insert(Class { p: 0.0, origin }),
+        };
         c.p = join(c.p, p);
     }
 }
@@ -304,6 +325,8 @@ struct Analyzer {
     /// Keep a piece that cannot be split into graph-like pieces whole (Stim's
     /// `ignore_decomposition_failures`) rather than refuse the model.
     ignore_failures: bool,
+    /// The current channel's combinations (reused, see `Combos`).
+    combos: Combos,
 }
 
 impl Analyzer {
@@ -319,8 +342,14 @@ impl Analyzer {
         Ok(())
     }
 
+    /// Whether faults are wanted: the hare walking ahead of a loop collects none, and noise
+    /// changes nothing it tracks, so it skips them (after their checks).
+    fn collecting(&self) -> bool {
+        self.accumulate || self.prov.is_some()
+    }
+
     /// A fault, and (when recording) where it arises.
-    fn add_at(&mut self, p: f64, pieces: Vec<Sym>, origin: Origin, tag: &Option<Arc<str>>, detail: Option<Detail>) {
+    fn add_at(&mut self, p: f64, pieces: &[&[u64]], origin: Origin, tag: &Option<Arc<str>>, detail: Option<Detail>) {
         if let (Some(r), Some(d)) = (self.prov.as_mut(), detail) {
             if p > 0.0 {
                 r.record(pieces.iter().fold(Sym::new(), |acc, x| xor(&acc, x)), d);
@@ -422,7 +451,7 @@ impl Analyzer {
                     cases.reverse();
                 }
                 for (p, sym, origin, detail) in cases {
-                    self.add_at(p, vec![sym], origin, &tag, detail);
+                    self.add_at(p, &[&sym], origin, &tag, detail);
                 }
                 continue;
             }
@@ -484,7 +513,7 @@ impl Analyzer {
                     }
                     if *flip > 0.0 {
                         let origin = Origin { name: "measurement flip", a: q, b: None, pauli: (1, 0) };
-                        self.add_at(*flip, vec![r], origin, tag, detail);
+                        self.add_at(*flip, &[&r], origin, tag, detail);
                     }
                 }
             }
@@ -526,7 +555,7 @@ impl Analyzer {
                     if *flip > 0.0 {
                         let origin = Origin { name: "MPAD flip", a: 0, b: None, pauli: (1, 0) };
                         let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: Vec::new(), meas: Some((index, Vec::new())), rank: 0, item: None });
-                        self.add_at(*flip, vec![r], origin, tag, detail);
+                        self.add_at(*flip, &[&r], origin, tag, detail);
                     }
                 }
             }
@@ -587,11 +616,15 @@ impl Analyzer {
             Instr::Correlated { .. } => unreachable!("undo_block takes correlated errors"),
             Instr::PauliChannel2 { probs, pairs } => {
                 self.approximated("PAULI_CHANNEL_2", probs, true)?;
+                if !self.collecting() {
+                    return Ok(());
+                }
                 for (j, &(qa, qb)) in pairs.iter().enumerate() {
                     let (a, b) = (qa as usize, qb as usize);
                     // Stim's basis: the second qubit's X and Z errors, then the first's.
+                    let mut combos = std::mem::take(&mut self.combos);
                     let t = &self.t;
-                    let combos = channel_combinations(&[t.sx[b].clone(), t.sz[b].clone(), t.sx[a].clone(), t.sz[a].clone()]);
+                    combos.build(&[&t.sx[b], &t.sz[b], &t.sx[a], &t.sz[a]]);
                     // Case k + 1 in Stim's order: the first qubit's Pauli (k + 1) / 4, the
                     // second's (k + 1) % 4, each I, X, Y, Z, as bits (X 1, Z 2).
                     const BITS: [usize; 4] = [0b00, 0b01, 0b11, 0b10];
@@ -605,6 +638,7 @@ impl Analyzer {
                         Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None }
                     };
                     self.add_disjoint(by_combo, &combos, origin, tag, &detail);
+                    self.combos = combos;
                 }
             }
             Instr::Heralded { erase, args, probs, qubits } => {
@@ -615,7 +649,8 @@ impl Analyzer {
                     let index = self.t.m;
                     let qi = q as usize;
                     // Stim's basis: the Z error, the X error, the herald.
-                    let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone(), herald]);
+                    let mut combos = std::mem::take(&mut self.combos);
+                    combos.build(&[&self.t.sz[qi], &self.t.sx[qi], &herald]);
                     // The herald with I, X, Y or Z.
                     let mut by_combo = vec![0.0; 8];
                     for (p, k) in [(probs[0], 0b100), (probs[1], 0b110), (probs[2], 0b111), (probs[3], 0b101)] {
@@ -627,16 +662,20 @@ impl Analyzer {
                         Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, p)]), meas: (k & 4 != 0).then(|| (index, Vec::new())), rank: rank(&[p]), item: None }
                     };
                     self.add_disjoint(by_combo, &combos, origin, tag, &detail);
+                    self.combos = combos;
                 }
             }
             // X_ERROR, Y_ERROR and Z_ERROR are single faults and stay whole, a Y included, as
             // Stim leaves them; anything wider than a pair is split at the flush.
             Instr::PauliError { pauli, p, qubits } => {
+                if !self.collecting() {
+                    return Ok(());
+                }
                 for (j, &q) in qubits.iter().enumerate() {
                     let sym = self.sym_of(q as usize, *pauli);
                     let origin = Origin { name: "Pauli error", a: q, b: None, pauli: (*pauli, 0) };
                     let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, *pauli)], meas: None, rank: 0, item: None });
-                    self.add_at(*p, vec![sym], origin, tag, detail);
+                    self.add_at(*p, &[&sym], origin, tag, detail);
                 }
             }
             // The composite channels are split combination by combination, with Stim's basis
@@ -646,15 +685,22 @@ impl Analyzer {
                 if *p > 0.75 {
                     return Err(format!("DEPOLARIZE1({p}) exceeds 3/4"));
                 }
+                if !self.collecting() {
+                    return Ok(());
+                }
                 let q1 = depolarize1_component(*p);
                 for (j, &q) in qubits.iter().enumerate() {
                     let qi = q as usize;
-                    let combos = channel_combinations(&[self.t.sz[qi].clone(), self.t.sx[qi].clone()]);
-                    for (k, pieces) in combos.into_iter().enumerate() {
+                    let mut combos = std::mem::take(&mut self.combos);
+                    combos.build(&[&self.t.sz[qi], &self.t.sx[qi]]);
+                    let mut pieces = [&[][..]; 1 << MAX_BASIS];
+                    for k in 0..3 {
+                        let m = combos.pieces(k + 1, &mut pieces);
                         let origin = Origin { name: "DEPOLARIZE1", a: q, b: None, pauli: ([2u8, 1, 3][k], 0) };
                         let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, [2u8, 1, 3][k])], meas: None, rank: rank(&[[2u8, 1, 3][k]]), item: None });
-                        self.add_at(q1, pieces, origin, tag, detail);
+                        self.add_at(q1, &pieces[..m], origin, tag, detail);
                     }
+                    self.combos = combos;
                 }
             }
             Instr::PauliChannel1 { px, py, pz, qubits } => match pauli_channel_1_independent(*px, *py, *pz) {
@@ -663,22 +709,31 @@ impl Analyzer {
                     self.approximated("PAULI_CHANNEL_1", &[*px, *py, *pz], true)?;
                     for (j, &q) in qubits.iter().enumerate() {
                         let qi = q as usize;
-                        let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
+                        let mut combos = std::mem::take(&mut self.combos);
+                        combos.build(&[&self.t.sx[qi], &self.t.sz[qi]]);
                         let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (0, 0) };
                         let detail = |k: usize| Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, k as u8)]), meas: None, rank: rank(&[k as u8]), item: None };
                         self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag, &detail);
+                        self.combos = combos;
                     }
                 }
                 Ok((qx, qy, qz)) => {
+                    if !self.collecting() {
+                        return Ok(());
+                    }
                     for (j, &q) in qubits.iter().enumerate() {
                         let qi = q as usize;
-                        let combos = channel_combinations(&[self.t.sx[qi].clone(), self.t.sz[qi].clone()]);
-                        for (k, pieces) in combos.into_iter().enumerate() {
+                        let mut combos = std::mem::take(&mut self.combos);
+                        combos.build(&[&self.t.sx[qi], &self.t.sz[qi]]);
+                        let mut pieces = [&[][..]; 1 << MAX_BASIS];
+                        for k in 0..3 {
+                            let m = combos.pieces(k + 1, &mut pieces);
                             let (pauli, prob) = [(1u8, qx), (2, qz), (3, qy)][k];
                             let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (pauli, 0) };
                             let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, pauli)], meas: None, rank: rank(&[pauli]), item: None });
-                            self.add_at(prob, pieces, origin, tag, detail);
+                            self.add_at(prob, &pieces[..m], origin, tag, detail);
                         }
+                        self.combos = combos;
                     }
                 }
             },
@@ -686,19 +741,25 @@ impl Analyzer {
                 if *p > 15.0 / 16.0 {
                     return Err(format!("DEPOLARIZE2({p}) exceeds 15/16"));
                 }
+                if !self.collecting() {
+                    return Ok(());
+                }
                 let q2 = depolarize2_component(*p);
                 for (j, &(qa, qb)) in pairs.iter().enumerate() {
                     let (a, b) = (qa as usize, qb as usize);
+                    let mut combos = std::mem::take(&mut self.combos);
                     let t = &self.t;
-                    let basis = [t.sz[a].clone(), t.sx[a].clone(), t.sz[b].clone(), t.sx[b].clone()];
-                    for (i, pieces) in channel_combinations(&basis).into_iter().enumerate() {
-                        let k = i + 1;
+                    combos.build(&[&t.sz[a], &t.sx[a], &t.sz[b], &t.sx[b]]);
+                    let mut pieces = [&[][..]; 1 << MAX_BASIS];
+                    for k in 1..16 {
+                        let m = combos.pieces(k, &mut pieces);
                         let pa = ((k >> 1) & 1) as u8 | (((k & 1) as u8) << 1);
                         let pb = ((k >> 3) & 1) as u8 | ((((k >> 2) & 1) as u8) << 1);
                         let origin = Origin { name: "DEPOLARIZE2", a: qa, b: Some(qb), pauli: (pa, pb) };
                         let detail = self.prov.as_ref().map(|_| Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None });
-                        self.add_at(q2, pieces, origin, tag, detail);
+                        self.add_at(q2, &pieces[..m], origin, tag, detail);
                     }
+                    self.combos = combos;
                 }
             }
             Instr::Tick => {
@@ -716,18 +777,19 @@ impl Analyzer {
     /// basis errors, `combos[k - 1]` its pieces. Cases that cannot be told apart (whose XOR fires
     /// nothing) are summed into the lowest-numbered, in Stim's order, and each combination is
     /// then recorded in turn.
-    fn add_disjoint(&mut self, mut by_combo: Vec<f64>, combos: &[Vec<Sym>], origin: Origin, tag: &Option<Arc<str>>, detail: &dyn Fn(usize) -> Detail) {
+    fn add_disjoint(&mut self, mut by_combo: Vec<f64>, combos: &Combos, origin: Origin, tag: &Option<Arc<str>>, detail: &dyn Fn(usize) -> Detail) {
         let n = by_combo.len();
-        // Every case is a place a fault arises, merged into its twins or not.
+        // Every case is a place a fault arises, merged into its twins or not. (A
+        // combination's pieces XOR to its symptom: `Combos` checks it.)
         if let Some(r) = self.prov.as_mut() {
             for k in 1..n {
                 if by_combo[k] > 0.0 {
-                    r.record(combos[k - 1].iter().fold(Sym::new(), |acc, x| xor(&acc, x)), detail(k));
+                    r.record(combos.sym(k).to_vec(), detail(k));
                 }
             }
         }
         for k in 1..n {
-            if combos[k - 1].iter().fold(Sym::new(), |acc, x| xor(&acc, x)).is_empty() {
+            if combos.sym(k).is_empty() {
                 for dst in 0..n {
                     let src = dst ^ k;
                     if src > dst {
@@ -737,8 +799,10 @@ impl Analyzer {
                 }
             }
         }
+        let mut pieces = [&[][..]; 1 << MAX_BASIS];
         for k in 1..n {
-            self.add_at(by_combo[k], combos[k - 1].clone(), origin, tag, None);
+            let m = combos.pieces(k, &mut pieces);
+            self.add_at(by_combo[k], &pieces[..m], origin, tag, None);
         }
     }
 
@@ -771,6 +835,7 @@ impl Analyzer {
             sweeps: None,
             prov: None,
             ignore_failures: false,
+            combos: Combos::default(),
         };
         let (mut hare_iter, mut tortoise_iter) = (0u64, 0u64);
         while hare_iter < iterations {
@@ -985,6 +1050,7 @@ pub fn build_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>, 
         sweeps: None,
         prov: None,
         ignore_failures,
+        combos: Combos::default(),
     };
     a.undo_block(&circuit.instrs, &None)?;
     // Every qubit starts in |0>, which is a Z-basis reset at time zero.
@@ -1031,6 +1097,7 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
         sweeps: None,
         prov: Some(Box::new(Recorder::new(count_ticks(&circuit.instrs)))),
         ignore_failures: false,
+        combos: Combos::default(),
     };
     a.undo_block(&circuit.instrs, &None)?;
     Ok(a.prov.take().map(|r| r.records).unwrap_or_default())
@@ -1063,6 +1130,7 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> 
         sweeps: Some(vec![Sym::new(); counts.sweep_bits]),
         prov: None,
         ignore_failures: false,
+        combos: Combos::default(),
     };
     a.undo_block(&circuit.instrs, &None)?;
     for q in 0..nq {
@@ -1076,102 +1144,168 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> 
 // Stim's decomposition, reproduced so that this engine's matching graph is the one PyMatching
 // builds from Stim's model, edge for edge (see `dem.rs` for why it matters).
 
+/// The most basis errors a channel has (two qubits' X and Z).
+const MAX_BASIS: usize = 4;
+
 /// Stim's `decompose_helper_add_error_combinations`: the pieces of every combination k =
 /// 1..2^s of a channel's basis errors, in order. A combination is split using only the
 /// channel's own single-detector combinations and its irreducible two-detector ones; one that
-/// cannot be is left whole for the flush.
-fn channel_combinations(basis: &[Sym]) -> Vec<Vec<Sym>> {
-    let s = basis.len();
-    let n = 1usize << s;
-    let mut sym = vec![Sym::new(); n];
-    for (k, v) in sym.iter_mut().enumerate().skip(1) {
-        for (i, b) in basis.iter().enumerate() {
-            if (k >> i) & 1 == 1 {
-                xor_into(v, b);
+/// cannot be is left whole for the flush. Every piece is itself one of the combinations, so a
+/// combination's pieces are held as combination numbers, and the symptoms in one arena that
+/// is reused channel after channel (the walk's hottest allocation, before).
+#[derive(Default)]
+struct Combos {
+    /// Each combination's symptom, then each one's detectors, as ranges into `data`.
+    data: Vec<u64>,
+    sym: Vec<(usize, usize)>,
+    mask: Vec<(usize, usize)>,
+    /// Combination k's pieces: `parts[part[k].0..part[k].1]`, each a combination number.
+    parts: Vec<u8>,
+    part: Vec<(usize, usize)>,
+    union: Vec<u64>,
+    remnants: Vec<u64>,
+    scratch: Vec<u64>,
+}
+
+impl Combos {
+    fn sym(&self, k: usize) -> &[u64] {
+        let (a, b) = self.sym[k];
+        &self.data[a..b]
+    }
+
+    /// Combination k's pieces, written into `out`; how many.
+    fn pieces<'a>(&'a self, k: usize, out: &mut [&'a [u64]; 1 << MAX_BASIS]) -> usize {
+        let (a, b) = self.part[k];
+        for (slot, &kk) in out.iter_mut().zip(&self.parts[a..b]) {
+            *slot = self.sym(kk as usize);
+        }
+        b - a
+    }
+
+    fn build(&mut self, basis: &[&[u64]]) {
+        let s = basis.len();
+        assert!(s <= MAX_BASIS, "a channel of {s} basis errors");
+        let n = 1usize << s;
+        self.data.clear();
+        self.sym.clear();
+        self.mask.clear();
+        self.parts.clear();
+        self.part.clear();
+        // Combination k is combination k without its lowest basis error, plus that error.
+        self.sym.push((0, 0));
+        for k in 1..n {
+            let (a, b) = self.sym[k & (k - 1)];
+            let low = basis[k.trailing_zeros() as usize];
+            self.scratch.clear();
+            xor_onto(&mut self.scratch, &self.data[a..b], low);
+            let start = self.data.len();
+            self.data.extend_from_slice(&self.scratch);
+            self.sym.push((start, self.data.len()));
+        }
+        for k in 0..n {
+            let (a, b) = self.sym[k];
+            let start = self.data.len();
+            for x in a..b {
+                let v = self.data[x];
+                if v & OBS == 0 {
+                    self.data.push(v);
+                }
+            }
+            self.mask.push((start, self.data.len()));
+        }
+        // The symptoms are fixed from here; the pieces and scratch sets are other fields.
+        let (data, sym, mask) = (&self.data, &self.sym, &self.mask);
+        let at = |r: (usize, usize)| &data[r.0..r.1];
+        let count = |k: usize| mask[k].1 - mask[k].0;
+
+        let mut solved = [false; 1 << MAX_BASIS];
+        self.union.clear();
+        for k in 1..n {
+            if count(k) == 1 {
+                let v = at(mask[k])[0];
+                if let Err(i) = self.union.binary_search(&v) {
+                    self.union.insert(i, v);
+                }
+                solved[k] = true;
             }
         }
-    }
-    let mask: Vec<Sym> = sym.iter().map(|v| dets(v)).collect();
-    let count: Vec<usize> = mask.iter().map(|m| m.len()).collect();
+        let mut irreducible = [0usize; 1 << MAX_BASIS];
+        let mut num_irreducible = 0;
+        for k in 1..n {
+            if count(k) == 2 && !subset(at(mask[k]), &self.union) {
+                irreducible[num_irreducible] = k;
+                num_irreducible += 1;
+                solved[k] = true;
+            }
+        }
+        let irreducible = &irreducible[..num_irreducible];
 
-    let mut solved = vec![false; n];
-    let mut single_union = Sym::new();
-    for k in 1..n {
-        if count[k] == 1 {
-            single_union = or(&single_union, &mask[k]);
-            solved[k] = true;
-        }
-    }
-    let mut irreducible = Vec::new();
-    for k in 1..n {
-        if count[k] == 2 && !subset(&mask[k], &single_union) {
-            irreducible.push(k);
-            solved[k] = true;
-        }
-    }
-
-    let mut out: Vec<Vec<Sym>> = Vec::with_capacity(n - 1);
-    for k in 1..n {
-        if count[k] == 0 || solved[k] {
-            out.push(vec![sym[k].clone()]);
-            continue;
-        }
-        let goal = &mask[k];
-        let mut pieces: Vec<Sym> = Vec::new();
-        let mut remnants;
-        if subset(goal, &single_union) {
-            remnants = goal.clone();
-        } else if let Some(&kp) =
-            irreducible.iter().find(|&&kp| subset(&mask[kp], goal) && subset(goal, &or(&single_union, &mask[kp])))
-        {
-            pieces.push(sym[kp].clone());
-            remnants = and_not(goal, &mask[kp]);
-        } else {
-            let mut found = None;
-            'pairs: for (i1, &k1) in irreducible.iter().enumerate() {
-                for &k2 in &irreducible[i1 + 1..] {
-                    let both = or(&mask[k1], &mask[k2]);
-                    if disjoint(&mask[k1], &mask[k2]) && subset(goal, &or(&single_union, &both)) {
-                        found = Some((k1, k2, both));
-                        break 'pairs;
+        self.part.push((0, 0));
+        for k in 1..n {
+            let start = self.parts.len();
+            if count(k) == 0 || solved[k] {
+                self.parts.push(k as u8);
+                self.part.push((start, self.parts.len()));
+                continue;
+            }
+            let goal = at(mask[k]);
+            self.remnants.clear();
+            if subset(goal, &self.union) {
+                self.remnants.extend_from_slice(goal);
+            } else if let Some(&kp) = irreducible.iter().find(|&&kp| subset(at(mask[kp]), goal) && subset_of_union(goal, &self.union, at(mask[kp]), &[])) {
+                self.parts.push(kp as u8);
+                let m = at(mask[kp]);
+                self.remnants.extend(goal.iter().filter(|x| m.binary_search(x).is_err()));
+            } else {
+                let mut found = None;
+                'pairs: for (i1, &k1) in irreducible.iter().enumerate() {
+                    for &k2 in &irreducible[i1 + 1..] {
+                        if disjoint(at(mask[k1]), at(mask[k2])) && subset_of_union(goal, &self.union, at(mask[k1]), at(mask[k2])) {
+                            found = Some((k1, k2));
+                            break 'pairs;
+                        }
                     }
                 }
-            }
-            match found {
-                Some((k1, k2, both)) => {
-                    // Stim appends the pair whose targets sort first first.
-                    let (k1, k2) = if sym[k2] < sym[k1] { (k2, k1) } else { (k1, k2) };
-                    pieces.push(sym[k1].clone());
-                    pieces.push(sym[k2].clone());
-                    remnants = and_not(goal, &both);
-                }
-                None => {
-                    pieces.push(sym[k].clone());
-                    remnants = Sym::new();
+                match found {
+                    Some((k1, k2)) => {
+                        // Stim appends the pair whose targets sort first first.
+                        let (k1, k2) = if at(sym[k2]) < at(sym[k1]) { (k2, k1) } else { (k1, k2) };
+                        self.parts.push(k1 as u8);
+                        self.parts.push(k2 as u8);
+                        let (m1, m2) = (at(mask[k1]), at(mask[k2]));
+                        self.remnants.extend(goal.iter().filter(|x| m1.binary_search(x).is_err() && m2.binary_search(x).is_err()));
+                    }
+                    None => self.parts.push(k as u8),
                 }
             }
-        }
-        for k2 in 1..n {
-            if remnants.is_empty() {
-                break;
+            for k2 in 1..n {
+                if self.remnants.is_empty() {
+                    break;
+                }
+                if count(k2) == 1 && subset(at(mask[k2]), &self.remnants) {
+                    let v = at(mask[k2])[0];
+                    self.remnants.retain(|&x| x != v);
+                    self.parts.push(k2 as u8);
+                }
             }
-            if count[k2] == 1 && subset(&mask[k2], &remnants) {
-                remnants = and_not(&remnants, &mask[k2]);
-                pieces.push(sym[k2].clone());
+            // Stim trusts this construction; check it. The pieces must XOR back to the
+            // combination, observables included, or the model would be wrong.
+            self.scratch.clear();
+            for &kk in &self.parts[start..] {
+                xor_into(&mut self.scratch, at(sym[kk as usize]));
             }
+            if self.scratch.as_slice() != at(sym[k]) {
+                self.parts.truncate(start);
+                self.parts.push(k as u8);
+            }
+            self.part.push((start, self.parts.len()));
         }
-        // Stim trusts this construction; check it. The pieces must XOR back to the
-        // combination, observables included, or the model would be wrong.
-        let mut check = Sym::new();
-        for x in &pieces {
-            xor_into(&mut check, x);
-        }
-        if check != sym[k] {
-            pieces = vec![sym[k].clone()];
-        }
-        out.push(pieces);
     }
-    out
+}
+
+/// Every target of `goal` is in `a`, `b` or `c` (each sorted).
+fn subset_of_union(goal: &[u64], a: &[u64], b: &[u64], c: &[u64]) -> bool {
+    goal.iter().all(|x| a.binary_search(x).is_ok() || b.binary_search(x).is_ok() || c.binary_search(x).is_ok())
 }
 
 /// Stim's `brute_force_decomposition_into_known_graphlike_errors`: partition a wide piece's

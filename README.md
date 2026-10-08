@@ -79,7 +79,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.6, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.7, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -125,9 +125,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model by sparse blossom: plain, at 1.01 to 1.14 times PyMatching's single-threaded time, and
+  error model by sparse blossom: plain, at 0.89 to 0.99 times PyMatching's single-threaded time, and
   correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
-  at 0.91 to 1.01 times: as fast as PyMatching's own.
+  at 0.75 to 0.94 times (on Apple silicon; on Linux x86_64 about 1.2, see
+  [Speed](#speed-against-stim-and-pymatching)).
 - **Throughput**: a bit-parallel sampler (64 shots a word, `REPEAT` without flattening) at 15–20×
   the reference sampler's speed, and a pool of workers that puts every core on the page to work.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
@@ -173,6 +174,24 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - **Python package** (`stabilizer-qec` on PyPI, one abi3 wheel, typed): circuits, error models,
   sampling, plain, correlated and belief matching, BP+OSD, window decoding and streams, the gross
   code and lattice surgery, from Python (see [Install](#install)).
+
+## Speed against Stim and PyMatching
+
+Each benchmark times the same job here and in the reference, on the same machine and one
+thread, as a ratio: this package's time over Stim's (or PyMatching's), below 1 faster. These
+are the latest runs recorded for each kind of machine (`tools/bench.py`; Linux on GitHub's
+runners, `.github/workflows/bench.yml`); every push is held to them, and the
+[benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) plots every release's.
+
+| benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
+|---|---|---|---|
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.42 | 0.53 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 0.08 | 0.17 |
+| Sampling its detection events, 20,000 shots | 0.93 | 0.69 | 0.57 |
+| Measurements to detection events, 20,000 shots | 0.24 | 0.15 | 0.12 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.94 | 1.16 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.95 | 1.09 | 0.88 |
+| *recorded with* | 1.7.0 | 1.7.0 | 1.7.0 |
 
 ## A note on quoted figures
 
@@ -259,22 +278,22 @@ decoded by its own decoder, and compared with Stim's sampler decoded by PyMatchi
 
 | d | p | PyMatching | ours, on Stim's graph | ours, on our graph | disagreements (not ties) | our sampler + decoder | χ² z | PyMatching | ours |
 |---|---|---|---|---|---|---|---|---|---|
-| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 0.3 µs |
-| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.5 µs | 0.5 µs |
-| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.7 µs | 1.8 µs |
-| 5 | 0.6% | 9.432% | 9.432% | 9.432% | 4 (0) | 9.493% | -0.90 | 4.1 µs | 4.1 µs |
-| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.073% | +0.06 | 5.7 µs | 6.1 µs |
-| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.686% | -2.35 | 14.3 µs | 14.8 µs |
+| 3 | 0.3% | 2.289% | 2.289% | 2.289% | 0 (0) | 2.292% | -0.10 | 0.2 µs | 0.2 µs |
+| 3 | 0.6% | 7.603% | 7.603% | 7.603% | 0 (0) | 7.624% | -1.38 | 0.5 µs | 0.4 µs |
+| 5 | 0.3% | 1.647% | 1.649% | 1.649% | 2 (0) | 1.631% | -2.38 | 1.9 µs | 1.7 µs |
+| 5 | 0.6% | 9.432% | 9.432% | 9.432% | 4 (0) | 9.493% | -0.90 | 4.0 µs | 3.6 µs |
+| 7 | 0.3% | 1.124% | 1.124% | 1.124% | 0 (0) | 1.073% | +0.06 | 6.1 µs | 5.5 µs |
+| 7 | 0.6% | 10.653% | 10.652% | 10.652% | 7 (0) | 10.686% | -2.35 | 14.6 µs | 13.1 µs |
 
 The last two columns are native decode time per shot.
 
-**4. Speed.** Single-threaded, this engine takes 1.01 to 1.14 times PyMatching's time per
-shot, and its correlated matching 0.91 to 1.01 times PyMatching's correlated mode. At d = 7, p = 0.6%
-it takes 14.8 µs a shot, native, against PyMatching's 14.3 µs. The first version of this check used
+**4. Speed.** Single-threaded, this engine takes 0.89 to 0.99 times PyMatching's time per
+shot, and its correlated matching 0.75 to 0.94 times PyMatching's correlated mode. At d = 7, p = 0.6%
+it takes 13.1 µs a shot, native, against PyMatching's 14.6 µs. The first version of this check used
 the dense matcher, which was 18 to 136 times slower and fell further behind as the patch grew. The
-sparse matcher closed most of that gap, and two later passes (below) the rest. It also decodes shots
-in parallel, one workspace per thread: across every core of the recording machine, d = 7, p = 0.6%
-runs at 2.3 µs a shot.
+sparse matcher closed most of that gap, and later passes (below) the rest. It also decodes shots
+in parallel, one workspace per thread: across the recording machine's 10 cores, d = 7, p = 0.6% runs
+at 2.1 µs a shot.
 
 **5. The old path and the new one describe the same circuit.** `src/equivalence.rs` rebuilds the old
 path's error model from its own code:
@@ -404,13 +423,13 @@ own floor on how many unmatchable cases the random generator must produce.
 | d | p | dense | sparse | PyMatching |
 |---|---|---|---|---|
 | 3 | 0.3% | 2.0 µs | 0.2 µs | 0.2 µs |
-| 3 | 0.6% | 3.9 µs | 0.5 µs | 0.5 µs |
-| 5 | 0.3% | 46.3 µs | 1.9 µs | 1.7 µs |
-| 5 | 0.6% | 161 µs | 4.2 µs | 4.1 µs |
-| 7 | 0.3% | 512 µs | 6.0 µs | 5.7 µs |
-| 7 | 0.6% | 2.06 ms | 15.2 µs | 14.3 µs |
-| 9 | 0.3% | 3.54 ms | 14.8 µs | — |
-| 9 | 0.6% | 16.6 ms | 39.0 µs | — |
+| 3 | 0.6% | 4.0 µs | 0.4 µs | 0.5 µs |
+| 5 | 0.3% | 47.8 µs | 1.6 µs | 1.9 µs |
+| 5 | 0.6% | 169 µs | 3.7 µs | 4.0 µs |
+| 7 | 0.3% | 530 µs | 5.2 µs | 6.1 µs |
+| 7 | 0.6% | 2.13 ms | 13.4 µs | 14.6 µs |
+| 9 | 0.3% | 3.72 ms | 13.0 µs | — |
+| 9 | 0.6% | 17.5 ms | 35.4 µs | — |
 
 The dense and sparse columns come from `cargo run --release --no-default-features --target
 aarch64-apple-darwin --example matcher_profile -- timing data/matcher/native.json`, and PyMatching's
@@ -419,7 +438,8 @@ which macOS runs under Rosetta at about half the speed. An earlier version of th
 that way and called native; it was not, and the target is now explicit.
 
 Two later passes took the sparse matcher from 2.5–2.9 times PyMatching's time to 1.01–1.14 plain and
-0.91–1.01 correlated. Neither changed one prediction: every change was checked against a fingerprint of
+0.91–1.01 correlated, and a third (1.7) to 0.89–0.99 and 0.75–0.94, mostly by passing over reminders
+for nodes with nothing ahead without scanning them. None changed one prediction: every change was checked against a fingerprint of
 every prediction and weight (`tools/matcher_bench.py --check`: 100,000 shots at each of six points up
 to d = 7, and 20,000 at d = 9 and 11, plain and correlated).
 1. **No quadratic scans, no allocation per event.** Dissolving a tree and forming a blossom tested
@@ -485,23 +505,23 @@ Correlated matching remembers. `src/sparse/correlated.rs` follows PyMatching 2.4
 
 | code | d | p | PyMatching correlated | ours correlated | ours plain | disagreements | PyMatching µs | ours µs |
 |---|---|---|---|---|---|---|---|---|
-| rotated | 3 | 0.3% | 2.061% | 2.061% | 2.332% | 0 | 0.6 | 0.6 |
-| rotated | 3 | 0.6% | 6.951% | 6.951% | 7.708% | 0 | 1.2 | 1.2 |
-| rotated | 5 | 0.3% | 1.133% | 1.131% | 1.645% | 8 | 4.7 | 4.5 |
-| rotated | 5 | 0.6% | 7.735% | 7.738% | 9.335% | 31 | 10.3 | 9.8 |
-| rotated | 7 | 0.3% | 0.555% | 0.558% | 1.037% | 29 | 15.0 | 15.1 |
-| rotated | 7 | 0.6% | 7.932% | 7.906% | 10.590% | 274 | 35.5 | 35.2 |
-| XZZX | 3 | 0.3% | 2.020% | 2.020% | 2.293% | 0 | 0.6 | 0.6 |
-| XZZX | 3 | 0.6% | 7.098% | 7.098% | 7.665% | 0 | 1.3 | 1.2 |
-| XZZX | 5 | 0.3% | 1.210% | 1.210% | 1.639% | 8 | 4.8 | 4.6 |
-| XZZX | 5 | 0.6% | 7.739% | 7.745% | 9.323% | 22 | 10.7 | 9.8 |
-| XZZX | 7 | 0.3% | 0.581% | 0.579% | 1.103% | 32 | 15.2 | 15.2 |
-| XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 36.1 | 35.2 |
+| rotated | 3 | 0.3% | 2.061% | 2.061% | 2.332% | 0 | 0.6 | 0.5 |
+| rotated | 3 | 0.6% | 6.951% | 6.951% | 7.708% | 0 | 1.3 | 1.1 |
+| rotated | 5 | 0.3% | 1.133% | 1.131% | 1.645% | 8 | 5.6 | 4.2 |
+| rotated | 5 | 0.6% | 7.735% | 7.738% | 9.335% | 31 | 11.0 | 9.0 |
+| rotated | 7 | 0.3% | 0.555% | 0.558% | 1.037% | 29 | 16.1 | 15.2 |
+| rotated | 7 | 0.6% | 7.932% | 7.906% | 10.590% | 274 | 39.3 | 33.6 |
+| XZZX | 3 | 0.3% | 2.020% | 2.020% | 2.293% | 0 | 0.6 | 0.5 |
+| XZZX | 3 | 0.6% | 7.098% | 7.098% | 7.665% | 0 | 1.3 | 1.1 |
+| XZZX | 5 | 0.3% | 1.210% | 1.210% | 1.639% | 8 | 5.0 | 4.2 |
+| XZZX | 5 | 0.6% | 7.739% | 7.745% | 9.323% | 22 | 11.0 | 9.2 |
+| XZZX | 7 | 0.3% | 0.581% | 0.579% | 1.103% | 32 | 15.1 | 13.9 |
+| XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 37.3 | 32.8 |
 
 100,000 shots per row, sampled by Stim, SD6 noise, T = d. The timing columns are single-threaded,
-correlated mode for both: ours takes 0.91 to 1.01 times as long as PyMatching's. Natively (the
-table above), the second pass roughly doubles the cost of a shot: at d = 9 and p = 0.6%, 39 µs plain
-and 91 µs correlated.
+correlated mode for both: ours takes 0.75 to 0.94 times as long as PyMatching's. Natively (the
+table above), the second pass more than doubles the cost of a shot: at d = 9 and p = 0.6%, 35 µs plain
+and 86 µs correlated.
 
 It passed every layer on its first complete run. One thing did go wrong along the way, outside
 the algorithm. The Python module built with Rust 1.90's default release strip would not load on
@@ -1287,10 +1307,13 @@ whole circuit that flip an observable and set off no detector. It is measured th
   distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
   found is still a real undetectable logical error, and so an upper bound.
 
-Both searches give the same number of faults as Stim's own on every circuit compared (Stim's
-surface, repetition and colour codes up to d = 15, the Steane code and the [[72, 12, 6]] code),
-and each fault they return is explained: the gate it comes from, its targets, and the Pauli
-product or measurement it flips, as Stim's `explain_detector_error_model_errors` prints it.
+The graph-like search is Stim's own algorithm and returns Stim's own faults: its model text and
+its explained errors equal Stim's character for character (on Stim's generated codes, 300
+random models and 100 random circuits), in about a tenth of Stim's time. The breadth-first
+search gives the same number of faults as Stim's on every circuit compared (Stim's surface,
+repetition and colour codes, the Steane code and the [[72, 12, 6]] code). Each fault either
+returns is explained: the gate it comes from, its targets, and the Pauli product or measurement
+it flips, as Stim's `explain_detector_error_model_errors` prints it.
 Every memory the package builds, measured by `tools/distances.py` (d rounds; the bivariate
 bicycle memories 2):
 

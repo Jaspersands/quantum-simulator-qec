@@ -69,13 +69,13 @@ impl SparseGraph {
         assert_eq!(edge_w.len(), self.num_edges(), "one weight per edge");
         for (halves, &wt) in self.halves.iter().zip(edge_w) {
             for &slot in halves.iter().filter(|&&h| h != state::NONE) {
-                scratch.w[slot as usize] = wt;
+                scratch.set_weight(slot as usize, wt);
             }
         }
         let mut solver = Solver { g: self, s: scratch };
         solver.reset();
         let result = solver.run(defects, false).map(|()| solver.extract());
-        scratch.w.copy_from_slice(&self.w);
+        scratch.scan.copy_from_slice(&self.scan);
         result
     }
 
