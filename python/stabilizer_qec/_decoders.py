@@ -280,7 +280,8 @@ class BpLsd(_DemDecoder):
     detection event by BP's posteriors and solves each cluster alone. Corrections equal to
     ``ldpc``'s ``BpLsdDecoder`` on the same matrix but for ties among equally likely columns.
     For codes whose faults flip three or more detectors: give it the undecomposed model. The
-    defaults are ``ldpc``'s sinter decoder's (``max_iter=0`` is one iteration per fault)."""
+    defaults are ``ldpc``'s sinter decoder's but for ``max_iter``: 30 iterations, where its
+    0 means one per fault (thousands on the gross code, and most of the time)."""
 
     __slots__ = ()
 
@@ -288,7 +289,7 @@ class BpLsd(_DemDecoder):
         self,
         model: ModelLike,
         *,
-        max_iter: int = 0,
+        max_iter: int = 30,
         bp_method: str = "minimum_sum",
         ms_scaling_factor: float = 0.625,
         lsd_method: Any = "lsd_0",

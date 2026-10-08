@@ -36,10 +36,12 @@ PLATFORM = f"{platform.system()}-{platform.machine().lower()}"
 
 
 def per_platform(name: str) -> bool:
-    """Whether a case's result may differ between platforms: error-model text (see above), and
-    the search decoder, which breaks ties between equally promising states as the platform's
-    C++ library does, to give Tesseract's answers there."""
-    return "/model" in name or "/decode/search" in name
+    """Whether a case's result may differ between platforms: error-model text (see above); the
+    search decoder, which breaks ties between equally promising states as the platform's C++
+    library does, to give Tesseract's answers there; and Relay-BP on the surface code, whose
+    many random legs carry the last-digit differences of that model's probabilities between
+    platforms into a few predictions."""
+    return "/model" in name or "/decode/search" in name or name.startswith("surface/decode/relay_bp")
 
 
 def expected(recorded: Dict[str, object], name: str):
