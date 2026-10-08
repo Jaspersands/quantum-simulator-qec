@@ -98,30 +98,48 @@ impl Kernel {
         let mut lists: Vec<&Vec<usize>> = by_flips.values().filter(|v| v.len() > 1).collect();
         lists.sort();
         for list in lists {
-            let rep = list[0];
-            let mut members = vec![rep];
-            let mut mu = vec![C::ONE];
-            for &l in &list[1..] {
-                let Some(e) = p.element(&[rep, l], solver) else { continue };
-                if !e.z.is_empty() {
-                    continue;
-                }
-                let m = phase(&e);
-                // Consistent with every member taken so far.
-                let ok = members.iter().zip(&mu).skip(1).all(|(&j, &mj)| {
-                    let pair = if j < l { [j, l] } else { [l, j] };
-                    p.element(&pair, solver).is_some_and(|e2| e2.z.is_empty() && (phase(&e2) - mj * m).norm2() < 1e-12)
-                });
-                if ok {
-                    members.push(l);
-                    mu.push(m);
+            // Runs of the list with no coherent location between that anticommutes with their
+            // operator: such a location's fault would change the run's proposal.
+            let mut runs: Vec<Vec<usize>> = Vec::new();
+            let mut blockers: Vec<usize> = Vec::new();
+            for &l in list.iter() {
+                let start_new = match runs.last() {
+                    None => true,
+                    Some(run) => blockers.iter().any(|&b| b > run[0] && b < l),
+                };
+                if start_new {
+                    runs.push(vec![l]);
+                    blockers = p.anticommuting_after(l);
+                } else {
+                    runs.last_mut().unwrap().push(l);
                 }
             }
-            if members.len() > 1 {
-                for &l in &members[1..] {
-                    is_rep[l] = false;
+            for run in runs {
+                let rep = run[0];
+                let mut members = vec![rep];
+                let mut mu = vec![C::ONE];
+                for &l in &run[1..] {
+                    let Some(e) = p.element(&[rep, l], solver) else { continue };
+                    if !e.z.is_empty() {
+                        continue;
+                    }
+                    let m = phase(&e);
+                    // Consistent with every member taken so far.
+                    let ok = members.iter().zip(&mu).skip(1).all(|(&j, &mj)| {
+                        let pair = if j < l { [j, l] } else { [l, j] };
+                        p.element(&pair, solver).is_some_and(|e2| e2.z.is_empty() && (phase(&e2) - mj * m).norm2() < 1e-12)
+                    });
+                    if ok {
+                        members.push(l);
+                        mu.push(m);
+                    }
                 }
-                groups.push(Group { members, mu });
+                if members.len() > 1 {
+                    for &l in &members[1..] {
+                        is_rep[l] = false;
+                    }
+                    groups.push(Group { members, mu });
+                }
             }
         }
         let mut candidates: BTreeSet<Vec<usize>> = BTreeSet::new();
@@ -257,6 +275,11 @@ impl Kernel {
         Kernel { generators, groups, rep_of, by_location, options }
     }
 
+    /// The groups, as `Program::set_merge` takes them.
+    pub fn merge_groups(&self) -> Vec<(Vec<usize>, Vec<C>)> {
+        self.groups.iter().map(|g| (g.members.clone(), g.mu.clone())).collect()
+    }
+
     /// A shot's weight, by clusters of the generators its faults touch. `cache` holds the
     /// products already carried through the circuit (by their locations).
     pub fn weight(&self, p: &Program, shot: &Shot, solver: &GaugeSolver, cache: &mut HashMap<Vec<usize>, Option<Element>>) -> f64 {
@@ -283,7 +306,25 @@ impl Kernel {
                 nminus *= 1.0 - tau.norm2();
             }
             let (even, odd) = ((plus + minus).scale(0.5), (plus - minus).scale(0.5));
-            let (neven, nodd) = ((nplus + nminus) / 2.0, (nplus - nminus) / 2.0);
+            // A class that cancels exactly (even = 0) has weight 0 unless an element moves it
+            // to the odd sum; a tiny stand-in keeps that limit finite.
+            let even = if even.norm2() < 1e-200 { C::new(1e-100, 0.0) } else { even };
+            let (mut neven, mut nodd) = ((nplus + nminus) / 2.0, (nplus - nminus) / 2.0);
+            if !p.merge.is_empty() {
+                // Drawn as one, the group's parity came from the proposal, not the twirl: the
+                // twirl's class sum over the drawn configuration (neven) becomes ρ over q, the
+                // proposal's probability of the drawn parity over the twirl's of the drawn
+                // configuration, and nodd/neven the proposal's odds of the other parity.
+                let taus: Vec<C> = g.members.iter().zip(&g.mu).map(|(&l, &mu)| p.unfired_toggle(l, mu, shot.anti[l])).collect();
+                let odd_p = Program::odd_proposal(&taus);
+                let last = *g.members.last().unwrap();
+                let fired = shot.fired[last];
+                let cos2: f64 = g.members.iter().map(|&l| p.locations[l].theta.cos().powi(2)).product();
+                let q_drawn = if fired { cos2 * p.locations[last].theta.tan().powi(2) } else { cos2 };
+                let (rho, rho_other) = if fired { (odd_p, 1.0 - odd_p) } else { (1.0 - odd_p, odd_p) };
+                neven = rho / q_drawn;
+                nodd = rho_other / q_drawn;
+            }
             w *= even.norm2() / neven;
             let inv = even.conj().scale(1.0 / even.norm2());
             eff.insert(g.members[0], (odd * inv, nodd / neven));
@@ -447,11 +488,10 @@ mod survey {
     use super::*;
     use crate::circuit::Circuit;
 
-    /// Prints the truncated kernel's largest bias over random small circuits (run with
-    /// `--ignored --nocapture`).
+    /// The local kernel with merged groups, exhaustively, over random small circuits: as exact
+    /// as the whole kernel.
     #[test]
-    #[ignore]
-    fn bias_over_random_circuits() {
+    fn exact_over_random_circuits() {
         let mut rng = crate::surface_code::Xorshift::new(2026);
         let ops1 = ["H", "S", "X", "SQRT_X", "I_ERROR[R_X(theta=0.3)]", "I_ERROR[R_Y(theta=-0.25)]", "I_ERROR[R_Z(theta=0.4)]", "X_ERROR(0.1)", "DEPOLARIZE1(0.1)", "R", "RX", "M", "MX", "MR"];
         let ops2 = ["CX", "CZ", "SWAP", "II_ERROR[R_ZZ(theta=0.35)]"];
@@ -479,7 +519,9 @@ mod survey {
             let solver = GaugeSolver::new(&p);
             let kernel = Kernel::new(&p, &solver, CoherentOptions::default());
             let mut cache = HashMap::new();
-            let ours = p.exact_distribution_by(&mut |shot| kernel.weight(&p, shot, &solver, &mut cache), true, 1 << 22).unwrap();
+            let mut pm = p.clone();
+            pm.set_merge(&kernel.merge_groups());
+            let ours = pm.exact_distribution_by(&mut |shot| kernel.weight(&pm, shot, &solver, &mut cache), true, 1 << 22).unwrap();
             let full = p.exact_distribution(&p.full_kernel().unwrap(), true, 1 << 22).unwrap();
             let total_w: f64 = ours.values().sum();
             let b = full.iter().map(|(k, v)| (ours.get(k).copied().unwrap_or(0.0) / total_w - v).abs()).fold(0.0, f64::max);
@@ -488,6 +530,34 @@ mod survey {
                 println!("bias {b:.2e} (kernel {} generators, full {})\n{text}\n", kernel.generators.len(), p.full_kernel().unwrap().len());
             }
         }
-        println!("worst {worst:.2e}");
+        assert!(worst < 1e-9, "worst {worst:.2e}");
+    }
+}
+
+#[cfg(test)]
+mod merged {
+    use super::*;
+    use crate::circuit::Circuit;
+
+    fn compare(text: &str) {
+        let c = Circuit::parse(text).unwrap();
+        let p = Program::new(&c).unwrap();
+        let solver = GaugeSolver::new(&p);
+        let kernel = Kernel::new(&p, &solver, CoherentOptions::default());
+        let mut pm = p.clone();
+        pm.set_merge(&kernel.merge_groups());
+        let mut cache = HashMap::new();
+        let ours = pm.exact_distribution_by(&mut |shot| kernel.weight(&pm, shot, &solver, &mut cache), true, 1 << 22).unwrap();
+        let full = p.exact_distribution(&p.full_kernel().unwrap(), true, 1 << 22).unwrap();
+        assert!(!kernel.groups.is_empty());
+        for (k, v) in &full {
+            assert!((ours.get(k).copied().unwrap_or(0.0) - v).abs() < 1e-12, "{text}\n{k:?}");
+        }
+    }
+
+    #[test]
+    fn merged_groups_are_exact() {
+        compare("RX 0\nR 1\nI_ERROR[R_Z(theta=0.3)] 0\nCZ 0 1\nI_ERROR[R_Z(theta=0.2)] 0\nMX 0\nM 1\nDETECTOR rec[-2]");
+        compare("RX 0\nI_ERROR[R_Z(theta=0.3)] 0\nZ_ERROR(0.2) 0\nI_ERROR[R_Z(theta=0.2)] 0\nMX 0\nDETECTOR rec[-1]");
     }
 }

@@ -10,6 +10,7 @@
 //! shot's noiseless branch.
 
 use super::{Program, Step};
+use crate::statevec::C;
 use crate::circuit::Basis;
 
 /// Where a shot's random choices come from: a random stream for the sampler, an enumeration of
@@ -55,6 +56,8 @@ impl Program {
         let nl = self.locations.len();
         let mut shot = Shot { records: Vec::with_capacity(self.num_records), fired: vec![false; nl], anti: vec![false; nl], branch: self.reference.clone() };
         let mut chain = false;
+        // Merged groups' toggles so far.
+        let mut taus: Vec<Vec<C>> = vec![Vec::new(); self.merge_groups.len()];
         // A Pauli on both frames.
         macro_rules! both {
             ($q:expr, $c:expr) => {{
@@ -198,7 +201,14 @@ impl Program {
                 Step::Coherent(loc) => {
                     let l = &self.locations[loc];
                     shot.anti[loc] = l.paulis.iter().fold(false, |a, &(q, c)| a ^ (c & 1 != 0 && fz[q]) ^ (c & 2 != 0 && fx[q]));
-                    if l.theta != 0.0 && src.bern(l.theta.sin().powi(2)) {
+                    let p = match self.merge.get(loc).copied().flatten() {
+                        None => l.theta.sin().powi(2),
+                        Some(m) => {
+                            taus[m.group].push(self.unfired_toggle(loc, m.mu, shot.anti[loc]));
+                            if m.last { Program::odd_proposal(&taus[m.group]) } else { 0.0 }
+                        }
+                    };
+                    if p != 0.0 && src.bern(p) {
                         shot.fired[loc] = true;
                         for &(q, c) in &l.paulis {
                             both!(q, c);

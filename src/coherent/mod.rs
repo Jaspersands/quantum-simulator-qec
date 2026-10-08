@@ -86,6 +86,10 @@ pub struct Program {
     pub(crate) slots: Vec<Slot>,
     pub(crate) num_records: usize,
     pub locations: Vec<Location>,
+    /// With merging on, each location's place in its group: the groups' members are drawn as
+    /// one, the parity at the group's last location (see `set_merge`).
+    pub(crate) merge: Vec<Option<Merge>>,
+    pub(crate) merge_groups: Vec<Vec<usize>>,
     pub(crate) detectors: Vec<Vec<usize>>,
     pub(crate) observables: Vec<Vec<usize>>,
     pub(crate) gauges: Vec<Gauge>,
@@ -204,6 +208,8 @@ impl Program {
             observables: res.observables,
             gauges: Vec::new(),
             gauge_at: Vec::new(),
+            merge: Vec::new(),
+            merge_groups: Vec::new(),
             reference: Vec::new(),
         };
         p.reference = p.reference_run();
@@ -379,6 +385,49 @@ impl Program {
         out
     }
 
+    /// The locations after `l` whose Pauli anticommutes with `l`'s carried to them.
+    pub(crate) fn anticommuting_after(&self, l: usize) -> Vec<usize> {
+        let (mut x, mut z) = (vec![false; self.num_qubits], vec![false; self.num_qubits]);
+        let mut out = Vec::new();
+        let mut started = false;
+        for step in &self.steps {
+            match *step {
+                Step::Coherent(loc) if loc == l => {
+                    for &(q, c) in &self.locations[l].paulis {
+                        x[q] ^= c & 1 != 0;
+                        z[q] ^= c & 2 != 0;
+                    }
+                    started = true;
+                }
+                _ if !started => {}
+                Step::H(q) => std::mem::swap(&mut x[q], &mut z[q]),
+                Step::S(q) => z[q] ^= x[q],
+                Step::Cx(c, t) => {
+                    let (a, b) = (x[c], z[t]);
+                    x[t] ^= a;
+                    z[c] ^= b;
+                }
+                Step::Cz(a, b) => {
+                    let (xa, xb) = (x[a], x[b]);
+                    z[b] ^= xa;
+                    z[a] ^= xb;
+                }
+                Step::Measure { q, reset: true, .. } | Step::Reset { q, .. } => {
+                    x[q] = false;
+                    z[q] = false;
+                }
+                Step::Coherent(loc) => {
+                    let anti = self.locations[loc].paulis.iter().fold(false, |a, &(q, c)| a ^ (c & 1 != 0 && z[q]) ^ (c & 2 != 0 && x[q]));
+                    if anti {
+                        out.push(loc);
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     /// The kernel element of the locations `g` (sorted): `None` unless what they flip is what
     /// some set of gauges flips. Carrying the locations' operator and those gauges' through the
     /// circuit, nothing is flipped and what is left is a phase times Z on unread outcomes; with
@@ -489,6 +538,56 @@ impl Program {
         let k = (4 - e.k + if swaps { 2 } else { 0 }) % 4;
         let offset = z.iter().fold(false, |a, &s| a ^ (flipped[s / 64] >> (s % 64) & 1 == 1));
         Some(Element { members: g.to_vec(), k, z, offset })
+    }
+}
+
+/// A location's place in a merged group.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Merge {
+    pub group: usize,
+    /// Its operator relative to the group's first member's.
+    pub mu: C,
+    pub last: bool,
+}
+
+/// The share of the coherent parity in a merged group's proposal; the rest is the twirl's, so
+/// no parity is ever impossible.
+const COHERENT_SHARE: f64 = 0.9;
+
+impl Program {
+    /// Draw each group (locations that flip the same outcomes, `groups[i].0` with phases
+    /// `groups[i].1`) as one: its parity from the coherent sum of its rotations, the fault (if
+    /// any) at its last location. A far better proposal than the twirl when rotations add up.
+    pub fn set_merge(&mut self, groups: &[(Vec<usize>, Vec<C>)]) {
+        self.merge = vec![None; self.locations.len()];
+        self.merge_groups = groups.iter().map(|g| g.0.clone()).collect();
+        for (i, (members, mu)) in groups.iter().enumerate() {
+            for (k, (&l, &m)) in members.iter().zip(mu).enumerate() {
+                self.merge[l] = Some(Merge { group: i, mu: m, last: k + 1 == members.len() });
+            }
+        }
+    }
+
+    /// A group member's toggle factor with nothing of the group fired: i t μ, signed.
+    pub(crate) fn unfired_toggle(&self, l: usize, mu: C, anti: bool) -> C {
+        let v = C::new(0.0, self.locations[l].theta.tan()) * mu;
+        if anti { C::ZERO - v } else { v }
+    }
+
+    /// The proposal's probability of odd parity for a group, from its members' toggles with
+    /// nothing fired: the coherent share |S₁|² / (|S₀|² + |S₁|²), mixed with the twirl's.
+    pub(crate) fn odd_proposal(taus: &[C]) -> f64 {
+        let (mut plus, mut minus, mut nplus, mut nminus) = (C::ONE, C::ONE, 1.0, 1.0);
+        for &t in taus {
+            plus = plus * (C::ONE + t);
+            minus = minus * (C::ONE - t);
+            nplus *= 1.0 + t.norm2();
+            nminus *= 1.0 - t.norm2();
+        }
+        let (s0, s1) = ((plus + minus).scale(0.5).norm2(), (plus - minus).scale(0.5).norm2());
+        let coherent = if s0 + s1 > 0.0 { s1 / (s0 + s1) } else { 0.0 };
+        let twirl = (nplus - nminus) / (nplus + nminus);
+        COHERENT_SHARE * coherent + (1.0 - COHERENT_SHARE) * twirl
     }
 }
 

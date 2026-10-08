@@ -25,9 +25,10 @@ pub struct CoherentBatch {
 
 impl CoherentSampler {
     pub fn new(circuit: &Circuit, options: CoherentOptions) -> Result<CoherentSampler, String> {
-        let program = Program::new(circuit)?;
+        let mut program = Program::new(circuit)?;
         let solver = GaugeSolver::new(&program);
         let kernel = Kernel::new(&program, &solver, options);
+        program.set_merge(&kernel.merge_groups());
         Ok(CoherentSampler { program, kernel, solver })
     }
 
