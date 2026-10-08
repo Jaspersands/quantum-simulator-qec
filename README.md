@@ -174,6 +174,24 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   sampling, plain, correlated and belief matching, BP+OSD, window decoding and streams, the gross
   code and lattice surgery, from Python (see [Install](#install)).
 
+## Speed against Stim and PyMatching
+
+Each benchmark times the same job here and in the reference, on the same machine and one
+thread, as a ratio: this package's time over Stim's (or PyMatching's), below 1 faster. These
+are the latest runs recorded for each kind of machine (`tools/bench.py`; Linux on GitHub's
+runners, `.github/workflows/bench.yml`); every push is held to them, and the
+[benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) plots every release's.
+
+| benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
+|---|---|---|---|
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 2.02 | 0.83 | — |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.91 | 1.01 | — |
+| Sampling its detection events, 20,000 shots | 0.93 | 0.75 | — |
+| Measurements to detection events, 20,000 shots | 1.26 | 0.73 | — |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 1.12 | 1.41 | — |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.86 | 1.35 | — |
+| *recorded with* | 1.6.0 | 1.6.0 | — |
+
 ## A note on quoted figures
 
 Unless stated otherwise, the logical error rates below were measured at bias `η = 0.5` (equal
@@ -1287,10 +1305,13 @@ whole circuit that flip an observable and set off no detector. It is measured th
   distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
   found is still a real undetectable logical error, and so an upper bound.
 
-Both searches give the same number of faults as Stim's own on every circuit compared (Stim's
-surface, repetition and colour codes up to d = 15, the Steane code and the [[72, 12, 6]] code),
-and each fault they return is explained: the gate it comes from, its targets, and the Pauli
-product or measurement it flips, as Stim's `explain_detector_error_model_errors` prints it.
+The graph-like search is Stim's own algorithm and returns Stim's own faults: its model text and
+its explained errors equal Stim's character for character (on Stim's generated codes, 300
+random models and 100 random circuits), in about a tenth of Stim's time. The breadth-first
+search gives the same number of faults as Stim's on every circuit compared (Stim's surface,
+repetition and colour codes, the Steane code and the [[72, 12, 6]] code). Each fault either
+returns is explained: the gate it comes from, its targets, and the Pauli product or measurement
+it flips, as Stim's `explain_detector_error_model_errors` prints it.
 Every memory the package builds, measured by `tools/distances.py` (d rounds; the bivariate
 bicycle memories 2):
 

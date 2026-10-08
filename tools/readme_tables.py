@@ -86,6 +86,25 @@ def speed():
     return rows
 
 
+def bench_ratios():
+    """The latest recorded benchmark run of each kind of machine: each benchmark's ratio to the
+    reference's time (below 1 is faster)."""
+    runs = load("data/bench/runs.json")
+    kinds = [("Darwin arm64", "Apple silicon"), ("Linux x86_64", "Linux x86_64"), ("Linux aarch64", "Linux arm64")]
+    latest = {k: [r for r in runs if r.get("kind") == k][-1] for k, _ in kinds if any(r.get("kind") == k for r in runs)}
+    keys = [k for k in latest[kinds[0][0]]["results"] if latest[kinds[0][0]]["results"][k]["ratio"] is not None]
+    rows = []
+    for key in keys:
+        what = latest[kinds[0][0]]["results"][key]["what"]
+        cells = []
+        for k, _ in kinds:
+            r = latest.get(k, {}).get("results", {}).get(key)
+            cells.append("—" if not r or r["ratio"] is None else f"{r['ratio']:.2f}")
+        rows.append(f"| {what} | " + " | ".join(cells) + " |")
+    rows.append(f"| *recorded with* | " + " | ".join(latest[k]["version"] if k in latest else "—" for k, _ in kinds) + " |")
+    return rows
+
+
 def latency():
     lat, mil = load("data/realtime/latency.json"), load("data/realtime/million.json")
     us = lambda x: f"{x:.1f} µs" if x < 10 else f"{x:.0f} µs"
@@ -288,6 +307,7 @@ TABLES = [
     ("gross beside the surface code", r"\| p \| gross code: 12 logical qubits on 288 \| twelve d = 11 surface patches on 2,892 \| ratio \|", gross_vs_surface),
     ("cross-check, plain", r"\| d \| p \| PyMatching \| ours, on Stim's graph \|[^\n]*", xcheck_plain),
     ("cross-check, correlated", r"\| code \| d \| p \| PyMatching correlated \|[^\n]*", xcheck_corr),
+    ("benchmarks", r"\| benchmark \| Apple silicon \| Linux x86_64 \| Linux arm64 \|", bench_ratios),
     ("matcher speed", r"\| d \| p \| dense \| sparse \| PyMatching \|", speed),
     ("latency", r"\| stream \| decoder \| window decode \| keeps up on \| mean latency \| p99 \|", latency),
     ("surgery timing", r"\| d \| p \| T = 2 \| T = d \| T = 2d \| T = d, plain \| either patch, T = d \|", surgery_timing),
