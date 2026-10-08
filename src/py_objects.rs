@@ -254,11 +254,58 @@ impl PyCircuit {
         Ok(PyExactSampler { program: crate::statevec::Program::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
     }
 
+    /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true))]
+    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool) -> PyResult<PyCoherentSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads };
+        let inner = &self.circuit.inner;
+        let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
+        Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
+    }
+
     /// Every outcome's exact probability: (detection events, observable flips, probability).
     fn exact_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
         let program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
+}
+
+/// The coherent sampler, one stream per shot.
+#[pyclass(name = "CoherentSampler", module = "stabilizer_qec._core")]
+pub struct PyCoherentSampler {
+    sampler: crate::coherent::sampler::CoherentSampler,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyCoherentSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.sampler.program.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.sampler.program.num_observables()
+    }
+
+    #[getter]
+    fn num_locations(&self) -> usize {
+        self.sampler.program.locations.len()
+    }
+
+    #[getter]
+    fn num_generators(&self) -> usize {
+        self.sampler.kernel.generators.len()
+    }
+
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let b = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
+        (PyBytes::new(py, &b.detectors), PyBytes::new(py, &b.observables), b.weights)
     }
 }
 

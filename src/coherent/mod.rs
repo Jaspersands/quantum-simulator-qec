@@ -22,6 +22,8 @@
 //! coherent circuit's. `exact` checks that identity exhaustively on small circuits.
 
 pub mod exact;
+pub mod kernel;
+pub mod sampler;
 mod shot;
 
 pub use shot::Shot;
@@ -505,7 +507,7 @@ pub(crate) struct Gauge {
 }
 
 /// Which gauges flip what a set of locations flips: elimination over the gauges' flips.
-pub(crate) struct GaugeSolver {
+pub struct GaugeSolver {
     /// Each insertion's flips (locations, then gauges).
     pub flips: Vec<Vec<usize>>,
     /// Reduced rows: (pivot slot, flips as words, the gauges summed).
@@ -547,6 +549,15 @@ impl GaugeSolver {
         GaugeSolver { flips, rows }
     }
 
+    /// `v` reduced by the gauges' flips: zero exactly when the gauges can match it.
+    pub fn reduce(&self, v: &mut [u64]) {
+        for (pivot, rv, _) in &self.rows {
+            if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                v.iter_mut().zip(rv).for_each(|(a, b)| *a ^= b);
+            }
+        }
+    }
+
     /// Gauges whose flips sum to `target`, if any.
     pub fn solve(&self, target: &[u64]) -> Option<Vec<usize>> {
         let mut v = target.to_vec();
@@ -581,25 +592,23 @@ impl Program {
     /// Kernel element `e`'s fault set's amplitude relative to the shot's own, as the shot sees
     /// it: the cross term over the twirl's probability of the shot.
     pub fn ratio(&self, shot: &Shot, e: &Element) -> C {
-        let (mut mag, mut quarter, mut sign) = (1.0f64, e.k as u32, e.offset);
-        for &g in &e.members {
-            let t = self.locations[g].theta.tan();
-            if shot.fired[g] {
-                // −i / t
-                mag /= t;
-                quarter += 3;
-            } else {
-                // i t
-                mag *= t;
-                quarter += 1;
-            }
-            sign ^= shot.anti[g];
-        }
-        for &s in &e.z {
-            sign ^= shot.branch[s];
-        }
-        let v = [C::ONE, C::I, C::new(-1.0, 0.0), C::new(0.0, -1.0)][(quarter % 4) as usize].scale(if sign { -mag } else { mag });
-        v
+        e.members.iter().fold(self.prefactor(shot, e), |acc, &g| acc * self.toggle(shot, g))
+    }
+
+    /// Location `l`'s own factor in a ratio: −i/t to take its fault away, i t to add one,
+    /// signed by whether it anticommutes with the faults before it.
+    pub fn toggle(&self, shot: &Shot, l: usize) -> C {
+        let t = self.locations[l].theta.tan();
+        let v = if shot.fired[l] { C::new(0.0, -1.0 / t) } else { C::new(0.0, t) };
+        if shot.anti[l] { C::ZERO - v } else { v }
+    }
+
+    /// Kernel element `e`'s factor besides its locations' own: its phase, and the signs of the
+    /// unread outcomes it ends on.
+    pub fn prefactor(&self, shot: &Shot, e: &Element) -> C {
+        let sign = e.z.iter().fold(e.offset, |a, &s| a ^ shot.branch[s]);
+        let v = [C::ONE, C::I, C::new(-1.0, 0.0), C::new(0.0, -1.0)][(e.k % 4) as usize];
+        if sign { C::ZERO - v } else { v }
     }
 
     /// A shot's weight: the coherent probability of its class (every fault set the kernel

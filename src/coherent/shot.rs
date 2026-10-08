@@ -224,7 +224,6 @@ impl Program {
 }
 
 /// The frame sampler's draws from its generator, in its order.
-#[allow(dead_code)]
 pub(crate) struct Stream<'a>(pub &'a mut crate::surface_code::Xorshift);
 
 impl Source for Stream<'_> {

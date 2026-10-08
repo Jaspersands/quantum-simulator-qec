@@ -89,6 +89,11 @@ impl Program {
     /// detectors and observables are the record's parities themselves rather than compared with
     /// the reference run's.
     pub fn exact_distribution(&self, kernel: &[Element], raw: bool, max_branches: usize) -> Result<BTreeMap<(Vec<bool>, u64), f64>, String> {
+        self.exact_distribution_by(&mut |shot| self.weight(shot, kernel), raw, max_branches)
+    }
+
+    /// The same with any per-shot weight (a truncated kernel's, to measure its bias exactly).
+    pub fn exact_distribution_by(&self, weight: &mut dyn FnMut(&super::Shot) -> f64, raw: bool, max_branches: usize) -> Result<BTreeMap<(Vec<bool>, u64), f64>, String> {
         let reference: Vec<bool> = self.slots.iter().zip(&self.reference).filter(|(s, _)| matches!(s, Slot::Record(_))).map(|(_, &v)| v).collect();
         let mut out = BTreeMap::new();
         let mut odo = Odometer { choices: Vec::new(), probs: Vec::new(), pos: 0, p: 1.0 };
@@ -102,7 +107,7 @@ impl Program {
                 return Err(format!("more than {max_branches} branches"));
             }
             let rec: Vec<bool> = if raw { shot.records.iter().zip(&reference).map(|(a, b)| a ^ b).collect() } else { shot.records.clone() };
-            let w = self.weight(&shot, kernel);
+            let w = weight(&shot);
             *out.entry(self.outcome(&rec)).or_insert(0.0) += odo.p * w;
             if !odo.advance() {
                 break;
