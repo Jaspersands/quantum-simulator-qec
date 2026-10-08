@@ -166,7 +166,7 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
             // Pauli gates and sweep-controlled X only flip signs, which a frame
             // relative to the noiseless run does not carry; annotations and
             // ticks do nothing.
-            Instr::Pauli { .. } | Instr::SweepX(_) | Instr::QubitCoords { .. } | Instr::Tick => {
+            Instr::Pauli { .. } | Instr::SweepX(_) | Instr::QubitCoords { .. } | Instr::Tick | Instr::NonPauli(_) => {
                 continue
             }
         });

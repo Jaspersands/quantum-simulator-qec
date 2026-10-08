@@ -336,7 +336,7 @@ impl Builder {
                     .iter()
                     .for_each(|&q| self.place(vec![(q, name.clone())], false));
             }
-            Instr::ShiftCoords(_) => {}
+            Instr::ShiftCoords(_) | Instr::NonPauli(_) => {}
             Instr::Tick => {
                 let m = self.align();
                 if m > self.tick_start {

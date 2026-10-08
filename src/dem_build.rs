@@ -767,7 +767,7 @@ impl Analyzer {
                     r.ticks = r.ticks.saturating_sub(1);
                 }
             }
-            Instr::QubitCoords { .. } | Instr::Pauli { .. } => {}
+            Instr::QubitCoords { .. } | Instr::Pauli { .. } | Instr::NonPauli(_) => {}
         }
         Ok(())
     }

@@ -80,6 +80,10 @@ pub enum Instr {
     /// when the error fires, and then I, X, Y or Z with probabilities `probs` (which sum to
     /// the herald's). `args` are the instruction's own, for printing.
     Heralded { erase: bool, args: Vec<f64>, probs: [f64; 4], qubits: Vec<u32> },
+    /// Operations beyond Clifford gates and Pauli noise, from a tagged identity
+    /// (`I_ERROR[R_Z(theta=0.1)] 0`, see `nonpauli`). Only inside the `Gate` that tag writes;
+    /// Clifford engines run it as the identity it is in Stim.
+    NonPauli(Vec<crate::nonpauli::NonPauli>),
 }
 
 /// What classically controls a `Feedback`: a measurement record (lookback, 1 is the latest)
@@ -500,7 +504,15 @@ fn rec_targets(tokens: &[&str], name: &str) -> Result<Vec<u32>, String> {
 fn parse_line(line: &str) -> Result<Instr, String> {
     let (name, tag, args, t) = split_instruction(line)?;
     let ins = parse_instruction(&name, &args, &t)?;
-    Ok(tagged(ins, tag))
+    let ins = tagged(ins, tag);
+    // A tag that asks for a non-Pauli operation on an identity (`I_ERROR[R_Z(theta=0.1)] 0`)
+    // runs it in the engines that honour it, and nothing in the rest.
+    if let (Instr::Gate { line, tag, .. }, "I" | "II" | "I_ERROR" | "II_ERROR") = (&ins, name.as_str()) {
+        if let Some(ops) = crate::nonpauli::parse(&name, tag, &qubit_targets(&t, &name)?)? {
+            return Ok(Instr::Gate { line: line.clone(), tag: tag.clone(), body: vec![Instr::NonPauli(ops)] });
+        }
+    }
+    Ok(ins)
 }
 
 /// `inner` with Stim's tag `tag` (none if empty): printed with `[tag]` after its name, run as
@@ -1211,6 +1223,12 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                 let args: &[f64] = if written(*flip) { std::slice::from_ref(flip) } else { &[] };
                 let v: Vec<&str> = values.iter().map(|&b| if b { "1" } else { "0" }).collect();
                 format!("{} {}", with_args("MPAD", args), v.join(" "))
+            }
+            Instr::NonPauli(ops) => {
+                for op in ops {
+                    let _ = writeln!(s, "{indent}{}", op.line());
+                }
+                continue;
             }
             Instr::Repeat { count, body, tag } => {
                 let tag = if tag.is_empty() { String::new() } else { format!("[{tag}]") };

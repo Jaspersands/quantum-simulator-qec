@@ -252,6 +252,7 @@ impl FrameSampler {
                 | Instr::QubitCoords { .. }
                 | Instr::ShiftCoords(_)
                 | Instr::Tick
+                | Instr::NonPauli(_)
                 | Instr::Repeat { .. }
                 | Instr::Gate { .. } => {}
             }
