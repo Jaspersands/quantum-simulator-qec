@@ -95,6 +95,8 @@ pub mod nonpauli;
 #[doc(hidden)]
 pub mod statevec;
 #[doc(hidden)]
+pub mod coherent;
+#[doc(hidden)]
 pub mod frame_sampler;
 #[doc(hidden)]
 pub mod batch_sampler;

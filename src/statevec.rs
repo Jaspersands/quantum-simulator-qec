@@ -389,6 +389,11 @@ impl Program {
         self.num_qubits
     }
 
+    /// The reference run's parity of each detector, then each observable.
+    pub fn reference_parities(&self) -> &[bool] {
+        &self.reference
+    }
+
     pub fn num_detectors(&self) -> usize {
         self.detectors.len()
     }
