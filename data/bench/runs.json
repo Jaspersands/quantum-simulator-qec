@@ -720,5 +720,278 @@
    }
   },
   "note": "median of three runs, nine repeats each"
+ },
+ {
+  "version": "1.8.0",
+  "date": "2026-10-08",
+  "machine": "Linux x86_64, Python 3.12.15",
+  "cores": 4,
+  "kind": "Linux x86_64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0",
+   "ldpc": "2.4.1",
+   "relay-bp": "0.2.2",
+   "chromobius": "1.1.1",
+   "tesseract-decoder": "0.1.1.dev20260910235247"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 14173.685999992358,
+    "reference_us": 37549.50900000153,
+    "ratio": 0.3774666134780026
+   },
+   "shortest_graphlike": {
+    "what": "Its graph-like distance (shortest_graphlike_error on the model)",
+    "unit": "model",
+    "ours_us": 537.2560000012072,
+    "reference_us": 3918.5489999908896,
+    "ratio": 0.13710585219234372
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 3.449770250000483,
+    "reference_us": 4.659224999998912,
+    "ratio": 0.7404171831154943
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 1.000998850000201,
+    "reference_us": 8.255898299999842,
+    "ratio": 0.121246509298718
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 6.804760850000946,
+    "reference_us": 5.5986274000005665,
+    "ratio": 1.2154337775720272
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 19.838350749999734,
+    "reference_us": 16.3532527000001,
+    "ratio": 1.2131134468434903
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 20.822713750000332,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@4": {
+    "what": "Sampling, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 1.583245700000191,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@all": {
+    "what": "Sampling, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 1.5872521500000403,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@4": {
+    "what": "Matching, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 2.723826000000429,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@all": {
+    "what": "Matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 2.7278368500006422,
+    "reference_us": null,
+    "ratio": null
+   },
+   "correlated_matching@all": {
+    "what": "Correlated matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 7.656062500001326,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 2592.4209266666294,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bplsd_gross": {
+    "what": "BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc)",
+    "unit": "shot",
+    "ours_us": 2801.4656700000273,
+    "reference_us": 4557.584439999971,
+    "ratio": 0.6146821209526608
+   },
+   "relay_gross": {
+    "what": "Relay-BP on the same shots (against IBM's relay_bp)",
+    "unit": "shot",
+    "ours_us": 11734.332175000049,
+    "reference_us": 12277.622914999996,
+    "ratio": 0.9557495173323666
+   },
+   "color_matching": {
+    "what": "Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius)",
+    "unit": "shot",
+    "ours_us": 18.83861780000018,
+    "reference_us": 20.498635899998874,
+    "ratio": 0.9190181186642382
+   },
+   "search_color": {
+    "what": "The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract)",
+    "unit": "shot",
+    "ours_us": 4724.50104699999,
+    "reference_us": 7135.936125000001,
+    "ratio": 0.6620716559454894
+   }
+  }
+ },
+ {
+  "version": "1.8.0",
+  "date": "2026-10-08",
+  "machine": "Linux aarch64, Python 3.12.15",
+  "cores": 4,
+  "kind": "Linux aarch64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0",
+   "ldpc": "2.4.1",
+   "relay-bp": "0.2.2",
+   "chromobius": "1.1.1"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 13666.155000009894,
+    "reference_us": 26537.136000001738,
+    "ratio": 0.5149822874634625
+   },
+   "shortest_graphlike": {
+    "what": "Its graph-like distance (shortest_graphlike_error on the model)",
+    "unit": "model",
+    "ours_us": 636.7739999859623,
+    "reference_us": 3475.115000014739,
+    "ratio": 0.18323825254222134
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 2.386040150003055,
+    "reference_us": 4.154645749997599,
+    "ratio": 0.5743065218025951
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 0.8795826499977011,
+    "reference_us": 7.524092349996181,
+    "ratio": 0.1169021602981983
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 5.660413350000226,
+    "reference_us": 5.124800900000537,
+    "ratio": 1.1045138065753215
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 15.487524600001732,
+    "reference_us": 18.101627699996925,
+    "ratio": 0.855587401126605
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 14.918064500000128,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@4": {
+    "what": "Sampling, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 0.8052455000040482,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@all": {
+    "what": "Sampling, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 0.818868799996153,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@4": {
+    "what": "Matching, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 1.5385456999979397,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@all": {
+    "what": "Matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 1.5429993999987346,
+    "reference_us": null,
+    "ratio": null
+   },
+   "correlated_matching@all": {
+    "what": "Correlated matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 4.13550179999902,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 2401.560460000004,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bplsd_gross": {
+    "what": "BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc)",
+    "unit": "shot",
+    "ours_us": 2529.3876649999447,
+    "reference_us": 4013.923344999739,
+    "ratio": 0.6301534552598959
+   },
+   "relay_gross": {
+    "what": "Relay-BP on the same shots (against IBM's relay_bp)",
+    "unit": "shot",
+    "ours_us": 9216.250784999715,
+    "reference_us": 9345.068685000228,
+    "ratio": 0.9862154143171491
+   },
+   "color_matching": {
+    "what": "Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius)",
+    "unit": "shot",
+    "ours_us": 13.430505099995571,
+    "reference_us": 18.151185249996615,
+    "ratio": 0.7399244134758679
+   },
+   "search_color": {
+    "what": "The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract)",
+    "unit": "shot",
+    "ours_us": 4554.280370000015,
+    "reference_us": null,
+    "ratio": null
+   }
+  }
  }
 ]

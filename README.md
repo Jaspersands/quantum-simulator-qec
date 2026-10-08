@@ -192,17 +192,17 @@ runners, `.github/workflows/bench.yml`); every push is held to them, and the
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
-| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.42 | 0.53 |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.11 | 0.08 | 0.17 |
-| Sampling its detection events, 20,000 shots | 0.92 | 0.69 | 0.57 |
-| Measurements to detection events, 20,000 shots | 0.24 | 0.15 | 0.12 |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.99 | 1.16 | 1.10 |
-| Correlated matching, 20,000 shots (against PyMatching's) | 0.99 | 1.09 | 0.88 |
-| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.60 | — | — |
-| Relay-BP on the same shots (against IBM's relay_bp) | 0.87 | — | — |
-| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.73 | — | — |
-| The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 0.99 | — | — |
-| *recorded with* | 1.8.0 | 1.7.0 | 1.7.0 |
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.38 | 0.51 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.11 | 0.14 | 0.18 |
+| Sampling its detection events, 20,000 shots | 0.92 | 0.74 | 0.57 |
+| Measurements to detection events, 20,000 shots | 0.24 | 0.12 | 0.12 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.99 | 1.22 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 0.99 | 1.21 | 0.86 |
+| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.60 | 0.61 | 0.63 |
+| Relay-BP on the same shots (against IBM's relay_bp) | 0.87 | 0.96 | 0.99 |
+| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.73 | 0.92 | 0.74 |
+| The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 0.99 | 0.66 | — |
+| *recorded with* | 1.8.0 | 1.8.0 | 1.8.0 |
 
 ## A note on quoted figures
 
