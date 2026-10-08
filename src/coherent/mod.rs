@@ -29,6 +29,7 @@ pub use shot::Shot;
 use crate::circuit::{Basis, Circuit, Instr};
 use crate::nonpauli::NonPauli;
 use crate::simulator::StabilizerSimulator;
+use crate::statevec::C;
 
 /// A Pauli code: X 1, Z 2, Y 3.
 type Code = u8;
@@ -577,51 +578,42 @@ pub struct Element {
 }
 
 impl Program {
-    /// A shot's weight: 1 plus each kernel element's cross term relative to the twirl's
-    /// probability of the shot, each pair of fault sets counted once, from its likelier side
-    /// (twice there, or once from each side on a tie), so no term exceeds 1 in size.
-    pub fn weight(&self, shot: &Shot, kernel: &[Element]) -> f64 {
-        let mut w = 1.0;
-        for e in kernel {
-            // The cross term as a real factor and a power of i.
-            let (mut mag, mut quarter, mut likelier) = (1.0f64, 0u32, 1.0f64);
-            let mut sign = false;
-            for &g in &e.members {
-                let t = self.locations[g].theta.tan();
-                if shot.fired[g] {
-                    // −i / t
-                    mag /= t;
-                    quarter += 3;
-                    likelier /= t * t;
-                } else {
-                    // i t
-                    mag *= t;
-                    quarter += 1;
-                    likelier *= t * t;
-                }
-                sign ^= shot.anti[g];
-            }
-            for &s in &e.z {
-                sign ^= shot.branch[s];
-            }
-            sign ^= e.offset;
-            quarter = (quarter + e.k as u32) % 4;
-            let re = match quarter {
-                0 => mag,
-                2 => -mag,
-                _ => 0.0,
-            };
-            let re = if sign { -re } else { re };
-            let factor = if likelier < 1.0 - 1e-12 {
-                2.0
-            } else if likelier <= 1.0 + 1e-12 {
-                1.0
+    /// Kernel element `e`'s fault set's amplitude relative to the shot's own, as the shot sees
+    /// it: the cross term over the twirl's probability of the shot.
+    pub fn ratio(&self, shot: &Shot, e: &Element) -> C {
+        let (mut mag, mut quarter, mut sign) = (1.0f64, e.k as u32, e.offset);
+        for &g in &e.members {
+            let t = self.locations[g].theta.tan();
+            if shot.fired[g] {
+                // −i / t
+                mag /= t;
+                quarter += 3;
             } else {
-                0.0
-            };
-            w += factor * re;
+                // i t
+                mag *= t;
+                quarter += 1;
+            }
+            sign ^= shot.anti[g];
         }
-        w
+        for &s in &e.z {
+            sign ^= shot.branch[s];
+        }
+        let v = [C::ONE, C::I, C::new(-1.0, 0.0), C::new(0.0, -1.0)][(quarter % 4) as usize].scale(if sign { -mag } else { mag });
+        v
+    }
+
+    /// A shot's weight: the coherent probability of its class (every fault set the kernel
+    /// relates to it, which no record tells apart) over the twirl's, |1 + Σ r|² / (1 + Σ |r|²)
+    /// for the ratios r of `kernel`'s elements. Never negative; exact (an unbiased weight) when
+    /// `kernel` is the whole kernel.
+    pub fn weight(&self, shot: &Shot, kernel: &[Element]) -> f64 {
+        let (mut sum, mut norm) = (C::ONE, 1.0);
+        for e in kernel {
+            let r = self.ratio(shot, e);
+            sum = sum + r;
+            norm += r.norm2();
+        }
+        sum.norm2() / norm
     }
 }
 
