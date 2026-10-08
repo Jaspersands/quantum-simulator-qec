@@ -123,10 +123,11 @@ pub struct Scratch {
     pub(crate) queue: Tracker,
     pub(crate) now: i64,
     pub(crate) events: u64,
-    /// This decode's edge weights, per half-edge. They are the graph's, except
-    /// while correlated matching's second pass has lowered some; `undo` holds
-    /// the old values until they are restored.
-    pub(crate) w: Vec<i64>,
+    /// Per half-edge, the node a scan reads and this decode's weight (see
+    /// `SparseGraph::scan`), together so the hot loop reads one array. The weights
+    /// are the graph's, except while correlated matching's second pass has lowered
+    /// some; `undo` holds the old values until they are restored.
+    pub(crate) scan: Vec<(u32, i32)>,
     pub(crate) undo: Vec<(u32, i64)>,
     /// The last decode's matched pairs: two defects, or a defect and BOUNDARY.
     pub(crate) pairs: Vec<(u32, u32)>,
@@ -161,6 +162,15 @@ pub struct Scratch {
 }
 
 impl Scratch {
+    /// Half-edge `e`'s weight in this decode.
+    pub(crate) fn weight(&self, e: usize) -> i64 {
+        i64::from(self.scan[e].1)
+    }
+
+    pub(crate) fn set_weight(&mut self, e: usize, w: i64) {
+        self.scan[e].1 = i32::try_from(w).expect("an edge weight fits 32 bits");
+    }
+
     pub fn new(graph: &SparseGraph) -> Scratch {
         Scratch {
             // One more than the graph's: the boundary's, never reached, which
@@ -184,7 +194,7 @@ impl Scratch {
             queue: Tracker::default(),
             now: 0,
             events: 0,
-            w: graph.w.clone(),
+            scan: graph.scan.clone(),
             undo: Vec::new(),
             pairs: Vec::new(),
             // Sized on first use (`ensure_paths`): plain matching never traces.

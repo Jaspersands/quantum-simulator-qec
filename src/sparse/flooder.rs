@@ -189,15 +189,15 @@ impl<'a> Solver<'a> {
         let range = self.g.edges(v);
         let first = range.start;
         let to = &self.g.to[range.clone()];
-        let reach = &self.g.reach[range.clone()];
-        let w = &self.s.w[range];
+        let scan = &self.s.scan[range];
         let mut best_dt = i64::MAX;
         let mut best_k = usize::MAX;
         // The boundary reads the node past the graph's last (`reach`), which is never
         // reached; an empty node's top is nobody's region. So every edge is the
         // same loads and arithmetic, and the one branch left is the rarely
         // taken "earlier than the best so far".
-        for (k, (&u, &wt)) in reach.iter().zip(w).enumerate() {
+        for (k, &(u, wt)) in scan.iter().enumerate() {
+            let wt = i64::from(wt);
             let nu = &nodes[u as usize];
             let r = &regions[nu.top as usize].radius;
             let lu = r.at(now) + nu.wrapped;
@@ -437,7 +437,7 @@ impl<'a> Solver<'a> {
             let lv = self.local_radius(v);
             assert!(lv >= 0, "node {v}: local radius {lv}");
             for e in self.g.edges(v) {
-                let (u, w) = (self.g.to[e], self.s.w[e]);
+                let (u, w) = (self.g.to[e], self.s.weight(e));
                 if u == BOUNDARY {
                     assert!(lv <= w, "node {v} overlaps the boundary");
                     continue;
