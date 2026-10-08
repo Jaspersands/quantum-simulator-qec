@@ -8,7 +8,8 @@ each hashed (sha256) and recorded in data/fingerprints.json.
 
 Shots, decodes and searches must be the same on every platform: CI checks them on Linux, macOS
 and Windows (tests/test_fingerprints.py), which also checks that a seed gives the same shots
-everywhere. Error-model text is recorded per platform instead: the engine rounds as Stim's own
+everywhere. Error-model text and the search decoder's predictions are recorded per platform instead (the
+search breaks ties as the platform's C++ library does, as Tesseract does there): the engine rounds as Stim's own
 build does on each (a fused multiply-add on ARM64, the platform's `pow`), so its text, like
 Stim's, can differ in a last digit between them.
 """
@@ -35,8 +36,10 @@ PLATFORM = f"{platform.system()}-{platform.machine().lower()}"
 
 
 def per_platform(name: str) -> bool:
-    """Whether a case's result may differ between platforms (error-model text: see above)."""
-    return "/model" in name
+    """Whether a case's result may differ between platforms: error-model text (see above), and
+    the search decoder, which breaks ties between equally promising states as the platform's
+    C++ library does, to give Tesseract's answers there."""
+    return "/model" in name or "/decode/search" in name
 
 
 def expected(recorded: Dict[str, object], name: str):
@@ -102,6 +105,9 @@ def cases() -> Dict[str, Callable[[], str]]:
         "union_find": lambda: sq.UnionFind(dem),
         "belief_matching": lambda: sq.BeliefMatching(dem),
         "bposd": lambda: sq.BpOsd(c.detector_error_model(), max_iter=30, osd_order=4),
+        "bplsd": lambda: sq.BpLsd(c.detector_error_model(), max_iter=30, lsd_method="lsd_cs", lsd_order=6),
+        "relay_bp": lambda: sq.RelayBp(c.detector_error_model(), legs=20, solutions=3),
+        "search": lambda: sq.SearchDecoder(c.detector_error_model(), num_det_orders=4),
     }
     for name, make in decoders.items():
         for threads in (1, 0):
@@ -109,6 +115,14 @@ def cases() -> Dict[str, Callable[[], str]]:
     g = gross()
     gdets, _ = g.compile_detector_sampler(seed=12).sample(200, separate_observables=True)
     out["gross/decode/bposd"] = lambda: digest(sq.BpOsd(g.detector_error_model(), max_iter=100, osd_order=7).decode_batch(gdets, threads=0))
+    out["gross/decode/bplsd"] = lambda: digest(sq.BpLsd(g.detector_error_model(), lsd_method="lsd_cs", lsd_order=10).decode_batch(gdets, threads=0))
+    out["gross/decode/relay_bp"] = lambda: digest(sq.RelayBp(g.detector_error_model()).decode_batch(gdets, threads=0))
+    out["gross/decode/search"] = lambda: digest(sq.SearchDecoder(g.detector_error_model(), num_det_orders=2).decode_batch(gdets[:50], threads=0))
+    cc = sq.CssCode.color_code(5).memory_circuit(5, 0.002, annotate_colors=True)
+    cdets, _ = cc.compile_detector_sampler(seed=13).sample(2000, separate_observables=True)
+    for threads in (1, 0):
+        out[f"colour/decode/color_matching/t{threads}"] = lambda t=threads: digest(*sq.ColorMatching(cc.detector_error_model()).decode_batch(cdets, return_weights=True, threads=t))
+    out["colour/annotated"] = lambda: digest(str(sq.Circuit.generated("color_code:memory_xyz", distance=5, rounds=4, after_clifford_depolarization=0.001, annotate_colors=True)), str(cc))
 
     search = dict(dont_explore_detection_event_sets_with_size_above=6, dont_explore_edges_with_degree_above=6, dont_explore_edges_increasing_symptom_degree=False)
     small = lambda: sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.004)  # noqa: E731
