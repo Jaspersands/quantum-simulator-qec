@@ -815,47 +815,6 @@ impl Signed {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn prog(text: &str) -> Program {
-        Program::new(&Circuit::parse(text).unwrap()).unwrap()
-    }
-
-    #[test]
-    fn locations_are_numbered_in_order() {
-        let p = prog("R 0 1\nI_ERROR[R_Z(theta=0.1)] 0 1\nII_ERROR[R_XX(theta=0.2)] 0 1\nM 0 1");
-        assert_eq!(p.locations.len(), 3);
-        assert_eq!(p.locations[2], Location { paulis: vec![(0, 1), (1, 1)], theta: 0.2 });
-    }
-
-    #[test]
-    fn flips_follow_the_frame() {
-        // X on qubit 0 before CX 0 1 flips both measurements and both ends; Z on 0 flips nothing.
-        let p = prog("R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI_ERROR[R_Z(theta=0.1)] 0\nCX 0 1\nM 0 1");
-        let f = p.flips();
-        assert_eq!(f[0], vec![2, 3, p.end_slot(0), p.end_slot(1)]);
-        assert_eq!(f[1], Vec::<usize>::new());
-    }
-
-    #[test]
-    fn elements_of_small_circuits() {
-        let element = |text: &str, g: &[usize]| {
-            let p = prog(text);
-            let solver = GaugeSolver::new(&p);
-            p.element(g, &solver)
-        };
-        // Z on |0⟩ is +|0⟩: compatible, factor 1, signed by qubit 0's end.
-        let e = element("R 0\nI_ERROR[R_Z(theta=0.1)] 0\nM 0", &[0]).unwrap();
-        assert_eq!((e.k, e.offset), (0, false));
-        // X on |0⟩ flips a deterministic measurement: no gauge flips it.
-        assert!(element("R 0\nI_ERROR[R_X(theta=0.1)] 0\nM 0", &[0]).is_none());
-        // X on |+⟩ is +|+⟩, though it flips the final Z measurement (a random one).
-        assert!(element("R 0\nH 0\nI_ERROR[R_X(theta=0.1)] 0\nM 0", &[0]).is_some());
-    }
-}
-
 /// The circuit with each coherent rotation exp(−iθP) replaced by its Pauli twirl, P with
 /// probability sin²θ: what Stim and every decoder assume. With `merge`, rotations that are the
 /// same fault in different places (`kernel::Group`) become one, at the group's last place, with
@@ -868,7 +827,8 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
         }
     };
     if !merge {
-        fn walk(instrs: &[Instr], f: &dyn Fn(&[(u32, u8)], f64) -> Instr) -> Vec<Instr> {
+        type Twirl<'a> = &'a dyn Fn(&[(u32, u8)], f64) -> Instr;
+        fn walk(instrs: &[Instr], f: Twirl) -> Vec<Instr> {
             let mut out = Vec::new();
             for ins in instrs {
                 match ins {
@@ -923,4 +883,45 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
         }
     }
     Ok(Circuit { instrs: out })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn prog(text: &str) -> Program {
+        Program::new(&Circuit::parse(text).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn locations_are_numbered_in_order() {
+        let p = prog("R 0 1\nI_ERROR[R_Z(theta=0.1)] 0 1\nII_ERROR[R_XX(theta=0.2)] 0 1\nM 0 1");
+        assert_eq!(p.locations.len(), 3);
+        assert_eq!(p.locations[2], Location { paulis: vec![(0, 1), (1, 1)], theta: 0.2 });
+    }
+
+    #[test]
+    fn flips_follow_the_frame() {
+        // X on qubit 0 before CX 0 1 flips both measurements and both ends; Z on 0 flips nothing.
+        let p = prog("R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI_ERROR[R_Z(theta=0.1)] 0\nCX 0 1\nM 0 1");
+        let f = p.flips();
+        assert_eq!(f[0], vec![2, 3, p.end_slot(0), p.end_slot(1)]);
+        assert_eq!(f[1], Vec::<usize>::new());
+    }
+
+    #[test]
+    fn elements_of_small_circuits() {
+        let element = |text: &str, g: &[usize]| {
+            let p = prog(text);
+            let solver = GaugeSolver::new(&p);
+            p.element(g, &solver)
+        };
+        // Z on |0⟩ is +|0⟩: compatible, factor 1, signed by qubit 0's end.
+        let e = element("R 0\nI_ERROR[R_Z(theta=0.1)] 0\nM 0", &[0]).unwrap();
+        assert_eq!((e.k, e.offset), (0, false));
+        // X on |0⟩ flips a deterministic measurement: no gauge flips it.
+        assert!(element("R 0\nI_ERROR[R_X(theta=0.1)] 0\nM 0", &[0]).is_none());
+        // X on |+⟩ is +|+⟩, though it flips the final Z measurement (a random one).
+        assert!(element("R 0\nH 0\nI_ERROR[R_X(theta=0.1)] 0\nM 0", &[0]).is_some());
+    }
 }
