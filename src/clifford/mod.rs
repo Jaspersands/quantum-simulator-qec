@@ -12,3 +12,5 @@ pub mod tableau_sim;
 
 pub use tableau_sim::TableauSimulator;
 pub mod convert;
+pub mod rev_tracker;
+pub mod transform;

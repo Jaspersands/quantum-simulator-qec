@@ -316,6 +316,11 @@ impl Circuit {
         self.items.push(Item::Repeat { count, body, tag: tag.to_string() });
     }
 
+    /// The same: a block never fuses (Stim's `append_repeat_block`).
+    pub fn push_raw_repeat(&mut self, count: u64, body: Circuit, tag: &str) {
+        self.push_repeat(count, body, tag);
+    }
+
     /// Append another circuit's items, fusing at the seam.
     pub fn extend(&mut self, other: &Circuit) {
         for it in &other.items {

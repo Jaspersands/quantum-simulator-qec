@@ -186,7 +186,7 @@ def test_css_memory_models_equal_stims():
         for basis in ("z", "x"):
             c = code.memory_circuit(4, 0.002, basis=basis)
             # Character for character, loops folded alike (this package's text ends in a newline).
-            assert str(c.detector_error_model()) == str(stim.Circuit(str(c)).detector_error_model()) + "\n"
+            assert str(c.detector_error_model()) == str(stim.Circuit(str(c)).detector_error_model())
 
 
 def test_css_memories_decode():

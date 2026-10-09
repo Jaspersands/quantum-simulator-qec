@@ -38,7 +38,7 @@ def test_graphlike_distance_equals_stims(task, d):
     assert found.num_errors == d
     assert undetected_logical(str(found))
     # Stim's own faults, in Stim's order, explained as Stim explains them.
-    assert str(found) == str(c.detector_error_model(decompose_errors=True).shortest_graphlike_error()) + "\n"
+    assert str(found) == str(c.detector_error_model(decompose_errors=True).shortest_graphlike_error())
     for canonicalize in (True, False) if EXPLAINS_AS_STIM else ():
         want = [str(e) for e in c.shortest_graphlike_error(canonicalize_circuit_errors=canonicalize)]
         assert [str(e).rstrip("\n") for e in ours.shortest_graphlike_error(canonicalize_circuit_errors=canonicalize)] == want
@@ -54,7 +54,7 @@ def test_graphlike_models_are_stims_character_for_character(task, decompose):
         model = noisy(task, d).detector_error_model(decompose_errors=decompose, ignore_decomposition_failures=True)
         for ignore in (True, False):
             try:
-                want = str(model.shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) + "\n"
+                want = str(model.shortest_graphlike_error(ignore_ungraphlike_errors=ignore))
             except ValueError:
                 with pytest.raises(ValueError):
                     sq.DetectorErrorModel(str(model)).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)
@@ -78,7 +78,7 @@ def test_graphlike_random_models_and_circuits_are_stims():
         text = "\n".join(lines + [f"detector D{nd - 1}"])
         for ignore in (True, False):
             try:
-                want = str(stim.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) + "\n"
+                want = str(stim.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore))
             except ValueError:
                 with pytest.raises(ValueError):
                     sq.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)

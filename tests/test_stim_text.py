@@ -69,7 +69,7 @@ def test_ignoring_decomposition_failures_is_stims(d):
     c = stim.Circuit.generated("color_code:memory_xyz", distance=d, rounds=4, after_clifford_depolarization=0.001, before_measure_flip_probability=0.002)
     want = str(c.detector_error_model(decompose_errors=True, ignore_decomposition_failures=True))
     got = str(sq.Circuit(str(c)).detector_error_model(decompose_errors=True, ignore_decomposition_failures=True))
-    assert got == want + "\n"
+    assert got == want
     # Without it, a model Stim cannot decompose is refused here too.
     try:
         c.detector_error_model(decompose_errors=True)

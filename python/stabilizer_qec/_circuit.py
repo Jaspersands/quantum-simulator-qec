@@ -52,9 +52,11 @@ class Circuit:
         self._c = call(_core.Circuit, text_of(text, "Circuit", Circuit))
 
     @classmethod
-    def from_file(cls, path: Union[str, PathLike]) -> "Circuit":
-        """Read a ``.stim`` file."""
-        with open(path, encoding="utf-8") as f:
+    def from_file(cls, file: Union[str, PathLike, Any]) -> "Circuit":
+        """Read a ``.stim`` file, from a path or an open file."""
+        if hasattr(file, "read"):
+            return cls(file.read())
+        with open(file, encoding="utf-8") as f:
             return cls(f.read())
 
     def __str__(self) -> str:
@@ -150,6 +152,117 @@ class Circuit:
     def clear(self) -> None:
         """Remove everything."""
         self._c = call(_core.Circuit, "")
+
+    def _transformed(self, which: str) -> "Circuit":
+        return Circuit(call(_core.circuit_transform, self._stim_exact_text(), which))
+
+    def decomposed(self) -> "Circuit":
+        """The circuit in (mostly) H, S, CX, M and R, as Stim's ``decomposed``."""
+        return self._transformed("decomposed")
+
+    def flattened(self) -> "Circuit":
+        """Loops unrolled and coordinate shifts folded into the coordinates."""
+        return self._transformed("flattened")
+
+    def without_noise(self) -> "Circuit":
+        """Noise removed: channels dropped, measurement flip probabilities dropped, heralded
+        errors replaced by ``MPAD 0``."""
+        return self._transformed("without_noise")
+
+    def without_tags(self) -> "Circuit":
+        """Every instruction's tag removed."""
+        return self._transformed("without_tags")
+
+    def inverse(self) -> "Circuit":
+        """The unitary inverse: operations inverted and in reverse. Noise, measurements and
+        resets have no inverse and raise ``ValueError``."""
+        return self._transformed("inverse")
+
+    def with_inlined_feedback(self) -> "Circuit":
+        """The circuit without measurement feedback (``CX rec[-1] q`` and the like): each
+        detector and observable the feedback affected reads the controlling measurement
+        instead."""
+        return self._transformed("with_inlined_feedback")
+
+    @property
+    def num_ticks(self) -> int:
+        """How many TICKs run (each loop iteration's counted)."""
+        return call(_core.circuit_num_ticks, self._stim_exact_text())
+
+    def flattened_operations(self) -> list:
+        """Every instruction, loops unrolled, in Stim's older tuple form
+        ``(name, targets, argument)``."""
+        out = []
+
+        def walk(items: list) -> None:
+            for it in items:
+                if it[0] == "repeat":
+                    for _ in range(it[1]):
+                        walk(it[3])
+                    continue
+                _, name, _tag, args, targets = it
+                ts = []
+                for v in targets:
+                    g = _stim.GateTarget._raw(v)
+                    q = v & ((1 << 24) - 1)
+                    if g.is_inverted_result_target:
+                        ts.append(("inv", q))
+                    elif g.is_x_target:
+                        ts.append(("X", q))
+                    elif g.is_z_target:
+                        ts.append(("Z", q))
+                    elif g.is_y_target:
+                        ts.append(("Y", q))
+                    elif g.is_measurement_record_target:
+                        ts.append(("rec", -q))
+                    elif g.is_sweep_bit_target:
+                        ts.append(("sweep", q))
+                    else:
+                        ts.append(q)
+                arg = 0 if not args else args[0] if len(args) == 1 else list(args)
+                out.append((name, ts, arg))
+
+        walk(self._items())
+        return out
+
+    def get_final_qubit_coordinates(self) -> dict:
+        """Each qubit's coordinates at the end of the circuit (after every SHIFT_COORDS)."""
+        return dict(call(_core.circuit_final_qubit_coordinates, self._stim_exact_text()))
+
+    def get_detector_coordinates(self, only: Any = None) -> dict:
+        """The coordinates of every detector, or of the indices in ``only``."""
+        if only is None:
+            wanted = list(range(self.num_detectors))
+        else:
+            wanted = sorted({int(k) for k in only})
+        return dict(call(_core.circuit_detector_coordinates, self._stim_exact_text(), wanted))
+
+    def count_determined_measurements(self, *, unknown_input: bool = False) -> int:
+        """How many measurements have outcomes fixed by earlier ones (and by the |0> start,
+        unless ``unknown_input``)."""
+        return call(_core.circuit_count_determined_measurements, self._stim_exact_text(), bool(unknown_input))
+
+    def reference_detector_and_observable_signs(self, *, bit_packed: bool = False) -> tuple:
+        """The noiseless parity of each detector's and each observable's measurement set."""
+        dets, obs = call(_core.circuit_reference_signs, self._stim_exact_text(), self.num_observables)
+        d = np.array(dets, dtype=np.bool_)
+        o = np.array(obs, dtype=np.bool_)
+        if bit_packed:
+            return np.packbits(d, bitorder="little"), np.packbits(o, bitorder="little")
+        return d, o
+
+    def to_tableau(self, *, ignore_noise: bool = False, ignore_measurement: bool = False, ignore_reset: bool = False) -> "_stim.Tableau":
+        """The tableau of the circuit's unitary part."""
+        return _stim.Tableau.from_circuit(self, ignore_noise=ignore_noise, ignore_measurement=ignore_measurement, ignore_reset=ignore_reset)
+
+    def to_file(self, file: Any) -> None:
+        """Write the circuit's text to a path or an open text file."""
+        text = str(self) + "\n"
+        if hasattr(file, "write"):
+            file.write(text)
+        else:
+            with open(file, "w", encoding="utf-8") as f:
+                f.write(text)
 
     def append_operation(self, name: Any, targets: Any = (), arg: Any = None, *, tag: str = "") -> None:
         """Stim's older name for ``append``."""
@@ -510,11 +623,19 @@ def _target(t: Any) -> str:
 def _targets(targets: Any) -> list:
     if isinstance(targets, (str, int, np.integer)) or hasattr(targets, "is_combiner"):
         return [_target(targets)]
+    if isinstance(targets, _stim.PauliString):
+        return [_target(t) for t in _stim.target_combined_paulis(targets)]
     try:
         items = list(targets)
     except TypeError:
         raise TypeError(f"targets must be a target or a list of them, not {type(targets).__name__}") from None
-    return [_target(t) for t in items]
+    out = []
+    for t in items:
+        if isinstance(t, _stim.PauliString) or (type(t).__name__ == "PauliString" and type(t).__module__.startswith("stim")):
+            out.extend(_target(x) for x in _stim.target_combined_paulis(_stim.PauliString(str(t))))
+        else:
+            out.append(_target(t))
+    return out
 
 
 def _args(arg: Any) -> list:
@@ -622,10 +743,15 @@ class DetectorErrorModel:
             return cls(f.read())
 
     def __str__(self) -> str:
-        return self._d.__str__()
+        text = self._d.__str__()
+        return text[:-1] if text.endswith("\n") else text
 
     def __repr__(self) -> str:
-        return f"stabilizer_qec.DetectorErrorModel({str(self)!r})"
+        text = str(self)
+        if not text:
+            return "stabilizer_qec.DetectorErrorModel()"
+        body = "\n".join("    " + line if line else line for line in text.split("\n"))
+        return f"stabilizer_qec.DetectorErrorModel('''\n{body}\n''')"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, DetectorErrorModel):

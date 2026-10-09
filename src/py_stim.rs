@@ -632,6 +632,50 @@ fn circuit_approx_equals(a: &str, b: &str, atol: f64) -> PyResult<bool> {
     Ok(a.approx_equals(&b, atol))
 }
 
+/// A Stim circuit transformation, by name, returning exact text.
+#[pyfunction]
+fn circuit_transform(text: &str, which: &str) -> PyResult<String> {
+    use crate::clifford::transform as t;
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    let out = match which {
+        "decomposed" => t::decomposed(&c).map_err(err)?,
+        "flattened" => t::flattened(&c),
+        "without_noise" => t::without_noise(&c),
+        "without_tags" => t::without_tags(&c),
+        "inverse" => t::inverse(&c, false).map_err(err)?,
+        "weak_inverse" => t::inverse(&c, true).map_err(err)?,
+        "with_inlined_feedback" => t::with_inlined_feedback(&c).map_err(err)?,
+        _ => return Err(err(format!("unknown transformation {which}"))),
+    };
+    Ok(out.exact_text())
+}
+
+#[pyfunction]
+fn circuit_num_ticks(text: &str) -> PyResult<u64> {
+    Ok(ir::Circuit::parse(text).map_err(err)?.count_ticks())
+}
+
+#[pyfunction]
+fn circuit_final_qubit_coordinates(text: &str) -> PyResult<std::collections::BTreeMap<u64, Vec<f64>>> {
+    Ok(crate::clifford::transform::final_qubit_coordinates(&ir::Circuit::parse(text).map_err(err)?))
+}
+
+#[pyfunction]
+fn circuit_detector_coordinates(text: &str, wanted: Vec<u64>) -> PyResult<std::collections::BTreeMap<u64, Vec<f64>>> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    crate::clifford::transform::detector_coordinates(&c, &wanted.into_iter().collect()).map_err(err)
+}
+
+#[pyfunction]
+fn circuit_count_determined_measurements(text: &str, unknown_input: bool) -> PyResult<u64> {
+    crate::clifford::transform::count_determined_measurements(&ir::Circuit::parse(text).map_err(err)?, unknown_input).map_err(err)
+}
+
+#[pyfunction]
+fn circuit_reference_signs(text: &str, num_observables: usize) -> PyResult<(Vec<bool>, Vec<bool>)> {
+    crate::clifford::transform::reference_detector_and_observable_signs(&ir::Circuit::parse(text).map_err(err)?, num_observables).map_err(err)
+}
+
 /// The circuit's items: ("op", name, tag, args, targets) or ("repeat", count, tag, items).
 #[pyfunction]
 fn circuit_items<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
@@ -678,6 +722,12 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circuit_exact_text, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_items, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_approx_equals, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_transform, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_num_ticks, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_final_qubit_coordinates, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_detector_coordinates, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_count_determined_measurements, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_reference_signs, m)?)?;
     m.add_function(wrap_pyfunction!(instruction_text, m)?)?;
     m.add_function(wrap_pyfunction!(parse_gate_target, m)?)?;
     m.add_function(wrap_pyfunction!(gate_target_text, m)?)?;

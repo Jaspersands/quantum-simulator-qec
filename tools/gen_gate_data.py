@@ -83,9 +83,15 @@ def source_gates() -> dict:
                 if re.search(r"\b" + flag + r"\b", flags_text):
                     bits |= 1 << k
             cat = re.search(r'\.category = "([^"]*)"', block).group(1)
+            inv = re.search(r"\.best_candidate_inverse_id = GateType::([A-Z_0-9]+)", block).group(1)
             dec = re.search(r'\.h_s_cx_m_r_decomposition = R"CIRCUIT\((.*?)\)CIRCUIT"', block, re.S)
-            out[name] = (bits, argc, cat, dec.group(1).strip("\n") if dec else None)
+            out[name] = (bits, argc, cat, dec.group(1).strip("\n") if dec else None, inv)
     return out
+
+
+def canonical_type(type_name: str, data: dict) -> str:
+    """A GateType enum name (e.g. ZCX in old sources, or CX) as the gate's canonical name."""
+    return stim.gate_data(type_name).name
 
 
 def rust_str(s: str) -> str:
@@ -136,6 +142,8 @@ def render() -> str:
         "    pub category: &'static str,",
         "    /// Stim's decomposition into H, S, CX, M and R (empty for none).",
         "    pub decomposition: &'static str,",
+        "    /// Stim's `best_candidate_inverse_id`: the gate `Circuit.inverse` writes for this one.",
+        "    pub inverse_candidate: &'static str,",
         "}",
         "",
     ]
@@ -186,6 +194,7 @@ def render() -> str:
             f"arg_count: {src[key][1]}",
             f"category: {rust_str(src[key][2])}",
             f"decomposition: {rust_str(src[key][3] or '')}",
+            f"inverse_candidate: {rust_str(canonical_type(src[key][4], data))}",
         ]
         lines.append("    GateInfo { " + ", ".join(fields) + " },")
     lines += [

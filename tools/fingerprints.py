@@ -50,6 +50,12 @@ def expected(recorded: Dict[str, object], name: str):
     return v.get(PLATFORM) if isinstance(v, dict) else v
 
 
+def text(model) -> str:
+    """A model's text as recorded: with the final newline it had before 2.0 made ``str()``
+    Stim's exactly (no final newline), so the recorded hashes stay valid."""
+    return str(model) + "\n"
+
+
 def digest(*parts) -> str:
     h = hashlib.sha256()
     for p in parts:
@@ -81,11 +87,11 @@ def cases() -> Dict[str, Callable[[], str]]:
     circuits = {"surface": surface, "gross": gross}
     for name, make in circuits.items():
         c = make()
-        out[f"{name}/model"] = lambda c=c: digest(str(c.detector_error_model()))
-        out[f"{name}/model/flat"] = lambda c=c: digest(str(c.detector_error_model(flatten_loops=True)))
-        out[f"{name}/model/disjoint"] = lambda c=c: digest(str(c.detector_error_model(approximate_disjoint_errors=True)))
+        out[f"{name}/model"] = lambda c=c: digest(text(c.detector_error_model()))
+        out[f"{name}/model/flat"] = lambda c=c: digest(text(c.detector_error_model(flatten_loops=True)))
+        out[f"{name}/model/disjoint"] = lambda c=c: digest(text(c.detector_error_model(approximate_disjoint_errors=True)))
         if name == "surface":
-            out[f"{name}/model/decomposed"] = lambda c=c: digest(str(c.detector_error_model(decompose_errors=True)))
+            out[f"{name}/model/decomposed"] = lambda c=c: digest(text(c.detector_error_model(decompose_errors=True)))
         for seed in SEEDS:
             for n in SHOTS:
                 for threads in (1, 3, 0):
@@ -129,8 +135,8 @@ def cases() -> Dict[str, Callable[[], str]]:
     search = dict(dont_explore_detection_event_sets_with_size_above=6, dont_explore_edges_with_degree_above=6, dont_explore_edges_increasing_symptom_degree=False)
     small = lambda: sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.004)  # noqa: E731
     for name, make in (("surface_d3", small), ("colour", colour)):
-        out[f"{name}/graphlike"] = lambda make=make: digest(str(make().detector_error_model(decompose_errors=True, ignore_decomposition_failures=True).shortest_graphlike_error()))
-        out[f"{name}/search"] = lambda make=make: digest(str(make().detector_error_model().search_for_undetectable_logical_errors(**search)))
+        out[f"{name}/graphlike"] = lambda make=make: digest(text(make().detector_error_model(decompose_errors=True, ignore_decomposition_failures=True).shortest_graphlike_error()))
+        out[f"{name}/search"] = lambda make=make: digest(text(make().detector_error_model().search_for_undetectable_logical_errors(**search)))
     return out
 
 

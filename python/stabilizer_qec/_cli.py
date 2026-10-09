@@ -222,7 +222,7 @@ def cmd_analyze_errors(a) -> None:
         flatten_loops=not a.fold_loops,
         ignore_decomposition_failures=a.ignore_decomposition_failures,
     )
-    _write(a.out, str(dem))
+    _write(a.out, str(dem) + "\n")
 
 
 def cmd_explain_errors(a) -> None:
