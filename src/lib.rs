@@ -34,6 +34,10 @@ pub mod circuit;
 #[doc(hidden)]
 pub mod gates;
 #[doc(hidden)]
+pub mod gate_data;
+#[doc(hidden)]
+pub mod clifford;
+#[doc(hidden)]
 pub mod generated;
 #[doc(hidden)]
 pub mod dem;
