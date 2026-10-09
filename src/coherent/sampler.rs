@@ -1,6 +1,6 @@
 //! The coherent sampler: shots of the twirled circuit, as the frame sampler draws them, each
 //! with its weight. Weighted, the shots are distributed as the coherent circuit's; the estimate
-//! of any rate is Σ w·[event] / Σ w.
+//! of any rate is Σ w·𝟙(event) / Σ w.
 
 use std::collections::HashMap;
 
