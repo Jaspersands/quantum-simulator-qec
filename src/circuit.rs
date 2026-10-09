@@ -310,9 +310,6 @@ impl Circuit {
                 }
                 Instr::Observable { index, recs, .. } => {
                     let i = *index as usize;
-                    if i >= 64 {
-                        return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
-                    }
                     if observables.len() <= i {
                         observables.resize(i + 1, Vec::new());
                         observable_tags.resize(i + 1, String::new());

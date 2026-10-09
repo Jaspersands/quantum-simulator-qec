@@ -20,6 +20,7 @@
 //! A d = 11 memory of 10,000 rounds is analysed in milliseconds and printed in a few hundred
 //! lines.
 
+use crate::obsbits::ObsBits;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
@@ -113,9 +114,13 @@ fn dets(s: &[u64]) -> Vec<u64> {
     s.iter().copied().filter(|t| t & OBS == 0).collect()
 }
 
-/// The observables of a symptom, as a mask.
-fn obs_mask(s: &[u64]) -> u64 {
-    s.iter().filter(|t| *t & OBS != 0).fold(0, |m, t| m ^ (1u64 << (t & !OBS)))
+/// The observables of a symptom, as a mask of any width.
+fn obs_mask(s: &[u64]) -> ObsBits {
+    let mut m = ObsBits::new();
+    for t in s.iter().filter(|t| *t & OBS != 0) {
+        m.flip((t & !OBS) as usize);
+    }
+    m
 }
 
 fn subset(a: &[u64], b: &[u64]) -> bool {
@@ -571,9 +576,6 @@ impl Analyzer {
             // A Pauli target: errors before it that anticommute with it flip the observable,
             // a Z component an X target and an X component a Z target.
             Instr::Observable { index, recs, paulis } => {
-                if *index >= 64 {
-                    return Err(format!("OBSERVABLE_INCLUDE({index}): at most 64 observables are supported"));
-                }
                 let target = OBS | u64::from(*index);
                 for &k in recs {
                     self.t.feed(k, &[target])?;
@@ -904,17 +906,9 @@ impl Analyzer {
     /// (`do_global_error_decomposition_pass`), and write its fault classes to the model in
     /// their sorted order (reversed here, as the model is).
     fn flush(&mut self) -> Result<(), String> {
+        // A fault that flips observables and no detector (an undetectable logical error) goes in
+        // the model as Stim writes it, `error(p) L0`.
         let mut classes = std::mem::take(&mut self.window).classes;
-        for ((key, _), c) in &classes {
-            let sym = components(key).fold(Sym::new(), |acc, x| xor(&acc, x));
-            if !sym.is_empty() && sym.iter().all(|t| t & OBS != 0) {
-                return Err(format!(
-                    "{} flips observables {:#b} while firing no detector: an undetectable logical error",
-                    c.origin.describe(),
-                    obs_mask(&sym)
-                ));
-            }
-        }
         if self.decompose && classes.keys().any(|(k, _)| !graphlike(k)) {
             // Every one- and two-detector piece of every class, in the classes' order: where two
             // share detectors, the later class's stands.
@@ -1106,7 +1100,7 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
 /// What each sweep bit's X flips, as (detectors, observables), and a check that every detector
 /// and observable is deterministic: the backward walk, collecting no faults. Loops are folded
 /// unless a sweep bit is read inside one, whose every pass counts.
-pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, u64)>, String> {
+pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, ObsBits)>, String> {
     fn sweeps_in_loops(instrs: &[Instr], inside: bool) -> bool {
         instrs.iter().any(|i| match i {
             Instr::Repeat { body, .. } => sweeps_in_loops(body, true),
@@ -1313,9 +1307,9 @@ fn subset_of_union(goal: &[u64], a: &[u64], b: &[u64], c: &[u64]) -> bool {
 /// unused detector with each later one in turn, then alone.
 fn brute_force_known(x: &[u64], known: &HashMap<Vec<u64>, Sym>) -> Option<Vec<Sym>> {
     let d = dets(x);
-    fn go(d: &[u64], used: &mut [bool], remaining: u64, known: &HashMap<Vec<u64>, Sym>, out: &mut Vec<Sym>) -> bool {
+    fn go(d: &[u64], used: &mut [bool], remaining: ObsBits, known: &HashMap<Vec<u64>, Sym>, out: &mut Vec<Sym>) -> bool {
         let Some(start) = (0..d.len()).find(|&i| !used[i]) else {
-            return remaining == 0;
+            return remaining.is_zero();
         };
         used[start] = true;
         for k in start + 1..=d.len() {
@@ -1330,7 +1324,9 @@ fn brute_force_known(x: &[u64], known: &HashMap<Vec<u64>, Sym>) -> Option<Vec<Sy
             };
             if let Some(m) = known.get(&key) {
                 out.push(m.clone());
-                if go(d, used, remaining ^ obs_mask(m), known, out) {
+                let mut next = remaining.clone();
+                next.xor_with(&obs_mask(m));
+                if go(d, used, next, known, out) {
                     return true;
                 }
                 out.pop();

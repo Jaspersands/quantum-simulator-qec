@@ -1012,14 +1012,15 @@ mod tests {
     }
 
     /// With one merged round, a single measurement error on a new seam check
-    /// flips the merge outcome with nothing after it to notice: the error-model
-    /// builder refuses the circuit, naming an undetectable flip of L0 alone.
+    /// flips the merge outcome with nothing after it to notice: the model has an
+    /// undetectable flip of L0 alone (`error(p) L0`, as Stim writes it).
     /// With three, every single fault of the model is corrected.
     #[test]
     fn single_faults_need_more_than_one_merged_round() {
         let one = surgery(3, 1, Basis::Z, 0.001).circuit().unwrap();
-        let err = Dem::from_circuit(&one).unwrap_err();
-        assert!(err.contains("undetectable logical error") && err.contains("flips observables 0b1 "), "{err}");
+        let dem = Dem::from_circuit(&one).unwrap();
+        assert!(dem.mechanisms.iter().any(|m| m.detectors.is_empty() && m.observables == 1));
+        assert!(dem.refuse_undetectable().unwrap_err().contains("flips observables 0b1 "));
 
         for basis in [Basis::Z, Basis::X] {
             let (failed, of) = uncorrected(&surgery(3, 3, basis, 0.001).circuit().unwrap());

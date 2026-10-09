@@ -32,6 +32,7 @@ pub extern "C" fn wasm_ls_setup(kind: u32, d: usize, merged: usize, p: f64, corr
             other => return Err(format!("no lattice-surgery program of kind {other}")),
         };
         let dem = Dem::from_circuit(&circuit)?;
+        dem.refuse_undetectable()?;
         let sampler = BatchSampler::new(&circuit)?;
         let decoder = DemDecoder::new(&dem)?;
         let observables = dem.num_observables;

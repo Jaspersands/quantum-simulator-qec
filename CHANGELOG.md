@@ -17,7 +17,15 @@ noise on every gate. In progress on `feature/2.0`.
   and there is no trailing newline. The arguments themselves stay exact: equality, pickling and
   copies use them, and `circuit[k].gate_args_copy()` returns them.
 - `REPEAT 0 { ... }` is an error, as in Stim ("Repeating 0 times is not supported.").
-- `stabilizer-qec gen` ends its output with a newline, as `stim gen` does.
+- `stabilizer-qec gen` and `analyze_errors` end their output with a newline, as Stim's do;
+  `str(DetectorErrorModel)` has no final newline and its `repr` is Stim's.
+- **A fault that flips observables and no detector is kept in the model** as `error(p) L0`, as
+  Stim keeps it; 1.x refused the circuit. `Dem::refuse_undetectable` (Rust) gives the old
+  refusal where a caller wants it.
+- **Any number of observables**: circuits, model text, model building, the detector sampler and
+  measurement conversion take observables past 64 (`OBSERVABLE_INCLUDE(99)`, `L399`), as Stim
+  does. The decoders, the model sampler and the per-shot samplers still take at most 64 and say
+  so.
 
 ### Added
 

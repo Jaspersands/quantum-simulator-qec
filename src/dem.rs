@@ -174,6 +174,17 @@ impl Dem {
 
 /* -- Stim's .dem text ------------------------------------------------------ */
 
+impl Dem {
+    /// An error naming the first fault that flips observables and no detector (an undetectable
+    /// logical error), for callers that refuse such circuits; Stim, and the model, keep them.
+    pub fn refuse_undetectable(&self) -> Result<(), String> {
+        match self.mechanisms.iter().find(|m| m.detectors.is_empty() && m.observables != 0) {
+            Some(m) => Err(format!("a fault of probability {} flips observables {:#b} while firing no detector: an undetectable logical error", m.p, m.observables)),
+            None => Ok(()),
+        }
+    }
+}
+
 fn push_targets(s: &mut String, dets: &[u32], obs: u64) {
     for d in dets {
         let _ = write!(s, " D{d}");
@@ -342,10 +353,10 @@ mod tests {
     }
 
     #[test]
-    fn undetectable_logical_errors_are_errors() {
-        let e = Dem::from_circuit(&Circuit::parse("R 0\nX_ERROR(0.1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]").unwrap())
-            .unwrap_err();
-        assert!(e.contains("undetectable"), "{e}");
+    fn undetectable_logical_errors_are_kept_as_stim_keeps_them() {
+        let d = Dem::from_circuit(&Circuit::parse("R 0\nX_ERROR(0.1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]").unwrap()).unwrap();
+        assert!(d.mechanisms.iter().any(|m| m.detectors.is_empty() && m.observables == 1));
+        assert!(d.refuse_undetectable().unwrap_err().contains("undetectable"));
     }
 
     #[test]

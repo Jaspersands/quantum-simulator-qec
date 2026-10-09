@@ -15,6 +15,7 @@
 //! built on, so this is a second, independent reading of the circuit; Google's own detection
 //! events are its oracle.
 
+use crate::obsbits::ObsBits;
 use crate::batch_sampler::Counts;
 use crate::circuit::{Basis, Circuit, Control, Instr};
 use crate::simulator::StabilizerSimulator;
@@ -67,14 +68,14 @@ fn compile(instrs: &[Instr], out: &mut Vec<Op>) {
 
 /// Walk the program over one shot's records, `bit(i)` the i-th: each detector's parity in turn
 /// to `detector`, the observables' to `obs`.
-fn walk(ops: &[Op], m: &mut u64, bit: &impl Fn(u64) -> bool, detector: &mut impl FnMut(bool), obs: &mut u64) {
+fn walk(ops: &[Op], m: &mut u64, bit: &impl Fn(u64) -> bool, detector: &mut impl FnMut(bool), obs: &mut ObsBits) {
     for op in ops {
         match op {
             Op::Records(n) => *m += n,
             Op::Detector(recs) => detector(recs.iter().fold(false, |acc, &k| acc ^ bit(*m - u64::from(k)))),
             Op::Observable(i, recs) => {
                 if recs.iter().fold(false, |acc, &k| acc ^ bit(*m - u64::from(k))) {
-                    *obs ^= 1u64 << i;
+                    obs.flip(*i as usize);
                 }
             }
             Op::Repeat(count, body) => {
@@ -88,7 +89,7 @@ fn walk(ops: &[Op], m: &mut u64, bit: &impl Fn(u64) -> bool, detector: &mut impl
 
 /// `walk` 64 shots at a time: `records[i]` holds record i of each shot (bit s, shot s), each
 /// detector's word goes to `detector`, and the observables' to `obs` (one word each).
-fn walk_words(ops: &[Op], m: &mut u64, records: &[u64], detector: &mut impl FnMut(u64), obs: &mut [u64; 64]) {
+fn walk_words(ops: &[Op], m: &mut u64, records: &[u64], detector: &mut impl FnMut(u64), obs: &mut [u64]) {
     for op in ops {
         match op {
             Op::Records(n) => *m += n,
@@ -160,10 +161,10 @@ pub struct M2d {
     pub num_observables: usize,
     ops: Vec<Op>,
     ref_det: Vec<bool>,
-    ref_obs: u64,
+    ref_obs: ObsBits,
     /// Per sweep bit, the detectors it flips, and the observables.
     sweep_det: Vec<Vec<u32>>,
-    sweep_obs: Vec<u64>,
+    sweep_obs: Vec<ObsBits>,
 }
 
 fn reset(sim: &mut StabilizerSimulator, basis: Basis, q: usize) {
@@ -316,7 +317,7 @@ impl M2d {
         let mut ops = Vec::new();
         compile(&circuit.instrs, &mut ops);
         let reference = run(circuit, counts.qubits, &[], 1);
-        let (mut ref_det, mut ref_obs) = (Vec::with_capacity(num_detectors), 0u64);
+        let (mut ref_det, mut ref_obs) = (Vec::with_capacity(num_detectors), ObsBits::new());
         walk(&ops, &mut 0, &|i| reference[i as usize], &mut |b| ref_det.push(b), &mut ref_obs);
         let (sweep_det, sweep_obs) = effects.into_iter().unzip();
         Ok(M2d {
@@ -335,6 +336,12 @@ impl M2d {
     /// One shot's detection events and observable flips. `meas` holds every measurement and
     /// `sweeps` every sweep bit of the circuit.
     pub fn convert(&self, meas: &[bool], sweeps: &[bool]) -> (Vec<bool>, u64) {
+        let (det, obs) = self.convert_wide(meas, sweeps);
+        (det, obs.low())
+    }
+
+    /// As `convert`, with every observable.
+    pub fn convert_wide(&self, meas: &[bool], sweeps: &[bool]) -> (Vec<bool>, ObsBits) {
         assert!(
             meas.len() == self.num_measurements && sweeps.len() == self.num_sweep_bits,
             "a shot of {} measurements and {} sweep bits, for a circuit of {} and {}",
@@ -344,14 +351,14 @@ impl M2d {
             self.num_sweep_bits
         );
         let mut det = Vec::with_capacity(self.num_detectors);
-        let mut obs = self.ref_obs;
+        let mut obs = self.ref_obs.clone();
         walk(&self.ops, &mut 0, &|i| meas[i as usize], &mut |b| det.push(b ^ self.ref_det[det.len()]), &mut obs);
         for (k, &set) in sweeps.iter().enumerate() {
             if set {
                 for &d in &self.sweep_det[k] {
                     det[d as usize] ^= true;
                 }
-                obs ^= self.sweep_obs[k];
+                obs.xor_with(&self.sweep_obs[k]);
             }
         }
         (det, obs)
@@ -370,13 +377,13 @@ impl M2d {
         let mut records = vec![0u64; self.num_measurements.div_ceil(64) * 64];
         let mut sweep_words = vec![0u64; self.num_sweep_bits.div_ceil(64) * 64];
         let mut det_words = vec![0u64; self.num_detectors.div_ceil(64) * 64];
-        let mut obs_words = [0u64; 64];
+        let mut obs_words = vec![0u64; self.num_observables.div_ceil(64).max(1) * 64];
         for first in (0..num_shots).step_by(64) {
             let shots = (num_shots - first).min(64);
             to_words(&meas[first * ms..(first + shots) * ms], ms, shots, &mut records);
             to_words(&sweeps[first * ss..(first + shots) * ss], ss, shots, &mut sweep_words);
             for (k, w) in obs_words.iter_mut().enumerate() {
-                *w = if (self.ref_obs >> k) & 1 == 1 { u64::MAX } else { 0 };
+                *w = if self.ref_obs.bit(k) { u64::MAX } else { 0 };
             }
             let mut d = 0usize;
             walk_words(&self.ops, &mut 0, &records, &mut |w| {
@@ -390,7 +397,7 @@ impl M2d {
                         det_words[d as usize] ^= w;
                     }
                     for (j, o) in obs_words.iter_mut().enumerate() {
-                        if (self.sweep_obs[k] >> j) & 1 == 1 {
+                        if self.sweep_obs[k].bit(j) {
                             *o ^= w;
                         }
                     }
@@ -414,7 +421,7 @@ impl M2d {
             let row = &meas[s * ms..(s + 1) * ms];
             let out = &mut dets[s * ds..(s + 1) * ds];
             let mut d = 0usize;
-            let mut obs = self.ref_obs;
+            let mut obs = self.ref_obs.clone();
             walk(
                 &self.ops,
                 &mut 0,
@@ -433,11 +440,11 @@ impl M2d {
                     for &d in &self.sweep_det[k] {
                         out[d as usize / 8] ^= 1 << (d % 8);
                     }
-                    obs ^= self.sweep_obs[k];
+                    obs.xor_with(&self.sweep_obs[k]);
                 }
             }
             for k in 0..self.num_observables {
-                if (obs >> k) & 1 == 1 {
+                if obs.bit(k) {
                     obs_out[s * os + k / 8] |= 1 << (k % 8);
                 }
             }
@@ -587,7 +594,7 @@ mod tests {
         let m = M2d::new(&c).unwrap();
         assert_eq!((m.num_measurements, m.num_detectors, m.num_sweep_bits), (2_000_002, 2_000_000, 1));
         // The sweep bit flips qubit 0: the first round's detector, and the observable.
-        assert_eq!((m.sweep_det[0].clone(), m.sweep_obs[0]), (vec![0], 1));
+        assert_eq!((m.sweep_det[0].clone(), m.sweep_obs[0].low()), (vec![0], 1));
         let mut meas = vec![true; 2_000_002];
         meas[0] = false;
         let (d, o) = m.convert(&meas, &[true]);

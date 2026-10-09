@@ -724,7 +724,7 @@ mod tests {
     fn the_outcome_needs_two_merged_cycles() {
         let (code, g) = gauged("f");
         let build = |merged| Dem::from_circuit_undecomposed(&logical_measurement(&code, &g, Basis::X, 1, merged, 1, 0.001).unwrap());
-        assert!(build(1).unwrap_err().contains("undetectable"));
+        assert!(build(1).unwrap().refuse_undetectable().unwrap_err().contains("undetectable"));
         let dem = build(2).unwrap();
         assert_eq!(dem.num_observables, 13);
         let (code, g) = gauged("f");

@@ -102,6 +102,9 @@ pub struct Program {
 impl Program {
     pub fn new(circuit: &Circuit) -> Result<Program, String> {
         let res = circuit.resolve()?;
+        if res.observables.len() > 64 {
+            return Err(format!("{} observables: the coherent sampler takes at most 64", res.observables.len()));
+        }
         let nq = res.num_qubits.max(
             res.instrs
                 .iter()

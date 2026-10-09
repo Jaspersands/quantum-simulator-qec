@@ -301,9 +301,6 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
                     Op::Detector(..) => s.detectors = s.detectors.saturating_add(1),
                     Op::Observable(i, _, paulis) => {
                         paulis.iter().for_each(|&(q, _)| touch(s, q));
-                        if *i >= 64 {
-                            return Err(format!("OBSERVABLE_INCLUDE({i}): at most 64 observables are supported"));
-                        }
                         s.observables = s.observables.max(*i as usize + 1)
                     }
                     _ => {}
@@ -348,7 +345,7 @@ impl Batch {
     /// The observables shot `lane` flipped, as a mask.
     pub fn lane_observables(&self, lane: usize) -> u64 {
         let mut out = 0u64;
-        for (k, &w) in self.observables.iter().enumerate() {
+        for (k, &w) in self.observables.iter().enumerate().take(64) {
             out |= ((w >> lane) & 1) << k;
         }
         out

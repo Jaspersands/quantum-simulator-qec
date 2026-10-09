@@ -62,6 +62,9 @@ fn apply(x: &mut [bool], z: &mut [bool], q: usize, pauli: u8) {
 impl FrameSampler {
     pub fn new(circuit: &Circuit) -> Result<FrameSampler, String> {
         let res = circuit.resolve()?;
+        if res.observables.len() > 64 {
+            return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
+        }
         let leaky = res.instrs.iter().any(|i| matches!(i, Instr::NonPauli(ops) if ops.iter().any(|o| o.is_leakage())));
         let reference = if leaky { crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1) } else { Vec::new() };
         Ok(FrameSampler {

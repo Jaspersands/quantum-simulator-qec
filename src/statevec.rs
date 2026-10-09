@@ -385,6 +385,9 @@ impl Program {
                 Instr::Repeat { .. } | Instr::Gate { .. } => unreachable!("resolve flattens loops and gates"),
             }
         }
+        if res.observables.len() > 64 {
+            return Err(format!("{} observables: the state vector takes at most 64", res.observables.len()));
+        }
         let reference = {
             // The converter's reference run, so detection events are the converter's.
             let rec = crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1);

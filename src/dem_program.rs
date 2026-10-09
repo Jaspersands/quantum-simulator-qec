@@ -271,6 +271,12 @@ impl DemProgram {
         if stats.num_detectors > MAX_DETECTOR + 1 {
             return Err(format!("the model names detector {}, past the largest index, {MAX_DETECTOR}", stats.num_detectors - 1));
         }
+        if stats.num_observables > 64 {
+            return Err(format!(
+                "the model has {} observables; this engine's decoders and model sampler take at most 64 (the text, counts, circuit sampling and measurement conversion take any number)",
+                stats.num_observables
+            ));
+        }
         let mut dem = Dem { num_detectors: stats.num_detectors as usize, num_observables: stats.num_observables, ..Dem::default() };
         dem.detector_coords = vec![Vec::new(); dem.num_detectors];
         let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
@@ -509,9 +515,6 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         };
         let observable = |t: &str| -> Result<u32, String> {
             let l = t.strip_prefix('L').and_then(|l| l.parse::<u32>().ok()).ok_or_else(|| bad(t))?;
-            if l >= 64 {
-                return Err(format!("line {lineno}: at most 64 observables are supported"));
-            }
             Ok(l)
         };
         out.push(match name.as_str() {

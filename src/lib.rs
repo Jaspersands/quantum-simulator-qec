@@ -66,6 +66,8 @@ pub mod bp;
 #[doc(hidden)]
 pub mod gf2;
 #[doc(hidden)]
+pub mod obsbits;
+#[doc(hidden)]
 pub mod bb;
 #[doc(hidden)]
 pub mod bb_auto;
