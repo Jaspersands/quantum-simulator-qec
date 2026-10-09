@@ -19,7 +19,7 @@ name = "stabilizer_qec"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rand = { version = "0.8", optional = true }
+rand = { version = "0.10", optional = true }
 
 [dependencies.pyo3]
 version = "0.29"
