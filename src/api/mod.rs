@@ -14,7 +14,10 @@ mod decoders;
 pub mod lattice_surgery;
 
 pub use bits::BitTable;
-pub use circuits::{Circuit, CircuitErrorLocation, DemOptions, DemSampler, DemSamples, DetectorErrorModel, DetectorSampler, DiagramKind, ExplainedError, GeneratedNoise, MeasurementConverter, Pauli, Samples, Target, TargetWithCoords};
+pub use circuits::{
+    Circuit, CircuitErrorLocation, CoherentOptions, CoherentSampler, DemOptions, DemSampler, DemSamples, DetectorErrorModel, DetectorSampler, DiagramKind, ExactSampler, ExplainedError, GeneratedNoise,
+    MeasurementConverter, Pauli, Samples, Target, TargetWithCoords, WeightedSamples,
+};
 pub use codes::{memory_circuit, stream_circuit, stream_memory, Automorphism, Basis, BivariateBicycleCode, CssCode, Gauging, GrossOperator, Noise, StreamResult, SurfaceCode};
 pub use decoders::{
     BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpMethod, BpOptions, BpOsd, BpOsdDecoder, BpOsdOutcome, BpOutcome, ColorMatching, DetectorOrder, LsdOptions, Matching,

@@ -327,6 +327,48 @@ impl Circuit {
         Ok(DetectorSampler { sampler: BatchSampler::new(&self.inner)?, seed, next: 0 })
     }
 
+    /// A sampler for circuits with coherent errors, written as tagged identities Stim reads as
+    /// identities (`I_ERROR[R_Z(theta=0.01)] 0`, `II_ERROR[R_ZZ(theta=0.02)] 0 1`, any Pauli
+    /// rotation as `I_ERROR[R_PAULI(theta=…, pauli=…)]`). Its shots are the Pauli-twirled
+    /// circuit's, each with a weight that restores the interference the twirl leaves out:
+    /// weighted, they are distributed as the coherent circuit's. Seeded like
+    /// [`Circuit::detector_sampler`].
+    ///
+    /// ```
+    /// use stabilizer_qec::{Circuit, CoherentOptions};
+    ///
+    /// // Two rotations either side of a gate that leaves them alone add up: sin²(0.35), not
+    /// // the twirl's sin²(0.2) + sin²(0.15) (to first order).
+    /// let c = Circuit::parse("RX 0\nR 1\nI_ERROR[R_Z(theta=0.2)] 0\nCZ 0 1\nI_ERROR[R_Z(theta=0.15)] 0\nMX 0\nDETECTOR rec[-1]")?;
+    /// let s = c.coherent_sampler(1, CoherentOptions::new())?.sample(200_000, 0);
+    /// let (mut hit, mut total) = (0.0, 0.0);
+    /// for (k, w) in s.weights.iter().enumerate() {
+    ///     total += w;
+    ///     if s.detectors.get(k, 0) { hit += w; }
+    /// }
+    /// assert!((hit / total - 0.35f64.sin().powi(2)).abs() < 0.003);
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
+    pub fn coherent_sampler(&self, seed: u64, options: CoherentOptions) -> Result<CoherentSampler> {
+        let inner = crate::coherent::sampler::CoherentSampler::new(&self.inner, options.inner)?;
+        Ok(CoherentSampler { inner, seed, next: 0 })
+    }
+
+    /// An exact sampler: the full state vector (up to 24 qubits in use), running every
+    /// instruction, Clifford or not (the coherent rotations, `I[T]`, `I[U3(…)]`, amplitude
+    /// damping, leakage), its noise channels drawn as quantum trajectories.
+    pub fn exact_sampler(&self, seed: u64) -> Result<ExactSampler> {
+        Ok(ExactSampler { program: crate::statevec::Program::new(&self.inner)?, seed, next: 0 })
+    }
+
+    /// The circuit with each coherent rotation exp(−iθP) replaced by its Pauli twirl, P with
+    /// probability sin²θ: the model Stim and every decoder assume. With `merge`, rotations that
+    /// are the same fault in different places become one with their angles added (the
+    /// coherence-aware model); merging writes the circuit without loops.
+    pub fn twirled(&self, merge: bool) -> Result<Circuit> {
+        Circuit::from_engine(crate::coherent::twirled(&self.inner, merge)?)
+    }
+
     /// A picture of the circuit, after Stim's `diagram` (see [`DiagramKind`]): its timeline as
     /// text or SVG, what its detectors compare at a moment, or its matching graph.
     ///
@@ -883,6 +925,121 @@ impl DetectorSampler {
     pub fn sample(&mut self, shots: usize, threads: usize) -> Samples {
         let (d, o) = self.sampler.sample_seeded(self.seed, self.next, shots, threads);
         self.next += shots.div_ceil(64) as u64;
+        Samples {
+            detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
+        }
+    }
+}
+
+/// Options for [`Circuit::coherent_sampler`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CoherentOptions {
+    inner: crate::coherent::kernel::CoherentOptions,
+}
+
+impl Default for CoherentOptions {
+    fn default() -> Self {
+        CoherentOptions::new()
+    }
+}
+
+impl CoherentOptions {
+    /// The defaults: products of up to three interference generators, one step past the
+    /// generators a shot's faults touch.
+    pub fn new() -> CoherentOptions {
+        CoherentOptions { inner: crate::coherent::kernel::CoherentOptions::default() }
+    }
+
+    /// The most interference generators a shot's class sum multiplies together.
+    pub fn order(mut self, order: usize) -> Self {
+        self.inner.order = order.max(1);
+        self
+    }
+
+    /// How many steps of shared locations a shot's clusters reach past its faults' generators.
+    pub fn hops(mut self, hops: usize) -> Self {
+        self.inner.hops = hops;
+        self
+    }
+}
+
+/// Weighted shots of a circuit with coherent errors. Made by [`Circuit::coherent_sampler`].
+pub struct CoherentSampler {
+    inner: crate::coherent::sampler::CoherentSampler,
+    seed: u64,
+    next: u64,
+}
+
+/// Weighted shots: detection events, observable flips and each shot's weight. A rate is
+/// Σ w·(event) / Σ w.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WeightedSamples {
+    /// One row per shot, one bit per detector.
+    pub detectors: BitTable,
+    /// One row per shot, one bit per observable.
+    pub observables: BitTable,
+    /// Each shot's weight.
+    pub weights: Vec<f64>,
+}
+
+impl CoherentSampler {
+    /// Detectors per shot.
+    pub fn num_detectors(&self) -> usize {
+        self.inner.program.num_detectors()
+    }
+
+    /// Observables per shot.
+    pub fn num_observables(&self) -> usize {
+        self.inner.program.num_observables()
+    }
+
+    /// The coherent rotations in the circuit.
+    pub fn num_locations(&self) -> usize {
+        self.inner.program.locations.len()
+    }
+
+    /// `shots` more weighted shots, each from its own stream; `threads = 0` uses every core and
+    /// never changes them.
+    pub fn sample(&mut self, shots: usize, threads: usize) -> WeightedSamples {
+        let b = self.inner.sample_seeded(self.seed, self.next, shots, threads);
+        self.next += shots as u64;
+        WeightedSamples {
+            detectors: BitTable::from_packed(shots, self.num_detectors(), b.detectors).expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.num_observables(), b.observables).expect("the sampler writes whole rows"),
+            weights: b.weights,
+        }
+    }
+}
+
+/// Exact shots from the state vector. Made by [`Circuit::exact_sampler`].
+pub struct ExactSampler {
+    program: crate::statevec::Program,
+    seed: u64,
+    next: u64,
+}
+
+impl ExactSampler {
+    /// Detectors per shot.
+    pub fn num_detectors(&self) -> usize {
+        self.program.num_detectors()
+    }
+
+    /// Observables per shot.
+    pub fn num_observables(&self) -> usize {
+        self.program.num_observables()
+    }
+
+    /// The qubits in use, which the state vector holds.
+    pub fn num_qubits(&self) -> usize {
+        self.program.num_qubits()
+    }
+
+    /// `shots` more shots, each from its own stream; `threads = 0` uses every core and never
+    /// changes them.
+    pub fn sample(&mut self, shots: usize, threads: usize) -> Samples {
+        let (d, o) = crate::statevec::sample_seeded(&self.program, self.seed, self.next, shots, threads);
+        self.next += shots as u64;
         Samples {
             detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
             observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),

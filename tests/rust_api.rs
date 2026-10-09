@@ -293,3 +293,22 @@ fn gross_code_automorphisms_gauging_and_streams() {
     assert!(one.window_seconds.iter().all(|w| w.len() == one.windows.len()));
     assert!(stream_memory(SurfaceCode::Rotated, 3, 0, 0.004, opts, 64, 1, 1).is_err());
 }
+
+#[test]
+fn coherent_exact_and_twirled() {
+    use stabilizer_qec::{Circuit, CoherentOptions};
+    let c = Circuit::parse("R 0\nI_ERROR[R_X(theta=0.3)] 0\nM 0\nDETECTOR rec[-1]").unwrap();
+    // The twirl: X with probability sin²(0.3).
+    let t = c.twirled(false).unwrap();
+    assert!(t.to_string().contains("X_ERROR("), "{t}");
+    // Exact shots and weighted shots both fire at sin²(0.3).
+    let p = 0.3f64.sin().powi(2);
+    let e = c.exact_sampler(1).unwrap().sample(20_000, 0);
+    let hits = (0..20_000).filter(|&k| e.detectors.get(k, 0)).count() as f64 / 20_000.0;
+    assert!((hits - p).abs() < 0.02);
+    let mut s = c.coherent_sampler(2, CoherentOptions::new().order(2)).unwrap();
+    assert_eq!(s.num_locations(), 1);
+    let w = s.sample(20_000, 0);
+    let (hit, total) = w.weights.iter().enumerate().fold((0.0, 0.0), |(h, t), (k, &x)| (h + if w.detectors.get(k, 0) { x } else { 0.0 }, t + x));
+    assert!((hit / total - p).abs() < 0.02);
+}
