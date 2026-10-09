@@ -50,6 +50,8 @@ pub struct Kernel {
     pub groups: Vec<Group>,
     /// Each location's group's first member (itself if in none).
     rep_of: Vec<usize>,
+    /// A random word per location: a set's key is the XOR of its locations'.
+    zobrist: Vec<u64>,
     by_location: Vec<Vec<usize>>,
     options: CoherentOptions,
 }
@@ -275,7 +277,8 @@ impl Kernel {
                 rep_of[l] = g.members[0];
             }
         }
-        Kernel { generators, groups, rep_of, by_location, options }
+        let zobrist = (0..nl as u64).map(|l| crate::batch_sampler::splitmix64(l.wrapping_add(0x9e37_79b9_7f4a_7c15))).collect();
+        Kernel { generators, groups, rep_of, zobrist, by_location, options }
     }
 
     /// The whole kernel's dimension: locations less the rank of their residues.
@@ -330,7 +333,7 @@ impl Kernel {
 
     /// A shot's weight, by clusters of the generators its faults touch. `cache` holds the
     /// products already carried through the circuit (by their locations).
-    pub fn weight(&self, p: &Program, shot: &Shot, solver: &GaugeSolver, cache: &mut HashMap<Vec<usize>, Option<Element>>) -> f64 {
+    pub fn weight(&self, p: &Program, shot: &Shot, solver: &GaugeSolver, cache: &mut HashMap<u64, Option<Element>>) -> f64 {
         let mut touched: Vec<usize> = Vec::new();
         for (l, &f) in shot.fired.iter().enumerate() {
             if f {
@@ -351,7 +354,7 @@ impl Kernel {
         // toggle, in closed form. The even sum is the group's own factor; in any element holding
         // the group's first member, odd over even takes that member's place.
         let mut w = 1.0;
-        let mut eff: HashMap<usize, (C, f64)> = HashMap::new();
+        let mut eff: Vec<Option<(C, f64)>> = vec![None; self.rep_of.len()];
         for g in &self.groups {
             let (mut plus, mut minus, mut nplus, mut nminus) = (C::ONE, C::ONE, 1.0, 1.0);
             for (&l, &mu) in g.members.iter().zip(&g.mu) {
@@ -383,14 +386,14 @@ impl Kernel {
             }
             w *= even.norm2() / neven;
             let inv = even.conj().scale(1.0 / even.norm2());
-            eff.insert(g.members[0], (odd * inv, nodd / neven));
+            eff[g.members[0]] = Some((odd * inv, nodd / neven));
         }
         // An element's ratio and its squared size, groups standing in for their first members.
         let term = |e: &Element| -> (C, f64) {
             let (mut r, mut n) = (p.prefactor(shot, e), 1.0);
             for &l in &e.members {
-                match eff.get(&l) {
-                    Some(&(c, m)) => {
+                match eff[l] {
+                    Some((c, m)) => {
                         r = r * c;
                         n *= m;
                     }
@@ -444,28 +447,73 @@ impl Kernel {
         }
         for gens in clusters.values() {
             let order = if gens.len() > self.options.max_cluster { self.options.order.min(2) } else { self.options.order };
-            let mut seen: BTreeSet<Vec<usize>> = BTreeSet::new();
-            let (mut sum, mut norm) = (C::ONE, 1.0);
-            // Every product of 1..=order of the cluster's generators, once per resulting set.
-            let mut stack: Vec<(usize, Vec<usize>, usize)> = vec![(0, Vec::new(), 0)];
-            while let Some((start, members, depth)) = stack.pop() {
-                for (k, &g) in gens.iter().enumerate().skip(start) {
-                    let prod = symmetric_difference(&members, &self.generators[g].members);
-                    if depth + 1 < order {
-                        stack.push((k + 1, prod.clone(), depth + 1));
+            // Generators of the cluster sharing a location.
+            let n = gens.len();
+            let mut at: HashMap<usize, Vec<usize>> = HashMap::new();
+            for (i, &g) in gens.iter().enumerate() {
+                for &l in &self.generators[g].members {
+                    at.entry(l).or_default().push(i);
+                }
+            }
+            let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+            for list in at.values() {
+                for &a in list {
+                    for &b in list {
+                        if a != b {
+                            adj[a].push(b);
+                        }
                     }
-                    if prod.is_empty() || !seen.insert(prod.clone()) {
+                }
+            }
+            for a in adj.iter_mut() {
+                a.sort_unstable();
+                a.dedup();
+            }
+            let (mut sum, mut norm) = (C::ONE, 1.0);
+            let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
+            // Every connected set of up to `order` generators (each sharing a location with
+            // another), by Wernicke's enumeration; each resulting element once.
+            let mut visit = |subset: &[usize], seen: &mut std::collections::HashSet<u64>| {
+                let mut members: Vec<usize> = Vec::new();
+                for &i in subset {
+                    members = symmetric_difference(&members, &self.generators[gens[i]].members);
+                }
+                if members.is_empty() {
+                    return;
+                }
+                let key = members.iter().fold(0u64, |h, &l| h ^ self.zobrist[l]);
+                if !seen.insert(key) {
+                    return;
+                }
+                let e = if subset.len() == 1 {
+                    Some(self.generators[gens[subset[0]]].clone())
+                } else {
+                    cache.entry(key).or_insert_with(|| p.element(&members, solver)).clone()
+                };
+                if let Some(e) = e {
+                    let (r, m) = term(&e);
+                    sum = sum + r;
+                    norm += m;
+                }
+            };
+            for v in 0..n {
+                let ext: Vec<usize> = adj[v].iter().copied().filter(|&u| u > v).collect();
+                let mut stack: Vec<(Vec<usize>, Vec<usize>)> = vec![(vec![v], ext)];
+                while let Some((sub, mut ext)) = stack.pop() {
+                    visit(&sub, &mut seen);
+                    if sub.len() == order {
                         continue;
                     }
-                    let e = if depth == 0 {
-                        Some(self.generators[g].clone())
-                    } else {
-                        cache.entry(prod.clone()).or_insert_with(|| p.element(&prod, solver)).clone()
-                    };
-                    if let Some(e) = e {
-                        let (r, n) = term(&e);
-                        sum = sum + r;
-                        norm += n;
+                    while let Some(w) = ext.pop() {
+                        let mut next = ext.clone();
+                        for &u in &adj[w] {
+                            if u > v && !sub.contains(&u) && !next.contains(&u) && !sub.iter().any(|&s| adj[s].binary_search(&u).is_ok()) {
+                                next.push(u);
+                            }
+                        }
+                        let mut sub2 = sub.clone();
+                        sub2.push(w);
+                        stack.push((sub2, next));
                     }
                 }
             }
