@@ -296,6 +296,52 @@ class Circuit:
         detectors and observables)."""
         return Circuit(call(_core.circuit_missing_detectors, self._stim_exact_text(), bool(unknown_input)))
 
+    def to_qasm(self, *, open_qasm_version: int, skip_dets_and_obs: bool = False) -> str:
+        """The circuit as OpenQASM 2 or 3, as Stim's ``to_qasm`` writes it. Version 3 keeps
+        detectors and observables (as registers computed from the measurement record against
+        the noiseless reference sample) and feedback; version 2 has neither, and refuses them
+        unless ``skip_dets_and_obs``. Noise is refused (see ``without_noise``)."""
+        return call(_core.circuit_to_qasm, self._stim_exact_text(), int(open_qasm_version), bool(skip_dets_and_obs))
+
+    def to_quirk_url(self) -> str:
+        """A URL that opens the circuit in Quirk (algassert.com/quirk), as Stim writes it."""
+        return call(_core.circuit_to_quirk_url, self._stim_exact_text())
+
+    def to_crumble_url(self, *, skip_detectors: bool = False, mark: Any = None) -> str:
+        """A URL that opens the circuit in Crumble (algassert.com/crumble), as Stim writes it.
+        ``mark`` maps a mark index to explained errors (``explain_detector_error_model_errors``),
+        each drawn at its first location."""
+        return _crumble_url(self, bool(skip_detectors), mark)
+
+    def detecting_regions(self, *, targets: Any = None, ticks: Any = None, ignore_anticommutation_errors: bool = False) -> dict:
+        """Where each detector and observable is sensitive to errors, tick by tick: a dict from
+        ``DemTarget`` to a dict from tick to the ``PauliString`` of sensitivities (Stim's).
+
+        ``targets`` filters what is reported: ``DemTarget``s, texts (``"D5"``, ``"L0"``, or
+        ``"D"`` / ``"L"`` for all detectors / observables), or coordinate prefixes that pick the
+        detectors whose coordinates start with them. ``ticks`` picks the ticks (default all)."""
+        return _detecting_regions(self, targets, ticks, bool(ignore_anticommutation_errors))
+
+    def shortest_error_sat_problem(self, *, format: str = "WDIMACS") -> str:
+        """A max-SAT problem (WDIMACS) whose optimum is the fewest faults flipping an observable
+        and no detector, as Stim writes it, for a solver to find the circuit distance."""
+        if format != "WDIMACS":
+            raise ValueError("Unsupported format.")
+        return _wcnf(self._sat_dem(), False, 0)
+
+    def likeliest_error_sat_problem(self, *, quantization: int = 100, format: str = "WDIMACS") -> str:
+        """A weighted max-SAT problem (WDIMACS) whose optimum is the likeliest set of faults
+        flipping an observable and no detector, weights quantized to ``quantization`` steps,
+        as Stim writes it."""
+        if format != "WDIMACS":
+            raise ValueError("Unsupported format.")
+        if int(quantization) < 1:
+            raise ValueError("Must have quantization >= 1")
+        return _wcnf(self._sat_dem(), True, int(quantization))
+
+    def _sat_dem(self) -> "DetectorErrorModel":
+        return self.detector_error_model(approximate_disjoint_errors=True)
+
     def append_operation(self, name: Any, targets: Any = (), arg: Any = None, *, tag: str = "") -> None:
         """Stim's older name for ``append``."""
         self.append(name, targets, arg, tag=tag)
@@ -1445,3 +1491,232 @@ class MeasurementsToDetectionEventsConverter:
         if separate_observables:
             return dets, b8_to_rows(o, shots, no, bit_packed)
         return dets
+
+
+# ---------------------------------------------------------------------------------------------
+# Stim's exports implemented over the Python objects: Crumble URLs, detecting-region filters,
+# and the max-SAT problems.
+
+
+def _crumble_args(args: list) -> str:
+    out = []
+    for e in args:
+        if -9.2e18 < e < 9.2e18 and float(int(e)) == e:
+            out.append(str(int(e)))
+        else:
+            out.append("%g" % e)
+    return "(" + ",".join(out) + ")"
+
+
+def _crumble_pauli_and_qubit(target: Any) -> Tuple[str, str]:
+    text = str(getattr(target, "gate_target", target)).lstrip("!")
+    if text[:1] in ("X", "Y", "Z"):
+        return text[0], text[1:]
+    return "I", text
+
+
+def _crumble_url(circuit: "Circuit", skip_detectors: bool, mark: Any) -> str:
+    marks = []
+    if mark is not None:
+        for k, errors in sorted(dict(mark).items()):
+            for e in errors:
+                locs = list(e.circuit_error_locations)
+                if locs:
+                    loc = locs[0]
+                    marks.append((int(k), [(f.instruction_offset, f.iteration_index) for f in loc.stack_frames], loc))
+    out: list = ["https://algassert.com/crumble#circuit="]
+
+    def write(items: list, active_in: list) -> None:
+        for k, it in enumerate(items):
+            active = []
+            for m, frames, loc in active_in:
+                if frames and frames[-1][0] == k:
+                    active.append((m, frames[:-1], loc))
+            adding = any(not frames for _, frames, _ in active)
+            if adding:
+                out.append(";TICK")
+            for m, frames, loc in active:
+                if not frames:
+                    for t in loc.flipped_pauli_product:
+                        p, q = _crumble_pauli_and_qubit(t)
+                        out.append(f";MARK{p}({m}){q}")
+                    fm = loc.flipped_measurement
+                    obs = list(fm.observable) if fm is not None else []
+                    if obs:
+                        p, q = _crumble_pauli_and_qubit(obs[0])
+                        out.append(f";MARK{'XZ'[p == 'X']}({m}){q}")
+            if adding:
+                out.append(";TICK")
+            if it[0] == "op" and it[1] == "DETECTOR" and skip_detectors:
+                continue
+            if k > 0 or adding:
+                out.append(";")
+            if it[0] == "repeat":
+                _, count, _tag, body = it
+                if not active:
+                    out.append(f"REPEAT_{count}_{{;")
+                    write(body, active)
+                    out.append(";}")
+                else:
+                    for k2 in range(count):
+                        write(body, [a for a in active if a[1] and a[1][-1][1] == k2])
+                continue
+            _, name, _tag, args, targets = it
+            out.append({"DETECTOR": "DT", "QUBIT_COORDS": "Q", "OBSERVABLE_INCLUDE": "OI"}.get(name, name))
+            if args:
+                out.append(_crumble_args(args))
+            k2 = 0
+            while k2 < len(targets):
+                t = targets[k2]
+                if _core.gate_target_text(t) == "*":
+                    out.append("*")
+                    k2 += 1
+                    t = targets[k2]
+                elif k2 > 0 or not args:
+                    out.append("_")
+                out.append(_core.gate_target_text(t))
+                k2 += 1
+
+    write(call(_core.circuit_items, circuit._stim_exact_text()), marks)
+    out.append("_")
+    return "".join(out)
+
+
+def _detecting_regions(circuit: "Circuit", targets: Any, ticks: Any, ignore: bool) -> dict:
+    text = circuit._stim_exact_text()
+    num_dets, num_obs = call(_core.circuit_det_obs_counts, text)
+    wanted: set = set()
+    if targets is None:
+        wanted.update((False, k) for k in range(num_dets))
+        wanted.update((True, k) for k in range(num_obs))
+    else:
+        coords = None
+        for f in targets:
+            if isinstance(f, _dem.DemTarget) or type(f).__name__ == "DemTarget":
+                d = _dem.DemTarget(f)
+                wanted.add((d.is_logical_observable_id(), d.val))
+                continue
+            if isinstance(f, str):
+                if f == "D":
+                    wanted.update((False, k) for k in range(num_dets))
+                elif f == "L":
+                    wanted.update((True, k) for k in range(num_obs))
+                elif f.startswith(("D", "L")):
+                    d = _dem.DemTarget(f)
+                    wanted.add((d.is_logical_observable_id(), d.val))
+                else:
+                    raise ValueError(f"Don't know how to interpret '{f!r}' as a dem target filter.")
+                continue
+            try:
+                items = list(f)
+            except TypeError:
+                items = None
+            if items is None or not all(isinstance(e, (int, float)) for e in items):
+                raise ValueError(f"Don't know how to interpret '{f!r}' as a dem target filter.")
+            prefix = [float(e) for e in items]
+            if coords is None:
+                coords = circuit.get_detector_coordinates()
+            for d, c in coords.items():
+                if len(c) >= len(prefix) and all(prefix[k] == c[k] for k in range(len(prefix))):
+                    wanted.add((False, d))
+    if ticks is None:
+        tick_list = list(range(circuit.num_ticks))
+    else:
+        tick_list = sorted({int(t) for t in ticks})
+    raw = call(_core.circuit_detecting_regions, text, sorted(wanted), tick_list, ignore)
+    out: dict = {}
+    for is_obs, index, tick, xs, zs in raw:
+        key = _dem.target_logical_observable_id(index) if is_obs else _dem.target_relative_detector_id(index)
+        out.setdefault(key, {})[tick] = _stim.PauliString.from_numpy(xs=np.array(xs, dtype=np.bool_), zs=np.array(zs, dtype=np.bool_))
+    return out
+
+
+_SAT_FALSE = (1 << 64) - 2
+_SAT_TRUE = (1 << 64) - 1
+_SAT_HARD = -1.0
+
+
+def _cround(x: float) -> int:
+    """C's round: halves away from zero."""
+    f = math.floor(x)
+    return int(f + 1 if x - f >= 0.5 else f)
+
+
+def _wcnf(dem: "DetectorErrorModel", weighted: bool, quantization: int) -> str:
+    """Stim's ``sat_problem_as_wcnf_string``: literals are (variable, negated)."""
+    num_observables = dem.num_observables
+    num_detectors = dem.num_detectors
+    errors = dem._d.flat_errors()
+    if num_observables == 0 or not errors:
+        return "p wcnf 1 2 3\n3 -1 0\n3 1 0\n"
+    num_variables = 0
+    max_weight = 0.0
+    clauses: list = []
+
+    def add(lits: list, weight: float) -> None:
+        nonlocal max_weight
+        if weight != _SAT_HARD:
+            if weight <= 0:
+                raise ValueError("Clauses must have positive weight or HARD_CLAUSE_WEIGHT.")
+            max_weight = max(max_weight, weight)
+        clauses.append((lits, weight))
+
+    def new_bool() -> tuple:
+        nonlocal num_variables
+        num_variables += 1
+        return (num_variables - 1, False)
+
+    def neg(x: tuple) -> tuple:
+        return (x[0], not x[1])
+
+    def xor(x: tuple, y: tuple) -> tuple:
+        if x[0] == _SAT_FALSE:
+            return y
+        if x[0] == _SAT_TRUE:
+            return neg(y)
+        if y[0] == _SAT_FALSE:
+            return x
+        if y[0] == _SAT_TRUE:
+            return neg(x)
+        z = new_bool()
+        add([x, y, neg(z)], _SAT_HARD)
+        add([x, neg(y), z], _SAT_HARD)
+        add([neg(x), y, z], _SAT_HARD)
+        add([neg(x), neg(y), neg(z)], _SAT_HARD)
+        return z
+
+    activated = [new_bool() for _ in errors]
+    dets = [(_SAT_FALSE, False)] * num_detectors
+    obs = [(_SAT_FALSE, False)] * num_observables
+    for (p, targets), x in zip(errors, activated):
+        if weighted and p == 0:
+            continue
+        for is_obs, k in targets:
+            if is_obs:
+                obs[k] = xor(obs[k], x)
+            else:
+                dets[k] = xor(dets[k], x)
+        if weighted:
+            if p < 0.5:
+                add([neg(x)], -math.log(p / (1 - p)))
+            elif p > 0.5:
+                add([x], -math.log((1 - p) / p))
+        else:
+            add([neg(x)], 1.0)
+    for d in dets:
+        if d[0] != _SAT_FALSE:
+            add([neg(d)], _SAT_HARD)
+    add(list(obs), _SAT_HARD)
+    top = 1 + (quantization * len(clauses) if weighted else len(clauses))
+    lines = [f"p wcnf {num_variables} {len(clauses)} {top}\n"]
+    for lits, weight in clauses:
+        if weight == _SAT_HARD:
+            qw = top
+        elif not weighted:
+            qw = 1
+        else:
+            qw = _cround(weight / max_weight * quantization)
+        if qw == 0:
+            continue
+        lines.append(str(qw) + "".join(f" -{(v + 1) % (1 << 64)}" if n else f" {(v + 1) % (1 << 64)}" for v, n in lits) + " 0\n")
+    return "".join(lines)

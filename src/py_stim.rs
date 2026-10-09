@@ -750,6 +750,40 @@ fn circuit_missing_detectors(text: &str, unknown_input: bool) -> PyResult<String
     Ok(crate::clifford::flow::missing_detectors(&c, unknown_input).map_err(err)?.exact_text())
 }
 
+#[pyfunction]
+fn circuit_to_qasm(text: &str, version: i64, skip_dets_and_obs: bool) -> PyResult<String> {
+    crate::clifford::export::to_qasm(&ir::Circuit::parse(text).map_err(err)?, version, skip_dets_and_obs).map_err(err)
+}
+
+#[pyfunction]
+fn circuit_to_quirk_url(text: &str) -> PyResult<String> {
+    crate::clifford::export::to_quirk_url(&ir::Circuit::parse(text).map_err(err)?).map_err(err)
+}
+
+/// (num_detectors, num_observables) as Stim's circuit stats count them.
+#[pyfunction]
+fn circuit_det_obs_counts(text: &str) -> PyResult<(u64, u64)> {
+    Ok(crate::clifford::export::count_detectors_and_observables(&ir::Circuit::parse(text).map_err(err)?))
+}
+
+/// Detecting regions: [(is_observable, index, tick, xs, zs)] for the wanted detectors and
+/// observables (as (is_observable, index) pairs) at the wanted ticks.
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn circuit_detecting_regions(text: &str, targets: Vec<(bool, u64)>, ticks: Vec<u64>, ignore_anticommutation_errors: bool) -> PyResult<Vec<(bool, u64, u64, Vec<bool>, Vec<bool>)>> {
+    use crate::clifford::export::{detecting_regions, OBS_BIT};
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    let wanted = targets.iter().map(|&(o, k)| if o { k | OBS_BIT } else { k }).collect();
+    let r = detecting_regions(&c, &wanted, &ticks.into_iter().collect(), ignore_anticommutation_errors).map_err(err)?;
+    let mut out = Vec::new();
+    for (t, m) in r {
+        for (tick, (xs, zs)) in m {
+            out.push((t & OBS_BIT != 0, t & !OBS_BIT, tick, xs, zs));
+        }
+    }
+    Ok(out)
+}
+
 /// The circuit's items: ("op", name, tag, args, targets) or ("repeat", count, tag, items).
 #[pyfunction]
 fn circuit_items<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
@@ -812,6 +846,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circuit_count_determined_measurements, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_reference_signs, m)?)?;
     m.add_function(wrap_pyfunction!(instruction_text, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_to_qasm, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_to_quirk_url, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_det_obs_counts, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_detecting_regions, m)?)?;
     m.add_function(wrap_pyfunction!(parse_gate_target, m)?)?;
     m.add_function(wrap_pyfunction!(gate_target_text, m)?)?;
     m.add_function(wrap_pyfunction!(instruction_num_measurements, m)?)?;

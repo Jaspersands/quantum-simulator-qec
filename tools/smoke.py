@@ -172,17 +172,18 @@ def main():
         fail("BP+OSD on [[72, 12, 6]]")
     print(f"ok  8. BP+OSD: [[72, 12, 6]], {bb_circuit.num_detectors} detectors, 256 shots, BP alone on {np.frombuffer(bb_conv, np.uint8).sum()}")
 
-    # 9. Lattice surgery: Stim reads it and agrees on the number of detectors; one merged round is refused.
+    # 9. Lattice surgery: Stim reads it and agrees on the number of detectors; one merged round
+    # leaves a logical error no detector sees, kept in the model as Stim keeps it.
     ls = stim.Circuit(sq.surgery_circuit(3, 3, 0.001))
     ls_dem = stim.DetectorErrorModel(sq.dem_from_circuit(str(ls), True))
     if ls_dem.num_detectors != ls.num_detectors or ls.num_observables != 3:
         fail("lattice surgery's model")
-    try:
-        sq.dem_from_circuit(sq.surgery_circuit(3, 1, 0.001), True)
-        fail("one merged round should be refused")
-    except ValueError:
-        pass
-    print(f"ok  9. lattice surgery: {ls.num_detectors} detectors, 3 observables; one merged round refused")
+    one = sq.surgery_circuit(3, 1, 0.001)
+    undetectable = [str(e) for e in stim.DetectorErrorModel(sq.dem_from_circuit(one, True)).flattened() if e.type == "error" and not any(t.is_relative_detector_id() for t in e.targets_copy())]
+    stim_undetectable = [str(e) for e in stim.Circuit(one).detector_error_model(decompose_errors=True).flattened() if e.type == "error" and not any(t.is_relative_detector_id() for t in e.targets_copy())]
+    if not undetectable or undetectable != stim_undetectable:
+        fail(f"one merged round's undetectable logical errors: {undetectable} vs Stim's {stim_undetectable}")
+    print(f"ok  9. lattice surgery: {ls.num_detectors} detectors, 3 observables; one merged round's undetectable error {undetectable[0]} as Stim's")
 
     # 10. A logical CNOT by lattice surgery: Stim reads it; its model decodes Stim's shots.
     cn = stim.Circuit(sq.surgery_cnot(3, 3, 0.001))

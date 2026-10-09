@@ -484,6 +484,22 @@ impl PyDem {
     fn flattened(&self) -> PyResult<PyDem> {
         Ok(PyDem { dem: self.dem.flattened().map_err(api_err)? })
     }
+
+    /// Every error of the unrolled model, in order: its exact probability and its targets as
+    /// (is_observable, index), detectors absolute, pieces concatenated.
+    #[allow(clippy::type_complexity)]
+    fn flat_errors(&self) -> PyResult<Vec<(f64, Vec<(bool, u64)>)>> {
+        use crate::dem_program::{DemInstr, OBS};
+        let flat = self.dem.program().flattened().map_err(PyValueError::new_err)?;
+        Ok(flat
+            .instrs
+            .iter()
+            .filter_map(|i| match i {
+                DemInstr::Error { p, pieces, .. } => Some((*p, pieces.iter().flatten().map(|&t| (t & OBS != 0, t & !OBS)).collect())),
+                _ => None,
+            })
+            .collect())
+    }
 }
 
 /* -- Sampling and conversion ------------------------------------------------------ */

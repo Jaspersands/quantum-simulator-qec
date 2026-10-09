@@ -152,3 +152,49 @@ def test_feedback_is_inlined_as_stim_inlines_it():
         }
     """
     assert str(sq.Circuit(text).with_inlined_feedback()) == str(stim.Circuit(text).with_inlined_feedback())
+
+
+def outcome(f):
+    """A call's result, or its error's type and message."""
+    try:
+        return f()
+    except Exception as e:  # noqa: BLE001 - errors are compared too
+        return f"{type(e).__name__}: {e}"
+
+
+@pytest.mark.parametrize("seed", range(150))
+def test_exports_of_random_circuits(seed):
+    rng = random.Random(2000 + seed)
+    n = rng.randint(1, 5)
+    text = dissipative_circuit(rng, n, rng.randint(1, 12))
+    if not text:
+        return
+    s, o = stim.Circuit(text), sq.Circuit(text)
+    for v in (2, 3):
+        assert outcome(lambda: o.to_qasm(open_qasm_version=v)) == outcome(lambda: s.to_qasm(open_qasm_version=v))
+        assert outcome(lambda: o.to_qasm(open_qasm_version=v, skip_dets_and_obs=True)) == outcome(lambda: s.to_qasm(open_qasm_version=v, skip_dets_and_obs=True))
+    assert outcome(o.to_quirk_url) == outcome(s.to_quirk_url)
+    assert o.to_crumble_url() == s.to_crumble_url()
+
+
+@pytest.mark.parametrize("task", ["repetition_code:memory", "surface_code:rotated_memory_x", "surface_code:unrotated_memory_z", "color_code:memory_xyz"])
+def test_exports_of_generated_circuits(task):
+    kw = dict(distance=3, rounds=3, after_clifford_depolarization=0.01, before_measure_flip_probability=0.02, after_reset_flip_probability=0.03)
+    s, o = stim.Circuit.generated(task, **kw), sq.Circuit.generated(task, **kw)
+    assert o.without_noise().to_qasm(open_qasm_version=3) == s.without_noise().to_qasm(open_qasm_version=3)
+    assert o.without_noise().to_qasm(open_qasm_version=2, skip_dets_and_obs=True) == s.without_noise().to_qasm(open_qasm_version=2, skip_dets_and_obs=True)
+    assert o.to_crumble_url() == s.to_crumble_url()
+    assert o.to_crumble_url(skip_detectors=True) == s.to_crumble_url(skip_detectors=True)
+    sf, of = s.flattened(), o.flattened()
+    marked_s, marked_o = sf.explain_detector_error_model_errors()[:6], of.explain_detector_error_model_errors()[:6]
+    assert of.to_crumble_url(mark={2: marked_o, 5: marked_o[:1]}) == sf.to_crumble_url(mark={2: marked_s, 5: marked_s[:1]})
+    assert o.shortest_error_sat_problem() == s.shortest_error_sat_problem()
+    for q in (1, 7, 100):
+        assert o.likeliest_error_sat_problem(quantization=q) == s.likeliest_error_sat_problem(quantization=q)
+
+    def regions(c, **kw):
+        return {str(k): {t: str(p) for t, p in v.items()} for k, v in c.detecting_regions(**kw).items()}
+
+    assert regions(o) == regions(s)
+    assert regions(o, targets=["L0", "D1", (1,)], ticks=[2, 3, 4, 99]) == regions(s, targets=["L0", "D1", (1,)], ticks=[2, 3, 4, 99])
+    assert regions(o, targets=["L"], ticks=range(3)) == regions(s, targets=["L"], ticks=range(3))

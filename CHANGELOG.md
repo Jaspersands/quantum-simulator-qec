@@ -46,6 +46,12 @@ noise on every gate. In progress on `feature/2.0`.
   `target_relative_detector_id`, `target_logical_observable_id`, `target_separator`; a model is
   a list (indexing, slicing, `append`, `clear`, `copy`) with Stim's `+`, `*`, `approx_equals`,
   `rounded`, `get_detector_coordinates`, `without_tags`, `to_file`.
+- **Stim's exports and searches**, each written as Stim writes it: `Circuit.to_qasm`
+  (OpenQASM 2 and 3), `to_quirk_url`, `to_crumble_url` (with `mark` drawing explained errors),
+  `detecting_regions` (target filters by name, kind or coordinate prefix; tick selection),
+  `shortest_error_sat_problem` and `likeliest_error_sat_problem` (WDIMACS max-SAT).
+  `CircuitErrorLocationStackFrame.iteration_index` is now Stim's: the pass of the loop enclosing
+  the frame, so the outermost frame's is 0.
 - `Circuit` as a list: `len`, indexing and slicing (instructions and `CircuitRepeatBlock`s),
   `insert`, `pop`, `clear`, `append_operation`, `approx_equals`.
 - In Rust: `clifford::{PauliString, Tableau, TableauSimulator}`, Stim's conversions

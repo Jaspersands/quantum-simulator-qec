@@ -104,6 +104,17 @@ def _targets(raw: List[Tuple[str, List[float], str]]) -> List[GateTargetWithCoor
     return [GateTargetWithCoords(t, list(c), s) for t, c, s in raw]
 
 
+def _frames(stack: list) -> List[CircuitErrorLocationStackFrame]:
+    """The core's frames, (offset, completed iterations, repetitions) from the outermost
+    block in, as Stim's: each frame's ``iteration_index`` is the pass of the loop enclosing
+    it (so the outermost frame's is 0)."""
+    out, outer = [], 0
+    for offset, iteration, reps in stack:
+        out.append(CircuitErrorLocationStackFrame(offset, outer, reps))
+        outer = iteration
+    return out
+
+
 def build(raw: list) -> List[ExplainedError]:
     """The core's tuples as explained errors."""
     out = []
@@ -116,7 +127,7 @@ def build(raw: list) -> List[ExplainedError]:
                     flipped_pauli_product=_targets(pauli),
                     flipped_measurement=None if meas is None else FlippedMeasurement(meas[0], _targets(meas[1])),
                     instruction_targets=CircuitTargetsInsideInstruction(gate, tag, list(args), start, end, _targets(targets), instruction),
-                    stack_frames=[CircuitErrorLocationStackFrame(*f) for f in stack],
+                    stack_frames=_frames(stack),
                     noise_tag=tag,
                     _text=shown,
                 )
