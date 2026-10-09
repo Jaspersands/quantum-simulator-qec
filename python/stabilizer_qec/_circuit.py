@@ -7,7 +7,9 @@ from typing import Any, Union
 
 import numpy as np
 
-from . import _core, _stim
+from . import _core, _dem, _stim
+import math
+from typing import Tuple
 from ._util import b8_to_rows, call, count, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
 
@@ -737,10 +739,200 @@ class DetectorErrorModel:
         return dem
 
     @classmethod
-    def from_file(cls, path: Union[str, PathLike]) -> "DetectorErrorModel":
-        """Read a ``.dem`` file."""
-        with open(path, encoding="utf-8") as f:
+    def from_file(cls, file: Union[str, PathLike, Any]) -> "DetectorErrorModel":
+        """Read a ``.dem`` file, from a path or an open file."""
+        if hasattr(file, "read"):
+            return cls(file.read())
+        with open(file, encoding="utf-8") as f:
             return cls(f.read())
+
+    def to_file(self, file: Any) -> None:
+        """Write the model's text to a path or an open text file."""
+        text = str(self) + "\n"
+        if hasattr(file, "write"):
+            file.write(text)
+        else:
+            with open(file, "w", encoding="utf-8") as f:
+                f.write(text)
+
+    def copy(self) -> "DetectorErrorModel":
+        return DetectorErrorModel(str(self))
+
+    def __ne__(self, other: object) -> bool:
+        r = self.__eq__(other)
+        return r if r is NotImplemented else not r
+
+    # Stim's list-of-instructions interface.
+    def _items(self) -> list:
+        return _dem.parse_items(str(self))
+
+    def _set_items(self, items: list) -> None:
+        self._d = call(_core.Dem, _dem.items_exact_text(items))
+
+    def __len__(self) -> int:
+        return len(self._items())
+
+    def __iter__(self):
+        return iter(self._items())
+
+    def __getitem__(self, index_or_slice: Any) -> Any:
+        items = self._items()
+        if isinstance(index_or_slice, slice):
+            return DetectorErrorModel(_dem.items_exact_text(items[index_or_slice]))
+        k = int(index_or_slice)
+        if k < 0:
+            k += len(items)
+        if not 0 <= k < len(items):
+            raise IndexError(f"index {index_or_slice} out of range")
+        return items[k]
+
+    def clear(self) -> None:
+        self._d = call(_core.Dem, "")
+
+    def append(self, instruction: Any, parens_arguments: Any = None, targets: Any = (), *, tag: str = "") -> None:
+        """Append an instruction by name (with its arguments, targets and tag), or a
+        DemInstruction, DemRepeatBlock or whole model."""
+        items = self._items()
+        if isinstance(instruction, str):
+            if parens_arguments is None:
+                args = []
+            elif isinstance(parens_arguments, (int, float, np.integer, np.floating)):
+                args = [float(parens_arguments)]
+            else:
+                args = [float(a) for a in parens_arguments]
+            items.append(_dem.DemInstruction(instruction, args, list(targets), tag=tag))
+        else:
+            if parens_arguments is not None or tuple(targets) != () or tag:
+                raise ValueError("Can't specify parens_arguments, targets or tag with a non-name instruction.")
+            if isinstance(instruction, DetectorErrorModel):
+                items += instruction._items()
+            elif isinstance(instruction, (_dem.DemInstruction, _dem.DemRepeatBlock)):
+                items.append(instruction)
+            elif type(instruction).__module__.startswith("stim"):
+                items += _dem.parse_items(str(instruction) if type(instruction).__name__ != "DemRepeatBlock" else f"repeat {instruction.repeat_count} {{\n{instruction.body_copy()}\n}}")
+            else:
+                raise ValueError(f"Don't know how to append {instruction!r}")
+        self._set_items(items)
+
+    def __add__(self, other: object) -> "DetectorErrorModel":
+        if not isinstance(other, DetectorErrorModel):
+            return NotImplemented
+        out = self.copy()
+        out += other
+        return out
+
+    def __iadd__(self, other: object) -> "DetectorErrorModel":
+        if not isinstance(other, DetectorErrorModel):
+            return NotImplemented
+        self._set_items(self._items() + other._items())
+        return self
+
+    def __mul__(self, repetitions: object) -> "DetectorErrorModel":
+        """``repeat repetitions { self }``: empty for 0, a copy for 1."""
+        if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):
+            return NotImplemented
+        n = count(repetitions, "repetitions")
+        if n == 0:
+            return DetectorErrorModel()
+        if n == 1:
+            return self.copy()
+        body = _dem.items_exact_text(self._items())
+        return DetectorErrorModel(f"repeat {n} {{\n{body}\n}}")
+
+    __rmul__ = __mul__
+
+    def __imul__(self, repetitions: object) -> "DetectorErrorModel":
+        out = self.__mul__(repetitions)
+        if out is NotImplemented:
+            return NotImplemented
+        self._d = out._d
+        return self
+
+    def approx_equals(self, other: object, *, atol: float) -> bool:
+        """Equal up to arguments differing by at most ``atol``."""
+        if not isinstance(other, DetectorErrorModel):
+            return False
+
+        def same(a: list, b: list) -> bool:
+            if len(a) != len(b):
+                return False
+            for x, y in zip(a, b):
+                if type(x) is not type(y):
+                    return False
+                if isinstance(x, _dem.DemRepeatBlock):
+                    if x.repeat_count != y.repeat_count or not same(x._body._items(), y._body._items()):
+                        return False
+                elif x.type != y.type or x.tag != y.tag or x.targets_copy() != y.targets_copy() or len(x.args_copy()) != len(y.args_copy()) or any(abs(p - q) > atol for p, q in zip(x.args_copy(), y.args_copy())):
+                    return False
+            return True
+
+        return same(self._items(), other._items())
+
+    def rounded(self, digits: int) -> "DetectorErrorModel":
+        """The same model with error probabilities rounded to ``digits`` decimal places."""
+        scale = 10 ** int(digits)
+
+        def walk(items: list) -> list:
+            out = []
+            for it in items:
+                if isinstance(it, _dem.DemRepeatBlock):
+                    rb = _dem.DemRepeatBlock.__new__(_dem.DemRepeatBlock)
+                    rb._count = it.repeat_count
+                    rb._body = DetectorErrorModel(_dem.items_exact_text(walk(it._body._items())))
+                    out.append(rb)
+                elif it.type == "error":
+                    args = [math.floor(a * scale + 0.5) / scale for a in it.args_copy()]
+                    out.append(_dem.DemInstruction._raw("error", args, it.targets_copy(), it.tag))
+                else:
+                    out.append(it)
+            return out
+
+        return DetectorErrorModel(_dem.items_exact_text(walk(self._items())))
+
+    def without_tags(self) -> "DetectorErrorModel":
+        def walk(items: list) -> list:
+            out = []
+            for it in items:
+                if isinstance(it, _dem.DemRepeatBlock):
+                    rb = _dem.DemRepeatBlock.__new__(_dem.DemRepeatBlock)
+                    rb._count = it.repeat_count
+                    rb._body = DetectorErrorModel(_dem.items_exact_text(walk(it._body._items())))
+                    out.append(rb)
+                else:
+                    out.append(_dem.DemInstruction._raw(it.type, it.args_copy(), it.targets_copy(), ""))
+            return out
+
+        return DetectorErrorModel(_dem.items_exact_text(walk(self._items())))
+
+    def get_detector_coordinates(self, only: Any = None) -> dict:
+        """Each detector's coordinates (an empty list for none), or those in ``only``."""
+        n = self.num_detectors
+        wanted = set(range(n)) if only is None else {int(k) for k in only}
+        for k in wanted:
+            if not 0 <= k < n:
+                raise ValueError(f"Detector index {k} is too big. The detector error model has {n} detectors)")
+        found: dict = {}
+
+        def walk(items: list, shift: list, offset: int) -> Tuple[list, int]:
+            for it in items:
+                if isinstance(it, _dem.DemRepeatBlock):
+                    body = it._body._items()
+                    for _ in range(it.repeat_count):
+                        shift, offset = walk(body, shift, offset)
+                elif it.type == "shift_detectors":
+                    a = it.args_copy()
+                    shift = [(shift[k] if k < len(shift) else 0.0) + (a[k] if k < len(a) else 0.0) for k in range(max(len(shift), len(a)))]
+                    offset += sum(it.targets_copy())
+                elif it.type == "detector":
+                    for t in it.targets_copy():
+                        d = t.val + offset
+                        if d in wanted:
+                            a = it.args_copy()
+                            found[d] = [v + (shift[k] if k < len(shift) else 0.0) for k, v in enumerate(a)]
+            return shift, offset
+
+        walk(self._items(), [], 0)
+        return {k: found.get(k, []) for k in sorted(wanted)}
 
     def __str__(self) -> str:
         text = self._d.__str__()

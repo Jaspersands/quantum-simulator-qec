@@ -188,6 +188,7 @@ from ._explain import (
     GateTargetWithCoords,
 )
 from ._shots import read_shot_data_file, write_shot_data_file
+from ._dem import DemInstruction, DemRepeatBlock, DemTarget, target_relative_detector_id, target_logical_observable_id, target_separator
 from ._stim import (
     CircuitRepeatBlock,
     CircuitInstruction,
@@ -309,6 +310,12 @@ __all__ = [
     "memory_circuit",
     "stream_memory",
     "surgery",
+    "DemInstruction",
+    "DemRepeatBlock",
+    "DemTarget",
+    "target_relative_detector_id",
+    "target_logical_observable_id",
+    "target_separator",
     "CircuitRepeatBlock",
     "CircuitInstruction",
     "Flow",
