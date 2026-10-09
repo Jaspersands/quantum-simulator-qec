@@ -145,6 +145,13 @@ impl PyCircuit {
         self.circuit.append_circuit(&other.circuit).map_err(api_err)
     }
 
+    /// Coherent rotations replaced by their Pauli twirls (with `merge`, equivalent rotations
+    /// added up first).
+    fn twirled(&self, merge: bool) -> PyResult<PyCircuit> {
+        let inner = crate::coherent::twirled(&self.circuit.inner, merge).map_err(err)?;
+        Ok(PyCircuit { circuit: crate::api::Circuit::from_engine(inner).map_err(api_err)? })
+    }
+
     fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
         Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
     }

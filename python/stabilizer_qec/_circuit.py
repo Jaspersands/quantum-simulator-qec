@@ -126,6 +126,16 @@ class Circuit:
         call(self._c.append_circuit, other._c.copy() if other._c is self._c else other._c)
         return self
 
+    def twirled(self, *, merge: bool = False) -> "Circuit":
+        """The circuit with each coherent rotation (``I_ERROR[R_Z(theta=θ)] q`` and the rest)
+        replaced by its Pauli twirl, the Pauli with probability sin²θ: the model Stim and every
+        decoder assume. With ``merge``, rotations that are the same fault in different places
+        (either side of a gate that leaves them alone, say) become one with their angles added,
+        sin²(Σθ): the coherence-aware model. Merging writes the circuit without loops."""
+        out = Circuit.__new__(Circuit)
+        out._c = call(self._c.twirled, bool(merge))
+        return out
+
     def __mul__(self, repetitions: object) -> "Circuit":
         """``REPEAT repetitions { self }``, as Stim's: nothing for 0, the circuit for 1."""
         if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):

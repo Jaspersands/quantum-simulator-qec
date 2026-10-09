@@ -76,3 +76,27 @@ def test_unsupported_operations_are_refused():
         sq.Circuit("R 0\nI[T] 0\nM 0").compile_coherent_sampler()
     with pytest.raises(ValueError, match="feedback"):
         sq.Circuit("R 0 1\nM 0\nCX rec[-1] 1\nI_ERROR[R_X(theta=0.1)] 1\nM 1").compile_coherent_sampler()
+
+
+def test_twirled_circuits():
+    c = sq.Circuit(CASES[0])
+    t = c.twirled()
+    assert "R_Z" not in str(t) and "Z_ERROR" in str(t)
+    assert np.isclose(float(str(t).split("Z_ERROR(")[1].split(")")[0]), np.sin(0.2) ** 2)
+    m = c.twirled(merge=True)
+    # The two rotations either side of the CZ are one fault: one error of sin²(0.35).
+    probs = [float(x.split(")")[0]) for x in str(m).split("Z_ERROR(")[1:]]
+    assert len(probs) == 1 and np.isclose(probs[0], np.sin(0.35) ** 2)
+    # ZZ crosstalk twirls to a correlated error.
+    assert "E(" in str(sq.Circuit(CASES[2]).twirled()) or "CORRELATED_ERROR(" in str(sq.Circuit(CASES[2]).twirled())
+
+
+def test_weighted_helpers():
+    p, se = sq.weighted_rate(np.array([1, 0, 0, 1]), np.array([1.0, 1.0, 1.0, 1.0]))
+    assert p == 0.5 and se > 0
+    c = sq.Circuit(CASES[1])
+    d, o, w = c.compile_coherent_sampler(seed=3).sample(50_000, threads=0)
+    dec = sq.Matching.from_detector_error_model(c.twirled(merge=True).detector_error_model(decompose_errors=True))
+    rate, err = sq.weighted_logical_error_rate(dec, d, o, w)
+    assert 0 <= rate < 0.5 and err > 0
+    assert 0 < sq.effective_sample_size(w) <= len(w)

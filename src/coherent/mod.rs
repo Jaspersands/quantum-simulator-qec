@@ -855,3 +855,72 @@ mod tests {
         assert!(element("R 0\nH 0\nI_ERROR[R_X(theta=0.1)] 0\nM 0", &[0]).is_some());
     }
 }
+
+/// The circuit with each coherent rotation exp(−iθP) replaced by its Pauli twirl, P with
+/// probability sin²θ: what Stim and every decoder assume. With `merge`, rotations that are the
+/// same fault in different places (`kernel::Group`) become one, at the group's last place, with
+/// their angles added (sin²(Σ ±θ)): the coherence-aware model. Merging flattens loops.
+pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
+    let pauli_error = |paulis: &[(u32, u8)], p: f64| -> Instr {
+        match paulis {
+            [(q, c)] => Instr::PauliError { pauli: *c, p, qubits: vec![*q] },
+            _ => Instr::Correlated { p, paulis: paulis.to_vec(), chained: false },
+        }
+    };
+    if !merge {
+        fn walk(instrs: &[Instr], f: &dyn Fn(&[(u32, u8)], f64) -> Instr) -> Vec<Instr> {
+            let mut out = Vec::new();
+            for ins in instrs {
+                match ins {
+                    Instr::Repeat { count, body, tag } => out.push(Instr::Repeat { count: *count, body: walk(body, f), tag: tag.clone() }),
+                    Instr::Gate { body, .. } if matches!(body.as_slice(), [Instr::NonPauli(_)]) => {
+                        let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
+                        for op in ops {
+                            match op {
+                                NonPauli::Rotation { pauli, theta } => out.push(f(pauli, theta.sin().powi(2))),
+                                _ => out.push(ins.clone()),
+                            }
+                        }
+                    }
+                    other => out.push(other.clone()),
+                }
+            }
+            out
+        }
+        return Ok(Circuit { instrs: walk(&circuit.instrs, &pauli_error) });
+    }
+    let program = Program::new(circuit)?;
+    let solver = GaugeSolver::new(&program);
+    let kernel = kernel::Kernel::new(&program, &solver, kernel::CoherentOptions::default());
+    // Each location's probability: its own, or its group's merged angle at the group's last.
+    let mut prob: Vec<Option<f64>> = program.locations.iter().map(|l| Some(l.theta.sin().powi(2))).collect();
+    for g in &kernel.groups {
+        let angle: f64 = g.members.iter().zip(&g.mu).map(|(&l, mu)| program.locations[l].theta * if mu.re < 0.0 { -1.0 } else { 1.0 }).sum();
+        for &l in &g.members {
+            prob[l] = None;
+        }
+        prob[*g.members.last().unwrap()] = Some(angle.sin().powi(2));
+    }
+    let res = circuit.resolve()?;
+    let mut out = Vec::new();
+    let mut loc = 0usize;
+    for ins in &res.instrs {
+        match ins {
+            Instr::NonPauli(ops) => {
+                for op in ops {
+                    if let NonPauli::Rotation { pauli, .. } = op {
+                        if pauli.is_empty() {
+                            continue;
+                        }
+                        if let Some(p) = prob[loc] {
+                            out.push(pauli_error(pauli, p));
+                        }
+                        loc += 1;
+                    }
+                }
+            }
+            other => out.push(other.clone()),
+        }
+    }
+    Ok(Circuit { instrs: out })
+}
