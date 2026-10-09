@@ -1234,10 +1234,13 @@ amplitudes, though: two turns flip with probability sin²(2θ) ≈ 4θ², not 2�
 - LeBlond et al. (PRR 7, 043184, 2025) estimate an idling surface code's logical channel by
   quasi-probability sampling.
 - arXiv 2510.23797 estimates detector error models from coherent-noise data.
+- Tsim (QuEra; Haenel, Luo and Zhao, arXiv 2604.01059, April 2026) samples Stim circuits with
+  T gates and rotations at 80+ qubits by stabilizer rank. Its cost grows exponentially in the
+  number of non-Clifford gates, so it suits circuits with a few of them.
 - Leakage in a Stim frame sampler is Riverlane's deltakit-stim.
 
-None of these takes any circuit, samples its detectors under coherent errors at circuit level and
-at sizes beyond a state vector, and decodes them. That is what this release adds.
+None of these samples and decodes a circuit with coherent errors on every gate (thousands of
+small rotations) at sizes beyond a state vector. That is what this release adds.
 
 - **Rotations are Stim-readable**: `I_ERROR[R_Z(theta=0.01)] 0`, `II_ERROR[R_ZZ(theta=0.02)] 0 1`,
   or any Pauli product as `I_ERROR[R_PAULI(theta=…, pauli=XZY)] 0 1 2`. Stim and this package's
