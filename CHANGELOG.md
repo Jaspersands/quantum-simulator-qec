@@ -4,7 +4,7 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## 1.9.0 — unreleased
+## 1.9.0 — 2026-10-09
 
 The Python package and the Rust crate both at 1.9.0, "beyond Pauli noise". The headline is
 something no other tool does: sampling and decoding any Stim circuit under coherent errors at

@@ -79,7 +79,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.8, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.9, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};

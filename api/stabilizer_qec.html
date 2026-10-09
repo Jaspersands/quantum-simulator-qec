@@ -29,6 +29,7 @@
   <li><a href="#knowing-a-circuit">Knowing a circuit</a></li>
   <li><a href="#shots">Shots</a></li>
   <li><a href="#decoders">Decoders</a></li>
+  <li><a href="#beyond-pauli-noise">Beyond Pauli noise</a></li>
   <li><a href="#the-command-line">The command line</a></li>
   <li><a href="#many-processes-and-sinter">Many processes, and sinter</a></li>
   <li><a href="#promises">Promises</a></li>
@@ -370,6 +371,9 @@
                                 <a class="function" href="#Circuit.append_from_stim_program_text">append_from_stim_program_text</a>
                         </li>
                         <li>
+                                <a class="function" href="#Circuit.twirled">twirled</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#Circuit.num_qubits">num_qubits</a>
                         </li>
                         <li>
@@ -410,6 +414,18 @@
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.compile_detector_sampler">compile_detector_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.compile_exact_sampler">compile_exact_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.compile_coherent_sampler">compile_coherent_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.compile_leakage_sampler">compile_leakage_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.exact_distribution">exact_distribution</a>
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.compile_m2d_converter">compile_m2d_converter</a>
@@ -488,6 +504,69 @@
                         </li>
                 </ul>
 
+            </li>
+            <li>
+                    <a class="class" href="#ExactSampler">ExactSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ExactSampler.__init__">ExactSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExactSampler.num_qubits">num_qubits</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CoherentSampler">CoherentSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CoherentSampler.__init__">CoherentSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.num_detectors">num_detectors</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.num_observables">num_observables</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.num_locations">num_locations</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.num_generators">num_generators</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CoherentSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#LeakageSampler">LeakageSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#LeakageSampler.__init__">LeakageSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LeakageSampler.num_detectors">num_detectors</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LeakageSampler.num_observables">num_observables</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LeakageSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="function" href="#weighted_rate">weighted_rate</a>
+            </li>
+            <li>
+                    <a class="function" href="#weighted_logical_error_rate">weighted_logical_error_rate</a>
+            </li>
+            <li>
+                    <a class="function" href="#effective_sample_size">effective_sample_size</a>
             </li>
             <li>
                     <a class="class" href="#DemSampler">DemSampler</a>
@@ -753,7 +832,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 1.8.0</footer>
+            <footer>stabilizer-qec 1.9.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -770,7 +849,8 @@ stabilizer_qec    </h1>
                         <div class="docstring"><p>A quantum error-correction simulator and decoder, in Rust: Stim's circuit and error-model
 formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP, BP+OSD and
 BP+LSD, Relay-BP, colour-code matching, a search decoder, window decoding, IBM's bivariate
-bicycle codes and lattice surgery. It agrees with Stim, PyMatching, <code>ldpc</code>, <code>beliefmatching</code>,
+bicycle codes and lattice surgery, coherent errors at circuit level, and an exact state vector.
+It agrees with Stim, PyMatching, <code>ldpc</code>, <code>beliefmatching</code>,
 IBM's <code>relay_bp</code>, Chromobius and Tesseract on every check in its test suite.</p>
 
 <pre><code>pip install stabilizer-qec
@@ -875,6 +955,26 @@ whose faults set off at most two detectors, or decomposed;</li>
 
 <p>On a check matrix, with <code>ldpc</code>'s arguments: <code><a href="#BpDecoder">BpDecoder</a></code>, <code><a href="#BpOsdDecoder">BpOsdDecoder</a></code>, <code><a href="#BpLsdDecoder">BpLsdDecoder</a></code>, and
 <code><a href="#RelayBpDecoder">RelayBpDecoder</a></code> with IBM's. <code>tools/decoder_check.py</code> holds each against its authors' package.</p>
+
+<h2 id="beyond-pauli-noise">Beyond Pauli noise</h2>
+
+<p>Coherent errors are tagged identities that Stim reads as identities, so circuits stay Stim's:
+<code>I_ERROR[R_Z(theta=0.01)] 0</code>, <code>II_ERROR[R_ZZ(theta=0.02)] 0 1</code>, any Pauli product as
+<code>I_ERROR[R_PAULI(theta=…, pauli=XZY)] 0 1 2</code>. <code><a href="#Circuit.compile_coherent_sampler">Circuit.compile_coherent_sampler</a></code> gives shots of
+the twirled circuit with weights that make them the coherent circuit's, at any size:</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">sq</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="s2">"RX 0</span><span class="se">\n</span><span class="s2">I_ERROR[R_Z(theta=0.2)] 0</span><span class="se">\n</span><span class="s2">I_ERROR[R_Z(theta=0.15)] 0</span><span class="se">\n</span><span class="s2">MX 0</span><span class="se">\n</span><span class="s2">DETECTOR rec[-1]"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">compile_coherent_sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="mi">100_000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rate</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">sq</span><span class="o">.</span><span class="n">weighted_rate</span><span class="p">(</span><span class="n">d</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">w</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">abs</span><span class="p">(</span><span class="n">rate</span> <span class="o">-</span> <span class="mf">0.1176</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.003</span>   <span class="c1"># sin²(0.35): the angles add, not their twirls</span>
+<span class="go">True</span>
+</code></pre>
+</div>
+
+<p><code>compile_exact_sampler</code> and <code>exact_distribution</code> run the state vector (up to 24 qubits; also T,
+U3 and amplitude damping). <code>twirled(merge=True)</code> is the coherence-aware model for a decoder.
+<code>compile_leakage_sampler</code> runs <code>I_ERROR[LEAK(p=…)]</code>, <code>SEEP</code> and <code>LEAK_TRANSPORT</code>, with heralds.</p>
 
 <h2 id="the-command-line">The command line</h2>
 
@@ -2296,6 +2396,25 @@ raises <code>ValueError</code> and leaves the circuit as it was.</p>
 
 
                             </div>
+                            <div id="Circuit.twirled" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">twirled</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">merge</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.twirled"></a>
+    
+            <div class="docstring"><p>The circuit with each coherent rotation (<code>I_ERROR[R_Z(theta=θ)] q</code> and the rest)
+replaced by its Pauli twirl, the Pauli with probability sin²θ: the model Stim and every
+decoder assume. With <code>merge</code>, rotations that are the same fault in different places
+(either side of a gate that leaves them alone, say) become one with their angles added,
+sin²(Σθ): the coherence-aware model. Merging writes the circuit without loops.</p>
+</div>
+
+
+                            </div>
                             <div id="Circuit.num_qubits" class="classattr">
                                 <div class="attr variable">
             <span class="name">num_qubits</span><span class="annotation">: int</span>
@@ -2571,6 +2690,82 @@ same shots on any machine and number of threads; <code>None</code> draws a seed.
     
             <div class="docstring"><p>A sampler of detection events and observable flips. The same seed gives the same
 shots on any machine and any number of threads; <code>None</code> draws a seed.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.compile_exact_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_exact_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#ExactSampler">ExactSampler</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.compile_exact_sampler"></a>
+    
+            <div class="docstring"><p>An exact sampler: the full state vector (up to 24 qubits in use), running every
+instruction, Clifford or not, including the tagged rotations, T, U3 and amplitude damping
+(<code>I_ERROR[R_Z(theta=0.01)] 0</code>, <code>I[T] 0</code>). Noise channels are drawn as quantum
+trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.compile_coherent_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.compile_coherent_sampler"></a>
+    
+            <div class="docstring"><p>A sampler for circuits with coherent errors (<code>I_ERROR[R_Z(theta=0.02)] 0</code>,
+<code>II_ERROR[R_ZZ(theta=0.01)] 0 1</code>, any Pauli rotation) at any size: shots of the
+Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
+back the interference the twirl leaves out. Weighted, the shots are distributed as the
+coherent circuit's: estimate a rate as <code>(w * hit).sum() / w.sum()</code>. <code>order</code> is how
+many of the circuit's local interference generators a shot's sum multiplies together.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.compile_leakage_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_leakage_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">leaked_reads_one</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#LeakageSampler">LeakageSampler</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.compile_leakage_sampler"></a>
+    
+            <div class="docstring"><p>A frame sampler that runs leakage, written as Stim-readable tags:
+<code>I_ERROR[LEAK(p=…)] q</code> (the qubit leaks), <code>I_ERROR[SEEP(p=…)] q</code> (a leaked qubit
+returns, to |0⟩ or |1⟩ at random) and <code>II_ERROR[LEAK_TRANSPORT(p=…)] a b</code> (leakage
+moves to the partner). A two-qubit gate with a leaked partner leaves the other qubit a
+uniformly random Pauli, as in Google's model; measuring a leaked qubit reads 1 (a coin
+flip with <code>leaked_reads_one=False</code>); a reset returns it. Its <code>sample</code> also gives each
+measurement's herald: whether its qubit was leaked.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.exact_distribution" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">exact_distribution</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">max_branches</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1048576</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.exact_distribution"></a>
+    
+            <div class="docstring"><p>Every outcome's exact probability, following every measurement outcome and noise
+branch: <code>{(detection events, observable flips): probability}</code>, each a tuple of bools.
+For small circuits; more than <code>max_branches</code> branches is an error.</p>
 </div>
 
 
@@ -2932,6 +3127,257 @@ ends partway through 64 discards the rest of them.</p>
 
 
                             </div>
+                </section>
+                <section id="ExactSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">ExactSampler</span><wbr>(<span class="base"><a href="#DetectorSampler">stabilizer_qec.DetectorSampler</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#ExactSampler"></a>
+    
+            <div class="docstring"><p>Detection events and observable flips from the exact state vector. Made by
+<code><a href="#Circuit.compile_exact_sampler">Circuit.compile_exact_sampler</a></code>; <code><a href="#ExactSampler.sample">sample</a></code> is the detector sampler's. Each shot has its
+own random stream, so threads never change the shots and calls continue shot by shot.</p>
+</div>
+
+
+                            <div id="ExactSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ExactSampler</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>, </span><span class="param"><span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExactSampler.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="ExactSampler.num_qubits" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_qubits</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExactSampler.num_qubits"></a>
+    
+            <div class="docstring"><p>The qubits in use, which the state vector holds.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="CoherentSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CoherentSampler</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler"></a>
+    
+            <div class="docstring"><p>Weighted shots of a circuit with coherent errors. Made by
+<code><a href="#Circuit.compile_coherent_sampler">Circuit.compile_coherent_sampler</a></code>.</p>
+</div>
+
+
+                            <div id="CoherentSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CoherentSampler.num_detectors" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_detectors</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.num_detectors"></a>
+    
+    
+
+                            </div>
+                            <div id="CoherentSampler.num_observables" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_observables</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.num_observables"></a>
+    
+    
+
+                            </div>
+                            <div id="CoherentSampler.num_locations" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_locations</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.num_locations"></a>
+    
+            <div class="docstring"><p>The coherent rotations in the circuit.</p>
+</div>
+
+
+                            </div>
+                            <div id="CoherentSampler.num_generators" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_generators</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.num_generators"></a>
+    
+            <div class="docstring"><p>The local generators of the circuit's interference (sets of rotations no record
+tells apart) the sampler found.</p>
+</div>
+
+
+                            </div>
+                            <div id="CoherentSampler.sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">sample</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.sample"></a>
+    
+            <div class="docstring"><p><code>(detection events, observable flips, weights)</code> for <code>shots</code> shots, the first two
+as the detector sampler gives them with <code>separate_observables</code>. Each shot has its own
+random stream: threads never change the shots, and calls continue shot by shot.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="LeakageSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">LeakageSampler</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#LeakageSampler"></a>
+    
+            <div class="docstring"><p>Shots of a circuit with leakage, and which measurements found their qubit leaked. Made
+by <code><a href="#Circuit.compile_leakage_sampler">Circuit.compile_leakage_sampler</a></code>.</p>
+</div>
+
+
+                            <div id="LeakageSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">LeakageSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">leaked_reads_one</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LeakageSampler.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="LeakageSampler.num_detectors" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_detectors</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LeakageSampler.num_detectors"></a>
+    
+    
+
+                            </div>
+                            <div id="LeakageSampler.num_observables" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_observables</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LeakageSampler.num_observables"></a>
+    
+    
+
+                            </div>
+                            <div id="LeakageSampler.sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">sample</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LeakageSampler.sample"></a>
+    
+            <div class="docstring"><p><code>(detection events, observable flips, heralds)</code> for <code>shots</code> shots: bool arrays
+of shape (shots, detectors), (shots, observables) and (shots, measurements), the last
+empty in width when the circuit has no leakage.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="weighted_rate">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">weighted_rate</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">hits</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>, </span><span class="param"><span class="n">weights</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#weighted_rate"></a>
+    
+            <div class="docstring"><p>The weighted rate of <code>hits</code> (bools, one per shot) and its standard error:
+Σ w·hit / Σ w, the error from the delta method for a ratio of sums.</p>
+</div>
+
+
+                </section>
+                <section id="weighted_logical_error_rate">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">weighted_logical_error_rate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">decoder</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="n">detections</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>,</span><span class="param">	<span class="n">observables</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>,</span><span class="param">	<span class="n">weights</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#weighted_logical_error_rate"></a>
+    
+            <div class="docstring"><p>A decoder's logical error rate on weighted shots (from <code><a href="#CoherentSampler.sample">CoherentSampler.sample</a></code>):
+the weighted share of shots it predicts wrongly, and its standard error. <code>decoder</code> is any
+of the package's decoders, or anything with <code>decode_batch</code>.</p>
+</div>
+
+
+                </section>
+                <section id="effective_sample_size">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">effective_sample_size</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">weights</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span></span><span class="return-annotation">) -> <span class="nb">float</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#effective_sample_size"></a>
+    
+            <div class="docstring"><p>(Σ w)² / Σ w²: how many unweighted shots the weighted ones are worth.</p>
+</div>
+
+
                 </section>
                 <section id="DemSampler">
                     <div class="attr class">
@@ -3973,7 +4419,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;1.8.0&#39;</span>
+<span class="default_value">&#39;1.9.0&#39;</span>
 
         
     </div>

@@ -14,10 +14,10 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 1.8.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 1.9.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 8 October 2026 · commit <code>25c7dcc</code></p>
+  <p class="byline">Jasper Sands · 9 October 2026 · commit <code>faf9def</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -58,7 +58,8 @@
 <li><a href="#beyond-the-surface-code-the-gross-code"><span class="toc-section-number">4.7</span> Beyond the surface code: the gross code</a></li>
 <li><a href="#lattice-surgery"><span class="toc-section-number">4.8</span> Lattice surgery</a></li>
 <li><a href="#circuit-distance"><span class="toc-section-number">4.9</span> Circuit distance</a></li>
-<li><a href="#what-it-would-take"><span class="toc-section-number">4.10</span> What it would take</a></li>
+<li><a href="#beyond-pauli-noise"><span class="toc-section-number">4.10</span> Beyond Pauli noise</a></li>
+<li><a href="#what-it-would-take"><span class="toc-section-number">4.11</span> What it would take</a></li>
 </ul></li>
 <li><a href="#limits-and-next-steps"><span class="toc-section-number">5</span> Limits and next steps</a></li>
 <li><a href="#reproducing-everything"><span class="toc-section-number">6</span> Reproducing everything</a></li>
@@ -2025,7 +2026,342 @@
 <li><strong>The colour code loses it.</strong> Stim’s generated XYZ colour-code memory has circuit distance 2, 3 and 4 at code distance 3, 5 and 7, proven; two or three correlated two-qubit faults do the work of d data errors. The generic <code>CssCode</code> schedule loses it the same way.</li>
 <li><strong>The bivariate bicycle codes are bounded, not settled.</strong> For [[90, 8, 10]] the integer program found an undetectable logical error of 9 faults, below the code’s 10. Bravyi et al. bound the circuit distance of their circuits at 6, 8, 8 and 10 for the four codes; the bounds found here for the larger two are looser than theirs.</li>
 </ul>
-<h2 data-number="4.10" id="what-it-would-take"><span class="header-section-number">4.10</span> What it would take</h2>
+<h2 data-number="4.10" id="beyond-pauli-noise"><span class="header-section-number">4.10</span> Beyond Pauli noise</h2>
+<p>Every result above, like Stim and every decoder, models noise as random Pauli errors. Hardware also over-rotates: a qubit meant to idle turns by a small angle θ, the same way every time. Its Pauli twirl (Z with probability <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mo>sin</mo><mn>2</mn></msup><mi>θ</mi></mrow><annotation encoding="application/x-tex">\sin^2\theta</annotation></semantics></math>) is exact for one rotation alone, but rotations that repeat add as amplitudes. Earlier work treats code capacity by free fermions (Bravyi et al., 2018), returns outcome probabilities of Clifford circuits with small errors (Miller et al., 2025), or estimates one idling memory’s logical channel (LeBlond et al., 2025). None of them samples and decodes arbitrary circuits.</p>
+<p>The <strong>coherent sampler</strong> does. It draws shots of the twirled circuit and weights each by its class’s coherent over twirled probability, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mn>1</mn><mo>+</mo><mo>∑</mo><mi>r</mi><msup><mo stretchy="false" form="prefix">|</mo><mn>2</mn></msup><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>+</mo><mo>∑</mo><mo stretchy="false" form="prefix">|</mo><mi>r</mi><msup><mo stretchy="false" form="prefix">|</mo><mn>2</mn></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">|1 + \sum r|^2 / (1 + \sum |r|^2)</annotation></semantics></math>. A class is every fault set that no measurement can tell apart from the shot’s. These sets are the cosets of a linear space, the circuit’s spacetime kernel, in which the randomness of measurements with random outcomes counts as gauge. Each <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>r</mi><annotation encoding="application/x-tex">r</annotation></semantics></math>, a member’s amplitude relative to the shot’s, has a closed form from carrying Pauli operators through the circuit. - Rotations that are the same fault in several places are drawn as one. - The rest of the kernel is found locally. - On every branch of 150 random small circuits the weighted twirl equals the state vector’s distribution to <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mn>10</mn><mrow><mo>−</mo><mn>10</mn></mrow></msup><annotation encoding="application/x-tex">10^{-10}</annotation></semantics></math>. - Against the state vector’s exact answers:</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">circuit</th>
+<th style="text-align: right;">θ</th>
+<th style="text-align: right;">exact</th>
+<th style="text-align: right;">coherent sampler</th>
+<th style="text-align: right;">apart</th>
+<th style="text-align: right;">Pauli twirl</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">repetition, d = 3, 2 rounds</td>
+<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.02320</td>
+<td style="text-align: right;">0.02321 ± 0.00019</td>
+<td style="text-align: right;">+0.0σ</td>
+<td style="text-align: right;">0.00418</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">repetition, d = 3, 3 rounds</td>
+<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.05093</td>
+<td style="text-align: right;">0.05049 ± 0.00031</td>
+<td style="text-align: right;">-1.4σ</td>
+<td style="text-align: right;">0.00739</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">repetition, d = 5, 2 rounds</td>
+<td style="text-align: right;">0.1</td>
+<td style="text-align: right;">0.00322</td>
+<td style="text-align: right;">0.00314 ± 0.00008</td>
+<td style="text-align: right;">-1.0σ</td>
+<td style="text-align: right;">0.00032</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">repetition, d = 3, 3 rounds</td>
+<td style="text-align: right;">0.05</td>
+<td style="text-align: right;">0.00354</td>
+<td style="text-align: right;">0.00355 ± 0.00008</td>
+<td style="text-align: right;">+0.1σ</td>
+<td style="text-align: right;">0.00050</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">repetition, d = 5, 2 rounds</td>
+<td style="text-align: right;">0.05</td>
+<td style="text-align: right;">0.00006</td>
+<td style="text-align: right;">0.00006 ± 0.00001</td>
+<td style="text-align: right;">+0.8σ</td>
+<td style="text-align: right;">0.00001</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">repetition, d = 3, 4 rounds</td>
+<td style="text-align: right;">0.05</td>
+<td style="text-align: right;">0.00559</td>
+<td style="text-align: right;">0.00548 ± 0.00010</td>
+<td style="text-align: right;">-1.1σ</td>
+<td style="text-align: right;">0.00071</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">surface, d = 3, 2 rounds</td>
+<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">0.01742 ± 0.00053</td>
+<td style="text-align: right;">0.01789 ± 0.00014</td>
+<td style="text-align: right;">+0.8σ</td>
+<td style="text-align: right;">0.00343</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">surface, d = 3, 2 rounds</td>
+<td style="text-align: right;">0.04</td>
+<td style="text-align: right;">0.11247 ± 0.00129</td>
+<td style="text-align: right;">0.11418 ± 0.00034</td>
+<td style="text-align: right;">+1.3σ</td>
+<td style="text-align: right;">0.01207</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Circuit level.</strong> The rotated surface code’s X memory over d rounds under circuit noise <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.2</mn><mi>%</mi></mrow><annotation encoding="application/x-tex">p = 0.2\%</annotation></semantics></math>, with a Z over-rotation by θ on every data qubit after every tick. “Decoded knowing” decodes the same shots on the merged model, which adds the angles of equivalent rotations before twirling:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: right;">d</th>
+<th style="text-align: right;">θ</th>
+<th style="text-align: right;">coherent</th>
+<th style="text-align: right;">twirl</th>
+<th style="text-align: right;">coherent ÷ twirl</th>
+<th style="text-align: right;">decoded knowing</th>
+<th style="text-align: right;">sample kept</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.0025</td>
+<td style="text-align: right;">2.3 × 10⁻³ ± 1.1 × 10⁻⁴</td>
+<td style="text-align: right;">2.1 × 10⁻³</td>
+<td style="text-align: right;">1.1</td>
+<td style="text-align: right;">2.3 × 10⁻³</td>
+<td style="text-align: right;">100%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">3.0 × 10⁻³ ± 1.4 × 10⁻⁴</td>
+<td style="text-align: right;">2.2 × 10⁻³</td>
+<td style="text-align: right;">1.4</td>
+<td style="text-align: right;">3.0 × 10⁻³</td>
+<td style="text-align: right;">99%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">6.5 × 10⁻³ ± 3.4 × 10⁻⁴</td>
+<td style="text-align: right;">2.8 × 10⁻³</td>
+<td style="text-align: right;">2.4</td>
+<td style="text-align: right;">6.2 × 10⁻³</td>
+<td style="text-align: right;">95%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">1.5 × 10⁻² ± 5.6 × 10⁻⁴</td>
+<td style="text-align: right;">3.7 × 10⁻³</td>
+<td style="text-align: right;">4.2</td>
+<td style="text-align: right;">1.4 × 10⁻²</td>
+<td style="text-align: right;">89%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">3.2 × 10⁻² ± 8.4 × 10⁻⁴</td>
+<td style="text-align: right;">5.2 × 10⁻³</td>
+<td style="text-align: right;">6.3</td>
+<td style="text-align: right;">3.0 × 10⁻²</td>
+<td style="text-align: right;">82%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">0.03</td>
+<td style="text-align: right;">8.9 × 10⁻² ± 1.4 × 10⁻³</td>
+<td style="text-align: right;">1.0 × 10⁻²</td>
+<td style="text-align: right;">8.8</td>
+<td style="text-align: right;">8.7 × 10⁻²</td>
+<td style="text-align: right;">67%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.0025</td>
+<td style="text-align: right;">6.1 × 10⁻⁴ ± 3.8 × 10⁻⁵</td>
+<td style="text-align: right;">5.5 × 10⁻⁴</td>
+<td style="text-align: right;">1.1</td>
+<td style="text-align: right;">6.1 × 10⁻⁴</td>
+<td style="text-align: right;">99%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">8.6 × 10⁻⁴ ± 5.4 × 10⁻⁵</td>
+<td style="text-align: right;">6.1 × 10⁻⁴</td>
+<td style="text-align: right;">1.4</td>
+<td style="text-align: right;">8.9 × 10⁻⁴</td>
+<td style="text-align: right;">95%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">2.8 × 10⁻³ ± 1.7 × 10⁻⁴</td>
+<td style="text-align: right;">9.0 × 10⁻⁴</td>
+<td style="text-align: right;">3.1</td>
+<td style="text-align: right;">2.8 × 10⁻³</td>
+<td style="text-align: right;">84%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">9.3 × 10⁻³ ± 5.1 × 10⁻⁴</td>
+<td style="text-align: right;">1.2 × 10⁻³</td>
+<td style="text-align: right;">7.6</td>
+<td style="text-align: right;">8.7 × 10⁻³</td>
+<td style="text-align: right;">69%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">0.02</td>
+<td style="text-align: right;">2.5 × 10⁻² ± 8.5 × 10⁻⁴</td>
+<td style="text-align: right;">2.1 × 10⁻³</td>
+<td style="text-align: right;">11.9</td>
+<td style="text-align: right;">2.2 × 10⁻²</td>
+<td style="text-align: right;">55%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.0025</td>
+<td style="text-align: right;">1.4 × 10⁻⁴ ± 8.4 × 10⁻⁶</td>
+<td style="text-align: right;">1.2 × 10⁻⁴</td>
+<td style="text-align: right;">1.2</td>
+<td style="text-align: right;">1.5 × 10⁻⁴</td>
+<td style="text-align: right;">97%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">2.0 × 10⁻⁴ ± 1.3 × 10⁻⁵</td>
+<td style="text-align: right;">1.5 × 10⁻⁴</td>
+<td style="text-align: right;">1.4</td>
+<td style="text-align: right;">2.1 × 10⁻⁴</td>
+<td style="text-align: right;">90%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">8.8 × 10⁻⁴ ± 6.7 × 10⁻⁵</td>
+<td style="text-align: right;">2.2 × 10⁻⁴</td>
+<td style="text-align: right;">4.0</td>
+<td style="text-align: right;">8.4 × 10⁻⁴</td>
+<td style="text-align: right;">68%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">7</td>
+<td style="text-align: right;">0.015</td>
+<td style="text-align: right;">4.3 × 10⁻³ ± 3.8 × 10⁻⁴</td>
+<td style="text-align: right;">3.7 × 10⁻⁴</td>
+<td style="text-align: right;">11.5</td>
+<td style="text-align: right;">4.0 × 10⁻³</td>
+<td style="text-align: right;">47%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">0.0025</td>
+<td style="text-align: right;">2.8 × 10⁻⁵ ± 2.8 × 10⁻⁶</td>
+<td style="text-align: right;">2.6 × 10⁻⁵</td>
+<td style="text-align: right;">1.1</td>
+<td style="text-align: right;">2.9 × 10⁻⁵</td>
+<td style="text-align: right;">96%</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">0.005</td>
+<td style="text-align: right;">5.6 × 10⁻⁵ ± 4.6 × 10⁻⁶</td>
+<td style="text-align: right;">3.0 × 10⁻⁵</td>
+<td style="text-align: right;">1.8</td>
+<td style="text-align: right;">6.1 × 10⁻⁵</td>
+<td style="text-align: right;">84%</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">0.01</td>
+<td style="text-align: right;">3.6 × 10⁻⁴ ± 3.2 × 10⁻⁵</td>
+<td style="text-align: right;">5.3 × 10⁻⁵</td>
+<td style="text-align: right;">6.8</td>
+<td style="text-align: right;">3.8 × 10⁻⁴</td>
+<td style="text-align: right;">52%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Code capacity</strong>, Bravyi et al.’s setting (perfect measurements, one over-rotation per data qubit). Coherent over twirled logical error:</p>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+<col style="width: 12%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: right;">θ</th>
+<th style="text-align: right;">d = 3</th>
+<th style="text-align: right;">d = 5</th>
+<th style="text-align: right;">d = 7</th>
+<th style="text-align: right;">d = 9</th>
+<th style="text-align: right;">d = 11</th>
+<th style="text-align: right;">d = 13</th>
+<th style="text-align: right;">d = 15</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">0.2</td>
+<td style="text-align: right;">1.05 ± 0.03</td>
+<td style="text-align: right;">0.94 ± 0.04</td>
+<td style="text-align: right;">1.14 ± 0.07</td>
+<td style="text-align: right;">1.00 ± 0.08</td>
+<td style="text-align: right;">1.16 ± 0.10</td>
+<td style="text-align: right;">0.95 ± 0.10</td>
+<td style="text-align: right;">1.09 ± 0.15</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">0.25</td>
+<td style="text-align: right;">1.02 ± 0.02</td>
+<td style="text-align: right;">0.98 ± 0.02</td>
+<td style="text-align: right;">1.02 ± 0.03</td>
+<td style="text-align: right;">0.99 ± 0.03</td>
+<td style="text-align: right;">1.01 ± 0.04</td>
+<td style="text-align: right;">0.96 ± 0.05</td>
+<td style="text-align: right;">0.95 ± 0.05</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">1.01 ± 0.01</td>
+<td style="text-align: right;">1.00 ± 0.02</td>
+<td style="text-align: right;">1.01 ± 0.02</td>
+<td style="text-align: right;">0.98 ± 0.02</td>
+<td style="text-align: right;">0.98 ± 0.02</td>
+<td style="text-align: right;">1.01 ± 0.02</td>
+<td style="text-align: right;">1.01 ± 0.02</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">0.35</td>
+<td style="text-align: right;">1.01 ± 0.01</td>
+<td style="text-align: right;">0.99 ± 0.01</td>
+<td style="text-align: right;">1.00 ± 0.01</td>
+<td style="text-align: right;">1.01 ± 0.01</td>
+<td style="text-align: right;">1.00 ± 0.01</td>
+<td style="text-align: right;">1.02 ± 0.01</td>
+<td style="text-align: right;">0.99 ± 0.01</td>
+</tr>
+</tbody>
+</table>
+<p>At code capacity the twirl is accurate, as Bravyi et al. found. At circuit level it is not: a rotation that repeats between the gates that would tell its repeats apart adds coherently. The twirl then underestimates the logical error, by more at larger distance: at θ = 0.01 per tick, 2.4 times at d = 3 and 6.8 times at d = 9. A decoder on the merged model fails up to 12% less often on the same shots at the larger angles, and gains nothing at the smallest.</p>
+<h2 data-number="4.11" id="what-it-would-take"><span class="header-section-number">4.11</span> What it would take</h2>
 <p>Each section above measures one ingredient of a quantum computer’s cost. The estimate puts them together with what the papers that price real algorithms report. Every number it reads from a paper is recorded with its page or table.</p>
 <ul>
 <li><strong>Algorithms:</strong> RSA-2048 (Gidney, 1,409 logical qubits, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>6.5</mn><mo>×</mo><msup><mn>10</mn><mn>9</mn></msup></mrow><annotation encoding="application/x-tex">6.5 \times 10^9</annotation></semantics></math> Toffolis), FeMoco by tensor hypercontraction (Lee et al.), and three illustrations.</li>
@@ -2378,6 +2714,7 @@
 <li><strong>Latency is scheduled, not served.</strong> The latency figures schedule decode times measured natively on one machine. They leave out the transport of syndromes from a quantum computer to the decoder, and they are not a claim about any particular control system.</li>
 <li><strong>Logical operations, not algorithms.</strong> Lattice-surgery programs and the gross code’s logical measurement are simulated as single operations or short sequences; the estimate prices whole algorithms from them, with the rest read from the papers it cites.</li>
 <li><strong>The gross code’s measurement schedule is not optimised.</strong> It is correct by construction and its fault distance is only bounded above; Cross et al. optimise theirs.</li>
+<li><strong>Coherent sampling has a reach.</strong> Its weights spread as the circuit’s volume times θ grows: the effective sample size stays above about 40% to d = 11 at θ = 0.01 per tick, and falls to a few percent there at θ = 0.02. Each point reports it.</li>
 <li><strong>The estimate is a model.</strong> It prices every tile as an idle patch, consumes Toffolis in sequence unless told otherwise, and extrapolates the decoder’s latency and cores past d = 7. It is meant to show what the measured numbers imply, and which of them the answer depends on.</li>
 </ul>
 <h1 data-number="6" id="reproducing-everything"><span class="header-section-number">6</span> Reproducing everything</h1>
