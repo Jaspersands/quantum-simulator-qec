@@ -46,6 +46,16 @@ noise on every gate. In progress on `feature/2.0`.
   `target_relative_detector_id`, `target_logical_observable_id`, `target_separator`; a model is
   a list (indexing, slicing, `append`, `clear`, `copy`) with Stim's `+`, `*`, `approx_equals`,
   `rounded`, `get_detector_coordinates`, `without_tags`, `to_file`.
+- **`FlipSimulator`**, Stim's interactive Pauli-frame simulator over a batch of instances, with
+  every method (`do`, `peek_pauli_flips`, `set_pauli_flip`, `broadcast_pauli_errors`,
+  `append_measurement_flips`, the flip getters, `to_numpy`, `generate_bernoulli_samples`,
+  `copy`, `clear`), its state as bit-packed rows in Rust (`clifford::flip_sim`). With
+  stabilizer randomization off, flips propagate bit for bit as in Stim (resets, measurements,
+  MPP, SPP and feedback included); noise matches Stim's statistics.
+- **`CliffordString`**: a single-qubit Clifford per qubit, with Stim's products, powers,
+  concatenation, slicing, `x_outputs` / `y_outputs` / `z_outputs`, conversion from circuits
+  and Pauli strings, `random` and `all_cliffords_string`; whole-string operations are table
+  lookups over a numpy array.
 - **Stim's exports and searches**, each written as Stim writes it: `Circuit.to_qasm`
   (OpenQASM 2 and 3), `to_quirk_url`, `to_crumble_url` (with `mark` drawing explained errors),
   `detecting_regions` (target filters by name, kind or coordinate prefix; tick selection),

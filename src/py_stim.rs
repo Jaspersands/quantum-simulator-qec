@@ -784,6 +784,106 @@ fn circuit_detecting_regions(text: &str, targets: Vec<(bool, u64)>, ticks: Vec<u
     Ok(out)
 }
 
+/// The flip simulator's state (Stim's `FlipSimulator`); rows are bit-packed little-endian
+/// bytes, `ceil(batch / 64) * 8` per row.
+#[pyclass(name = "FlipSimCore", module = "stabilizer_qec._core")]
+#[derive(Clone)]
+pub struct PyFlipSimCore {
+    sim: crate::clifford::flip_sim::FlipSim,
+}
+
+fn rows_bytes<'py>(py: Python<'py>, rows: &[Vec<u64>]) -> Bound<'py, PyBytes> {
+    let mut out = Vec::with_capacity(rows.iter().map(|r| r.len() * 8).sum());
+    for r in rows {
+        for w in r {
+            out.extend_from_slice(&w.to_le_bytes());
+        }
+    }
+    PyBytes::new(py, &out)
+}
+
+fn bytes_rows(b: &[u8], words: usize) -> Vec<Vec<u64>> {
+    b.chunks(words * 8).map(|c| c.chunks(8).map(|w| u64::from_le_bytes(w.try_into().unwrap())).collect()).collect()
+}
+
+#[pymethods]
+impl PyFlipSimCore {
+    #[new]
+    fn new(batch: usize, num_qubits: usize, randomize: bool, seed: u64) -> Self {
+        PyFlipSimCore { sim: crate::clifford::flip_sim::FlipSim::new(batch, num_qubits, randomize, seed) }
+    }
+
+    fn copy(&self, seed: Option<u64>) -> Self {
+        let mut c = self.clone();
+        if let Some(s) = seed {
+            c.sim.rng = crate::clifford::flip_sim::Rng::new(s);
+        }
+        c
+    }
+
+    #[getter]
+    fn batch_size(&self) -> usize {
+        self.sim.batch
+    }
+
+    #[getter]
+    fn counts(&self) -> (usize, usize, usize, usize) {
+        (self.sim.xs.len(), self.sim.meas.len(), self.sim.dets.len(), self.sim.obs.len())
+    }
+
+    fn do_circuit(&mut self, py: Python<'_>, text: &str) -> PyResult<()> {
+        let c = ir::Circuit::parse(text).map_err(err)?;
+        let sim = &mut self.sim;
+        py.detach(move || sim.do_circuit(&c)).map_err(err)
+    }
+
+    fn clear(&mut self) {
+        self.sim.clear();
+    }
+
+    fn ensure_qubits(&mut self, n: usize) {
+        self.sim.ensure_qubits(n);
+    }
+
+    /// One table's rows: "x", "z", "m", "d" or "o".
+    fn table<'py>(&self, py: Python<'py>, which: &str) -> PyResult<Bound<'py, PyBytes>> {
+        let rows = match which {
+            "x" => &self.sim.xs,
+            "z" => &self.sim.zs,
+            "m" => &self.sim.meas,
+            "d" => &self.sim.dets,
+            "o" => &self.sim.obs,
+            _ => return Err(err(format!("no table {which}"))),
+        };
+        Ok(rows_bytes(py, rows))
+    }
+
+    fn set_flip(&mut self, qubit: usize, instance: usize, x: bool, z: bool) {
+        use crate::clifford::flip_sim::FlipSim;
+        self.sim.ensure_qubits(qubit + 1);
+        FlipSim::set_bit(&mut self.sim.xs[qubit], instance, x);
+        FlipSim::set_bit(&mut self.sim.zs[qubit], instance, z);
+    }
+
+    fn append_measurements(&mut self, data: &[u8]) {
+        let words = self.sim.batch.div_ceil(64);
+        self.sim.meas.extend(bytes_rows(data, words));
+    }
+
+    fn broadcast(&mut self, pauli: u8, mask: &[u8], p: f64) {
+        let words = self.sim.batch.div_ceil(64);
+        let rows = bytes_rows(mask, words);
+        self.sim.broadcast(pauli, &rows, p);
+    }
+
+    fn bernoulli<'py>(&mut self, py: Python<'py>, n: usize, p: f64) -> Bound<'py, PyBytes> {
+        let r = self.sim.bernoulli_bits(p, n);
+        let mut out = rows_bytes(py, &[r]).as_bytes().to_vec();
+        out.truncate(n.div_ceil(8));
+        PyBytes::new(py, &out)
+    }
+}
+
 /// The circuit's items: ("op", name, tag, args, targets) or ("repeat", count, tag, items).
 #[pyfunction]
 fn circuit_items<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
@@ -825,6 +925,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPauli>()?;
     m.add_class::<PyTableauCore>()?;
     m.add_class::<PyTableauSimulatorCore>()?;
+    m.add_class::<PyFlipSimCore>()?;
     m.add_function(wrap_pyfunction!(gate_data_table, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_stim_text, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_exact_text, m)?)?;

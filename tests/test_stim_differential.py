@@ -198,3 +198,99 @@ def test_exports_of_generated_circuits(task):
     assert regions(o) == regions(s)
     assert regions(o, targets=["L0", "D1", (1,)], ticks=[2, 3, 4, 99]) == regions(s, targets=["L0", "D1", (1,)], ticks=[2, 3, 4, 99])
     assert regions(o, targets=["L"], ticks=range(3)) == regions(s, targets=["L"], ticks=range(3))
+
+
+ALL_TWO = TWO + ["ISWAP_DAG", "SQRT_XX_DAG", "SQRT_YY_DAG", "CXSWAP"]
+
+
+@pytest.mark.parametrize("seed", range(100))
+def test_flip_simulator_propagates_flips_as_stim(seed):
+    """No noise and no stabilizer randomization: flips set by hand travel through the circuit
+    (every Clifford, measurement, reset, MPP, SPP, feedback) exactly as in Stim."""
+    rng = random.Random(3000 + seed)
+    n = rng.randint(1, 5)
+    lines = [dissipative_circuit(rng, n, rng.randint(1, 12))]
+    if n >= 2 and rng.random() < 0.5:
+        lines.append(f"M 0\nCX rec[-1] {rng.randrange(1, n)}\nCZ {rng.randrange(n)} rec[-1]")
+    if rng.random() < 0.5:
+        lines.append("SPP " + "*".join(f"{rng.choice('XYZ')}{q}" for q in rng.sample(range(n), rng.randint(1, n))))
+    text = "\n".join(x for x in lines if x)
+    if not text:
+        return
+    batch = 70
+    s = stim.FlipSimulator(batch_size=batch, num_qubits=n, disable_stabilizer_randomization=True)
+    o = sq.FlipSimulator(batch_size=batch, num_qubits=n, disable_stabilizer_randomization=True)
+    for _ in range(40):
+        p, q, k = rng.choice("XYZ"), rng.randrange(n), rng.randrange(batch)
+        s.set_pauli_flip(p, qubit_index=q, instance_index=k)
+        o.set_pauli_flip(p, qubit_index=q, instance_index=k)
+    s.do(stim.Circuit(text))
+    o.do(sq.Circuit(text))
+    assert [str(p) for p in o.peek_pauli_flips()] == [str(p) for p in s.peek_pauli_flips()]
+    assert np.array_equal(o.get_measurement_flips(), s.get_measurement_flips())
+
+
+NOISY = """
+    R 0 1 2 3
+    X_ERROR(0.1) 0
+    Y_ERROR(0.05) 1
+    DEPOLARIZE1(0.2) 2
+    PAULI_CHANNEL_1(0.05, 0.1, 0.15) 3
+    CX 0 1 2 3
+    DEPOLARIZE2(0.3) 0 2
+    PAULI_CHANNEL_2(0.01, 0.02, 0.03, 0.04, 0.05, 0.01, 0.02, 0.03, 0.04, 0.05, 0.01, 0.02, 0.03, 0.04, 0.05) 1 3
+    E(0.1) X0 Z1
+    ELSE_CORRELATED_ERROR(0.2) Y2
+    HERALDED_ERASE(0.1) 1
+    HERALDED_PAULI_CHANNEL_1(0.05, 0.1, 0.05, 0.02) 3
+    M(0.05) 0 1
+    MX(0.1) 2
+    MY 3
+    MPAD(0.25) 0
+    MPP(0.1) X0*Z1 Y2
+    MZZ(0.05) 0 1
+    MRX 2
+    DETECTOR rec[-1]
+    DETECTOR rec[-2] rec[-3]
+    DETECTOR rec[-4]
+    DETECTOR rec[-5]
+    DETECTOR rec[-6]
+    DETECTOR rec[-7]
+    DETECTOR rec[-8]
+    DETECTOR rec[-9]
+    DETECTOR rec[-10]
+    DETECTOR rec[-11]
+    OBSERVABLE_INCLUDE(0) rec[-11] Z0
+"""
+
+
+def test_flip_simulator_noise_matches_stim_statistically():
+    batch = 40000
+    s = stim.FlipSimulator(batch_size=batch, seed=1)
+    o = sq.FlipSimulator(batch_size=batch, seed=1)
+    s.do(stim.Circuit(NOISY))
+    o.do(sq.Circuit(NOISY))
+    for a, b in [(o.get_measurement_flips(), s.get_measurement_flips()), (o.get_detector_flips(), s.get_detector_flips()), (o.get_observable_flips(), s.get_observable_flips())]:
+        assert a.shape == b.shape
+        ra, rb = a.mean(axis=1), b.mean(axis=1)
+        tol = 5 * np.sqrt(np.maximum(rb * (1 - rb), 0.01) / batch) * np.sqrt(2)
+        assert np.all(np.abs(ra - rb) < tol), (ra, rb)
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_clifford_strings_as_stim(seed):
+    rng = random.Random(4000 + seed)
+    names = str(stim.CliffordString.all_cliffords_string()).split(",")
+    a = ",".join(rng.choice(names) for _ in range(rng.randint(0, 9)))
+    b = ",".join(rng.choice(names) for _ in range(rng.randint(0, 9)))
+    sa, sb, oa, ob = stim.CliffordString(a), stim.CliffordString(b), sq.CliffordString(a), sq.CliffordString(b)
+    assert str(oa * ob) == str(sa * sb)
+    assert str(ob * oa) == str(sb * sa)
+    e = rng.randint(-30, 30)
+    assert str(oa**e) == str(sa**e)
+    for which in ("x_outputs", "y_outputs", "z_outputs"):
+        (op, osg), (sp, ssg) = getattr(oa, which)(), getattr(sa, which)()
+        assert str(op) == str(sp) and np.array_equal(osg, ssg)
+    text = unitary_circuit(rng, rng.randint(1, 5), 8)
+    ones = "\n".join(line for line in text.split("\n") if line.split()[0] in ONE)
+    assert str(sq.CliffordString(sq.Circuit(ones))) == str(stim.CliffordString(stim.Circuit(ones)))
