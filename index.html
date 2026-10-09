@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-10-01a">
+<link rel="stylesheet" href="css/styles.css?v=2026-10-09a">
 </head>
 <body>
 
@@ -2153,10 +2153,13 @@
       identities, <span class="mono">I_ERROR[R_Z(theta=0.01)] 0</span>, so the circuits stay Stim's.
     </p>
     <p>
-      It is checked three ways. On every branch of 150 random small circuits, the weighted twirl equals the state
-      vector's distribution to 10⁻¹⁰. Against the state vector's exact answers it agrees within its error bars
+      What it finds: at circuit level the twirl underestimates the logical error, and by more as the code grows, since
+      a rotation repeated between the gates that would tell its repeats apart adds coherently and a larger code has
+      more such repeats (Figure 26). At θ = 0.01 per tick the coherent logical error is 2.4 times the twirl's at
+      d = 3 and 6.8 times at d = 9. It is checked three ways. On every branch of 150 random small circuits, the
+      weighted twirl equals the state vector's distribution to 10⁻¹⁰. Against the state vector's exact answers it agrees within its error bars
       where the twirl is several times off (Figure 27). And at code capacity it reproduces Bravyi et al.'s finding,
-      that coherent and twirled logical errors converge as the code grows (Figure 28).
+      that at code capacity the twirl describes coherent errors well (Figure 28).
     </p>
   </div>
 
@@ -2215,7 +2218,7 @@
   <figure class="figure" data-cap>
     <figcaption class="figure__cap">
       <span class="figure__num">Figure 28</span>
-      <span class="figure__title">at code capacity, coherence fades with distance</span>
+      <span class="figure__title">at code capacity, the twirl is right</span>
       <span class="figure__meta">as Bravyi et al. found</span>
     </figcaption>
     <div class="figure__body">
@@ -2223,8 +2226,10 @@
       <div class="legend" data-cap-legend></div>
       <p class="note" data-cap-status></p>
       <p class="note">Perfect measurements and one Z over-rotation by θ on every data qubit, the setting of Bravyi et
-        al., npj Quantum Information 4, 55 (2018), who found the coherent logical error approaching the twirled one as
-        the code grows. Bars: two standard errors.</p>
+        al., npj Quantum Information 4, 55 (2018), who found that at large distance the logical noise is close to the
+        twirled noise's. Here the ratio stays near 1 from d = 3 on. What sets circuit-level coherent noise apart
+        (Figure 26) is a rotation repeated between the gates that would tell its repeats apart, which a single round
+        of rotations cannot show. Bars: two standard errors.</p>
     </div>
   </figure>
 
@@ -2263,6 +2268,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-10-01a"></script>
+<script type="module" src="js/main.js?v=2026-10-09a"></script>
 </body>
 </html>

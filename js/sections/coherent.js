@@ -58,11 +58,15 @@ function sweepPlot(fig, doc, attr) {
     series.push({ label: `d = ${d}, Pauli twirl`, color: COLORS[i % COLORS.length], points: [], line: tw, dashed: true });
   });
   const thetas = [...new Set(doc.rows.map((r) => r.theta))].sort((a, b) => a - b);
+  // Evenly spaced ticks: the measured angles crowd together at the small end.
+  const top = thetas[thetas.length - 1];
+  const step = top <= 0.03 ? 0.005 : 0.01;
+  const ticks = Array.from({ length: Math.floor(top / step + 1e-9) }, (_, i) => +((i + 1) * step).toFixed(4));
   const plot = new Plot($(`[${attr}-plot]`, fig), {
-    xLabel: 'over-rotation θ per tick (radians)',
+    xLabel: attr === 'data-zz' ? 'ZZ rotation θ per CNOT (radians)' : 'over-rotation θ per tick (radians)',
     yLabel: 'logical error per shot',
     yLog: true,
-    xTickValues: thetas,
+    xTickValues: ticks,
     formatX: (v) => `${v}`,
     formatY: decades,
   });
@@ -114,21 +118,24 @@ async function runCapacity(fig) {
   const series = thetas.map((t, i) => {
     // Points with too few twirled failures to give a ratio are left out.
     const pts = doc.rows.filter((r) => r.theta === t && r.twirl.failures >= 20 && r.coherent.rate > 0).sort((a, b) => a.d - b.d).map((r) => {
+      // How far coherent is from twirled, relative: 0 is the twirl exactly.
       const ratio = r.coherent.rate / r.twirl.rate;
       const rel = Math.hypot(r.coherent.stderr / r.coherent.rate, r.twirl.stderr / r.twirl.rate);
-      return { x: r.d, y: ratio, lo: Math.max(ratio * (1 - 2 * rel), 0), hi: ratio * (1 + 2 * rel) };
+      return { x: r.d, y: ratio - 1, lo: ratio * (1 - 2 * rel) - 1, hi: ratio * (1 + 2 * rel) - 1 };
     });
     return { label: `θ = ${t}`, color: COLORS[i % COLORS.length], points: pts, line: pts };
   });
   const ds = [...new Set(doc.rows.map((r) => r.d))].sort((a, b) => a - b);
   const plot = new Plot($('[data-cap-plot]', fig), {
     xLabel: 'code distance d',
-    yLabel: 'coherent ÷ twirled logical error',
+    yLabel: 'coherent against twirled logical error',
     xTickValues: ds,
     formatX: (v) => `${v}`,
-    formatY: (v) => v.toFixed(2),
+    formatY: (v) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(0)}%`,
   });
-  plot.render({ series, xRange: [ds[0] - 0.5, ds[ds.length - 1] + 0.5] });
+  // A line at 0: the twirl exactly.
+  series.push({ label: 'twirl exact', color: 'var(--ink-3)', points: [], line: [{ x: ds[0] - 0.5, y: 0 }, { x: ds[ds.length - 1] + 0.5, y: 0 }], dashed: true });
+  plot.render({ series, xRange: [ds[0] - 0.5, ds[ds.length - 1] + 0.5], yRange: [-0.4, 0.4] });
   $('[data-cap-legend]', fig).innerHTML = plotLegend(series);
 }
 

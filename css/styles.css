@@ -701,8 +701,8 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
    quoted rather than fitted, are italic. */
 .hw tr.hw__google th, .hw tr.hw__google td { color: var(--ink-3); }
 .hw tr.hw__published th, .hw tr.hw__published td { font-style: italic; }
-[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-cnot-canvas], [data-cnot-plot], [data-gl-canvas], [data-gl-plot] { width: 100%; }
-[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend, [data-cnot-canvas] + .legend, [data-cnot-plot] + .legend, [data-gl-canvas] + .legend, [data-gl-plot] + .legend { margin: var(--s3) 0 var(--s5); }
+[data-hw-canvas], [data-rt-canvas], [data-bb-canvas], [data-bb-plot], [data-ls-canvas], [data-ls-plot], [data-cnot-canvas], [data-cnot-plot], [data-gl-canvas], [data-gl-plot], [data-coh-plot], [data-cap-plot], [data-zz-plot] { width: 100%; }
+[data-hw-canvas] + .legend, [data-rt-canvas] + .legend, [data-bb-canvas] + .legend, [data-bb-plot] + .legend, [data-ls-canvas] + .legend, [data-ls-plot] + .legend, [data-cnot-canvas] + .legend, [data-cnot-plot] + .legend, [data-gl-canvas] + .legend, [data-gl-plot] + .legend, [data-coh-plot] + .legend, [data-cap-plot] + .legend, [data-zz-plot] + .legend { margin: var(--s3) 0 var(--s5); }
 [data-ls-phases] { margin-bottom: var(--s4); }
 [data-bb-canvas] { touch-action: none; cursor: crosshair; }
 /* The column heads carry ε and d, which the site's uppercase heads would turn
@@ -729,6 +729,7 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .legend__key--x { background: var(--x); border-color: var(--x); }
 .legend__key--z { background: var(--z); border-color: var(--z); }
 .legend__key--y { background: var(--y); border-color: var(--y); }
+.legend__key--ok { background: var(--ok); border-color: var(--ok); }
 .legend__key--clean { background: var(--surface); border-color: var(--ink-3); }
 .legend__key--solid { background: var(--ink-3); border-color: var(--ink-3); }
 .legend__key--defect { background: var(--defect-soft); border-color: var(--defect); }

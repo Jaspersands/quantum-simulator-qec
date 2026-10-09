@@ -58,6 +58,20 @@ pub fn exercise_circuit(text: &str) {
         let shot = frame.sample(&mut rng);
         assert_eq!(shot.detectors.len(), frame.num_detectors());
     }
+    // The coherent sampler: weights finite and never negative.
+    if let Ok(coherent) = crate::coherent::sampler::CoherentSampler::new(&c, crate::coherent::kernel::CoherentOptions::default()) {
+        if coherent.program.locations.len() <= 256 {
+            let b = coherent.sample_seeded(3, 0, 20, 1);
+            assert!(b.weights.iter().all(|w| w.is_finite() && *w >= 0.0), "weights {:?}", b.weights);
+        }
+    }
+    // The state vector, on a few qubits.
+    if let Ok(sv) = crate::statevec::Program::new(&c) {
+        if sv.num_qubits() <= 8 {
+            let (dets, _) = sv.sample(&mut rng);
+            assert_eq!(dets.len(), sv.num_detectors());
+        }
+    }
     if let Ok(m2d) = M2d::new(&c) {
         let (ms, ss) = (m2d.num_measurements.div_ceil(8), m2d.num_sweep_bits.div_ceil(8));
         let meas: Vec<u8> = (0..3 * ms).map(|i| (i * 37 % 256) as u8).collect();
@@ -180,11 +194,13 @@ impl Inputs {
     fn line(&mut self, depth: u32) -> String {
         const ONE: &[&str] = &[
             "H", "X", "Y", "Z", "I", "R", "RX", "RZ", "RY", "M", "MX", "MZ", "MY", "MR", "MRX", "MRZ", "MRY", "S", "S_DAG",
-            "SQRT_X", "SQRT_Y_DAG", "H_XY", "C_XYZ", "C_ZNYX", "I_ERROR", "MPAD", "HERALDED_ERASE",
+            "SQRT_X", "SQRT_Y_DAG", "H_XY", "C_XYZ", "C_ZNYX", "I_ERROR", "MPAD", "HERALDED_ERASE", "I_ERROR[R_Z(theta=0.1)]",
+            "I_ERROR[R_X(theta=-0.3)]", "I_ERROR[LEAK(p=0.2)]", "I_ERROR[SEEP(p=0.5)]", "I[T]", "I[U3(theta=1, phi=2, lambda=3)]",
+            "I_ERROR[R_PAULI(theta=0.3, pauli=XZ)]", "I_ERROR[AMPLITUDE_DAMPING(gamma=0.1)]", "I_ERROR[R_Z(theta=x)]",
         ];
         const TWO: &[&str] = &[
             "CX", "CNOT", "ZCX", "CZ", "ZCZ", "CY", "XCY", "YCZ", "SWAP", "ISWAP", "ISWAP_DAG", "CXSWAP", "SQRT_YY", "II", "MXX",
-            "MYY", "MZZ", "PAULI_CHANNEL_2",
+            "MYY", "MZZ", "PAULI_CHANNEL_2", "II_ERROR[R_ZZ(theta=0.2)]", "II_ERROR[LEAK_TRANSPORT(p=0.5)]",
         ];
         const NOISE1: &[&str] = &["X_ERROR", "Y_ERROR", "Z_ERROR", "DEPOLARIZE1"];
         match self.below(16) {

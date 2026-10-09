@@ -125,6 +125,7 @@ impl Instr {
             Instr::Correlated { paulis, .. } => paulis.iter().map(|&(q, _)| q).collect(),
             Instr::Observable { paulis, .. } => paulis.iter().map(|&(q, ..)| q).collect(),
             Instr::PauliChannel2 { pairs, .. } => pairs.iter().flat_map(|&(a, b)| [a, b]).collect(),
+            Instr::NonPauli(ops) => ops.iter().flat_map(|op| op.qubits()).collect(),
             _ => Vec::new(),
         }
     }

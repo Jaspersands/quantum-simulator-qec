@@ -29,6 +29,15 @@ pub enum NonPauli {
 }
 
 impl NonPauli {
+    /// The qubits it acts on.
+    pub fn qubits(&self) -> Vec<u32> {
+        match self {
+            NonPauli::Rotation { pauli, .. } => pauli.iter().map(|&(q, _)| q).collect(),
+            NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } => vec![*qubit],
+            NonPauli::LeakTransport { a, b, .. } => vec![*a, *b],
+        }
+    }
+
     /// Whether this is a rotation, the one kind the coherent sampler takes.
     pub fn is_rotation(&self) -> bool {
         matches!(self, NonPauli::Rotation { .. })
