@@ -7,9 +7,12 @@ minor release before a major release removes it. The Rust crate is versioned on 
 ## 1.9.0 — 2026-10-09
 
 The Python package and the Rust crate both at 1.9.0, "beyond Pauli noise". The headline is
-something no other tool does: sampling and decoding any Stim circuit under coherent errors at
-circuit level, at sizes a state vector cannot reach, checked exactly against a state vector
-where it can. API additions only.
+sampling and decoding any Stim circuit with coherent errors on every gate, at sizes a state
+vector cannot reach, checked exactly against a state vector where it can. (Tsim, arXiv
+2604.01059, samples circuits with a few non-Clifford gates at any size, at a cost exponential in
+their number; noise on every gate is out of its reach. An earlier wording of this entry said no
+other tool samples coherent errors beyond a state vector, which overlooked Tsim.) API additions
+only.
 
 ### Added
 

@@ -644,8 +644,9 @@ also over-rotates: a qubit meant to idle turns by a small angle θ, the same way
 Pauli twirl (Z with probability $\sin^2\theta$) is exact for one rotation alone, but rotations
 that repeat add as amplitudes. Earlier work treats code capacity by free fermions (Bravyi et al.,
 2018), returns outcome probabilities of Clifford circuits with small errors (Miller et al., 2025),
-or estimates one idling memory's logical channel (LeBlond et al., 2025). None of them samples and
-decodes arbitrary circuits.
+or estimates one idling memory's logical channel (LeBlond et al., 2025). Tsim (Haenel, Luo and
+Zhao, 2026) samples circuits with a few non-Clifford gates at any size, at a cost exponential in
+their number. None of them samples and decodes circuits with coherent noise on every gate.
 
 The **coherent sampler** does. It draws shots of the twirled circuit and weights each by its
 class's coherent over twirled probability, $|1 + \sum r|^2 / (1 + \sum |r|^2)$. A class is every

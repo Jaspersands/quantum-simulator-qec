@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-10-09a">
+<link rel="stylesheet" href="css/styles.css?v=2026-10-09b">
 </head>
 <body>
 
@@ -2140,8 +2140,10 @@
       further for particular settings: Bravyi et al. (2018) map code-capacity Z rotations on the surface code to
       free fermions; pyGSTi (Sandia, 2025) propagates small error generators through Clifford circuits and returns
       outcome probabilities, naming logical error rates and decoding as future work; LeBlond et al. (2025) estimate
-      an idling surface code's logical channel by quasi-probability sampling. None of these is a tool that takes any
-      circuit, samples its detectors under coherent errors at circuit level, and decodes them.
+      an idling surface code's logical channel by quasi-probability sampling. Tsim (QuEra, 2026) samples circuits with
+      T gates and rotations at 80+ qubits, at a cost exponential in the number of non-Clifford gates, so it suits a few
+      of them. None of these samples and decodes a circuit with a coherent error on every gate, thousands of small
+      rotations, beyond the size of a state vector.
     </p>
     <p>
       This engine does. The <strong>coherent sampler</strong> draws shots of the twirled circuit, as the frame
@@ -2268,6 +2270,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-10-09a"></script>
+<script type="module" src="js/main.js?v=2026-10-09b"></script>
 </body>
 </html>

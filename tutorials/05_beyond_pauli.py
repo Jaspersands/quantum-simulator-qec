@@ -8,7 +8,9 @@
 # repeat add up as amplitudes rather than probabilities: two turns of θ flip with probability
 # sin²(2θ) ≈ 4θ², not 2 sin²θ ≈ 2θ².
 #
-# This package simulates coherent errors at circuit level, at sizes a state vector cannot reach:
+# This package simulates coherent errors on every gate of a circuit, at sizes a state vector
+# cannot reach (Tsim, arXiv 2604.01059, reaches any size for circuits with a few non-Clifford
+# gates; noise on every gate is beyond it):
 #
 # - **Rotations are tagged identities** that Stim reads as identities, so circuits stay
 #   Stim's: `I_ERROR[R_Z(theta=0.01)] 0`, `II_ERROR[R_ZZ(theta=0.02)] 0 1`, any Pauli rotation
