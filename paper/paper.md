@@ -45,6 +45,18 @@ It also explains errors: each fault in an error model is traced back to the gate
 it, and a circuit's distance is found by Stim's two searches or proven exactly by integer
 programming.
 
+Beyond Pauli noise, it samples any circuit under coherent errors at circuit level. Rotations are
+written as tagged identities that Stim reads as identities. Shots of the Pauli-twirled circuit are
+weighted by their class's coherent over twirled probability, where a class is every set of faults
+no measurement can tell apart. The classes are cosets of a spacetime kernel, which counts random
+measurement outcomes as gauges, and every cross term has a closed form. The weighted shots are
+exact on every branch of random small circuits, and they agree with a state-vector simulator
+(also included) where the twirl is several times wrong. They reach surface codes that no state
+vector can hold. Earlier work treats code capacity by free fermions [@bravyi2018correcting],
+returns outcome probabilities of Clifford circuits with small errors [@miller2025efficient], or
+estimates one idling memory's logical channel [@leblond2025logical]. None samples and decodes
+arbitrary circuits.
+
 # Statement of need
 
 Two tools define how the field simulates and decodes stabilizer codes: Stim for circuits, error

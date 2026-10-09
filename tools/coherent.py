@@ -182,7 +182,7 @@ def sweep(crosstalk: bool = False) -> None:
 
 def code_capacity() -> None:
     rows = []
-    for theta in (0.1, 0.15, 0.2, 0.25):
+    for theta in (0.2, 0.25, 0.3, 0.35):
         for d in (3, 5, 7, 9, 11, 13, 15):
             c, tw = capacity(d, theta)
             coh = coherent_rates(c, max_shots=2_000_000)

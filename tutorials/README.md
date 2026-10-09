@@ -1,6 +1,6 @@
 # Tutorials
 
-Four notebooks, each runnable top to bottom in a few seconds with `pip install stabilizer-qec
+Five notebooks, each runnable top to bottom in a few seconds with `pip install stabilizer-qec
 matplotlib` (Stim and PyMatching, where installed, are compared against):
 
 1. [Getting started](01_getting_started.ipynb): a surface-code memory from circuit to logical
@@ -11,6 +11,9 @@ matplotlib` (Stim and PyMatching, where installed, are compared against):
    hypergraph products of classical codes, and colour codes, decoded by BP+OSD.
 4. [More decoders](04_more_decoders.ipynb): BP+LSD, Relay-BP, colour-code matching and a search
    decoder, each checked against its authors' package, on a colour code and the gross code.
+5. [Beyond Pauli noise](05_beyond_pauli.ipynb): coherent over-rotations against their Pauli
+   twirl, by the coherent sampler and the state vector; a decoder that knows; T gates and
+   leakage.
 
 Each notebook is built from the Python file beside it (percent format: `# %%` starts a cell) by
 running it:

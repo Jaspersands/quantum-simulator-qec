@@ -27,6 +27,7 @@ import { initRealtime } from './sections/realtime.js';
 import { initGross } from './sections/gross.js';
 import { initSurgery } from './sections/surgery.js';
 import { initEstimator } from './sections/estimator.js';
+import { initCoherent } from './sections/coherent.js';
 
 /**
  * Show a boot failure. Each caller supplies its own diagnosis — the two failure
@@ -81,6 +82,8 @@ async function boot() {
   }
   // The estimator only fetches data and computes here: it needs no workers.
   initEstimator($('#estimator'));
+  // So does the coherent section.
+  initCoherent($('#coherent'));
 
   let instance;
   try {
