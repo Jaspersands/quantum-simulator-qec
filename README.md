@@ -79,7 +79,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.8, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(1.9, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};
@@ -1216,6 +1216,127 @@ The time is this package's over the reference's on the same shots, one thread, A
 both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
 code. On the gross code BP+LSD fails more often than BP+OSD, as `ldpc`'s own pair does on the
 same matrix.
+
+## Beyond Pauli noise: coherent errors at circuit level
+
+Stim, every decoder, and every section above treat noise as random Pauli errors. Hardware also
+over-rotates: a qubit meant to idle turns by a small angle θ, the same way every time. That is a
+coherent error, exp(−iθP), and the usual tools put its Pauli twirl in its place (P with
+probability sin²θ). The twirl is exact for one rotation alone. Rotations that repeat add up as
+amplitudes, though: two turns flip with probability sin²(2θ) ≈ 4θ², not 2θ².
+
+**What existed** (checked October 2026):
+- State-vector and density-matrix simulators handle small codes.
+- Bravyi et al. (npj QI 4, 55, 2018) map code-capacity Z rotations on the surface code to free
+  fermions.
+- pyGSTi (Sandia, arXiv 2504.15128) propagates small error generators through Clifford circuits
+  for outcome probabilities, naming logical error rates and decoding as future work.
+- LeBlond et al. (PRR 7, 043184, 2025) estimate an idling surface code's logical channel by
+  quasi-probability sampling.
+- arXiv 2510.23797 estimates detector error models from coherent-noise data.
+- Leakage in a Stim frame sampler is Riverlane's deltakit-stim.
+
+None of these takes any circuit, samples its detectors under coherent errors at circuit level and
+at sizes beyond a state vector, and decodes them. That is what this release adds.
+
+- **Rotations are Stim-readable**: `I_ERROR[R_Z(theta=0.01)] 0`, `II_ERROR[R_ZZ(theta=0.02)] 0 1`,
+  or any Pauli product as `I_ERROR[R_PAULI(theta=…, pauli=XZY)] 0 1 2`. Stim and this package's
+  Clifford engines read them as identities, so nothing else changes.
+- **`Circuit.compile_coherent_sampler`** (Rust: `Circuit::coherent_sampler`) samples the twirled
+  circuit as the frame sampler does and gives each shot a weight. Weighted, the shots are
+  distributed as the coherent circuit's. The weight is the shot's class's coherent probability
+  over its twirled one, |1 + Σ r|² ÷ (1 + Σ |r|²).
+  - A class is every set of faults no measurement can tell apart. Those sets form a linear
+    space, the circuit's spacetime kernel, which counts as stabilisers the randomness of
+    measurements whose outcome is random.
+  - r is each member's amplitude relative to the shot's, in closed form from carrying Pauli
+    operators through the circuit.
+  - Faults that are the same fault in several places, either side of a gate that leaves them
+    alone, are drawn as one, at their summed angle.
+  - The rest of the kernel is found locally: pairs and quads by hashing, products of up to three
+    generators per cluster of faults.
+- **`Circuit.compile_exact_sampler`** and **`Circuit.exact_distribution`** run the full state
+  vector, up to 24 qubits in use. They handle `I[T]`, `I[U3(…)]` and amplitude damping as well;
+  this is the oracle.
+- **`Circuit.twirled(merge=…)`** gives the twirl, or the coherence-aware model with equivalent
+  rotations added up before twirling, as a decoder's prior.
+- **Leakage** (`I_ERROR[LEAK(p=…)]`, `SEEP`, `II_ERROR[LEAK_TRANSPORT(p=…)]`) runs in a frame
+  sampler with heralds (`Circuit.compile_leakage_sampler`) and in the state vector, which agree.
+
+**Checked.**
+- On every branch of 150 random small circuits (stochastic noise, resets, mid-circuit and X-basis
+  measurements, random outcomes), the weighted twirl equals the state vector's distribution to
+  10⁻¹⁰ (`src/coherent/exact.rs`).
+- The local kernel the sampler uses does too, on the same kind of circuits.
+- Against exact answers:
+
+| circuit | θ | exact | coherent sampler | apart | Pauli twirl |
+|---|---|---|---|---|---|
+| repetition, d = 3, 2 rounds | 0.1 | 0.02320 | 0.02321 ± 0.00019 | +0.0σ | 0.00418 |
+| repetition, d = 3, 3 rounds | 0.1 | 0.05093 | 0.05049 ± 0.00031 | -1.4σ | 0.00739 |
+| repetition, d = 5, 2 rounds | 0.1 | 0.00322 | 0.00314 ± 0.00008 | -1.0σ | 0.00032 |
+| repetition, d = 3, 3 rounds | 0.05 | 0.00354 | 0.00355 ± 0.00008 | +0.1σ | 0.00050 |
+| repetition, d = 5, 2 rounds | 0.05 | 0.00006 | 0.00006 ± 0.00001 | +0.8σ | 0.00001 |
+| repetition, d = 3, 4 rounds | 0.05 | 0.00559 | 0.00548 ± 0.00010 | -1.1σ | 0.00071 |
+| surface, d = 3, 2 rounds | 0.02 | 0.01742 ± 0.00053 | 0.01789 ± 0.00014 | +0.8σ | 0.00343 |
+| surface, d = 3, 2 rounds | 0.04 | 0.11247 ± 0.00129 | 0.11418 ± 0.00034 | +1.3σ | 0.01207 |
+
+Logical error, decoded by matching on the twirled model. The repetition codes have no noise besides
+X over-rotations on every data qubit after every tick, and their exact answer is the state vector's
+every branch. The d = 3 surface code has circuit noise p = 0.2% and Z over-rotations, and its exact
+answer is the state vector's samples.
+
+**Measured** (`tools/coherent.py`): the rotated surface code's X memory over d rounds, under circuit
+noise p = 0.2% and a coherent Z over-rotation by θ on every data qubit after every tick, against
+the same circuit twirled. The last column decodes the same shots on the merged model:
+
+| d | θ | coherent | twirl | coherent ÷ twirl | coherent, decoded knowing | sample size kept |
+|---|---|---|---|---|---|---|
+| 3 | 0.0025 | 2.3 × 10⁻³ ± 1.1 × 10⁻⁴ | 2.1 × 10⁻³ | 1.1 | 2.3 × 10⁻³ | 100% |
+| 3 | 0.005 | 3.0 × 10⁻³ ± 1.4 × 10⁻⁴ | 2.2 × 10⁻³ | 1.4 | 3.0 × 10⁻³ | 99% |
+| 3 | 0.01 | 6.5 × 10⁻³ ± 3.4 × 10⁻⁴ | 2.8 × 10⁻³ | 2.4 | 6.2 × 10⁻³ | 95% |
+| 3 | 0.015 | 1.5 × 10⁻² ± 5.6 × 10⁻⁴ | 3.7 × 10⁻³ | 4.2 | 1.4 × 10⁻² | 89% |
+| 3 | 0.02 | 3.2 × 10⁻² ± 8.4 × 10⁻⁴ | 5.2 × 10⁻³ | 6.3 | 3.0 × 10⁻² | 82% |
+| 3 | 0.03 | 8.9 × 10⁻² ± 1.4 × 10⁻³ | 1.0 × 10⁻² | 8.8 | 8.7 × 10⁻² | 67% |
+| 5 | 0.0025 | 6.1 × 10⁻⁴ ± 3.8 × 10⁻⁵ | 5.5 × 10⁻⁴ | 1.1 | 6.1 × 10⁻⁴ | 99% |
+| 5 | 0.005 | 8.6 × 10⁻⁴ ± 5.4 × 10⁻⁵ | 6.1 × 10⁻⁴ | 1.4 | 8.9 × 10⁻⁴ | 95% |
+| 5 | 0.01 | 2.8 × 10⁻³ ± 1.7 × 10⁻⁴ | 9.0 × 10⁻⁴ | 3.1 | 2.8 × 10⁻³ | 84% |
+| 5 | 0.015 | 9.3 × 10⁻³ ± 5.1 × 10⁻⁴ | 1.2 × 10⁻³ | 7.6 | 8.7 × 10⁻³ | 69% |
+| 5 | 0.02 | 2.5 × 10⁻² ± 8.5 × 10⁻⁴ | 2.1 × 10⁻³ | 11.9 | 2.2 × 10⁻² | 55% |
+| 7 | 0.0025 | 1.4 × 10⁻⁴ ± 8.4 × 10⁻⁶ | 1.2 × 10⁻⁴ | 1.2 | 1.5 × 10⁻⁴ | 97% |
+| 7 | 0.005 | 2.0 × 10⁻⁴ ± 1.3 × 10⁻⁵ | 1.5 × 10⁻⁴ | 1.4 | 2.1 × 10⁻⁴ | 90% |
+| 7 | 0.01 | 8.8 × 10⁻⁴ ± 6.7 × 10⁻⁵ | 2.2 × 10⁻⁴ | 4.0 | 8.4 × 10⁻⁴ | 68% |
+| 7 | 0.015 | 4.3 × 10⁻³ ± 3.8 × 10⁻⁴ | 3.7 × 10⁻⁴ | 11.5 | 4.0 × 10⁻³ | 47% |
+| 9 | 0.0025 | 2.8 × 10⁻⁵ ± 2.8 × 10⁻⁶ | 2.6 × 10⁻⁵ | 1.1 | 2.9 × 10⁻⁵ | 96% |
+| 9 | 0.005 | 5.6 × 10⁻⁵ ± 4.6 × 10⁻⁶ | 3.0 × 10⁻⁵ | 1.8 | 6.1 × 10⁻⁵ | 84% |
+| 9 | 0.01 | 3.6 × 10⁻⁴ ± 3.2 × 10⁻⁵ | 5.3 × 10⁻⁵ | 6.8 | 3.8 × 10⁻⁴ | 52% |
+
+Coherent errors are suppressed more slowly with distance than their twirl. At θ = 0.01 per tick,
+the coherent logical error is 2.4 times the twirl's at d = 3 and 6.8 times at d = 9. Rotations
+repeated between the gates that would tell them apart add as amplitudes, and a larger code has
+more of them. The merged model helps the decoder at the larger angles (12% fewer failures at
+d = 5, θ = 0.02) but not at the smallest. ZZ crosstalk on every CNOT (`tools/coherent.py
+crosstalk`, Figure 29 on the site) is milder: 1.1 to 1.5 times the twirl up to θ = 0.06.
+
+And at code capacity, Bravyi et al.'s setting: perfect measurements and one over-rotation by θ.
+Coherent over twirled logical error, by distance:
+
+| θ | d = 3 | d = 5 | d = 7 | d = 9 | d = 11 | d = 13 | d = 15 |
+|---|---|---|---|---|---|---|---|
+| 0.2 | 1.05 ± 0.03 | 0.94 ± 0.04 | 1.14 ± 0.07 | 1.00 ± 0.08 | 1.16 ± 0.10 | 0.95 ± 0.10 | 1.09 ± 0.15 |
+| 0.25 | 1.02 ± 0.02 | 0.98 ± 0.02 | 1.02 ± 0.03 | 0.99 ± 0.03 | 1.01 ± 0.04 | 0.96 ± 0.05 | 0.95 ± 0.05 |
+| 0.3 | 1.01 ± 0.01 | 1.00 ± 0.02 | 1.01 ± 0.02 | 0.98 ± 0.02 | 0.98 ± 0.02 | 1.01 ± 0.02 | 1.01 ± 0.02 |
+| 0.35 | 1.01 ± 0.01 | 0.99 ± 0.01 | 1.00 ± 0.01 | 1.01 ± 0.01 | 1.00 ± 0.01 | 1.02 ± 0.01 | 0.99 ± 0.01 |
+
+**Limits.**
+- The weights' spread grows with the circuit's volume times θ. The effective sample size stays
+  above about 40% to d = 11 at θ = 0.01 per tick, but falls to a few percent there at θ = 0.02.
+  The table's last column reports it for every point.
+- The coherent sampler takes Pauli rotations. T gates, amplitude damping and feedback go to the
+  state vector.
+- Leakage-aware decoding is not here; deltakit-stim's Local Clustering Decoder does it.
+
+Tutorial 05 runs all of it.
 
 ## Lattice surgery
 

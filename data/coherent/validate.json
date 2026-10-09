@@ -1,0 +1,215 @@
+{
+ "version": "1.8.0",
+ "rows": [
+  {
+   "code": "repetition",
+   "d": 3,
+   "rounds": 2,
+   "theta": 0.1,
+   "noise": 0.0,
+   "exact": 0.023198027686617845,
+   "exact_stderr": 0.0,
+   "coherent": {
+    "shots": 1000000,
+    "ess": 0.9840250905680411,
+    "rate": 0.0232056141062668,
+    "stderr": 0.00019301298790998415,
+    "rate_merged": 0.0232056141062668,
+    "stderr_merged": 0.00019301298790998415,
+    "seconds": 0.8,
+    "generators": 4,
+    "locations": 18
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 8351,
+    "rate": 0.0041755,
+    "stderr": 4.559640994502747e-05
+   }
+  },
+  {
+   "code": "repetition",
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.1,
+   "noise": 0.0,
+   "exact": 0.05092965770965284,
+   "exact_stderr": 0.0,
+   "coherent": {
+    "shots": 1000000,
+    "ess": 0.9514992617111202,
+    "rate": 0.050493528786109035,
+    "stderr": 0.0003065724864126218,
+    "rate_merged": 0.050493528786109035,
+    "stderr_merged": 0.0003065724864126218,
+    "seconds": 1.5,
+    "generators": 6,
+    "locations": 27
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 14790,
+    "rate": 0.007395,
+    "stderr": 6.0581820602388634e-05
+   }
+  },
+  {
+   "code": "repetition",
+   "d": 5,
+   "rounds": 2,
+   "theta": 0.1,
+   "noise": 0.0,
+   "exact": 0.0032203099914591823,
+   "exact_stderr": 0.0,
+   "coherent": {
+    "shots": 1000000,
+    "ess": 0.9801927233009013,
+    "rate": 0.003140734214382322,
+    "stderr": 7.867418791914693e-05,
+    "rate_merged": 0.0031367414752542654,
+    "stderr_merged": 7.861946908561935e-05,
+    "seconds": 1.5,
+    "generators": 8,
+    "locations": 30
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 631,
+    "rate": 0.0003155,
+    "stderr": 1.2557875213387017e-05
+   }
+  },
+  {
+   "code": "repetition",
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.05,
+   "noise": 0.0,
+   "exact": 0.0035410675661171134,
+   "exact_stderr": 0.0,
+   "coherent": {
+    "shots": 1000000,
+    "ess": 0.997114155969389,
+    "rate": 0.0035472177451619986,
+    "stderr": 7.648054027532802e-05,
+    "rate_merged": 0.0035472177451619986,
+    "stderr_merged": 7.648054027532802e-05,
+    "seconds": 0.9,
+    "generators": 6,
+    "locations": 27
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 995,
+    "rate": 0.0004975,
+    "stderr": 1.5767886569702356e-05
+   }
+  },
+  {
+   "code": "repetition",
+   "d": 5,
+   "rounds": 2,
+   "theta": 0.05,
+   "noise": 0.0,
+   "exact": 5.5184143403457565e-05,
+   "exact_stderr": 0.0,
+   "coherent": {
+    "shots": 1000000,
+    "ess": 0.9985397611733825,
+    "rate": 6.424707438621965e-05,
+    "stderr": 1.1479591057019696e-05,
+    "rate_merged": 6.424707438621965e-05,
+    "stderr_merged": 1.1479591057019696e-05,
+    "seconds": 0.8,
+    "generators": 8,
+    "locations": 30
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 16,
+    "rate": 8e-06,
+    "stderr": 1.999991999984e-06
+   }
+  },
+  {
+   "code": "repetition",
+   "d": 3,
+   "rounds": 4,
+   "theta": 0.05,
+   "noise": 0.0,
+   "exact": 0.005590500006437245,
+   "exact_stderr": 0.0,
+   "coherent": {
+    "shots": 1000000,
+    "ess": 0.9951311255894589,
+    "rate": 0.005484296166119319,
+    "stderr": 9.808655378864504e-05,
+    "rate_merged": 0.005484296166119319,
+    "stderr_merged": 9.808655378864504e-05,
+    "seconds": 1.1,
+    "generators": 8,
+    "locations": 36
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 1418,
+    "rate": 0.000709,
+    "stderr": 1.882149461387166e-05
+   }
+  },
+  {
+   "code": "surface",
+   "d": 3,
+   "rounds": 2,
+   "theta": 0.02,
+   "noise": 0.002,
+   "exact": 0.017416666666666667,
+   "exact_stderr": 0.0005340618938676317,
+   "exact_shots": 60000,
+   "coherent": {
+    "shots": 2000000,
+    "ess": 0.8880924899302199,
+    "rate": 0.017885264176008088,
+    "stderr": 0.00013804362376743052,
+    "rate_merged": 0.016697205841918018,
+    "stderr_merged": 0.0001302706488350462,
+    "seconds": 10.2,
+    "generators": 20,
+    "locations": 126
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 6857,
+    "rate": 0.0034285,
+    "stderr": 4.1332465373783356e-05
+   }
+  },
+  {
+   "code": "surface",
+   "d": 3,
+   "rounds": 2,
+   "theta": 0.04,
+   "noise": 0.002,
+   "exact": 0.11246666666666667,
+   "exact_stderr": 0.0012898185631808553,
+   "exact_shots": 60000,
+   "coherent": {
+    "shots": 2000000,
+    "ess": 0.6484382025115457,
+    "rate": 0.11417732610276621,
+    "stderr": 0.00034380220161374196,
+    "rate_merged": 0.10787802726752259,
+    "stderr_merged": 0.00034037288596049163,
+    "seconds": 13.6,
+    "generators": 20,
+    "locations": 126
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 24142,
+    "rate": 0.012071,
+    "stderr": 7.721816806620058e-05
+   }
+  }
+ ]
+}

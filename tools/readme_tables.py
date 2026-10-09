@@ -326,6 +326,44 @@ def decoder_checks():
     return rows
 
 
+def coherent_validation():
+    """tools/coherent.py validate: the coherent sampler against the state vector."""
+    rows = []
+    for r in load("data/coherent/validate.json")["rows"]:
+        z = (r["coherent"]["rate"] - r["exact"]) / math.hypot(r["coherent"]["stderr"], r["exact_stderr"])
+        exact = f"{r['exact']:.5f}" + (f" ± {r['exact_stderr']:.5f}" if r["exact_stderr"] else "")
+        rows.append(f"| {r['code']}, d = {r['d']}, {r['rounds']} rounds | {r['theta']} | {exact} | {r['coherent']['rate']:.5f} ± {r['coherent']['stderr']:.5f} | {z:+.1f}σ | {r['twirl']['rate']:.5f} |")
+    return rows
+
+
+def coherent_sweep():
+    """tools/coherent.py sweep: coherent against twirled logical error, by d and θ."""
+    rows = []
+    for r in load("data/coherent/sweep.json")["rows"]:
+        c, t = r["coherent"], r["twirl"]
+        ratio = f"{c['rate'] / t['rate']:.1f}" if t["rate"] > 0 else "—"
+        rows.append(f"| {r['d']} | {r['theta']} | {sci(c['rate'])} ± {sci(c['stderr'])} | {sci(t['rate'])} | {ratio} | {sci(c['rate_merged'])} | {round(100 * c['ess'])}% |")
+    return rows
+
+
+def coherent_capacity():
+    """tools/coherent.py capacity: coherent over twirled logical error, by θ and d."""
+    data = load("data/coherent/capacity.json")["rows"]
+    rows = []
+    for theta in sorted({r["theta"] for r in data}):
+        cells = []
+        for d in (3, 5, 7, 9, 11, 13, 15):
+            r = next((x for x in data if x["theta"] == theta and x["d"] == d), None)
+            if r is None or r["twirl"]["failures"] < 20 or r["coherent"]["rate"] == 0:
+                cells.append("—")
+            else:
+                ratio = r["coherent"]["rate"] / r["twirl"]["rate"]
+                rel = math.hypot(r["coherent"]["stderr"] / r["coherent"]["rate"], r["twirl"]["stderr"] / r["twirl"]["rate"])
+                cells.append(f"{ratio:.2f} ± {ratio * rel:.2f}")
+        rows.append(f"| {theta} | " + " | ".join(cells) + " |")
+    return rows
+
+
 # Each table's header row (as a regex), and the function giving its body.
 TABLES = [
     ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
@@ -341,6 +379,9 @@ TABLES = [
     ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
     ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
     ("decoder checks", r"\| decoder \| against \| cases \| shots \| equal \| ties \| otherwise \| time \(× theirs\) \|", decoder_checks),
+    ("coherent validation", r"\| circuit \| θ \| exact \| coherent sampler \| apart \| Pauli twirl \|", coherent_validation),
+    ("coherent sweep", r"\| d \| θ \| coherent \| twirl \| coherent ÷ twirl \| coherent, decoded knowing \| sample size kept \|", coherent_sweep),
+    ("coherent capacity", r"\| θ \| d = 3 \| d = 5 \| d = 7 \| d = 9 \| d = 11 \| d = 13 \| d = 15 \|", coherent_capacity),
     ("circuit distances", r"\| memory \| code distance \| faults \| graph-like search \| Stim's search \| integer program \|", circuit_distances),
     ("estimate noise", r"\| p \| d = 3 \| d = 5 \| d = 7 \| d = 9 \| d = 11 \|", estimate_noise),
     ("estimate validation", r"\| case \| d \| physical qubits \(× source\) \| time \(× source\) \|", estimate_validation),

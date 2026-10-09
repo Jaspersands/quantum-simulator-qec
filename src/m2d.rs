@@ -280,6 +280,7 @@ fn run_block(instrs: &[Instr], sim: &mut StabilizerSimulator, sweeps: &[bool], r
             | Instr::Observable { .. }
             | Instr::QubitCoords { .. }
             | Instr::ShiftCoords(_)
+            | Instr::NonPauli(_)
             | Instr::Tick => {}
         }
     }

@@ -4,6 +4,48 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 1.9.0 — 2026-10-09
+
+The Python package and the Rust crate both at 1.9.0, "beyond Pauli noise". The headline is
+something no other tool does: sampling and decoding any Stim circuit under coherent errors at
+circuit level, at sizes a state vector cannot reach, checked exactly against a state vector
+where it can. API additions only.
+
+### Added
+
+- **Non-Pauli operations as Stim-readable tags** on identities, which Stim and every Clifford
+  engine here read as identities:
+  - `I_ERROR[R_X|R_Y|R_Z(theta=…)]`, `II_ERROR[R_XX|R_YY|R_ZZ(theta=…)]`,
+    `I_ERROR[R_PAULI(theta=…, pauli=…)]` (exp(−iθP));
+  - `I[T]`, `I[T_DAG]`, `I[U3(theta=…, phi=…, lambda=…)]`;
+  - `I_ERROR[AMPLITUDE_DAMPING(gamma=…)]`;
+  - `I_ERROR[LEAK(p=…)]`, `I_ERROR[SEEP(p=…)]`, `II_ERROR[LEAK_TRANSPORT(p=…)]`.
+
+  A malformed known tag is an error naming its line; an unknown tag stays inert.
+- **The coherent sampler** (`Circuit.compile_coherent_sampler`, `CoherentSampler`; Rust
+  `Circuit::coherent_sampler`, `CoherentOptions`, `WeightedSamples`). It gives shots of the
+  Pauli-twirled circuit, each weighted by its class's coherent over twirled probability.
+  Weighted, the shots are distributed as the coherent circuit's.
+  - The kernel of indistinguishable fault sets counts random measurement outcomes as gauges.
+  - Equivalent rotations are drawn as one.
+  - The rest of the kernel is found locally.
+  - Exact on every branch of 150 random small circuits. Within error bars of the state
+    vector's exact answers, where the twirl is 5–10× off.
+- **The state vector** (`Circuit.compile_exact_sampler`, `ExactSampler`,
+  `Circuit.exact_distribution`; Rust `Circuit::exact_sampler`): up to 24 qubits in use, every
+  instruction plus the tags above, noise as trajectories or followed branch by branch.
+  Checked against a dense density-matrix oracle.
+- **`Circuit.twirled(merge=False)`** (Rust `Circuit::twirled`): the twirl as Pauli channels,
+  or with `merge` the coherence-aware model, which adds equivalent rotations' angles before
+  twirling. Decoding on it fails less often on coherent shots.
+- **`weighted_rate`, `weighted_logical_error_rate`, `effective_sample_size`** for weighted
+  shots.
+- **Leakage** in a frame sampler (`Circuit.compile_leakage_sampler`, `LeakageSampler`). It
+  reports a herald per measurement and uses Google's partner-depolarising model. The same
+  model in the state vector agrees with it.
+- `tools/coherent.py`, `data/coherent/`, site section 16 "Beyond Pauli noise" (Figures
+  26–29), and tutorial 05.
+
 ## 1.8.0 — 2026-10-08
 
 The Python package and the Rust crate both at 1.8.0, "more decoders": four decoders the field

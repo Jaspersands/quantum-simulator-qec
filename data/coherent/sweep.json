@@ -1,0 +1,402 @@
+{
+ "version": "1.8.0",
+ "noise": 0.002,
+ "rows": [
+  {
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.0025,
+   "coherent": {
+    "shots": 200000,
+    "ess": 0.9964782975719833,
+    "rate": 0.002324153341426342,
+    "stderr": 0.00011186249355224646,
+    "rate_merged": 0.002324153341426342,
+    "stderr_merged": 0.00011186249355224646,
+    "seconds": 0.5,
+    "generators": 28,
+    "locations": 189
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 2148,
+    "rate": 0.002148,
+    "stderr": 4.62967179830277e-05
+   }
+  },
+  {
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.005,
+   "coherent": {
+    "shots": 200000,
+    "ess": 0.9867909060106915,
+    "rate": 0.0030267231500689974,
+    "stderr": 0.0001386030828437748,
+    "rate_merged": 0.0030313226582551534,
+    "stderr_merged": 0.00013846196746638079,
+    "seconds": 0.5,
+    "generators": 28,
+    "locations": 189
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 2212,
+    "rate": 0.002212,
+    "stderr": 4.6979857981905397e-05
+   }
+  },
+  {
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.01,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.9492756588847555,
+    "rate": 0.006467948229773824,
+    "stderr": 0.0003358653339484815,
+    "rate_merged": 0.006230610926234246,
+    "stderr_merged": 0.00032685762517833554,
+    "seconds": 0.3,
+    "generators": 28,
+    "locations": 189
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 2752,
+    "rate": 0.002752,
+    "stderr": 5.238727417989984e-05
+   }
+  },
+  {
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.015,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.8926118292430018,
+    "rate": 0.015245452738087605,
+    "stderr": 0.0005640626483139001,
+    "rate_merged": 0.014126363706036397,
+    "stderr_merged": 0.0005342181633923223,
+    "seconds": 0.3,
+    "generators": 28,
+    "locations": 189
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 3665,
+    "rate": 0.003665,
+    "stderr": 6.042820347321274e-05
+   }
+  },
+  {
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.02,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.8201746911638459,
+    "rate": 0.03230604112788019,
+    "stderr": 0.0008412730884447335,
+    "rate_merged": 0.029812475961779872,
+    "stderr_merged": 0.0007898156200383272,
+    "seconds": 0.5,
+    "generators": 28,
+    "locations": 189
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 5167,
+    "rate": 0.005167,
+    "stderr": 7.169590023843763e-05
+   }
+  },
+  {
+   "d": 3,
+   "rounds": 3,
+   "theta": 0.03,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.6667651421184151,
+    "rate": 0.08912320294028014,
+    "stderr": 0.001372917425307302,
+    "rate_merged": 0.0866730905966675,
+    "stderr_merged": 0.0013687085256536757,
+    "seconds": 0.6,
+    "generators": 28,
+    "locations": 189
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 10171,
+    "rate": 0.010171,
+    "stderr": 0.00010033718532528207
+   }
+  },
+  {
+   "d": 5,
+   "rounds": 5,
+   "theta": 0.0025,
+   "coherent": {
+    "shots": 500000,
+    "ess": 0.9879968694094069,
+    "rate": 0.0006101688524253006,
+    "stderr": 3.765866379797168e-05,
+    "rate_merged": 0.0006141442992933471,
+    "stderr_merged": 3.77632887093487e-05,
+    "seconds": 5.2,
+    "generators": 152,
+    "locations": 875
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 555,
+    "rate": 0.000555,
+    "stderr": 2.35518996049151e-05
+   }
+  },
+  {
+   "d": 5,
+   "rounds": 5,
+   "theta": 0.005,
+   "coherent": {
+    "shots": 400000,
+    "ess": 0.954095318880376,
+    "rate": 0.0008618921343688623,
+    "stderr": 5.3705546888159374e-05,
+    "rate_merged": 0.0008858943862720351,
+    "stderr_merged": 5.425973526784922e-05,
+    "seconds": 4.5,
+    "generators": 152,
+    "locations": 875
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 607,
+    "rate": 0.000607,
+    "stderr": 2.462989141267172e-05
+   }
+  },
+  {
+   "d": 5,
+   "rounds": 5,
+   "theta": 0.01,
+   "coherent": {
+    "shots": 200000,
+    "ess": 0.836537097885547,
+    "rate": 0.0028204594960763375,
+    "stderr": 0.00017298788566984043,
+    "rate_merged": 0.0027606520099544237,
+    "stderr_merged": 0.0001693063938858821,
+    "seconds": 2.7,
+    "generators": 152,
+    "locations": 875
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 904,
+    "rate": 0.000904,
+    "stderr": 3.0052999584068142e-05
+   }
+  },
+  {
+   "d": 5,
+   "rounds": 5,
+   "theta": 0.015,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.6872681684862916,
+    "rate": 0.009294154737060804,
+    "stderr": 0.0005061354778910768,
+    "rate_merged": 0.008675231227297277,
+    "stderr_merged": 0.00046428722183929294,
+    "seconds": 1.7,
+    "generators": 152,
+    "locations": 875
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 1231,
+    "rate": 0.001231,
+    "stderr": 3.506400774298341e-05
+   }
+  },
+  {
+   "d": 5,
+   "rounds": 5,
+   "theta": 0.02,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.5494564563560943,
+    "rate": 0.025414220291700932,
+    "stderr": 0.0008545066256587801,
+    "rate_merged": 0.022453036362983802,
+    "stderr_merged": 0.0007795363805908873,
+    "seconds": 2.2,
+    "generators": 152,
+    "locations": 875
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 2139,
+    "rate": 0.002139,
+    "stderr": 4.619983418801414e-05
+   }
+  },
+  {
+   "d": 7,
+   "rounds": 7,
+   "theta": 0.0025,
+   "coherent": {
+    "shots": 2200000,
+    "ess": 0.9742643492274651,
+    "rate": 0.0001418832733728994,
+    "stderr": 8.385464012117034e-06,
+    "rate_merged": 0.0001454330058606103,
+    "stderr_merged": 8.478762449028459e-06,
+    "seconds": 64.1,
+    "generators": 444,
+    "locations": 2401
+   },
+   "twirl": {
+    "shots": 3000000,
+    "failures": 356,
+    "rate": 0.00011866666666666667,
+    "stderr": 6.288947577268365e-06
+   }
+  },
+  {
+   "d": 7,
+   "rounds": 7,
+   "theta": 0.005,
+   "coherent": {
+    "shots": 1500000,
+    "ess": 0.9027413483866006,
+    "rate": 0.00020363776975813882,
+    "stderr": 1.345820325894105e-05,
+    "rate_merged": 0.00021169905938230095,
+    "stderr_merged": 1.3767751192654637e-05,
+    "seconds": 65.1,
+    "generators": 444,
+    "locations": 2401
+   },
+   "twirl": {
+    "shots": 3000000,
+    "failures": 443,
+    "rate": 0.00014766666666666666,
+    "stderr": 7.015337036860079e-06
+   }
+  },
+  {
+   "d": 7,
+   "rounds": 7,
+   "theta": 0.01,
+   "coherent": {
+    "shots": 400000,
+    "ess": 0.6818290771010604,
+    "rate": 0.000877536012358901,
+    "stderr": 6.663289479946892e-05,
+    "rate_merged": 0.0008427735631833987,
+    "stderr_merged": 6.195779383151383e-05,
+    "seconds": 16.6,
+    "generators": 444,
+    "locations": 2401
+   },
+   "twirl": {
+    "shots": 2000000,
+    "failures": 440,
+    "rate": 0.00022,
+    "stderr": 1.0486934728508612e-05
+   }
+  },
+  {
+   "d": 7,
+   "rounds": 7,
+   "theta": 0.015,
+   "coherent": {
+    "shots": 100000,
+    "ess": 0.4692367440665196,
+    "rate": 0.004272124652614245,
+    "stderr": 0.00037891304579271156,
+    "rate_merged": 0.003993237421835802,
+    "stderr_merged": 0.0003550774448085671,
+    "seconds": 5.4,
+    "generators": 444,
+    "locations": 2401
+   },
+   "twirl": {
+    "shots": 1000000,
+    "failures": 370,
+    "rate": 0.00037,
+    "stderr": 1.9231825186393516e-05
+   }
+  },
+  {
+   "d": 9,
+   "rounds": 9,
+   "theta": 0.0025,
+   "coherent": {
+    "shots": 4000000,
+    "ess": 0.955568893880554,
+    "rate": 2.81573803410891e-05,
+    "stderr": 2.838578054850461e-06,
+    "rate_merged": 2.8893919460619874e-05,
+    "stderr_merged": 2.870257491737281e-06,
+    "seconds": 647.2,
+    "generators": 976,
+    "locations": 5103
+   },
+   "twirl": {
+    "shots": 12000000,
+    "failures": 316,
+    "rate": 2.6333333333333334e-05,
+    "stderr": 1.4813462314419975e-06
+   }
+  },
+  {
+   "d": 9,
+   "rounds": 9,
+   "theta": 0.005,
+   "coherent": {
+    "shots": 4000000,
+    "ess": 0.8371031990574082,
+    "rate": 5.6341538268335436e-05,
+    "stderr": 4.560859529454743e-06,
+    "rate_merged": 6.064642831144918e-05,
+    "stderr_merged": 4.735910788553349e-06,
+    "seconds": 512.2,
+    "generators": 976,
+    "locations": 5103
+   },
+   "twirl": {
+    "shots": 10000000,
+    "failures": 305,
+    "rate": 3.05e-05,
+    "stderr": 1.7463982864741937e-06
+   }
+  },
+  {
+   "d": 9,
+   "rounds": 9,
+   "theta": 0.01,
+   "coherent": {
+    "shots": 900000,
+    "ess": 0.523470267593045,
+    "rate": 0.00036426683543476653,
+    "stderr": 3.238131960386682e-05,
+    "rate_merged": 0.00037542681553127044,
+    "stderr_merged": 3.2791090552275386e-05,
+    "seconds": 135.0,
+    "generators": 976,
+    "locations": 5103
+   },
+   "twirl": {
+    "shots": 6000000,
+    "failures": 321,
+    "rate": 5.35e-05,
+    "stderr": 2.9859989325182285e-06
+   }
+  }
+ ]
+}

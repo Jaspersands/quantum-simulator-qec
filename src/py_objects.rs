@@ -145,6 +145,13 @@ impl PyCircuit {
         self.circuit.append_circuit(&other.circuit).map_err(api_err)
     }
 
+    /// Coherent rotations replaced by their Pauli twirls (with `merge`, equivalent rotations
+    /// added up first).
+    fn twirled(&self, merge: bool) -> PyResult<PyCircuit> {
+        let inner = crate::coherent::twirled(&self.circuit.inner, merge).map_err(err)?;
+        Ok(PyCircuit { circuit: crate::api::Circuit::from_engine(inner).map_err(api_err)? })
+    }
+
     fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
         Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
     }
@@ -247,6 +254,168 @@ impl PyCircuit {
 
     fn m2d(&self) -> PyResult<PyM2d> {
         Ok(PyM2d { m2d: M2d::new(&self.circuit.inner).map_err(err)? })
+    }
+
+    /// The per-shot frame sampler, which runs leakage.
+    #[pyo3(signature = (seed, leaked_reads_one=true))]
+    fn leakage_sampler(&self, seed: u64, leaked_reads_one: bool) -> PyResult<PyLeakageSampler> {
+        let mut sampler = crate::frame_sampler::FrameSampler::new(&self.circuit.inner).map_err(err)?;
+        sampler.leaked_reads_one = leaked_reads_one;
+        Ok(PyLeakageSampler { sampler, seed, next: 0.into() })
+    }
+
+    /// The exact state-vector sampler.
+    fn exact_sampler(&self, seed: u64) -> PyResult<PyExactSampler> {
+        Ok(PyExactSampler { program: crate::statevec::Program::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
+    }
+
+    /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
+    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyCoherentSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops };
+        let inner = &self.circuit.inner;
+        let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
+        Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
+    }
+
+    /// `exact_distribution` with the leaked-measurement rule chosen.
+    fn exact_distribution_leaky(&self, py: Python<'_>, max_branches: usize, reads_one: bool) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let mut program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
+        program.leaked_reads_one = reads_one;
+        let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
+        Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
+
+    /// Every outcome's exact probability: (detection events, observable flips, probability).
+    fn exact_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
+        let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
+        Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
+}
+
+/// The per-shot frame sampler with leakage, one stream per shot.
+#[pyclass(name = "LeakageSampler", module = "stabilizer_qec._core")]
+pub struct PyLeakageSampler {
+    sampler: crate::frame_sampler::FrameSampler,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyLeakageSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.sampler.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.sampler.num_observables()
+    }
+
+    /// (detection events b8, observable flips b8, heralds as one byte per measurement).
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let rows = py.detach(|| {
+            crate::parallel::parallel(shots, threads, |range| {
+                range
+                    .map(|s| {
+                        let mut rng = crate::surface_code::Xorshift::new(crate::batch_sampler::batch_seed(seed, first + s as u64));
+                        sampler.sample(&mut rng)
+                    })
+                    .collect()
+            })
+        });
+        let (nd, no) = (sampler.num_detectors(), sampler.num_observables());
+        let (dw, ow) = (nd.div_ceil(8), no.div_ceil(8));
+        let (mut d, mut o, mut h) = (vec![0u8; shots * dw], vec![0u8; shots * ow], Vec::new());
+        for (s, shot) in rows.iter().enumerate() {
+            for (k, &b) in shot.detectors.iter().enumerate() {
+                if b {
+                    d[s * dw + k / 8] |= 1 << (k % 8);
+                }
+            }
+            for k in 0..no {
+                if shot.observables >> k & 1 == 1 {
+                    o[s * ow + k / 8] |= 1 << (k % 8);
+                }
+            }
+            h.extend(shot.heralds.iter().map(|&b| b as u8));
+        }
+        (PyBytes::new(py, &d), PyBytes::new(py, &o), PyBytes::new(py, &h))
+    }
+}
+
+/// The coherent sampler, one stream per shot.
+#[pyclass(name = "CoherentSampler", module = "stabilizer_qec._core")]
+pub struct PyCoherentSampler {
+    sampler: crate::coherent::sampler::CoherentSampler,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyCoherentSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.sampler.program.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.sampler.program.num_observables()
+    }
+
+    #[getter]
+    fn num_locations(&self) -> usize {
+        self.sampler.program.locations.len()
+    }
+
+    #[getter]
+    fn num_generators(&self) -> usize {
+        self.sampler.kernel.generators.len()
+    }
+
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let b = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
+        (PyBytes::new(py, &b.detectors), PyBytes::new(py, &b.observables), b.weights)
+    }
+}
+
+/// The exact state-vector sampler, one stream per shot.
+#[pyclass(name = "ExactSampler", module = "stabilizer_qec._core")]
+pub struct PyExactSampler {
+    program: crate::statevec::Program,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyExactSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.program.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.program.num_observables()
+    }
+
+    #[getter]
+    fn num_qubits(&self) -> usize {
+        self.program.num_qubits()
+    }
+
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (program, seed) = (&self.program, self.seed);
+        let (d, o) = py.detach(|| crate::statevec::sample_seeded(program, seed, first, shots, threads));
+        (PyBytes::new(py, &d), PyBytes::new(py, &o))
     }
 }
 

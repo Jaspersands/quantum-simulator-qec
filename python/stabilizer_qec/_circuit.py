@@ -126,6 +126,16 @@ class Circuit:
         call(self._c.append_circuit, other._c.copy() if other._c is self._c else other._c)
         return self
 
+    def twirled(self, *, merge: bool = False) -> "Circuit":
+        """The circuit with each coherent rotation (``I_ERROR[R_Z(theta=θ)] q`` and the rest)
+        replaced by its Pauli twirl, the Pauli with probability sin²θ: the model Stim and every
+        decoder assume. With ``merge``, rotations that are the same fault in different places
+        (either side of a gate that leaves them alone, say) become one with their angles added,
+        sin²(Σθ): the coherence-aware model. Merging writes the circuit without loops."""
+        out = Circuit.__new__(Circuit)
+        out._c = call(self._c.twirled, bool(merge))
+        return out
+
     def __mul__(self, repetitions: object) -> "Circuit":
         """``REPEAT repetitions { self }``, as Stim's: nothing for 0, the circuit for 1."""
         if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):
@@ -346,6 +356,40 @@ class Circuit:
         """A sampler of detection events and observable flips. The same seed gives the same
         shots on any machine and any number of threads; ``None`` draws a seed."""
         return DetectorSampler(self, seed)
+
+    def compile_exact_sampler(self, *, seed: Union[int, None] = None) -> "ExactSampler":
+        """An exact sampler: the full state vector (up to 24 qubits in use), running every
+        instruction, Clifford or not, including the tagged rotations, T, U3 and amplitude damping
+        (``I_ERROR[R_Z(theta=0.01)] 0``, ``I[T] 0``). Noise channels are drawn as quantum
+        trajectories. Its ``sample`` has the detector sampler's signature."""
+        return ExactSampler(self, seed)
+
+    def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None) -> "CoherentSampler":
+        """A sampler for circuits with coherent errors (``I_ERROR[R_Z(theta=0.02)] 0``,
+        ``II_ERROR[R_ZZ(theta=0.01)] 0 1``, any Pauli rotation) at any size: shots of the
+        Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
+        back the interference the twirl leaves out. Weighted, the shots are distributed as the
+        coherent circuit's: estimate a rate as ``(w * hit).sum() / w.sum()``. ``order`` is how
+        many of the circuit's local interference generators a shot's sum multiplies together."""
+        return CoherentSampler(self, order, seed)
+
+    def compile_leakage_sampler(self, *, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> "LeakageSampler":
+        """A frame sampler that runs leakage, written as Stim-readable tags:
+        ``I_ERROR[LEAK(p=…)] q`` (the qubit leaks), ``I_ERROR[SEEP(p=…)] q`` (a leaked qubit
+        returns, to |0⟩ or |1⟩ at random) and ``II_ERROR[LEAK_TRANSPORT(p=…)] a b`` (leakage
+        moves to the partner). A two-qubit gate with a leaked partner leaves the other qubit a
+        uniformly random Pauli, as in Google's model; measuring a leaked qubit reads 1 (a coin
+        flip with ``leaked_reads_one=False``); a reset returns it. Its ``sample`` also gives each
+        measurement's herald: whether its qubit was leaked."""
+        return LeakageSampler(self, leaked_reads_one, seed)
+
+    def exact_distribution(self, *, max_branches: int = 1 << 20) -> dict:
+        """Every outcome's exact probability, following every measurement outcome and noise
+        branch: ``{(detection events, observable flips): probability}``, each a tuple of bools.
+        For small circuits; more than ``max_branches`` branches is an error."""
+        rows = call(self._c.exact_distribution, count(max_branches, "max_branches"))
+        no = self.num_observables
+        return {(tuple(d), tuple(bool(o >> k & 1) for k in range(no))): p for d, o, p in rows}
 
     def compile_m2d_converter(self) -> "MeasurementsToDetectionEventsConverter":
         """A converter from raw measurements (and sweep bits) to detection events, as
@@ -782,6 +826,100 @@ class DetectorSampler:
         if separate_observables:
             return dets, b8_to_rows(o, shots, no, bit_packed)
         return dets
+
+
+class ExactSampler(DetectorSampler):
+    """Detection events and observable flips from the exact state vector. Made by
+    ``Circuit.compile_exact_sampler``; ``sample`` is the detector sampler's. Each shot has its
+    own random stream, so threads never change the shots and calls continue shot by shot."""
+
+    __slots__ = ()
+
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.exact_sampler, seed_of(seed))
+
+    @property
+    def num_qubits(self) -> int:
+        """The qubits in use, which the state vector holds."""
+        return self._s.num_qubits
+
+
+class LeakageSampler:
+    """Shots of a circuit with leakage, and which measurements found their qubit leaked. Made
+    by ``Circuit.compile_leakage_sampler``."""
+
+    __slots__ = ("_s", "_m")
+
+    def __init__(self, circuit: Circuit, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.leakage_sampler, seed_of(seed), bool(leaked_reads_one))
+        self._m = circuit.num_measurements
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a LeakageSampler is a position in a stream of shots; send the circuit and a seed")
+
+    @property
+    def num_detectors(self) -> int:
+        return self._s.num_detectors
+
+    @property
+    def num_observables(self) -> int:
+        return self._s.num_observables
+
+    def sample(self, shots: int, *, threads: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """``(detection events, observable flips, heralds)`` for ``shots`` shots: bool arrays
+        of shape (shots, detectors), (shots, observables) and (shots, measurements), the last
+        empty in width when the circuit has no leakage."""
+        shots = count(shots, "shots")
+        d, o, h = call(self._s.sample, shots, count(threads, "threads"))
+        heralds = np.frombuffer(h, dtype=np.uint8).astype(bool)
+        heralds = heralds.reshape(shots, -1) if heralds.size else np.zeros((shots, 0), dtype=bool)
+        return b8_to_rows(d, shots, self.num_detectors, False), b8_to_rows(o, shots, self.num_observables, False), heralds
+
+
+class CoherentSampler:
+    """Weighted shots of a circuit with coherent errors. Made by
+    ``Circuit.compile_coherent_sampler``."""
+
+    __slots__ = ("_s",)
+
+    def __init__(self, circuit: Circuit, order: int = 3, seed: Union[int, None] = None) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.coherent_sampler, seed_of(seed), count(order, "order"))
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a CoherentSampler is a position in a stream of shots; send the circuit and a seed")
+
+    @property
+    def num_detectors(self) -> int:
+        return self._s.num_detectors
+
+    @property
+    def num_observables(self) -> int:
+        return self._s.num_observables
+
+    @property
+    def num_locations(self) -> int:
+        """The coherent rotations in the circuit."""
+        return self._s.num_locations
+
+    @property
+    def num_generators(self) -> int:
+        """The local generators of the circuit's interference (sets of rotations no record
+        tells apart) the sampler found."""
+        return self._s.num_generators
+
+    def sample(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """``(detection events, observable flips, weights)`` for ``shots`` shots, the first two
+        as the detector sampler gives them with ``separate_observables``. Each shot has its own
+        random stream: threads never change the shots, and calls continue shot by shot."""
+        shots = count(shots, "shots")
+        d, o, w = call(self._s.sample, shots, count(threads, "threads"))
+        return b8_to_rows(d, shots, self.num_detectors, bit_packed), b8_to_rows(o, shots, self.num_observables, bit_packed), np.asarray(w)
 
 
 class MeasurementsToDetectionEventsConverter:

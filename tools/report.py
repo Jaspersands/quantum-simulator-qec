@@ -455,6 +455,14 @@ def build_values(F):
     v["dist.colour"] = ", ".join(str(m["exact"]) for m in colour[:-1]) + " and " + str(colour[-1]["exact"])
     v["dist.bb90"] = str(next(m["upper"] for m in DI["memories"] if m["memory"] == "bivariate bicycle [[90, 8, 10]]"))
 
+    # Coherent errors against their twirl (tools/coherent.py).
+    t["coherent_valid"] = table(["circuit", "θ", "exact", "coherent sampler", "apart", "Pauli twirl"],
+                                [cells(r) for r in readme_tables.coherent_validation()], "lrrrrr")
+    t["coherent_sweep"] = table(["d", "θ", "coherent", "twirl", "coherent ÷ twirl", "decoded knowing", "sample kept"],
+                                [cells(r) for r in readme_tables.coherent_sweep()], "rrrrrrr")
+    t["coherent_capacity"] = table(["θ", "d = 3", "d = 5", "d = 7", "d = 9", "d = 11", "d = 13", "d = 15"],
+                                   [cells(r) for r in readme_tables.coherent_capacity()], "rrrrrrrr")
+
     # The resource estimate, by the page's own model (js/estimator.js via tools/estimate.mjs).
     est_path = BUILD / "estimate.json"
     subprocess.run(["node", "tools/estimate.mjs", "--json", str(est_path)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)

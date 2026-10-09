@@ -637,6 +637,48 @@ gate, as Stim's `explain_detector_error_model_errors` prints it.
   bound the circuit distance of their circuits at 6, 8, 8 and 10 for the four codes; the bounds
   found here for the larger two are looser than theirs.
 
+## Beyond Pauli noise
+
+Every result above, like Stim and every decoder, models noise as random Pauli errors. Hardware
+also over-rotates: a qubit meant to idle turns by a small angle θ, the same way every time. Its
+Pauli twirl (Z with probability $\sin^2\theta$) is exact for one rotation alone, but rotations
+that repeat add as amplitudes. Earlier work treats code capacity by free fermions (Bravyi et al.,
+2018), returns outcome probabilities of Clifford circuits with small errors (Miller et al., 2025),
+or estimates one idling memory's logical channel (LeBlond et al., 2025). None of them samples and
+decodes arbitrary circuits.
+
+The **coherent sampler** does. It draws shots of the twirled circuit and weights each by its
+class's coherent over twirled probability, $|1 + \sum r|^2 / (1 + \sum |r|^2)$. A class is every
+fault set that no measurement can tell apart from the shot's. These sets are the cosets of a
+linear space, the circuit's spacetime kernel, in which the randomness of measurements with
+random outcomes counts as gauge. Each $r$, a member's amplitude relative to the shot's, has a
+closed form from carrying Pauli operators through the circuit.
+- Rotations that are the same fault in several places are drawn as one.
+- The rest of the kernel is found locally.
+- On every branch of 150 random small circuits the weighted twirl equals the state vector's
+  distribution to $10^{-10}$.
+- Against the state vector's exact answers:
+
+{{table:coherent_valid}}
+
+**Circuit level.** The rotated surface code's X memory over d rounds under circuit noise
+$p = 0.2\%$, with a Z over-rotation by θ on every data qubit after every tick. "Decoded knowing"
+decodes the same shots on the merged model, which adds the angles of equivalent rotations
+before twirling:
+
+{{table:coherent_sweep}}
+
+**Code capacity**, Bravyi et al.'s setting (perfect measurements, one over-rotation per data
+qubit). Coherent over twirled logical error:
+
+{{table:coherent_capacity}}
+
+At code capacity the twirl is accurate, as Bravyi et al. found. At circuit level it is not: a
+rotation that repeats between the gates that would tell its repeats apart adds coherently. The
+twirl then underestimates the logical error, by more at larger distance: at θ = 0.01 per tick,
+2.4 times at d = 3 and 6.8 times at d = 9. A decoder on the merged model fails up to 12% less
+often on the same shots at the larger angles, and gains nothing at the smallest.
+
 ## What it would take
 
 Each section above measures one ingredient of a quantum computer's cost. The estimate puts them
@@ -702,6 +744,9 @@ same run needs d = {{est.lever.d}} and {{est.lever.qubits}}.
   algorithms from them, with the rest read from the papers it cites.
 - **The gross code's measurement schedule is not optimised.** It is correct by construction and
   its fault distance is only bounded above; Cross et al. optimise theirs.
+- **Coherent sampling has a reach.** Its weights spread as the circuit's volume times θ grows:
+  the effective sample size stays above about 40% to d = 11 at θ = 0.01 per tick, and falls to a
+  few percent there at θ = 0.02. Each point reports it.
 - **The estimate is a model.** It prices every tile as an idle patch, consumes Toffolis in
   sequence unless told otherwise, and extrapolates the decoder's latency and cores past d = 7. It
   is meant to show what the measured numbers imply, and which of them the answer depends on.

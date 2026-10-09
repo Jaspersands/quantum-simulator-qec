@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=2026-10-01a">
+<link rel="stylesheet" href="css/styles.css?v=2026-10-09a">
 </head>
 <body>
 
@@ -40,6 +40,7 @@
     <li><a class="toc__link" href="#gross"><span class="toc__num">13</span><span>Beyond the surface code</span></a></li>
     <li><a class="toc__link" href="#surgery"><span class="toc__num">14</span><span>Lattice surgery</span></a></li>
     <li><a class="toc__link" href="#estimator"><span class="toc__num">15</span><span>What it would take</span></a></li>
+    <li><a class="toc__link" href="#coherent"><span class="toc__num">16</span><span>Beyond Pauli noise</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -2118,6 +2119,144 @@
     </div>
   </figure>
 
+</section>
+
+<section class="section" id="coherent">
+  <div class="section__head">
+    <span class="section__num">16</span>
+    <h2 class="section__title">Beyond Pauli noise</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every simulation above, like Stim and every decoder, treats noise as random Pauli errors. Real hardware also
+      over-rotates: a qubit meant to idle turns by a small angle θ about Z, the same way every time. That is a
+      <strong>coherent</strong> error, exp(−iθZ), and what the usual tools put in its place is its Pauli twirl,
+      Z with probability sin²θ. The twirl is exact for one rotation alone. Rotations that repeat add up as
+      amplitudes rather than probabilities: two turns flip with probability sin²(2θ) ≈ 4θ², not 2θ².
+    </p>
+    <p>
+      Simulating that exactly needs the full state, which stops at a few dozen qubits. Published work has gone
+      further for particular settings: Bravyi et al. (2018) map code-capacity Z rotations on the surface code to
+      free fermions; pyGSTi (Sandia, 2025) propagates small error generators through Clifford circuits and returns
+      outcome probabilities, naming logical error rates and decoding as future work; LeBlond et al. (2025) estimate
+      an idling surface code's logical channel by quasi-probability sampling. None of these is a tool that takes any
+      circuit, samples its detectors under coherent errors at circuit level, and decodes them.
+    </p>
+    <p>
+      This engine does. The <strong>coherent sampler</strong> draws shots of the twirled circuit, as the frame
+      sampler does, and gives each a weight: its class's coherent probability over its twirled probability, where a
+      class is every set of faults no measurement can tell apart. Those sets form a linear space, the circuit's
+      spacetime kernel (counting as stabilisers the randomness of measurements whose outcome is random), and every
+      cross term between them has a closed form from carrying Pauli operators through the circuit. Weighted, the
+      shots are distributed as the coherent circuit's. Rotations are written as tagged identities Stim reads as
+      identities, <span class="mono">I_ERROR[R_Z(theta=0.01)] 0</span>, so the circuits stay Stim's.
+    </p>
+    <p>
+      What it finds: at circuit level the twirl underestimates the logical error, and by more as the code grows, since
+      a rotation repeated between the gates that would tell its repeats apart adds coherently and a larger code has
+      more such repeats (Figure 26). At θ = 0.01 per tick the coherent logical error is 2.4 times the twirl's at
+      d = 3 and 6.8 times at d = 9. It is checked three ways. On every branch of 150 random small circuits, the
+      weighted twirl equals the state vector's distribution to 10⁻¹⁰. Against the state vector's exact answers it agrees within its error bars
+      where the twirl is several times off (Figure 27). And at code capacity it reproduces Bravyi et al.'s finding,
+      that at code capacity the twirl describes coherent errors well (Figure 28).
+    </p>
+  </div>
+
+  <figure class="figure" data-coh>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 26</span>
+      <span class="figure__title">coherent over-rotation against its twirl</span>
+      <span class="figure__meta">† measured natively</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-coh-plot data-aspect="0.6"></canvas>
+      <div class="legend" data-coh-legend></div>
+      <p class="note" data-coh-status></p>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Logical error of the surface code under coherent over-rotation and under its Pauli twirl</caption>
+          <thead>
+            <tr><th scope="col">code</th><th scope="col">θ</th><th scope="col">coherent</th><th scope="col">twirl</th><th scope="col">coherent ÷ twirl</th><th scope="col">coherent, decoded knowing</th><th scope="col">sample size kept</th></tr>
+          </thead>
+          <tbody data-coh-rows></tbody>
+        </table>
+      </div>
+      <p class="note">† Measured natively by tools/coherent.py. Each shot is the rotated surface code's X memory over
+        d rounds, under circuit noise p = 0.2% (after every gate, before every measurement, after every reset) and a
+        coherent Z over-rotation by θ on every data qubit after every tick. Coherent rates are the coherent
+        sampler's weighted estimates (bars: two standard errors), decoded by matching on the twirled model; the next
+        column decodes the same shots on the merged model, which adds up the rotations that are one fault in several
+        places. The last column is the effective sample size, (Σw)² ÷ Σw², as a share of the shots.</p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-val>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 27</span>
+      <span class="figure__title">checked against exact answers</span>
+      <span class="figure__meta">the state vector</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">The coherent sampler against the state vector</caption>
+          <thead>
+            <tr><th scope="col">circuit</th><th scope="col">θ</th><th scope="col">exact</th><th scope="col">coherent sampler</th><th scope="col">apart</th><th scope="col">Pauli twirl</th></tr>
+          </thead>
+          <tbody data-val-rows></tbody>
+        </table>
+      </div>
+      <p class="note" data-val-status></p>
+      <p class="note">Logical error, decoded by matching on the twirled model. Repetition codes have no noise besides
+        X over-rotations on every data qubit after every tick, and their exact answer follows every branch of the
+        state vector. The d = 3 surface code (17 qubits) has circuit noise too, and its exact answer is the state
+        vector's samples.</p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-cap>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 28</span>
+      <span class="figure__title">at code capacity, the twirl is right</span>
+      <span class="figure__meta">as Bravyi et al. found</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-cap-plot data-aspect="0.55"></canvas>
+      <div class="legend" data-cap-legend></div>
+      <p class="note" data-cap-status></p>
+      <p class="note">Perfect measurements and one Z over-rotation by θ on every data qubit, the setting of Bravyi et
+        al., npj Quantum Information 4, 55 (2018), who found that at large distance the logical noise is close to the
+        twirled noise's. Here the ratio stays near 1 from d = 3 on. What sets circuit-level coherent noise apart
+        (Figure 26) is a rotation repeated between the gates that would tell its repeats apart, which a single round
+        of rotations cannot show. Bars: two standard errors.</p>
+    </div>
+  </figure>
+
+  <figure class="figure" data-zz>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 29</span>
+      <span class="figure__title">ZZ crosstalk on every CNOT</span>
+      <span class="figure__meta">† measured natively</span>
+    </figcaption>
+    <div class="figure__body">
+      <canvas data-zz-plot data-aspect="0.6"></canvas>
+      <div class="legend" data-zz-legend></div>
+      <p class="note" data-zz-status></p>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">Logical error under ZZ crosstalk and under its twirl</caption>
+          <thead>
+            <tr><th scope="col">code</th><th scope="col">θ</th><th scope="col">coherent</th><th scope="col">twirl</th><th scope="col">coherent ÷ twirl</th><th scope="col">coherent, decoded knowing</th><th scope="col">sample size kept</th></tr>
+          </thead>
+          <tbody data-zz-rows></tbody>
+        </table>
+      </div>
+      <p class="note">† As Figure 26, with a ZZ rotation by θ on the two qubits of every CNOT instead of the idle
+        over-rotation.</p>
+    </div>
+  </figure>
+
   <footer class="foot">
     <span>Built with Rust, WebAssembly, and no dependencies.</span>
     <a href="report/report.html">Technical report</a>
@@ -2129,6 +2268,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-10-01a"></script>
+<script type="module" src="js/main.js?v=2026-10-09a"></script>
 </body>
 </html>

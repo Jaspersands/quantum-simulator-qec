@@ -1,7 +1,8 @@
 """A quantum error-correction simulator and decoder, in Rust: Stim's circuit and error-model
 formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP, BP+OSD and
 BP+LSD, Relay-BP, colour-code matching, a search decoder, window decoding, IBM's bivariate
-bicycle codes and lattice surgery. It agrees with Stim, PyMatching, `ldpc`, `beliefmatching`,
+bicycle codes and lattice surgery, coherent errors at circuit level, and an exact state vector.
+It agrees with Stim, PyMatching, `ldpc`, `beliefmatching`,
 IBM's `relay_bp`, Chromobius and Tesseract on every check in its test suite.
 
     pip install stabilizer-qec
@@ -98,6 +99,23 @@ pickling:
 On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
 `RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
 
+## Beyond Pauli noise
+
+Coherent errors are tagged identities that Stim reads as identities, so circuits stay Stim's:
+`I_ERROR[R_Z(theta=0.01)] 0`, `II_ERROR[R_ZZ(theta=0.02)] 0 1`, any Pauli product as
+`I_ERROR[R_PAULI(theta=…, pauli=XZY)] 0 1 2`. `Circuit.compile_coherent_sampler` gives shots of
+the twirled circuit with weights that make them the coherent circuit's, at any size:
+
+>>> c = sq.Circuit("RX 0\\nI_ERROR[R_Z(theta=0.2)] 0\\nI_ERROR[R_Z(theta=0.15)] 0\\nMX 0\\nDETECTOR rec[-1]")
+>>> d, o, w = c.compile_coherent_sampler(seed=1).sample(100_000)
+>>> rate, err = sq.weighted_rate(d[:, 0], w)
+>>> abs(rate - 0.1176) < 0.003   # sin²(0.35): the angles add, not their twirls
+True
+
+`compile_exact_sampler` and `exact_distribution` run the state vector (up to 24 qubits; also T,
+U3 and amplitude damping). `twirled(merge=True)` is the coherence-aware model for a decoder.
+`compile_leakage_sampler` runs `I_ERROR[LEAK(p=…)]`, `SEEP` and `LEAK_TRANSPORT`, with heralds.
+
 ## The command line
 
 `stabilizer-qec` (or `python -m stabilizer_qec`) takes Stim's commands and flags (`gen`,
@@ -158,7 +176,8 @@ from importlib.metadata import PackageNotFoundError as _NotFound
 from importlib.metadata import version as _version
 
 from . import _core, surgery
-from ._circuit import Circuit, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, MeasurementSampler, MeasurementsToDetectionEventsConverter
+from ._coherent import effective_sample_size, weighted_logical_error_rate, weighted_rate
+from ._circuit import Circuit, CoherentSampler, LeakageSampler, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, ExactSampler, MeasurementSampler, MeasurementsToDetectionEventsConverter
 from ._explain import (
     CircuitErrorLocation,
     CircuitErrorLocationStackFrame,
@@ -245,6 +264,12 @@ __all__ = [
     "ColorMatching",
     "DetectorErrorModel",
     "DetectorSampler",
+    "ExactSampler",
+    "CoherentSampler",
+    "LeakageSampler",
+    "weighted_rate",
+    "weighted_logical_error_rate",
+    "effective_sample_size",
     "DemSampler",
     "MeasurementSampler",
     "Diagram",
