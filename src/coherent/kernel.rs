@@ -31,11 +31,14 @@ pub struct CoherentOptions {
     pub max_cluster: usize,
     /// Whether to look for generators of three and four locations.
     pub quads: bool,
+    /// How many steps of shared locations a shot's clusters reach past the generators its
+    /// faults touch.
+    pub hops: usize,
 }
 
 impl Default for CoherentOptions {
     fn default() -> Self {
-        CoherentOptions { order: 3, max_cluster: 12, quads: true }
+        CoherentOptions { order: 3, max_cluster: 12, quads: true, hops: 1 }
     }
 }
 
@@ -275,6 +278,51 @@ impl Kernel {
         Kernel { generators, groups, rep_of, by_location, options }
     }
 
+    /// The whole kernel's dimension: locations less the rank of their residues.
+    pub fn dimension(&self, p: &Program, solver: &GaugeSolver) -> usize {
+        let words = p.slots.len().div_ceil(64);
+        let mut rows: Vec<(usize, Vec<u64>)> = Vec::new();
+        for l in 0..p.locations.len() {
+            let mut v = vec![0u64; words];
+            for &s in &solver.flips[l] {
+                v[s / 64] ^= 1 << (s % 64);
+            }
+            solver.reduce(&mut v);
+            for (pivot, r) in &rows {
+                if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                    v.iter_mut().zip(r).for_each(|(a, b)| *a ^= b);
+                }
+            }
+            if let Some(w) = v.iter().position(|&w| w != 0) {
+                rows.push((w * 64 + v[w].trailing_zeros() as usize, v));
+            }
+        }
+        p.locations.len() - rows.len()
+    }
+
+    /// The dimension the generators and groups span.
+    pub fn local_span(&self) -> usize {
+        let n = self.rep_of.len();
+        let lw = n.div_ceil(64);
+        let mut rows: Vec<(usize, Vec<u64>)> = Vec::new();
+        let vecs = self.generators.iter().map(|g| g.members.clone()).chain(self.groups.iter().flat_map(|g| g.members[1..].iter().map(move |&l| vec![g.members[0], l])));
+        for members in vecs {
+            let mut v = vec![0u64; lw];
+            for &l in &members {
+                v[l / 64] ^= 1 << (l % 64);
+            }
+            for (pivot, r) in &rows {
+                if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                    v.iter_mut().zip(r).for_each(|(a, b)| *a ^= b);
+                }
+            }
+            if let Some(w) = v.iter().position(|&w| w != 0) {
+                rows.push((w * 64 + v[w].trailing_zeros() as usize, v));
+            }
+        }
+        rows.len()
+    }
+
     /// The groups, as `Program::set_merge` takes them.
     pub fn merge_groups(&self) -> Vec<(Vec<usize>, Vec<C>)> {
         self.groups.iter().map(|g| (g.members.clone(), g.mu.clone())).collect()
@@ -291,6 +339,14 @@ impl Kernel {
         }
         touched.sort_unstable();
         touched.dedup();
+        // With their neighbours (generators sharing a location), whose products with them
+        // move the faults on.
+        for _ in 0..self.options.hops {
+            let neighbours: Vec<usize> = touched.iter().flat_map(|&g| self.generators[g].members.iter().flat_map(|&l| self.by_location[l].iter().copied())).collect();
+            touched.extend(neighbours);
+            touched.sort_unstable();
+            touched.dedup();
+        }
         // Each group as one location: its sums over the even and the odd sets of its members to
         // toggle, in closed form. The even sum is the group's own factor; in any element holding
         // the group's first member, odd over even takes that member's place.
@@ -559,5 +615,82 @@ mod merged {
     fn merged_groups_are_exact() {
         compare("RX 0\nR 1\nI_ERROR[R_Z(theta=0.3)] 0\nCZ 0 1\nI_ERROR[R_Z(theta=0.2)] 0\nMX 0\nM 1\nDETECTOR rec[-2]");
         compare("RX 0\nI_ERROR[R_Z(theta=0.3)] 0\nZ_ERROR(0.2) 0\nI_ERROR[R_Z(theta=0.2)] 0\nMX 0\nDETECTOR rec[-1]");
+    }
+}
+
+#[cfg(test)]
+mod diagnose {
+    use super::*;
+    use crate::circuit::Circuit;
+
+    /// Per-shot weights of the local kernel against the whole kernel's, on a circuit from
+    /// `COH_CIRCUIT` (run with `--ignored --nocapture`).
+    #[test]
+    #[ignore]
+    fn local_against_full() {
+        let c = Circuit::parse(&std::fs::read_to_string(std::env::var("COH_CIRCUIT").unwrap()).unwrap()).unwrap();
+        let p = Program::new(&c).unwrap();
+        let solver = GaugeSolver::new(&p);
+        let order = std::env::var("COH_ORDER").map_or(3, |v| v.parse().unwrap());
+        let k = Kernel::new(&p, &solver, CoherentOptions { order, ..CoherentOptions::default() });
+        println!("kernel dimension {} local span {}", k.dimension(&p, &solver), k.local_span());
+        if p.locations.len() > 20 {
+            return;
+        }
+        let full = p.full_kernel().unwrap();
+        println!("locations {} full kernel {} generators {} groups {:?}", p.locations.len(), full.len(), k.generators.len(), k.groups.iter().map(|g| g.members.clone()).collect::<Vec<_>>());
+        for g in &k.generators {
+            println!("  gen {:?}", g.members);
+        }
+        // Full kernel dimension and whether the local generators and groups span it.
+        let nl = p.locations.len();
+        let mut basis: Vec<u64> = Vec::new();
+        let add = |v: u64, basis: &mut Vec<u64>| {
+            let mut v = v;
+            for &b in basis.iter() {
+                v = v.min(v ^ b);
+            }
+            if v != 0 {
+                basis.push(v);
+                basis.sort_unstable_by(|a, b| b.cmp(a));
+                true
+            } else {
+                false
+            }
+        };
+        for g in &k.generators {
+            add(g.members.iter().fold(0u64, |a, &l| a | 1 << l), &mut basis);
+        }
+        for g in &k.groups {
+            for &l in &g.members[1..] {
+                add((1u64 << g.members[0]) | (1 << l), &mut basis);
+            }
+        }
+        let local_dim = basis.len();
+        let mut missing = Vec::new();
+        for e in &full {
+            let v = e.members.iter().fold(0u64, |a, &l| a | 1 << l);
+            if add(v, &mut basis) {
+                missing.push(e.members.clone());
+            }
+        }
+        println!("local span dim {local_dim}, full dim {}, missing {:?}", basis.len(), missing);
+        let _ = nl;
+        let mut cache = HashMap::new();
+        let (mut worst, mut sum_l, mut sum_f) = (0.0f64, 0.0, 0.0);
+        for seed in 0..20000u64 {
+            let mut rng = crate::surface_code::Xorshift::new(seed);
+            let shot = p.run_shot(&mut super::super::shot::Stream(&mut rng));
+            let wl = k.weight(&p, &shot, &solver, &mut cache);
+            let wf = p.weight(&shot, &full);
+            sum_l += wl;
+            sum_f += wf;
+            if (wl - wf).abs() > worst {
+                worst = (wl - wf).abs();
+                let fired: Vec<usize> = (0..nl).filter(|&l| shot.fired[l]).collect();
+                println!("seed {seed}: local {wl:.4} full {wf:.4} fired {fired:?}");
+            }
+        }
+        println!("mean local {:.4} full {:.4}", sum_l / 20000.0, sum_f / 20000.0);
     }
 }

@@ -255,9 +255,9 @@ impl PyCircuit {
     }
 
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
-    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true))]
-    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool) -> PyResult<PyCoherentSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads };
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
+    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyCoherentSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
         Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
