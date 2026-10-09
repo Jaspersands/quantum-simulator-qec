@@ -159,7 +159,7 @@ from importlib.metadata import version as _version
 
 from . import _core, surgery
 from ._coherent import effective_sample_size, weighted_logical_error_rate, weighted_rate
-from ._circuit import Circuit, CoherentSampler, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, ExactSampler, MeasurementSampler, MeasurementsToDetectionEventsConverter
+from ._circuit import Circuit, CoherentSampler, LeakageSampler, DemSampler, DetectorErrorModel, DetectorSampler, Diagram, ExactSampler, MeasurementSampler, MeasurementsToDetectionEventsConverter
 from ._explain import (
     CircuitErrorLocation,
     CircuitErrorLocationStackFrame,
@@ -248,6 +248,7 @@ __all__ = [
     "DetectorSampler",
     "ExactSampler",
     "CoherentSampler",
+    "LeakageSampler",
     "weighted_rate",
     "weighted_logical_error_rate",
     "effective_sample_size",

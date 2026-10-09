@@ -259,6 +259,9 @@ enum Step {
     Rotation { paulis: Vec<(usize, u8)>, theta: f64 },
     Unitary(usize, M2),
     Damp { q: usize, gamma: f64 },
+    Leak { q: usize, p: f64 },
+    Seep { q: usize, p: f64 },
+    Transport { a: usize, b: usize, p: f64 },
 }
 
 /// A circuit ready for the state vector.
@@ -271,6 +274,10 @@ pub struct Program {
     observables: Vec<Vec<usize>>,
     /// The noiseless reference's parity of each detector, then each observable.
     reference: Vec<bool>,
+    /// Whether the circuit has leakage, run as the frame sampler's model.
+    leaky: bool,
+    /// Whether measuring a leaked qubit reads 1 (else a coin flip).
+    pub leaked_reads_one: bool,
 }
 
 const CODE: [u8; 4] = [0, 1, 3, 2]; // Stim's letter order I, X, Y, Z as the engine's codes.
@@ -286,10 +293,10 @@ impl Program {
                 for op in ops {
                     match op {
                         NonPauli::Rotation { pauli, .. } => used.extend(pauli.iter().map(|&(q, _)| q)),
-                        NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } => {
+                        NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } => {
                             used.insert(*qubit);
                         }
-                        _ => return Err(format!("the state vector does not run leakage ('{}'); the frame sampler does", op.line())),
+                        NonPauli::LeakTransport { a, b, .. } => used.extend([*a, *b]),
                     }
                 }
             }
@@ -368,7 +375,9 @@ impl Program {
                             }
                             NonPauli::U3 { qubit, theta, phi, lambda } => Step::Unitary(ix(qubit), u3(*theta, *phi, *lambda)),
                             NonPauli::AmplitudeDamping { gamma, qubit } => Step::Damp { q: ix(qubit), gamma: *gamma },
-                            _ => unreachable!("leakage was refused above"),
+                            NonPauli::Leak { p, qubit } => Step::Leak { q: ix(qubit), p: *p },
+                            NonPauli::Seep { p, qubit } => Step::Seep { q: ix(qubit), p: *p },
+                            NonPauli::LeakTransport { p, a, b } => Step::Transport { a: ix(a), b: ix(b), p: *p },
                         });
                     }
                 }
@@ -382,7 +391,8 @@ impl Program {
             let parity = |recs: &Vec<usize>| recs.iter().fold(false, |a, &r| a ^ rec[r]);
             res.detectors.iter().chain(&res.observables).map(parity).collect()
         };
-        Ok(Program { steps, num_qubits: used.len(), num_measurements: m, detectors: res.detectors, observables: res.observables, reference })
+        let leaky = steps.iter().any(|s| matches!(s, Step::Leak { .. } | Step::Seep { .. } | Step::Transport { .. }));
+        Ok(Program { steps, num_qubits: used.len(), num_measurements: m, detectors: res.detectors, observables: res.observables, reference, leaky, leaked_reads_one: true })
     }
 
     pub fn num_qubits(&self) -> usize {
@@ -402,6 +412,10 @@ impl Program {
         self.observables.len()
     }
 
+    fn ctx(&self) -> Ctx {
+        Ctx { chain: false, leaked: if self.leaky { vec![false; self.num_qubits] } else { Vec::new() }, reads_one: self.leaked_reads_one }
+    }
+
     /// A record's detection events and observable flips.
     fn outcome(&self, rec: &[bool]) -> (Vec<bool>, u64) {
         let parity = |recs: &Vec<usize>| recs.iter().fold(false, |a, &r| a ^ rec[r]);
@@ -415,9 +429,9 @@ impl Program {
     pub fn sample(&self, rng: &mut Xorshift) -> (Vec<bool>, u64) {
         let mut sv = StateVector::new(self.num_qubits);
         let mut rec = Vec::with_capacity(self.num_measurements);
-        let mut chain = false;
+        let mut ctx = self.ctx();
         for step in &self.steps {
-            run_step(step, &mut sv, &mut rec, &mut chain, &mut |branches: &[f64]| {
+            run_step(step, &mut sv, &mut rec, &mut ctx, &mut |branches: &[f64]| {
                 let u = rng.next_f64();
                 let mut acc = 0.0;
                 for (k, &p) in branches.iter().enumerate() {
@@ -438,28 +452,28 @@ impl Program {
         let mut out = BTreeMap::new();
         let mut leaves = 0usize;
         let sv = StateVector::new(self.num_qubits);
-        self.branch(0, sv, Vec::new(), false, 1.0, &mut out, &mut leaves, max_branches)?;
+        self.branch(0, sv, Vec::new(), self.ctx(), 1.0, &mut out, &mut leaves, max_branches)?;
         Ok(out)
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn branch(&self, mut pc: usize, mut sv: StateVector, mut rec: Vec<bool>, mut chain: bool, prob: f64, out: &mut BTreeMap<(Vec<bool>, u64), f64>, leaves: &mut usize, max: usize) -> Result<(), String> {
+    fn branch(&self, mut pc: usize, mut sv: StateVector, mut rec: Vec<bool>, mut ctx: Ctx, prob: f64, out: &mut BTreeMap<(Vec<bool>, u64), f64>, leaves: &mut usize, max: usize) -> Result<(), String> {
         while pc < self.steps.len() {
             let step = &self.steps[pc];
             // The branch probabilities of this step, given the state.
-            let probs = branch_probs(step, &sv, &rec, chain);
+            let probs = branch_probs(step, &sv, &ctx);
             if probs.len() > 1 {
                 for (k, &p) in probs.iter().enumerate() {
                     if p * prob < 1e-15 {
                         continue;
                     }
-                    let (mut sv2, mut rec2, mut chain2) = (sv.clone(), rec.clone(), chain);
-                    run_step(step, &mut sv2, &mut rec2, &mut chain2, &mut |_| k);
-                    self.branch(pc + 1, sv2, rec2, chain2, prob * p, out, leaves, max)?;
+                    let (mut sv2, mut rec2, mut ctx2) = (sv.clone(), rec.clone(), ctx.clone());
+                    run_step(step, &mut sv2, &mut rec2, &mut ctx2, &mut |_| k);
+                    self.branch(pc + 1, sv2, rec2, ctx2, prob * p, out, leaves, max)?;
                 }
                 return Ok(());
             }
-            run_step(step, &mut sv, &mut rec, &mut chain, &mut |_| 0);
+            run_step(step, &mut sv, &mut rec, &mut ctx, &mut |_| 0);
             pc += 1;
         }
         *leaves += 1;
@@ -471,11 +485,50 @@ impl Program {
     }
 }
 
+/// A trajectory's classical state besides its amplitudes: whether the current chain of
+/// correlated errors has fired, and which qubits are leaked.
+#[derive(Clone, Debug)]
+struct Ctx {
+    chain: bool,
+    leaked: Vec<bool>,
+    reads_one: bool,
+}
+
+impl Ctx {
+    fn leaked(&self, q: usize) -> bool {
+        self.leaked.get(q).copied().unwrap_or(false)
+    }
+
+    /// The Pauli product without its factors on leaked qubits (which hold no state).
+    fn live(&self, paulis: &[(usize, u8)]) -> Vec<(usize, u8)> {
+        paulis.iter().copied().filter(|&(q, _)| !self.leaked(q)).collect()
+    }
+}
+
 /// The probabilities of a step's branches in the order `run_step` numbers them; one entry for
 /// a step that does not branch.
-fn branch_probs(step: &Step, sv: &StateVector, rec: &[bool], chain: bool) -> Vec<f64> {
-    let _ = rec;
+fn branch_probs(step: &Step, sv: &StateVector, ctx: &Ctx) -> Vec<f64> {
+    let chain = ctx.chain;
     match step {
+        Step::Measure { q, flip, .. } if ctx.leaked(*q) => {
+            if ctx.reads_one {
+                vec![0.0, 0.0, 1.0 - flip, *flip]
+            } else {
+                vec![0.5 * (1.0 - flip), 0.5 * flip, 0.5 * (1.0 - flip), 0.5 * flip]
+            }
+        }
+        Step::Cx(a, b) | Step::Cz(a, b) if ctx.leaked(*a) != ctx.leaked(*b) => vec![0.25; 4],
+        Step::Leak { q, p } if !ctx.leaked(*q) => {
+            let p1 = sv.prob_one(*q);
+            vec![1.0 - p, p * (1.0 - p1), p * p1]
+        }
+        Step::Seep { q, p } if ctx.leaked(*q) => vec![1.0 - p, p / 2.0, p / 2.0],
+        Step::Transport { a, b, p } if ctx.leaked(*a) != ctx.leaked(*b) => {
+            let other = if ctx.leaked(*a) { *b } else { *a };
+            let p1 = sv.prob_one(other);
+            vec![1.0 - p, p * (1.0 - p1) / 2.0, p * (1.0 - p1) / 2.0, p * p1 / 2.0, p * p1 / 2.0]
+        }
+        Step::Leak { .. } | Step::Seep { .. } | Step::Transport { .. } => vec![1.0],
         Step::Measure { q, basis, flip, .. } => {
             let p1 = match basis {
                 Basis::Z => sv.prob_one(*q),
@@ -527,20 +580,94 @@ fn branch_probs(step: &Step, sv: &StateVector, rec: &[bool], chain: bool) -> Vec
 
 /// Runs one step, `choose` picking a branch (given the branch probabilities for a sampler; an
 /// enumerator ignores them and names the branch).
-fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, chain: &mut bool, choose: &mut dyn FnMut(&[f64]) -> usize) {
+fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, ctx: &mut Ctx, choose: &mut dyn FnMut(&[f64]) -> usize) {
+    let probs = || branch_probs(step, sv, ctx);
     match step {
+        // Leaked qubits take no part: their gates do nothing, a two-qubit gate with one leaves
+        // the other a random Pauli, and measuring one reads 1 (or a coin).
+        Step::H(q) | Step::S(q) | Step::Unitary(q, _) | Step::Damp { q, .. } if ctx.leaked(*q) => {}
+        Step::Cx(a, b) | Step::Cz(a, b) if ctx.leaked(*a) || ctx.leaked(*b) => {
+            if ctx.leaked(*a) != ctx.leaked(*b) {
+                let other = if ctx.leaked(*a) { *b } else { *a };
+                let k = choose(&probs());
+                if k > 0 {
+                    sv.pauli(&[(other, [0, 1, 3, 2][k])]);
+                }
+            }
+        }
+        Step::Measure { q, reset, .. } if ctx.leaked(*q) => {
+            let k = choose(&probs());
+            rec.push((k >= 2) ^ (k % 2 == 1));
+            if *reset {
+                ctx.leaked[*q] = false;
+            }
+        }
+        Step::Reset { q, .. } if ctx.leaked(*q) => {
+            ctx.leaked[*q] = false;
+            if matches!(step, Step::Reset { basis: Basis::X, .. }) {
+                sv.h(*q);
+            }
+        }
+        Step::Leak { q, .. } => {
+            if probs().len() > 1 {
+                let k = choose(&probs());
+                if k > 0 {
+                    // The qubit's state goes with it: its Z outcome, then |0⟩ held in place.
+                    let p1 = sv.prob_one(*q);
+                    sv.collapse(*q, k == 2, if k == 2 { p1 } else { 1.0 - p1 });
+                    if k == 2 {
+                        sv.pauli(&[(*q, 1)]);
+                    }
+                    ctx.leaked[*q] = true;
+                }
+            }
+        }
+        Step::Seep { q, .. } => {
+            if probs().len() > 1 {
+                let k = choose(&probs());
+                if k > 0 {
+                    ctx.leaked[*q] = false;
+                    if k == 2 {
+                        sv.pauli(&[(*q, 1)]);
+                    }
+                }
+            }
+        }
+        Step::Transport { a, b, .. } => {
+            if probs().len() > 1 {
+                let k = choose(&probs());
+                if k > 0 {
+                    let (back, other) = if ctx.leaked(*a) { (*a, *b) } else { (*b, *a) };
+                    let gone = k >= 3;
+                    let p1 = sv.prob_one(other);
+                    sv.collapse(other, gone, if gone { p1 } else { 1.0 - p1 });
+                    if gone {
+                        sv.pauli(&[(other, 1)]);
+                    }
+                    ctx.leaked[other] = true;
+                    ctx.leaked[back] = false;
+                    if k.is_multiple_of(2) {
+                        sv.pauli(&[(back, 1)]);
+                    }
+                }
+            }
+        }
         Step::H(q) => sv.h(*q),
         Step::S(q) => sv.phase(*q, C::I),
-        Step::Paulis(p) => sv.pauli(p),
+        Step::Paulis(p) => sv.pauli(&ctx.live(p)),
         Step::Cx(c, t) => sv.cx(*c, *t),
         Step::Cz(a, b) => sv.cz(*a, *b),
-        Step::Rotation { paulis, theta } => sv.rotate(paulis, *theta),
+        Step::Rotation { paulis, theta } => {
+            if paulis.iter().all(|&(q, _)| !ctx.leaked(q)) {
+                sv.rotate(paulis, *theta)
+            }
+        }
         Step::Unitary(q, m) => sv.apply_1q(*q, m),
         Step::Measure { q, basis, reset, flip } => {
             if *basis == Basis::X {
                 sv.h(*q);
             }
-            let probs = branch_probs(&Step::Measure { q: *q, basis: Basis::Z, reset: false, flip: *flip }, sv, rec, *chain);
+            let probs = branch_probs(&Step::Measure { q: *q, basis: Basis::Z, reset: false, flip: *flip }, sv, ctx);
             let k = choose(&probs);
             let outcome = k >= 2;
             let p = if outcome { probs[2] + probs[3] } else { probs[0] + probs[1] };
@@ -572,14 +699,14 @@ fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, chain: &mut 
             probs.push(1.0 - probs.iter().sum::<f64>());
             let k = choose(&probs);
             if k < branches.len() {
-                sv.pauli(&branches[k].1);
+                sv.pauli(&ctx.live(&branches[k].1));
             }
         }
         Step::Correlated { p, paulis, chained } => {
-            let fires = if *chained && *chain { false } else { choose(&[*p, 1.0 - p]) == 0 };
-            *chain = if *chained { *chain || fires } else { fires };
+            let fires = if *chained && ctx.chain { false } else { choose(&[*p, 1.0 - p]) == 0 };
+            ctx.chain = if *chained { ctx.chain || fires } else { fires };
             if fires {
-                sv.pauli(paulis);
+                sv.pauli(&ctx.live(paulis));
             }
         }
         Step::Pad { flip, value } => {
@@ -591,13 +718,13 @@ fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, chain: &mut 
             v.push(1.0 - probs.iter().sum::<f64>());
             let k = choose(&v);
             rec.push(k < 4);
-            if (1..4).contains(&k) {
+            if (1..4).contains(&k) && !ctx.leaked(*q) {
                 sv.pauli(&[(*q, [0, 1, 3, 2][k])]);
             }
         }
         Step::Feedback { pauli, rec: r, q } => {
             if rec[*r] {
-                sv.pauli(&[(*q, *pauli)]);
+                sv.pauli(&ctx.live(&[(*q, *pauli)]));
             }
         }
         Step::Damp { q, gamma } => {

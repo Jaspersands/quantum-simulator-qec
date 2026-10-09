@@ -14,19 +14,40 @@
 //! failure visible as a coin flip instead of hiding it.
 
 use crate::circuit::{Basis, Circuit, Instr};
+use crate::nonpauli::NonPauli;
 use crate::surface_code::Xorshift;
 
 pub struct Shot {
     pub detectors: Vec<bool>,
     pub observables: u64,
+    /// For a circuit with leakage, whether each measurement found its qubit leaked; empty
+    /// otherwise.
+    pub heralds: Vec<bool>,
 }
 
 pub struct FrameSampler {
+    /// Whether the circuit has leakage (`I_ERROR[LEAK(p=…)]` and the rest): a leaked flag per
+    /// qubit, set by LEAK and LEAK_TRANSPORT, cleared by SEEP and by a reset. A two-qubit gate
+    /// with a leaked partner leaves the other qubit a uniformly random Pauli (Google's model),
+    /// and measuring a leaked qubit reads 1 (or a coin flip, `leaked_reads_one = false`).
+    leaky: bool,
+    pub leaked_reads_one: bool,
+    /// The noiseless reference record, which a leaked qubit's 1 is a flip from.
+    reference: Vec<bool>,
     instrs: Vec<Instr>,
     num_qubits: usize,
     num_measurements: usize,
     detectors: Vec<Vec<usize>>,
     observables: Vec<Vec<usize>>,
+}
+
+/// After a two-qubit gate, a leaked partner leaves the other qubit a uniformly random Pauli.
+fn leaked_partner(leaked: &[bool], a: usize, b: usize, x: &mut [bool], z: &mut [bool], rng: &mut Xorshift) {
+    for (l, o) in [(a, b), (b, a)] {
+        if leaked[l] && !leaked[o] {
+            apply(x, z, o, [0, 1, 3, 2][(rng.next_u64() % 4) as usize]);
+        }
+    }
 }
 
 fn apply(x: &mut [bool], z: &mut [bool], q: usize, pauli: u8) {
@@ -41,7 +62,12 @@ fn apply(x: &mut [bool], z: &mut [bool], q: usize, pauli: u8) {
 impl FrameSampler {
     pub fn new(circuit: &Circuit) -> Result<FrameSampler, String> {
         let res = circuit.resolve()?;
+        let leaky = res.instrs.iter().any(|i| matches!(i, Instr::NonPauli(ops) if ops.iter().any(|o| o.is_leakage())));
+        let reference = if leaky { crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1) } else { Vec::new() };
         Ok(FrameSampler {
+            leaky,
+            leaked_reads_one: true,
+            reference,
             instrs: res.instrs,
             num_qubits: res.num_qubits,
             num_measurements: res.num_measurements,
@@ -66,11 +92,16 @@ impl FrameSampler {
         // Whether the current chain of correlated errors has fired.
         let mut chain = false;
         let mut pauli_obs = 0u64;
+        let mut leaked = vec![false; if self.leaky { nq } else { 0 }];
+        let mut heralds = Vec::new();
         for ins in &self.instrs {
             match ins {
                 Instr::Reset { basis, qubits } => {
                     for &q in qubits {
                         let q = q as usize;
+                        if self.leaky {
+                            leaked[q] = false;
+                        }
                         match basis {
                             Basis::Z => {
                                 x[q] = false;
@@ -98,6 +129,9 @@ impl FrameSampler {
                         if z[t] {
                             z[c] ^= true;
                         }
+                        if self.leaky {
+                            leaked_partner(&leaked, c, t, &mut x, &mut z, rng);
+                        }
                     }
                 }
                 Instr::Cz(pairs) => {
@@ -109,6 +143,9 @@ impl FrameSampler {
                         if x[b] {
                             z[a] ^= true;
                         }
+                        if self.leaky {
+                            leaked_partner(&leaked, a, b, &mut x, &mut z, rng);
+                        }
                     }
                 }
                 Instr::Measure { basis, reset, flip, qubits } => {
@@ -118,6 +155,16 @@ impl FrameSampler {
                             Basis::Z => x[q],
                             Basis::X => z[q],
                         };
+                        if self.leaky {
+                            heralds.push(leaked[q]);
+                            if leaked[q] {
+                                // A leaked qubit reads 1: a flip from the reference's value.
+                                r = if self.leaked_reads_one { !self.reference[rec.len()] } else { rng.next_u64() & 1 == 1 };
+                            }
+                            if *reset {
+                                leaked[q] = false;
+                            }
+                        }
                         if *flip > 0.0 && rng.next_f64() < *flip {
                             r = !r;
                         }
@@ -246,6 +293,36 @@ impl FrameSampler {
                         }
                     }
                 }
+                Instr::NonPauli(ops) if self.leaky => {
+                    for op in ops {
+                        match *op {
+                            NonPauli::Leak { p, qubit } => {
+                                if rng.next_f64() < p {
+                                    leaked[qubit as usize] = true;
+                                }
+                            }
+                            NonPauli::Seep { p, qubit } => {
+                                let q = qubit as usize;
+                                if rng.next_f64() < p && leaked[q] {
+                                    leaked[q] = false;
+                                    // Back in |0⟩ or |1⟩ at random.
+                                    x[q] ^= rng.next_u64() & 1 == 1;
+                                    z[q] = rng.next_u64() & 1 == 1;
+                                }
+                            }
+                            NonPauli::LeakTransport { p, a, b } => {
+                                let (a, b) = (a as usize, b as usize);
+                                if rng.next_f64() < p && leaked[a] != leaked[b] {
+                                    let back = if leaked[a] { a } else { b };
+                                    leaked.swap(a, b);
+                                    x[back] ^= rng.next_u64() & 1 == 1;
+                                    z[back] = rng.next_u64() & 1 == 1;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 Instr::Pauli { .. }
                 | Instr::SweepX(_)
                 | Instr::Detector { .. }
@@ -265,7 +342,7 @@ impl FrameSampler {
                 observables |= 1u64 << k;
             }
         }
-        Shot { detectors, observables }
+        Shot { detectors, observables, heralds }
     }
 }
 

@@ -373,6 +373,16 @@ class Circuit:
         many of the circuit's local interference generators a shot's sum multiplies together."""
         return CoherentSampler(self, order, seed)
 
+    def compile_leakage_sampler(self, *, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> "LeakageSampler":
+        """A frame sampler that runs leakage, written as Stim-readable tags:
+        ``I_ERROR[LEAK(p=…)] q`` (the qubit leaks), ``I_ERROR[SEEP(p=…)] q`` (a leaked qubit
+        returns, to |0⟩ or |1⟩ at random) and ``II_ERROR[LEAK_TRANSPORT(p=…)] a b`` (leakage
+        moves to the partner). A two-qubit gate with a leaked partner leaves the other qubit a
+        uniformly random Pauli, as in Google's model; measuring a leaked qubit reads 1 (a coin
+        flip with ``leaked_reads_one=False``); a reset returns it. Its ``sample`` also gives each
+        measurement's herald: whether its qubit was leaked."""
+        return LeakageSampler(self, leaked_reads_one, seed)
+
     def exact_distribution(self, *, max_branches: int = 1 << 20) -> dict:
         """Every outcome's exact probability, following every measurement outcome and noise
         branch: ``{(detection events, observable flips): probability}``, each a tuple of bools.
@@ -834,6 +844,40 @@ class ExactSampler(DetectorSampler):
     def num_qubits(self) -> int:
         """The qubits in use, which the state vector holds."""
         return self._s.num_qubits
+
+
+class LeakageSampler:
+    """Shots of a circuit with leakage, and which measurements found their qubit leaked. Made
+    by ``Circuit.compile_leakage_sampler``."""
+
+    __slots__ = ("_s", "_m")
+
+    def __init__(self, circuit: Circuit, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._s = call(circuit._c.leakage_sampler, seed_of(seed), bool(leaked_reads_one))
+        self._m = circuit.num_measurements
+
+    def __reduce__(self) -> tuple:
+        raise TypeError("a LeakageSampler is a position in a stream of shots; send the circuit and a seed")
+
+    @property
+    def num_detectors(self) -> int:
+        return self._s.num_detectors
+
+    @property
+    def num_observables(self) -> int:
+        return self._s.num_observables
+
+    def sample(self, shots: int, *, threads: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """``(detection events, observable flips, heralds)`` for ``shots`` shots: bool arrays
+        of shape (shots, detectors), (shots, observables) and (shots, measurements), the last
+        empty in width when the circuit has no leakage."""
+        shots = count(shots, "shots")
+        d, o, h = call(self._s.sample, shots, count(threads, "threads"))
+        heralds = np.frombuffer(h, dtype=np.uint8).astype(bool)
+        heralds = heralds.reshape(shots, -1) if heralds.size else np.zeros((shots, 0), dtype=bool)
+        return b8_to_rows(d, shots, self.num_detectors, False), b8_to_rows(o, shots, self.num_observables, False), heralds
 
 
 class CoherentSampler:

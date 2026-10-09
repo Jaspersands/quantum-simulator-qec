@@ -216,6 +216,6 @@ def test_threads_do_not_change_the_shots():
     assert np.array_equal(a, b)
 
 
-def test_leakage_is_refused():
-    with pytest.raises(ValueError, match="leakage"):
-        sq.Circuit("R 0\nI_ERROR[LEAK(p=0.1)] 0\nM 0").compile_exact_sampler()
+def test_leaked_qubits_read_one():
+    c = sq.Circuit("R 0\nI_ERROR[LEAK(p=1)] 0\nM 0\nDETECTOR rec[-1]")
+    assert c.exact_distribution() == {((True,), ()): 1.0}
