@@ -122,6 +122,8 @@ mod equivalence;
 mod py_api;
 #[cfg(feature = "python")]
 mod py_objects;
+#[cfg(feature = "python")]
+mod py_stim;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
 #[cfg(not(feature = "python"))]
@@ -177,6 +179,7 @@ fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyRotatedSurfaceCode>()?;
     py_api::register(m)?;
     py_objects::register(m)?;
+    py_stim::register(m)?;
     Ok(())
 }
 

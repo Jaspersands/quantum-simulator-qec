@@ -7,15 +7,18 @@ from typing import Any, Union
 
 import numpy as np
 
-from . import _core
+from . import _core, _stim
 from ._util import b8_to_rows, call, count, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
 
 class Circuit:
     """A stabilizer circuit in Stim's circuit language.
 
-    Build one from Stim text, a ``stim.Circuit``, or another ``Circuit``; ``str()`` gives the
-    text back as written. Every Clifford gate of Stim's is read (H, S and CX natively, the
+    Build one from Stim text, a ``stim.Circuit``, or another ``Circuit``; ``str()`` gives
+    Stim's text exactly as ``str(stim.Circuit(...))`` does (canonical names, neighbouring
+    compatible instructions fused, arguments to 6 significant digits), while the arguments
+    themselves are kept exactly. As in Stim, the circuit is also a list of instructions and
+    ``REPEAT`` blocks: ``len``, indexing, slicing, ``insert``, ``pop`` and ``clear``. Every Clifford gate of Stim's is read (H, S and CX natively, the
     rest as their exact decompositions), with resets and measurements in all three bases,
     inverted targets (``!q``), Pauli-product measurements and rotations (``MPP``, ``MXX``,
     ``MYY``, ``MZZ``, ``SPP``, ``SPP_DAG``), the Pauli, depolarizing, correlated and heralded
@@ -55,19 +58,102 @@ class Circuit:
             return cls(f.read())
 
     def __str__(self) -> str:
-        return self._c.__str__()
+        """Stim's text: canonical names, neighbouring instructions fused, arguments to 6
+        significant digits (the values themselves are kept exactly)."""
+        return _core.circuit_stim_text(self._c.__str__())
+
+    def _stim_exact_text(self) -> str:
+        """The text with every argument exact, which parses back to an equal circuit."""
+        return _core.circuit_exact_text(self._c.__str__())
 
     def __repr__(self) -> str:
-        return f"stabilizer_qec.Circuit({str(self)!r})"
+        text = str(self)
+        if not text:
+            return "stabilizer_qec.Circuit()"
+        body = "\n".join("    " + line if line else line for line in text.split("\n"))
+        return f"stabilizer_qec.Circuit('''\n{body}\n''')"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Circuit):
             return NotImplemented
-        return self._c.__eq__(other._c)
+        return self._stim_exact_text() == other._stim_exact_text()
+
+    def __ne__(self, other: object) -> bool:
+        r = self.__eq__(other)
+        return r if r is NotImplemented else not r
+
+    def approx_equals(self, other: object, *, atol: float) -> bool:
+        """Equal up to arguments differing by at most ``atol``."""
+        if not isinstance(other, Circuit):
+            try:
+                other = Circuit(other)
+            except TypeError:
+                return False
+        return bool(_core.circuit_approx_equals(self._stim_exact_text(), other._stim_exact_text(), float(atol)))
 
     def __reduce__(self) -> tuple:
-        # Pickled, copied and sent to other processes as its text.
-        return (Circuit, (str(self),))
+        # Pickled, copied and sent to other processes as its exact text.
+        return (Circuit, (self._stim_exact_text(),))
+
+    # Stim's list-of-instructions interface.
+    def _items(self) -> list:
+        return _core.circuit_items(self._c.__str__())
+
+    def __len__(self) -> int:
+        """How many instructions and REPEAT blocks are at the top level."""
+        return len(self._items())
+
+    def __iter__(self):
+        for it in self._items():
+            yield _stim._item_object(it)
+
+    def __getitem__(self, index_or_slice: Any) -> Any:
+        """The instruction or REPEAT block at an index, or a slice of them as a circuit."""
+        items = self._items()
+        if isinstance(index_or_slice, slice):
+            return Circuit(_stim._items_exact_text(items[index_or_slice]))
+        if isinstance(index_or_slice, bool) or not isinstance(index_or_slice, (int, np.integer)):
+            raise TypeError(f"circuit indices must be integers or slices, not {type(index_or_slice).__name__}")
+        k = int(index_or_slice)
+        if k < 0:
+            k += len(items)
+        if not 0 <= k < len(items):
+            raise IndexError(f"index {index_or_slice} is out of range for a circuit with {len(items)} items")
+        return _stim._item_object(items[k])
+
+    def _set_items(self, items: list) -> None:
+        self._c = call(_core.Circuit, _stim._items_exact_text(items))
+
+    def insert(self, index: int, operation: Any) -> None:
+        """Insert an instruction, REPEAT block or circuit before ``index``."""
+        items = self._items()
+        k = int(index)
+        if k < 0:
+            k += len(items)
+        if not 0 <= k <= len(items):
+            raise IndexError(f"index {index} out of range")
+        piece = _core.circuit_items(_stim_text(operation))
+        self._set_items(items[:k] + piece + items[k:])
+
+    def pop(self, index: int = -1) -> Any:
+        """Remove and return the instruction or REPEAT block at ``index``."""
+        items = self._items()
+        k = int(index)
+        if k < 0:
+            k += len(items)
+        if not 0 <= k < len(items):
+            raise IndexError(f"index {index} out of range")
+        out = _stim._item_object(items[k])
+        self._set_items(items[:k] + items[k + 1:])
+        return out
+
+    def clear(self) -> None:
+        """Remove everything."""
+        self._c = call(_core.Circuit, "")
+
+    def append_operation(self, name: Any, targets: Any = (), arg: Any = None, *, tag: str = "") -> None:
+        """Stim's older name for ``append``."""
+        self.append(name, targets, arg, tag=tag)
 
     def copy(self) -> "Circuit":
         """A copy, to change without changing this one."""
@@ -444,13 +530,36 @@ def _args(arg: Any) -> list:
 
 
 def _stim_text(obj: Any) -> str:
-    """A stim.Circuit, CircuitInstruction or CircuitRepeatBlock as circuit text."""
+    """A Circuit, CircuitInstruction or CircuitRepeatBlock (ours or Stim's) as circuit text,
+    arguments exact."""
+    exact = getattr(obj, "_stim_exact_text", None)
+    if exact is not None:
+        return exact()
+    if type(obj).__module__.startswith("stim") and type(obj).__name__ in ("Circuit", "CircuitInstruction"):
+        return _stim_object_exact_text(obj)
     if hasattr(obj, "repeat_count") and hasattr(obj, "body_copy"):
         tag = getattr(obj, "tag", "")
         return f"REPEAT{f'[{tag}]' if tag else ''} {obj.repeat_count} {{\n{obj.body_copy()}\n}}"
     if type(obj).__module__.startswith("stim"):
         return str(obj)
     raise TypeError(f"cannot append a {type(obj).__name__}: give an instruction's name, a Circuit, or a Stim circuit, instruction or repeat block")
+
+
+def _stim_object_exact_text(obj: Any) -> str:
+    """A stim.Circuit or stim.CircuitInstruction as text with exact arguments (Stim's own text
+    rounds them to 6 digits)."""
+    if type(obj).__name__ == "CircuitInstruction":
+        targets = [_core.parse_gate_target(_target(t)) for t in obj.targets_copy()]
+        return _core.instruction_text(obj.name, list(obj.gate_args_copy()), targets, getattr(obj, "tag", ""), True)
+    lines = []
+    for item in obj:
+        if hasattr(item, "repeat_count"):
+            tag = getattr(item, "tag", "")
+            body = _stim_object_exact_text(item.body_copy())
+            lines.append(f"REPEAT{f'[{_stim._escape_tag(tag)}]' if tag else ''} {item.repeat_count} {{\n{body}\n}}")
+        else:
+            lines.append(_stim_object_exact_text(item))
+    return "\n".join(lines)
 
 
 import builtins as _builtins

@@ -126,6 +126,8 @@ def render() -> str:
         "    pub inverse: Option<&'static str>,",
         "    pub generalized_inverse: &'static str,",
         "    pub hadamard_conjugated: Option<&'static str>,",
+        "    /// The same up to Pauli signs (`hadamard_conjugated(unsigned=True)`).",
+        "    pub hadamard_conjugated_unsigned: Option<&'static str>,",
         "    /// Stim's internal flags (the `FLAG_*` bits below).",
         "    pub flags: u32,",
         "    /// How many parens arguments: a count, or 254 (zero or one) or 255 (any).",
@@ -160,6 +162,11 @@ def render() -> str:
             hc = hc.name if hc is not None else None
         except Exception:
             hc = None
+        try:
+            hcu = g.hadamard_conjugated(unsigned=True)
+            hcu = hcu.name if hcu is not None else None
+        except Exception:
+            hcu = None
         r = g.num_parens_arguments_range
         fields = [
             f"name: {rust_str(g.name)}",
@@ -174,6 +181,7 @@ def render() -> str:
             f"inverse: {'Some(' + rust_str(inv) + ')' if inv else 'None'}",
             f"generalized_inverse: {rust_str(g.generalized_inverse.name)}",
             f"hadamard_conjugated: {'Some(' + rust_str(hc) + ')' if hc else 'None'}",
+            f"hadamard_conjugated_unsigned: {'Some(' + rust_str(hcu) + ')' if hcu else 'None'}",
             f"flags: {src[key][0]}",
             f"arg_count: {src[key][1]}",
             f"category: {rust_str(src[key][2])}",

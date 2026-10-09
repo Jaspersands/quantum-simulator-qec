@@ -28,8 +28,13 @@ def text_of(obj: Any, kind: str, ours: type) -> str:
     if isinstance(obj, str):
         return obj
     if isinstance(obj, ours):
-        return str(obj)
+        exact = getattr(obj, "_stim_exact_text", None)
+        return exact() if exact is not None else str(obj)
     if type(obj).__module__.split(".")[0] == "stim" and type(obj).__name__ == kind:
+        if kind == "Circuit":
+            from ._circuit import _stim_object_exact_text
+
+            return _stim_object_exact_text(obj)
         return str(obj)
     raise TypeError(f"expected a str, stabilizer_qec.{ours.__name__} or stim.{kind}, not {type(obj).__name__}")
 

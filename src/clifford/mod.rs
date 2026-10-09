@@ -11,3 +11,4 @@ pub mod ir;
 pub mod tableau_sim;
 
 pub use tableau_sim::TableauSimulator;
+pub mod convert;

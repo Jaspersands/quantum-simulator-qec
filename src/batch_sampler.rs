@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn a_loop_that_never_runs_is_not_checked() {
-        assert!(BatchSampler::new(&Circuit::parse("REPEAT 0 {\n DETECTOR rec[-1]\n}\nM 0").unwrap()).is_ok());
+        assert!(Circuit::parse("REPEAT 0 {\n DETECTOR rec[-1]\n}\nM 0").is_err(), "as in Stim, a loop repeats at least once");
     }
 
     #[test]

@@ -4,6 +4,33 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 2.0.0 — unreleased
+
+Everything every other QEC tool has (the inventory in
+`docs/superpowers/notes/2026-10-09-parity-inventory.md`), and Clifford+T circuits with coherent
+noise on every gate. In progress on `feature/2.0`.
+
+### Changed
+
+- **`str(circuit)` is Stim's text exactly**: compatible neighbouring instructions are fused
+  (`H 0` then `H 1` is `H 0 1`), arguments print to 6 significant digits as Stim prints them,
+  and there is no trailing newline. The arguments themselves stay exact: equality, pickling and
+  copies use them, and `circuit[k].gate_args_copy()` returns them.
+- `REPEAT 0 { ... }` is an error, as in Stim ("Repeating 0 times is not supported.").
+- `stabilizer-qec gen` ends its output with a newline, as `stim gen` does.
+
+### Added
+
+- **Stim's stabilizer objects**: `PauliString` (and `PauliStringIterator`), `Tableau` (and
+  `TableauIterator`), `TableauSimulator`, `GateData` / `gate_data`, `GateTarget` and every
+  `target_*` helper, `CircuitInstruction`, `CircuitRepeatBlock`, `Flow`. Every example in Stim's
+  own docstrings for these passes (`tests/test_stim_doctests.py`, 1,269 examples).
+- `Circuit` as a list: `len`, indexing and slicing (instructions and `CircuitRepeatBlock`s),
+  `insert`, `pop`, `clear`, `append_operation`, `approx_equals`.
+- In Rust: `clifford::{PauliString, Tableau, TableauSimulator}`, Stim's conversions
+  (`clifford::convert`: stabilizers, state vectors, unitaries, circuits, graph states, random
+  Cliffords) and its instruction-level circuit (`clifford::ir`).
+
 ## 1.9.0 — 2026-10-09
 
 The Python package and the Rust crate both at 1.9.0, "beyond Pauli noise". The headline is

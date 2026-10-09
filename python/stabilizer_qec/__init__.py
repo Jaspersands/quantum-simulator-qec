@@ -188,6 +188,28 @@ from ._explain import (
     GateTargetWithCoords,
 )
 from ._shots import read_shot_data_file, write_shot_data_file
+from ._stim import (
+    CircuitRepeatBlock,
+    CircuitInstruction,
+    Flow,
+    GateData,
+    GateTarget,
+    PauliString,
+    PauliStringIterator,
+    Tableau,
+    TableauIterator,
+    TableauSimulator,
+    gate_data,
+    target_combined_paulis,
+    target_combiner,
+    target_inv,
+    target_pauli,
+    target_rec,
+    target_sweep_bit,
+    target_x,
+    target_y,
+    target_z,
+)
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, UnionFind, Window, WindowMatching
 
@@ -287,4 +309,24 @@ __all__ = [
     "memory_circuit",
     "stream_memory",
     "surgery",
+    "CircuitRepeatBlock",
+    "CircuitInstruction",
+    "Flow",
+    "GateData",
+    "GateTarget",
+    "PauliString",
+    "PauliStringIterator",
+    "Tableau",
+    "TableauIterator",
+    "TableauSimulator",
+    "gate_data",
+    "target_combined_paulis",
+    "target_combiner",
+    "target_inv",
+    "target_pauli",
+    "target_rec",
+    "target_sweep_bit",
+    "target_x",
+    "target_y",
+    "target_z",
 ]

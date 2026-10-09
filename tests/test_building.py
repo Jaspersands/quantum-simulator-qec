@@ -112,16 +112,16 @@ def test_copies_are_independent_and_operators_do_not_mutate():
     b, c = a.copy(), a + sq.Circuit("X 0")
     b.append("M", 0)
     d = a * 3
-    assert str(a) == "H 0\n" and a.num_measurements == 0
-    assert b.num_measurements == 1 and str(c) == "H 0\nX 0\n" and "REPEAT 3" in str(d)
+    assert str(a) == "H 0" and a.num_measurements == 0
+    assert b.num_measurements == 1 and str(c) == "H 0\nX 0" and "REPEAT 3" in str(d)
     assert str(a * 0) == "" and a * 1 == a and 2 * a == a * 2
     e = a
     e += sq.Circuit("Z 0")
-    assert e is a and str(a) == "H 0\nZ 0\n"
+    assert e is a and str(a) == "H 0\nZ 0"
     # A circuit added to itself, as Stim allows.
     a += a
     a.append(a)
-    assert str(a) == "H 0\nZ 0\n" * 4 and a.num_qubits == 1
+    assert str(a) == "\n".join(["H 0\nZ 0"] * 4) and a.num_qubits == 1
 
 
 def test_bad_appends_change_nothing():

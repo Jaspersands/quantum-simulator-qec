@@ -166,7 +166,7 @@ def cmd_gen(a) -> None:
     )
     circuit = Circuit.generated(task, distance=a.distance, rounds=a.rounds, **noise)
     header = _core.generated_header(task, a.distance, a.rounds, *noise.values())
-    _write(a.out, header + str(circuit))
+    _write(a.out, header + str(circuit) + "\n")
 
 
 def cmd_sample(a) -> None:

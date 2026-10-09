@@ -237,7 +237,7 @@ pub fn exact_arg(v: f64) -> String {
     if g.parse::<f64>() == Ok(v) {
         g
     } else {
-        format!("{v:e}")
+        format!("{v}")
     }
 }
 
@@ -436,11 +436,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Circuit,
     while *pos < lines.len() {
         let raw = lines[*pos];
         *pos += 1;
-        let line = match raw.find('#') {
-            Some(k) => &raw[..k],
-            None => raw,
-        }
-        .trim();
+        let line = strip_comment(raw).trim();
         if line.is_empty() {
             continue;
         }
@@ -470,6 +466,20 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Circuit,
         return Err("Unterminated block. Got a '{' without an eventual '}'.".into());
     }
     Ok(c)
+}
+
+/// The line without its `#` comment; a `#` inside a `[tag]` is part of the tag.
+fn strip_comment(raw: &str) -> &str {
+    let mut in_tag = false;
+    for (k, c) in raw.char_indices() {
+        match c {
+            '[' if !in_tag => in_tag = true,
+            ']' if in_tag => in_tag = false,
+            '#' if !in_tag => return &raw[..k],
+            _ => {}
+        }
+    }
+    raw
 }
 
 /// (name, tag, args, rest-of-line targets).
@@ -592,6 +602,7 @@ mod tests {
         assert_eq!(rt("REPEAT[t] 2 {\nH 0\n}"), "REPEAT[t] 2 {\n    H 0\n}");
         assert_eq!(rt("TICK\nREPEAT 2 {\nTICK\n}\nTICK"), "TICK\nREPEAT 2 {\n    TICK\n}\nTICK");
         assert_eq!(rt("H[a\\Cb] 0"), "H[a\\Cb] 0");
+        assert_eq!(rt("H[a#b] 0 # comment"), "H[a#b] 0");
         assert_eq!(rt("X_ERROR(1e-5) 0"), "X_ERROR(1e-05) 0");
         assert!(Circuit::parse("X_ERROR(0.1)0").is_err());
         assert!(Circuit::parse("REPEAT 0 {\nH 0\n}").is_err());

@@ -110,7 +110,8 @@ def test_any_circuit_text(text):
         c = sq.Circuit(text)
     except ALLOWED:
         return
-    assert sq.Circuit(str(c)) == c
+    assert sq.Circuit(c._stim_exact_text()) == c
+    assert str(sq.Circuit(str(c))) == str(c)
     # Loops are unrolled for an error model: a million passes is legitimate work, and slow.
     counts = [int(m) for m in re.findall(r"REPEAT(?:\[[^\]]*\])?\s+(\d+)", text)]
     # So are a circuit's per-qubit arrays: qubit 16,777,215 costs 16.7 million of them.
@@ -163,7 +164,7 @@ def test_any_circuit_built_from_pieces(pieces):
             built.append("TICK")
         except ALLOWED:
             continue
-    again = sq.Circuit(str(built))
+    again = sq.Circuit(built._stim_exact_text())
     assert again == built
     counts = lambda c: (c.num_qubits, c.num_measurements, c.num_detectors, c.num_observables, c.num_sweep_bits)
     assert counts(again) == counts(built)

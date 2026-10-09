@@ -367,6 +367,9 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
                 _ => None,
             }
             .ok_or_else(|| format!("line {lineno}: REPEAT needs a count"))?;
+            if count == 0 {
+                return Err(format!("line {lineno}: Repeating 0 times is not supported."));
+            }
             let body = parse_block(lines, pos, true)?;
             out.push(Instr::Repeat { count, body, tag: tag.to_string() });
             continue;

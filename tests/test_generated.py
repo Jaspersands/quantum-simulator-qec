@@ -39,9 +39,8 @@ def test_generated_circuits_are_stims(task):
             with pytest.raises(ValueError):
                 sq.Circuit.generated(task, distance=d, rounds=rounds, **noise)
             continue
-        # This package's text ends in a newline, Stim's does not; the rest is the same.
         got = str(sq.Circuit.generated(task, distance=d, rounds=rounds, **noise))
-        assert got == want + "\n", f"{task} d={d} rounds={rounds} {noise}"
+        assert got == want, f"{task} d={d} rounds={rounds} {noise}"
         compared += 1
     assert compared >= 60
 
@@ -49,14 +48,20 @@ def test_generated_circuits_are_stims(task):
 def test_a_large_surface_code_is_stims():
     stim = pytest.importorskip("stim")
     kw = dict(distance=25, rounds=50, after_clifford_depolarization=0.001, before_measure_flip_probability=0.001)
-    assert str(sq.Circuit.generated("surface_code:rotated_memory_x", **kw)) == str(stim.Circuit.generated("surface_code:rotated_memory_x", **kw)) + "\n"
+    assert str(sq.Circuit.generated("surface_code:rotated_memory_x", **kw)) == str(stim.Circuit.generated("surface_code:rotated_memory_x", **kw))
 
 
-def test_text_keeps_what_six_digits_would_lose():
-    # Stim writes 1/3 as 0.333333; this package writes it exactly, so its text round-trips.
+def test_text_is_stims_but_values_stay_exact():
+    # Stim writes 1/3 as 0.333333, and so does str() here; the value itself is kept exactly,
+    # and a pickled or copied circuit carries the exact text.
+    import pickle
+
     c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=2, after_clifford_depolarization=1 / 3)
-    assert "DEPOLARIZE2(0.3333333333333333)" in str(c)
-    assert sq.Circuit(str(c)) == c
+    assert "DEPOLARIZE2(0.333333)" in str(c)
+    assert "DEPOLARIZE2(0.3333333333333333)" in c._stim_exact_text()
+    assert pickle.loads(pickle.dumps(c)) == c
+    assert sq.Circuit(str(c)) != c and sq.Circuit(str(c)).approx_equals(c, atol=1e-6)
+    assert [i for i in c if i.name == "DEPOLARIZE2"][0].gate_args_copy() == [1 / 3]
 
 
 def test_generated_circuits_work_here():
@@ -104,6 +109,6 @@ def test_colour_annotations_are_clorcos():
             else:
                 ref.append(inst)
         ours = sq.Circuit.generated("color_code:memory_xyz", annotate_colors=True, **kw)
-        assert str(ours) == str(ref) + "\n"
+        assert str(ours) == str(ref)
     with pytest.raises(ValueError, match="colour code"):
         sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, annotate_colors=True)
