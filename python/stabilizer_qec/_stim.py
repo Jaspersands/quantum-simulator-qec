@@ -1098,118 +1098,76 @@ def target_combined_paulis(paulis: Any, invert: bool = False) -> List[GateTarget
 class Flow:
     """A stabilizer flow ``input -> output xor rec[...] xor obs[...]``, as ``stim.Flow``."""
 
-    __slots__ = ("_input", "_output", "_measurements", "_observables")
+    __slots__ = ("_text",)
 
     def __init__(self, arg: Any = None, /, *, input: Optional[PauliString] = None, output: Optional[PauliString] = None, measurements: Optional[Iterable[Any]] = None, included_observables: Optional[Iterable[int]] = None) -> None:
-        if isinstance(arg, Flow):
-            self._input, self._output = arg._input.copy(), arg._output.copy()
-            self._measurements, self._observables = list(arg._measurements), list(arg._observables)
-            return
-        if isinstance(arg, str):
-            self._input, self._output, self._measurements, self._observables = _parse_flow(arg)
-            return
         if arg is not None:
-            raise ValueError(f"Don't know how to make a Flow from {arg!r}")
-        self._input = PauliString(input) if input is not None else PauliString(0)
-        self._output = PauliString(output) if output is not None else PauliString(0)
-        self._measurements = sorted({_rec_value(m) for m in (measurements or [])})
-        self._observables = sorted(set(int(k) for k in (included_observables or [])))
+            if any(x is not None for x in (input, output, measurements, included_observables)):
+                raise ValueError("Can't specify both a positional argument and `input=`/`output=`/`measurements=`/`included_observables=`.")
+            if isinstance(arg, Flow):
+                self._text = arg._text
+            elif isinstance(arg, str):
+                self._text = _core.flow_text(arg)
+            elif type(arg).__name__ == "Flow":  # a stim.Flow
+                self._text = _core.flow_text(str(arg))
+            else:
+                raise ValueError(f"Don't know how to make a Flow from {arg!r}")
+            return
+        i = str(PauliString(input)) if input is not None else "+"
+        o = str(PauliString(output)) if output is not None else "+"
+        ms = []
+        for m in measurements or []:
+            if isinstance(m, GateTarget) or type(m).__name__ == "GateTarget":
+                if not m.is_measurement_record_target:
+                    raise ValueError(f"Not a measurement offset: {m!r}")
+                ms.append(int(m.value))
+            else:
+                ms.append(int(m))
+        self._text = _core.flow_from_parts(i, o, ms, [int(k) for k in (included_observables or [])])
+
+    @staticmethod
+    def _of(text: str) -> "Flow":
+        out = Flow.__new__(Flow)
+        out._text = text
+        return out
+
+    def _parts(self) -> Tuple[str, str, List[int], List[int]]:
+        return _core.flow_parts(self._text)
 
     def input_copy(self) -> PauliString:
-        return self._input.copy()
+        return PauliString(self._parts()[0])
 
     def output_copy(self) -> PauliString:
-        return self._output.copy()
+        return PauliString(self._parts()[1])
 
     def measurements_copy(self) -> List[int]:
-        return list(self._measurements)
+        return list(self._parts()[2])
 
     def included_observables_copy(self) -> List[int]:
-        return list(self._observables)
+        return list(self._parts()[3])
+
+    def __mul__(self, rhs: "Flow") -> "Flow":
+        if not isinstance(rhs, Flow):
+            return NotImplemented
+        return Flow._of(_core.flow_mul(self._text, rhs._text))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Flow):
             return NotImplemented
-        return (self._input, self._output, self._measurements, self._observables) == (other._input, other._output, other._measurements, other._observables)
+        return self._parts() == other._parts()
 
     def __ne__(self, other: object) -> bool:
         r = self.__eq__(other)
         return r if r is NotImplemented else not r
 
     def __hash__(self) -> int:
-        return hash((str(self._input), str(self._output), tuple(self._measurements), tuple(self._observables)))
+        return hash(("Flow", self._text))
 
     def __str__(self) -> str:
-        def side(p: PauliString, extra: List[str]) -> str:
-            terms = []
-            body = str(p)
-            sign, paulis = ("-" if body.startswith("-") else ""), body.lstrip("+-")
-            if paulis.strip("_"):
-                terms.append(sign + paulis)
-            elif sign:
-                terms.append("-1")
-            terms += extra
-            return " xor ".join(terms) if terms else "1"
-        recs = [f"rec[{m}]" for m in self._measurements]
-        obs = [f"obs[{k}]" for k in self._observables]
-        return f"{side(self._input, [])} -> {side(self._output, recs + obs)}"
+        return self._text
 
     def __repr__(self) -> str:
-        return f'stabilizer_qec.Flow("{self}")'
-
-
-def _rec_value(m: Any) -> int:
-    if isinstance(m, GateTarget):
-        if not m.is_measurement_record_target:
-            raise ValueError(f"Not a measurement record target: {m!r}")
-        return m.value
-    return int(m)
-
-
-def _parse_flow(text: str) -> Tuple[PauliString, PauliString, List[int], List[int]]:
-    if "->" not in text:
-        raise ValueError(f"Invalid stabilizer flow text: '{text}'.")
-    left, right = text.split("->", 1)
-
-    def parse_side(s: str, allow_extra: bool) -> Tuple[PauliString, List[int], List[int]]:
-        p = PauliString(0)
-        recs: List[int] = []
-        obs: List[int] = []
-        s = s.strip()
-        if s in ("1", ""):
-            return p, recs, obs
-        for term in s.split("xor"):
-            term = term.strip()
-            if term.startswith("rec["):
-                if not allow_extra:
-                    raise ValueError(f"Invalid stabilizer flow text: '{text}'.")
-                recs.append(int(term[4:-1]))
-            elif term.startswith("obs["):
-                if not allow_extra:
-                    raise ValueError(f"Invalid stabilizer flow text: '{text}'.")
-                obs.append(int(term[4:-1]))
-            elif term in ("1", "+1"):
-                pass
-            elif term == "-1":
-                p = p * -1
-            else:
-                q = PauliString(term)
-                n = max(len(p), len(q))
-                p = (p + PauliString(n - len(p))) * (q + PauliString(n - len(q)))
-        return p, recs, obs
-
-    ip, _, _ = parse_side(left, False)
-    op, recs, obs = parse_side(right, True)
-    n = max(len(ip), len(op))
-    ip = ip + PauliString(n - len(ip))
-    op = op + PauliString(n - len(op))
-    rec_set: Dict[int, int] = {}
-    for r in recs:
-        rec_set[r] = rec_set.get(r, 0) ^ 1
-    obs_set: Dict[int, int] = {}
-    for o in obs:
-        obs_set[o] = obs_set.get(o, 0) ^ 1
-    return ip, op, sorted(k for k, v in rec_set.items() if v), sorted(k for k, v in obs_set.items() if v)
+        return f'stabilizer_qec.Flow("{self._text}")'
 
 
 # ---------------------------------------------------------------------------------------------

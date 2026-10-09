@@ -33,6 +33,19 @@ noise on every gate. In progress on `feature/2.0`.
   `TableauIterator`), `TableauSimulator`, `GateData` / `gate_data`, `GateTarget` and every
   `target_*` helper, `CircuitInstruction`, `CircuitRepeatBlock`, `Flow`. Every example in Stim's
   own docstrings for these passes (`tests/test_stim_doctests.py`, 1,269 examples).
+- **Flows**: `Flow` (Stim's text form and product), `Circuit.has_flow`, `has_all_flows`,
+  `flow_generators`, `solve_flow_measurements`, `time_reversed_for_flows`,
+  `missing_detectors`. The signed flow check runs once, exactly (each input qubit entangled
+  with a reference), where Stim samples 256 random inputs.
+- **Circuit transformations** as Stim writes them: `decomposed`, `flattened`,
+  `flattened_operations`, `without_noise`, `without_tags`, `inverse`, `with_inlined_feedback`;
+  and `num_ticks`, `get_detector_coordinates`, `get_final_qubit_coordinates`,
+  `count_determined_measurements`, `reference_detector_and_observable_signs`, `to_tableau`,
+  `to_file`.
+- **The detector error model's objects**: `DemTarget`, `DemInstruction`, `DemRepeatBlock`,
+  `target_relative_detector_id`, `target_logical_observable_id`, `target_separator`; a model is
+  a list (indexing, slicing, `append`, `clear`, `copy`) with Stim's `+`, `*`, `approx_equals`,
+  `rounded`, `get_detector_coordinates`, `without_tags`, `to_file`.
 - `Circuit` as a list: `len`, indexing and slicing (instructions and `CircuitRepeatBlock`s),
   `insert`, `pop`, `clear`, `append_operation`, `approx_equals`.
 - In Rust: `clifford::{PauliString, Tableau, TableauSimulator}`, Stim's conversions

@@ -676,6 +676,80 @@ fn circuit_reference_signs(text: &str, num_observables: usize) -> PyResult<(Vec<
     crate::clifford::transform::reference_detector_and_observable_signs(&ir::Circuit::parse(text).map_err(err)?, num_observables).map_err(err)
 }
 
+fn parse_flows(flows: &[String]) -> PyResult<Vec<crate::clifford::flow::Flow>> {
+    flows.iter().map(|f| crate::clifford::flow::Flow::from_text(f).map_err(err)).collect()
+}
+
+/// A flow's canonical text.
+#[pyfunction]
+fn flow_text(text: &str) -> PyResult<String> {
+    Ok(crate::clifford::flow::Flow::from_text(text).map_err(err)?.to_string())
+}
+
+/// A flow from its parts (Pauli texts with signs, record indices, observables), as text.
+#[pyfunction]
+fn flow_from_parts(input: &str, output: &str, measurements: Vec<i32>, observables: Vec<u32>) -> PyResult<String> {
+    let i = PauliString::from_text(input).map_err(err)?;
+    let o = PauliString::from_text(output).map_err(err)?;
+    if i.is_imaginary() != o.is_imaginary() {
+        return Err(err("Anti-Hermitian flows aren't allowed.".into()));
+    }
+    let (mut i, mut o) = (i, o);
+    i.phase &= 2;
+    o.phase &= 2;
+    Ok(crate::clifford::flow::Flow::new(i, o, measurements, observables).to_string())
+}
+
+/// (input, output, measurements, observables) of a flow, the Paulis as dense signed text.
+#[pyfunction]
+fn flow_parts(text: &str) -> PyResult<(String, String, Vec<i32>, Vec<u32>)> {
+    let f = crate::clifford::flow::Flow::from_text(text).map_err(err)?;
+    Ok((f.input.to_string(), f.output.to_string(), f.measurements, f.observables))
+}
+
+#[pyfunction]
+fn flow_mul(a: &str, b: &str) -> PyResult<String> {
+    let a = crate::clifford::flow::Flow::from_text(a).map_err(err)?;
+    let b = crate::clifford::flow::Flow::from_text(b).map_err(err)?;
+    Ok(a.mul(&b).map_err(err)?.to_string())
+}
+
+#[pyfunction]
+fn circuit_flow_generators(text: &str) -> PyResult<Vec<String>> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    Ok(crate::clifford::flow::flow_generators(&c).map_err(err)?.iter().map(|f| f.to_string()).collect())
+}
+
+#[pyfunction]
+fn circuit_has_flows(text: &str, flows: Vec<String>, unsigned: bool) -> PyResult<Vec<bool>> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    let f = parse_flows(&flows)?;
+    if unsigned {
+        crate::clifford::flow::has_unsigned_flows(&c, &f).map_err(err)
+    } else {
+        crate::clifford::flow::has_signed_flows(&c, &f).map_err(err)
+    }
+}
+
+#[pyfunction]
+fn circuit_solve_flow_measurements(text: &str, flows: Vec<String>) -> PyResult<Vec<Option<Vec<i32>>>> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    crate::clifford::flow::solve_flow_measurements(&c, &parse_flows(&flows)?).map_err(err)
+}
+
+#[pyfunction]
+fn circuit_time_reversed_for_flows(text: &str, flows: Vec<String>, dont_turn_measurements_into_resets: bool) -> PyResult<(String, Vec<String>)> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    let (out, fl) = crate::clifford::flow::time_reversed_for_flows(&c, &parse_flows(&flows)?, dont_turn_measurements_into_resets).map_err(err)?;
+    Ok((out.exact_text(), fl.iter().map(|f| f.to_string()).collect()))
+}
+
+#[pyfunction]
+fn circuit_missing_detectors(text: &str, unknown_input: bool) -> PyResult<String> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    Ok(crate::clifford::flow::missing_detectors(&c, unknown_input).map_err(err)?.exact_text())
+}
+
 /// The circuit's items: ("op", name, tag, args, targets) or ("repeat", count, tag, items).
 #[pyfunction]
 fn circuit_items<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
@@ -723,6 +797,15 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circuit_items, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_approx_equals, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_transform, m)?)?;
+    m.add_function(wrap_pyfunction!(flow_text, m)?)?;
+    m.add_function(wrap_pyfunction!(flow_from_parts, m)?)?;
+    m.add_function(wrap_pyfunction!(flow_parts, m)?)?;
+    m.add_function(wrap_pyfunction!(flow_mul, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_flow_generators, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_has_flows, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_solve_flow_measurements, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_time_reversed_for_flows, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_missing_detectors, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_num_ticks, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_final_qubit_coordinates, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_detector_coordinates, m)?)?;

@@ -266,6 +266,36 @@ class Circuit:
             with open(file, "w", encoding="utf-8") as f:
                 f.write(text)
 
+    # Flows.
+    def has_flow(self, flow: "_stim.Flow", *, unsigned: bool = False) -> bool:
+        """Whether the circuit maps the flow's input stabilizer to its output (with its
+        measurements), signs included unless ``unsigned``."""
+        return call(_core.circuit_has_flows, self._stim_exact_text(), [str(_stim.Flow(flow))], bool(unsigned))[0]
+
+    def has_all_flows(self, flows: Any, *, unsigned: bool = False) -> bool:
+        """Whether the circuit has every one of the flows."""
+        return all(call(_core.circuit_has_flows, self._stim_exact_text(), [str(_stim.Flow(f)) for f in flows], bool(unsigned)))
+
+    def flow_generators(self) -> list:
+        """Flows that generate every flow the circuit has, in Stim's canonical form."""
+        return [_stim.Flow._of(t) for t in call(_core.circuit_flow_generators, self._stim_exact_text())]
+
+    def solve_flow_measurements(self, flows: Any) -> list:
+        """For each flow, the measurements that complete it into a flow of the circuit, or
+        None where none do."""
+        return list(call(_core.circuit_solve_flow_measurements, self._stim_exact_text(), [str(_stim.Flow(f)) for f in flows]))
+
+    def time_reversed_for_flows(self, flows: Any, *, dont_turn_measurements_into_resets: bool = False) -> tuple:
+        """The circuit run backwards, its detectors and observables re-expressed, with the
+        given flows turned around."""
+        text, fl = call(_core.circuit_time_reversed_for_flows, self._stim_exact_text(), [str(_stim.Flow(f)) for f in flows], bool(dont_turn_measurements_into_resets))
+        return Circuit(text), [_stim.Flow._of(f) for f in fl]
+
+    def missing_detectors(self, *, unknown_input: bool = False) -> "Circuit":
+        """Detectors the circuit could declare but doesn't (independent of the declared
+        detectors and observables)."""
+        return Circuit(call(_core.circuit_missing_detectors, self._stim_exact_text(), bool(unknown_input)))
+
     def append_operation(self, name: Any, targets: Any = (), arg: Any = None, *, tag: str = "") -> None:
         """Stim's older name for ``append``."""
         self.append(name, targets, arg, tag=tag)

@@ -15,6 +15,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import stim_doctests  # noqa: E402
 
 DONE = [
+    "Flow",
     "target_separator",
     "target_relative_detector_id",
     "target_logical_observable_id",
