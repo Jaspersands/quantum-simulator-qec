@@ -623,11 +623,13 @@ class Circuit:
         n = self.num_measurements
         return b8_to_rows(call(self._c.reference_sample), 1, n, bit_packed)[0]
 
-    def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None) -> "MeasurementSampler":
+    def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None, reference_sample: Any = None) -> "MeasurementSampler":
         """A sampler of raw measurement records, as Stim's: a noiseless reference run with each
-        shot's flips (with ``skip_reference_sample``, the flips alone). The same seed gives the
-        same shots on any machine and number of threads; ``None`` draws a seed."""
-        return MeasurementSampler(self, seed, skip_reference_sample)
+        shot's flips (with ``skip_reference_sample``, the flips alone; with
+        ``reference_sample``, a bool or bit-packed array, the flips on top of that record). The
+        same seed gives the same shots on any machine and number of threads; ``None`` draws a
+        seed."""
+        return MeasurementSampler(self, seed, skip_reference_sample, reference_sample)
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
@@ -668,12 +670,12 @@ class Circuit:
         no = self.num_observables
         return {(tuple(d), tuple(bool(o >> k & 1) for k in range(no))): p for d, o, p in rows}
 
-    def compile_m2d_converter(self) -> "MeasurementsToDetectionEventsConverter":
+    def compile_m2d_converter(self, *, skip_reference_sample: bool = False) -> "MeasurementsToDetectionEventsConverter":
         """A converter from raw measurements (and sweep bits) to detection events, as
         ``stim m2d``. Loops are run pass by pass, never unrolled into memory, so a circuit of
         millions of rounds converts. Its reference run keeps a dense tableau: at most 16,384
-        qubits."""
-        return MeasurementsToDetectionEventsConverter(self)
+        qubits. With ``skip_reference_sample`` the reference is all zeros, as in Stim."""
+        return MeasurementsToDetectionEventsConverter(self, skip_reference_sample=skip_reference_sample)
 
 
 def _target(t: Any) -> str:
@@ -1206,13 +1208,29 @@ class MeasurementSampler:
     """Raw measurement records, as ``stim.CompiledMeasurementSampler``. Made by
     ``Circuit.compile_sampler``."""
 
-    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, skip_reference_sample: bool = False) -> None:
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, skip_reference_sample: bool = False, reference_sample: Any = None) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
+        self._circuit = circuit
+        self._reference = None
+        if reference_sample is not None:
+            if skip_reference_sample:
+                raise ValueError("skip_reference_sample = True but reference_sample is not None.")
+            n = circuit.num_measurements
+            r = np.asarray(reference_sample)
+            if r.dtype == np.uint8:
+                r = np.unpackbits(r, count=n, bitorder="little") if r.size == (n + 7) // 8 else r
+            if r.ndim != 1 or r.shape[0] != n:
+                raise ValueError(f"reference_sample must have {n} bits (or {(n + 7) // 8} bit-packed bytes), not shape {np.asarray(reference_sample).shape}")
+            self._reference = r.astype(bool)
+            skip_reference_sample = True
         self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample))
 
     def __reduce__(self) -> tuple:
         raise TypeError("a MeasurementSampler is a position in a stream of shots, which a copy would restart; send the circuit and a seed instead")
+
+    def __repr__(self) -> str:
+        return f"stabilizer_qec.CompiledMeasurementSampler({self._circuit!r})"
 
     @property
     def num_measurements(self) -> int:
@@ -1221,7 +1239,21 @@ class MeasurementSampler:
     def sample(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> np.ndarray:
         """``shots`` measurement records: (shots, measurements) bool, or bit-packed uint8 rows."""
         shots = count(shots, "shots")
-        return b8_to_rows(call(self._s.sample, shots, count(threads, "threads")), shots, self.num_measurements, bit_packed)
+        raw = call(self._s.sample, shots, count(threads, "threads"))
+        if self._reference is None:
+            return b8_to_rows(raw, shots, self.num_measurements, bit_packed)
+        rows = b8_to_rows(raw, shots, self.num_measurements, False) ^ self._reference[None, :]
+        return pack_rows(rows, bit_packed)
+
+    def sample_bit_packed(self, shots: int) -> np.ndarray:
+        """``sample(shots, bit_packed=True)``."""
+        return self.sample(shots, bit_packed=True)
+
+    def sample_write(self, shots: int, *, filepath: Union[str, PathLike], format: str = "01") -> None:
+        """Writes ``shots`` records to a file in one of Stim's formats."""
+        from ._shots import write_shot_data_file
+
+        write_shot_data_file(data=self.sample(shots), path=filepath, format=format, num_measurements=self.num_measurements)
 
 
 class DemSampler:
@@ -1272,16 +1304,46 @@ class DemSampler:
             e = b8_to_rows(e, shots, ne, bit_packed) if return_errors else None
         return b8_to_rows(d, shots, nd, bit_packed), b8_to_rows(o, shots, no, bit_packed), e
 
+    def sample_write(
+        self,
+        shots: int,
+        *,
+        det_out_file: Union[None, str, PathLike],
+        det_out_format: str = "01",
+        obs_out_file: Union[None, str, PathLike],
+        obs_out_format: str = "01",
+        err_out_file: Union[None, str, PathLike] = None,
+        err_out_format: str = "01",
+        replay_err_in_file: Union[None, str, PathLike] = None,
+        replay_err_in_format: str = "01",
+    ) -> None:
+        """Samples (or, from ``replay_err_in_file``, replays) shots and writes the detection
+        events, observable flips and faults to files in Stim's formats (any may be None)."""
+        from ._shots import read_shot_data_file, write_shot_data_file
+
+        ne = self.num_errors
+        replay = None
+        if replay_err_in_file is not None:
+            replay = read_shot_data_file(path=replay_err_in_file, format=replay_err_in_format, num_measurements=ne)
+        d, o, e = self.sample(shots, return_errors=err_out_file is not None, recorded_errors_to_replay=replay)
+        if det_out_file is not None:
+            write_shot_data_file(data=d, path=det_out_file, format=det_out_format, num_detectors=self.num_detectors)
+        if obs_out_file is not None:
+            write_shot_data_file(data=o, path=obs_out_file, format=obs_out_format, num_observables=self.num_observables)
+        if err_out_file is not None:
+            write_shot_data_file(data=e, path=err_out_file, format=err_out_format, num_measurements=ne)
+
 
 class DetectorSampler:
-    """Detection events and observable flips, 64 shots to a machine word. Made by
-    ``Circuit.compile_detector_sampler``."""
+    """Detection events and observable flips, 64 shots to a machine word, as
+    ``stim.CompiledDetectorSampler``. Made by ``Circuit.compile_detector_sampler``."""
 
-    __slots__ = ("_s",)
+    __slots__ = ("_s", "_circuit")
 
     def __init__(self, circuit: Circuit, seed: Union[int, None] = None) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
+        self._circuit = circuit
         self._s = call(circuit._c.sampler, seed_of(seed))
 
     def __reduce__(self) -> tuple:
@@ -1289,6 +1351,9 @@ class DetectorSampler:
             "a DetectorSampler is a position in a stream of shots, which a copy would restart; "
             "send the circuit and a seed, and compile a sampler where it is used"
         )
+
+    def __repr__(self) -> str:
+        return f"stabilizer_qec.CompiledDetectorSampler({self._circuit!r})"
 
     @property
     def num_detectors(self) -> int:
@@ -1298,37 +1363,83 @@ class DetectorSampler:
     def num_observables(self) -> int:
         return self._s.num_observables
 
+    def _draw(self, shots: int, threads: int) -> tuple:
+        d, o = call(self._s.sample, shots, threads)
+        return b8_to_rows(d, shots, self.num_detectors, False), b8_to_rows(o, shots, self.num_observables, False)
+
     def sample(
         self,
         shots: int,
         *,
-        separate_observables: bool = False,
+        prepend_observables: bool = False,
         append_observables: bool = False,
+        separate_observables: bool = False,
         bit_packed: bool = False,
+        dets_out: Union[np.ndarray, None] = None,
+        obs_out: Union[np.ndarray, None] = None,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """``shots`` shots, as Stim's ``DetectorSampler.sample`` gives them: detection events
-        of shape (shots, detectors), bool, or (shots, ⌈detectors/8⌉) uint8 when ``bit_packed``
-        (bit k of a row in byte k // 8, position k % 8). ``separate_observables`` returns
-        ``(detections, observables)``; ``append_observables`` puts the observables after each
-        row's detectors. ``threads = 0`` uses every core; the shots do not depend on it.
+        """``shots`` shots, as Stim's ``CompiledDetectorSampler.sample`` gives them: detection
+        events of shape (shots, detectors), bool, or (shots, ⌈detectors/8⌉) uint8 when
+        ``bit_packed`` (bit k of a row in byte k // 8, position k % 8). ``separate_observables``
+        returns ``(detections, observables)``; ``prepend_observables`` / ``append_observables``
+        put the observables before / after each row's detectors (both: both). ``dets_out`` and
+        ``obs_out`` are arrays to write into. ``threads = 0`` uses every core; the shots do not
+        depend on it.
 
         Successive calls continue the stream. Shots are drawn 64 at a time, and a call that
         ends partway through 64 discards the rest of them.
         """
         shots = count(shots, "shots")
         threads = count(threads, "threads")
-        if separate_observables and append_observables:
-            raise ValueError("choose separate_observables or append_observables, not both")
-        nd, no = self.num_detectors, self.num_observables
-        d, o = call(self._s.sample, shots, threads)
-        if append_observables:
-            rows = np.concatenate([b8_to_rows(d, shots, nd, False), b8_to_rows(o, shots, no, False)], axis=1)
-            return pack_rows(rows, bit_packed)
-        dets = b8_to_rows(d, shots, nd, bit_packed)
+        if separate_observables and (append_observables or prepend_observables):
+            raise ValueError("Can't specify separate_observables=True with append_observables=True or prepend_observables=True")
+        dets, obs = self._draw(shots, threads)
+        if prepend_observables or append_observables:
+            parts = ([obs] if prepend_observables else []) + [dets] + ([obs] if append_observables else [])
+            dets = np.concatenate(parts, axis=1)
+        dets = _into(pack_rows(dets, bit_packed), dets_out)
         if separate_observables:
-            return dets, b8_to_rows(o, shots, no, bit_packed)
+            return dets, _into(pack_rows(obs, bit_packed), obs_out)
         return dets
+
+    def sample_bit_packed(self, shots: int, *, prepend_observables: bool = False, append_observables: bool = False) -> np.ndarray:
+        """``sample(shots, bit_packed=True, ...)``."""
+        return self.sample(shots, prepend_observables=prepend_observables, append_observables=append_observables, bit_packed=True)
+
+    def sample_write(
+        self,
+        shots: int,
+        *,
+        filepath: Union[str, PathLike],
+        format: str = "01",
+        obs_out_filepath: Union[str, PathLike, None] = None,
+        obs_out_format: str = "01",
+        prepend_observables: bool = False,
+        append_observables: bool = False,
+    ) -> None:
+        """Writes ``shots`` shots to a file in one of Stim's formats; the observables go into
+        each row (prepended or appended) and/or their own file."""
+        from ._shots import encode_shots, write_shot_data_file
+
+        dets, obs = self._draw(count(shots, "shots"), 1)
+        nd, no = self.num_detectors, self.num_observables
+        rows = np.concatenate(([obs] if prepend_observables else []) + [dets] + ([obs] if append_observables else []), axis=1)
+        names = [f"L{k}" for k in range(no)] * prepend_observables + [f"D{k}" for k in range(nd)] + [f"L{k}" for k in range(no)] * append_observables
+        with open(filepath, "wb") as f:
+            f.write(encode_shots(rows, format, num_detectors=rows.shape[1], names=names))
+        if obs_out_filepath is not None:
+            write_shot_data_file(data=obs, path=obs_out_filepath, format=obs_out_format, num_observables=no)
+
+
+def _into(data: np.ndarray, out: Union[np.ndarray, None]) -> np.ndarray:
+    """``data``, or ``out`` with ``data`` written into it (shape and dtype must match)."""
+    if out is None:
+        return data
+    if out.shape != data.shape or out.dtype != data.dtype:
+        raise ValueError(f"Expected output buffer to have shape={data.shape} but its shape is {out.shape}.")
+    out[...] = data
+    return out
 
 
 class ExactSampler(DetectorSampler):
@@ -1341,7 +1452,11 @@ class ExactSampler(DetectorSampler):
     def __init__(self, circuit: Circuit, seed: Union[int, None] = None) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
+        self._circuit = circuit
         self._s = call(circuit._c.exact_sampler, seed_of(seed))
+
+    def __repr__(self) -> str:
+        return f"stabilizer_qec.ExactSampler({self._circuit!r})"
 
     @property
     def num_qubits(self) -> int:
@@ -1430,16 +1545,24 @@ class MeasurementsToDetectionEventsConverter:
     each detector and observable compared with a noiseless reference run. Made by
     ``Circuit.compile_m2d_converter``."""
 
-    __slots__ = ("_m", "_circuit")
+    __slots__ = ("_m", "_circuit", "_skip")
 
-    def __init__(self, circuit: Circuit) -> None:
+    def __init__(self, circuit: Circuit, *, skip_reference_sample: bool = False) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._m = call(circuit._c.m2d)
         self._circuit = circuit
+        # With skip_reference_sample the reference is all zeros: undo the reference's parities.
+        self._skip = None
+        if skip_reference_sample:
+            d, o = circuit.reference_detector_and_observable_signs()
+            self._skip = (np.asarray(d, dtype=bool), np.asarray(o, dtype=bool))
 
     def __reduce__(self) -> tuple:
-        return (MeasurementsToDetectionEventsConverter, (self._circuit,))
+        return (_converter, (self._circuit, self._skip is not None))
+
+    def __repr__(self) -> str:
+        return f"stabilizer_qec.CompiledMeasurementsToDetectionEventsConverter({self._circuit!r})"
 
     @property
     def num_measurements(self) -> int:
@@ -1484,6 +1607,10 @@ class MeasurementsToDetectionEventsConverter:
                 raise ValueError(f"{sweep_shots} shots of sweep bits for {shots} shots of measurements")
         d, o = call(self._m.convert, meas, sweeps, shots)
         nd, no = self.num_detectors, self.num_observables
+        if self._skip is not None:
+            d = (b8_to_rows(d, shots, nd, False) ^ self._skip[0][None, :])
+            o = (b8_to_rows(o, shots, no, False) ^ self._skip[1][None, :])
+            d, o = np.packbits(d, axis=1, bitorder="little").tobytes(), np.packbits(o, axis=1, bitorder="little").tobytes()
         if append_observables:
             rows = np.concatenate([b8_to_rows(d, shots, nd, False), b8_to_rows(o, shots, no, False)], axis=1)
             return pack_rows(rows, bit_packed)
@@ -1491,6 +1618,46 @@ class MeasurementsToDetectionEventsConverter:
         if separate_observables:
             return dets, b8_to_rows(o, shots, no, bit_packed)
         return dets
+
+    def convert_file(
+        self,
+        *,
+        measurements_filepath: Union[str, PathLike],
+        measurements_format: str = "01",
+        sweep_bits_filepath: Union[str, PathLike, None] = None,
+        sweep_bits_format: str = "01",
+        detection_events_filepath: Union[str, PathLike],
+        detection_events_format: str = "01",
+        append_observables: bool = False,
+        obs_out_filepath: Union[str, PathLike, None] = None,
+        obs_out_format: str = "01",
+    ) -> None:
+        """``convert`` from file to file, in Stim's formats."""
+        from ._shots import read_shot_data_file, write_shot_data_file
+
+        meas = read_shot_data_file(path=measurements_filepath, format=measurements_format, num_measurements=self.num_measurements)
+        sweeps = None
+        if sweep_bits_filepath is not None:
+            sweeps = read_shot_data_file(path=sweep_bits_filepath, format=sweep_bits_format, num_measurements=self.num_sweep_bits)
+        dets, obs = self.convert(measurements=meas, sweep_bits=sweeps, separate_observables=True)
+        nd, no = self.num_detectors, self.num_observables
+        if append_observables:
+            write_shot_data_file(data=np.concatenate([dets, obs], axis=1), path=detection_events_filepath, format=detection_events_format, num_detectors=nd, num_observables=no)
+        else:
+            write_shot_data_file(data=dets, path=detection_events_filepath, format=detection_events_format, num_detectors=nd)
+        if obs_out_filepath is not None:
+            write_shot_data_file(data=obs, path=obs_out_filepath, format=obs_out_format, num_observables=no)
+
+
+def _converter(circuit: Circuit, skip: bool) -> MeasurementsToDetectionEventsConverter:
+    return MeasurementsToDetectionEventsConverter(circuit, skip_reference_sample=skip)
+
+
+# Stim's class names.
+CompiledMeasurementSampler = MeasurementSampler
+CompiledDetectorSampler = DetectorSampler
+CompiledDemSampler = DemSampler
+CompiledMeasurementsToDetectionEventsConverter = MeasurementsToDetectionEventsConverter
 
 
 # ---------------------------------------------------------------------------------------------

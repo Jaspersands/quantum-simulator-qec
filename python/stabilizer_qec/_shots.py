@@ -16,7 +16,7 @@ observables (``num_detectors``, ``num_observables``).
 from __future__ import annotations
 
 from os import PathLike
-from typing import Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -42,8 +42,9 @@ def _names(num_measurements: int, num_detectors: int, num_observables: int) -> l
     return [f"M{k}" for k in range(num_measurements)] + [f"D{k}" for k in range(num_detectors)] + [f"L{k}" for k in range(num_observables)]
 
 
-def encode_shots(data: np.ndarray, format: str, num_measurements: int = 0, num_detectors: int = 0, num_observables: int = 0) -> bytes:
-    """Shots (a (shots, n) bool array) as the bytes of a ``format`` file."""
+def encode_shots(data: np.ndarray, format: str, num_measurements: int = 0, num_detectors: int = 0, num_observables: int = 0, names: Any = None) -> bytes:
+    """Shots (a (shots, n) bool array) as the bytes of a ``format`` file. ``names`` overrides
+    the ``dets`` format's column names (observables written before detectors, say)."""
     _format(format)
     n = _width(num_measurements, num_detectors, num_observables)
     a = np.asarray(data, dtype=bool)
@@ -74,7 +75,7 @@ def encode_shots(data: np.ndarray, format: str, num_measurements: int = 0, num_d
         return bytes(out)
     if format == "hits":
         return "".join(",".join(map(str, np.flatnonzero(row))) + "\n" for row in a).encode()
-    names = _names(num_measurements, num_detectors, num_observables)
+    names = names or _names(num_measurements, num_detectors, num_observables)
     return "".join("shot" + "".join(" " + names[k] for k in np.flatnonzero(row)) + "\n" for row in a).encode()
 
 

@@ -294,3 +294,57 @@ def test_clifford_strings_as_stim(seed):
     text = unitary_circuit(rng, rng.randint(1, 5), 8)
     ones = "\n".join(line for line in text.split("\n") if line.split()[0] in ONE)
     assert str(sq.CliffordString(sq.Circuit(ones))) == str(stim.CliffordString(stim.Circuit(ones)))
+
+
+DETERMINISTIC = """
+    X_ERROR(1) 0 3
+    R 5
+    X 6
+    CX 6 7
+    M 0 1 2 3 4 5 6 7
+    DETECTOR rec[-8]
+    DETECTOR rec[-7] rec[-6]
+    DETECTOR rec[-5]
+    DETECTOR rec[-1] rec[-2]
+    OBSERVABLE_INCLUDE(0) rec[-8]
+    OBSERVABLE_INCLUDE(2) rec[-5] rec[-4]
+"""
+
+
+@pytest.mark.parametrize("fmt", ["01", "b8", "r8", "ptb64", "hits", "dets"])
+def test_sampler_files_as_stim(fmt, tmp_path):
+    s, o = stim.Circuit(DETERMINISTIC), sq.Circuit(DETERMINISTIC)
+    shots = 64
+
+    def both(write):
+        write(s, tmp_path / "s")
+        write(o, tmp_path / "o")
+        for name in sorted(p.name[1:] for p in tmp_path.iterdir() if p.name.startswith("s")):
+            assert (tmp_path / ("o" + name)).read_bytes() == (tmp_path / ("s" + name)).read_bytes(), name
+        for p in list(tmp_path.iterdir()):
+            p.unlink()
+
+    both(lambda c, p: c.compile_detector_sampler().sample_write(shots, filepath=str(p) + "d", format=fmt, obs_out_filepath=str(p) + "o", obs_out_format=fmt))
+    both(lambda c, p: c.compile_detector_sampler().sample_write(shots, filepath=str(p) + "d", format=fmt, append_observables=True))
+    both(lambda c, p: c.compile_detector_sampler().sample_write(shots, filepath=str(p) + "d", format=fmt, prepend_observables=True))
+    both(lambda c, p: c.compile_sampler(skip_reference_sample=True).sample_write(shots, filepath=str(p) + "m", format=fmt))
+    both(lambda c, p: c.compile_sampler(reference_sample=np.array([1, 0, 1, 0, 0, 0, 1, 1], dtype=np.bool_)).sample_write(shots, filepath=str(p) + "m", format=fmt))
+    dem = "error(1) D0 L0\nerror(0) D1\nerror(1) D1 D3 L2\ndetector D4"
+    if fmt != "ptb64":  # Stim's model sampler refuses ptb64 output
+        both(lambda c, p: (sq if c is o else stim).DetectorErrorModel(dem).compile_sampler().sample_write(shots, det_out_file=str(p) + "d", det_out_format=fmt, obs_out_file=str(p) + "o", obs_out_format=fmt, err_out_file=str(p) + "e", err_out_format=fmt))
+    if fmt == "ptb64":  # Stim's file conversion refuses ptb64 too
+        return
+    rng = np.random.default_rng(5)
+    meas = rng.random((shots, 8)) < 0.5
+    sq.write_shot_data_file(data=meas, path=tmp_path / "in", format=fmt, num_measurements=8)
+    data = (tmp_path / "in").read_bytes()
+    for p in list(tmp_path.iterdir()):
+        p.unlink()
+
+    def convert(c, p, **kw):
+        (tmp_path / "in").write_bytes(data)
+        c.compile_m2d_converter(**kw).convert_file(measurements_filepath=str(tmp_path / "in"), measurements_format=fmt, detection_events_filepath=str(p) + "d", detection_events_format=fmt, obs_out_filepath=str(p) + "o", obs_out_format=fmt)
+        (tmp_path / "in").unlink()
+
+    both(convert)
+    both(lambda c, p: convert(c, p, skip_reference_sample=True))

@@ -46,6 +46,13 @@ noise on every gate. In progress on `feature/2.0`.
   `target_relative_detector_id`, `target_logical_observable_id`, `target_separator`; a model is
   a list (indexing, slicing, `append`, `clear`, `copy`) with Stim's `+`, `*`, `approx_equals`,
   `rounded`, `get_detector_coordinates`, `without_tags`, `to_file`.
+- **Stim's sampler surface**: the `Compiled*` class names (`CompiledMeasurementSampler`,
+  `CompiledDetectorSampler`, `CompiledDemSampler`,
+  `CompiledMeasurementsToDetectionEventsConverter`) as aliases; `sample_bit_packed`;
+  `sample_write` on every sampler (every Stim format; observables, errors and replays to their
+  own files) and `convert_file` on the converter, each writing the bytes Stim writes;
+  `compile_sampler(reference_sample=...)`; `compile_m2d_converter(skip_reference_sample=True)`;
+  `prepend_observables`, `dets_out` and `obs_out` on the detector sampler; Stim's reprs.
 - **`FlipSimulator`**, Stim's interactive Pauli-frame simulator over a batch of instances, with
   every method (`do`, `peek_pauli_flips`, `set_pauli_flip`, `broadcast_pauli_errors`,
   `append_measurement_flips`, the flip getters, `to_numpy`, `generate_bernoulli_samples`,
