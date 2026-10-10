@@ -384,15 +384,41 @@ impl Circuit {
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn diagram(&self, kind: DiagramKind) -> Result<String> {
+        self.diagram_with_filter(kind, &[crate::clifford::detslice::CoordFilter::default()])
+    }
+
+    /// `diagram`, with Stim's `filter_coords` choosing the detectors and observables of slice
+    /// diagrams: each filter a detector or observable, or a coordinate prefix (NaN for any
+    /// value) matching detectors. The default (one empty prefix) is every detector and no
+    /// observable, as in Stim.
+    pub fn diagram_with_filter(&self, kind: DiagramKind, filter: &[crate::clifford::detslice::CoordFilter]) -> Result<String> {
         use crate::diagram as d;
+        let ir = || crate::clifford::ir::Circuit::parse(&self.inner.to_stim()).map_err(Error::new);
+        let keep = || -> Result<std::collections::BTreeSet<String>> {
+            let c = ir()?;
+            let n = crate::clifford::transform::count_detectors(&c);
+            let coords = crate::clifford::transform::detector_coordinates(&c, &(0..n).collect()).map_err(Error::new)?;
+            let mut out = std::collections::BTreeSet::new();
+            for (k, v) in &coords {
+                if filter.iter().any(|f| f.matches(v, *k)) {
+                    out.insert(format!("D{k}"));
+                }
+            }
+            for f in filter {
+                if let Some(t) = f.target.filter(|&t| crate::clifford::rev_tracker::is_observable(t)) {
+                    out.insert(crate::clifford::rev_tracker::dem_target_str(t));
+                }
+            }
+            Ok(out)
+        };
         Ok(match kind {
             DiagramKind::TimelineText => d::timeline_text(&self.inner)?,
             DiagramKind::TimelineSvg => d::timeline_svg(&self.inner)?,
-            DiagramKind::DetectorSliceText { tick } => d::detslice_text(&self.inner, tick)?,
-            DiagramKind::DetectorSliceSvg { tick } => d::detslice_svg(&self.inner, tick)?,
-            DiagramKind::DetectorSlicesSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, true, false)?,
+            DiagramKind::DetectorSliceText { tick } => crate::clifford::detslice::SliceSet::from_circuit_ticks(&ir()?, tick, 1, filter).map_err(Error::new)?.text(),
+            DiagramKind::DetectorSliceSvg { tick } => d::detslice_svg_filtered(&self.inner, tick, Some(&keep()?))?,
+            DiagramKind::DetectorSlicesSvg { ticks, rows } => d::slices_svg_filtered(&self.inner, ticks.0..ticks.1, rows, true, false, Some(&keep()?))?,
             DiagramKind::TimeSliceSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, false, true)?,
-            DiagramKind::DetectorSliceWithOpsSvg { ticks, rows } => d::slices_svg(&self.inner, ticks.0..ticks.1, rows, true, true)?,
+            DiagramKind::DetectorSliceWithOpsSvg { ticks, rows } => d::slices_svg_filtered(&self.inner, ticks.0..ticks.1, rows, true, true, Some(&keep()?))?,
             DiagramKind::MatchGraphSvg => {
                 let dem = self.detector_error_model(&DemOptions::new().decompose_errors(true).approximate_disjoint_errors(Some(1.0)))?;
                 dem.matchgraph_svg()?

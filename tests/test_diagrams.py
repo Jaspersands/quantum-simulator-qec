@@ -41,18 +41,29 @@ def test_the_pictures_are_well_formed_svg(kind):
 
 def test_text_diagrams_are_not_pictures():
     d = sq.Circuit(BELL).diagram("timeline-text")
-    assert d._repr_svg_() is None and "timeline-text" in repr(d)
+    assert d._repr_svg_() is None and "containing text" in repr(d) and d.type == "timeline-text"
 
 
 def test_detector_slices_of_a_repetition_code():
     c = repetition()
-    first = str(c.diagram("detslice-text", tick=1)).splitlines()
+
+    def terms(tick, **kw):
+        out = {}
+        for line in str(c.diagram("detslice-text", tick=tick, **kw)).splitlines():
+            m = re.match(r"\s*q(\d+):", line)
+            if m:
+                for p, kind, n in re.findall(r"([XYZ]):([DL])(\d+)", line):
+                    out.setdefault(f"{kind}{n}", set()).add(f"{p}{m.group(1)}")
+        return out
+
     # Before the first round: D0 compares the parity it will read; D1 compares only the
-    # ancilla, as the first round's reset fixes it; the observable is the last data qubit.
-    assert first[0] == "D0: Z0 Z1 Z2" and "D1: Z1" in first and first[-1] == "L0: Z2"
-    later = str(c.diagram("detslice-text", tick=4)).splitlines()
+    # ancilla, as the first round's reset fixes it. Observables only when asked for.
+    first = terms(1)
+    assert first["D0"] == {"Z0", "Z1", "Z2"} and first["D1"] == {"Z1"} and "L0" not in first
+    assert terms(1, filter_coords=["L0"]) == {"L0": {"Z2"}}
     # After the first round's measurement D0 is read and gone; D1 compares the parity again.
-    assert not any(line.startswith("D0:") for line in later) and "D1: Z0 Z1 Z2" in later
+    later = terms(4)
+    assert "D0" not in later and later["D1"] == {"Z0", "Z1", "Z2"}
 
 
 def test_detslice_svg_draws_only_qubits_it_uses():
@@ -93,15 +104,6 @@ def _stim_slice(stim_circuit, tick):
     return out
 
 
-def _our_slice(circuit, tick):
-    out = {}
-    for line in str(circuit.diagram("detslice-text", tick=tick)).splitlines():
-        name, rest = line.split(": ")
-        if not name.startswith("L"):  # Stim's slices leave the observables out
-            out[name] = {(int(t[1:]), t[0]) for t in rest.split()}
-    return out
-
-
 @pytest.mark.parametrize(
     "code",
     ["surface_code:rotated_memory_z", "surface_code:rotated_memory_x", "repetition_code:memory", "color_code:memory_xyz", "surface_code:unrotated_memory_z"],
@@ -111,7 +113,8 @@ def test_detector_slices_match_stims(code):
     sc = stim.Circuit.generated(code, distance=3, rounds=3, after_clifford_depolarization=0.001)
     ours = sq.Circuit(str(sc))
     for tick in range(sc.num_ticks + 1):
-        assert _our_slice(ours, tick) == _stim_slice(sc, tick), f"tick {tick}"
+        assert str(ours.diagram("detslice-text", tick=tick)) == str(sc.diagram("detslice-text", tick=tick)), f"tick {tick}"
+        assert _stim_slice(ours, tick) == _stim_slice(sc, tick)
 
 
 @pytest.mark.parametrize("kind", ["timeslice-svg", "detslice-with-ops-svg", "detslice-svg"])

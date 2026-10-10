@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-stim = pytest.importorskip("stim")
+stim = pytest.importorskip("stim", minversion="1.16")
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import stim_doctests  # noqa: E402
 

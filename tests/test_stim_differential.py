@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 import random
+import re
+import sys
 
 import numpy as np
 import pytest
 
 import stabilizer_qec as sq
 
-stim = pytest.importorskip("stim")
+stim = pytest.importorskip("stim", minversion="1.16")
 
 ONE = ["H", "S", "S_DAG", "SQRT_X", "SQRT_X_DAG", "SQRT_Y", "SQRT_Y_DAG", "H_XY", "H_YZ", "C_XYZ", "C_ZYX", "X", "Y", "Z", "I"]
 TWO = ["CX", "CY", "CZ", "SWAP", "ISWAP", "ISWAP_DAG", "XCX", "XCY", "XCZ", "YCX", "YCY", "YCZ", "SQRT_XX", "SQRT_YY", "SQRT_ZZ", "SQRT_ZZ_DAG", "CXSWAP", "CZSWAP", "SWAPCX"]
@@ -162,6 +164,16 @@ def outcome(f):
         return f"{type(e).__name__}: {e}"
 
 
+def qasm(text: str) -> str:
+    """QASM text to compare. Stim's Euler angles for its custom one-qubit gates round at a ±pi
+    boundary, so its Windows build writes some differently (e.g. ``sydg`` as
+    ``U(pi/2, -pi/2, -pi/2)``); ours are its Linux and macOS builds'. On Windows the angles are
+    left out of the comparison."""
+    if sys.platform == "win32":
+        return re.sub(r"U\([^)]*\)", "U(...)", text)
+    return text
+
+
 @pytest.mark.parametrize("seed", range(150))
 def test_exports_of_random_circuits(seed):
     rng = random.Random(2000 + seed)
@@ -171,8 +183,8 @@ def test_exports_of_random_circuits(seed):
         return
     s, o = stim.Circuit(text), sq.Circuit(text)
     for v in (2, 3):
-        assert outcome(lambda: o.to_qasm(open_qasm_version=v)) == outcome(lambda: s.to_qasm(open_qasm_version=v))
-        assert outcome(lambda: o.to_qasm(open_qasm_version=v, skip_dets_and_obs=True)) == outcome(lambda: s.to_qasm(open_qasm_version=v, skip_dets_and_obs=True))
+        assert qasm(outcome(lambda: o.to_qasm(open_qasm_version=v))) == qasm(outcome(lambda: s.to_qasm(open_qasm_version=v)))
+        assert qasm(outcome(lambda: o.to_qasm(open_qasm_version=v, skip_dets_and_obs=True))) == qasm(outcome(lambda: s.to_qasm(open_qasm_version=v, skip_dets_and_obs=True)))
     assert outcome(o.to_quirk_url) == outcome(s.to_quirk_url)
     assert o.to_crumble_url() == s.to_crumble_url()
 
@@ -181,8 +193,8 @@ def test_exports_of_random_circuits(seed):
 def test_exports_of_generated_circuits(task):
     kw = dict(distance=3, rounds=3, after_clifford_depolarization=0.01, before_measure_flip_probability=0.02, after_reset_flip_probability=0.03)
     s, o = stim.Circuit.generated(task, **kw), sq.Circuit.generated(task, **kw)
-    assert o.without_noise().to_qasm(open_qasm_version=3) == s.without_noise().to_qasm(open_qasm_version=3)
-    assert o.without_noise().to_qasm(open_qasm_version=2, skip_dets_and_obs=True) == s.without_noise().to_qasm(open_qasm_version=2, skip_dets_and_obs=True)
+    assert qasm(o.without_noise().to_qasm(open_qasm_version=3)) == qasm(s.without_noise().to_qasm(open_qasm_version=3))
+    assert qasm(o.without_noise().to_qasm(open_qasm_version=2, skip_dets_and_obs=True)) == qasm(s.without_noise().to_qasm(open_qasm_version=2, skip_dets_and_obs=True))
     assert o.to_crumble_url() == s.to_crumble_url()
     assert o.to_crumble_url(skip_detectors=True) == s.to_crumble_url(skip_detectors=True)
     sf, of = s.flattened(), o.flattened()
@@ -348,3 +360,65 @@ def test_sampler_files_as_stim(fmt, tmp_path):
 
     both(convert)
     both(lambda c, p: convert(c, p, skip_reference_sample=True))
+
+
+NOISE = ["X_ERROR(0.1)", "Y_ERROR(0.1)", "Z_ERROR(0.1)", "DEPOLARIZE1(0.1)", "PAULI_CHANNEL_1(0.1, 0.1, 0.1)", "I_ERROR(0.1)", "HERALDED_ERASE(0.1)", "HERALDED_PAULI_CHANNEL_1(0.1, 0.1, 0.1, 0.1)"]
+
+
+def drawing_circuit(rng: random.Random, n: int) -> str:
+    """A circuit with every kind of thing a diagram draws: gates, noise, feedback, products,
+    correlated errors, detectors, coordinates and loops."""
+    lines = [f"QUBIT_COORDS({q % 3}, {q // 3}) {q}" for q in range(n) if rng.random() < 0.7]
+    lines.append(dissipative_circuit(rng, n, rng.randint(1, 6)))
+    for _ in range(rng.randint(0, 4)):
+        r = rng.random()
+        if r < 0.3:
+            lines.append(f"{rng.choice(NOISE)} {rng.randrange(n)}")
+        elif r < 0.5 and n >= 2:
+            a, b = rng.sample(range(n), 2)
+            lines.append(f"{rng.choice(['DEPOLARIZE2(0.1)', 'II', 'II_ERROR(0.1)', 'SWAP', 'ISWAP', 'MXX', 'SQRT_YY_DAG'])} {a} {b}")
+        elif r < 0.7:
+            lines.append(f"E(0.1) X{rng.randrange(n)} Z{rng.randrange(n)}\nELSE_CORRELATED_ERROR(0.1) Y{rng.randrange(n)}")
+        elif r < 0.85:
+            lines.append("SPP " + "*".join(f"{rng.choice('XYZ')}{q}" for q in rng.sample(range(n), rng.randint(1, n))))
+        else:
+            lines.append(f"M {rng.randrange(n)}\nCX rec[-1] {rng.randrange(n)}\nCZ sweep[0] {rng.randrange(n)}")
+    body = dissipative_circuit(rng, n, rng.randint(1, 5))
+    if body:
+        lines.append(f"REPEAT {rng.randint(1, 3)} {{\n{body}\nTICK\n}}")
+    lines.append(f"M {' '.join(map(str, range(n)))}")
+    lines.append("DETECTOR(1, 2) rec[-1]")
+    if n >= 2:
+        lines.append("DETECTOR(0, 1, 5) rec[-1] rec[-2]")
+    lines.append("OBSERVABLE_INCLUDE(0) rec[-1]")
+    return "\n".join(x for x in lines if x)
+
+
+@pytest.mark.parametrize("seed", range(60))
+def test_diagrams_of_random_circuits(seed):
+    rng = random.Random(5000 + seed)
+    text = drawing_circuit(rng, rng.randint(1, 5))
+    s, o = stim.Circuit(text), sq.Circuit(text)
+    assert str(o.diagram("timeline-3d")) == str(s.diagram("timeline-3d"))
+    for tick in range(s.num_ticks + 1):
+        assert str(o.diagram("detslice-text", tick=tick)) == str(s.diagram("detslice-text", tick=tick)), tick
+    assert str(o.diagram("detslice-text", filter_coords=["L0", (0,)])) == str(s.diagram("detslice-text", filter_coords=["L0", (0,)]))
+    try:
+        dem_s = s.detector_error_model(approximate_disjoint_errors=True, allow_gauge_detectors=True)
+    except ValueError:  # a random observable that isn't deterministic
+        return
+    dem_o = sq.DetectorErrorModel(str(dem_s))
+    assert str(dem_o.diagram("matchgraph-3d")) == str(dem_s.diagram("matchgraph-3d"))
+
+
+@pytest.mark.parametrize("task", ["repetition_code:memory", "surface_code:rotated_memory_x", "surface_code:unrotated_memory_z", "color_code:memory_xyz"])
+def test_diagrams_of_generated_circuits(task):
+    kw = dict(distance=3, rounds=3, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
+    s, o = stim.Circuit.generated(task, **kw), sq.Circuit.generated(task, **kw)
+    for t in [0, 1, 4, range(2, 5), None]:
+        assert str(o.diagram("detslice-text", tick=t)) == str(s.diagram("detslice-text", tick=t)), t
+    assert str(o.diagram("detslice-text", tick=4, filter_coords=["L0", (1,), "D3"])) == str(s.diagram("detslice-text", tick=4, filter_coords=["L0", (1,), "D3"]))
+    assert str(o.diagram("timeline-3d")) == str(s.diagram("timeline-3d"))
+    assert str(o.diagram("matchgraph-3d")) == str(s.diagram("matchgraph-3d"))
+    assert o.diagram("timeline-svg-html")._repr_html_().startswith('<iframe style="width: 100%; height: 300px;')
+    assert str(o.diagram("timeline-svg-html")) == o.diagram("timeline-svg-html")._repr_html_()

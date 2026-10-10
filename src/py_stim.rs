@@ -786,7 +786,7 @@ fn circuit_detecting_regions(text: &str, targets: Vec<(bool, u64)>, ticks: Vec<u
 
 /// The flip simulator's state (Stim's `FlipSimulator`); rows are bit-packed little-endian
 /// bytes, `ceil(batch / 64) * 8` per row.
-#[pyclass(name = "FlipSimCore", module = "stabilizer_qec._core")]
+#[pyclass(name = "FlipSimCore", module = "stabilizer_qec._core", skip_from_py_object)]
 #[derive(Clone)]
 pub struct PyFlipSimCore {
     sim: crate::clifford::flip_sim::FlipSim,
@@ -884,6 +884,33 @@ impl PyFlipSimCore {
     }
 }
 
+/// Stim's `filter_coords` from (target as (is_observable, index), or None with a prefix).
+#[allow(clippy::type_complexity)]
+pub fn coord_filters(f: Vec<(Option<(bool, u64)>, Vec<f64>)>) -> Vec<crate::clifford::detslice::CoordFilter> {
+    use crate::clifford::rev_tracker::OBSERVABLE_BIT;
+    f.into_iter().map(|(t, coords)| crate::clifford::detslice::CoordFilter { coords, target: t.map(|(o, k)| if o { k | OBSERVABLE_BIT } else { k }) }).collect()
+}
+
+/// Stim's `detslice-text` diagram of ticks `start .. start + num`.
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn circuit_detslice_text(text: &str, start: u64, num: u64, filters: Vec<(Option<(bool, u64)>, Vec<f64>)>) -> PyResult<String> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    Ok(crate::clifford::detslice::SliceSet::from_circuit_ticks(&c, start, num, &coord_filters(filters)).map_err(err)?.text())
+}
+
+/// Stim's `timeline-3d` diagram (glTF).
+#[pyfunction]
+fn circuit_timeline_3d(text: &str) -> PyResult<String> {
+    crate::clifford::gltf::timeline_3d(&ir::Circuit::parse(text).map_err(err)?).map_err(err)
+}
+
+/// Bytes as Stim's base64.
+#[pyfunction]
+fn stim_base64(data: &[u8]) -> String {
+    crate::clifford::gltf::base64(data)
+}
+
 /// The circuit's items: ("op", name, tag, args, targets) or ("repeat", count, tag, items).
 #[pyfunction]
 fn circuit_items<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
@@ -948,6 +975,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circuit_reference_signs, m)?)?;
     m.add_function(wrap_pyfunction!(instruction_text, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_to_qasm, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_timeline_3d, m)?)?;
+    m.add_function(wrap_pyfunction!(stim_base64, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_detslice_text, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_to_quirk_url, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_det_obs_counts, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_detecting_regions, m)?)?;

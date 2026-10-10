@@ -360,7 +360,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
                 return Err(format!("line {lineno}: only REPEAT opens a block, got '{name}'"));
             }
             let count: u64 = match (args.is_empty(), parts.as_slice()) {
-                (true, [n]) => n.parse().ok(),
+                (true, [n]) => uint(n),
                 _ => None,
             }
             .ok_or_else(|| format!("line {lineno}: REPEAT needs a count"))?;
@@ -442,8 +442,16 @@ pub(crate) fn split_instruction(line: &str) -> Result<Split<'_>, String> {
 /// The largest qubit index Stim accepts (its targets keep 24 bits for it).
 const MAX_QUBIT: u32 = (1 << 24) - 1;
 
+/// An unsigned integer as Stim reads one: decimal digits only (no sign, no spaces).
+pub(crate) fn uint<T: std::str::FromStr>(s: &str) -> Option<T> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    s.parse().ok()
+}
+
 fn qubit(t: &str, name: &str) -> Result<u32, String> {
-    match t.parse::<u32>() {
+    match uint::<u32>(t).ok_or(()) {
         Ok(q) if q <= MAX_QUBIT => Ok(q),
         Ok(q) => Err(format!("{name}: qubit {q} is beyond the largest index, {MAX_QUBIT}")),
         Err(_) => Err(format!("{name}: bad qubit target '{t}'")),
@@ -481,7 +489,7 @@ fn sweep_pairs(tokens: &[&str], name: &str) -> Result<Vec<(u32, u32)>, String> {
             let bit = c[0]
                 .strip_prefix("sweep[")
                 .and_then(|s| s.strip_suffix(']'))
-                .and_then(|s| s.parse::<u32>().ok())
+                .and_then(uint::<u32>)
                 .filter(|&k| k <= MAX_QUBIT)
                 .ok_or_else(|| format!("{name}: a sweep-controlled pair needs 'sweep[k] q', got '{} {}'", c[0], c[1]))?;
             Ok((bit, qubit(c[1], name)?))
@@ -495,7 +503,7 @@ fn rec_targets(tokens: &[&str], name: &str) -> Result<Vec<u32>, String> {
         .map(|t| {
             t.strip_prefix("rec[-")
                 .and_then(|s| s.strip_suffix(']'))
-                .and_then(|s| s.parse::<u32>().ok())
+                .and_then(uint::<u32>)
                 .filter(|&k| k >= 1)
                 .ok_or_else(|| format!("{name}: bad record target '{t}'"))
         })
@@ -722,6 +730,9 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
             none()?;
             let mut body = Vec::new();
             for (product, inverted) in pauli_products(&t, &name)? {
+                if product.is_empty() {
+                    continue; // ±1: only a global phase
+                }
                 // The -1 eigenspace phased by i (SPP), or by -i; a negated product swaps them.
                 let dag = (name == "SPP_DAG") != inverted;
                 let q0 = product[0].0;
@@ -739,9 +750,8 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
                     return Err(format!("{name}: bad Pauli target '{tok}'"));
                 };
                 let q = qubit(q, &name)?;
-                if paulis.iter().any(|&(o, _)| o == q) {
-                    return Err(format!("{name}: qubit {q} appears twice"));
-                }
+                // A qubit may be named twice, as in Stim: its Paulis multiply (every engine
+                // applies them in turn, by XOR), and the targets stay as written.
                 paulis.push((q, code));
             }
             Instr::Correlated { p: prob(0)?, paulis, chained: name == "ELSE_CORRELATED_ERROR" }
@@ -818,10 +828,10 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
 }
 
 fn control(t: &str) -> Option<Control> {
-    if let Some(k) = t.strip_prefix("rec[-").and_then(|s| s.strip_suffix(']')).and_then(|s| s.parse::<u32>().ok()) {
+    if let Some(k) = t.strip_prefix("rec[-").and_then(|s| s.strip_suffix(']')).and_then(uint::<u32>) {
         return (k >= 1).then_some(Control::Rec(k));
     }
-    let k = t.strip_prefix("sweep[").and_then(|s| s.strip_suffix(']')).and_then(|s| s.parse::<u32>().ok())?;
+    let k = t.strip_prefix("sweep[").and_then(|s| s.strip_suffix(']')).and_then(uint::<u32>)?;
     (k <= MAX_QUBIT).then_some(Control::Sweep(k))
 }
 
@@ -843,14 +853,14 @@ fn controlled_pairs(name: &str, t: &[&str]) -> Result<Vec<Instr>, String> {
     for pair in t.chunks(2) {
         let (a, b) = (control(pair[0]), control(pair[1]));
         let fed = match (a, b) {
-            (Some(_), Some(_)) => return Err(format!("{name}: a pair cannot be two classical bits ('{} {}')", pair[0], pair[1])),
+            (Some(_), Some(_)) => return Err(format!("Measurement record editing is not supported. ({name} {} {}: a pair cannot be two classical bits; Stim parses this but refuses to run it)", pair[0], pair[1])),
             (Some(c), None) if classical_first || pauli == 2 => Some((c, qubit(pair[1], name)?)),
             (None, Some(c)) if !classical_first || pauli == 2 => Some((c, qubit(pair[0], name)?)),
             (None, None) if pair.iter().any(|x| x.starts_with("rec[") || x.starts_with("sweep[")) => {
                 return Err(format!("{name}: bad classical target in '{} {}'", pair[0], pair[1]));
             }
             (None, None) => None,
-            _ => return Err(format!("{name}: a classical bit can only be a Z-type control ('{} {}')", pair[0], pair[1])),
+            _ => return Err(format!("Measurement record editing is not supported. ({name} {} {}: a classical bit can only be a Z-type control; Stim parses this but refuses to run it)", pair[0], pair[1])),
         };
         match fed {
             Some((control, qubit)) => body.push(Instr::Feedback { pauli, control, qubit }),
@@ -890,8 +900,9 @@ type Product = (Vec<(u32, Pauli)>, bool);
 fn pauli_products(t: &[&str], name: &str) -> Result<Vec<Product>, String> {
     let mut out = Vec::new();
     for tok in t {
-        let mut product = Vec::new();
+        let mut product: Vec<(u32, Pauli)> = Vec::new();
         let mut inverted = false;
+        let mut phase = 0u8;
         for factor in tok.split('*') {
             let factor = match factor.strip_prefix('!') {
                 Some(f) => {
@@ -905,11 +916,27 @@ fn pauli_products(t: &[&str], name: &str) -> Result<Vec<Product>, String> {
                 return Err(format!("{name}: bad Pauli product '{tok}'"));
             };
             let q = qubit(q, name)?;
-            if product.iter().any(|&(o, _)| o == q) {
-                return Err(format!("{name}: the product '{tok}' names qubit {q} twice"));
+            // A qubit named twice: its Paulis multiply, as in Stim, with the phase kept.
+            match product.iter().position(|&(o, _)| o == q) {
+                Some(k) => {
+                    let a: Pauli = product[k].1;
+                    if a != 0 && a != code {
+                        // X·Y = iZ, Y·Z = iX, Z·X = iY; the other order gives -i.
+                        let cyclic = matches!((a, code), (1, 3) | (3, 2) | (2, 1));
+                        phase += if cyclic { 1 } else { 3 };
+                    }
+                    product[k].1 = a ^ code;
+                }
+                None => product.push((q, code)),
             }
-            product.push((q, code));
         }
+        if phase % 2 == 1 {
+            return Err(format!("Acted on an anti-Hermitian operator (e.g. X0*Z0 instead of Y0) in {name} {}", t.join(" ")));
+        }
+        if phase % 4 == 2 {
+            inverted = !inverted;
+        }
+        product.retain(|&(_, c)| c != 0);
         out.push((product, inverted));
     }
     Ok(out)
@@ -996,6 +1023,11 @@ fn pauli_measurements(name: &str, flip: f64, t: &[&str]) -> Result<Vec<Instr>, S
     let reset = name == "MRY";
     let mut body = Vec::new();
     for (product, inverted) in products {
+        if product.is_empty() {
+            // A product that cancels to ±1 reads its sign every time (as Stim).
+            body.push(Instr::Pad { flip, values: vec![inverted] });
+            continue;
+        }
         let q0 = product[0].0;
         let mut middle = Vec::new();
         if inverted {

@@ -27,7 +27,26 @@ noise on every gate. In progress on `feature/2.0`.
   does. The decoders, the model sampler and the per-shot samplers still take at most 64 and say
   so.
 
+- **`detslice-text` is Stim's diagram**, character for character (qubit lines with each
+  detector's Paulis at its tick), where 1.x printed a line per detector. Slice diagrams show
+  every detector and no observable unless `filter_coords` asks, as in Stim.
+- A correlated error may name a qubit twice (`E(0.1) X0 Z0`), and a Pauli product may repeat
+  a qubit (`MPP X0*X0`, `SPP X0*X1*X0`), as in Stim: the Paulis multiply, a product that cancels
+  to ±1 is measured as that sign every time. 1.x refused both. Products Stim parses but refuses
+  to run (anti-Hermitian ones such as `X0*Z0`; edits to the measurement record such as
+  `CX 0 rec[-1]`) are refused when the circuit is built, with Stim's message.
+- Integer targets are read as Stim reads them: digits only (`+3`, `rec[-+1]`, `D+1` are
+  refused, as in Stim; 1.x took a leading `+`).
+- The package and crate are licensed `MIT AND Apache-2.0`: the parts ported from Stim keep
+  Stim's Apache-2.0 licence (`THIRD_PARTY_NOTICES.md`, `LICENSES/`), shipped in the wheels,
+  the sdist and the crate.
+
 ### Added
+
+- **Stim's diagram surface**: `timeline-3d` and `matchgraph-3d` (circuits and models) as glTF,
+  byte for byte as Stim writes them; every `-html` type (a viewer page); `interactive` (a page
+  opening the circuit in Crumble); `filter_coords` (detectors, observables, coordinate
+  prefixes); Stim's type aliases; the diagram object's notebook display as Stim's.
 
 - **Stim's stabilizer objects**: `PauliString` (and `PauliStringIterator`), `Tableau` (and
   `TableauIterator`), `TableauSimulator`, `GateData` / `gate_data`, `GateTarget` and every

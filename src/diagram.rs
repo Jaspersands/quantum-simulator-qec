@@ -878,7 +878,12 @@ fn qubit_positions(circuit: &Circuit, nq: usize) -> Vec<Option<(f64, f64)>> {
 /// detector's support drawn as a shape over them, coloured by its Pauli (X red, Z blue, Y
 /// green).
 pub fn detslice_svg(circuit: &Circuit, tick: u64) -> Result<String, String> {
-    let slice = detector_slice(circuit, tick)?;
+    detslice_svg_filtered(circuit, tick, None)
+}
+
+/// `detslice_svg` drawing only the detectors and observables named in `keep` (`D3`, `L0`).
+pub fn detslice_svg_filtered(circuit: &Circuit, tick: u64, keep: Option<&BTreeSet<String>>) -> Result<String, String> {
+    let slice = kept(detector_slice(circuit, tick)?, keep);
     let nq = crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits;
     let pos = qubit_positions(circuit, nq);
     let (minx, maxx) = pos
@@ -1166,6 +1171,19 @@ fn noisy(label: &str) -> bool {
 /// (`slice`) and those operations (`ops`). `detslice-svg` over a range, `timeslice-svg` and
 /// `detslice-with-ops-svg`.
 pub fn slices_svg(circuit: &Circuit, ticks: std::ops::Range<u64>, rows: Option<u32>, slice: bool, ops: bool) -> Result<String, String> {
+    slices_svg_filtered(circuit, ticks, rows, slice, ops, None)
+}
+
+/// A slice keeping only the detectors and observables named in `keep` (all, for `None`).
+fn kept(slice: Slice, keep: Option<&BTreeSet<String>>) -> Slice {
+    match keep {
+        None => slice,
+        Some(k) => slice.into_iter().filter(|(name, _)| k.contains(name)).collect(),
+    }
+}
+
+/// `slices_svg` drawing only the detectors and observables named in `keep`.
+pub fn slices_svg_filtered(circuit: &Circuit, ticks: std::ops::Range<u64>, rows: Option<u32>, slice: bool, ops: bool, keep: Option<&BTreeSet<String>>) -> Result<String, String> {
     let n = ticks.end.saturating_sub(ticks.start) as usize;
     if n == 0 {
         return Err("the range of ticks is empty".into());
@@ -1200,7 +1218,7 @@ pub fn slices_svg(circuit: &Circuit, ticks: std::ops::Range<u64>, rows: Option<u
         let _ = write!(s, "<g><title>Tick {tick}</title><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"none\" class=\"tick\" stroke=\"#ccc\"/>", ox + 2.0, oy + 2.0, pw - 4.0, ph - 4.0);
         let _ = write!(s, "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"12\">Tick {tick}</text>", ox + 8.0, oy + 16.0);
         if slice {
-            for (name, support) in &detector_slice(circuit, tick + u64::from(ops))? {
+            for (name, support) in &kept(detector_slice(circuit, tick + u64::from(ops))?, keep) {
                 let pts: Vec<(f64, f64)> = support.iter().map(|&(q, _)| px(q)).collect();
                 let c = colour(support);
                 let title = format!("<title>{name}</title>");

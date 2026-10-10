@@ -17,3 +17,5 @@ pub mod transform;
 pub mod flow;
 pub mod export;
 pub mod flip_sim;
+pub mod detslice;
+pub mod gltf;

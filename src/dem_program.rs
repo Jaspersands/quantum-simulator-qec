@@ -499,7 +499,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
                 return Err(format!("line {lineno}: only repeat opens a block"));
             }
             let count: u64 = match (args.is_empty(), parts.as_slice()) {
-                (true, [n]) => n.parse().ok(),
+                (true, [n]) => crate::circuit::uint(n),
                 _ => None,
             }
             .ok_or_else(|| format!("line {lineno}: repeat needs a count"))?;
@@ -511,10 +511,10 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         let tag = tag.to_string();
         let bad = |t: &str| format!("line {lineno}: bad target '{t}'");
         let detector = |t: &str| -> Result<u64, String> {
-            t.strip_prefix('D').and_then(|d| d.parse::<u64>().ok()).filter(|&d| d <= MAX_DETECTOR).ok_or_else(|| bad(t))
+            t.strip_prefix('D').and_then(crate::circuit::uint::<u64>).filter(|&d| d <= MAX_DETECTOR).ok_or_else(|| bad(t))
         };
         let observable = |t: &str| -> Result<u32, String> {
-            let l = t.strip_prefix('L').and_then(|l| l.parse::<u32>().ok()).ok_or_else(|| bad(t))?;
+            let l = t.strip_prefix('L').and_then(crate::circuit::uint::<u32>).ok_or_else(|| bad(t))?;
             Ok(l)
         };
         out.push(match name.as_str() {
@@ -547,7 +547,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
             "SHIFT_DETECTORS" => {
                 let by = match tokens.as_slice() {
                     [] => 0,
-                    [n] => n.parse::<u64>().ok().filter(|&n| n <= MAX_DETECTOR + 1).ok_or_else(|| bad(n))?,
+                    [n] => crate::circuit::uint::<u64>(n).filter(|&n| n <= MAX_DETECTOR + 1).ok_or_else(|| bad(n))?,
                     _ => return Err(format!("line {lineno}: shift_detectors takes one count")),
                 };
                 DemInstr::Shift { coords: args, by, tag }

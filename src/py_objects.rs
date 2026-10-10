@@ -184,8 +184,11 @@ impl PyCircuit {
     /// A diagram: `kind` one of Stim's names (timeline-text, timeline-svg, detslice-text,
     /// detslice-svg, timeslice-svg, detslice-with-ops-svg, matchgraph-svg); `tick` the moment of
     /// a slice, or with `tick_end` the range `[tick, tick_end)`; `rows` the panels' rows.
-    #[pyo3(signature = (kind, tick=None, tick_end=None, rows=None))]
-    fn diagram(&self, kind: &str, tick: Option<u64>, tick_end: Option<u64>, rows: Option<u32>) -> PyResult<String> {
+    /// `filters` are Stim's `filter_coords`: (target as (is_observable, index), or None with a
+    /// coordinate prefix, NaN matching anything).
+    #[pyo3(signature = (kind, tick=None, tick_end=None, rows=None, filters=None))]
+    #[allow(clippy::type_complexity)]
+    fn diagram(&self, kind: &str, tick: Option<u64>, tick_end: Option<u64>, rows: Option<u32>, filters: Option<Vec<(Option<(bool, u64)>, Vec<f64>)>>) -> PyResult<String> {
         use crate::api::DiagramKind as K;
         let need_tick = || tick.ok_or_else(|| err(format!("a {kind} diagram needs tick=")));
         let range = || -> PyResult<(u64, u64)> {
@@ -203,7 +206,10 @@ impl PyCircuit {
             "matchgraph-svg" => K::MatchGraphSvg,
             other => return Err(err(format!("unknown diagram '{other}': timeline-text, timeline-svg, detslice-text, detslice-svg, timeslice-svg, detslice-with-ops-svg or matchgraph-svg"))),
         };
-        self.circuit.diagram(kind).map_err(api_err)
+        match filters {
+            None => self.circuit.diagram(kind).map_err(api_err),
+            Some(f) => self.circuit.diagram_with_filter(kind, &crate::py_stim::coord_filters(f)).map_err(api_err),
+        }
     }
 
     fn copy(&self) -> PyCircuit {
@@ -483,6 +489,11 @@ impl PyDem {
 
     fn flattened(&self) -> PyResult<PyDem> {
         Ok(PyDem { dem: self.dem.flattened().map_err(api_err)? })
+    }
+
+    /// Stim's `matchgraph-3d` diagram (glTF).
+    fn matchgraph_3d(&self) -> PyResult<String> {
+        crate::clifford::gltf::matchgraph_3d(self.dem.program()).map_err(PyValueError::new_err)
     }
 
     /// Every error of the unrolled model, in order: its exact probability and its targets as

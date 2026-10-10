@@ -347,6 +347,6 @@ def test_gate_lines_print_as_written():
 
 
 def test_unsupported_gates_say_so():
-    for text in ["HERALDED_ERASE(0.1, 0.2) 0", "CX 0 rec[-1]", "CX rec[-1] sweep[0]", "MPP X0*Z0", "E(0.1) X0 Y0", "MXX 0 0"]:
+    for text in ["HERALDED_ERASE(0.1, 0.2) 0", "CX 0 rec[-1]", "CX rec[-1] sweep[0]", "MPP X0*Z0", "MXX 0 0"]:
         with pytest.raises(ValueError):
             sq.Circuit(text)

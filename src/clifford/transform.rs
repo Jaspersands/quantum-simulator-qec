@@ -530,7 +530,7 @@ pub fn final_qubit_coordinates(c: &ir::Circuit) -> BTreeMap<u64, Vec<f64>> {
     out
 }
 
-fn count_detectors(c: &ir::Circuit) -> u64 {
+pub fn count_detectors(c: &ir::Circuit) -> u64 {
     c.items
         .iter()
         .map(|it| match it {

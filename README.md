@@ -2317,4 +2317,5 @@ in a script's own directory first, so for the two benchmark scripts it would sha
 
 ## License
 
-MIT
+MIT. Parts ported from Stim (Apache-2.0) are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -300,7 +300,10 @@ class Circuit:
         """The circuit as OpenQASM 2 or 3, as Stim's ``to_qasm`` writes it. Version 3 keeps
         detectors and observables (as registers computed from the measurement record against
         the noiseless reference sample) and feedback; version 2 has neither, and refuses them
-        unless ``skip_dets_and_obs``. Noise is refused (see ``without_noise``)."""
+        unless ``skip_dets_and_obs``. Noise is refused (see ``without_noise``).
+
+        The custom one-qubit gates' ``U`` angles are those Stim's Linux and macOS builds write;
+        its Windows build rounds a few at a ±pi boundary the other way (the same gates)."""
         return call(_core.circuit_to_qasm, self._stim_exact_text(), int(open_qasm_version), bool(skip_dets_and_obs))
 
     def to_quirk_url(self) -> str:
@@ -484,37 +487,85 @@ class Circuit:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
         return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures)))
 
-    def diagram(self, type: str = "timeline-text", *, tick: Union[int, range, None] = None, rows: Union[int, None] = None) -> "Diagram":
-        """A picture of the circuit, after Stim's ``diagram``:
+    def diagram(self, type: str = "timeline-text", *, tick: Union[int, range, None] = None, rows: Union[int, None] = None, filter_coords: Any = None) -> "Diagram":
+        """A picture of the circuit, with Stim's ``diagram`` types:
 
         - ``"timeline-text"``: Stim's text timeline, character for character: every operation in
           its moment, ``TICK`` groups boxed, loops drawn once with records, detectors and
           coordinates in terms of ``iter``.
         - ``"timeline-svg"``: the same as a picture.
-        - ``"detslice-text"``, ``"detslice-svg"``: what each detector compares after ``tick``
-          ``TICK``s, its Paulis over the qubits (drawn at their ``QUBIT_COORDS``).
+        - ``"timeline-3d"``: a 3D model (glTF) of the timeline, as Stim writes it.
+        - ``"detslice-text"``: Stim's text picture of what each detector is sensitive to after
+          ``tick`` ``TICK``s (a range: those ticks), character for character.
+        - ``"detslice-svg"``: the same as a picture over the qubits' coordinates.
         - ``"timeslice-svg"``: the operations of tick ``tick`` (or of each tick in a
           ``range``, a panel each, in ``rows`` rows) over the qubits' coordinates.
         - ``"detslice-with-ops-svg"``: the same, with the detector slice after them.
-        - ``"matchgraph-svg"``: the decomposed model's matching graph.
+        - ``"matchgraph-svg"``, ``"matchgraph-3d"``: the error model's matching graph.
+        - ``"interactive"``: a page opening the circuit in Crumble, Stim's circuit editor.
 
-        The result prints as its text, and shows as a picture in a notebook.
+        Each picture type has an ``-html`` form (a viewer page). ``filter_coords`` picks the
+        detectors and observables of slice diagrams: ``DemTarget``s, texts (``"D5"``,
+        ``"L0"``), or coordinate prefixes; by default every detector and no observable, as in
+        Stim. The result prints as its text and shows as a picture in a notebook.
 
-        >>> c = Circuit("R 0 1\\nH 0\\nTICK\\nCX 0 1\\nTICK\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
-        >>> print(c.diagram("detslice-text", tick=2))
-        D0: Z0 Z1
-        <BLANKLINE>
+        >>> c = Circuit("H 0\\nCNOT 0 1\\nTICK\\nM 0 1\\nDETECTOR rec[-1] rec[-2]")
+        >>> print(c.diagram("detslice-text", tick=1))
+        q0: -Z:D0-
+             |
+        q1: -Z:D0-
         """
         if not isinstance(type, str):
             raise TypeError(f"type must be a str, not {builtins_type(type).__name__}")
-        if isinstance(tick, range):
-            if tick.step != 1 or len(tick) == 0:
-                raise ValueError("tick must be a non-empty range with step 1")
-            t, end = tick.start, tick.stop
+        try:
+            filters = _filters(filter_coords)
+        except Exception:
+            raise ValueError("filter_coords wasn't an Iterable[stim.DemTarget | Iterable[float]].") from None
+        num_rows = None if rows is None or rows == 0 else count(rows, "rows")
+        if tick is None:
+            t0, nt = 0, (1 << 64) - 1
+        elif isinstance(tick, range):
+            if tick.step != 1:
+                raise ValueError("tick.step != 1")
+            if tick.stop <= tick.start:
+                raise ValueError("tick.stop <= tick.start")
+            t0, nt = count(tick.start, "tick"), tick.stop - tick.start
         else:
-            t, end = (None if tick is None else count(tick, "tick")), None
-        r = None if rows is None else count(rows, "rows", 1)
-        return Diagram(call(self._c.diagram, type, t, end, r), type)
+            t0, nt = count(tick, "tick"), 1
+        html = "html" in type
+        kind = _DIAGRAM_KIND.get(type)
+        if kind is None:
+            raise ValueError(f"Unrecognized diagram type: '{type}'")
+        text = self._stim_exact_text()
+        if kind == "timeline-text":
+            if tick is not None:
+                raise ValueError("`tick` isn't used with type='timeline-text'")
+            return Diagram(call(self._c.diagram, "timeline-text"), type, "text")
+        if kind == "detslice-text":
+            return Diagram(call(_core.circuit_detslice_text, text, t0, nt, filters), type, "text")
+        if kind == "timeline-3d":
+            return _gltf_diagram(call(_core.circuit_timeline_3d, text), type, html)
+        if kind == "interactive":
+            return Diagram(_crumble_page(self.to_crumble_url()), type, "html")
+        if kind == "matchgraph":
+            try:
+                dem = self.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True)
+            except ValueError:
+                dem = self.detector_error_model(approximate_disjoint_errors=True)
+            return dem.diagram(type)
+        if kind == "timeline-svg":
+            svg = call(self._c.diagram, "timeline-svg")
+        else:
+            end = None
+            if tick is None:
+                t0, end = 0, self.num_ticks + 1
+            elif nt > 1:
+                end = t0 + nt
+            if kind == "detslice-svg" and end is None and num_rows is None:
+                svg = call(self._c.diagram, "detslice-svg", t0, None, None, filters)
+            else:
+                svg = call(self._c.diagram, kind, t0, t0 + 1 if end is None else end, num_rows, filters)
+        return Diagram(svg, type, "svg-html" if html else "svg")
 
     @classmethod
     def generated(
@@ -769,31 +820,155 @@ builtins_type = _builtins.type
 
 
 class Diagram:
-    """A circuit's or model's picture (``Circuit.diagram``): text, or SVG. ``str()`` gives it
-    as written; a notebook shows an SVG one as a picture."""
+    """A circuit's or model's picture (``Circuit.diagram``), as Stim's diagram helper: text, an
+    SVG image, a glTF 3D model, or an HTML page. ``str()`` gives its contents (an ``-html``
+    SVG type: the viewer page); a notebook shows it inline."""
 
-    __slots__ = ("_text", "type")
+    __slots__ = ("_text", "type", "_kind")
 
-    def __init__(self, text: str, type: str) -> None:
+    def __init__(self, text: str, type: str, kind: Union[str, None] = None) -> None:
         self._text = text
         self.type = type
+        self._kind = kind or ("svg" if text.startswith("<svg") else "text")
 
     def __str__(self) -> str:
+        if self._kind == "svg-html":
+            return self._repr_html_()
         return self._text
 
     def __repr__(self) -> str:
-        return f"stabilizer_qec.Diagram(type={self.type!r}, {len(self._text)} characters)"
+        what = {"gltf": "a GLTF 3d model", "svg": "an SVG image", "text": "text", "html": "an HTML document", "svg-html": "an HTML SVG image viewer"}[self._kind]
+        return f"<A stabilizer_qec.Diagram containing {what} that will display inline in Jupyter notebooks. Use 'str' or 'print' to access the contents as text.>"
+
+    def _repr_html_(self) -> Union[str, None]:
+        if self._kind == "text":
+            return "<pre>" + self._text + "</pre>"
+        if self._kind == "svg":
+            return None  # GitHub's notebook preview drops SVG wrapped in HTML (as Stim)
+        if self._kind == "svg-html":
+            inner = '<img style="max-width: 100%; max-height: 100%" src="data:image/svg+xml;base64,' + _core.stim_base64(self._text.encode()) + '"/>'
+        elif self._kind == "gltf":
+            inner = _gltf_viewer(self._text)
+        else:
+            inner = self._text
+        return '<iframe style="width: 100%; height: 300px; overflow: hidden; resize: both; border: 1px dashed gray;" frameBorder="0" srcdoc="' + _escape_srcdoc(inner) + '"></iframe>'
 
     def _repr_svg_(self) -> Union[str, None]:
-        return self._text if self._text.startswith("<svg") else None
+        return self._text if self._kind == "svg" else None
 
     def _repr_pretty_(self, p: Any, cycle: bool) -> None:
         p.text(self._text)
 
     def save(self, path: Union[str, PathLike]) -> None:
-        """Write it to a file (an ``.svg`` for the pictures)."""
+        """Write it to a file (``.svg`` for an SVG image, ``.gltf`` for a 3D model, ``.html``
+        for a page)."""
         with open(path, "w", encoding="utf-8") as f:
-            f.write(self._text)
+            f.write(str(self))
+
+
+# Stim's diagram type names and aliases, by what they draw.
+_DIAGRAM_KIND = {
+    "timeline-text": "timeline-text",
+    **{t: "timeline-svg" for t in ("timeline-svg", "timeline", "timeline-svg-html", "timeline-html")},
+    **{t: "timeslice-svg" for t in ("time-slice-svg", "timeslice-svg", "timeslice-html", "timeslice-svg-html", "time-slice-html", "time-slice-svg-html", "timeslice", "time-slice")},
+    **{t: "detslice-svg" for t in ("detslice-svg", "detslice", "detslice-html", "detslice-svg-html", "detector-slice-svg", "detector-slice")},
+    **{t: "detslice-with-ops-svg" for t in ("detslice-with-ops", "detslice-with-ops-svg", "detslice-with-ops-html", "detslice-with-ops-svg-html", "time+detector-slice-svg")},
+    **{t: "timeline-3d" for t in ("timeline-3d", "timeline-3d-html")},
+    **{t: "detslice-text" for t in ("detslice-text", "detector-slice-text")},
+    **{t: "interactive" for t in ("interactive", "interactive-html")},
+    **{t: "matchgraph" for t in ("match-graph-svg", "matchgraph-svg", "matchgraph-svg-html", "matchgraph-html", "match-graph-svg-html", "match-graph-html", "match-graph-3d", "matchgraph-3d", "match-graph-3d-html", "matchgraph-3d-html")},
+}
+
+
+def _filter_single(obj: Any) -> tuple:
+    if isinstance(obj, _dem.DemTarget) or builtins_type(obj).__name__ == "DemTarget":
+        t = _dem.DemTarget(obj)
+        return ((t.is_logical_observable_id(), t.val), [])
+    if isinstance(obj, str) and len(obj) > 1 and obj[0] in "DL":
+        try:
+            return ((obj[0] == "L", int(obj[1:])), [])
+        except ValueError:
+            pass
+    return (None, [float(c) for c in obj])
+
+
+def _filters(obj: Any) -> list:
+    """Stim's ``filter_coords``: one filter, or an iterable of them (``None``: every detector)."""
+    if obj is None:
+        return [(None, [])]
+    try:
+        return [_filter_single(obj)]
+    except (TypeError, ValueError):
+        pass
+    return [_filter_single(f) for f in obj]
+
+
+def _escape_srcdoc(src: str) -> str:
+    return src.replace("&", "&amp;").replace("'", "&apos;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _gltf_diagram(gltf: str, type: str, html: bool) -> "Diagram":
+    # As Stim: the -html form's contents are the viewer page, still marked as a 3D model.
+    return Diagram(_gltf_viewer(gltf) if html else gltf, type, "gltf")
+
+
+def _gltf_viewer(gltf: str) -> str:
+    """A page showing a glTF model with three.js (loaded from unpkg), and a download link."""
+    data = _core.stim_base64(gltf.encode())
+    return (
+        "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\" />\n"
+        "<script type=\"importmap\">{\"imports\": {"
+        "\"three\": \"https://unpkg.com/three@0.138.0/build/three.module.js\", "
+        "\"three-orbitcontrols\": \"https://unpkg.com/three@0.138.0/examples/jsm/controls/OrbitControls.js\", "
+        "\"three-gltf-loader\": \"https://unpkg.com/three@0.138.0/examples/jsm/loaders/GLTFLoader.js\"}}</script>\n"
+        "</head>\n<body>\n"
+        f"<a download=\"model.gltf\" href=\"data:text/plain;base64,{data}\">Download the 3D model (.gltf)</a>\n"
+        "<br>Mouse wheel: zoom. Left drag: orbit. Right drag: pan.\n"
+        "<div class=\"viewer\" style=\"width: calc(100vw - 32px); height: calc(100vh - 64px);\">Loading the viewer...</div>\n"
+        "<script type=\"module\">\n"
+        "import {Box3, Scene, Color, PerspectiveCamera, WebGLRenderer, DirectionalLight, Vector3} from \"three\";\n"
+        "import {OrbitControls} from \"three-orbitcontrols\";\n"
+        "import {GLTFLoader} from \"three-gltf-loader\";\n"
+        "const box = document.currentScript ? document.currentScript.previousElementSibling : document.querySelector(\".viewer\");\n"
+        "const link = box.previousElementSibling.previousElementSibling;\n"
+        "try {\n"
+        "  const gltf = await new GLTFLoader().loadAsync(link.href);\n"
+        "  const scene = new Scene();\n"
+        "  scene.background = new Color(\"white\");\n"
+        "  scene.add(gltf.scene);\n"
+        "  const bounds = new Box3().setFromObject(gltf.scene);\n"
+        "  const size = bounds.getSize(new Vector3()).length();\n"
+        "  const centre = bounds.getCenter(new Vector3());\n"
+        "  const camera = new PerspectiveCamera(35, box.clientWidth / box.clientHeight, size / 100, size * 10);\n"
+        "  camera.position.copy(centre).add(new Vector3(size * 0.6, size * 0.4, size * 0.6));\n"
+        "  const light = new DirectionalLight(0xffffff, 1.5);\n"
+        "  light.position.set(1, 2, 3);\n"
+        "  scene.add(light);\n"
+        "  const renderer = new WebGLRenderer({antialias: true});\n"
+        "  renderer.setSize(box.clientWidth, box.clientHeight);\n"
+        "  const controls = new OrbitControls(camera, renderer.domElement);\n"
+        "  controls.target.copy(centre);\n"
+        "  controls.update();\n"
+        "  box.textContent = \"\";\n"
+        "  box.appendChild(renderer.domElement);\n"
+        "  renderer.setAnimationLoop(() => renderer.render(scene, camera));\n"
+        "} catch (e) {\n"
+        "  box.textContent = \"Couldn't show the model: \" + e;\n"
+        "}\n"
+        "</script>\n</body>\n</html>\n"
+    )
+
+
+def _crumble_page(url: str) -> str:
+    """A page opening the circuit in Crumble, Stim's circuit editor (from algassert.com)."""
+    href = url.replace("&", "&amp;").replace('"', "&quot;")
+    return (
+        "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\" />\n<title>Crumble</title>\n</head>\n"
+        "<body style=\"margin: 0\">\n"
+        f"<iframe src=\"{href}\" style=\"border: 0; width: 100vw; height: calc(100vh - 24px)\"></iframe>\n"
+        f"<div style=\"font: 12px sans-serif; padding: 4px\"><a href=\"{href}\" target=\"_blank\">Open in Crumble</a></div>\n"
+        "</body>\n</html>\n"
+    )
 
 
 class DetectorErrorModel:
@@ -1047,11 +1222,14 @@ class DetectorErrorModel:
         return self._d.num_errors
 
     def diagram(self, type: str = "matchgraph-svg") -> "Diagram":
-        """A picture of the model: ``"matchgraph-svg"``, its matching graph (it must be
-        decomposed), each detector at its coordinates, each graph-like fault an edge."""
-        if type != "matchgraph-svg":
-            raise ValueError(f"a model's diagram is matchgraph-svg, not {type!r}")
-        return Diagram(call(self._d.matchgraph_svg), type)
+        """A picture of the model's matching graph: ``"matchgraph-svg"`` (each detector at its
+        coordinates, each graph-like fault an edge; the model must be decomposed) or
+        ``"matchgraph-3d"`` (a glTF model, as Stim writes it); each with an ``-html`` form."""
+        if type in ("matchgraph-svg", "match-graph-svg", "matchgraph-svg-html", "match-graph-svg-html", "matchgraph-html", "match-graph-html"):
+            return Diagram(call(self._d.matchgraph_svg), type, "svg-html" if "html" in type else "svg")
+        if type in ("matchgraph-3d", "match-graph-3d", "matchgraph-3d-html", "match-graph-3d-html"):
+            return _gltf_diagram(call(self._d.matchgraph_3d), type, "html" in type)
+        raise ValueError(f"Unrecognized diagram type: {type}")
 
     def compile_sampler(self, *, seed: Union[int, None] = None) -> "DemSampler":
         """A sampler of the model's faults, as Stim's: each fault fires independently with its
