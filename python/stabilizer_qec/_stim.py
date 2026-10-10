@@ -97,6 +97,9 @@ class PauliString:
         out._p = core
         return out
 
+    def __reduce__(self) -> tuple:
+        return (PauliString, (str(self),))
+
     # Text and comparison.
     def __str__(self) -> str:
         return str(self._p)
@@ -415,6 +418,9 @@ class Tableau:
         out._t = core
         return out
 
+    def __reduce__(self) -> tuple:
+        return (_tableau_from_bits, (len(self), *self._t.to_bits()))
+
     def __len__(self) -> int:
         return self._t.num_qubits
 
@@ -636,6 +642,11 @@ class Tableau:
     def iter_all(num_qubits: int, *, unsigned: bool = False) -> "TableauIterator":
         """Every tableau on ``num_qubits`` (with all signs, unless ``unsigned``)."""
         return TableauIterator(num_qubits, unsigned)
+
+
+def _tableau_from_bits(n: int, *bits: bytes) -> "Tableau":
+    """A tableau from its bit tables (``TableauCore.to_bits``), for pickling."""
+    return Tableau._wrap(_core.TableauCore.from_bits(n, *bits))
 
 
 class TableauIterator:

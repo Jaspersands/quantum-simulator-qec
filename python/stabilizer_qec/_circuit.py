@@ -50,8 +50,10 @@ class Circuit:
 
     __slots__ = ("_c",)
 
-    def __init__(self, text: Union[str, "Circuit", Any] = "") -> None:
-        self._c = call(_core.Circuit, text_of(text, "Circuit", Circuit))
+    def __init__(self, stim_program_text: Union[str, "Circuit", Any] = "", *, text: Union[str, None] = None) -> None:
+        if text is not None:  # 1.x's keyword
+            stim_program_text = text
+        self._c = call(_core.Circuit, text_of(stim_program_text, "Circuit", Circuit))
 
     @classmethod
     def from_file(cls, file: Union[str, PathLike, Any]) -> "Circuit":
@@ -387,11 +389,13 @@ class Circuit:
             raise TypeError(f"tag must be a str, not {type(tag).__name__}")
         call(self._c.append_instruction, name, tag, _args(arg), _targets(targets))
 
-    def append_from_stim_program_text(self, text: str) -> None:
+    def append_from_stim_program_text(self, stim_program_text: Union[str, None] = None, *, text: Union[str, None] = None) -> None:
         """Append Stim's circuit text: any number of instructions and ``REPEAT`` blocks."""
-        if not isinstance(text, str):
-            raise TypeError(f"text must be a str, not {type(text).__name__}")
-        call(self._c.append_text, text)
+        if stim_program_text is None:  # 1.x's keyword
+            stim_program_text = text
+        if not isinstance(stim_program_text, str):
+            raise TypeError(f"stim_program_text must be a str, not {type(stim_program_text).__name__}")
+        call(self._c.append_text, stim_program_text)
 
     def __add__(self, other: object) -> "Circuit":
         if not isinstance(other, Circuit):
@@ -989,8 +993,10 @@ class DetectorErrorModel:
 
     __slots__ = ("_d",)
 
-    def __init__(self, text: Union[str, "DetectorErrorModel", Any] = "") -> None:
-        self._d = call(_core.Dem, text_of(text, "DetectorErrorModel", DetectorErrorModel))
+    def __init__(self, detector_error_model_text: Union[str, "DetectorErrorModel", Any] = "", *, text: Union[str, None] = None) -> None:
+        if text is not None:  # 1.x's keyword
+            detector_error_model_text = text
+        self._d = call(_core.Dem, text_of(detector_error_model_text, "DetectorErrorModel", DetectorErrorModel))
 
     @classmethod
     def _wrap(cls, inner: Any) -> "DetectorErrorModel":

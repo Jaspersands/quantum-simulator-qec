@@ -381,6 +381,36 @@ cargo test --release --no-default-features every_single_fault -- --include-ignor
 The recorded run is `data/xcheck/report.txt`. Figure 8 on the site repeats the error-model
 comparison live, in the reader's browser.
 
+## Stim's Python API
+
+From 2.0, `stabilizer_qec` implements Stim's Python API (Stim 1.16) under its own name: code
+written for `stim` runs with `import stabilizer_qec as stim`. Two suites check it:
+
+- **Every example in Stim's own docstrings** (2,238 of them, across all 44 of Stim's public
+  names that have examples) runs against this package with `stim` replaced by
+  `stabilizer_qec` (`tests/test_stim_doctests.py`). All of them pass.
+- **Every public name, method and parameter** Stim exposes exists here
+  (`tests/test_stim_api_surface.py`), and random circuits are run through both packages and
+  compared, character for character or byte for byte where Stim's output is deterministic
+  (`tests/test_stim_differential.py`).
+
+| Stim | Here | Checked |
+|---|---|---|
+| `Circuit` (text, list interface, transformations, flows, exports, diagrams, searches) | the same; text, QASM, Quirk and Crumble URLs, glTF and detector-slice diagrams byte for byte | examples, random circuits |
+| `DetectorErrorModel`, `DemInstruction`, `DemRepeatBlock`, `DemTarget` | the same; any number of observables | examples, generated codes |
+| `PauliString`, `Tableau`, `TableauSimulator`, `CliffordString`, `Flow`, `GateData`, `GateTarget` | the same, with Stim's conversions and RNG-free results identical | examples, random Cliffords |
+| `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off | examples, random circuits, noise statistics |
+| `Compiled*Sampler`, `CompiledMeasurementsToDetectionEventsConverter` | the same (aliases of the native samplers), every file format byte for byte | examples, file comparisons |
+| `ExplainedError` and its parts | the same objects, text and reprs | examples, generated codes |
+| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags and formats; `repl` byte for byte | examples, command-line comparisons |
+
+Where Stim's output depends on its random number generator, results agree in distribution, not
+bit for bit. Two differences are deliberate and documented: products Stim parses but cannot run
+(anti-Hermitian Pauli products, writes to the measurement record) are refused when the circuit
+is built rather than when it runs; and `diagram("interactive")` opens the circuit in Crumble
+from algassert.com rather than embedding Crumble's code. The SVG diagrams are this package's
+own drawings. Code ported from Stim is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## An exact sparse matcher
 
 The first general-path decoder was exact and simple:

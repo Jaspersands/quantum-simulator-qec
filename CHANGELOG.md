@@ -43,6 +43,12 @@ noise on every gate. In progress on `feature/2.0`.
 
 ### Added
 
+- **Conformance**: all 2,238 examples in Stim 1.16's docstrings pass (`tests/test_stim_doctests.py`),
+  and every public Stim name, method and parameter exists here (`tests/test_stim_api_surface.py`).
+  `PauliString` and `Tableau` pickle, as Stim's do; `Circuit`, `DetectorErrorModel` and
+  `append_from_stim_program_text` take Stim's keyword names (`stim_program_text`,
+  `detector_error_model_text`; 1.x's `text=` still works); `read_shot_data_file` has
+  `separate_observables` and `bit_pack`.
 - **The command line is Stim's in full**: `repl` (byte for byte as Stim's), `help gates`,
   `help formats`, `help <gate>`, `help <format>` and the `*_markdown` topics (our own text,
   from the gate table); `<command> --help`; Stim's older invocations (`--sample=10`,

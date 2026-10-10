@@ -99,9 +99,16 @@ class FlippedMeasurement:
 
     __slots__ = ("record_index", "observable")
 
-    def __init__(self, *, record_index: Optional[int], observable: Iterable[GateTargetWithCoords]) -> None:
-        self.record_index = None if record_index is None else int(record_index)
-        self.observable = list(observable)
+    _NOTHING = object()
+
+    def __init__(self, *, record_index: Any = _NOTHING, observable: Any = _NOTHING, measurement_record_index: Any = _NOTHING, measured_observable: Any = _NOTHING) -> None:
+        # Stim's signature names the long forms; its constructor takes the short ones. Both work.
+        ri = record_index if record_index is not FlippedMeasurement._NOTHING else measurement_record_index
+        obs = observable if observable is not FlippedMeasurement._NOTHING else measured_observable
+        if ri is FlippedMeasurement._NOTHING or obs is FlippedMeasurement._NOTHING:
+            raise TypeError("FlippedMeasurement needs record_index and observable")
+        self.record_index = None if ri is None else int(ri)
+        self.observable = list(obs)
 
     def __repr__(self) -> str:
         ri = "None" if self.record_index is None else str(self.record_index)

@@ -170,10 +170,27 @@ def write_shot_data_file(
 
 
 def read_shot_data_file(
-    *, path: Union[str, PathLike], format: str, bit_packed: bool = False, num_measurements: int = 0, num_detectors: int = 0, num_observables: int = 0
-) -> np.ndarray:
+    *,
+    path: Union[str, PathLike],
+    format: str,
+    bit_packed: bool = False,
+    num_measurements: int = 0,
+    num_detectors: int = 0,
+    num_observables: int = 0,
+    separate_observables: bool = False,
+    bit_pack: bool = False,
+) -> Any:
     """Read shots from a file in one of Stim's result formats, as ``stim.read_shot_data_file``:
-    (shots, n) bool, or bit-packed uint8 rows."""
+    (shots, n) bool, or bit-packed uint8 rows (``bit_pack`` is Stim's older name). With
+    ``separate_observables``, ``(measurements and detectors, observables)``."""
     with open(path, "rb") as f:
         a = decode_shots(f.read(), format, num_measurements, num_detectors, num_observables)
-    return np.packbits(a, axis=1, bitorder="little") if bit_packed else a
+    packed = bit_packed or bit_pack
+
+    def out(x: np.ndarray) -> np.ndarray:
+        return np.packbits(x, axis=1, bitorder="little") if packed else x
+
+    if separate_observables:
+        n = a.shape[1] - count(num_observables, "num_observables")
+        return out(a[:, :n]), out(a[:, n:])
+    return out(a)
