@@ -317,7 +317,8 @@ impl Circuit {
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn detector_error_model(&self, options: &DemOptions) -> Result<DetectorErrorModel> {
-        let program = crate::dem_build::build_with(&self.inner, options.decompose_errors, options.approximate_disjoint_errors, !options.flatten_loops, options.ignore_decomposition_failures)?;
+        let o = options;
+        let program = crate::dem_build::build_full(&self.inner, o.decompose_errors, o.approximate_disjoint_errors, !o.flatten_loops, o.ignore_decomposition_failures, o.allow_gauge_detectors, o.block_decomposition_from_introducing_remnant_edges)?;
         Ok(DetectorErrorModel::from_program(program))
     }
 
@@ -379,8 +380,8 @@ impl Circuit {
     /// let text = c.diagram(DiagramKind::TimelineText)?;
     /// assert!(text.contains("q0: -R-H-@-M:rec[0]-DETECTOR:D0=rec[1]*rec[0]-"));
     /// assert!(text.contains("q1: -R---X-M:rec[1]-"));
-    /// // Just before the measurements, the detector compares Z0 Z1.
-    /// assert_eq!(c.diagram(DiagramKind::DetectorSliceText { tick: 2 })?, "D0: Z0 Z1\n");
+    /// // Just before the measurements, the detector compares Z0 Z1 (Stim's detector slice).
+    /// assert_eq!(c.diagram(DiagramKind::DetectorSliceText { tick: 2 })?, "q0: -Z:D0-\n     |\nq1: -Z:D0-");
     /// # Ok::<(), stabilizer_qec::Error>(())
     /// ```
     pub fn diagram(&self, kind: DiagramKind) -> Result<String> {
@@ -522,8 +523,8 @@ pub enum DiagramKind {
     TimelineText,
     /// The timeline as an SVG picture (`timeline-svg`).
     TimelineSvg,
-    /// What each detector compares after `tick` `TICK`s, as text (`detslice-text`): a line per
-    /// detector, its Paulis.
+    /// What each detector compares after `tick` `TICK`s, as Stim's text diagram
+    /// (`detslice-text`): each qubit's line with each detector's Pauli on it.
     DetectorSliceText {
         /// The moment: after this many `TICK`s (0 is the start).
         tick: u64,
@@ -745,12 +746,29 @@ pub struct DemOptions {
     approximate_disjoint_errors: Option<f64>,
     flatten_loops: bool,
     ignore_decomposition_failures: bool,
+    allow_gauge_detectors: bool,
+    block_decomposition_from_introducing_remnant_edges: bool,
 }
 
 impl DemOptions {
     /// Undecomposed, no approximation.
     pub fn new() -> DemOptions {
         DemOptions::default()
+    }
+
+    /// Stim's `allow_gauge_detectors`: a detector made random by a reset or measurement (a
+    /// gauge) becomes a 50% error on it, as Stim models it, instead of refusing the circuit.
+    /// Observables must still be deterministic.
+    pub fn allow_gauge_detectors(mut self, yes: bool) -> DemOptions {
+        self.allow_gauge_detectors = yes;
+        self
+    }
+
+    /// Stim's `block_decomposition_from_introducing_remnant_edges`: with `decompose_errors`,
+    /// split a fault only into pieces other faults already make, never adding a new edge.
+    pub fn block_decomposition_from_introducing_remnant_edges(mut self, yes: bool) -> DemOptions {
+        self.block_decomposition_from_introducing_remnant_edges = yes;
+        self
     }
 
     /// Split each fault into graph-like pieces (at most two detectors each) as Stim splits them,

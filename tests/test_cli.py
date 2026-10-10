@@ -134,3 +134,44 @@ def test_help_and_errors():
     assert r.returncode == 1 and b"Unrecognized command" in r.stderr
     r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "gen", "--code", "surface_code"], capture_output=True)
     assert r.returncode == 1
+
+
+@needs_stim
+def test_repl_matches_stims():
+    text = b"M 0\nX 0\nM 0\nX 2 3 9\nM 0 1 2 3 4 5 6 7 8 9\n# a comment\n\nREPEAT 2 {\n    X 0\n    M 0\n}\nMPP X0*X0 Z1\nDETECTOR rec[-1]\n"
+    both("repl", stdin=text)
+
+
+@needs_stim
+def test_legacy_modes_and_deprecated_flags(files):
+    det = files / "det.stim"
+    det.write_text("X_ERROR(1) 0\nX 2\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-3]\nOBSERVABLE_INCLUDE(1) rec[-1]\n")
+    both("--sample=3", "--in", str(det), "--skip_reference_sample")
+    both("--sample", "--in", str(det), "--frame0")
+    both("--detect=2", "--in", str(det), "--prepend_observables", "--out_format", "dets")
+    both("--detect", "--in", str(det), "--prepend_observables")
+    both("detect", "--in", str(det), "--out_format", "dets", "--shots", "2")
+    for bad in (["--prepend_observables", "--append_observables"], ["--append_observables", "--obs_out", str(files / "o")], ["--out_format", "dets", "--obs_out", str(files / "o")]):
+        r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "detect", "--in", str(det), *bad], capture_output=True)
+        assert r.returncode == 1 and b"Can't combine" in r.stderr, bad
+    both("analyze_errors", "--detector_hypergraph", "--in", str(files / "c.stim"))
+
+
+def test_help_topics():
+    gates = ours("help", "gates").decode()
+    assert "CNOT" in gates and "ZCX" in gates and "MPP" in gates
+    assert "X0 -> +XX" in ours("help", "CX").decode() and "### The 'CX' Instruction" in ours("help", "cnot").decode()
+    assert b"ptb64" in ours("help", "formats") and b"multiple of 64" in ours("help", "ptb64")
+    assert ours("help", "sample") == ours("sample", "--help")
+    assert ours("--help") == ours("help")
+    assert b"# Gates supported" in ours("help", "gates_markdown")
+    r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "help", "frobnicate"], capture_output=True)
+    assert r.returncode == 1 and b"Unrecognized help topic 'frobnicate'" in r.stderr
+
+
+def test_main_returns_exit_codes(tmp_path, capsys):
+    path = tmp_path / "c.stim"
+    assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--rounds", "2", "--distance", "2", "--out", str(path)]) == 0
+    assert path.read_text().startswith("# Generated repetition_code circuit.")
+    assert sq.main(command_line_args=["gen", "--code", "nope"]) == 1
+    assert sq.main(command_line_args=["sample", "--help"]) == 0

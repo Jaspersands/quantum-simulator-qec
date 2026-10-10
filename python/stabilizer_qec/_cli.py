@@ -29,6 +29,7 @@ COMMANDS = {
     "gen": "Generates example circuits.",
     "help": "Prints helpful information about using stabilizer-qec.",
     "m2d": "Convert measurement data into detection event data.",
+    "repl": "Read operations from stdin and run them, printing measurement results as they happen.",
     "sample": "Samples measurements from a circuit.",
     "sample_dem": "Samples detection events from a detector error model.",
 }
@@ -72,7 +73,7 @@ def _write(path: Optional[str], data) -> None:
 
 
 def _parser(command: str) -> _Parser:
-    p = _Parser(prog=f"stabilizer-qec {command}", description=COMMANDS[command])
+    p = _Parser(prog=f"stabilizer-qec {command}", description=COMMANDS[command], add_help=command != "help")
     add = p.add_argument
     if command in ("sample", "detect", "analyze_errors", "explain_errors", "diagram", "sample_dem"):
         add("--in", dest="input", help="the input file (default: stdin)")
@@ -88,9 +89,12 @@ def _parser(command: str) -> _Parser:
         add("--obs_out_format", choices=FORMATS, default="01")
     if command in ("detect", "m2d"):
         add("--append_observables", action="store_true")
+    if command == "detect":
+        add("--prepend_observables", action="store_true", help="deprecated (Stim's); observables before the detectors")
     if command == "sample":
         add("--skip_reference_sample", action="store_true")
         add("--skip_loop_folding", action="store_true", help="accepted for Stim's sake; loops are never unrolled here")
+        add("--frame0", action="store_true", help="deprecated (Stim's): --skip_reference_sample")
     if command == "m2d":
         add("--circuit", required=True)
         add("--in", dest="input")
@@ -106,6 +110,7 @@ def _parser(command: str) -> _Parser:
         add("--ignore_decomposition_failures", action="store_true")
         add("--allow_gauge_detectors", action="store_true")
         add("--block_decompose_from_introducing_remnant_edges", action="store_true")
+        add("--detector_hypergraph", action="store_true", help="deprecated (Stim's); no effect")
     if command == "explain_errors":
         add("--dem_filter")
         add("--single", action="store_true")
@@ -144,6 +149,7 @@ def _parser(command: str) -> _Parser:
         add("--decoder", default="matching", choices=["matching", "correlated_matching", "belief_matching", "union_find", "bposd", "bplsd", "relay_bp", "color_matching", "search"])
     if command == "help":
         add("topic", nargs="?")
+        add("--help", dest="topic_flag", nargs="?", const="", default=None)
     return p
 
 
@@ -173,15 +179,20 @@ def cmd_sample(a) -> None:
     from ._shots import encode_shots
 
     c = _circuit(_read_text(a.input))
-    data = c.compile_sampler(skip_reference_sample=a.skip_reference_sample, seed=a.seed).sample(a.shots)
+    if a.frame0:
+        print("[DEPRECATION] Use `--skip_reference_sample` instead of `--frame0`", file=sys.stderr)
+    data = c.compile_sampler(skip_reference_sample=a.skip_reference_sample or a.frame0, seed=a.seed).sample(a.shots)
     _write(a.out, encode_shots(data, a.out_format, num_measurements=c.num_measurements))
 
 
 def _detections_out(a, dets: np.ndarray, obs: np.ndarray, nd: int, no: int) -> None:
     from ._shots import encode_shots
 
-    if a.append_observables:
-        _write(a.out, encode_shots(np.hstack([dets, obs]), a.out_format, num_detectors=nd, num_observables=no))
+    prepend = getattr(a, "prepend_observables", False)
+    if a.append_observables or prepend:
+        rows = np.hstack(([obs] if prepend else []) + [dets] + ([obs] if a.append_observables else []))
+        names = [f"L{k}" for k in range(no)] * prepend + [f"D{k}" for k in range(nd)] + [f"L{k}" for k in range(no)] * a.append_observables
+        _write(a.out, encode_shots(rows, a.out_format, num_detectors=rows.shape[1], names=names))
     else:
         _write(a.out, encode_shots(dets, a.out_format, num_detectors=nd))
     if a.obs_out:
@@ -189,6 +200,12 @@ def _detections_out(a, dets: np.ndarray, obs: np.ndarray, nd: int, no: int) -> N
 
 
 def cmd_detect(a) -> None:
+    if a.prepend_observables:
+        print("[DEPRECATION] Avoid using `--prepend_observables`. Data readers assume observables are appended, not prepended.", file=sys.stderr)
+    if a.out_format == "dets" and not a.append_observables:
+        a.prepend_observables = True  # as Stim: dets output names the observables, first
+    if a.prepend_observables + a.append_observables + (a.obs_out is not None) > 1:
+        raise UsageError("Can't combine --prepend_observables, --append_observables, or --obs_out")
     c = _circuit(_read_text(a.input))
     dets, obs = c.compile_detector_sampler(seed=a.seed).sample(a.shots, separate_observables=True)
     _detections_out(a, dets, obs, c.num_detectors, c.num_observables)
@@ -197,9 +214,10 @@ def cmd_detect(a) -> None:
 def cmd_m2d(a) -> None:
     from ._shots import decode_shots
 
-    if a.ran_without_feedback:
-        raise UsageError("--ran_without_feedback is not supported")
     c = _circuit(_read_text(a.circuit))
+    if a.ran_without_feedback:
+        # As Stim: the results are of the circuit with its feedback left out.
+        c = c.with_inlined_feedback()
     meas = decode_shots(_read_bytes(a.input), a.in_format, num_measurements=c.num_measurements)
     if a.skip_reference_sample:
         meas = meas ^ c.reference_sample()
@@ -211,16 +229,16 @@ def cmd_m2d(a) -> None:
 
 
 def cmd_analyze_errors(a) -> None:
-    if a.allow_gauge_detectors:
-        raise UsageError("--allow_gauge_detectors is not supported: a detector must be deterministic")
-    if a.block_decompose_from_introducing_remnant_edges:
-        raise UsageError("--block_decompose_from_introducing_remnant_edges is not supported")
+    if a.detector_hypergraph:
+        print("[DEPRECATION] Use `stabilizer-qec analyze_errors` instead of `--detector_hypergraph`", file=sys.stderr)
     c = _circuit(_read_text(a.input))
     dem = c.detector_error_model(
         decompose_errors=a.decompose_errors,
         approximate_disjoint_errors=False if a.approximate_disjoint_errors is None else a.approximate_disjoint_errors,
         flatten_loops=not a.fold_loops,
         ignore_decomposition_failures=a.ignore_decomposition_failures,
+        allow_gauge_detectors=a.allow_gauge_detectors,
+        block_decomposition_from_introducing_remnant_edges=a.block_decompose_from_introducing_remnant_edges,
     )
     _write(a.out, str(dem) + "\n")
 
@@ -326,24 +344,263 @@ def cmd_decode(a) -> None:
     _write(a.out, encode_shots(predictions, a.out_format, num_observables=no))
 
 
-def cmd_help(a) -> None:
-    if a.topic in COMMANDS:
-        _write(None, _parser(a.topic).format_help())
-        return
+FORMAT_HELP = {
+    "01": "The default format. Each shot is a line of '0' and '1' characters, one per bit, ending with a newline.",
+    "b8": "Binary. Each shot is a whole number of bytes, the bits packed eight to a byte, least significant first.",
+    "r8": "Binary, for sparse data. Each shot is a run of bytes, each the number of 0s before the next 1 (a byte of 255 adds 255 and continues the run), ending with the run before an imagined 1 past the end.",
+    "ptb64": "Binary, partially transposed. Shots in groups of 64: for each bit, a little-endian 64-bit word whose bit k is that bit of the group's shot k. The number of shots must be a multiple of 64.",
+    "hits": "Text. Each shot is a line listing the indices of its 1 bits, comma-separated.",
+    "dets": "Text. Each shot is a line starting 'shot', then the 1 bits named by kind and index: M for measurements, D for detectors, L for observables (e.g. 'shot D0 D5 L1').",
+}
+
+
+def _gate_help(name: str) -> str:
+    """A gate's help, from the gate table (our own text)."""
+    from . import _stim
+
+    g = _stim.GateData(name)
+    d = g._d
+    out = [f"### The '{g.name}' Instruction", ""]
+    others = [a for a in g.aliases if a != g.name]
+    if others:
+        out += ["Alternative names:", ""] + [f"    {a}" for a in others] + [""]
+    out.append(f"Category: {d['category'][2:]}")
+    lo, hi = d["args"]
+    if hi <= 1:
+        out.append("Parens arguments: none")
+    elif lo + 1 == hi:
+        out.append(f"Parens arguments: exactly {lo}")
+    else:
+        out.append(f"Parens arguments: {lo} or more" if hi > 64 else f"Parens arguments: {lo} to {hi - 1}")
+    if d["takes_pauli_targets"]:
+        targets = "Pauli products (e.g. X0*Y1)" if d["flags"] & (1 << 12) else "Pauli targets (e.g. X0)"
+    elif d["is_two_qubit_gate"]:
+        targets = "qubit pairs"
+    elif d["flags"] & (1 << 10):
+        targets = "none"
+    elif d["flags"] & (1 << 8):
+        targets = "measurement records (rec[-k])"
+    else:
+        targets = "qubits"
+    if d["takes_measurement_record_targets"] and d["is_two_qubit_gate"]:
+        targets += "; a measurement record or sweep bit may be a control"
+    out.append(f"Targets: {targets}")
+    kinds = [k for k, f in (("unitary", "is_unitary"), ("noisy", "is_noisy_gate"), ("a reset", "is_reset"), ("a measurement", "produces_measurements")) if d[f]]
+    if kinds:
+        out.append("It is " + ", ".join(kinds) + ".")
+    if d["tableau"]:
+        out += ["", "Stabilizer generators (how it conjugates each Pauli):", ""]
+        n = len(d["tableau"]) // 2
+        for k in range(n):
+            out.append(f"    X{k} -> {d['tableau'][2 * k]}")
+            out.append(f"    Z{k} -> {d['tableau'][2 * k + 1]}")
+    if d["flows"]:
+        out += ["", "Flows:", ""] + [f"    {f}" for f in d["flows"]]
+    if d["unitary"]:
+        dim = int(round(len(d["unitary"]) ** 0.5))
+        out += ["", "Unitary matrix (little-endian):", ""]
+
+        def c(re_im: tuple) -> str:
+            re, im = re_im
+            if abs(im) < 1e-9:
+                return f"{re:+.3f}"
+            if abs(re) < 1e-9:
+                return f"{im:+.3f}i"
+            return f"{re:+.3f}{im:+.3f}i"
+
+        for r in range(dim):
+            out.append("    [" + ", ".join(c(d["unitary"][r * dim + col]) for col in range(dim)) + "]")
+    if d["decomposition"]:
+        out += ["", "Decomposition (into H, S, CX, M, R):", ""] + [f"    {line}" for line in d["decomposition"].splitlines()]
+    if d["inverse"]:
+        out += ["", f"Inverse: {d['inverse']}"]
+    return "\n".join(out) + "\n"
+
+
+def _gates_index(markdown: bool) -> str:
+    from . import _stim
+
+    _stim._load_gates()
+    categories: dict = {}
+    for d in _stim._GATES.values():
+        categories.setdefault(d["category"], set()).update(d["aliases"])
+    if not markdown:
+        lines = ["Gates supported by stabilizer-qec", "================================="]
+        for cat in sorted(categories):
+            lines.append(cat[2:] + ":")
+            lines += [f"    {n}" for n in sorted(categories[cat])]
+        return "\n".join(lines) + "\n"
+    lines = ["# Gates supported by stabilizer-qec", ""]
+    for cat in sorted(categories):
+        lines.append("- " + cat[2:])
+        lines += [f"    - [{n}](#{n})" for n in sorted(categories[cat])]
+    lines.append("")
+    for cat in sorted(categories):
+        lines += [f"## {cat[2:]}", ""]
+        for n in sorted(categories[cat]):
+            if _stim.GateData(n).name == n:
+                lines.append(_gate_help(n))
+    return "\n".join(lines) + "\n"
+
+
+def _formats_index(markdown: bool) -> str:
+    if markdown:
+        return "# Result formats\n\n" + "".join(f"## {k}\n\n{v}\n\n" for k, v in FORMAT_HELP.items())
+    lines = ["Result formats supported by stabilizer-qec", "==========================================="]
+    lines += [f"    {k:<6} {v.split('. ')[0]}." for k, v in FORMAT_HELP.items()]
+    return "\n".join(lines) + "\n"
+
+
+def _commands_index() -> str:
     lines = ["Available stabilizer-qec commands:", ""]
     lines += [f"    stabilizer-qec {name:<16} # {doc}" for name, doc in COMMANDS.items()]
-    lines += ["", "Use `stabilizer-qec help [command]` for help on a command.", ""]
-    _write(None, "\n".join(lines))
+    return "\n".join(lines) + "\n"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
+def help_for(topic: str) -> str:
+    """The help on a topic: '' (an overview), commands, gates, formats, a command, a gate or a
+    format; the *_markdown topics as Markdown. Empty for an unknown topic."""
+    from . import _stim
+
+    key = topic.strip()
+    upper = key.upper()
+    if key == "":
+        return _commands_index() + """
+Use `stabilizer-qec help [topic]` for help on specific topics. Available topics include:
+
+    stabilizer-qec help commands  # List all commands.
+    stabilizer-qec help gates     # List all circuit instructions.
+    stabilizer-qec help formats   # List all result formats.
+    stabilizer-qec help [command] # Print information about a command, e.g. "sample".
+    stabilizer-qec help [gate]    # Print information about a gate, e.g. "CNOT".
+    stabilizer-qec help [format]  # Print information about a result format, e.g. "01".
+"""
+    if upper == "COMMANDS":
+        return _commands_index()
+    if upper == "COMMANDS_MARKDOWN":
+        return "# stabilizer-qec command line reference\n\n" + "".join(f"## {c}\n\n```\n{_parser(c).format_help()}```\n\n" for c in COMMANDS)
+    if upper == "GATES":
+        return _gates_index(False)
+    if upper == "GATES_MARKDOWN":
+        return _gates_index(True)
+    if upper == "FORMATS":
+        return _formats_index(False)
+    if upper == "FORMATS_MARKDOWN":
+        return _formats_index(True)
+    if key.lower() in COMMANDS:
+        return _parser(key.lower()).format_help()
+    if key.lower() in FORMAT_HELP:
+        return f"Result format '{key.lower()}'\n\n{FORMAT_HELP[key.lower()]}\n"
+    try:
+        return _gate_help(key)
+    except (IndexError, KeyError, ValueError):
+        return ""
+
+
+def cmd_help(a) -> None:
+    topic = a.topic if a.topic is not None else (a.topic_flag or "")
+    msg = help_for(topic)
+    if not msg:
+        raise UsageError(f"Unrecognized help topic '{topic}'.")
+    _write(None, msg)
+
+
+def cmd_repl(a) -> None:
+    """Stim's REPL: each instruction (a REPEAT block once it closes) runs as soon as it's read,
+    on a tableau simulator; each instruction that measures prints its results as 0s and 1s
+    and a newline. An instruction that fails is reported (in red) and skipped."""
+    from ._circuit import Circuit
+    from ._stim import TableauSimulator
+
+    sim = TableauSimulator()
+    out = sys.stdout
+    pending: List[str] = []
+    depth = 0
+    for line in sys.stdin:
+        body = line.split("#", 1)[0]
+        depth += body.count("{") - body.count("}")
+        pending.append(line)
+        if depth > 0 or not body.strip():
+            if depth <= 0:
+                pending = []
+            continue
+        text, pending, depth = "".join(pending), [], 0
+        try:
+            ops = list(Circuit(text).flattened())
+        except ValueError as ex:
+            print(f"\033[31m{ex}\033[0m", file=sys.stderr)
+            continue
+        for op in ops:
+            before = len(sim.current_measurement_record())
+            try:
+                sim.do(op)
+            except ValueError as ex:
+                print(f"\033[31m{ex}\033[0m", file=sys.stderr)
+                break
+            record = sim.current_measurement_record()
+            if len(record) > before:
+                out.write("".join("1" if b else "0" for b in record[before:]) + "\n")
+                out.flush()
+    out.write("\n")
+    out.flush()
+
+
+_LEGACY_MODES = {
+    "--repl": "repl",
+    "--sample": "sample",
+    "--detect": "detect",
+    "--analyze_errors": "analyze_errors",
+    "--detector_hypergraph": "analyze_errors",
+    "--gen": "gen",
+    "--m2d": "m2d",
+    "--explain_errors": "explain_errors",
+    "--convert": "convert",
+    "--help": "help",
+}
+
+
+def _legacy(argv: List[str]) -> Optional[List[str]]:
+    """Stim's old invocations (`--sample=10 --in c.stim`, `--detect`, `--help`, ...) as a
+    command and its arguments."""
+    found = [(k, a) for k, a in enumerate(argv) if a.split("=", 1)[0] in _LEGACY_MODES]
+    if not found:
+        return None
+    k, flag = found[0]
+    name, _, value = flag.partition("=")
+    command = _LEGACY_MODES[name]
+    rest = argv[:k] + argv[k + 1 :]
+    if name == "--detector_hypergraph":
+        print("[DEPRECATION] Use `stabilizer-qec analyze_errors` instead of `--detector_hypergraph`", file=sys.stderr)
+    if name in ("--sample", "--detect"):
+        if not value and k + 1 < len(argv) and argv[k + 1].isdigit():
+            value = argv[k + 1]
+            rest = argv[:k] + argv[k + 2 :]
+        rest = ["--shots", value or "1"] + rest
+    if command == "help":
+        rest = [value] if value else rest[:1]
+    return [command] + rest
+
+
+def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[str]] = None) -> int:
+    """Runs the command line (as ``stim.main``): ``command_line_args`` are the arguments after
+    the program's name. Returns the exit code."""
+    if command_line_args is not None:
+        argv = list(command_line_args)
+    argv = sys.argv[1:] if argv is None else list(argv)
     if not argv:
         argv = ["help"]
+    if argv[0].startswith("-"):
+        legacy = _legacy(argv)
+        if legacy is None:
+            print("No mode was given.\n\n" + help_for(""), file=sys.stderr)
+            return 1
+        argv = legacy
     command, rest = argv[0], argv[1:]
     if command not in COMMANDS:
         print(f"Unrecognized command '{command}'. Use `stabilizer-qec help` for the commands.", file=sys.stderr)
         return 1
+    if command != "help" and rest and rest[0] in ("help", "--help") and len(rest) == 1:
+        command, rest = "help", [command]
     try:
         args = _parser(command).parse_args(rest)
         globals()[f"cmd_{command}"](args)
@@ -353,6 +610,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     except (ValueError, TypeError, OSError) as ex:
         print(f"stabilizer-qec {command}: {ex}", file=sys.stderr)
         return 1
+    except SystemExit as ex:  # argparse's own --help
+        return int(ex.code or 0)
     return 0
 
 

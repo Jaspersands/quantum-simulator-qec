@@ -437,3 +437,29 @@ def test_explained_errors_as_stim(task):
     for e in o.shortest_graphlike_error():
         rebuilt = sq.ExplainedError(dem_error_terms=e.dem_error_terms, circuit_error_locations=e.circuit_error_locations)
         assert rebuilt == e and hash(rebuilt) == hash(e) and str(rebuilt) == str(e)
+
+
+@pytest.mark.parametrize("seed", range(120))
+def test_gauge_detectors_as_stim(seed):
+    rng = random.Random(6000 + seed)
+    n = rng.randint(1, 4)
+    text = dissipative_circuit(rng, n, rng.randint(2, 10))
+    nm = stim.Circuit(text).num_measurements
+    if nm == 0:
+        return
+    dets = "\n".join(f"DETECTOR rec[-{rng.randint(1, nm)}]" for _ in range(rng.randint(1, 3)))
+    text += f"\nX_ERROR(0.125) 0\nM 0\n{dets}"
+    for kw in [dict(allow_gauge_detectors=True), dict(allow_gauge_detectors=True, decompose_errors=True, ignore_decomposition_failures=True)]:
+        want = outcome(lambda: str(stim.Circuit(text).detector_error_model(**kw)))
+        got = outcome(lambda: str(sq.Circuit(text).detector_error_model(**kw)))
+        assert (got == want) or (got.startswith("ValueError") and want.startswith("ValueError")), (kw, got, want)
+
+
+@pytest.mark.parametrize("task", ["color_code:memory_xyz", "surface_code:rotated_memory_x"])
+def test_blocked_remnant_edges_as_stim(task):
+    kw = dict(distance=5, rounds=3, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01, after_reset_flip_probability=0.01)
+    s, o = stim.Circuit.generated(task, **kw), sq.Circuit.generated(task, **kw)
+    for extra in [dict(), dict(ignore_decomposition_failures=True)]:
+        want = outcome(lambda: str(s.detector_error_model(decompose_errors=True, block_decomposition_from_introducing_remnant_edges=True, **extra)))
+        got = outcome(lambda: str(o.detector_error_model(decompose_errors=True, block_decomposition_from_introducing_remnant_edges=True, **extra)))
+        assert (got == want) or (got.startswith("ValueError") and want.startswith("ValueError")), extra

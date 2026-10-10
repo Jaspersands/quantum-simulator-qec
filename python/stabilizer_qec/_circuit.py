@@ -463,7 +463,9 @@ class Circuit:
         decompose_errors: bool = False,
         approximate_disjoint_errors: Union[bool, float] = False,
         flatten_loops: bool = False,
+        allow_gauge_detectors: bool = False,
         ignore_decomposition_failures: bool = False,
+        block_decomposition_from_introducing_remnant_edges: bool = False,
     ) -> "DetectorErrorModel":
         """The circuit's detector error model, built by walking it backwards, as Stim's error
         analyzer does. ``decompose_errors`` splits each fault into graph-like pieces (at most
@@ -480,12 +482,17 @@ class Circuit:
         probability above it.
 
         ``ignore_decomposition_failures`` is Stim's too: with ``decompose_errors``, a fault that
-        cannot be split into graph-like pieces is kept whole rather than refused."""
+        cannot be split into graph-like pieces is kept whole rather than refused.
+
+        ``allow_gauge_detectors`` (Stim's): a detector a reset or measurement makes random
+        becomes a 50% error on it instead of an error; observables must still be deterministic.
+        ``block_decomposition_from_introducing_remnant_edges`` (Stim's): split faults only into
+        pieces other faults already make."""
         if isinstance(approximate_disjoint_errors, bool):
             threshold = 1.0 if approximate_disjoint_errors else None
         else:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
-        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures)))
+        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures), bool(allow_gauge_detectors), bool(block_decomposition_from_introducing_remnant_edges)))
 
     def diagram(self, type: str = "timeline-text", *, tick: Union[int, range, None] = None, rows: Union[int, None] = None, filter_coords: Any = None) -> "Diagram":
         """A picture of the circuit, with Stim's ``diagram`` types:

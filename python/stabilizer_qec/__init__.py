@@ -189,6 +189,16 @@ from ._explain import (
 )
 from ._shots import read_shot_data_file, write_shot_data_file
 from ._clifford_string import CliffordString
+
+
+def main(*, command_line_args: list) -> int:
+    """Runs the ``stabilizer-qec`` command line on these arguments (as ``stim.main``), reading
+    stdin and writing stdout unless ``--in`` / ``--out`` say otherwise. Returns the exit code."""
+    from ._cli import main as _main
+
+    return _main(command_line_args=command_line_args)
+
+
 from ._flip_sim import FlipSimulator
 from ._dem import DemInstruction, DemRepeatBlock, DemTarget, target_relative_detector_id, target_logical_observable_id, target_separator
 from ._stim import (
@@ -267,6 +277,7 @@ def __dir__():
 
 
 __all__ = [
+    "main",
     "CompiledDemSampler",
     "CompiledDetectorSampler",
     "CompiledMeasurementSampler",

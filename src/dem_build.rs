@@ -330,6 +330,12 @@ struct Analyzer {
     /// Keep a piece that cannot be split into graph-like pieces whole (Stim's
     /// `ignore_decomposition_failures`) rather than refuse the model.
     ignore_failures: bool,
+    /// Stim's `allow_gauge_detectors`: a detector depending on a random outcome becomes a 50%
+    /// error on it rather than a refusal.
+    allow_gauge: bool,
+    /// Stim's `block_decomposition_from_introducing_remnant_edges`: split a piece only into
+    /// pieces the model already has.
+    block_remnants: bool,
     /// The current channel's combinations (reused, see `Combos`).
     combos: Combos,
 }
@@ -382,15 +388,35 @@ impl Analyzer {
         }
     }
 
-    fn check_reset(&self, q: usize, basis: Basis, what: &str) -> Result<(), String> {
+    fn check_reset(&mut self, q: usize, basis: Basis, what: &str, tag: &Option<Arc<str>>) -> Result<(), String> {
         let sensitive = match basis {
-            Basis::Z => &self.t.sz[q],
-            Basis::X => &self.t.sx[q],
+            Basis::Z => self.t.sz[q].clone(),
+            Basis::X => self.t.sx[q].clone(),
         };
-        match sensitive.first() {
-            None => Ok(()),
-            Some(&t) if t & OBS == 0 => Err(format!("detector D{t} is not deterministic: it depends on the random outcome of {what} on qubit {q}")),
+        self.gauge(sensitive, q, what, tag)
+    }
+
+    /// Stim's `check_for_gauge`: the detectors and observables a collapse on `q` makes random.
+    /// Refused; or, with `allow_gauge` and no observable among them, a 50% error on them, and
+    /// the gauge taken out of every sensitivity holding its largest member (as Stim).
+    fn gauge(&mut self, set: Sym, q: usize, what: &str, tag: &Option<Arc<str>>) -> Result<(), String> {
+        if set.is_empty() {
+            return Ok(());
+        }
+        if self.allow_gauge && set.iter().all(|&t| t & OBS == 0) {
+            let origin = Origin { name: "gauge", a: q as u32, b: None, pauli: (0, 0) };
+            self.add_at(0.5, &[&set], origin, tag, None);
+            let max = *set.last().expect("not empty");
+            for s in self.t.sx.iter_mut().chain(self.t.sz.iter_mut()) {
+                if s.binary_search(&max).is_ok() {
+                    xor_into(s, &set);
+                }
+            }
+            return Ok(());
+        }
+        match set.iter().find(|&&t| t & OBS != 0) {
             Some(&t) => Err(format!("observable L{} is not deterministic: it depends on the random outcome of {what} on qubit {q}", t & !OBS)),
+            None => Err(format!("detector D{} is not deterministic: it depends on the random outcome of {what} on qubit {q}", set[0])),
         }
     }
 
@@ -473,6 +499,7 @@ impl Analyzer {
 
     fn undo(&mut self, ins: &Instr, tag: &Option<Arc<str>>) -> Result<(), String> {
         let reset_name = |basis: Basis| if basis == Basis::Z { "a Z-basis reset" } else { "an X-basis reset" };
+        let measure_name = |basis: Basis| if basis == Basis::Z { "a Z-basis measurement" } else { "an X-basis measurement" };
         match ins {
             Instr::Repeat { count, body, tag: own } => self.run_loop(body, *count, own, tag)?,
             Instr::Gate { body, tag: own, .. } => {
@@ -489,7 +516,7 @@ impl Analyzer {
             Instr::Reset { basis, qubits } => {
                 for &q in qubits.iter().rev() {
                     let q = q as usize;
-                    self.check_reset(q, *basis, reset_name(*basis))?;
+                    self.check_reset(q, *basis, reset_name(*basis), tag)?;
                     self.t.sx[q].clear();
                     self.t.sz[q].clear();
                 }
@@ -508,7 +535,7 @@ impl Analyzer {
                         Detail { range, pauli: Vec::new(), meas: Some((index, observable)), rank: 0, item: None }
                     });
                     if *reset {
-                        self.check_reset(qi, *basis, reset_name(*basis))?;
+                        self.check_reset(qi, *basis, reset_name(*basis), tag)?;
                         self.t.sx[qi].clear();
                         self.t.sz[qi].clear();
                     }
@@ -516,6 +543,12 @@ impl Analyzer {
                         Basis::Z => xor_into(&mut self.t.sx[qi], &r),
                         Basis::X => xor_into(&mut self.t.sz[qi], &r),
                     }
+                    // As Stim, the collapse is checked here: what the measurement randomizes.
+                    let random = match basis {
+                        Basis::Z => self.t.sz[qi].clone(),
+                        Basis::X => self.t.sx[qi].clone(),
+                    };
+                    self.gauge(random, qi, measure_name(*basis), tag)?;
                     if *flip > 0.0 {
                         let origin = Origin { name: "measurement flip", a: q, b: None, pauli: (1, 0) };
                         self.add_at(*flip, &[&r], origin, tag, detail);
@@ -837,7 +870,9 @@ impl Analyzer {
             sweeps: None,
             prov: None,
             ignore_failures: false,
-            combos: Combos::default(),
+            allow_gauge: false,
+        block_remnants: false,
+        combos: Combos::default(),
         };
         let (mut hare_iter, mut tortoise_iter) = (0u64, 0u64);
         while hare_iter < iterations {
@@ -931,7 +966,8 @@ impl Analyzer {
                 }
                 let mut out = Vec::new();
                 for comp in components(key) {
-                    let parts = match brute_force_known(comp, &known).or_else(|| greedy_known(comp, &known)) {
+                    let remnants = !self.block_remnants;
+                    let parts = match brute_force_known(comp, &known).or_else(|| if remnants { greedy_known(comp, &known) } else { None }) {
                         Some(parts) => parts,
                         None if self.ignore_failures => vec![comp.to_vec()],
                         None => return Err(format!("cannot split {} into graph-like pieces: it fires detectors {:?}", c.origin.describe(), dets(comp))),
@@ -1030,6 +1066,12 @@ pub fn build(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold:
 /// `build`, keeping pieces that cannot be split whole when `ignore_failures` (Stim's
 /// `ignore_decomposition_failures`).
 pub fn build_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool) -> Result<DemProgram, String> {
+    build_full(circuit, decompose, approximate, fold, ignore_failures, false, false)
+}
+
+/// `build_with`, also with Stim's `allow_gauge_detectors` and
+/// `block_decomposition_from_introducing_remnant_edges`.
+pub fn build_full(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool) -> Result<DemProgram, String> {
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
@@ -1044,12 +1086,14 @@ pub fn build_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>, 
         sweeps: None,
         prov: None,
         ignore_failures,
+        allow_gauge,
+        block_remnants,
         combos: Combos::default(),
     };
     a.undo_block(&circuit.instrs, &None)?;
     // Every qubit starts in |0>, which is a Z-basis reset at time zero.
     for q in 0..nq {
-        a.check_reset(q, Basis::Z, "the initial |0>")?;
+        a.check_reset(q, Basis::Z, "the initial |0>", &None)?;
     }
     a.flush()?;
     let (mut base, mut seen) = (0u64, HashSet::new());
@@ -1091,6 +1135,8 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
         sweeps: None,
         prov: Some(Box::new(Recorder::new(count_ticks(&circuit.instrs)))),
         ignore_failures: false,
+        allow_gauge: false,
+        block_remnants: false,
         combos: Combos::default(),
     };
     a.undo_block(&circuit.instrs, &None)?;
@@ -1124,11 +1170,13 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, ObsBits)>, Stri
         sweeps: Some(vec![Sym::new(); counts.sweep_bits]),
         prov: None,
         ignore_failures: false,
+        allow_gauge: false,
+        block_remnants: false,
         combos: Combos::default(),
     };
     a.undo_block(&circuit.instrs, &None)?;
     for q in 0..nq {
-        a.check_reset(q, Basis::Z, "the initial |0>")?;
+        a.check_reset(q, Basis::Z, "the initial |0>", &None)?;
     }
     Ok(a.sweeps.unwrap_or_default().iter().map(|s| (dets(s).into_iter().map(|d| d as u32).collect(), obs_mask(s))).collect())
 }

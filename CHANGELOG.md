@@ -43,6 +43,18 @@ noise on every gate. In progress on `feature/2.0`.
 
 ### Added
 
+- **The command line is Stim's in full**: `repl` (byte for byte as Stim's), `help gates`,
+  `help formats`, `help <gate>`, `help <format>` and the `*_markdown` topics (our own text,
+  from the gate table); `<command> --help`; Stim's older invocations (`--sample=10`,
+  `--detect`, `--help`, ...) and deprecated flags (`--prepend_observables`, `--frame0`,
+  `--detector_hypergraph`), with Stim's rules for combining them; `m2d --ran_without_feedback`;
+  `analyze_errors --allow_gauge_detectors` and `--block_decompose_from_introducing_remnant_edges`.
+  `stabilizer_qec.main(command_line_args=...)` runs it from Python, as `stim.main`.
+- **`allow_gauge_detectors` and `block_decomposition_from_introducing_remnant_edges`** on
+  `Circuit.detector_error_model` (and `DemOptions` in Rust): a gauge detector becomes Stim's 50%
+  error, removed from the walk as Stim removes it, with the collapse checked at each
+  measurement as well as each reset (the model is Stim's, character for character, on random
+  circuits with gauges).
 - **The explained-error classes are Stim's**: `GateTargetWithCoords.gate_target` is a
   `GateTarget` and `DemTargetWithCoords.dem_target` a `DemTarget` (1.x: strings); every class
   has Stim's keyword constructor, text, repr, equality and hash; `flipped_measurement` is None

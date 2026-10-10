@@ -220,9 +220,16 @@ impl PyCircuit {
     /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
     /// `flatten` writes it without folding its loops; `ignore_failures` keeps faults that cannot
     /// be decomposed whole.
-    #[pyo3(signature = (decompose, approximate=None, flatten=false, ignore_failures=false))]
-    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool, ignore_failures: bool) -> PyResult<PyDem> {
-        let options = crate::api::DemOptions::new().decompose_errors(decompose).approximate_disjoint_errors(approximate).flatten_loops(flatten).ignore_decomposition_failures(ignore_failures);
+    #[pyo3(signature = (decompose, approximate=None, flatten=false, ignore_failures=false, allow_gauge=false, block_remnants=false))]
+    #[allow(clippy::too_many_arguments)]
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool) -> PyResult<PyDem> {
+        let options = crate::api::DemOptions::new()
+            .decompose_errors(decompose)
+            .approximate_disjoint_errors(approximate)
+            .flatten_loops(flatten)
+            .ignore_decomposition_failures(ignore_failures)
+            .allow_gauge_detectors(allow_gauge)
+            .block_decomposition_from_introducing_remnant_edges(block_remnants);
         Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
     }
 
