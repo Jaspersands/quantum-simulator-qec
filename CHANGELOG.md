@@ -43,6 +43,10 @@ noise on every gate. In progress on `feature/2.0`.
 
 ### Added
 
+- **The explained-error classes are Stim's**: `GateTargetWithCoords.gate_target` is a
+  `GateTarget` and `DemTargetWithCoords.dem_target` a `DemTarget` (1.x: strings); every class
+  has Stim's keyword constructor, text, repr, equality and hash; `flipped_measurement` is None
+  when nothing is measured; a location's text is computed from its fields, as Stim's.
 - **Stim's diagram surface**: `timeline-3d` and `matchgraph-3d` (circuits and models) as glTF,
   byte for byte as Stim writes them; every `-html` type (a viewer page); `interactive` (a page
   opening the circuit in Crumble); `filter_coords` (detectors, observables, coordinate

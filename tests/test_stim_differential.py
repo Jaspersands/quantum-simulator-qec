@@ -422,3 +422,18 @@ def test_diagrams_of_generated_circuits(task):
     assert str(o.diagram("matchgraph-3d")) == str(s.diagram("matchgraph-3d"))
     assert o.diagram("timeline-svg-html")._repr_html_().startswith('<iframe style="width: 100%; height: 300px;')
     assert str(o.diagram("timeline-svg-html")) == o.diagram("timeline-svg-html")._repr_html_()
+
+
+@pytest.mark.parametrize("task", ["repetition_code:memory", "surface_code:rotated_memory_x", "color_code:memory_xyz"])
+def test_explained_errors_as_stim(task):
+    kw = dict(distance=3, rounds=2, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01, after_reset_flip_probability=0.01)
+    s, o = stim.Circuit.generated(task, **kw), sq.Circuit.generated(task, **kw)
+
+    def shown(errors):
+        return [repr(e).replace("stabilizer_qec.", "stim.") for e in errors], [str(e) for e in errors]
+
+    assert shown(o.shortest_graphlike_error()) == shown(s.shortest_graphlike_error())
+    assert shown(o.explain_detector_error_model_errors(reduce_to_one_representative_error=True)) == shown(s.explain_detector_error_model_errors(reduce_to_one_representative_error=True))
+    for e in o.shortest_graphlike_error():
+        rebuilt = sq.ExplainedError(dem_error_terms=e.dem_error_terms, circuit_error_locations=e.circuit_error_locations)
+        assert rebuilt == e and hash(rebuilt) == hash(e) and str(rebuilt) == str(e)

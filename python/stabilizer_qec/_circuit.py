@@ -621,7 +621,7 @@ class Circuit:
 
         >>> c = Circuit("R 0\\nX_ERROR(0.1) 0\\nM 0\\nDETECTOR rec[-1]")
         >>> e = c.explain_detector_error_model_errors()[0]
-        >>> [t.dem_target for t in e.dem_error_terms], e.circuit_error_locations[0].instruction_targets.gate
+        >>> [str(t.dem_target) for t in e.dem_error_terms], e.circuit_error_locations[0].instruction_targets.gate
         (['D0'], 'X_ERROR')
         """
         from . import _explain
@@ -1854,7 +1854,8 @@ def _crumble_args(args: list) -> str:
 
 
 def _crumble_pauli_and_qubit(target: Any) -> Tuple[str, str]:
-    text = str(getattr(target, "gate_target", target)).lstrip("!")
+    g = getattr(target, "gate_target", target)
+    text = (g.target_str() if hasattr(g, "target_str") else str(g)).lstrip("!")
     if text[:1] in ("X", "Y", "Z"):
         return text[0], text[1:]
     return "I", text
