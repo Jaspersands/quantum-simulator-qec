@@ -513,7 +513,7 @@ def cmd_repl(a) -> None:
     from ._stim import TableauSimulator
 
     sim = TableauSimulator()
-    out = sys.stdout
+    out = sys.stdout.buffer  # bare \n on every platform, as Stim writes it
     pending: List[str] = []
     depth = 0
     for line in sys.stdin:
@@ -539,9 +539,9 @@ def cmd_repl(a) -> None:
                 break
             record = sim.current_measurement_record()
             if len(record) > before:
-                out.write("".join("1" if b else "0" for b in record[before:]) + "\n")
+                out.write(("".join("1" if b else "0" for b in record[before:]) + "\n").encode())
                 out.flush()
-    out.write("\n")
+    out.write(b"\n")
     out.flush()
 
 
