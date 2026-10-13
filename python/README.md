@@ -31,7 +31,7 @@ import stabilizer_qec as sq
 circuit = sq.memory_circuit(distance=5, rounds=5, p=0.004)               # a d = 5 SD6 memory
 dets, obs = circuit.compile_detector_sampler(seed=1).sample(100_000, separate_observables=True, threads=0)
 dem = circuit.detector_error_model(decompose_errors=True)
-pred = sq.Matching(dem, enable_correlations=True).decode_batch(dets, threads=0)
+pred = sq.Matching(dem, enable_correlations=True).decode_batch(dets, enable_correlations=True, threads=0)
 print((pred != obs).any(axis=1).mean())                                  # logical error rate
 ```
 

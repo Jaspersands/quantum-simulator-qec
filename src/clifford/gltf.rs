@@ -321,7 +321,8 @@ const TEXTURE_PNG_BASE64: &str = include_str!("gltf_texture.b64");
 fn circle_loop(a: &mut Arena, n: usize, r: f32, repeat_boundary: bool) -> usize {
     let mut v: Vec<C3> = vec![[0.0, r, 0.0]];
     for k in 1..n {
-        let t = k as f32 * 3.141_592_653_59_f32 * 2.0 / n as f32;
+        // Stim writes 3.14159265359f, the same f32 as PI.
+        let t = k as f32 * std::f32::consts::PI * 2.0 / n as f32;
         v.push([0.0, t.cos() * r, t.sin() * r]);
     }
     if repeat_boundary {
@@ -571,7 +572,7 @@ fn pick_coords(c: &ir::Circuit, nq: usize, used: &BTreeSet<u32>) -> (Vec<C2>, (C
     if !set_used.is_empty() {
         let used_coords: Vec<C2> = set_used.iter().map(|&q| coords[q as usize]).collect();
         let (lo, _) = min_max2(&used_coords);
-        let offset = [lo[0] * -1.0 + 16.0, lo[1] * -1.0 + 16.0];
+        let offset = [-lo[0] + 16.0, -lo[1] + 16.0];
         for p in coords.iter_mut() {
             p[0] += offset[0];
             p[1] += offset[1];

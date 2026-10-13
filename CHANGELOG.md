@@ -37,12 +37,37 @@ noise on every gate. In progress on `feature/2.0`.
   `CX 0 rec[-1]`) are refused when the circuit is built, with Stim's message.
 - Integer targets are read as Stim reads them: digits only (`+3`, `rec[-+1]`, `D+1` are
   refused, as in Stim; 1.x took a leading `+`).
+- **`Matching` is PyMatching's `Matching`** (2.4), graph API and all. Its first positional
+  parameter is `graph` (a model, check matrix, networkx or rustworkx graph), as PyMatching's;
+  1.x's `Matching(model)` still works. **Correlated decoding is asked for twice, as in PyMatching**:
+  `enable_correlations=True` when building from a model and again when decoding
+  (`decode(..., enable_correlations=True)`, `decode_batch(...)`). In 1.x, building with it was
+  enough; 1.x code that built with it now decodes without correlations unless the decode call
+  asks too. `decode_batch` casts shots of any integer or bool
+  dtype as PyMatching does, where 1.x refused values other than 0 and 1.
 - The package and crate are licensed `MIT AND Apache-2.0`: the parts ported from Stim keep
   Stim's Apache-2.0 licence (`THIRD_PARTY_NOTICES.md`, `LICENSES/`), shipped in the wheels,
   the sdist and the crate.
 
 ### Added
 
+- **PyMatching's graph API** (`stabilizer_qec.Matching`, and `stabilizer_qec.pymatching`):
+  graphs built edge by edge (`add_edge`, `add_boundary_edge`, `set_boundary_nodes`, the five
+  merge strategies, fault-id sets of any size), from check matrices (dense or scipy, with
+  `repetitions`, `timelike_weights`, `measurement_error_probabilities`, `faults_matrix` and a
+  virtual boundary), from networkx and rustworkx graphs, models, circuits and files; every
+  query (`edges`, `get_edge_data`, `has_edge`, `num_fault_ids`, ...); `decode`,
+  `decode_batch` (bit-packed in and out, weights), `decode_to_edges_array`,
+  `decode_to_matched_dets_array` / `_dict`; `to_networkx` / `to_rustworkx`; `add_noise` with
+  `set_seed` / `randomize` / `rand_float`; `draw`; pickling. Weights are discretised as
+  PyMatching discretises them, negative weights handled as PyMatching handles them:
+  predictions and solution weights are PyMatching's own on random hand-built graphs, check
+  matrices and models (`tests/test_pymatching_differential.py`, which also checks every
+  public name and parameter). Rust: `stabilizer_qec::user_graph`.
+- **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
+  (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
+  PyMatching's flags and output byte for byte; `predict` also takes
+  `--in_includes_appended_observables`, which PyMatching 2.4's fails on.
 - **Conformance**: all 2,238 examples in Stim 1.16's docstrings pass (`tests/test_stim_doctests.py`),
   and every public Stim name, method and parameter exists here (`tests/test_stim_api_surface.py`).
   `PauliString` and `Tableau` pickle, as Stim's do; `Circuit`, `DetectorErrorModel` and

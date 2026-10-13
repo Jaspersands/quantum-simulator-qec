@@ -109,7 +109,7 @@ def cases() -> Dict[str, Callable[[], str]]:
     dets, _ = c.compile_detector_sampler(seed=11).sample(2000, separate_observables=True)
     decoders = {
         "matching": lambda: sq.Matching(dem),
-        "correlated": lambda: sq.Matching(dem, enable_correlations=True),
+        "correlated": lambda: sq._matching._CorrelatedMatching(dem),
         "union_find": lambda: sq.UnionFind(dem),
         "belief_matching": lambda: sq.BeliefMatching(dem),
         "bposd": lambda: sq.BpOsd(c.detector_error_model(), max_iter=30, osd_order=4),

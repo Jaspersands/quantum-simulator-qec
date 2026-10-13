@@ -48,7 +48,7 @@ def test_correlated_matching_is_no_worse(d5):
     dem = d5.detector_error_model(decompose_errors=True)
     dets, obs = shots_of(d5, 20_000, seed=2)
     plain = failure_rate(sq.Matching(dem).decode_batch(dets, threads=0), obs)
-    corr = failure_rate(sq.Matching(dem, enable_correlations=True).decode_batch(dets, threads=0), obs)
+    corr = failure_rate(sq.Matching(dem, enable_correlations=True).decode_batch(dets, enable_correlations=True, threads=0), obs)
     assert corr < plain + 3 * np.sqrt(plain / 20_000)
 
 
@@ -62,12 +62,16 @@ def test_bad_shots(d3):
     m = sq.Matching(d3.detector_error_model(decompose_errors=True))
     with pytest.raises(ValueError):
         m.decode_batch(np.zeros((2, d3.num_detectors + 1), dtype=bool))
-    with pytest.raises(TypeError):
-        m.decode_batch(np.zeros((2, 2), dtype=np.int64), bit_packed_shots=True)
-    with pytest.raises(TypeError):
-        m.decode_batch(np.zeros((2, d3.num_detectors), dtype=float))
     with pytest.raises(ValueError):
-        m.decode(np.zeros((1, d3.num_detectors), dtype=bool))
+        m.decode_batch(np.zeros((2, 2), dtype=np.uint8), bit_packed_shots=True)
+    with pytest.raises(ValueError):
+        m.decode(np.zeros(d3.num_detectors - 1, dtype=bool))
+    # As PyMatching: other dtypes are cast, and a 2-d syndrome of num_detectors cells is
+    # read as checks x rounds.
+    nd = d3.num_detectors
+    assert m.decode_batch(np.zeros((2, nd), dtype=float)).shape == (2, m.num_fault_ids)
+    assert m.decode_batch(np.zeros((2, (nd + 7) // 8), dtype=np.int64), bit_packed_shots=True).shape == (2, m.num_fault_ids)
+    assert m.decode(np.zeros((1, nd), dtype=bool)).shape == (m.num_fault_ids,)
 
 
 def test_belief_matching_agrees_with_beliefmatching(d3):

@@ -29,6 +29,8 @@ COMMANDS = {
     "gen": "Generates example circuits.",
     "help": "Prints helpful information about using stabilizer-qec.",
     "m2d": "Convert measurement data into detection event data.",
+    "predict": "Predict observable flips from detection events by matching (PyMatching's `predict`).",
+    "count_mistakes": "Count the shots matching mispredicts (PyMatching's `count_mistakes`).",
     "repl": "Read operations from stdin and run them, printing measurement results as they happen.",
     "sample": "Samples measurements from a circuit.",
     "sample_dem": "Samples detection events from a detector error model.",
@@ -147,6 +149,18 @@ def _parser(command: str) -> _Parser:
         add("--in_format", choices=FORMATS, default="01")
         add("--in_includes_appended_observables", action="store_true")
         add("--decoder", default="matching", choices=["matching", "correlated_matching", "belief_matching", "union_find", "bposd", "bplsd", "relay_bp", "color_matching", "search"])
+    if command in ("predict", "count_mistakes"):
+        add("--dem", required=True)
+        add("--in", dest="input")
+        add("--in_format", choices=FORMATS, default="01")
+        add("--in_includes_appended_observables", action="store_true")
+        add("--enable_correlations", action="store_true")
+    if command == "predict":
+        add("--out_format", choices=FORMATS, default="01")
+    if command == "count_mistakes":
+        add("--obs_in")
+        add("--obs_in_format", choices=FORMATS, default="01")
+        add("--time", action="store_true")
     if command == "help":
         add("topic", nargs="?")
         add("--help", dest="topic_flag", nargs="?", const="", default=None)
@@ -325,13 +339,14 @@ def cmd_decode(a) -> None:
     from ._circuit import DetectorErrorModel
     from ._shots import decode_shots, encode_shots
     from ._decoders import BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
+    from ._matching import _CorrelatedMatching
 
     dem = DetectorErrorModel(_read_text(a.dem))
     nd, no = dem.num_detectors, dem.num_observables
     data = decode_shots(_read_bytes(a.input), a.in_format, num_detectors=nd, num_observables=no if a.in_includes_appended_observables else 0)
     decoder = {
         "matching": lambda: Matching(dem),
-        "correlated_matching": lambda: Matching(dem, enable_correlations=True),
+        "correlated_matching": lambda: _CorrelatedMatching(dem),
         "belief_matching": lambda: BeliefMatching(dem),
         "union_find": lambda: UnionFind(dem),
         "bposd": lambda: BpOsd(dem),
@@ -342,6 +357,50 @@ def cmd_decode(a) -> None:
     }[a.decoder]()
     predictions = decoder.decode_batch(data[:, :nd]).astype(bool)
     _write(a.out, encode_shots(predictions, a.out_format, num_observables=no))
+
+
+def _matching_shots(a):
+    """PyMatching's CLI inputs: the model's matching, the detection events, and the observables
+    appended to them (or None)."""
+    from ._circuit import DetectorErrorModel
+    from ._matching import Matching
+    from ._shots import decode_shots
+
+    dem = DetectorErrorModel(_read_text(a.dem))
+    nd, no = dem.num_detectors, dem.num_observables
+    data = decode_shots(_read_bytes(a.input), a.in_format, num_detectors=nd, num_observables=no if a.in_includes_appended_observables else 0)
+    m = Matching.from_detector_error_model(dem, enable_correlations=a.enable_correlations)
+    return m, data[:, :nd], (data[:, nd:] if a.in_includes_appended_observables else None), no
+
+
+def cmd_predict(a) -> None:
+    from ._shots import encode_shots
+
+    m, dets, _, no = _matching_shots(a)
+    predictions = m.decode_batch(dets, enable_correlations=a.enable_correlations).astype(bool)
+    _write(a.out, encode_shots(predictions, a.out_format, num_observables=no))
+
+
+def cmd_count_mistakes(a) -> None:
+    import time
+
+    from ._shots import decode_shots
+
+    m, dets, obs, no = _matching_shots(a)
+    if obs is None:
+        if a.obs_in is None:
+            raise UsageError("Observables must be appended (--in_includes_appended_observables) or given with --obs_in")
+        obs = decode_shots(_read_bytes(a.obs_in), a.obs_in_format, num_observables=no)
+    m.decode_batch(dets[:0])  # the decoder is built before the clock starts, as PyMatching's is
+    start = time.perf_counter()
+    predictions = m.decode_batch(dets, enable_correlations=a.enable_correlations).astype(bool)
+    elapsed = time.perf_counter() - start
+    mistakes = int((predictions != obs.astype(bool)).any(axis=1).sum())
+    _write(a.out, f"{mistakes} / {len(dets)}\n")
+    if a.time:
+        micros = elapsed * 1e6
+        per = micros / max(1, len(dets))
+        _write(None, f"Total decoding time: {micros:.0f}us\nDecoding time per shot: {per:.3g}us\n")
 
 
 FORMAT_HELP = {

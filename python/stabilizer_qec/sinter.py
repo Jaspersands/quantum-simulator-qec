@@ -64,7 +64,9 @@ def _build(kind: str, dem: DetectorErrorModel, options: dict) -> Any:
     if kind == "matching":
         return Matching(dem, **options)
     if kind == "correlated_matching":
-        return Matching(dem, enable_correlations=True, **options)
+        from ._matching import _CorrelatedMatching
+
+        return _CorrelatedMatching(dem, **options)
     return _CLASSES[kind](dem, **options)
 
 

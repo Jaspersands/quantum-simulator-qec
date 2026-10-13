@@ -85,14 +85,14 @@ def benchmarks(sq, stim, pymatching, quick):
         ("matching", f"Matching at p = 0.1%, {shots:,} shots (against PyMatching)", shots, "shot",
          lambda: mine.decode_batch(dets), lambda: pm.decode_batch(dets)),
         ("correlated_matching", f"Correlated matching, {shots:,} shots (against PyMatching's)", shots, "shot",
-         lambda: corr_mine.decode_batch(dets), lambda: corr_pm.decode_batch(dets, enable_correlations=True)),
+         lambda: corr_mine.decode_batch(dets, enable_correlations=True), lambda: corr_pm.decode_batch(dets, enable_correlations=True)),
         ("union_find", f"Union-find on the same shots", shots, "shot", lambda: uf.decode_batch(dets), None),
         # Stim's sampler and PyMatching's batch decoding run on one thread: these are ours alone.
         ("sample@4", f"Sampling, {shots:,} shots, on 4 threads", shots, "shot", lambda: ours_s.sample(shots, separate_observables=True, threads=4), None),
         ("sample@all", f"Sampling, {shots:,} shots, on every core", shots, "shot", lambda: ours_s.sample(shots, separate_observables=True, threads=0), None),
         ("matching@4", f"Matching, {shots:,} shots, on 4 threads", shots, "shot", lambda: mine.decode_batch(dets, threads=4), None),
         ("matching@all", f"Matching, {shots:,} shots, on every core", shots, "shot", lambda: mine.decode_batch(dets, threads=0), None),
-        ("correlated_matching@all", f"Correlated matching, {shots:,} shots, on every core", shots, "shot", lambda: corr_mine.decode_batch(dets, threads=0), None),
+        ("correlated_matching@all", f"Correlated matching, {shots:,} shots, on every core", shots, "shot", lambda: corr_mine.decode_batch(dets, enable_correlations=True, threads=0), None),
         ("bposd_gross", f"BP+OSD on the gross code, 6 cycles at p = 0.3%, {len(gross_dets)} shots", len(gross_dets), "shot",
          lambda: bposd.decode_batch(gross_dets), None),
     ] + more_decoders(sq, stim, quick)

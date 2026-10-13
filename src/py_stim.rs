@@ -30,7 +30,7 @@ fn complex_bytes<'py>(py: Python<'py>, v: &[C64]) -> Bound<'py, PyBytes> {
 }
 
 fn complex_from_bytes(b: &[u8]) -> PyResult<Vec<C64>> {
-    if b.len() % 16 != 0 {
+    if !b.len().is_multiple_of(16) {
         return Err(err("complex data must be pairs of float64".into()));
     }
     Ok(b.chunks(16).map(|c| (f64::from_le_bytes(c[..8].try_into().unwrap()), f64::from_le_bytes(c[8..].try_into().unwrap()))).collect())

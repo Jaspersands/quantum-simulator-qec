@@ -32,8 +32,22 @@ pub struct SparseGraph {
 impl SparseGraph {
     /// From merged edges `(u, v, p, observables)`; `v == num_nodes` is the boundary.
     pub fn from_edges(num_nodes: usize, edges: &[(u32, u32, f64, u64)]) -> SparseGraph {
+        let weighted: Vec<(u32, u32, f64, i64, u64)> = edges
+            .iter()
+            .map(|&(u, v, p, o)| {
+                let (fw, iw) = edge_weight(p);
+                (u, v, fw, iw, o)
+            })
+            .collect();
+        Self::from_weighted(num_nodes, &weighted)
+    }
+
+    /// From edges `(u, v, weight, even integer weight, observables)` whose integer weights are
+    /// already chosen (PyMatching's discretisation, for a user graph); `v == num_nodes` is the
+    /// boundary. Every integer weight must be even, non-negative and fit 32 bits.
+    pub fn from_weighted(num_nodes: usize, edges: &[(u32, u32, f64, i64, u64)]) -> SparseGraph {
         let mut degree = vec![0u32; num_nodes];
-        for &(u, v, _, _) in edges {
+        for &(u, v, _, _, _) in edges {
             degree[u as usize] += 1;
             if (v as usize) < num_nodes {
                 degree[v as usize] += 1;
@@ -52,8 +66,7 @@ impl SparseGraph {
         let mut ends = Vec::with_capacity(edges.len());
         let mut wf = Vec::with_capacity(edges.len());
         let mut fill: Vec<u32> = offsets[..num_nodes].to_vec();
-        for (i, &(u, v, p, o)) in edges.iter().enumerate() {
-            let (fw, iw) = edge_weight(p);
+        for (i, &(u, v, fw, iw, o)) in edges.iter().enumerate() {
             wf.push(fw);
             let boundary = (v as usize) >= num_nodes;
             let pairs: &[(u32, u32)] = if boundary { &[(u, BOUNDARY)] } else { &[(u, v), (v, u)] };

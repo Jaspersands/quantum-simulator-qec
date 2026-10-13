@@ -69,45 +69,7 @@ def _failed(failed: list, what: str) -> None:
         raise ValueError(f"shot {failed[0]}{more}: {what}")
 
 
-class Matching(_DemDecoder):
-    """Exact minimum-weight perfect matching on a decomposed detector error model, by sparse
-    blossom, as PyMatching decodes: edges weighted ln((1 − p)/p), the observables of the
-    lightest correction returned. ``enable_correlations`` adds PyMatching 2.4's second pass,
-    which reweights the graph by the edges the first pass used.
-
-    The model's faults must flip at most two detectors each, or be decomposed into such
-    pieces (``Circuit.detector_error_model(decompose_errors=True)``).
-    """
-
-    __slots__ = ()
-
-    def __init__(self, model: ModelLike, *, enable_correlations: bool = False) -> None:
-        model = self._made(_model(model), enable_correlations=enable_correlations)
-        self._x = call(_core.Matcher, model._d, bool(enable_correlations))
-
-    @classmethod
-    def from_detector_error_model(cls, model: ModelLike, *, enable_correlations: bool = False) -> "Matching":
-        return cls(model, enable_correlations=enable_correlations)
-
-    def decode_batch(
-        self,
-        shots: Any,
-        *,
-        return_weights: bool = False,
-        bit_packed_shots: bool = False,
-        bit_packed_predictions: bool = False,
-        threads: int = 1,
-    ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """Shots (shots × detectors, bool or 0/1; or bit-packed uint8 rows) to predictions
-        (shots × observables, uint8; or bit-packed). ``return_weights`` also returns each
-        matching's weight. A shot no matching explains raises ``ValueError``."""
-        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
-        preds, weights, failed = call(self._x.decode_batch, packed, n, threads)
-        _failed(failed, "no matching explains its detection events (a defect with no path to a partner or the boundary)")
-        out = self._predictions(preds, n, bit_packed_predictions)
-        if return_weights:
-            return out, np.frombuffer(weights, dtype="<f8").copy()
-        return out
+from ._matching import Matching, _CorrelatedMatching  # noqa: E402  (PyMatching's class, whole)
 
 
 class UnionFind(_DemDecoder):

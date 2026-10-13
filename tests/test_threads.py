@@ -28,11 +28,12 @@ def test_decoders_shared_between_threads():
     dem = c.detector_error_model(decompose_errors=True)
     dets = c.compile_detector_sampler(seed=1).sample(4096)
     chunks = np.array_split(dets, 16)
-    decoders = [sq.Matching(dem), sq.Matching(dem, enable_correlations=True), sq.BeliefMatching(dem, max_bp_iters=5)]
-    for d in decoders:
-        alone = [d.decode_batch(x) for x in chunks]
+    correlated = sq.Matching(dem, enable_correlations=True)
+    decoders = [sq.Matching(dem).decode_batch, lambda x: correlated.decode_batch(x, enable_correlations=True), sq.BeliefMatching(dem, max_bp_iters=5).decode_batch]
+    for decode in decoders:
+        alone = [decode(x) for x in chunks]
         with ThreadPoolExecutor(8) as pool:
-            together = list(pool.map(d.decode_batch, chunks))
+            together = list(pool.map(decode, chunks))
         assert all(np.array_equal(a, b) for a, b in zip(alone, together))
 
 

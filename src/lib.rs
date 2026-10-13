@@ -45,6 +45,7 @@ pub mod dem;
 pub mod dem_build;
 #[doc(hidden)]
 pub mod dem_program;
+pub mod user_graph;
 #[doc(hidden)]
 pub mod dem_sampler;
 #[doc(hidden)]
@@ -126,6 +127,8 @@ mod py_api;
 mod py_objects;
 #[cfg(feature = "python")]
 mod py_stim;
+#[cfg(feature = "python")]
+mod py_pm;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
 #[cfg(not(feature = "python"))]
@@ -182,6 +185,7 @@ fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     py_api::register(m)?;
     py_objects::register(m)?;
     py_stim::register(m)?;
+    py_pm::register(m)?;
     Ok(())
 }
 

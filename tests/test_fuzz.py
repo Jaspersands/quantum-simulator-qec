@@ -125,12 +125,12 @@ def test_any_circuit_text(text):
         survives(c.detector_error_model, decompose_errors=decompose, approximate_disjoint_errors=True)
         dets = np.zeros((2, dem.num_detectors), dtype=bool)
         dets[1, ::3] = True
-        for make in (lambda: sq.Matching(dem), lambda: sq.Matching(dem, enable_correlations=True), lambda: sq.BeliefMatching(dem, max_bp_iters=3), lambda: sq.UnionFind(dem)):
+        for make, kw in ((lambda: sq.Matching(dem), {}), (lambda: sq.Matching(dem, enable_correlations=True), {"enable_correlations": True}), (lambda: sq.BeliefMatching(dem, max_bp_iters=3), {}), (lambda: sq.UnionFind(dem), {})):
             try:
                 decoder = make()
             except ALLOWED:
                 continue
-            survives(decoder.decode_batch, dets)
+            survives(decoder.decode_batch, dets, **kw)
     # Sampling runs loops pass by pass: only modest loops are sampled here.
     if c.num_qubits <= 256 and c.num_measurements <= 2048 and modest:
         try:
