@@ -463,3 +463,27 @@ def test_blocked_remnant_edges_as_stim(task):
         want = outcome(lambda: str(s.detector_error_model(decompose_errors=True, block_decomposition_from_introducing_remnant_edges=True, **extra)))
         got = outcome(lambda: str(o.detector_error_model(decompose_errors=True, block_decomposition_from_introducing_remnant_edges=True, **extra)))
         assert (got == want) or (got.startswith("ValueError") and want.startswith("ValueError")), extra
+
+
+def test_model_and_circuit_text_and_reprs_print_numbers_as_stims():
+    # str(model) prints full precision (19 digits on x86-64, 16 on Apple silicon); reprs and an
+    # instruction's str print C++'s default 6 significant digits, on every platform.
+    dem = "error(0.123456789) D0\nerror(0.30000000000000004) D1\ndetector(1e-7, 123456.7) D0\nerror(1e-300) D0\nREPEAT 2 {\n error(0.123456789) D1\n shift_detectors(0.1) 1\n}"
+    circ = "X_ERROR(0.123456789) 0\nM 0\nDETECTOR(0.30000000000000004) rec[-1]"
+    for ours, theirs in ((sq.DetectorErrorModel(dem), stim.DetectorErrorModel(dem)), (sq.Circuit(circ), stim.Circuit(circ))):
+        assert str(ours) == str(theirs)
+        assert repr(ours).replace("stabilizer_qec.", "stim.") == repr(theirs)
+        for a, b in zip(ours, theirs):
+            assert (str(a).replace("stabilizer_qec.", "stim."), repr(a).replace("stabilizer_qec.", "stim.")) == (str(b), repr(b))
+    rounded = sq.DetectorErrorModel("error(0.019499) D0").rounded(3)
+    assert repr(rounded) == repr(stim.DetectorErrorModel("error(0.019499) D0").rounded(3)).replace("stim.", "stabilizer_qec.")
+
+
+@pytest.mark.parametrize("fmt, text", [("01", "0000\n0101\n"), ("hits", "\n1,3\n"), ("dets", "shot\nshot M1 M3\n")])
+def test_text_shot_files_may_end_lines_with_crlf(tmp_path, fmt, text):
+    # A file written in text mode on Windows, as Stim's own examples write them.
+    for name, ends in (("lf", text), ("crlf", text.replace("\n", "\r\n"))):
+        (tmp_path / name).write_bytes(ends.encode())
+    lf = sq.read_shot_data_file(path=str(tmp_path / "lf"), format=fmt, num_measurements=4)
+    crlf = sq.read_shot_data_file(path=str(tmp_path / "crlf"), format=fmt, num_measurements=4)
+    assert np.array_equal(lf, crlf) and np.array_equal(lf, stim.read_shot_data_file(path=str(tmp_path / "lf"), format=fmt, num_measurements=4))

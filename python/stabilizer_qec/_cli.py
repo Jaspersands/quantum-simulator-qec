@@ -396,7 +396,7 @@ def cmd_count_mistakes(a) -> None:
     predictions = m.decode_batch(dets, enable_correlations=a.enable_correlations).astype(bool)
     elapsed = time.perf_counter() - start
     mistakes = int((predictions != obs.astype(bool)).any(axis=1).sum())
-    _write(a.out, f"{mistakes} / {len(dets)}\n")
+    _write(a.out, f"{mistakes} / {len(dets)}\n".encode())  # bare \n on every platform, as PyMatching's
     if a.time:
         micros = elapsed * 1e6
         per = micros / max(1, len(dets))

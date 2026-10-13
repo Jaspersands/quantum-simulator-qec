@@ -1205,10 +1205,22 @@ class DetectorErrorModel:
         return text[:-1] if text.endswith("\n") else text
 
     def __repr__(self) -> str:
-        text = str(self)
-        if not text:
+        # Stim's repr prints numbers at C++'s default 6 significant digits, as its instructions'
+        # str does, where the model's str prints them at full precision.
+        def lines(items: list, indent: str) -> list:
+            out = []
+            for it in items:
+                if isinstance(it, _dem.DemRepeatBlock):
+                    out.append(f"{indent}repeat {it.repeat_count} {{")
+                    out += lines(it._body._items(), indent + "    ")
+                    out.append(f"{indent}}}")
+                else:
+                    out.append(indent + str(it))
+            return out
+
+        body = "\n".join(lines(self._items(), "    "))
+        if not body:
             return "stabilizer_qec.DetectorErrorModel()"
-        body = "\n".join("    " + line if line else line for line in text.split("\n"))
         return f"stabilizer_qec.DetectorErrorModel('''\n{body}\n''')"
 
     def __eq__(self, other: object) -> bool:

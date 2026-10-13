@@ -84,7 +84,8 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
     _format(format)
     n = _width(num_measurements, num_detectors, num_observables)
     if format == "01":
-        lines = [line for line in raw.decode().split("\n")]
+        # Lines may end \r\n: a file written in text mode on Windows.
+        lines = raw.decode().replace("\r\n", "\n").split("\n")
         if lines and lines[-1] == "":
             lines.pop()
         rows = []
@@ -126,7 +127,7 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
         if k:
             raise ValueError("r8 data ends partway through a shot")
         return np.array(rows, dtype=bool).reshape(len(rows), n)
-    lines = raw.decode().split("\n")
+    lines = raw.decode().replace("\r\n", "\n").split("\n")
     if lines and lines[-1] == "":
         lines.pop()
     if format == "hits":

@@ -16,6 +16,10 @@ noise on every gate. In progress on `feature/2.0`.
   (`H 0` then `H 1` is `H 0 1`), arguments print to 6 significant digits as Stim prints them,
   and there is no trailing newline. The arguments themselves stay exact: equality, pickling and
   copies use them, and `circuit[k].gate_args_copy()` returns them.
+- `repr(DetectorErrorModel)` prints numbers at 6 significant digits, as Stim's repr does on
+  every platform (`str` keeps full precision: 19 digits on x86-64, as Stim's).
+- Text shot files (`01`, `hits`, `dets`) may end their lines `\r\n`, as files written in text
+  mode on Windows do.
 - `REPEAT 0 { ... }` is an error, as in Stim ("Repeating 0 times is not supported.").
 - `stabilizer-qec gen` and `analyze_errors` end their output with a newline, as Stim's do;
   `str(DetectorErrorModel)` has no final newline and its `repr` is Stim's.
