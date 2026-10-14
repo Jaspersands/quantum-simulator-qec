@@ -47,6 +47,9 @@ pub struct Bp {
     chk_start: Vec<u32>,
     chk_edges: Vec<u32>,
     prior_llr: Vec<f64>,
+    /// Whether a zero syndrome converges at once, without iterating (on by default; `ldpc`'s
+    /// C++ iterates, and its Python layer stops zero syndromes before they reach it).
+    pub zero_shortcut: bool,
 }
 
 /// One decode's messages and results; one per thread.
@@ -61,6 +64,43 @@ pub struct BpWork {
     /// The hard decision: 1 where a variable's LLR is at most zero.
     pub hard: Vec<u8>,
     candidate: Vec<u8>,
+}
+
+/// The order in which BP updates its variables.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Schedule {
+    /// All checks, then all variables (flooding): `ldpc`'s default.
+    Parallel,
+    /// One variable at a time, in `SerialState::order`.
+    Serial,
+    /// One variable at a time, the most reliable first: the order sorted each iteration by
+    /// the last iteration's posteriors (the priors in the first).
+    SerialRelative,
+}
+
+/// A serial schedule's order and random source, kept from decode to decode as `ldpc` keeps
+/// them: a random schedule reshuffles the last order with the same generator.
+#[derive(Clone)]
+pub struct SerialState {
+    pub order: Vec<u32>,
+    pub random: bool,
+    pub rng: crate::cpp_random::Mt19937,
+}
+
+impl SerialState {
+    pub fn new(num_vars: usize) -> SerialState {
+        SerialState { order: (0..num_vars as u32).collect(), random: false, rng: crate::cpp_random::Mt19937::new(5489) }
+    }
+
+    /// `ldpc`'s `set_random_schedule_seed`: zero means the clock.
+    pub fn seed(&mut self, seed: u32) {
+        let seed = if seed == 0 {
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u32)
+        } else {
+            seed
+        };
+        self.rng = crate::cpp_random::Mt19937::new(seed);
+    }
 }
 
 /// How a decode ended.
@@ -107,7 +147,7 @@ impl Bp {
             fill[c as usize] += 1;
         }
         let prior_llr = priors.iter().map(|&p| ((1.0 - p) / p).ln()).collect();
-        Ok(Bp { num_checks, num_vars: columns.len(), var_start, edge_check, edge_var, chk_start, chk_edges, prior_llr })
+        Ok(Bp { num_checks, num_vars: columns.len(), var_start, edge_check, edge_var, chk_start, chk_edges, prior_llr, zero_shortcut: true })
     }
 
     pub fn work(&self) -> BpWork {
@@ -120,6 +160,189 @@ impl Bp {
             hard: vec![0; self.num_vars],
             candidate: vec![0; self.num_checks],
         }
+    }
+
+    /// New priors (`ldpc`'s `update_channel_probs`).
+    pub fn set_priors(&mut self, priors: &[f64]) -> Result<(), String> {
+        if priors.len() != self.num_vars {
+            return Err(format!("{} priors for {} variables", priors.len(), self.num_vars));
+        }
+        self.prior_llr = priors.iter().map(|&p| ((1.0 - p) / p).ln()).collect();
+        Ok(())
+    }
+
+    /// `decode` with the given schedule (`Parallel` is `decode`).
+    pub fn decode_scheduled(&self, syndrome: &[u8], method: Method, max_iter: usize, schedule: Schedule, serial: &mut SerialState, w: &mut BpWork) -> BpOutcome {
+        match schedule {
+            Schedule::Parallel => self.decode(syndrome, method, max_iter, w),
+            Schedule::Serial | Schedule::SerialRelative => self.decode_serial(syndrome, method, max_iter, schedule == Schedule::SerialRelative, serial, w),
+        }
+    }
+
+    /// `ldpc`'s serial schedule (`bp_decode_serial`), step for step: each variable in turn
+    /// gathers its checks' messages, each from the check's other variables, and passes the
+    /// prefix and suffix sums on. Variables the order leaves out keep their last decision.
+    pub fn decode_serial(&self, syndrome: &[u8], method: Method, max_iter: usize, relative: bool, serial: &mut SerialState, w: &mut BpWork) -> BpOutcome {
+        assert_eq!(syndrome.len(), self.num_checks, "one syndrome bit per check");
+        for v in 0..self.num_vars {
+            for e in self.var_start[v] as usize..self.var_start[v + 1] as usize {
+                w.b2c[e] = self.prior_llr[v];
+            }
+        }
+        for it in 1..=max_iter {
+            let alpha = match method {
+                Method::MinSum { scale } if scale == 0.0 => 1.0 - 2f64.powf(-(it as f64)),
+                Method::MinSum { scale } => scale,
+                Method::ProductSum => 0.0,
+            };
+            if serial.random {
+                crate::cpp_random::Library::NATIVE.shuffle(&mut serial.order, &mut serial.rng);
+            } else if relative {
+                // Most reliable first (largest posterior), sorted as ldpc's std::sort sorts:
+                // ties end where this platform's standard library leaves them.
+                let key: &[f64] = if it != 1 { &w.llr } else { &self.prior_llr };
+                crate::cpp_random::Library::NATIVE.sort_by(&mut serial.order, &mut |&a, &b| key[a as usize] > key[b as usize]);
+            }
+            for &bit in &serial.order {
+                let bit = bit as usize;
+                w.llr[bit] = self.prior_llr[bit];
+                for e in self.var_start[bit] as usize..self.var_start[bit + 1] as usize {
+                    let c = self.edge_check[e] as usize;
+                    let row = &self.chk_edges[self.chk_start[c] as usize..self.chk_start[c + 1] as usize];
+                    match method {
+                        Method::ProductSum => {
+                            let mut prod = 1.0f64;
+                            for &g in row {
+                                if g as usize != e {
+                                    prod *= (w.b2c[g as usize] / 2.0).tanh();
+                                }
+                            }
+                            let sign = if syndrome[c] != 0 { -1.0 } else { 1.0 };
+                            w.c2b[e] = sign * ((1.0 + prod) / (1.0 - prod)).ln();
+                        }
+                        Method::MinSum { .. } => {
+                            let mut sgn = u32::from(syndrome[c] != 0);
+                            let mut temp = f64::MAX;
+                            for &g in row {
+                                let g = g as usize;
+                                if g != e {
+                                    temp = temp.min(w.b2c[g].abs());
+                                    if w.b2c[g] <= 0.0 {
+                                        sgn += 1;
+                                    }
+                                }
+                            }
+                            let sign = if sgn % 2 == 0 { 1.0 } else { -1.0 };
+                            w.c2b[e] = alpha * sign * temp;
+                        }
+                    }
+                    w.b2c[e] = w.llr[bit];
+                    w.llr[bit] += w.c2b[e];
+                }
+                w.hard[bit] = u8::from(w.llr[bit] <= 0.0);
+                let mut temp = 0.0;
+                for e in (self.var_start[bit] as usize..self.var_start[bit + 1] as usize).rev() {
+                    w.b2c[e] += temp;
+                    temp += w.c2b[e];
+                }
+            }
+            w.candidate.fill(0);
+            for (e, &c) in self.edge_check.iter().enumerate() {
+                w.candidate[c as usize] ^= w.hard[self.edge_var[e] as usize];
+            }
+            if w.candidate.iter().zip(syndrome).all(|(&a, &b)| a == u8::from(b != 0)) {
+                return BpOutcome { converged: true, iterations: it };
+            }
+        }
+        BpOutcome { converged: false, iterations: max_iter }
+    }
+
+    /// `ldpc`'s soft-information serial min-sum (`soft_info_decode_serial`, Raveendran et al.,
+    /// arXiv:2205.02341): syndromes read as analog values, `2s/σ²` their log-likelihoods; where
+    /// one's magnitude is below `cutoff` it takes part as a virtual variable, and may flip. A
+    /// random order is reshuffled each iteration by a generator freshly seeded with `seed`, as
+    /// `ldpc` does. Returns the outcome and the final soft syndrome.
+    #[allow(clippy::too_many_arguments)]
+    pub fn decode_soft_serial(&self, soft: &[f64], cutoff: f64, sigma: f64, scale: f64, max_iter: usize, serial: &mut SerialState, seed: u32, w: &mut BpWork) -> (BpOutcome, Vec<f64>) {
+        assert_eq!(soft.len(), self.num_checks, "one soft syndrome value per check");
+        let mut soft_syndrome: Vec<f64> = soft.iter().map(|&x| 2.0 * x / (sigma * sigma)).collect();
+        let mut syndrome: Vec<u8> = soft_syndrome.iter().map(|&x| u8::from(x <= 0.0)).collect();
+        for v in 0..self.num_vars {
+            for e in self.var_start[v] as usize..self.var_start[v + 1] as usize {
+                w.b2c[e] = self.prior_llr[v];
+            }
+        }
+        let mut converged = false;
+        let mut iterations = 0;
+        for it in 1..=max_iter {
+            if converged {
+                continue;
+            }
+            if serial.random {
+                use crate::cpp_random::{Library, MinStd, Mt19937};
+                match Library::NATIVE {
+                    Library::LibCxx => Library::NATIVE.shuffle(&mut serial.order, &mut MinStd::<48271>::new(u64::from(seed))),
+                    Library::LibStdCxx => Library::NATIVE.shuffle(&mut serial.order, &mut MinStd::<16807>::new(u64::from(seed))),
+                    Library::Msvc => Library::NATIVE.shuffle(&mut serial.order, &mut Mt19937::new(seed)),
+                }
+            }
+            for &bit in &serial.order {
+                let bit = bit as usize;
+                w.llr[bit] = self.prior_llr[bit];
+                for e in self.var_start[bit] as usize..self.var_start[bit + 1] as usize {
+                    let c = self.edge_check[e] as usize;
+                    let row = &self.chk_edges[self.chk_start[c] as usize..self.chk_start[c + 1] as usize];
+                    let mut sgn = 0u8;
+                    let mut temp = f64::MAX;
+                    for &g in row {
+                        let g = g as usize;
+                        if g != e {
+                            if w.b2c[g].abs() < temp {
+                                temp = w.b2c[g].abs();
+                            }
+                            if w.b2c[g] <= 0.0 {
+                                sgn ^= 1;
+                            }
+                        }
+                    }
+                    let min_msg = temp;
+                    let mut propagated = min_msg;
+                    let magnitude = soft_syndrome[c].abs();
+                    if magnitude < cutoff && magnitude < min_msg.abs() {
+                        propagated = magnitude;
+                        let mut check_sgn = sgn;
+                        if w.b2c[e] <= 0.0 {
+                            check_sgn ^= 1;
+                        }
+                        let sign = if syndrome[c] != 0 { -1.0 } else { 1.0 };
+                        if check_sgn == syndrome[c] {
+                            soft_syndrome[c] = sign * if w.b2c[e].abs() < min_msg { w.b2c[e].abs() } else { min_msg };
+                        } else {
+                            syndrome[c] ^= 1;
+                            soft_syndrome[c] *= -1.0;
+                        }
+                    }
+                    sgn ^= syndrome[c];
+                    let sign = if sgn != 0 { -1.0 } else { 1.0 };
+                    w.c2b[e] = scale * sign * propagated;
+                    w.b2c[e] = w.llr[bit];
+                    w.llr[bit] += w.c2b[e];
+                }
+                w.hard[bit] = u8::from(w.llr[bit] <= 0.0);
+                let mut temp = 0.0;
+                for e in (self.var_start[bit] as usize..self.var_start[bit + 1] as usize).rev() {
+                    w.b2c[e] += temp;
+                    temp += w.c2b[e];
+                }
+            }
+            w.candidate.fill(0);
+            for (e, &c) in self.edge_check.iter().enumerate() {
+                w.candidate[c as usize] ^= w.hard[self.edge_var[e] as usize];
+            }
+            converged = w.candidate == syndrome;
+            iterations = it;
+        }
+        (BpOutcome { converged, iterations }, soft_syndrome)
     }
 
     pub fn num_edges(&self) -> usize {
@@ -142,7 +365,7 @@ impl Bp {
     /// the posteriors after exactly `max_iter` iterations.
     pub(crate) fn iterate(&self, syndrome: &[u8], method: Method, max_iter: usize, stop: bool, w: &mut BpWork) -> BpOutcome {
         assert_eq!(syndrome.len(), self.num_checks, "one syndrome bit per check");
-        if syndrome.iter().all(|&s| s == 0) {
+        if self.zero_shortcut && syndrome.iter().all(|&s| s == 0) {
             w.hard.fill(0);
             w.llr.copy_from_slice(&self.prior_llr);
             return BpOutcome { converged: true, iterations: 0 };

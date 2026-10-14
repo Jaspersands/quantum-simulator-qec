@@ -88,3 +88,47 @@ networkx, anytree, simpleeval, scipy, dill, latextools or pydot (`qsample/_graph
 `qsample/_anytree.py` stand in for what it uses of them; matplotlib, tqdm, networkx and pydot are
 used to plot, show progress and draw when installed). It also fixes `utils.load`, which opened its
 file for writing. Each file says so at its top.
+
+## ldpc
+
+Copyright (c) 2022 Joschka Roffe. Licensed under the MIT License (the notice above, under
+qec-util, applies with this copyright line). Source: https://github.com/quantumgizmos/ldpc
+
+The BP, OSD, LSD and soft-information decoders in `src/bp.rs`, `src/osd.rs` and `src/lsd.rs`
+follow ldpc 2.4.1's C++ step for step, and `python/stabilizer_qec/_ldpc.py` its Python classes'
+arguments, defaults and properties, so that their results are ldpc's bit for bit.
+
+## C and C++ standard library algorithms
+
+ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's
+standard libraries shuffle and sort, so `src/cpp_random.rs` reproduces them:
+
+- libc++'s `std::sort` and `uniform_int_distribution` / `std::shuffle` follow LLVM's libc++
+  (`<__algorithm/sort.h>`, `<__random/uniform_int_distribution.h>`): Copyright the LLVM Project
+  contributors, licensed under the Apache License, Version 2.0 with LLVM Exceptions
+  (`LICENSES/Apache-2.0.txt`).
+- The BSD `qsort` (Apple's libc) follows FreeBSD's `lib/libc/stdlib/qsort.c`, under this notice:
+
+  > Copyright (c) 1992, 1993 The Regents of the University of California. All rights reserved.
+  >
+  > Redistribution and use in source and binary forms, with or without modification, are
+  > permitted provided that the following conditions are met: 1. Redistributions of source code
+  > must retain the above copyright notice, this list of conditions and the following
+  > disclaimer. 2. Redistributions in binary form must reproduce the above copyright notice,
+  > this list of conditions and the following disclaimer in the documentation and/or other
+  > materials provided with the distribution. 3. Neither the name of the University nor the
+  > names of its contributors may be used to endorse or promote products derived from this
+  > software without specific prior written permission.
+  >
+  > THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+  > WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+  > FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+  > CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  > CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+  > SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  > THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+  > OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  > POSSIBILITY OF SUCH DAMAGE.
+- libstdc++'s and Microsoft's sort, shuffle and uniform distribution are reimplemented from
+  their documented algorithms (introsort with a median of three and a final insertion sort;
+  Lemire's nearly divisionless method; rejection sampling), not copied.

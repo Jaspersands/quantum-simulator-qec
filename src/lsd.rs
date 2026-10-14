@@ -34,7 +34,7 @@
 //! ordered-statistics search runs inside it on BP's posteriors (`ldpc`'s `apply_lsdw` and
 //! `DenseOsdDecoder`).
 
-use crate::bp::{Bp, BpWork, Method};
+use crate::bp::{Bp, BpWork, Method, Schedule, SerialState};
 use crate::osd::OsdMethod;
 use crate::plu::Plu;
 use crate::robin::RobinSet;
@@ -365,11 +365,17 @@ pub struct BpLsd {
     pub lsd: OsdMethod,
     pub bits_per_step: usize,
     pub always_run: bool,
+    pub schedule: Schedule,
+    /// Whether a zero syndrome is answered at once (on by default; `ldpc`'s BpLsdDecoder runs
+    /// BP on it).
+    pub zero_shortcut: bool,
 }
 
 /// One decode's state; one per thread.
 pub struct BpLsdWork {
     pub bp: BpWork,
+    /// The serial schedule's order and generator, kept from decode to decode.
+    pub serial: SerialState,
     /// The correction: one byte per fault.
     pub correction: Vec<u8>,
     /// Choices made where ldpc's order is not reproducible (see the module comment).
@@ -416,22 +422,22 @@ impl BpLsd {
             }
         }
         let bits_per_step = if bits_per_step == 0 { columns.len().max(1) } else { bits_per_step };
-        Ok(BpLsd { bp, columns, rows, method, max_iter, lsd, bits_per_step, always_run })
+        Ok(BpLsd { bp, columns, rows, method, max_iter, lsd, bits_per_step, always_run, schedule: Schedule::Parallel, zero_shortcut: true })
     }
 
     pub fn work(&self) -> BpLsdWork {
-        BpLsdWork { bp: self.bp.work(), correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new() }
+        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new() }
     }
 
     /// Decode a syndrome (one byte per check); the correction is left in `w.correction`.
     pub fn decode(&self, syndrome: &[u8], w: &mut BpLsdWork) -> BpLsdOutcome {
         w.ties = 0;
         w.cluster_bits.clear();
-        if syndrome.iter().all(|&s| s == 0) {
+        if self.zero_shortcut && syndrome.iter().all(|&s| s == 0) {
             w.correction.fill(0);
             return BpLsdOutcome { converged: true, iterations: 0, solved: true };
         }
-        let out = self.bp.decode(syndrome, self.method, self.max_iter, &mut w.bp);
+        let out = self.bp.decode_scheduled(syndrome, self.method, self.max_iter, self.schedule, &mut w.serial, &mut w.bp);
         if out.converged && !self.always_run {
             w.correction.copy_from_slice(&w.bp.hard);
             return BpLsdOutcome { converged: true, iterations: out.iterations, solved: true };

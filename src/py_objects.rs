@@ -939,39 +939,114 @@ impl PyWindowMatcher {
 
 /* -- Decoders on a check matrix ------------------------------------------------------------ */
 
-/// Belief propagation on a check matrix given by its columns, flooding schedule, as `ldpc`.
+fn schedule(name: &str) -> PyResult<crate::bp::Schedule> {
+    match name {
+        "parallel" => Ok(crate::bp::Schedule::Parallel),
+        "serial" => Ok(crate::bp::Schedule::Serial),
+        "serial_relative" => Ok(crate::bp::Schedule::SerialRelative),
+        other => Err(err(format!("BP schedule '{other}' is not parallel, serial or serial_relative"))),
+    }
+}
+
+fn checked_syndrome(syndrome: &[u8], num_checks: usize) -> PyResult<()> {
+    if syndrome.len() != num_checks {
+        return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), num_checks)));
+    }
+    Ok(())
+}
+
+fn checked_order(order: &[u32], n: usize) -> PyResult<()> {
+    if order.len() != n || order.iter().any(|&v| v as usize >= n) {
+        return Err(err(format!("a serial schedule order has {n} entries, each below {n}")));
+    }
+    Ok(())
+}
+
+/// Belief propagation on a check matrix given by its columns, as `ldpc`'s `BpDecoder`: every
+/// schedule, and the state `ldpc` keeps from decode to decode (the last decision and
+/// posteriors, the serial order and its generator).
 #[pyclass(name = "Bp", module = "stabilizer_qec._core")]
 pub struct PyBp {
     bp: crate::bp::Bp,
     method: crate::bp::Method,
     max_iter: usize,
     num_checks: usize,
+    schedule: crate::bp::Schedule,
+    serial: crate::bp::SerialState,
+    work: crate::bp::BpWork,
 }
 
 #[pymethods]
 impl PyBp {
     #[new]
     fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64) -> PyResult<Self> {
-        let bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
-        Ok(PyBp { bp, method: bp_method(method, scale)?, max_iter, num_checks })
+        let mut bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
+        bp.zero_shortcut = false;
+        let (work, serial) = (bp.work(), crate::bp::SerialState::new(columns.len()));
+        Ok(PyBp { bp, method: bp_method(method, scale)?, max_iter, num_checks, schedule: crate::bp::Schedule::Parallel, serial, work })
+    }
+
+    fn set_priors(&mut self, priors: Vec<f64>) -> PyResult<()> {
+        self.bp.set_priors(&priors).map_err(err)
+    }
+
+    fn set_max_iter(&mut self, max_iter: usize) {
+        self.max_iter = max_iter;
+    }
+
+    fn set_method(&mut self, method: &str, scale: f64) -> PyResult<()> {
+        self.method = bp_method(method, scale)?;
+        Ok(())
+    }
+
+    fn set_schedule(&mut self, name: &str) -> PyResult<()> {
+        self.schedule = schedule(name)?;
+        Ok(())
+    }
+
+    fn set_order(&mut self, order: Vec<u32>) -> PyResult<()> {
+        checked_order(&order, self.bp.num_vars)?;
+        self.serial.order = order;
+        Ok(())
+    }
+
+    fn order(&self) -> Vec<u32> {
+        self.serial.order.clone()
+    }
+
+    fn set_random(&mut self, random: bool) {
+        self.serial.random = random;
+    }
+
+    fn seed(&mut self, seed: u32) {
+        self.serial.seed(seed);
     }
 
     /// (hard decision, posterior log-likelihood ratios, converged, iterations).
-    fn decode(&self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, Vec<f64>, bool, usize)> {
-        if syndrome.len() != self.num_checks {
-            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.num_checks)));
+    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, Vec<f64>, bool, usize)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        let out = self.bp.decode_scheduled(&syndrome, self.method, self.max_iter, self.schedule, &mut self.serial, &mut self.work);
+        Ok((bits(&self.work.hard), self.work.llr.clone(), out.converged, out.iterations))
+    }
+
+    /// Soft-information serial min-sum: (hard decision, posteriors, converged, iterations, the
+    /// soft syndrome after decoding).
+    #[allow(clippy::type_complexity)]
+    fn decode_soft(&mut self, soft: Vec<f64>, cutoff: f64, sigma: f64, scale: f64, seed: u32) -> PyResult<(Vec<u32>, Vec<f64>, bool, usize, Vec<f64>)> {
+        if soft.len() != self.num_checks {
+            return Err(err(format!("{} soft syndrome values for {} checks", soft.len(), self.num_checks)));
         }
-        let mut w = self.bp.work();
-        let out = self.bp.decode(&syndrome, self.method, self.max_iter, &mut w);
-        Ok((bits(&w.hard), w.llr, out.converged, out.iterations))
+        let (out, soft) = self.bp.decode_soft_serial(&soft, cutoff, sigma, scale, self.max_iter, &mut self.serial, seed, &mut self.work);
+        Ok((bits(&self.work.hard), self.work.llr.clone(), out.converged, out.iterations, soft))
     }
 }
 
-/// BP+OSD on a check matrix given by its columns.
+/// BP+OSD on a check matrix given by its columns, as `ldpc`'s `BpOsdDecoder`.
 #[pyclass(name = "BpOsd", module = "stabilizer_qec._core")]
 pub struct PyBpOsd {
     dec: BpOsd,
     num_checks: usize,
+    work: crate::osd::BpOsdWork,
 }
 
 #[pymethods]
@@ -980,25 +1055,67 @@ impl PyBpOsd {
     #[allow(clippy::too_many_arguments)]
     fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize) -> PyResult<Self> {
         let dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?).map_err(err)?;
-        Ok(PyBpOsd { dec, num_checks })
+        let work = dec.work();
+        Ok(PyBpOsd { dec, num_checks, work })
     }
 
-    /// (correction, BP converged, iterations).
-    fn decode(&self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, bool, usize)> {
-        if syndrome.len() != self.num_checks {
-            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.num_checks)));
-        }
-        let mut w = self.dec.work();
-        let out = self.dec.decode(&syndrome, &mut w);
-        Ok((bits(&w.correction), out.converged, out.iterations))
+    fn set_priors(&mut self, priors: Vec<f64>) -> PyResult<()> {
+        self.dec.set_priors(&priors).map_err(err)
+    }
+
+    fn set_max_iter(&mut self, max_iter: usize) {
+        self.dec.max_iter = max_iter;
+    }
+
+    fn set_method(&mut self, method: &str, scale: f64) -> PyResult<()> {
+        self.dec.method = bp_method(method, scale)?;
+        Ok(())
+    }
+
+    fn set_schedule(&mut self, name: &str) -> PyResult<()> {
+        self.dec.schedule = schedule(name)?;
+        Ok(())
+    }
+
+    fn set_order(&mut self, order: Vec<u32>) -> PyResult<()> {
+        checked_order(&order, self.dec.bp.num_vars)?;
+        self.work.serial.order = order;
+        Ok(())
+    }
+
+    fn order(&self) -> Vec<u32> {
+        self.work.serial.order.clone()
+    }
+
+    fn set_random(&mut self, random: bool) {
+        self.work.serial.random = random;
+    }
+
+    fn seed(&mut self, seed: u32) {
+        self.work.serial.seed(seed);
+    }
+
+    /// The OSD order now (the candidates stay those set up at construction, as in `ldpc`).
+    fn set_osd_order(&mut self, order: usize) {
+        self.dec.order = order;
+    }
+
+    /// (correction, BP converged, iterations, BP's decision, posteriors, OSD-0's solution).
+    #[allow(clippy::type_complexity)]
+    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, bool, usize, Vec<u32>, Vec<f64>, Vec<u32>)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        let out = self.dec.decode(&syndrome, &mut self.work);
+        let w = &self.work;
+        Ok((bits(&w.correction), out.converged, out.iterations, bits(&w.bp.hard), w.bp.llr.clone(), bits(&w.osd0)))
     }
 }
 
-/// BP+LSD on a check matrix given by its columns.
+/// BP+LSD on a check matrix given by its columns, as `ldpc`'s `BpLsdDecoder`.
 #[pyclass(name = "BpLsd", module = "stabilizer_qec._core")]
 pub struct PyBpLsd {
     dec: BpLsd,
     num_checks: usize,
+    work: crate::lsd::BpLsdWork,
 }
 
 #[pymethods]
@@ -1006,22 +1123,60 @@ impl PyBpLsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
     fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64, lsd: &str, order: usize, bits_per_step: usize, always_run: bool) -> PyResult<Self> {
-        let dec = BpLsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(lsd, order)?, bits_per_step, always_run).map_err(err)?;
-        Ok(PyBpLsd { dec, num_checks })
+        let mut dec = BpLsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(lsd, order)?, bits_per_step, always_run).map_err(err)?;
+        // As ldpc's BpLsdDecoder: BP runs on every syndrome, a zero one included.
+        dec.zero_shortcut = false;
+        dec.bp.zero_shortcut = false;
+        let work = dec.work();
+        Ok(PyBpLsd { dec, num_checks, work })
+    }
+
+    fn set_priors(&mut self, priors: Vec<f64>) -> PyResult<()> {
+        self.dec.bp.set_priors(&priors).map_err(err)
+    }
+
+    fn set_max_iter(&mut self, max_iter: usize) {
+        self.dec.max_iter = max_iter;
+    }
+
+    fn set_method(&mut self, method: &str, scale: f64) -> PyResult<()> {
+        self.dec.method = bp_method(method, scale)?;
+        Ok(())
+    }
+
+    fn set_schedule(&mut self, name: &str) -> PyResult<()> {
+        self.dec.schedule = schedule(name)?;
+        Ok(())
+    }
+
+    fn set_order(&mut self, order: Vec<u32>) -> PyResult<()> {
+        checked_order(&order, self.dec.bp.num_vars)?;
+        self.work.serial.order = order;
+        Ok(())
+    }
+
+    fn order(&self) -> Vec<u32> {
+        self.work.serial.order.clone()
+    }
+
+    fn set_random(&mut self, random: bool) {
+        self.work.serial.random = random;
+    }
+
+    fn seed(&mut self, seed: u32) {
+        self.work.serial.seed(seed);
     }
 
     /// (correction, BP converged, iterations, solved, ties, each final cluster's bits in
-    /// set order by cluster id when `record`).
+    /// set order by cluster id when `record`, BP's decision, posteriors).
     #[pyo3(signature = (syndrome, record=false))]
     #[allow(clippy::type_complexity)]
-    fn decode(&self, syndrome: Vec<u8>, record: bool) -> PyResult<(Vec<u32>, bool, usize, bool, u32, Vec<(u32, Vec<u32>)>)> {
-        if syndrome.len() != self.num_checks {
-            return Err(err(format!("{} syndrome bits for {} checks", syndrome.len(), self.num_checks)));
-        }
-        let mut w = self.dec.work();
-        w.record = record;
-        let out = self.dec.decode(&syndrome, &mut w);
-        Ok((bits(&w.correction), out.converged, out.iterations, out.solved, w.ties, std::mem::take(&mut w.cluster_bits)))
+    fn decode(&mut self, syndrome: Vec<u8>, record: bool) -> PyResult<(Vec<u32>, bool, usize, bool, u32, Vec<(u32, Vec<u32>)>, Vec<u32>, Vec<f64>)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        self.work.record = record;
+        let out = self.dec.decode(&syndrome, &mut self.work);
+        let w = &mut self.work;
+        Ok((bits(&w.correction), out.converged, out.iterations, out.solved, w.ties, std::mem::take(&mut w.cluster_bits), bits(&w.bp.hard), w.bp.llr.clone()))
     }
 }
 

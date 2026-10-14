@@ -46,6 +46,7 @@ pub mod dem_build;
 #[doc(hidden)]
 pub mod dem_program;
 pub mod user_graph;
+pub mod cpp_random;
 #[doc(hidden)]
 pub mod dem_sampler;
 #[doc(hidden)]

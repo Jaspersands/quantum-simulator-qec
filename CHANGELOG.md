@@ -16,6 +16,11 @@ noise on every gate. In progress on `feature/2.0`.
   (`H 0` then `H 1` is `H 0 1`), arguments print to 6 significant digits as Stim prints them,
   and there is no trailing newline. The arguments themselves stay exact: equality, pickling and
   copies use them, and `circuit[k].gate_args_copy()` returns them.
+- **`BpDecoder`, `BpOsdDecoder` and `BpLsdDecoder` take ldpc's defaults**: `max_iter=0` (the
+  block length), product-sum BP unless `bp_method` is given (ldpc's effective default, whatever
+  its signatures say), `ms_scaling_factor=1.0`, and for BP+OSD `osd_method="osd_0"`. 1.x's
+  defaults were 20 iterations, min-sum, adaptive scaling and OSD-CS of order 7; pass them to
+  keep 1.x's results. An OSD order of 0 now means OSD-0 for every method, as in ldpc.
 - The `stabilizer-qec[sinter]` extra installs matplotlib (also `[plot]`); sinter and Stim are
   no longer needed.
 - **An error's targets stay as written**, in their order and with repeats, in a model's text
@@ -124,6 +129,17 @@ noise on every gate. In progress on `feature/2.0`.
   injected through the flip simulator, and one run gives the logical error rate, its standard
   deviation and both bounds at every scale of the noise. It agrees with direct sampling at
   every scale (`tests/test_analysis.py`).
+- **ldpc's BP options**, bit for bit against ldpc 2.4.1 (`tests/test_ldpc_bp_options.py`):
+  serial and serial-relative schedules and the random serial schedule
+  (`random_serial_schedule`, `random_schedule_seed`, `serial_schedule_order`), on
+  `BpDecoder`, `BpOsdDecoder` and `BpLsdDecoder`; `input_vector_type="received_vector"`;
+  `SoftInfoBpDecoder` (soft syndromes, `cutoff`, `sigma`); and every property ldpc's classes
+  have (`error_rate`, `error_channel`, `channel_probs`, `update_channel_probs`,
+  `log_prob_ratios`, `decoding`, `bp_decoding`, `osd0_decoding`, `osdw_decoding`,
+  `osd_method`/`osd_order` and `lsd_method`/`lsd_order` setters, `omp_thread_count`, ...).
+  Where ldpc's result depends on the C++ standard library (shuffles, and the order of ties in
+  `std::sort` and `qsort`), this package reproduces libc++ and Apple's libc on macOS and
+  libstdc++ and glibc on Linux; on Windows, Microsoft's shuffle, with stable sorts.
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -251,8 +253,9 @@ def test_bposd_matrix_decoder_agrees_with_ldpc():
             syndrome = (pcm @ (rng.random(pcm.shape[1]) < channel)) % 2
             agree += np.array_equal(ours.decode(syndrome), theirs.decode(syndrome))
             total += 1
-    # Equal but for ties among columns of equal posterior, which ldpc orders with std::sort.
-    assert agree >= 0.95 * total
+    # Ties among columns of equal posterior go where ldpc's C library sort leaves them, as
+    # here on macOS and Linux (Windows' qsort is not reproduced).
+    assert agree == total or (sys.platform == "win32" and agree >= 0.95 * total)
 
 
 @pytest.mark.parametrize("bp_method,lsd_method,lsd_order", [("minimum_sum", "lsd_0", 0), ("product_sum", "lsd_0", 0), ("minimum_sum", "lsd_e", 4), ("minimum_sum", "lsd_cs", 8)])
@@ -288,7 +291,7 @@ def test_bplsd_matrix_decoder_reads_ldpcs_arguments():
     syndrome = pcm[:, 0]
     assert np.array_equal(a.decode(syndrome), b.decode(syndrome))
     assert np.array_equal(pcm @ c.decode(syndrome) % 2, syndrome)
-    for bad in (dict(lsd_method="lsd_x"), dict(lsd_method=3), dict(lsd_order=-1), dict(schedule="serial"), dict(bp_method="nope")):
+    for bad in (dict(lsd_method="lsd_x"), dict(lsd_method=3), dict(lsd_order=-1), dict(schedule="sideways"), dict(bp_method="nope")):
         with pytest.raises(ValueError):
             sq.BpLsdDecoder(pcm, error_channel=channel, **bad)
     with pytest.raises(ValueError):

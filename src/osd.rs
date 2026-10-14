@@ -21,7 +21,7 @@
 //! A correction's weight is Σ ln(1/p) over the faults it contains, with p the
 //! prior, as `ldpc` weighs them.
 
-use crate::bp::{Bp, BpWork, Method};
+use crate::bp::{Bp, BpWork, Method, Schedule, SerialState};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OsdMethod {
@@ -36,11 +36,20 @@ pub struct BpOsd {
     weight: Vec<f64>,
     pub method: Method,
     pub max_iter: usize,
+    /// The method and order the candidates were set up with (`ldpc` sets them up once, when
+    /// it is built).
     pub osd: OsdMethod,
+    /// The order now: at 0, OSD-0 alone, whatever was set up (`ldpc`'s `osd_order`).
+    pub order: usize,
+    pub schedule: Schedule,
 }
 
 pub struct BpOsdWork {
     pub bp: BpWork,
+    /// The serial schedule's order and generator, kept from decode to decode.
+    pub serial: SerialState,
+    /// The last OSD's order-0 solution (`ldpc`'s `osd0_decoding`).
+    pub osd0: Vec<u8>,
     order: Vec<u32>,
     rows: Vec<u64>,
     words: usize,
@@ -68,7 +77,18 @@ impl BpOsd {
             .collect();
         let bp = Bp::new(num_checks, &columns, priors)?;
         let weight = priors.iter().map(|&p| (1.0 / p).ln()).collect();
-        Ok(BpOsd { bp, columns, weight, method, max_iter, osd })
+        let order = match osd {
+            OsdMethod::Osd0 => 0,
+            OsdMethod::Exhaustive(k) | OsdMethod::CombinationSweep(k) => k,
+        };
+        Ok(BpOsd { bp, columns, weight, method, max_iter, osd, order, schedule: Schedule::Parallel })
+    }
+
+    /// New priors, for BP and for OSD's weights.
+    pub fn set_priors(&mut self, priors: &[f64]) -> Result<(), String> {
+        self.bp.set_priors(priors)?;
+        self.weight = priors.iter().map(|&p| (1.0 / p).ln()).collect();
+        Ok(())
     }
 
     pub fn work(&self) -> BpOsdWork {
@@ -76,6 +96,8 @@ impl BpOsd {
         let words = (n + 1).div_ceil(64);
         BpOsdWork {
             bp: self.bp.work(),
+            serial: SerialState::new(n),
+            osd0: vec![0; n],
             order: (0..n as u32).collect(),
             rows: vec![0; self.bp.num_checks * words],
             words,
@@ -86,7 +108,7 @@ impl BpOsd {
     /// Decode a syndrome (one byte per check); the correction is left in
     /// `w.correction`.
     pub fn decode(&self, syndrome: &[u8], w: &mut BpOsdWork) -> BpOsdOutcome {
-        let out = self.bp.decode(syndrome, self.method, self.max_iter, &mut w.bp);
+        let out = self.bp.decode_scheduled(syndrome, self.method, self.max_iter, self.schedule, &mut w.serial, &mut w.bp);
         if out.converged {
             w.correction.copy_from_slice(&w.bp.hard);
             return BpOsdOutcome { converged: true, iterations: out.iterations };
@@ -99,12 +121,16 @@ impl BpOsd {
         let n = self.bp.num_vars;
         let m = self.bp.num_checks;
         let words = w.words;
-        // Most likely flipped first: ascending posterior LLR. Ties go to the
-        // higher column first, which is how ldpc's sort leaves them: min-sum
-        // run long enough (its adaptive scale reaches exactly 1) repeats
-        // values, and the tie order picks OSD-CS's candidates.
+        // Most likely flipped first: ascending posterior LLR, sorted as ldpc sorts it, with C's
+        // qsort over (value, column) records in column order. Ties (min-sum repeats values,
+        // and their order picks OSD-CS's candidates) end where this platform's C library
+        // leaves them.
         let llr = &w.bp.llr;
-        w.order.sort_by(|&a, &b| llr[a as usize].total_cmp(&llr[b as usize]).then(b.cmp(&a)));
+        let mut records: Vec<(f64, u32)> = (0..n as u32).map(|i| (llr[i as usize], i)).collect();
+        crate::cpp_random::CLibrary::NATIVE.qsort(&mut records, &mut |a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        for (slot, r) in w.order.iter_mut().zip(&records) {
+            *slot = r.1;
+        }
         // [H | s] with H's columns in that order; the syndrome is column n.
         w.rows.fill(0);
         for (pos, &v) in w.order.iter().enumerate() {
@@ -164,6 +190,12 @@ impl BpOsd {
         };
         let mut best_w = weigh(&[], &w.rows);
         let mut best_flips: Vec<usize> = Vec::new();
+        w.osd0.fill(0);
+        for (i, &p) in pivots.iter().enumerate() {
+            if pivot_bit(&[], &w.rows, i) {
+                w.osd0[w.order[p] as usize] = 1;
+            }
+        }
         let mut consider = |flips: Vec<usize>| {
             let wt = weigh(&flips, &w.rows);
             if wt < best_w {
@@ -171,7 +203,7 @@ impl BpOsd {
                 best_flips = flips;
             }
         };
-        match self.osd {
+        match if self.order == 0 { OsdMethod::Osd0 } else { self.osd } {
             OsdMethod::Osd0 => {}
             OsdMethod::Exhaustive(order) => {
                 let k = order.min(non_pivots.len());
