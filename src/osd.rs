@@ -117,6 +117,13 @@ impl BpOsd {
         BpOsdOutcome { converged: false, iterations: out.iterations }
     }
 
+    /// OSD alone, on posteriors given rather than BP's (`ldpc`'s `OsdDecoderCpp::decode` with
+    /// log-likelihood ratios): the correction is left in `w.correction`, OSD-0's in `w.osd0`.
+    pub fn osd_on(&self, syndrome: &[u8], llr: &[f64], w: &mut BpOsdWork) {
+        w.bp.llr.copy_from_slice(llr);
+        self.osd(syndrome, w);
+    }
+
     fn osd(&self, syndrome: &[u8], w: &mut BpOsdWork) {
         let n = self.bp.num_vars;
         let m = self.bp.num_checks;

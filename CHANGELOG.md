@@ -157,6 +157,21 @@ noise on every gate. In progress on `feature/2.0`.
   no correction exists (ldpc loops), `decode` raises `ValueError`. `UnionFindDecoder`'s
   `uf_method` takes `True`/`False` or a name (ldpc's reads any non-empty string, `"peeling"`
   included, as inversion, and refuses its own default).
+- **`stabilizer_qec.ldpc`: ldpc 2.4.1, whole** (`import stabilizer_qec.ldpc as ldpc`; extra `ldpc`
+  for scipy). The decoders under ldpc's names and module paths (`ldpc.bp_decoder`,
+  `ldpc.bposd_decoder._bposd_decoder`, ...), ldpc v1's `bp_decoder` and `bposd_decoder`, and its
+  pure-Python modules ported: `code_util`, `codes`, `alist`, `protograph`, `noise_models`,
+  `monte_carlo_simulation` (numba and tqdm optional), `ckt_noise` (circuit check matrices,
+  overlapping-window decoders, memory circuits) and `sinter_decoders`, on this package's
+  Stim, PyMatching and sinter. `mod2` (Cython and C++ in ldpc) is reimplemented with ldpc's
+  answers entry for entry: both eliminations (gf2dense's PLU and gf2sparse's `RowReduce`,
+  whose pivot choice follows its linked lists' order after row swaps), kernels, row bases and
+  spans, distances and `PluDecomposition`'s factors (`tests/test_ldpc_package.py`). ldpc's own
+  test suite passes on the port (`tests/ldpc_port`; two of its tests fail on ldpc 2.4.1 too).
+  `BpLsdDecoder` keeps ldpc's statistics (`set_do_stats`, `statistics`,
+  `set_additional_stat_fields`, `reset_cluster_stats`), equal to ldpc's; `SoftInfoBpOsdDecoder`,
+  an empty class in ldpc, decodes as it describes. Wrongly typed arguments to the BP decoders
+  raise `TypeError`, as ldpc's do.
 - **`MbpDecoder`** (also `mbp_decoder`): memory belief propagation over GF(4) (Kuo and Lai), as
   ldpc's `mbp_decoder`, whose C++ ldpc 2.4.1 does not ship (it is on ldpc's main branch and no
   longer builds). Ported as written and checked bit for bit, log-likelihood ratios included,

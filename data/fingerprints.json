@@ -6,7 +6,8 @@
  "colour/search": "18f7b6ee3084dcf1695735460e164bd8a5f012160bbb9088711c73f3de70500f",
  "gross/decode/bplsd": {
   "Darwin-arm64": "19ebe54d1818c58d720171cbbb6a1f36c71cb00cf113a98fb2553583df550836",
-  "Linux-x86_64": "19ebe54d1818c58d720171cbbb6a1f36c71cb00cf113a98fb2553583df550836"
+  "Linux-x86_64": "19ebe54d1818c58d720171cbbb6a1f36c71cb00cf113a98fb2553583df550836",
+  "Windows-amd64": "19ebe54d1818c58d720171cbbb6a1f36c71cb00cf113a98fb2553583df550836"
  },
  "gross/decode/bposd": "19ebe54d1818c58d720171cbbb6a1f36c71cb00cf113a98fb2553583df550836",
  "gross/decode/relay_bp": "19ebe54d1818c58d720171cbbb6a1f36c71cb00cf113a98fb2553583df550836",
@@ -99,11 +100,13 @@
  "surface/decode/belief_matching/t1": "f0562ed986691f45cee0c0f6b13b5ebd550e2f8d683dd74539c15c004c29cda1",
  "surface/decode/bplsd/t0": {
   "Darwin-arm64": "0d9d9a70f1b6dde838f05f86db4ef6670fc5f09d5b39a7908572782ed2c38ace",
-  "Linux-x86_64": "0d9d9a70f1b6dde838f05f86db4ef6670fc5f09d5b39a7908572782ed2c38ace"
+  "Linux-x86_64": "0d9d9a70f1b6dde838f05f86db4ef6670fc5f09d5b39a7908572782ed2c38ace",
+  "Windows-amd64": "29b04fa54901e20a45f9c88e488f92edb45a9ae26e8ff8238890c78a9fab314f"
  },
  "surface/decode/bplsd/t1": {
   "Darwin-arm64": "0d9d9a70f1b6dde838f05f86db4ef6670fc5f09d5b39a7908572782ed2c38ace",
-  "Linux-x86_64": "0d9d9a70f1b6dde838f05f86db4ef6670fc5f09d5b39a7908572782ed2c38ace"
+  "Linux-x86_64": "0d9d9a70f1b6dde838f05f86db4ef6670fc5f09d5b39a7908572782ed2c38ace",
+  "Windows-amd64": "29b04fa54901e20a45f9c88e488f92edb45a9ae26e8ff8238890c78a9fab314f"
  },
  "surface/decode/bposd/t0": "e7103c9d0446ed1240cd4922d38cfe1a360f86623cf9e58c89bbabf38ab5fda8",
  "surface/decode/bposd/t1": "e7103c9d0446ed1240cd4922d38cfe1a360f86623cf9e58c89bbabf38ab5fda8",

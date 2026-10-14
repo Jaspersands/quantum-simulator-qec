@@ -9,7 +9,7 @@
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{PyBytes, PyDict};
 
 use crate::batch_sampler::BatchSampler;
 use crate::belief::BeliefMatching;
@@ -1108,6 +1108,16 @@ impl PyBpOsd {
         let w = &self.work;
         Ok((bits(&w.correction), out.converged, out.iterations, bits(&w.bp.hard), w.bp.llr.clone(), bits(&w.osd0)))
     }
+
+    /// OSD alone on given posteriors: (correction, OSD-0's solution).
+    fn osd_on(&mut self, syndrome: Vec<u8>, llr: Vec<f64>) -> PyResult<(Vec<u32>, Vec<u32>)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        if llr.len() != self.work.correction.len() {
+            return Err(err(format!("{} posteriors for {} columns", llr.len(), self.work.correction.len())));
+        }
+        self.dec.osd_on(&syndrome, &llr, &mut self.work);
+        Ok((bits(&self.work.correction), bits(&self.work.osd0)))
+    }
 }
 
 /// BP+LSD on a check matrix given by its columns, as `ldpc`'s `BpLsdDecoder`.
@@ -1165,6 +1175,59 @@ impl PyBpLsd {
 
     fn seed(&mut self, seed: u32) {
         self.work.serial.seed(seed);
+    }
+
+    fn set_do_stats(&mut self, on: bool) {
+        self.work.do_stats = on;
+    }
+
+    #[getter]
+    fn do_stats(&self) -> bool {
+        self.work.do_stats
+    }
+
+    fn reset_stats(&mut self) {
+        self.work.stats.clear();
+    }
+
+    /// The last decode's statistics, laid out as `ldpc`'s `statistics` dict (less the fields
+    /// a caller sets).
+    fn statistics<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let st = &self.work.stats;
+        let clusters = PyDict::new(py);
+        for (id, c) in &st.clusters {
+            let d = PyDict::new(py);
+            d.set_item("final_bit_count", c.final_bit_count)?;
+            d.set_item("undergone_growth_steps", c.undergone_growth_steps)?;
+            d.set_item("nr_merges", c.nr_merges)?;
+            d.set_item("active", c.active)?;
+            d.set_item("size_history", c.size_history.clone())?;
+            d.set_item("got_valid_in_timestep", c.got_valid_in_timestep)?;
+            d.set_item("got_inactive_in_timestep", c.got_inactive_in_timestep)?;
+            d.set_item("absorbed_by_cluster", c.absorbed_by_cluster)?;
+            d.set_item("nr_of_non_zero_check_matrix_entries", c.nr_of_non_zero_check_matrix_entries)?;
+            d.set_item("cluster_pcm_sparsity", c.cluster_pcm_sparsity)?;
+            d.set_item("solution", bits(&c.solution))?;
+            d.set_item("final_bits", c.final_bits.clone())?;
+            clusters.set_item(id, d)?;
+        }
+        let history = PyDict::new(py);
+        for (t, m) in &st.history {
+            let d = PyDict::new(py);
+            for (id, b) in m {
+                d.set_item(id, b.clone())?;
+            }
+            history.set_item(t, d)?;
+        }
+        let out = PyDict::new(py);
+        out.set_item("individual_cluster_stats", clusters)?;
+        out.set_item("global_timestep_bit_history", history)?;
+        out.set_item("elapsed_time", st.elapsed_micros)?;
+        out.set_item("lsd_order", st.lsd_order)?;
+        out.set_item("lsd_method", st.lsd_method)?;
+        out.set_item("bit_llrs", st.bit_llrs.clone())?;
+        out.set_item("syndrome", bits(&st.syndrome))?;
+        Ok(out)
     }
 
     /// LSD alone on `weights`: (correction, solved, ties, final clusters' bits when `record`).

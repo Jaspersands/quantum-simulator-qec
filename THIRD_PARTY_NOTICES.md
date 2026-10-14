@@ -99,6 +99,9 @@ The BP, OSD, LSD, soft-information, bit-flipping and union-find decoders in `src
 step, `src/mbp.rs` follows `mbp.hpp` from ldpc's main branch (built for the check by
 `tools/mbp_reference.cpp`), and `python/stabilizer_qec/_ldpc.py` follows its Python classes'
 arguments, defaults and properties, so that their results are ldpc's bit for bit.
+`python/stabilizer_qec/ldpc/` is ldpc's Python package ported (each file marked as modified;
+`mod2/_mod2.py` reimplements its Cython and C++ linear algebra), and `tests/ldpc_port/` is its
+test suite (`python_test/`, with the code matrices in `tests/ldpc_port/pcms/`), run on the port.
 
 ## C and C++ standard library algorithms
 

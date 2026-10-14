@@ -45,8 +45,18 @@ class _Default:
         return repr(self.value)
 
 
+def _typed(value: Any, kind: str) -> None:
+    """ldpc's typed arguments: a value of the wrong kind is a TypeError with Cython's message.
+    (NumPy's scalars, and ints where a float is wanted, are taken, which ldpc refuses.)"""
+    ok = (float, int, np.floating, np.integer) if kind == "float" else (int, np.integer)
+    if isinstance(value, bool) or not isinstance(value, ok):
+        raise TypeError(f"Argument 'value' has incorrect type (expected {kind}, got {type(value).__name__})")
+
+
 def _probability(p: Any) -> float:
     # ldpc takes any number; one outside [0, 1] only makes its posteriors NaN.
+    if isinstance(p, (str, bytes)) or p is None:
+        raise TypeError(f"must be real number, not {type(p).__name__}")
     p = float(p)
     if not 0.0 <= p <= 1.0:
         raise ValueError(f"an error probability is between 0 and 1, not {p}")
@@ -113,8 +123,7 @@ class BpDecoderBase:
     @error_rate.setter
     def error_rate(self, value: Optional[float]) -> None:
         if value is not None:
-            if not isinstance(value, (float, int, np.floating, np.integer)) or isinstance(value, bool):
-                raise ValueError("The `error_rate` parameter must be specified as a single float value.")
+            _typed(value, "float")
             self._channel = np.full(self.n, _probability(value))
             call(self._x.set_priors, list(self._channel))
 
@@ -127,7 +136,7 @@ class BpDecoderBase:
         if value is not None:
             if len(value) != self.n:
                 raise ValueError(f"The error channel vector must have length {self.n}, not {len(value)}.")
-            self._channel = np.array([_probability(p) for p in np.asarray(value, dtype=float).ravel()])
+            self._channel = np.array([_probability(p) for p in (np.ravel(value) if isinstance(value, np.ndarray) else value)])
             call(self._x.set_priors, list(self._channel))
 
     def update_channel_probs(self, value: Any) -> None:
@@ -187,8 +196,7 @@ class BpDecoderBase:
 
     @max_iter.setter
     def max_iter(self, value: int) -> None:
-        if not isinstance(value, (int, np.integer)):
-            raise ValueError("max_iter input parameter is invalid. This must be specified as a positive int.")
+        _typed(value, "int")
         if value < 0:
             raise ValueError(f"max_iter input parameter must be a positive int. Not {value}.")
         self._max_iter = int(value) if value != 0 else self.n
@@ -268,7 +276,9 @@ class BpDecoderBase:
 
     @random_schedule_seed.setter
     def random_schedule_seed(self, value: int) -> None:
-        if not isinstance(value, (int, np.integer)) or value < -2:
+        if not isinstance(value, bool):
+            _typed(value, "int")
+        if value < -2:
             raise ValueError("The value of random_schedule_seed must be a positive integer. Set as -1 to disable to the random schedule. Set as 0 to use the system clock.")
         self._seed = int(value)
         self.random_serial_schedule = True
@@ -590,6 +600,7 @@ class BpLsdDecoder(BpDecoderBase):
         self.bits_per_step = bits
         self._bp_decoding = np.zeros(self.n, dtype=np.uint8)
         self.last_tied = False
+        self._stat_fields: dict = {}
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
         """The correction. ``last_tied`` says whether this decode made a choice ldpc might
@@ -604,7 +615,46 @@ class BpLsdDecoder(BpDecoderBase):
         self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
         self._bp_decoding = np.asarray(hard, dtype=np.uint8)
         self.last_tied = ties > 0
+        self._stat_fields = {}  # (each decode starts the statistics afresh, as in ldpc)
         return np.asarray(correction, dtype=syndrome.dtype)
+
+    # -- ldpc's statistics -----------------------------------------------------------------
+
+    @property
+    def statistics(self) -> dict:
+        """The last decode's statistics, as ldpc's: each cluster (keyed by the check it grew
+        from) with its growth steps, size history, merges, the timestep it became valid or was
+        absorbed and by which cluster, its final bits, its matrix's entries and sparsity, and
+        (at order 0) its solution; the bits each cluster took at each timestep; BP's
+        posteriors; the method, order, syndrome and time taken in microseconds. Most of it only
+        while ``do_stats`` is on."""
+        st = call(self._x.statistics)
+        return {
+            "individual_cluster_stats": st["individual_cluster_stats"],
+            "global_timestep_bit_history": st["global_timestep_bit_history"],
+            "elapsed_time": st["elapsed_time"],
+            "lsd_order": st["lsd_order"],
+            "lsd_method": st["lsd_method"],
+            "bit_llrs": st["bit_llrs"],
+            "error": list(self._stat_fields.get("error", [])),
+            "syndrome": list(self._stat_fields["syndrome"]) if "syndrome" in self._stat_fields else st["syndrome"],
+            "compare_recover": list(self._stat_fields.get("compare_recover", [])),
+        }
+
+    @property
+    def do_stats(self) -> bool:
+        return bool(self._x.do_stats)
+
+    def set_do_stats(self, value: bool) -> None:
+        call(self._x.set_do_stats, bool(value))
+
+    def set_additional_stat_fields(self, error: Any, syndrome: Any, compare_recover: Any) -> None:
+        """Fields kept with the statistics until the next decode."""
+        self._stat_fields = {"error": [int(x) for x in error], "syndrome": [int(x) for x in syndrome], "compare_recover": [int(x) for x in compare_recover]}
+
+    def reset_cluster_stats(self) -> None:
+        call(self._x.reset_stats)
+        self._stat_fields = {}
 
     def _cluster_bits(self, syndrome: Any) -> list:
         """Each final cluster's (id, bits in robin-set order): for checking against ldpc's
@@ -1072,3 +1122,69 @@ class MbpDecoder:
 
 
 mbp_decoder = MbpDecoder
+
+
+class SoftInfoBpOsdDecoder(SoftInfoBpDecoder):
+    """Soft-information BP, and where it does not converge, OSD on the syndrome its soft values
+    end at (a check is fired where its soft value is at most 0), weighted by BP's posteriors:
+    what ldpc's ``SoftInfoBpOsdDecoder`` describes (in ldpc 2.4.1 the class exists but its
+    body is commented out, so it cannot decode). ``osd_method`` and ``osd_order`` as
+    ``BpOsdDecoder``'s."""
+
+    def __init__(
+        self,
+        pcm: Any,
+        error_rate: Optional[float] = _Default(None),
+        error_channel: Any = _Default(None),
+        max_iter: int = _Default(0),
+        bp_method: str = _Default("minimum_sum"),
+        ms_scaling_factor: float = _Default(1.0),
+        schedule: str = _Default("parallel"),
+        omp_thread_count: int = _Default(1),
+        random_serial_schedule: Any = _Default(False),
+        serial_schedule_order: Optional[List[int]] = _Default(None),
+        osd_method: Union[str, int, float] = 0,
+        osd_order: int = 0,
+        cutoff: float = np.inf,
+        sigma: float = 2.0,
+    ) -> None:
+        super().__init__(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, cutoff=cutoff, sigma=sigma, schedule=schedule, omp_thread_count=omp_thread_count, random_serial_schedule=random_serial_schedule, serial_schedule_order=serial_schedule_order)
+        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_serial_schedule=random_serial_schedule, serial_schedule_order=serial_schedule_order, osd_method=osd_method, osd_order=osd_order, cutoff=cutoff, sigma=sigma))
+        name = _osd_name(osd_method)
+        if name is None:
+            raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods: 'OSD_0', 'OSD_E' or 'OSD_CS'.")
+        order = 0 if name == "osd_0" else int(osd_order)
+        BpOsdDecoder._check_order(name, order)
+        self._osd, self._order = name, order
+        core_name = "osd_0" if name in ("osd_0", "osd_off") else name
+        self._osdx = call(_core.BpOsd, self.m, self._cols, list(self._channel), 1, "product_sum", 1.0, core_name, order)
+        self._osd0 = np.zeros(self.n, dtype=np.uint8)
+        self._osdw = np.zeros(self.n, dtype=np.uint8)
+
+    def decode(self, soft_info_syndrome: np.ndarray) -> np.ndarray:
+        if not len(soft_info_syndrome) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(soft_info_syndrome)}.")
+        hard = super().decode(soft_info_syndrome)
+        if self._converge:
+            return hard.astype(np.uint8)
+        syndrome = [int(v <= 0) for v in self._soft]
+        call(self._osdx.set_priors, list(self._channel))
+        osdw, osd0 = call(self._osdx.osd_on, syndrome, list(self._llr))
+        self._osdw, self._osd0 = np.asarray(osdw, dtype=np.uint8), np.asarray(osd0, dtype=np.uint8)
+        return self._osdw.copy()
+
+    @property
+    def osd_method(self) -> Optional[str]:
+        return {"osd_0": "OSD_0", "osd_e": "OSD_E", "osd_cs": "OSD_CS", "osd_off": "OSD_OFF"}.get(self._osd)
+
+    @property
+    def osd_order(self) -> int:
+        return self._order
+
+    @property
+    def osd0_decoding(self) -> np.ndarray:
+        return self._osd0.astype(int)
+
+    @property
+    def osdw_decoding(self) -> np.ndarray:
+        return self._osdw.astype(int)

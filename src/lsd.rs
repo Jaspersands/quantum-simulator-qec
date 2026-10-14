@@ -34,7 +34,7 @@ use crate::cpp_random::Library;
 use crate::osd::OsdMethod;
 use crate::plu::Plu;
 use crate::robin::RobinSet;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 const NONE: u32 = u32::MAX;
 
@@ -59,6 +59,12 @@ struct Cluster {
     check_to_local: HashMap<u32, u32>,
     local_to_bit: Vec<u32>,
     plu: Plu,
+    // For the statistics (ldpc's `curr_timestep`, `absorbed_into_cluster`,
+    // `got_inactive_in_timestep`, `nr_merges`).
+    timestep: usize,
+    absorbed_into: i64,
+    inactive_at: i64,
+    merges: usize,
 }
 
 impl Cluster {
@@ -80,6 +86,10 @@ impl Cluster {
             check_to_local: HashMap::from([(id, 0)]),
             local_to_bit: Vec::new(),
             plu: Plu::new(1, 0, Vec::new()),
+            timestep: 0,
+            absorbed_into: -1,
+            inactive_at: -1,
+            merges: 0,
         };
         c.boundary.insert(id);
         c.enclosed.insert(id);
@@ -96,6 +106,8 @@ struct Lsd<'a> {
     bit_owner: Vec<u32>,
     check_owner: Vec<u32>,
     ties: u32,
+    /// The bits each cluster took at each timestep, when statistics are kept.
+    history: Option<BTreeMap<usize, BTreeMap<u32, Vec<u32>>>>,
 }
 
 impl Lsd<'_> {
@@ -150,6 +162,10 @@ impl Lsd<'_> {
             if c.bits.insert(bit) {
                 c.local_to_bit.push(bit);
                 self.bit_owner[bit as usize] = me as u32;
+            }
+            if let Some(h) = &mut self.history {
+                let c = &self.clusters[me];
+                h.entry(c.timestep).or_default().entry(c.id).or_default().push(bit);
             }
             self.add_column(me, bit);
         } else {
@@ -241,6 +257,9 @@ impl Lsd<'_> {
             l.enclosed.insert(s);
         }
         self.clusters[smaller].active = false;
+        self.clusters[smaller].absorbed_into = self.clusters[larger].id as i64;
+        self.clusters[smaller].inactive_at = self.clusters[smaller].timestep as i64;
+        self.clusters[larger].merges += 1;
         self.clusters[larger].tied |= self.clusters[smaller].tied;
         larger
     }
@@ -369,6 +388,76 @@ pub struct BpLsdWork {
     /// When set, each final untied cluster's bits in set order, by cluster id: a test hook.
     pub record: bool,
     pub cluster_bits: Vec<(u32, Vec<u32>)>,
+    /// Whether to keep the full statistics (`ldpc`'s `set_do_stats`); some are kept always.
+    pub do_stats: bool,
+    pub stats: LsdStats,
+}
+
+/// One cluster's statistics: `ldpc`'s `ClusterStatistics`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClusterStats {
+    pub final_bit_count: usize,
+    pub undergone_growth_steps: usize,
+    pub nr_merges: usize,
+    pub active: bool,
+    pub size_history: Vec<usize>,
+    pub got_valid_in_timestep: i64,
+    pub got_inactive_in_timestep: i64,
+    pub absorbed_by_cluster: i64,
+    pub nr_of_non_zero_check_matrix_entries: usize,
+    pub cluster_pcm_sparsity: f64,
+    pub solution: Vec<u8>,
+    pub final_bits: Vec<u32>,
+}
+
+impl Default for ClusterStats {
+    fn default() -> Self {
+        ClusterStats { final_bit_count: 0, undergone_growth_steps: 0, nr_merges: 0, active: false, size_history: Vec::new(), got_valid_in_timestep: -1, got_inactive_in_timestep: -1, absorbed_by_cluster: -1, nr_of_non_zero_check_matrix_entries: 0, cluster_pcm_sparsity: 0.0, solution: Vec::new(), final_bits: Vec::new() }
+    }
+}
+
+/// A decode's statistics: `ldpc`'s `Statistics` (its `error` and `compare_recover`, which a
+/// caller sets, are left to the caller). Clusters are keyed by the check they grew from.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LsdStats {
+    pub clusters: BTreeMap<u32, ClusterStats>,
+    /// timestep → cluster → the bits it took then.
+    pub history: BTreeMap<usize, BTreeMap<u32, Vec<u32>>>,
+    pub elapsed_micros: u64,
+    /// `ldpc`'s `OsdMethod`: 0 off, 1 OSD-0, 2 exhaustive, 3 combination sweep.
+    pub lsd_method: u8,
+    pub lsd_order: usize,
+    pub bit_llrs: Vec<f64>,
+    pub syndrome: Vec<u8>,
+}
+
+impl LsdStats {
+    /// `Statistics::clear`.
+    pub fn clear(&mut self) {
+        *self = LsdStats { lsd_method: 3, ..LsdStats::default() };
+    }
+
+    fn growth(&mut self, c: &Cluster) {
+        let st = self.clusters.entry(c.id).or_default();
+        st.undergone_growth_steps += 1;
+        st.size_history.push(c.bits.len());
+        st.active = true;
+        st.absorbed_by_cluster = c.absorbed_into;
+        st.got_inactive_in_timestep = c.inactive_at;
+    }
+
+    fn finish(&mut self, c: &Cluster) {
+        let st = self.clusters.entry(c.id).or_default();
+        st.final_bit_count = c.bits.len();
+        st.nr_merges = c.merges;
+        let nnz: usize = c.pcm.iter().map(|col| col.len()).sum();
+        st.nr_of_non_zero_check_matrix_entries = nnz;
+        let size = c.plu.col_count * c.plu.row_count;
+        if size > 0 {
+            st.cluster_pcm_sparsity = 1.0 - nnz as f64 / size as f64;
+        }
+        st.final_bits = c.bits.iter().collect();
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -412,7 +501,7 @@ impl BpLsd {
     }
 
     pub fn work(&self) -> BpLsdWork {
-        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new() }
+        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new(), do_stats: false, stats: LsdStats { lsd_method: 3, ..LsdStats::default() } }
     }
 
     /// Decode a syndrome (one byte per check); the correction is left in `w.correction`.
@@ -426,6 +515,7 @@ impl BpLsd {
         let out = self.bp.decode_scheduled(syndrome, self.method, self.max_iter, self.schedule, &mut w.serial, &mut w.bp);
         if out.converged && !self.always_run {
             w.correction.copy_from_slice(&w.bp.hard);
+            w.stats.clear();
             return BpLsdOutcome { converged: true, iterations: out.iterations, solved: true };
         }
         let solved = self.lsd_decode(syndrome, w);
@@ -450,6 +540,10 @@ impl BpLsd {
     }
 
     fn lsd_on(&self, syndrome: &[u8], weights: &[f64], w: &mut BpLsdWork) -> bool {
+        let start = std::time::Instant::now();
+        let stats = w.do_stats;
+        w.stats.clear();
+        w.stats.syndrome = syndrome.to_vec();
         let mut s = Lsd {
             rows: &self.rows,
             columns: &self.columns,
@@ -457,29 +551,49 @@ impl BpLsd {
             bit_owner: vec![NONE; self.columns.len()],
             check_owner: vec![NONE; self.rows.len()],
             ties: 0,
+            history: stats.then(BTreeMap::new),
         };
         for (i, &b) in syndrome.iter().enumerate() {
             if b != 0 {
                 s.check_owner[i] = s.clusters.len() as u32;
                 s.clusters.push(Cluster::new(i as u32));
+                if stats {
+                    w.stats.clusters.insert(i as u32, ClusterStats::default());
+                }
             }
         }
         let mut invalid: Vec<usize> = (0..s.clusters.len()).collect();
         let mut solved = true;
+        let mut timestep = 0;
         while !invalid.is_empty() {
             let mut grew = false;
             for &cl in &invalid {
                 if s.clusters[cl].active {
+                    s.clusters[cl].timestep = timestep;
                     grew |= s.grow(cl, weights, self.bits_per_step);
                 }
             }
-            invalid = (0..s.clusters.len()).filter(|&c| s.clusters[c].active && !s.clusters[c].valid).collect();
+            invalid.clear();
+            for (i, c) in s.clusters.iter().enumerate() {
+                if stats {
+                    w.stats.growth(c);
+                }
+                if c.active && !c.valid {
+                    invalid.push(i);
+                } else if c.active && c.valid && stats {
+                    w.stats.clusters.entry(c.id).or_default().got_valid_in_timestep = timestep as i64;
+                }
+                if stats {
+                    w.stats.clusters.entry(c.id).or_default().active = c.active;
+                }
+            }
             if !grew && !invalid.is_empty() {
                 // Nothing left to add: no set of faults explains this syndrome. (ldpc loops.)
                 solved = false;
                 break;
             }
             Library::NATIVE.sort_by(&mut invalid, &mut |&a, &b| s.clusters[a].bits.len() < s.clusters[b].bits.len());
+            timestep += 1;
         }
         let order = match self.lsd {
             OsdMethod::Osd0 => 0,
@@ -489,20 +603,41 @@ impl BpLsd {
         if !solved {
             // Some cluster never became valid, and may never have been factorised.
             w.ties += s.ties;
+            w.stats.elapsed_micros = start.elapsed().as_micros() as u64;
             return false;
         }
         if order > 0 {
+            w.stats.lsd_order = order;
+            w.stats.lsd_method = match self.lsd {
+                OsdMethod::Osd0 => 1,
+                OsdMethod::Exhaustive(_) => 2,
+                OsdMethod::CombinationSweep(_) => 3,
+            };
             self.apply_lsdw(&mut s, order, weights, w);
         } else {
-            for c in s.clusters.iter().filter(|c| c.active) {
+            w.stats.lsd_order = 0;
+            w.stats.lsd_method = 1;
+            for c in s.clusters.iter() {
+                if stats {
+                    w.stats.finish(c);
+                }
+                if !c.active {
+                    continue;
+                }
                 let solution = c.plu.lu_solve(&c.syndrome);
                 for (i, &x) in solution.iter().enumerate() {
                     if x == 1 {
                         w.correction[c.local_to_bit[i] as usize] = 1;
                     }
                 }
+                w.stats.clusters.entry(c.id).or_default().solution = solution;
             }
         }
+        if stats {
+            w.stats.history = s.history.take().unwrap_or_default();
+            w.stats.bit_llrs = weights.to_vec();
+        }
+        w.stats.elapsed_micros = start.elapsed().as_micros() as u64;
         if w.record {
             w.cluster_bits = s.clusters.iter().filter(|c| c.active && !c.tied).map(|c| (c.id, c.bits.iter().collect())).collect();
         }
@@ -514,6 +649,8 @@ impl BpLsd {
     /// steps, or its initial size in steps, or the whole matrix), then search each.
     fn apply_lsdw(&self, s: &mut Lsd, order: usize, weights: &[f64], w: &mut BpLsdWork) {
         let n = self.columns.len();
+        // (ldpc counts these growth steps from 0 again.)
+        let mut timestep = 0;
         for cl in 0..s.clusters.len() {
             if !s.clusters[cl].active {
                 continue;
@@ -521,11 +658,19 @@ impl BpLsd {
             let initial = s.clusters[cl].bits.len();
             let mut grown = 0;
             while s.clusters[cl].plu.not_pivot_cols.len() < order && grown < order && s.clusters[cl].bits.len() < n && grown <= initial {
+                s.clusters[cl].timestep = timestep;
                 s.grow(cl, weights, 1);
                 grown += 1;
+                if w.do_stats {
+                    w.stats.growth(&s.clusters[cl]);
+                }
+                timestep += 1;
             }
         }
         for cl in 0..s.clusters.len() {
+            if w.do_stats {
+                w.stats.finish(&s.clusters[cl]);
+            }
             if !s.clusters[cl].active {
                 continue;
             }

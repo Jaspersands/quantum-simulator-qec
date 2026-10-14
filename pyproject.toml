@@ -36,6 +36,8 @@ classifiers = [
 plot = ["matplotlib>=3.5"]
 # 1.x's name for the extra (it installed sinter and Stim, which 2.0 does without).
 sinter = ["matplotlib>=3.5"]
+# stabilizer_qec.ldpc returns scipy's sparse matrices, as ldpc does.
+ldpc = ["scipy>=1.7"]
 
 [project.scripts]
 stabilizer-qec = "stabilizer_qec._cli:main"
