@@ -1245,6 +1245,49 @@ impl PyLdpcUf {
     }
 }
 
+fn three(v: Vec<Vec<f64>>, what: &str) -> PyResult<[Vec<f64>; 3]> {
+    <[Vec<f64>; 3]>::try_from(v).map_err(|_| PyValueError::new_err(format!("{what} needs three rows (X, Y, Z)")))
+}
+
+/// Memory belief propagation over GF(4), as `ldpc`'s `mbp_decoder`; its state carries over.
+#[pyclass(name = "Mbp", module = "stabilizer_qec._core")]
+pub struct PyMbp {
+    dec: crate::mbp::Mbp,
+}
+
+#[pymethods]
+impl PyMbp {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(num_checks: usize, num_qubits: usize, entries: Vec<(usize, usize, u8)>, channel: Vec<Vec<f64>>, alpha: Vec<Vec<f64>>, beta: f64, gamma: f64, min_sum: bool, max_iter: usize) -> PyResult<Self> {
+        let dec = crate::mbp::Mbp::new(num_checks, num_qubits, &entries, three(channel, "the channel")?, three(alpha, "alpha")?, beta, gamma, min_sum, max_iter).map_err(PyValueError::new_err)?;
+        Ok(PyMbp { dec })
+    }
+
+    /// (decoding over GF(4), converged, iterations, log-likelihood ratios).
+    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, bool, usize, Vec<Vec<f64>>)> {
+        checked_syndrome(&syndrome, self.dec.num_checks())?;
+        let d = self.dec.decode(&syndrome).iter().map(|&x| x as u32).collect();
+        Ok((d, self.dec.converge, self.dec.iterations, self.dec.log_prob_ratios.to_vec()))
+    }
+
+    fn set_alpha(&mut self, alpha: Vec<Vec<f64>>) -> PyResult<()> {
+        let alpha = three(alpha, "alpha")?;
+        if alpha.iter().any(|v| v.len() != self.dec.num_qubits()) {
+            return Err(PyValueError::new_err("alpha needs a value per qubit"));
+        }
+        self.dec.alpha = alpha;
+        Ok(())
+    }
+
+    fn pauli_syndrome(&self, error: Vec<u8>) -> PyResult<Vec<u32>> {
+        if error.len() != self.dec.num_qubits() {
+            return Err(PyValueError::new_err(format!("the error needs {} entries", self.dec.num_qubits())));
+        }
+        Ok(bits(&self.dec.pauli_syndrome(&error)))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn relay_config(
     pre_iter: usize,
@@ -1485,6 +1528,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBpLsd>()?;
     m.add_class::<PyFlip>()?;
     m.add_class::<PyLdpcUf>()?;
+    m.add_class::<PyMbp>()?;
     m.add_class::<PyRelay>()?;
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;

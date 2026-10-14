@@ -174,8 +174,7 @@ impl Library {
 
 impl Library {
     /// `std::sort(v.begin(), v.end(), less)` as this library implements it: unstable, so
-    /// equal elements end in an order only the implementation fixes. Microsoft's is not
-    /// reproduced: there the sort is stable.
+    /// equal elements end in an order only the implementation fixes.
     pub fn sort_by<T: Copy>(self, v: &mut [T], less: &mut impl FnMut(&T, &T) -> bool) {
         match self {
             Library::LibCxx => {
@@ -191,7 +190,10 @@ impl Library {
                     libstdcxx_final_insertion_sort(v, 0, v.len(), less);
                 }
             }
-            Library::Msvc => v.sort_by(|a, b| if less(a, b) { std::cmp::Ordering::Less } else if less(b, a) { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Equal }),
+            Library::Msvc => {
+                let n = v.len() as isize;
+                msvc_sort(v, 0, v.len(), n, less);
+            }
         }
     }
 }
@@ -622,6 +624,199 @@ fn libcxx_introsort<T: Copy>(v: &mut [T], mut first: usize, mut last: usize, c: 
         libcxx_introsort(v, first, i, c, depth, leftmost);
         leftmost = false;
         first = i + 1;
+    }
+}
+
+// -- Microsoft's sort (introsort: insertion sort to 32, ninther above 40, a three-way partition,
+// heap sort past 1.5 log2 n divisions), from microsoft/STL (Apache-2.0 WITH LLVM-exception) ----
+
+fn ms_insertion_sort<T: Copy>(v: &mut [T], first: usize, last: usize, c: &mut impl FnMut(&T, &T) -> bool) {
+    if first == last {
+        return;
+    }
+    let mut mid = first;
+    loop {
+        mid += 1;
+        if mid == last {
+            return;
+        }
+        let val = v[mid];
+        if c(&val, &v[first]) {
+            v.copy_within(first..mid, first + 1);
+            v[first] = val;
+        } else {
+            let mut hole = mid;
+            let mut prev = hole - 1;
+            while c(&val, &v[prev]) {
+                v[hole] = v[prev];
+                hole = prev;
+                prev -= 1;
+            }
+            v[hole] = val;
+        }
+    }
+}
+
+fn ms_med3<T: Copy>(v: &mut [T], first: usize, mid: usize, last: usize, c: &mut impl FnMut(&T, &T) -> bool) {
+    if c(&v[mid], &v[first]) {
+        v.swap(mid, first);
+    }
+    if c(&v[last], &v[mid]) {
+        v.swap(last, mid);
+        if c(&v[mid], &v[first]) {
+            v.swap(mid, first);
+        }
+    }
+}
+
+/// `_Guess_median_unchecked`; `last` is inclusive.
+fn ms_guess_median<T: Copy>(v: &mut [T], first: usize, mid: usize, last: usize, c: &mut impl FnMut(&T, &T) -> bool) {
+    let count = last - first;
+    if 40 < count {
+        let step = (count + 1) >> 3;
+        let two_step = step << 1;
+        ms_med3(v, first, first + step, first + two_step, c);
+        ms_med3(v, mid - step, mid, mid + step, c);
+        ms_med3(v, last - two_step, last - step, last, c);
+        ms_med3(v, first + step, mid, last - step, c);
+    } else {
+        ms_med3(v, first, mid, last, c);
+    }
+}
+
+/// `_Partition_by_pivot_unchecked`: (start, end) of the run equal to the pivot.
+fn ms_partition<T: Copy>(v: &mut [T], first: usize, mut pfirst: usize, last: usize, c: &mut impl FnMut(&T, &T) -> bool) -> (usize, usize) {
+    let mut plast = pfirst + 1;
+    while first < pfirst && !c(&v[pfirst - 1], &v[pfirst]) && !c(&v[pfirst], &v[pfirst - 1]) {
+        pfirst -= 1;
+    }
+    while plast < last && !c(&v[plast], &v[pfirst]) && !c(&v[pfirst], &v[plast]) {
+        plast += 1;
+    }
+    let mut gfirst = plast;
+    let mut glast = pfirst;
+    loop {
+        while gfirst < last {
+            if c(&v[pfirst], &v[gfirst]) {
+            } else if c(&v[gfirst], &v[pfirst]) {
+                break;
+            } else {
+                if plast != gfirst {
+                    v.swap(plast, gfirst);
+                }
+                plast += 1;
+            }
+            gfirst += 1;
+        }
+        while first < glast {
+            let gp = glast - 1;
+            if c(&v[gp], &v[pfirst]) {
+            } else if c(&v[pfirst], &v[gp]) {
+                break;
+            } else {
+                pfirst -= 1;
+                if pfirst != gp {
+                    v.swap(pfirst, gp);
+                }
+            }
+            glast -= 1;
+        }
+        if glast == first && gfirst == last {
+            return (pfirst, plast);
+        }
+        if glast == first {
+            if plast != gfirst {
+                v.swap(pfirst, plast);
+            }
+            plast += 1;
+            v.swap(pfirst, gfirst);
+            pfirst += 1;
+            gfirst += 1;
+        } else if gfirst == last {
+            glast -= 1;
+            pfirst -= 1;
+            if glast != pfirst {
+                v.swap(glast, pfirst);
+            }
+            plast -= 1;
+            v.swap(pfirst, plast);
+        } else {
+            glast -= 1;
+            v.swap(gfirst, glast);
+            gfirst += 1;
+        }
+    }
+}
+
+fn ms_push_heap_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, top: isize, val: T, c: &mut impl FnMut(&T, &T) -> bool) {
+    while top < hole {
+        let idx = (hole - 1) >> 1;
+        if !c(&v[base + idx as usize], &val) {
+            break;
+        }
+        v[base + hole as usize] = v[base + idx as usize];
+        hole = idx;
+    }
+    v[base + hole as usize] = val;
+}
+
+fn ms_pop_heap_hole_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, bottom: isize, val: T, c: &mut impl FnMut(&T, &T) -> bool) {
+    let top = hole;
+    let mut idx = hole;
+    let max_non_leaf = (bottom - 1) >> 1;
+    while idx < max_non_leaf {
+        idx = 2 * idx + 2;
+        if c(&v[base + idx as usize], &v[base + idx as usize - 1]) {
+            idx -= 1;
+        }
+        v[base + hole as usize] = v[base + idx as usize];
+        hole = idx;
+    }
+    if idx == max_non_leaf && bottom % 2 == 0 {
+        v[base + hole as usize] = v[base + bottom as usize - 1];
+        hole = bottom - 1;
+    }
+    ms_push_heap_by_index(v, base, hole, top, val, c);
+}
+
+fn ms_heap_sort<T: Copy>(v: &mut [T], first: usize, mut last: usize, c: &mut impl FnMut(&T, &T) -> bool) {
+    let bottom = (last - first) as isize;
+    let mut hole = bottom >> 1;
+    while hole > 0 {
+        hole -= 1;
+        let val = v[first + hole as usize];
+        ms_pop_heap_hole_by_index(v, first, hole, bottom, val, c);
+    }
+    while last - first >= 2 {
+        let l = last - 1;
+        let val = v[l];
+        v[l] = v[first];
+        ms_pop_heap_hole_by_index(v, first, 0, (l - first) as isize, val, c);
+        last -= 1;
+    }
+}
+
+fn msvc_sort<T: Copy>(v: &mut [T], mut first: usize, mut last: usize, mut ideal: isize, c: &mut impl FnMut(&T, &T) -> bool) {
+    loop {
+        if last - first <= 32 {
+            ms_insertion_sort(v, first, last, c);
+            return;
+        }
+        if ideal <= 0 {
+            ms_heap_sort(v, first, last, c);
+            return;
+        }
+        let mid = first + ((last - first) >> 1);
+        ms_guess_median(v, first, mid, last - 1, c);
+        let (mf, ms) = ms_partition(v, first, mid, last, c);
+        ideal = (ideal >> 1) + (ideal >> 2);
+        if mf - first < last - ms {
+            msvc_sort(v, first, mf, ideal, c);
+            first = ms;
+        } else {
+            msvc_sort(v, ms, last, ideal, c);
+            last = mf;
+        }
     }
 }
 
@@ -1155,6 +1350,47 @@ mod tests {
             }
             Library::LibCxx.sort_by(&mut idx, &mut |&a, &b| key[a] > key[b]);
             assert_eq!(digest(&idx), digest_want, "n {n}, {distinct} distinct keys");
+        }
+    }
+
+    /// Microsoft's std::sort, from its source transcribed into portable C++
+    /// (tools/cpp_msvc_sort.cpp), on the inputs of `libcxx_sort_is_libcxxs` and sizes around
+    /// its insertion-sort (32) and ninther (40) thresholds.
+    #[test]
+    fn msvc_sort_is_microsofts() {
+        let want: &[(usize, u64, i64)] = &[(3, 2, 2016), (3, 5, 2916), (3, 1000, 2916), (5, 2, 3844095), (5, 5, 4650345), (5, 1000, 3844065), (7, 2, 528260253), (7, 5, 613196960), (7, 1000, 612964267), (20, 2, 974634535), (20, 5, 642667742), (20, 1000, 313955370), (23, 2, 648736553), (23, 5, 199529229), (23, 1000, 176139502), (24, 2, 859197234), (24, 5, 714897753), (24, 1000, 701998544), (25, 2, 127452841), (25, 5, 691739525), (25, 1000, 934517784), (26, 2, 956478251), (26, 5, 144296326), (26, 1000, 960623249), (29, 2, 249389996), (29, 5, 613453087), (29, 1000, 174842090), (32, 2, 347634080), (32, 5, 667501341), (32, 1000, 801679711), (33, 2, 456144199), (33, 5, 631549787), (33, 1000, 575725597), (40, 2, 606230099), (40, 5, 636844812), (40, 1000, 830173047), (41, 2, 53634722), (41, 5, 931760663), (41, 1000, 896217091), (42, 2, 906528613), (42, 5, 163848745), (42, 1000, 280594710), (64, 2, 117337538), (64, 5, 427870190), (64, 1000, 484363923), (100, 2, 979501599), (100, 5, 881542083), (100, 1000, 991379470), (129, 2, 81077470), (129, 5, 371856770), (129, 1000, 22625200), (200, 2, 36647318), (200, 5, 554132272), (200, 1000, 153158743), (1000, 2, 691949902), (1000, 5, 757115253), (1000, 1000, 873469589), (5000, 2, 560773987), (5000, 5, 742651431), (5000, 1000, 274235655)];
+        let mut x: u64 = 88_172_645_463_325_252;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for &(n, distinct, digest_want) in want {
+            let key: Vec<f64> = (0..n).map(|_| (next() % distinct) as f64).collect();
+            for _ in 0..n {
+                next();
+            }
+            let mut idx: Vec<usize> = (0..n).collect();
+            for i in (1..n).rev() {
+                let j = (next() % (i as u64 + 1)) as usize;
+                idx.swap(i, j);
+            }
+            Library::Msvc.sort_by(&mut idx, &mut |&a, &b| key[a] > key[b]);
+            assert_eq!(digest(&idx), digest_want, "n {n}, {distinct} distinct keys");
+        }
+        // Its heap sort, alone.
+        let heap: &[(usize, u64, i64)] = &[(33, 2, 577647698), (33, 1000, 90761099), (100, 2, 712385183), (100, 1000, 844692272), (1000, 2, 511701770), (1000, 1000, 546014897)];
+        for &(n, distinct, digest_want) in heap {
+            let key: Vec<f64> = (0..n).map(|_| (next() % distinct) as f64).collect();
+            let mut idx: Vec<usize> = (0..n).collect();
+            for i in (1..n).rev() {
+                let j = (next() % (i as u64 + 1)) as usize;
+                idx.swap(i, j);
+            }
+            msvc_sort(&mut idx, 0, n, 0, &mut |&a, &b| key[a] > key[b]);
+            assert!(idx.windows(2).all(|w| key[w[0]] >= key[w[1]]));
+            assert_eq!(digest(&idx), digest_want, "heap sort, n {n}, {distinct} distinct keys");
         }
     }
 

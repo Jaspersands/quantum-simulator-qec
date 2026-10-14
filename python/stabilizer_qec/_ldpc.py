@@ -867,3 +867,208 @@ class BeliefFindDecoder(BpDecoderBase):
     @property
     def uf_method(self) -> str:
         return self._uf_method
+
+
+def _entries(pcm: Any, value: Optional[int] = None, offset: int = 0) -> list:
+    """A matrix's nonzeros as (row + offset, column, value or the entry)."""
+    if hasattr(pcm, "tocoo"):
+        coo = pcm.tocoo()
+        return [(int(r) + offset, int(c), int(value if value is not None else v)) for r, c, v in zip(coo.row, coo.col, coo.data) if v != 0]
+    a = np.asarray(pcm)
+    rows, cols = np.nonzero(a)
+    return [(int(r) + offset, int(c), int(value if value is not None else a[r, c])) for r, c in zip(rows, cols)]
+
+
+class MbpDecoder:
+    """Memory belief propagation over GF(4) (Kuo and Lai), as ldpc's ``mbp_decoder``: X, Y and
+    Z errors decoded together, each qubit summing its checks' messages scaled by
+    ``1/alpha_parameter`` (a number, three, or 3 x n) but sending back only the unscaled ones;
+    ``beta_parameter`` weighs commuting checks' messages and ``gamma_parameter`` scales
+    min-sum's (``bp_method`` 1). The code is ``Hgf4`` (entries 1 = X, 2 = Y, 3 = Z; decodings
+    over GF(4)) or ``HX_CSS`` and ``HZ_CSS`` (decodings as X and Z parts; the syndrome is the
+    Z checks' then the X checks', or ``sx`` and ``sz``). ``uf_decode`` falls back on union-find
+    by inversion, weighted by MBP's posteriors, where MBP does not converge.
+
+    ldpc 2.4.1 ships this interface without its C++ (on ldpc's main branch, and no longer
+    buildable); here the C++ is ported as written and the interface does what it describes.
+    Where ldpc's Python would fail: ``Hgf4`` alone works, ``alpha_parameter`` defaults to 1,
+    ``update_alpha`` takes effect, and ``uf_decode`` returns its decodings."""
+
+    def __init__(
+        self,
+        Hgf4: Any = None,
+        HX_CSS: Any = None,
+        HZ_CSS: Any = None,
+        error_rate: Optional[float] = None,
+        xyz_bias: Any = (1, 1, 1),
+        error_channel: Any = None,
+        max_iter: int = 0,
+        alpha_parameter: Any = None,
+        beta_parameter: float = 0.0,
+        bp_method: Union[int, str] = 0,
+        gamma_parameter: float = 1.0,
+    ) -> None:
+        self._made_from = ((), dict(Hgf4=Hgf4, HX_CSS=HX_CSS, HZ_CSS=HZ_CSS, error_rate=error_rate, xyz_bias=xyz_bias, error_channel=error_channel, max_iter=max_iter, alpha_parameter=alpha_parameter, beta_parameter=beta_parameter, bp_method=bp_method, gamma_parameter=gamma_parameter))
+        self._uf = None
+        if Hgf4 is not None:
+            self.stab_count, self.qubit_count = Hgf4.shape[0], Hgf4.shape[1]
+            self._gf4 = True
+            entries = _entries(Hgf4)
+        elif HX_CSS is not None and HZ_CSS is not None:
+            if HX_CSS.shape[1] != HZ_CSS.shape[1]:
+                raise ValueError("The number of columns in HX_CSS should be equal to the number of columns in HZ_CSS.")
+            self._gf4 = False
+            self.stab_count, self.qubit_count = HZ_CSS.shape[0] + HX_CSS.shape[0], HX_CSS.shape[1]
+            entries = _entries(HZ_CSS, 3) + _entries(HX_CSS, 1, HZ_CSS.shape[0])
+            self._mz = HZ_CSS.shape[0]
+            mz, _, cols_z = _columns(HZ_CSS)
+            mx, _, cols_x = _columns(HX_CSS)
+            self._uf_specs = ((mz, cols_z), (mx, cols_x))
+        else:
+            raise ValueError("Please enter either the GF4 parity check matrix, or the GF2 HX and HZ CSS parity check components.")
+        n = self.qubit_count
+        self.max_iter = n if max_iter == 0 else int(max_iter)
+        bias = np.asarray(xyz_bias, dtype=float)
+        total = float(np.sum(bias))
+        self._xyz_bias = bias / total if total > 0 else np.zeros(3)
+        channel = np.zeros((3, n))
+        if error_rate is not None and error_channel is None:
+            self.error_rate = error_rate
+            channel[:] = ((self._xyz_bias if total > 0 else bias) * error_rate)[:, None]
+        elif error_channel is not None:
+            if error_rate is not None:
+                warnings.warn(f"An error channel has been provided as input. This will override the 'error_rate={error_rate}' parameter that has also been inputted.")
+            for w in range(3):
+                for i in range(n):
+                    channel[w, i] = error_channel[w][i]
+        self._channel = channel
+        self._alpha = np.ones((3, n))
+        self.update_alpha(alpha_parameter)
+        if str(bp_method).lower() in ["prod_sum", "product_sum", "ps", "0", "prod sum"]:
+            self.bp_method = 0
+        elif str(bp_method).lower() in ["min_sum", "minimum_sum", "ms", "1", "minimum sum", "min sum"]:
+            self.bp_method = 1
+        else:
+            raise ValueError(f"BP method '{bp_method}' is invalid. Please choose from the following methods:'product_sum', 'minimum_sum' or 'product_sum'")
+        self._beta, self.gamma_parameter = float(beta_parameter), float(gamma_parameter)
+        self._x = call(_core.Mbp, self.stab_count, n, entries, channel.tolist(), self._alpha.tolist(), self._beta, self.gamma_parameter, self.bp_method == 1, self.max_iter)
+        self._syndrome = np.zeros(self.stab_count, dtype=np.uint8)
+        self._decoding = np.zeros(n, dtype=np.uint8)
+        self._llr = np.zeros((3, n))
+        self._converge, self._iter = False, 0
+
+    def __reduce__(self) -> tuple:
+        args, kwargs = self._made_from
+        kwargs = dict(kwargs, alpha_parameter=self._alpha.copy())
+        return (_rebuild, (type(self), args, kwargs), None)
+
+    def update_alpha(self, alpha: Any) -> None:
+        if alpha is None:
+            return
+        n = self.qubit_count
+        if isinstance(alpha, np.ndarray):
+            if alpha.size == 3:
+                new = np.repeat(alpha.reshape(3, 1).astype(float), n, axis=1)
+            elif alpha.size == 3 * n:
+                new = np.asarray(alpha, dtype=float).reshape(3, n)
+            else:
+                raise ValueError(f"The 'alpha' input must be either a single double variable or a 3xN np.ndarray of doubles, where N is the qubit count. The current input has dimensions {alpha.shape}.")
+        elif isinstance(alpha, (float, int)):
+            new = np.full((3, n), float(alpha))
+        else:
+            raise ValueError(f"The 'alpha' input must be either a single double variable or a 3xN np.ndarray of doubles, where N is the qubit count. The current input has of type {type(alpha)}.")
+        self._alpha = new
+        if hasattr(self, "_x"):
+            call(self._x.set_alpha, new.tolist())
+
+    def decode(self, syndrome: Any = None, sx: Any = None, sz: Any = None) -> Any:
+        if syndrome is not None:
+            syndrome = np.asarray(syndrome)
+            if not len(syndrome) == self.stab_count:
+                raise ValueError(f"The syndrome must have length {self.stab_count}. Not {len(syndrome)}.")
+            dtype = syndrome.dtype
+            values = syndrome
+        elif sx is not None and sz is not None:
+            sx, sz = np.asarray(sx), np.asarray(sz)
+            dtype = sx.dtype
+            if len(sx) + len(sz) != self.stab_count:
+                raise ValueError(f"sx and sz must have {self.stab_count} entries between them. Not {len(sx) + len(sz)}.")
+            values = np.concatenate([sx, sz])
+        else:
+            raise ValueError("Invalid syndrome input.")
+        self._syndrome = np.asarray(values).astype(np.uint8)
+        d, converged, iterations, llr = call(self._x.decode, [int(v) for v in values])
+        self._decoding = np.asarray(d, dtype=np.uint8)
+        self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
+        if self._gf4:
+            return self._decoding.astype(dtype)
+        outx = np.isin(self._decoding, (1, 2)).astype(dtype)
+        outz = np.isin(self._decoding, (2, 3)).astype(dtype)
+        return outx, outz
+
+    def uf_decode(self, sx: Any = None, sz: Any = None) -> Any:
+        if self._gf4:
+            raise ValueError("uf_decode needs the code as HX_CSS and HZ_CSS.")
+        out = self.decode(sx=sx, sz=sz)
+        if self._converge:
+            return out
+        if self._uf is None:
+            self._uf = tuple(call(_core.LdpcUf, m, cols) for m, cols in self._uf_specs)
+
+        def weights(a: np.ndarray, b: np.ndarray) -> list:
+            with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+                w = 1 / (np.exp(a) + 1) + 1 / (np.exp(b) + 1)
+                return [float(np.inf) if v == 0 else float(np.log((1 - v) / v)) for v in w]
+
+        llr = self._llr
+        sx, sz = np.asarray(sx), np.asarray(sz)
+        outs = []
+        for uf, s, w in ((self._uf[0], sx, weights(llr[1], llr[0])), (self._uf[1], sz, weights(llr[1], llr[2]))):
+            correction, solved, _, _ = call(uf.decode, [int(v != 0) for v in s], w, 1, False)
+            if not solved:
+                raise ValueError("no correction explains the syndrome")
+            outs.append(np.asarray(correction, dtype=sx.dtype))
+        return outs[0], outs[1]
+
+    @property
+    def log_prob_ratios(self) -> np.ndarray:
+        return self._llr.copy()
+
+    @property
+    def decoding(self) -> np.ndarray:
+        return self._decoding.astype(int)
+
+    @property
+    def syndrome(self) -> np.ndarray:
+        return self._syndrome.astype(int)
+
+    @property
+    def error_channel(self) -> np.ndarray:
+        return self._channel.copy()
+
+    @property
+    def alpha(self) -> np.ndarray:
+        return self._alpha.copy()
+
+    @property
+    def alpha_parameter(self) -> list:
+        return self._alpha.tolist()
+
+    @property
+    def beta_parameter(self) -> float:
+        return self._beta
+
+    @property
+    def iterations(self) -> int:
+        return self._iter
+
+    @property
+    def iter(self) -> int:
+        return self._iter
+
+    @property
+    def converge(self) -> bool:
+        return self._converge
+
+
+mbp_decoder = MbpDecoder

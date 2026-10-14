@@ -19,9 +19,8 @@
 //! columns (in their order) whose span holds the syndrome and returns the unique solution on
 //! that prefix's independent columns. One choice cannot be reproduced: when a cluster meets two
 //! or more others in one step, `ldpc` merges them in the order of their addresses' hashes, and
-//! the order the merged sets are filled in can move later choices. A decode that met that (or,
-//! on Windows, equal keys in a long sort, where `std::sort` is not reproduced) counts it in
-//! `UfOutcome::ties`.
+//! the order the merged sets are filled in can move later choices. A decode that met that
+//! counts it in `UfOutcome::ties`.
 //!
 //! Where `ldpc` would loop forever, this does not: a cluster that cannot grow and is still
 //! invalid (a syndrome nothing explains) is reported unsolved, and a cluster whose peeling goes
@@ -35,7 +34,6 @@ use std::collections::HashMap;
 const NONE: u32 = u32::MAX;
 /// The virtual boundary check, `-1` in `ldpc` (whose hash, all ones, this matches).
 const BOUNDARY: u32 = u32::MAX;
-const UNSURE_SORT: bool = matches!(Library::NATIVE, Library::Msvc);
 
 /// A check matrix to decode on.
 #[derive(Clone, Debug)]
@@ -193,9 +191,6 @@ impl State<'_> {
                 let wt = |i: usize| w[cands[i] as usize];
                 Library::NATIVE.sort_by(&mut order, &mut |&a, &b| wt(a) < wt(b));
                 let take = per_step.min(order.len());
-                if UNSURE_SORT && order.len() > 16 && (1..(take + 1).min(order.len())).any(|k| wt(order[k]) == wt(order[k - 1])) {
-                    self.ties += 1;
-                }
                 for &i in &order[..take] {
                     self.add_bit(me, cands[i]);
                 }
@@ -223,9 +218,6 @@ impl State<'_> {
             let unsorted = cols.clone();
             let mut order: Vec<usize> = (0..cols.len()).collect();
             Library::NATIVE.sort_by(&mut order, &mut |&a, &b| w[unsorted[a] as usize] < w[unsorted[b] as usize]);
-            if UNSURE_SORT && order.len() > 16 && order.windows(2).any(|p| w[unsorted[p[0]] as usize] == w[unsorted[p[1]] as usize]) {
-                self.ties += 1;
-            }
             cols = order.iter().map(|&i| unsorted[i]).collect();
         }
         let local: HashMap<u32, usize> = c.checks.iter().enumerate().map(|(i, k)| (k, i)).collect();
@@ -445,9 +437,6 @@ impl LdpcUf {
                 break;
             }
             Library::NATIVE.sort_by(&mut invalid, &mut |&a, &b| s.clusters[a].bits.len() < s.clusters[b].bits.len());
-            if UNSURE_SORT && invalid.len() > 16 && invalid.windows(2).any(|p| s.clusters[p[0]].bits.len() == s.clusters[p[1]].bits.len()) {
-                s.ties += 1;
-            }
         }
         let mut decoding = vec![0u8; n];
         let mut stuck = 0;

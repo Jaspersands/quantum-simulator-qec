@@ -17,15 +17,10 @@
 //! clusters' sets iterated in `tsl::robin_set`'s order (`robin`). Its sorts (candidates by
 //! weight, free columns by weight, invalid clusters by size) are `std::sort`, which leaves
 //! equal keys in an order only the C++ library fixes; they are the platform library's sort as
-//! `cpp_random` reproduces it (libc++ on Apple, libstdc++ on Linux). Two things are not
-//! reproduced:
-//!
-//! - on Windows, the sorts are stable sorts, so where equal keys meet in a sort of more than
-//!   16 elements, the order may differ from MSVC's;
-//! - clusters to merge into one are merged in the order they were met. robin-map orders them by
-//!   the hash of their address, which libc++ scrambles (libstdc++ does not), so when a step
-//!   merges three or more clusters into one, the order ldpc merges them in is not
-//!   reproducible.
+//! `cpp_random` reproduces it (libc++ on Apple, libstdc++ on Linux, Microsoft's on Windows).
+//! One thing is not reproduced: clusters to merge into one are merged in the order they were
+//! met. robin-map orders them by the hash of their address, so when a step merges three or
+//! more clusters into one, the order ldpc merges them in is not reproducible.
 //!
 //! A decode that met one of these where the order could differ counts it in
 //! `BpLsdWork::ties`, so a check against `ldpc` can tell a tie from a bug.
@@ -40,9 +35,6 @@ use crate::osd::OsdMethod;
 use crate::plu::Plu;
 use crate::robin::RobinSet;
 use std::collections::HashMap;
-
-/// Whether `std::sort` here is only approximated (MSVC's), so equal keys count as ties.
-const UNSURE_SORT: bool = matches!(Library::NATIVE, Library::Msvc);
 
 const NONE: u32 = u32::MAX;
 
@@ -201,11 +193,6 @@ impl Lsd<'_> {
         let w = |i: usize| weights[cands[i] as usize];
         Library::NATIVE.sort_by(&mut order, &mut |&a, &b| w(a) < w(b));
         let take = per_step.min(order.len());
-        // Equal weights among the taken or at the cut, where the sort is not MSVC's.
-        if UNSURE_SORT && order.len() > 16 && (1..(take + 1).min(order.len())).any(|k| w(order[k]) == w(order[k - 1])) {
-            self.ties += 1;
-            self.clusters[me].tied = true;
-        }
         for &i in &order[..take] {
             self.add_bit_node(me, cands[i], false);
         }
@@ -267,10 +254,6 @@ impl Lsd<'_> {
         let wt = |col: usize| weights[c.local_to_bit[col] as usize];
         let mut cols = std::mem::take(&mut c.plu.not_pivot_cols);
         Library::NATIVE.sort_by(&mut cols, &mut |&a, &b| wt(a) < wt(b));
-        if UNSURE_SORT && cols.len() > 16 && cols.windows(2).any(|p| wt(p[0]) == wt(p[1])) {
-            self.ties += 1;
-            c.tied = true;
-        }
         c.plu.not_pivot_cols = cols;
     }
 
@@ -497,12 +480,6 @@ impl BpLsd {
                 break;
             }
             Library::NATIVE.sort_by(&mut invalid, &mut |&a, &b| s.clusters[a].bits.len() < s.clusters[b].bits.len());
-            if UNSURE_SORT && invalid.len() > 16 && invalid.windows(2).any(|p| s.clusters[p[0]].bits.len() == s.clusters[p[1]].bits.len()) {
-                s.ties += 1;
-                for &c in &invalid {
-                    s.clusters[c].tied = true;
-                }
-            }
         }
         let order = match self.lsd {
             OsdMethod::Osd0 => 0,

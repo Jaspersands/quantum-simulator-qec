@@ -94,8 +94,10 @@ file for writing. Each file says so at its top.
 Copyright (c) 2022 Joschka Roffe. Licensed under the MIT License (the notice above, under
 qec-util, applies with this copyright line). Source: https://github.com/quantumgizmos/ldpc
 
-The BP, OSD, LSD and soft-information decoders in `src/bp.rs`, `src/osd.rs` and `src/lsd.rs`
-follow ldpc 2.4.1's C++ step for step, and `python/stabilizer_qec/_ldpc.py` its Python classes'
+The BP, OSD, LSD, soft-information, bit-flipping and union-find decoders in `src/bp.rs`,
+`src/osd.rs`, `src/lsd.rs`, `src/flip.rs` and `src/ldpc_uf.rs` follow ldpc 2.4.1's C++ step for
+step, `src/mbp.rs` follows `mbp.hpp` from ldpc's main branch (built for the check by
+`tools/mbp_reference.cpp`), and `python/stabilizer_qec/_ldpc.py` follows its Python classes'
 arguments, defaults and properties, so that their results are ldpc's bit for bit.
 
 ## C and C++ standard library algorithms
@@ -129,6 +131,11 @@ standard libraries shuffle and sort, so `src/cpp_random.rs` reproduces them:
   > THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
   > OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
   > POSSIBILITY OF SUCH DAMAGE.
-- libstdc++'s and Microsoft's sort, shuffle and uniform distribution are reimplemented from
-  their documented algorithms (introsort with a median of three and a final insertion sort;
-  Lemire's nearly divisionless method; rejection sampling), not copied.
+- Microsoft's `std::sort` (and `tools/cpp_msvc_sort.cpp`, which transcribes it to check the
+  port) follows microsoft/STL (`stl/inc/algorithm`, `stl/inc/__msvc_heap_algorithms.hpp`):
+  Copyright (c) Microsoft Corporation, licensed under the Apache License, Version 2.0 with LLVM
+  Exceptions (`LICENSES/Apache-2.0.txt`). Its `std::hash<int>` is FNV-1a (`src/robin.rs`).
+- libstdc++'s sort, shuffle and uniform distribution, and Microsoft's shuffle and uniform
+  distribution, are reimplemented from their documented algorithms (introsort with a median of
+  three and a final insertion sort; Lemire's nearly divisionless method; rejection sampling),
+  not copied.

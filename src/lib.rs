@@ -50,6 +50,8 @@ pub mod cpp_random;
 pub mod flip;
 /// `ldpc`'s union-find decoder on any check matrix.
 pub mod ldpc_uf;
+/// Memory belief propagation over GF(4), as `ldpc`'s `mbp_decoder`.
+pub mod mbp;
 #[doc(hidden)]
 pub mod dem_sampler;
 #[doc(hidden)]

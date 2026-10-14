@@ -139,7 +139,8 @@ noise on every gate. In progress on `feature/2.0`.
   `osd_method`/`osd_order` and `lsd_method`/`lsd_order` setters, `omp_thread_count`, ...).
   Where ldpc's result depends on the C++ standard library (shuffles, and the order of ties in
   `std::sort` and `qsort`), this package reproduces libc++ and Apple's libc on macOS and
-  libstdc++ and glibc on Linux; on Windows, Microsoft's shuffle, with stable sorts.
+  libstdc++ and glibc on Linux, and Microsoft's shuffle and `std::sort` on Windows (its `qsort`,
+  which OSD's ties depend on, is approximated by a stable sort).
 - **ldpc's `BpFlipDecoder` and `LsdDecoder`**, bit for bit against ldpc 2.4.1
   (`tests/test_ldpc_decoders.py`): bit flipping with seeded random flips (`flip_iterations`,
   `pflip_frequency`, `pflip_seed`) followed by BP; and LSD alone on given bit weights. LSD's
@@ -156,6 +157,13 @@ noise on every gate. In progress on `feature/2.0`.
   no correction exists (ldpc loops), `decode` raises `ValueError`. `UnionFindDecoder`'s
   `uf_method` takes `True`/`False` or a name (ldpc's reads any non-empty string, `"peeling"`
   included, as inversion, and refuses its own default).
+- **`MbpDecoder`** (also `mbp_decoder`): memory belief propagation over GF(4) (Kuo and Lai), as
+  ldpc's `mbp_decoder`, whose C++ ldpc 2.4.1 does not ship (it is on ldpc's main branch and no
+  longer builds). Ported as written and checked bit for bit, log-likelihood ratios included,
+  against that C++ built here (`tools/mbp_reference.cpp`, `tests/test_mbp.py`): X, Y and Z
+  errors decoded together on a GF(4) matrix or on `HX_CSS` and `HZ_CSS`; `alpha_parameter`
+  (inhibition, per Pauli and qubit), `beta_parameter`, product-sum or min-sum with
+  `gamma_parameter`; `uf_decode` falls back on union-find weighted by MBP's posteriors.
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes
