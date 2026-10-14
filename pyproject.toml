@@ -32,8 +32,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# For stabilizer_qec.sinter: this package's decoders and engine in sinter's sweeps.
-sinter = ["sinter>=1.14", "stim>=1.14"]
+# stabilizer_qec.sinter needs nothing more, but plots with matplotlib.
+plot = ["matplotlib>=3.5"]
+# 1.x's name for the extra (it installed sinter and Stim, which 2.0 does without).
+sinter = ["matplotlib>=3.5"]
 
 [project.scripts]
 stabilizer-qec = "stabilizer_qec._cli:main"

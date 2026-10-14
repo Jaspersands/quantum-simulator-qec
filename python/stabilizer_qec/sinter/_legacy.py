@@ -1,48 +1,21 @@
-"""This package's decoders, and its whole engine, inside sinter's Monte Carlo sweeps.
+"""This package's decoders as sinter decoders and samplers (1.x's ``stabilizer_qec.sinter``).
 
-sinter (Stim's companion for threshold and logical-error-rate sweeps) samples a task's circuit
-with Stim and decodes the shots with a decoder it names. ``decoders()`` gives it this
-package's decoders under names of their own; ``samplers()`` gives it samplers that run the
-whole pipeline here, sampling included::
-
-    import sinter
-    from stabilizer_qec import sinter as sq_sinter
-
-    stats = sinter.collect(
-        tasks=tasks,
-        decoders=["sq_matching", "sq_belief_matching", "pymatching"],
-        custom_decoders={**sq_sinter.decoders(), **sq_sinter.samplers()},
-        num_workers=8,
-        max_shots=100_000,
-    )
-
-or ``sinter collect --custom_decoders_module_function "stabilizer_qec.sinter:sinter_decoders"``
-from the command line. ``Decoder(kind, **options)`` and ``Sampler(kind, **options)`` make
-others: the options are the decoder class's (``Decoder("bposd", osd_order=10)``).
-
-The decoder kinds are ``"matching"`` (``Matching``), ``"correlated_matching"`` (``Matching``
-with ``enable_correlations``), ``"belief_matching"`` (``BeliefMatching``), ``"union_find"``
-(``UnionFind``, the standard baseline), and for codes whose faults flip three or more
-detectors, such as the bivariate bicycle codes, ``"bposd"`` (``BpOsd``), ``"bplsd"``
-(``BpLsd``), ``"relay_bp"`` (``RelayBp``) and ``"search"`` (``SearchDecoder``), and for colour
-codes with Chromobius's annotations, ``"color_matching"`` (``ColorMatching``). Requires
-sinter.
-"""
+``Decoder(kind, **options)`` and ``Sampler(kind, **options)`` construct the classes here; they
+work with this sinter and with sinter itself (``custom_decoders=sinter_decoders()``)."""
 
 from __future__ import annotations
 
+import sys
 import time
 from typing import Any
 
 import numpy as np
 
-try:
-    import sinter as _sinter
-except ImportError as ex:  # pragma: no cover - exercised only without sinter
-    raise ImportError("stabilizer_qec.sinter needs sinter: pip install sinter") from ex
-
-from ._circuit import Circuit, DetectorErrorModel
-from ._decoders import BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
+from stabilizer_qec._circuit import Circuit, DetectorErrorModel
+from stabilizer_qec._decoders import BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
+from stabilizer_qec.sinter._data import AnonTaskStats
+from stabilizer_qec.sinter._decoding._decoding_decoder_class import CompiledDecoder, Decoder
+from stabilizer_qec.sinter._decoding._sampler import CompiledSampler, Sampler
 
 KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_find", "bplsd", "relay_bp", "color_matching", "search")
 
@@ -50,8 +23,6 @@ KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_f
 _GRAPH_KINDS = ("matching", "correlated_matching", "belief_matching", "union_find")
 
 _CLASSES = {"belief_matching": BeliefMatching, "union_find": UnionFind, "bposd": BpOsd, "bplsd": BpLsd, "relay_bp": RelayBp, "color_matching": ColorMatching, "search": SearchDecoder}
-
-__all__ = ["KINDS", "Decoder", "Sampler", "decoders", "samplers", "sinter_decoders"]
 
 
 def _check_kind(kind: str) -> str:
@@ -64,13 +35,13 @@ def _build(kind: str, dem: DetectorErrorModel, options: dict) -> Any:
     if kind == "matching":
         return Matching(dem, **options)
     if kind == "correlated_matching":
-        from ._matching import _CorrelatedMatching
+        from stabilizer_qec._matching import _CorrelatedMatching
 
         return _CorrelatedMatching(dem, **options)
     return _CLASSES[kind](dem, **options)
 
 
-class _CompiledDecoder(_sinter.CompiledDecoder):
+class _CompiledDecoder(CompiledDecoder):
     def __init__(self, decoder: Any) -> None:
         self.decoder = decoder
 
@@ -78,9 +49,9 @@ class _CompiledDecoder(_sinter.CompiledDecoder):
         return self.decoder.decode_batch(bit_packed_detection_event_data, bit_packed_shots=True, bit_packed_predictions=True)
 
 
-class Decoder(_sinter.Decoder):
-    """A sinter decoder: shots Stim sampled, decoded by one of this package's decoders on the
-    task's detector error model. ``options`` go to the decoder's class."""
+class KindDecoder(Decoder):
+    """One of this package's decoders, on the task's detector error model (``Decoder(kind,
+    **options)``; the options go to the decoder's class)."""
 
     def __init__(self, kind: str = "matching", **options: Any) -> None:
         self.kind = _check_kind(kind)
@@ -90,20 +61,32 @@ class Decoder(_sinter.Decoder):
         args = "".join(f", {k}={v!r}" for k, v in self.options.items())
         return f"stabilizer_qec.sinter.Decoder({self.kind!r}{args})"
 
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, KindDecoder) and (self.kind, self.options) == (other.kind, other.options)
+
+    def __hash__(self) -> int:
+        return hash((self.kind, tuple(sorted(self.options))))
+
     def compile_decoder_for_dem(self, *, dem: Any) -> _CompiledDecoder:
         return _CompiledDecoder(_build(self.kind, DetectorErrorModel(dem), self.options))
 
 
-class _CompiledSampler(_sinter.CompiledSampler):
+class _CompiledSampler(CompiledSampler):
     def __init__(self, task: Any, kind: str, options: dict) -> None:
         circuit = Circuit(task.circuit)
         dem = circuit.detector_error_model(decompose_errors=kind in _GRAPH_KINDS, approximate_disjoint_errors=True)
         self.decoder = _build(kind, dem, options)
-        # A fresh seed per compiled sampler: sinter's workers must not draw the same shots.
+        # A fresh seed per compiled sampler: workers must not draw the same shots.
         self.sampler = circuit.compile_detector_sampler(seed=None)
         self.num_detectors, self.num_observables = circuit.num_detectors, circuit.num_observables
         self.postselection = self._mask(task.postselection_mask, self.num_detectors)
         self.postselected_observables = self._mask(task.postselected_observables_mask, self.num_observables)
+        # Stats of the collecting sinter's own type: sinter itself only adds its own.
+        self.stats_type = AnonTaskStats
+        if type(task).__module__.split(".")[0] == "sinter":
+            import sinter
+
+            self.stats_type = sinter.AnonTaskStats
 
     @staticmethod
     def _mask(packed: Any, n: int) -> Any:
@@ -127,13 +110,13 @@ class _CompiledSampler(_sinter.CompiledSampler):
         else:
             keep_count = len(wrong)
         errors = int(np.count_nonzero(np.any(wrong, axis=1)))
-        return _sinter.AnonTaskStats(shots=shots, errors=errors, discards=shots - keep_count, seconds=time.monotonic() - t0)
+        return self.stats_type(shots=shots, errors=errors, discards=shots - keep_count, seconds=time.monotonic() - t0)
 
 
-class Sampler(_sinter.Sampler):
-    """A sinter sampler running the whole pipeline in this package: the task's circuit read,
-    sampled, its error model built, and decoded. Postselection masks are honoured as sinter
-    honours them. ``options`` go to the decoder's class."""
+class KindSampler(Sampler):
+    """The whole pipeline in this package: the task's circuit read, sampled, its error model
+    built, and decoded by one of this package's decoders (``Sampler(kind, **options)``).
+    Postselection masks are honoured as sinter honours them."""
 
     def __init__(self, kind: str = "matching", **options: Any) -> None:
         self.kind = _check_kind(kind)
@@ -143,20 +126,41 @@ class Sampler(_sinter.Sampler):
         args = "".join(f", {k}={v!r}" for k, v in self.options.items())
         return f"stabilizer_qec.sinter.Sampler({self.kind!r}{args})"
 
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, KindSampler) and (self.kind, self.options) == (other.kind, other.options)
+
+    def __hash__(self) -> int:
+        return hash((self.kind, tuple(sorted(self.options))))
+
     def compiled_sampler_for_task(self, task: Any) -> _CompiledSampler:
         return _CompiledSampler(task, self.kind, self.options)
 
 
+def _known_to_sinter() -> None:
+    # sinter itself tells samplers from decoders by its own Sampler class.
+    try:
+        import sinter
+    except ImportError:
+        return
+    sinter.Sampler.register(KindSampler)
+
+
+# In sinter's worker processes, sinter is loaded before the samplers sent to them are.
+if "sinter" in sys.modules:
+    _known_to_sinter()
+
+
 def decoders() -> dict:
     """``{"sq_matching": Decoder("matching"), "sq_correlated_matching": ..., ...}``: every
-    kind, decoding the shots Stim samples."""
-    return {f"sq_{kind}": Decoder(kind) for kind in KINDS}
+    kind, decoding the shots the collector samples."""
+    return {f"sq_{kind}": KindDecoder(kind) for kind in KINDS}
 
 
 def samplers() -> dict:
     """``{"sq_sim_matching": Sampler("matching"), ...}``: every kind, with the sampling done
     here too."""
-    return {f"sq_sim_{kind}": Sampler(kind) for kind in KINDS}
+    _known_to_sinter()
+    return {f"sq_sim_{kind}": KindSampler(kind) for kind in KINDS}
 
 
 def sinter_decoders() -> dict:

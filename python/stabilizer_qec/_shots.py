@@ -143,7 +143,9 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
     offsets = {"M": (0, num_measurements), "D": (num_measurements, num_detectors), "L": (num_measurements + num_detectors, num_observables)}
     for line in lines:
         words = line.split()
-        if not words or words[0] != "shot":
+        if not words:
+            continue  # blank lines between shots, as Stim skips them
+        if words[0] != "shot":
             raise ValueError(f"a dets line must start with 'shot', not {line[:40]!r}")
         row = np.zeros(n, dtype=bool)
         for w in words[1:]:

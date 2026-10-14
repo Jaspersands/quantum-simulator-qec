@@ -142,6 +142,11 @@ pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
     let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
     let mut conflicts = 0usize;
     for m in &dem.mechanisms {
+        // A mechanism that fires no detector (an undetectable flip of observables) gives
+        // nothing to match; PyMatching drops it too.
+        if m.detectors.is_empty() {
+            continue;
+        }
         if m.pieces.is_empty() {
             return Err(format!(
                 "mechanism on detectors {:?} fires more than two detectors and has no decomposition",
@@ -441,6 +446,15 @@ mod tests {
         let dem = Dem::parse("error(1e-320) D0 D1\nerror(0.1) D1\nerror(0.1) D0").unwrap();
         let dec = DemDecoder::new(&dem).unwrap();
         assert!(dec.decode_correlated(&[0, 1]).is_ok());
+    }
+
+    #[test]
+    fn undetectable_flips_of_observables_are_ignored() {
+        // Kept in the model as Stim keeps them; nothing to match, as in PyMatching.
+        let dem = Dem::parse("error(0.1) D0\nerror(0.1) D0 L0\nerror(0.1) L0").unwrap();
+        let dec = DemDecoder::new(&dem).unwrap();
+        assert!(dec.decode_correlated(&[0]).is_ok());
+        assert_eq!(merged_edges(&dem).unwrap().0.len(), 1);
     }
     use crate::circuit::Circuit;
     use crate::fixtures::REP3;

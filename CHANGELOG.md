@@ -16,6 +16,8 @@ noise on every gate. In progress on `feature/2.0`.
   (`H 0` then `H 1` is `H 0 1`), arguments print to 6 significant digits as Stim prints them,
   and there is no trailing newline. The arguments themselves stay exact: equality, pickling and
   copies use them, and `circuit[k].gate_args_copy()` returns them.
+- The `stabilizer-qec[sinter]` extra installs matplotlib (also `[plot]`); sinter and Stim are
+  no longer needed.
 - `repr(DetectorErrorModel)` prints numbers at 6 significant digits, as Stim's repr does on
   every platform (`str` keeps full precision: 19 digits on x86-64, as Stim's).
 - Text shot files (`01`, `hits`, `dets`) may end their lines `\r\n`, as files written in text
@@ -68,6 +70,19 @@ noise on every gate. In progress on `feature/2.0`.
   predictions and solution weights are PyMatching's own on random hand-built graphs, check
   matrices and models (`tests/test_pymatching_differential.py`, which also checks every
   public name and parameter). Rust: `stabilizer_qec::user_graph`.
+- **sinter, whole** (`stabilizer_qec.sinter`): a port of sinter 1.16 that needs no Stim,
+  PyMatching or scipy (matplotlib only to plot). `Task`, `TaskStats`, `AnonTaskStats`,
+  `CollectionOptions`, `Progress`; `collect` / `iter_collect` with worker processes, saving
+  and resuming, existing data, post-selection, custom counts and error keys; the CSV format and
+  `read_stats_from_csv_files`; the fits; `plot_error_rate`, `plot_discard_rate`,
+  `plot_custom`, `group_by`; `predict_*`; and the command line (`stabilizer-qec sinter
+  collect|combine|plot|predict`, `python -m stabilizer_qec.sinter`). The built-in decoders are
+  sinter's, with `pymatching` this package's PyMatching, and this package's (`matching`,
+  `correlated_matching`, `belief_matching`, `union_find`, `bposd`, `bplsd`, `relay_bp`,
+  `search`). sinter's own unit tests and docstring examples pass on the port
+  (`tests/sinter_port/`), and its CSV text, strong ids, fits, combined files and predictions are
+  sinter's (`tests/test_sinter_differential.py`). 1.x's `Decoder(kind)`, `Sampler(kind)` and
+  `sinter_decoders()` work as before, with this sinter or with sinter itself.
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes
@@ -144,6 +159,12 @@ noise on every gate. In progress on `feature/2.0`.
 - In Rust: `clifford::{PauliString, Tableau, TableauSimulator}`, Stim's conversions
   (`clifford::convert`: stabilizers, state vectors, unitaries, circuits, graph states, random
   Cliffords) and its instruction-level circuit (`clifford::ir`).
+
+### Fixed
+
+- Correlated matching, `BeliefMatching` and `UnionFind` decode models with a fault that flips
+  observables and no detector (`error(p) L0`, which 2.0 keeps as Stim does), ignoring it as
+  PyMatching does; they refused such models.
 
 ## 1.9.0 — 2026-10-09
 

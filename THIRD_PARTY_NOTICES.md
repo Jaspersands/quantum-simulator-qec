@@ -25,3 +25,14 @@ modified to fit this crate. That covers:
 
 Stim's own docstring examples are run as a conformance suite (`tests/stim_doctests.py`); they
 are read from an installed copy of Stim at test time, not distributed.
+
+## sinter
+
+sinter is part of Stim's repository (`glue/sample`): Copyright 2021 Google LLC, licensed under
+the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`).
+
+`python/stabilizer_qec/sinter/` is sinter 1.16.0's source, modified: it uses this package in
+place of Stim and PyMatching, fits lines in closed form in place of scipy's `linregress` and
+`leastsq`, adds this package's decoders to the built-in ones, and prints its reprs under
+`stabilizer_qec.sinter`. Each file says so at its top. sinter's own tests, modified the same way,
+are in `tests/sinter_port/`.

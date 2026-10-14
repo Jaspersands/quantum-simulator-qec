@@ -22,8 +22,8 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
   every gate.
 - Lattice surgery as single circuits, their error models equal to Stim's: Z⊗Z and X⊗X merges, a
   logical CNOT, merges in a row, and lines of patches merged at once.
-- A [sinter](https://pypi.org/project/sinter/) adapter for threshold sweeps, and objects that
-  pickle for `multiprocessing`.
+- [sinter](https://pypi.org/project/sinter/), whole (`stabilizer_qec.sinter`), for threshold
+  sweeps with nothing else installed, and objects that pickle for `multiprocessing`.
 
 ```python
 import stabilizer_qec as sq
@@ -45,14 +45,13 @@ pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
 print((pred != obs).any(axis=1).mean())                                  # any of the 12 logicals wrong
 ```
 
-In [sinter](https://pypi.org/project/sinter/)'s sweeps (`pip install "stabilizer-qec[sinter]"`):
+Threshold sweeps with `stabilizer_qec.sinter`, which is sinter whole (matplotlib to plot):
 
 ```python
-import sinter
-from stabilizer_qec import sinter as sq_sinter
+from stabilizer_qec import sinter
 
-stats = sinter.collect(tasks=tasks, decoders=["sq_matching", "sq_belief_matching", "pymatching"],
-                       custom_decoders=sq_sinter.sinter_decoders(), num_workers=8, max_shots=100_000)
+stats = sinter.collect(tasks=tasks, decoders=["pymatching", "belief_matching", "bposd"],
+                       num_workers=8, max_shots=100_000)
 ```
 
 The names follow Stim (`Circuit`, `compile_detector_sampler`, `separate_observables`),

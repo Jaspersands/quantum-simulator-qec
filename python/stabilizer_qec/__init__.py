@@ -134,20 +134,19 @@ Circuits, error models, converters and decoders pickle and copy, so they cross i
 `multiprocessing` and `concurrent.futures` workers (a decoder is rebuilt there from its model
 and options). A sampler does not: send the circuit and a seed.
 
-`stabilizer_qec.sinter` puts the decoders into [sinter](https://pypi.org/project/sinter/)'s
-sweeps, decoding the shots Stim samples (`sq_matching`, `sq_correlated_matching`,
-`sq_belief_matching`, `sq_union_find`, `sq_bposd`, `sq_bplsd`, `sq_relay_bp`,
-`sq_color_matching`, `sq_search`) or running the whole pipeline here (`sq_sim_matching`, ...):
+`stabilizer_qec.sinter` is sinter (Stim's tool for sweeps of decoding experiments), whole:
+tasks collected by worker processes, resumable from CSV, post-selected, fitted and plotted,
+with sinter's decoders and this package's (`matching`, `correlated_matching`,
+`belief_matching`, `union_find`, `bposd`, `bplsd`, `relay_bp`, `color_matching`, `search`):
 
-    import sinter
-    from stabilizer_qec import sinter as sq_sinter
+    from stabilizer_qec import sinter
 
-    stats = sinter.collect(tasks=tasks, decoders=["sq_matching", "pymatching"],
-                           custom_decoders=sq_sinter.sinter_decoders(), num_workers=8,
+    stats = sinter.collect(tasks=tasks, decoders=["pymatching", "bposd"], num_workers=8,
                            max_shots=100_000)
 
-From the command line: `sinter collect ... --decoders sq_matching
---custom_decoders_module_function "stabilizer_qec.sinter:sinter_decoders"`.
+From the command line: `stabilizer-qec sinter collect ...` (or `python -m
+stabilizer_qec.sinter`). With sinter itself, `custom_decoders=sinter.sinter_decoders()` adds
+this package's decoders under `sq_` names.
 
 ## Promises
 
@@ -266,6 +265,10 @@ _REMOVED = {
 
 
 def __getattr__(name: str):
+    if name in ("sinter", "pymatching"):
+        import importlib
+
+        return importlib.import_module(f"stabilizer_qec.{name}")
     replacement = _REMOVED.get(name)
     if replacement is None:
         raise AttributeError(f"module 'stabilizer_qec' has no attribute {name!r}")

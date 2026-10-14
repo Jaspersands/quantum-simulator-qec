@@ -52,11 +52,13 @@ pred = sq.BpOsd(c.detector_error_model()).decode_batch(dets, threads=0)
 cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Circuit, Stim-readable
 ```
 
-- **In sinter.** `pip install "stabilizer-qec[sinter]"`, then
-  `custom_decoders=stabilizer_qec.sinter.sinter_decoders()` puts the decoders into
-  [sinter](https://pypi.org/project/sinter/)'s threshold sweeps (`decoders=["sq_matching",
-  "sq_belief_matching", "sq_bposd", ...]`), or the whole pipeline with `sq_sim_matching` and
-  its kin. Circuits, models and decoders pickle, for `multiprocessing` and sinter's workers.
+- **sinter, whole.** `stabilizer_qec.sinter` is sinter 1.16 (tasks, `collect` with worker
+  processes and resuming, post-selection, CSV, fits, plots, `predict_*`, and `stabilizer-qec
+  sinter collect|combine|plot|predict`), needing no Stim, PyMatching or scipy, with this
+  package's decoders built in (`decoders=["pymatching", "belief_matching", "bposd", ...]`).
+  sinter's own tests and docstring examples pass on it. With sinter itself,
+  `custom_decoders=stabilizer_qec.sinter.sinter_decoders()` adds the decoders as `sq_matching`
+  and so on. Circuits, models and decoders pickle, for `multiprocessing` and workers.
 - **Tutorials.** Three notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
   (a circuit to a threshold plot), [decoders and real-time decoding](tutorials/02_decoders.ipynb),
   and [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb). Each is

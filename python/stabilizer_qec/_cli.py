@@ -29,6 +29,7 @@ COMMANDS = {
     "gen": "Generates example circuits.",
     "help": "Prints helpful information about using stabilizer-qec.",
     "m2d": "Convert measurement data into detection event data.",
+    "sinter": "sinter's commands: collect, combine, plot and predict (`stabilizer-qec sinter collect ...`).",
     "predict": "Predict observable flips from detection events by matching (PyMatching's `predict`).",
     "count_mistakes": "Count the shots matching mispredicts (PyMatching's `count_mistakes`).",
     "repl": "Read operations from stdin and run them, printing measurement results as they happen.",
@@ -655,6 +656,10 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
             return 1
         argv = legacy
     command, rest = argv[0], argv[1:]
+    if command == "sinter":
+        from .sinter._command._main import main as sinter_main
+
+        return sinter_main(command_line_args=rest) or 0
     if command not in COMMANDS:
         print(f"Unrecognized command '{command}'. Use `stabilizer-qec help` for the commands.", file=sys.stderr)
         return 1
