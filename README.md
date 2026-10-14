@@ -59,6 +59,14 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   sinter's own tests and docstring examples pass on it. With sinter itself,
   `custom_decoders=stabilizer_qec.sinter.sinter_decoders()` adds the decoders as `sq_matching`
   and so on. Circuits, models and decoders pickle, for `multiprocessing` and workers.
+- **Analysis.** `stabilizer_qec.analysis` has qec-util's tools (circuit and model
+  utilities, p_ij matrices, syndromes and defects, decay and threshold fits, exact circuit
+  distances) and deltakit's analysis (Λ and logical-error-per-round fits with asymmetric
+  intervals, quops prediction, models from p_ij, error budgets, defect and Λ plots), checked
+  against both and needing only numpy. Subset sampling gives a circuit's logical error rate at
+  every noise scale, with its error and bounds, from one run
+  (`analysis.subset_sampling.SubsetSampler`), and `stabilizer_qec.qsample` is qsample's
+  protocol-level dynamical subset sampling.
 - **Tutorials.** Three notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
   (a circuit to a threshold plot), [decoders and real-time decoding](tutorials/02_decoders.ipynb),
   and [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb). Each is
