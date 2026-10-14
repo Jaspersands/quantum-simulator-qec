@@ -11,7 +11,7 @@ round of each distance, then fits Λ across distances."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -122,11 +122,12 @@ def standard_noise_model(circuit: Any, noise_parameters: Sequence[float]) -> Any
             name = item.name
             targets = [t.value for t in item.targets_copy() if t.is_qubit_target]
             data = gate_data(name)
-            if data.produces_measurements and pm > 0 and targets and not data.is_noisy_gate and name in ("M", "MX", "MY", "MR", "MRX", "MRY"):
+            measures = name in ("M", "MX", "MY", "MR", "MRX", "MRY")
+            if measures and pm > 0 and targets:
                 out.append(flip[basis(name)], targets, pm)
             out.append(item)
-            if not targets or data.is_noisy_gate:
-                continue
+            if not targets or (data.is_noisy_gate and not data.produces_measurements):
+                continue  # a noise channel already
             if data.is_reset and pr > 0:
                 out.append(flip[basis(name)], targets, pr)
             elif data.is_unitary and data.is_single_qubit_gate and p1 > 0 and name != "I":
@@ -165,7 +166,12 @@ def inverse_lambda_at(
         for j, r in enumerate(rounds):
             circuit = noise_model(memory_generator(distance, r), np.asarray(noise_parameters))
             fails, shots = _sample_lep(circuit, sampling_parameters, None if seed is None else seed + 1000 * k + j)
-            lep, std = calculate_lep_and_lep_stddev(max(fails, 1), shots)
+            if fails == 0:
+                raise ValueError(
+                    f"no logical errors in {shots} shots at distance {distance}, {r} rounds, noise {list(np.ravel(noise_parameters))}: "
+                    "raise max_shots or the noise (the exploration bounds' low ends should give at least a few failures)"
+                )
+            lep, std = calculate_lep_and_lep_stddev(fails, shots)
             leps.append(lep)
             stds.append(std)
         fit = compute_logical_error_per_round(np.asarray(rounds), np.asarray(leps), np.asarray(stds), force_include_single_round=True)

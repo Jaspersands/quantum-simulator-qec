@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import numpy.typing as npt
+
+if TYPE_CHECKING:  # xarray is needed only by those who pass its arrays
+    import xarray as xr
 
 
 def get_pij_matrix(

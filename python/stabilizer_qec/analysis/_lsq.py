@@ -3,7 +3,6 @@ own when it is installed)."""
 
 from __future__ import annotations
 
-import math
 from typing import Any, Callable, Optional
 
 import numpy as np

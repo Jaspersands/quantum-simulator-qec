@@ -62,3 +62,17 @@ source, modified: it uses this package in place of Stim and PyMatching, and nump
 networkx, galois, lmfit, uncertainties, scipy, gurobipy and pyyaml (each used instead when it is
 installed, where qec-util's results depend on it), takes numpy arrays as well as xarray's, and
 fixes an index overrun in `mod2.solve_linear_system`. Each file says so at its top.
+
+## deltakit
+
+deltakit-explorer and deltakit-decode: Copyright Riverlane. Licensed under the Apache License,
+Version 2.0 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/Deltakit/deltakit
+
+`python/stabilizer_qec/analysis/_dk/` is deltakit-explorer 0.9.4's analysis (`_analysis`,
+`_binomial_fit`, `_estimate`, `_lambda`, `_leppr`, `_quops`) and deltakit-decode 0.9.2's
+`EmpiricalDecodingErrorDistribution`, modified: numpy versions of the scipy.optimize routines
+and of uncertainties' propagation stand in when those packages are not installed
+(`analysis/_scipy.py`, `analysis/_uncertain.py`), and the code runs on Python 3.9 and numpy 1.x.
+Each file says so at its top. `analysis/pij.py`, `analysis/decoding.py`,
+`analysis/error_budget.py` and `analysis/plotting.py` follow deltakit's methods and formulas
+(the p_ij formulas are deltakit-decode's, reproduced) over this package's models.

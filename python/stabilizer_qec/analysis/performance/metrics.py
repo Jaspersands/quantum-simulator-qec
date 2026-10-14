@@ -2,6 +2,8 @@
 # modified for stabilizer_qec: Stim and PyMatching are this package's, and numpy stands in for its other dependencies.
 from __future__ import annotations
 
+from typing import Any as Variable  # uncertainties' type, when it is installed
+
 from stabilizer_qec.analysis.performance import _fitting
 
 import numpy as np

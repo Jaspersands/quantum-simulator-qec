@@ -30,7 +30,7 @@ __all__ = [
     "samplers",
 ]
 
-from . import decoding, error_budget, pij
+from . import decoding, error_budget, pij, plotting
 from ._dk._analysis import get_exp_fit, get_lambda_fit
 from ._dk._binomial_fit import DEFAULT_MAX_LIKELIHOOD_FACTOR, ConfidenceInterval, fit_binomial, fit_binomial_batch, fit_leppr_and_spam
 from ._dk._lambda import LambdaData, calculate_lambda_and_lambda_stddev, calculate_lambda_asymmetric
@@ -43,3 +43,29 @@ from ._dk._leppr import (
     simulate_different_round_numbers_for_lep_per_round_estimation,
 )
 from ._dk._quops import predict_distance_for_quops, predict_quops_at_distance, predict_quops_interval
+
+__all__ += [
+    "decoding",
+    "error_budget",
+    "pij",
+    "plotting",
+    "DEFAULT_MAX_LIKELIHOOD_FACTOR",
+    "ConfidenceInterval",
+    "LambdaData",
+    "LogicalErrorProbabilityPerRoundData",
+    "calculate_lambda_and_lambda_stddev",
+    "calculate_lambda_asymmetric",
+    "calculate_lep_and_lep_stddev",
+    "calculate_lep_asymmetric",
+    "compute_logical_error_per_round",
+    "fit_binomial",
+    "fit_binomial_batch",
+    "fit_leppr_and_spam",
+    "fit_logical_error_per_round_asymmetric",
+    "get_exp_fit",
+    "get_lambda_fit",
+    "predict_distance_for_quops",
+    "predict_quops_at_distance",
+    "predict_quops_interval",
+    "simulate_different_round_numbers_for_lep_per_round_estimation",
+]

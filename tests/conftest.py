@@ -4,7 +4,11 @@ optional: tests that compare against one skip where it does not install."""
 from __future__ import annotations
 
 import collections
+import os
 import re
+
+# Plots render off screen (a CI runner's Tk may be unusable).
+os.environ.setdefault("MPLBACKEND", "Agg")
 
 import pytest
 

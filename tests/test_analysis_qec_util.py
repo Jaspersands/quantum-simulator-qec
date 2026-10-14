@@ -222,7 +222,11 @@ def test_mod2(seed):
         import galois  # noqa: F401 - qec-util solves with it
     except ImportError:
         return
-    assert np.array_equal(mine, np.array(qec_util.mod2.solve_linear_system(a, b)))
+    try:
+        theirs = qec_util.mod2.solve_linear_system(a, b)
+    except IndexError:
+        return  # qec-util overruns its rows on wide systems of full rank; the port does not
+    assert np.array_equal(mine, np.array(theirs))
     assert ours.mod2.decompose_into_basis([0, 2], basis) == qec_util.mod2.decompose_into_basis([0, 2], basis)
 
 

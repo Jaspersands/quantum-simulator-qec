@@ -98,6 +98,21 @@ noise on every gate. In progress on `feature/2.0`.
   Its results are qec-util's on generated circuits and models
   (`tests/test_analysis_qec_util.py`): the same text, matrices and numbers, fits to within
   10⁻³ of a standard error, and decompositions up to the order of their pieces.
+- **deltakit's analysis** (`stabilizer_qec.analysis`): Λ fits (`calculate_lambda_and_lambda_stddev`
+  by three methods, `calculate_lambda_asymmetric` with profile-likelihood intervals), the
+  logical error per round with SPAM (`compute_logical_error_per_round`,
+  `fit_logical_error_per_round_asymmetric`, `simulate_different_round_numbers_*`), binomial
+  fits, quops prediction (`predict_quops_at_distance`, `predict_quops_interval`,
+  `predict_distance_for_quops`); `pij` (expectation data, p_ij of edges and hyperedges up to
+  four detectors, models from p_ij, comparisons, the correlation matrix and its plot);
+  `decoding` (`run_decoding_on_circuit`, `EmpiricalDecodingErrorDistribution`);
+  `error_budget` (each noise parameter's contribution to 1/Λ by Google's method, with
+  `standard_noise_model`, whose noise is that of Stim's generated circuits); and `plotting`
+  (Λ, logical error per round, defect rates, detection probability on the patch). Only numpy
+  is needed: scipy's optimisers and uncertainties' propagation are used when installed, and
+  numpy versions of them otherwise. Results are deltakit's (`tests/test_analysis_deltakit.py`,
+  run where deltakit installs): fits to 10⁻⁷, intervals to 10⁻⁶, p_ij to 10⁻¹², and to
+  10⁻⁴ without scipy and uncertainties.
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes

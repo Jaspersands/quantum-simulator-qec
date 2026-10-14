@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from itertools import product
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:  # xarray is needed only by those who pass its arrays
+    from xarray import DataArray
 
 
 def get_syndromes(anc_meas: DataArray, meas_reset: bool | None = None) -> DataArray:

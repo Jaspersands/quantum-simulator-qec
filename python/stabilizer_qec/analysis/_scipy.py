@@ -200,19 +200,54 @@ def _fminbound(func: Callable, x1: float, x2: float, args: tuple = (), xatol: fl
     return OptimizeResult(x=float(xf), fun=float(fx), nfev=num, nit=num, success=True)
 
 
-def _brent(func: Callable, args: tuple = (), tol: float = 1.48e-8, maxiter: int = 500) -> OptimizeResult:
-    # Unbounded Brent minimisation from scipy's default bracket (0, 1).
-    xa, xb = 0.0, 1.0
+def _bracket(func: Callable, args: tuple = (), xa: float = 0.0, xb: float = 1.0, grow_limit: float = 110.0, maxiter: int = 1000) -> tuple:
+    # scipy's bracket: downhill by golden steps and parabolic extrapolation.
+    gold, verysmall = 1.618034, 1e-21
     fa, fb = func(xa, *args), func(xb, *args)
     if fa < fb:
         xa, xb, fa, fb = xb, xa, fb, fa
-    gold = 1.618034
     xc = xb + gold * (xb - xa)
     fc = func(xc, *args)
+    it = 0
     while fc < fb:
-        xa, xb, fa, fb = xb, xc, fb, fc
-        xc = xb + gold * (xb - xa)
-        fc = func(xc, *args)
+        tmp1 = (xb - xa) * (fb - fc)
+        tmp2 = (xb - xc) * (fb - fa)
+        val = tmp2 - tmp1
+        denom = 2.0 * verysmall if abs(val) < verysmall else 2.0 * val
+        w = xb - ((xb - xc) * tmp2 - (xb - xa) * tmp1) / denom
+        wlim = xb + grow_limit * (xc - xb)
+        if it > maxiter:
+            raise RuntimeError("Too many iterations.")
+        it += 1
+        if (w - xc) * (xb - w) > 0.0:
+            fw = func(w, *args)
+            if fw < fc:
+                xa, xb, fa, fb = xb, w, fb, fw
+                break
+            elif fw > fb:
+                xc, fc = w, fw
+                break
+            w = xc + gold * (xc - xb)
+            fw = func(w, *args)
+        elif (w - wlim) * (wlim - xc) >= 0.0:
+            w = wlim
+            fw = func(w, *args)
+        elif (w - wlim) * (xc - w) > 0.0:
+            fw = func(w, *args)
+            if fw < fc:
+                xb, xc, w = xc, w, xc + gold * (xc - xb)
+                fb, fc, fw = fc, fw, func(w, *args)
+        else:
+            w = xc + gold * (xc - xb)
+            fw = func(w, *args)
+        xa, xb, xc = xb, xc, w
+        fa, fb, fc = fb, fc, fw
+    return xa, xb, xc, fa, fb, fc
+
+
+def _brent(func: Callable, args: tuple = (), tol: float = 1.48e-8, maxiter: int = 500) -> OptimizeResult:
+    # Unbounded Brent minimisation from scipy's default bracket (0, 1).
+    xa, xb, xc, fa, fb, fc = _bracket(func, args)
     a, b = min(xa, xc), max(xa, xc)
     x = w = v = xb
     fw = fv = fx = fb

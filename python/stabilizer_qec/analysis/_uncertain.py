@@ -99,11 +99,11 @@ def _nominal(x: Any) -> float:
     return x.nominal_value if isinstance(x, UFloat) else float(x)
 
 
-def ufloat(nominal_value: float, std_dev: float) -> UFloat:
+def _ufloat(nominal_value: float, std_dev: float) -> UFloat:
     return UFloat(nominal_value, {next(_ids): float(std_dev)})
 
 
-def correlated_values(values: Sequence[float], covariance: Any) -> list:
+def _correlated_values(values: Sequence[float], covariance: Any) -> list:
     """Values with the given covariance, as ``uncertainties.correlated_values``."""
     cov = np.asarray(covariance, dtype=float)
     # cov = V diag(w) V^T: value i depends on independent component j as V[i, j] sqrt(w[j]).
@@ -127,7 +127,7 @@ def _log(x: Any) -> Any:
 
 
 def _uarray(nominal: Any, std: Any) -> np.ndarray:
-    return np.array([ufloat(n, s) for n, s in zip(np.ravel(nominal), np.ravel(std))], dtype=object).reshape(np.shape(nominal))
+    return np.array([_ufloat(n, s) for n, s in zip(np.ravel(nominal), np.ravel(std))], dtype=object).reshape(np.shape(nominal))
 
 
 def _ulog(a: Any) -> np.ndarray:
@@ -145,5 +145,6 @@ def _nominal_values(a: Any) -> np.ndarray:
 try:  # pragma: no cover - depends on the environment
     from uncertainties import correlated_values, ufloat, umath, unumpy  # type: ignore[no-redef]
 except ImportError:
+    ufloat, correlated_values = _ufloat, _correlated_values
     umath = SimpleNamespace(exp=_exp, log=_log)
     unumpy = SimpleNamespace(uarray=_uarray, log=_ulog, std_devs=_std_devs, nominal_values=_nominal_values)
