@@ -13,6 +13,11 @@ MODULES = sorted(m.name for m in pkgutil.walk_packages(sinter.__path__, "stabili
 
 @pytest.mark.parametrize("name", MODULES)
 def test_examples_pass(name):
-    module = importlib.import_module(name)
+    try:
+        module = importlib.import_module(name)
+    except ModuleNotFoundError as ex:
+        if ex.name == "matplotlib":
+            pytest.skip("plotting needs matplotlib")
+        raise
     result = doctest.testmod(module, optionflags=doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE)
     assert result.failed == 0, f"{result.failed} of {result.attempted} examples in {name} fail"

@@ -1,5 +1,9 @@
 # sinter 1.16.0's own test (Copyright Google LLC, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
 # run against stabilizer_qec.sinter: imports and expected reprs modified.
+import pytest
+
+pytest.importorskip("matplotlib")  # stabilizer_qec: plotting needs matplotlib, an optional extra
+
 import io
 
 from matplotlib import pyplot as plt
