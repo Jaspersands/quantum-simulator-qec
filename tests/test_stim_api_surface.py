@@ -84,3 +84,11 @@ def test_the_pickled_classes_round_trip():
         back = pickle.loads(pickle.dumps(t))
         assert type(back) is type(t) and (repr(back) == repr(t) or back == t)
     assert {type(t).__name__ for t in things} | {"CompiledMeasurementsToDetectionEventsConverter"} >= {"Circuit", "DetectorErrorModel", "PauliString", "Tableau"}
+
+
+def test_hashable_where_stims_classes_are():
+    for name in dir(stim):
+        theirs = getattr(stim, name)
+        if name.startswith("_") or not inspect.isclass(theirs) or theirs.__hash__ is None:
+            continue
+        assert getattr(sq, name).__hash__ is not None, name

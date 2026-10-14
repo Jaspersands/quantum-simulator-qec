@@ -126,7 +126,7 @@ class BeliefMatching(_DemDecoder):
         ms_scaling_factor: float = 1.0,
     ) -> None:
         model = self._made(_model(model), max_bp_iters=max_bp_iters, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor)
-        self._x = call(_core.BeliefMatcher, model._d, count(max_bp_iters, "max_bp_iters"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
+        self._x = call(_core.BeliefMatcher, model._d, count(max_bp_iters, "max_bp_iters"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"))
 
     def decode_batch(
         self,
@@ -172,7 +172,7 @@ class BpOsd(_DemDecoder):
             _core.DemBpOsd,
             model._d,
             count(max_iter, "max_iter"),
-            bp_method,
+            _bp_method(bp_method),
             real(ms_scaling_factor, "ms_scaling_factor"),
             osd_method,
             count(osd_order, "osd_order"),
@@ -626,7 +626,7 @@ class BpDecoder:
     ) -> None:
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor))
         self._m, self._n, cols = _columns(pcm)
-        self._x = call(_core.Bp, self._m, cols, _channel(self._n, error_rate, error_channel), count(max_iter, "max_iter"), bp_method, real(ms_scaling_factor, "ms_scaling_factor"))
+        self._x = call(_core.Bp, self._m, cols, _channel(self._n, error_rate, error_channel), count(max_iter, "max_iter"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"))
         self.converge = False
         self.iter = 0
         self.log_prob_ratios = np.zeros(self._n)
@@ -670,7 +670,7 @@ class BpOsdDecoder:
             cols,
             _channel(self._n, error_rate, error_channel),
             count(max_iter, "max_iter"),
-            bp_method,
+            _bp_method(bp_method),
             real(ms_scaling_factor, "ms_scaling_factor"),
             osd_method,
             count(osd_order, "osd_order"),

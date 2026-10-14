@@ -171,7 +171,10 @@ class DemInstruction:
         self._tag = str(tag)
         from ._circuit import DetectorErrorModel
 
-        DetectorErrorModel(self._exact_text())  # validates, as Stim does on construction
+        try:  # validates, as Stim does on construction, with Stim's message
+            DetectorErrorModel(self._exact_text())
+        except ValueError as ex:
+            raise ValueError(re.sub(r"^line 1: ", "", str(ex))) from None
 
     @staticmethod
     def _raw(t: str, args: List[float], targets: List[Any], tag: str) -> "DemInstruction":
@@ -232,7 +235,9 @@ class DemInstruction:
         r = self.__eq__(other)
         return r if r is NotImplemented else not r
 
-    __hash__ = None  # type: ignore[assignment]
+    def __hash__(self) -> int:
+        # Hashable, as Stim's.
+        return hash((self._type, tuple(self._args), tuple(str(t) for t in self._targets), self._tag))
 
 
 class DemRepeatBlock:

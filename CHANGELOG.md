@@ -18,6 +18,11 @@ noise on every gate. In progress on `feature/2.0`.
   copies use them, and `circuit[k].gate_args_copy()` returns them.
 - The `stabilizer-qec[sinter]` extra installs matplotlib (also `[plot]`); sinter and Stim are
   no longer needed.
+- **An error's targets stay as written**, in their order and with repeats, in a model's text
+  and when it is flattened, as Stim keeps them (`error(0.1) D1 D0` was printed `D0 D1`, and a
+  target written twice was dropped); a repeated target still cancels in the error's meaning.
+  `error` instructions starting or ending with `^`, or with `^ ^`, are refused, as in Stim.
+  `DemInstruction` is hashable, as Stim's is.
 - `repr(DetectorErrorModel)` prints numbers at 6 significant digits, as Stim's repr does on
   every platform (`str` keeps full precision: 19 digits on x86-64, as Stim's).
 - Text shot files (`01`, `hits`, `dets`) may end their lines `\r\n`, as files written in text
@@ -83,6 +88,16 @@ noise on every gate. In progress on `feature/2.0`.
   (`tests/sinter_port/`), and its CSV text, strong ids, fits, combined files and predictions are
   sinter's (`tests/test_sinter_differential.py`). 1.x's `Decoder(kind)`, `Sampler(kind)` and
   `sinter_decoders()` work as before, with this sinter or with sinter itself.
+- **qec-util's tools** (`stabilizer_qec.analysis`: `circuits`, `dems`, `dem_instrs`,
+  `data_processing`, `distance`, `mod2`, `performance`, `samplers`, `threshold`), a port of
+  qec-util 0.5 that needs only numpy: gauge and detector removal, observables as detectors,
+  rec-target formatting, model differences, hyperedge decomposition, disjoint graphs, p_ij
+  matrices (exact and approximate), syndromes and defects (numpy or xarray), GF(2) solving,
+  the logical-error decay fit, Wilson intervals, failure sampling to CSV, threshold fits with
+  bootstrapped intervals, and exact circuit distances (scipy's HiGHS for qec-util's Gurobi).
+  Its results are qec-util's on generated circuits and models
+  (`tests/test_analysis_qec_util.py`): the same text, matrices and numbers, fits to within
+  10⁻³ of a standard error, and decompositions up to the order of their pieces.
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes
@@ -162,6 +177,8 @@ noise on every gate. In progress on `feature/2.0`.
 
 ### Fixed
 
+- The `ldpc`-style decoders (`BpDecoder`, `BpOsdDecoder`, `BpOsd`, `BeliefMatching`) take
+  ldpc's aliases for `bp_method` (`"ps"`, `"ms"`, ...), as `BpLsd` already did.
 - Correlated matching, `BeliefMatching` and `UnionFind` decode models with a fault that flips
   observables and no detector (`error(p) L0`, which 2.0 keeps as Stim does), ignoring it as
   PyMatching does; they refused such models.

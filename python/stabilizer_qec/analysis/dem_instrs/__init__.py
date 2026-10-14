@@ -1,0 +1,36 @@
+# Ported from qec-util 0.5.0 (Copyright (c) 2023 MarcSerraPeralta, MIT License; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: Stim and PyMatching are this package's, and numpy stands in for its other dependencies.
+from .dem_instrs import (
+    decomposed_detectors,
+    decomposed_instrs,
+    decomposed_observables,
+    detectors_to_observables,
+    get_detectors,
+    get_labels_from_detectors,
+    get_observables,
+    has_separator,
+    merge_instrs,
+    remove_detectors,
+    sorted_dem_instr,
+)
+from .hyperedge_decomposition import decompose_hyperedge_to_edges
+from .util import prob_indep_depol1, prob_indep_depol2, xor_lists, xor_probs
+
+__all__ = [
+    "get_detectors",
+    "get_observables",
+    "has_separator",
+    "decomposed_detectors",
+    "decomposed_observables",
+    "decomposed_instrs",
+    "merge_instrs",
+    "remove_detectors",
+    "sorted_dem_instr",
+    "get_labels_from_detectors",
+    "xor_probs",
+    "xor_lists",
+    "decompose_hyperedge_to_edges",
+    "prob_indep_depol1",
+    "prob_indep_depol2",
+    "detectors_to_observables",
+]

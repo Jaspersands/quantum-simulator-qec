@@ -25,8 +25,9 @@ pub const MAX_UNROLLED_LINES: u64 = 1 << 24;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DemInstr {
-    /// `error[tag](p) D0 D1 ^ D2 L0`: each piece's targets sorted (detectors relative to the
-    /// current shift), pieces in order.
+    /// `error[tag](p) D0 D1 ^ D2 L0`: each piece's targets as written (order and repeats kept,
+    /// as Stim keeps them; detectors relative to the current shift), pieces in order. A target
+    /// written twice in a piece cancels when the error's meaning is taken (`mechanism`).
     Error { p: f64, pieces: Vec<Vec<u64>>, tag: String },
     /// `detector[tag](coords) D3`: detectors, relative.
     Detector { coords: Vec<f64>, targets: Vec<u64>, tag: String },
@@ -178,6 +179,15 @@ fn push_target(s: &mut String, t: u64) {
 }
 
 /// XOR `t` into a sorted target list.
+/// A piece's targets sorted, a target written twice cancelled.
+pub fn canonical(piece: &[u64]) -> Vec<u64> {
+    let mut out = Vec::with_capacity(piece.len());
+    for &t in piece {
+        toggle(&mut out, t);
+    }
+    out
+}
+
 fn toggle(v: &mut Vec<u64>, t: u64) {
     match v.binary_search(&t) {
         Ok(i) => {
@@ -341,9 +351,10 @@ fn mechanism(p: f64, pieces: &[Vec<u64>], tag: String) -> Mechanism {
     let mut all = Vec::new();
     let mut kept = Vec::new();
     for piece in pieces {
-        let (dets, obs) = split(piece);
+        let piece = canonical(piece);
+        let (dets, obs) = split(&piece);
         kept.push(Piece { detectors: dets, observables: obs });
-        for &t in piece {
+        for &t in &piece {
             toggle(&mut all, t);
         }
     }
@@ -400,9 +411,7 @@ fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -
                 spend(st)?;
                 let mut abs = Vec::with_capacity(pieces.len());
                 for piece in pieces {
-                    let mut v = piece.iter().map(|&t| absolute(t, st.offset)).collect::<Result<Vec<_>, _>>()?;
-                    v.sort_unstable();
-                    abs.push(v);
+                    abs.push(piece.iter().map(|&t| absolute(t, st.offset)).collect::<Result<Vec<_>, _>>()?);
                 }
                 out(DemInstr::Error { p: *p, pieces: abs, tag: tag.clone() });
             }
@@ -522,14 +531,21 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
                 if args.len() != 1 || !(0.0..=1.0).contains(&args[0]) {
                     return Err(format!("line {lineno}: error takes one probability"));
                 }
+                // Stim's rules for separators.
+                if tokens.first() == Some(&"^") || tokens.last() == Some(&"^") {
+                    return Err(format!("line {lineno}: First/last targets of 'error' instruction shouldn't be separators (^)."));
+                }
+                if tokens.windows(2).any(|w| w[0] == "^" && w[1] == "^") {
+                    return Err(format!("line {lineno}: 'error' instruction has adjacent separators (^ ^)."));
+                }
                 let mut pieces = vec![Vec::new()];
                 for t in &tokens {
                     if *t == "^" {
                         pieces.push(Vec::new());
                     } else if t.starts_with('D') {
-                        toggle(pieces.last_mut().unwrap(), detector(t)?);
+                        pieces.last_mut().unwrap().push(detector(t)?);
                     } else if t.starts_with('L') {
-                        toggle(pieces.last_mut().unwrap(), OBS | u64::from(observable(t)?));
+                        pieces.last_mut().unwrap().push(OBS | u64::from(observable(t)?));
                     } else {
                         return Err(bad(t));
                     }

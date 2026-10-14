@@ -252,6 +252,7 @@ impl UserGraph {
                 continue; // as PyMatching
             }
             for piece in pieces {
+                let piece = crate::dem_program::canonical(piece);
                 let dets: Vec<usize> = piece.iter().filter(|&&t| t & OBS == 0).map(|&t| t as usize).collect();
                 let obs: Vec<usize> = piece.iter().filter(|&&t| t & OBS != 0).map(|&t| (t & !OBS) as usize).collect();
                 let w = ((1.0 - p) / p).ln();

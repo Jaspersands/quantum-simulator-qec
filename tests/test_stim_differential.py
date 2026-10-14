@@ -487,3 +487,26 @@ def test_text_shot_files_may_end_lines_with_crlf(tmp_path, fmt, text):
     lf = sq.read_shot_data_file(path=str(tmp_path / "lf"), format=fmt, num_measurements=4)
     crlf = sq.read_shot_data_file(path=str(tmp_path / "crlf"), format=fmt, num_measurements=4)
     assert np.array_equal(lf, crlf) and np.array_equal(lf, stim.read_shot_data_file(path=str(tmp_path / "lf"), format=fmt, num_measurements=4))
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_model_targets_stay_as_written(seed):
+    # Stim keeps an error's targets in the order written, repeats included, in its text and
+    # when flattening; a repeated target cancels only in the error's meaning.
+    rng = random.Random(seed)
+    lines = []
+    for _ in range(rng.randint(1, 6)):
+        pieces = []
+        for _ in range(rng.randint(1, 3)):
+            pieces.append(" ".join(rng.choice([f"D{rng.randrange(6)}", f"L{rng.randrange(2)}"]) for _ in range(rng.randint(1, 4))))
+        lines.append(f"error({rng.choice([0.1, 0.25, 0.0])}) " + " ^ ".join(pieces))
+        if rng.random() < 0.3:
+            lines.append(f"shift_detectors {rng.randrange(3)}")
+    text = "\n".join(lines)
+    if rng.random() < 0.5:
+        text = f"repeat {rng.randint(1, 3)} {{\n{text}\n}}"
+    a, b = stim.DetectorErrorModel(text), sq.DetectorErrorModel(text)
+    assert str(b) == str(a)
+    assert str(b.flattened()) == str(a.flattened())
+    assert (b.num_detectors, b.num_observables, b.num_errors) == (a.num_detectors, a.num_observables, a.num_errors)
+    assert sq.DetectorErrorModel(str(a)) == b
