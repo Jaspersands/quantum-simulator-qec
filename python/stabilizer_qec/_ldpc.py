@@ -739,3 +739,131 @@ class LsdDecoder:
     @property
     def lsd_order(self) -> int:
         return self._lsd_order
+
+
+def _per_step(bits_per_step: int, n: int) -> int:
+    bits_per_step = int(bits_per_step)
+    return n if bits_per_step == 0 else (bits_per_step if bits_per_step > 0 else 1 << 62)
+
+
+class UnionFindDecoder:
+    """Union-find decoding of any check matrix, as ldpc's ``UnionFindDecoder``: a cluster grows
+    around each fired check until it can explain its checks, then each is solved alone, by
+    elimination (``uf_method`` true: any matrix) or by peeling (false: columns of at most two
+    checks, a column with one check touching the boundary). Given ``llrs``, growth takes the
+    ``bits_per_step`` lowest first (0: all). ``uf_method`` may also be a name, ``"inversion"`` or
+    ``"peeling"``. (ldpc's own takes any non-empty string as inversion, ``"peeling"`` too, and its
+    declared default ``False`` is refused.)"""
+
+    def __init__(self, pcm: Any, uf_method: Union[bool, str] = False) -> None:
+        if not _is_matrix(pcm):
+            raise TypeError(f"The input matrix is of an invalid type. Please input a np.ndarray or spmatrix object, not {type(pcm)}")
+        self._made_from = ((pcm,), dict(uf_method=uf_method))
+        self.m, self.n, cols = _columns(pcm)
+        self._x = call(_core.LdpcUf, self.m, cols)
+        if isinstance(uf_method, str):
+            self.uf_method = uf_method.lower() not in ("", "peel", "peeling")
+        else:
+            self.uf_method = bool(uf_method)
+        self.bits_per_step = 0
+        self._decoding = np.zeros(self.n, dtype=np.uint8)
+        self.last_tied = self.last_stuck = False
+
+    def __reduce__(self) -> tuple:
+        args, kwargs = self._made_from
+        return (_rebuild, (type(self), args, kwargs), {"_decoding": self._decoding, "last_tied": self.last_tied, "last_stuck": self.last_stuck, "bits_per_step": self.bits_per_step})
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+
+    def decode(self, syndrome: np.ndarray, llrs: Optional[np.ndarray] = None, bits_per_step: int = 0) -> np.ndarray:
+        syndrome = np.asarray(syndrome)
+        if not len(syndrome) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
+        if llrs is not None and not len(llrs) == self.n:
+            raise ValueError(f"The llrs must have length {self.n}. Not {len(llrs)}.")
+        if not syndrome.any():
+            return np.zeros(self.n, dtype=syndrome.dtype)
+        self.bits_per_step = self.n if int(bits_per_step) == 0 else int(bits_per_step)
+        peel = not self.uf_method
+        if peel and not self._x.max_degree_2:
+            raise RuntimeError("Peel decoder only works for planar codes. Use the matrix_decode method for more general codes.")
+        weights = None if llrs is None else [float(x) for x in llrs]
+        correction, solved, ties, stuck = call(self._x.decode, [int(x != 0) for x in syndrome], weights, _per_step(bits_per_step, self.n), peel)
+        if not solved:
+            raise ValueError("no correction explains the syndrome")
+        self.last_tied, self.last_stuck = ties > 0, stuck > 0
+        self._decoding = np.asarray(correction, dtype=np.uint8)
+        return self._decoding.astype(syndrome.dtype)
+
+    @property
+    def decoding(self) -> np.ndarray:
+        # (ldpc's returns None.)
+        return self._decoding.copy()
+
+
+class BeliefFindDecoder(BpDecoderBase):
+    """BP, and where it does not converge, union-find decoding guided by BP's posteriors, as
+    ldpc's ``BeliefFindDecoder``: clusters grow ``bits_per_step`` (0: the block length) most
+    likely columns at a time and are solved by ``uf_method`` ``"inversion"`` (any matrix) or
+    ``"peeling"`` (columns of at most two checks)."""
+
+    _core_factory = _core.Bp
+
+    def __init__(
+        self,
+        pcm: Any,
+        error_rate: Optional[float] = _Default(None),
+        error_channel: Any = _Default(None),
+        max_iter: int = _Default(0),
+        bp_method: str = _Default("minimum_sum"),
+        ms_scaling_factor: float = _Default(1.0),
+        schedule: str = _Default("parallel"),
+        omp_thread_count: int = _Default(1),
+        random_schedule_seed: int = _Default(0),
+        serial_schedule_order: Optional[List[int]] = _Default(None),
+        uf_method: str = "peeling",
+        bits_per_step: int = 0,
+        input_vector_type: str = "syndrome",
+    ) -> None:
+        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, uf_method=uf_method, bits_per_step=bits_per_step, input_vector_type=input_vector_type))
+        self._input = "syndrome"
+        self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, _Default(False), [None], ())
+        self._uf = call(_core.LdpcUf, self.m, self._cols)
+        if not isinstance(uf_method, str):
+            raise TypeError(f"Argument 'uf_method' has incorrect type (expected str, got {type(uf_method).__name__})")
+        if uf_method.lower() in ("inversion", "invert", "matrix"):
+            self._uf_method = "inversion"
+        elif uf_method.lower() in ("peeling", "peel"):
+            self._uf_method = "peeling"
+            for i, col in enumerate(self._cols):
+                if len(col) > 2:
+                    raise ValueError(f"The 'peeling' method is only suitable for LDPC codes with point like syndromes. Each column of the PCM must have at most 2 entries. Column {i} has degree {len(col)}.")
+        else:
+            raise ValueError(f"Invalid UF method: {uf_method}. Must be one of 'inversion' or 'peeling'.")
+        self.bits_per_step = self.n if bits_per_step == 0 else int(bits_per_step)
+        self.input_vector_type = "syndrome"
+        self.last_tied = self.last_stuck = False
+
+    def decode(self, syndrome: np.ndarray) -> np.ndarray:
+        syndrome = np.asarray(syndrome)
+        if not len(syndrome) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
+        if not syndrome.any():
+            self._converge = True
+            return np.zeros(self.n, dtype=syndrome.dtype)
+        hard, llr, converged, iterations = call(self._x.decode, [int(x != 0) for x in syndrome])
+        self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
+        self._decoding = np.asarray(hard, dtype=np.uint8)
+        self.last_tied = self.last_stuck = False
+        if self._converge:
+            return self._decoding.astype(syndrome.dtype)
+        correction, solved, ties, stuck = call(self._uf.decode, [int(x != 0) for x in syndrome], list(self._llr), _per_step(self.bits_per_step, self.n), self._uf_method == "peeling")
+        if not solved:
+            raise ValueError("no correction explains the syndrome")
+        self.last_tied, self.last_stuck = ties > 0, stuck > 0
+        return np.asarray(correction, dtype=syndrome.dtype)
+
+    @property
+    def uf_method(self) -> str:
+        return self._uf_method

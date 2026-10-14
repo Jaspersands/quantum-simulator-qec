@@ -7,7 +7,7 @@
 // as a useless conversion; it is the macro's, not this code's.
 #![allow(clippy::useless_conversion)]
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -1219,6 +1219,32 @@ impl PyFlip {
     }
 }
 
+/// `ldpc`'s union-find decoder on a check matrix given by its columns.
+#[pyclass(name = "LdpcUf", module = "stabilizer_qec._core")]
+pub struct PyLdpcUf {
+    dec: crate::ldpc_uf::LdpcUf,
+}
+
+#[pymethods]
+impl PyLdpcUf {
+    #[new]
+    fn new(num_checks: usize, columns: Vec<Vec<u32>>) -> PyResult<Self> {
+        Ok(PyLdpcUf { dec: crate::ldpc_uf::LdpcUf::new(num_checks, columns).map_err(PyRuntimeError::new_err)? })
+    }
+
+    #[getter]
+    fn max_degree_2(&self) -> bool {
+        self.dec.max_degree_2()
+    }
+
+    /// (decoding, solved, ties, stuck): matrix inversion, or peeling when `peel`.
+    #[pyo3(signature = (syndrome, weights, per_step, peel))]
+    fn decode(&self, syndrome: Vec<u8>, weights: Option<Vec<f64>>, per_step: usize, peel: bool) -> PyResult<(Vec<u32>, bool, u32, u32)> {
+        let out = self.dec.decode(&syndrome, weights.as_deref(), per_step, peel).map_err(PyValueError::new_err)?;
+        Ok((bits(&out.decoding), out.solved, out.ties, out.stuck))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn relay_config(
     pre_iter: usize,
@@ -1458,6 +1484,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDemBpLsd>()?;
     m.add_class::<PyBpLsd>()?;
     m.add_class::<PyFlip>()?;
+    m.add_class::<PyLdpcUf>()?;
     m.add_class::<PyRelay>()?;
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;

@@ -7,10 +7,12 @@
 //! decides things that change the answer: the order a merged cluster's columns enter the
 //! surviving cluster's matrix, and so which columns become pivots. To return `ldpc`'s
 //! corrections, LSD (`lsd`) walks its sets in that same order, which this reproduces. It is a
-//! pure function of the insertions and removals, because `std::hash<int>` is the identity in
-//! both libc++ and libstdc++:
+//! pure function of the insertions and removals, because `std::hash<int>` is a fixed function:
+//! the identity in libc++ and libstdc++, and on Windows, where `ldpc` is built with Microsoft's
+//! library, the 64-bit FNV-1a hash of the int's four bytes (`hash`):
 //!
-//! - open addressing over a power-of-two array of buckets, a key's ideal bucket `key & mask`;
+//! - open addressing over a power-of-two array of buckets, a key's ideal bucket
+//!   `hash(key) & mask`;
 //! - none allocated until the first insert; then 2 buckets, doubling whenever an insert finds
 //!   the set holding half as many keys as buckets (max load factor 0.5);
 //! - robin-hood insertion: a key probing past a bucket whose occupant sits closer to its own
@@ -23,6 +25,21 @@
 //! trigger at the sizes LSD reaches and are left out.
 
 const EMPTY: i16 = -1;
+
+/// `std::hash<int>` of the C++ library `ldpc` is built with here (keys are ints' bit patterns).
+#[inline]
+fn hash(key: u32) -> usize {
+    if cfg!(windows) {
+        fnv1a(key) as usize
+    } else {
+        key as usize
+    }
+}
+
+/// Microsoft's `std::hash<int>`: FNV-1a over the int's bytes, little-endian.
+fn fnv1a(key: u32) -> u64 {
+    key.to_le_bytes().iter().fold(14695981039346656037u64, |h, &b| (h ^ b as u64).wrapping_mul(1099511628211))
+}
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RobinSet {
@@ -53,7 +70,7 @@ impl RobinSet {
     }
 
     fn find(&self, key: u32) -> Option<usize> {
-        let mut i = key as usize & self.mask();
+        let mut i = hash(key) & self.mask();
         let mut d = 0i16;
         while d <= self.dist(i) {
             if self.buckets[i].1 == key {
@@ -65,14 +82,13 @@ impl RobinSet {
         None
     }
 
-    #[cfg(test)]
     pub(crate) fn contains(&self, key: u32) -> bool {
         self.find(key).is_some()
     }
 
     /// Insert `key`; whether it was new.
     pub(crate) fn insert(&mut self, key: u32) -> bool {
-        let mut i = key as usize & self.mask();
+        let mut i = hash(key) & self.mask();
         let mut d = 0i16;
         while d <= self.dist(i) {
             if self.buckets[i].1 == key {
@@ -83,7 +99,7 @@ impl RobinSet {
         }
         if self.len >= self.buckets.len() / 2 {
             self.rehash(2 * self.buckets.len().max(1));
-            i = key as usize & self.mask();
+            i = hash(key) & self.mask();
             d = 0;
             while d <= self.dist(i) {
                 i = self.next(i);
@@ -118,7 +134,7 @@ impl RobinSet {
         for (bd, key) in old {
             if bd != EMPTY {
                 // robin-map's insert_value_on_rehash: the same robin-hood walk from distance 0.
-                let i = key as usize & self.mask();
+                let i = hash(key) & self.mask();
                 self.place(i, 0, key);
             }
         }
@@ -180,7 +196,7 @@ mod tests {
             let mut keys: Vec<u32> = a.iter().collect();
             keys.sort_unstable();
             assert_eq!(keys, b.iter().copied().collect::<Vec<_>>());
-            assert!(a.buckets.iter().enumerate().all(|(i, &(d, k))| d == EMPTY || (k as usize + d as usize) & a.mask() == i));
+            assert!(a.buckets.iter().enumerate().all(|(i, &(d, k))| d == EMPTY || (hash(k) + d as usize) & a.mask() == i));
         }
     }
 
@@ -188,6 +204,7 @@ mod tests {
     /// buckets (5 → 1, then 1 → 1 is taken, so 1 → 2); 9 grows it to 8 (5 → 5, 1 → 1, then
     /// 9 → 1 is taken by 1 at distance 0, so 9 → 2). Order: 1, 9, 5.
     #[test]
+    #[cfg(not(windows))]
     fn its_order_is_robin_maps() {
         let mut s = RobinSet::new();
         for k in [5, 1, 9] {
@@ -204,5 +221,12 @@ mod tests {
         s.insert(3);
         s.insert(17);
         assert_eq!(s.iter().collect::<Vec<_>>(), vec![17, 3]);
+    }
+
+    /// Microsoft's hash of 0 and of -1 (all ones), FNV-1a over four bytes.
+    #[test]
+    fn microsofts_hash_is_fnv1a() {
+        assert_eq!(fnv1a(0), 0x4d25767f9dce13f5);
+        assert_eq!(fnv1a(u32::MAX), 0x994f76653e2a3951);
     }
 }

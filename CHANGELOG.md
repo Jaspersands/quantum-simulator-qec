@@ -145,7 +145,17 @@ noise on every gate. In progress on `feature/2.0`.
   `pflip_frequency`, `pflip_seed`) followed by BP; and LSD alone on given bit weights. LSD's
   sorts (candidates and free columns by weight, invalid clusters by size) are now the platform's
   `std::sort`, so `BpLsdDecoder` and `LsdDecoder` agree with ldpc on ties too, leaving only
-  merges of three or more clusters at once, whose order ldpc takes from addresses.
+  merges of three or more clusters at once, whose order ldpc takes from addresses. On Windows,
+  `tsl::robin_set`'s order now follows Microsoft's `std::hash<int>` (FNV-1a), as ldpc's Windows
+  wheels do.
+- **ldpc's `UnionFindDecoder` and `BeliefFindDecoder`** on any check matrix, bit for bit against
+  ldpc 2.4.1 (`tests/test_ldpc_decoders.py`): clusters grown around the fired checks, all at
+  once or `bits_per_step` at a time by weight (BP's posteriors in `BeliefFindDecoder`), solved
+  by inversion (any matrix) or by peeling a spanning tree (columns of one or two checks). Where
+  ldpc's peeling goes round forever, the cluster is solved by inversion (`last_stuck`); where
+  no correction exists (ldpc loops), `decode` raises `ValueError`. `UnionFindDecoder`'s
+  `uf_method` takes `True`/`False` or a name (ldpc's reads any non-empty string, `"peeling"`
+  included, as inversion, and refuses its own default).
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes

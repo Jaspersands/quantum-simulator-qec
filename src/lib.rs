@@ -48,6 +48,8 @@ pub mod dem_program;
 pub mod user_graph;
 pub mod cpp_random;
 pub mod flip;
+/// `ldpc`'s union-find decoder on any check matrix.
+pub mod ldpc_uf;
 #[doc(hidden)]
 pub mod dem_sampler;
 #[doc(hidden)]
