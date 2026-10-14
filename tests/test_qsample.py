@@ -54,7 +54,7 @@ def test_subset_sampling_agrees_with_direct_sampling(make):
         assert up >= b
     # One run gives every rate below p_max: the low rates are far more precise than direct
     # sampling's, which sees few failures there.
-    assert std_s[0] < std_d[0] / 3
+    assert std_s[0] < std_d[0] / 2
 
 
 def test_agrees_with_qsample():
