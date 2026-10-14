@@ -61,6 +61,7 @@ fn apply(x: &mut [bool], z: &mut [bool], q: usize, pauli: u8) {
 
 impl FrameSampler {
     pub fn new(circuit: &Circuit) -> Result<FrameSampler, String> {
+        circuit.check_runnable()?;
         let res = circuit.resolve()?;
         if res.observables.len() > 64 {
             return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
@@ -99,6 +100,7 @@ impl FrameSampler {
         let mut heralds = Vec::new();
         for ins in &self.instrs {
             match ins {
+                Instr::Fail(_) => {}
                 Instr::Reset { basis, qubits } => {
                     for &q in qubits {
                         let q = q as usize;

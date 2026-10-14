@@ -108,6 +108,7 @@ fn compile(instrs: &[Instr]) -> Vec<Op> {
     let mut out = Vec::new();
     for ins in instrs {
         out.push(match ins {
+            Instr::Fail(_) => continue,
             Instr::Reset { basis, qubits } => Op::Reset { basis: *basis, qubits: qubits.clone() },
             Instr::H(q) => Op::H(q.clone()),
             Instr::Cx(p) => Op::Cx(p.clone()),
@@ -647,6 +648,7 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
 
 impl BatchSampler {
     pub fn new(circuit: &Circuit) -> Result<BatchSampler, String> {
+        circuit.check_runnable()?;
         let ops = compile(&circuit.instrs);
         let mut s = Shape::default();
         shape(&ops, &mut s)?;

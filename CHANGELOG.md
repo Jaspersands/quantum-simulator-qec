@@ -199,6 +199,13 @@ noise on every gate. In progress on `feature/2.0`.
   decomposition, detector-basis classifiers, GARI). Rust: the search keeps Tesseract's verbose
   log, takes probabilities changed for one decode (`Search::decode_with_probabilities`) and
   adds beams with Tesseract's `size_t` wrap-around.
+- **`stabilizer_qec.qldpc`: qLDPC 0.4.1 whole** (`import stabilizer_qec.qldpc as qldpc`), its
+  Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract this package's, and its own 953 tests
+  passing (`tests/qldpc_port/`): its classical and quantum codes, distance, groups and rings,
+  objects, circuits and memory experiments, noise models, surgery gadgets, and its decoders (lookup
+  plain, weighted and observable, ILP, GUF, composite, direct, frontier, subgraph, sequential and
+  sliding windows, trivial, erasure bits, and its adapters for every decoder above). Needs Python
+  3.11 and the `qldpc` extra (galois, sympy, cvxpy, networkx and others), as qLDPC does.
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.
@@ -296,6 +303,15 @@ noise on every gate. In progress on `feature/2.0`.
 
 ### Fixed
 
+- A circuit takes an anti-Hermitian Pauli product (`MPP X0*Z0`), prints it and counts its record,
+  and refuses to simulate or analyse it, as Stim does; building it was the error.
+- A model of a circuit with a non-deterministic detector or observable is refused with Stim's
+  opening lines ("The circuit contains non-deterministic observables."), then ours and every
+  detector and observable the collapse randomises.
+- relay_bp: `ObservableDecoderRunner` takes an observable matrix of any width, as relay_bp's does
+  (computing observables with a wrong one is the error); the signatures show `...` for the two
+  defaults relay_bp's do (`gamma_dist_interval`, `stopping_criterion`).
+- ldpc: `BpLsdDecoder(random_serial_schedule=True)` keeps it, as ldpc's does; it was dropped.
 - Editing a `DetectorErrorModel` (`append`, `insert`, indexing, `copy`, pickling) keeps its
   numbers exact; each edit went through its printed text, which rounds them to Stim's 16 digits,
   so a merged probability could lose its last bit. `==` compares the numbers exactly, as Stim's.

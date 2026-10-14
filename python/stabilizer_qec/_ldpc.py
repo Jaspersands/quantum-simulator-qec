@@ -594,7 +594,7 @@ class BpLsdDecoder(BpDecoderBase):
         method, order = _lsd_method(lsd_method, lsd_order)
         bits = pcm.shape[1] if bits_per_step == 0 else int(bits_per_step)
         self._input = "syndrome"
-        self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, False, kwargs.get("channel_probs", [None]), (method, order, bits, bool(always_run_lsd)))
+        self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, kwargs.get("random_serial_schedule", _Default(False)), kwargs.get("channel_probs", [None]), (method, order, bits, bool(always_run_lsd)))
         self._lsd_method, self._lsd_order = method, order
         self.always_run_lsd = bool(always_run_lsd)
         self.bits_per_step = bits

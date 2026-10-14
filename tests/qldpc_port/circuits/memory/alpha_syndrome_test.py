@@ -1,0 +1,204 @@
+# SPDX-License-Identifier: Apache-2.0
+# Ported from qLDPC 0.4.1 (qLDPCOrg/qLDPC; Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract are this
+# package's, and qldpc is stabilizer_qec.qldpc.
+
+"""Unit tests for alpha_syndrome.py."""
+
+from __future__ import annotations
+
+import random
+from unittest import mock
+
+import numpy as np
+import pytest
+import stabilizer_qec as stim
+
+from stabilizer_qec.qldpc import circuits, codes, math
+from stabilizer_qec.qldpc.circuits.memory import alpha_syndrome
+from stabilizer_qec.qldpc.circuits.memory.alpha_syndrome import TreeNode, TreeState
+from stabilizer_qec.qldpc.objects import Pauli
+
+# default (fast, low-fidelity) strategy used by the validity-checking helper below
+DEFAULT_STRATEGY = circuits.AlphaSyndrome(
+    circuits.DepolarizingNoiseModel(0.001),
+    iters_per_step=3,
+    shots_per_iter=1,
+    verbose=False,
+)
+
+
+def test_alpha_syndrome(pytestconfig: pytest.Config) -> None:
+    """Verify that syndromes are read out correctly."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+
+    # verify that AlphaSyndrome builds valid syndrome extraction circuits for a few codes
+    assert alpha_syndrome_is_valid(codes.SteaneCode())
+    assert alpha_syndrome_is_valid(codes.ToricCode(2, rotated=True))
+    assert alpha_syndrome_is_valid(codes.SurfaceCode(2, rotated=True))
+
+    code_a = codes.ClassicalCode.random(3, 2, seed=seed)
+    code_b = codes.ClassicalCode.random(3, 2, seed=seed + 1)
+    assert alpha_syndrome_is_valid(codes.HGPCode(code_a, code_b))
+
+    # AlphaSyndrome does not support non-CSS codes
+    with pytest.raises(TypeError, match="only supports CSS codes"):
+        strategy = circuits.AlphaSyndrome(circuits.DepolarizingNoiseModel(0.001), "decoder_name")
+        strategy.get_circuit(codes.FiveQubitCode())
+    with pytest.raises(ValueError, match="invalid"):
+        DEFAULT_STRATEGY.get_circuit(
+            codes.SteaneCode(),
+            circuits.QubitIDs(
+                range(len(codes.SteaneCode())),
+                range(20, 20 + codes.SteaneCode().num_checks - 1),
+            ),
+        )
+
+
+def test_alpha_reproducibility_and_tree_edges() -> None:
+    """Seeded searches are reproducible and cover the empty-search tree edges."""
+    with pytest.warns(UserWarning, match="no fresh rollout"):
+        circuits.AlphaSyndrome(circuits.DepolarizingNoiseModel(0.001), iters_per_step=1)
+    with pytest.raises(ValueError, match="iters_per_step"):
+        circuits.AlphaSyndrome(circuits.DepolarizingNoiseModel(0.001), iters_per_step=0)
+    code = codes.CSSCode([[1, 1, 0]], [[1, 1, 0]])
+    first = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.001),
+        iters_per_step=2,
+        shots_per_iter=1,
+        verbose=False,
+        seed=123,
+    )
+    second = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.001),
+        iters_per_step=2,
+        shots_per_iter=1,
+        verbose=False,
+        seed=123,
+    )
+    assert first.get_circuit(code)[0] == second.get_circuit(code)[0]
+    functioning = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.001),
+        iters_per_step=2,
+        shots_per_iter=10,
+        verbose=False,
+        seed=9,
+    )
+    assert functioning.get_circuit(code)[0].num_measurements > 0
+    verbose = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.001), iters_per_step=2, verbose=True
+    )
+    verbose._build_schedule(code, Pauli.X)
+
+    code = codes.SteaneCode()
+    strategy = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.001), iters_per_step=2, verbose=False
+    )
+    assert TreeState.head([]).target_to_min_time == []
+    gates = [(len(code), 0)]
+    root = TreeNode(TreeState.head(gates))
+    root.visits = strategy.iters_per_step
+    measurements = strategy._get_evaluation_circuit(code, Pauli.X, [], None)
+    assert measurements.num_measurements > 0
+    strategy._schedule_one_gate(
+        code,
+        Pauli.X,
+        root,
+        step=0,
+        evaluation_data=(stim.Circuit(), 0, 0),
+    )
+    child = TreeNode(TreeState.head(gates))
+    child.expand()
+    assert child.best_child(1).value == 0
+
+
+def test_alpha_hoists_evaluation_invariants() -> None:
+    """Rollouts reuse schedule-independent stabilizer data and preserve circuit bytes."""
+    code = codes.CSSCode([[1, 1, 0]], [[1, 1, 0]])
+    strategy = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.001),
+        iters_per_step=2,
+        shots_per_iter=1,
+        verbose=False,
+        seed=7,
+    )
+    with (
+        mock.patch.object(code, "get_stabilizer_ops", wraps=code.get_stabilizer_ops) as stabs,
+        mock.patch.object(code, "get_logical_ops", wraps=code.get_logical_ops) as logicals,
+    ):
+        schedule = strategy._build_schedule(code, Pauli.X)
+        assert stabs.call_count == 2
+        assert logicals.call_count == 2
+        data = strategy._get_evaluation_data(code, Pauli.X)
+        assert strategy._get_evaluation_circuit(
+            code, Pauli.X, schedule, data
+        ) == strategy._get_evaluation_circuit(code, Pauli.X, schedule)
+
+    empty_x_code = codes.CSSCode(np.zeros((0, 2), dtype=int), [[1, 1]])
+    with mock.patch.object(strategy, "_get_evaluation_data") as evaluation_data:
+        assert strategy._build_schedule(empty_x_code, Pauli.X) == []
+        evaluation_data.assert_not_called()
+
+
+def test_alpha_reward_matches_paper() -> None:
+    """The MCTS reward is the paper's finite-sample inverse logical error rate."""
+    code = codes.CSSCode([[1, 1, 0]], [[1, 1, 0]])
+    strategy = circuits.AlphaSyndrome(
+        circuits.DepolarizingNoiseModel(0.2),
+        iters_per_step=3,
+        shots_per_iter=20,
+        verbose=False,
+        seed=11,
+    )
+    rewards: list[float] = []
+    original_backpropagate = TreeNode.backpropagate
+    graph = code.get_graph(Pauli.X)
+    gates = [(check.index + len(code), data.index) for data, check in map(sorted, graph.edges)]
+    root = TreeNode(TreeState.head(gates))
+    evaluation_data = strategy._get_evaluation_data(code, Pauli.X)
+
+    def record_reward(node: TreeNode, reward: float) -> None:
+        rewards.append(reward)
+        original_backpropagate(node, reward)
+
+    with (
+        mock.patch.object(TreeNode, "backpropagate", autospec=True, side_effect=record_reward),
+        mock.patch.object(alpha_syndrome.np, "sum", side_effect=[0, 10, 0]),
+    ):
+        strategy._schedule_one_gate(
+            code,
+            Pauli.X,
+            root,
+            step=0,
+            evaluation_data=evaluation_data,
+        )
+    assert set(rewards) == {20.0, 20 / 11}
+
+
+def alpha_syndrome_is_valid(
+    code: codes.QuditCode,
+    strategy: circuits.AlphaSyndrome = DEFAULT_STRATEGY,
+) -> bool:
+    """Check that an AlphaSyndrome circuit correctly reads out stabilizers."""
+    # prepare a logical |0> state
+    state_prep = circuits.get_encoding_circuit(code)
+
+    # apply random Pauli errors to the data qubits
+    errors = random.choices([Pauli.I, Pauli.X, Pauli.Y, Pauli.Z], k=len(code))
+    error_ops = stim.Circuit()
+    for qubit, pauli in enumerate(errors):
+        error_ops.append(f"{pauli}_error", [qubit], [1])
+
+    # measure syndromes
+    syndrome_extraction_circuit, measurement_record = strategy.get_circuit(code)
+    for check in range(len(code), len(code) + code.num_checks):
+        syndrome_extraction_circuit.append("DETECTOR", measurement_record.get_target_rec(check))
+
+    # sample the circuit to obtain a syndrome vector
+    circuit = state_prep + error_ops + syndrome_extraction_circuit
+    syndrome = circuit.compile_detector_sampler().sample(1).ravel()
+
+    # compare against the expected syndrome
+    error_xz = code.field([pauli.value for pauli in errors]).T.ravel()
+    expected_syndrome = code.matrix @ math.symplectic_conjugate(error_xz)
+    return np.array_equal(expected_syndrome, syndrome)

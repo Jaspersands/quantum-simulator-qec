@@ -1,0 +1,226 @@
+# SPDX-License-Identifier: Apache-2.0
+# Ported from qLDPC 0.4.1 (qLDPCOrg/qLDPC; Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract are this
+# package's, and qldpc is stabilizer_qec.qldpc.
+
+"""Unit tests for wedderburn_artin.py."""
+
+from __future__ import annotations
+
+import itertools
+import re
+
+import galois
+import numpy as np
+import pytest
+
+from stabilizer_qec.qldpc import abstract
+
+
+def test_scalar_embedding_is_field_isomorphism(wa_ring: abstract.GroupRing) -> None:
+    """Each component embeds GF(q) scalars into GF(q^d) as a field isomorphism."""
+    for component_transformer in wa_ring.get_transformer().transformers:
+        for aa in wa_ring.field.elements:
+            embedded_a = component_transformer.embedded_scalars[aa]
+            assert aa == component_transformer.embedded_scalars_inverse[embedded_a]
+        for aa, bb in itertools.product(wa_ring.field.elements, repeat=2):
+            embedded_a = component_transformer.embedded_scalars[aa]
+            embedded_b = component_transformer.embedded_scalars[bb]
+            embedded_ab = component_transformer.embedded_scalars[aa * bb]
+            assert embedded_a * embedded_b == embedded_ab
+
+
+def test_decomposition_coefficient_extractor_reads_off_basis(wa_ring: abstract.GroupRing) -> None:
+    """The coefficient extractor maps b^i |j><k| to the tensor that is 1 at (i, j, k)."""
+    for component_transformer in wa_ring.get_transformer().transformers:
+        size = component_transformer.size
+        degree = component_transformer.degree
+        for ii, jk in itertools.product(range(degree), range(size**2)):
+            matrix_element = component_transformer.matrix_basis[jk]
+            scalar = component_transformer.power_basis[ii]
+            vec = abstract.RingMember.from_vector(scalar, wa_ring).regular_lift() @ matrix_element
+            coefficients = component_transformer.decomposition_coefficient_extractor @ vec
+            expected_value = wa_ring.field.Zeros((size**2, degree))
+            expected_value[jk, ii] = 1
+            assert np.array_equal(coefficients, expected_value.ravel())
+
+
+def test_decomposition_coefficients_are_invertible(
+    wa_ring: abstract.GroupRing, pytestconfig: pytest.Config
+) -> None:
+    """The coefficient recombiner inverts the coefficient extractor on each component."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+    for component_transformer in wa_ring.get_transformer().transformers:
+        component_basis = component_transformer.pci_reg.column_space()
+        random_vec = wa_ring.field.Random(len(component_basis), seed=seed + 1) @ component_basis
+        coefficients = component_transformer.decomposition_coefficient_extractor @ random_vec
+        assert np.array_equal(
+            random_vec, component_transformer.decomposition_coefficient_recombiner @ coefficients
+        )
+
+
+def test_decomposition_is_ring_homomorphism(
+    wa_ring: abstract.GroupRing, pytestconfig: pytest.Config
+) -> None:
+    """Projecting onto the simple components is a wa_ring homomorphism, inverted by recompose."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+    transformer = wa_ring.get_transformer()
+    member_a = get_random_ring_member(wa_ring, seed + 1)
+    member_b = get_random_ring_member(wa_ring, seed + 2)
+
+    # projection is additive: project(a + b) == project(a) + project(b)
+    sums = [
+        component_transformer.project(member_a) + component_transformer.project(member_b)
+        for component_transformer in transformer.transformers
+    ]
+    assert all(
+        np.array_equal(cc, dd) for cc, dd in zip(sums, transformer.decompose(member_a + member_b))
+    )
+
+    # projection is multiplicative: project(a * b) == project(a) @ project(b)
+    member_ab = member_a * member_b
+    products = [
+        component_transformer.project(member_a) @ component_transformer.project(member_b)
+        for component_transformer in transformer.transformers
+    ]
+    assert all(np.array_equal(cc, dd) for cc, dd in zip(products, transformer.decompose(member_ab)))
+
+    # recompose inverts decompose
+    assert transformer.recompose(products) == member_ab
+
+
+def test_decompose_recompose_round_trip_on_arrays(
+    wa_ring: abstract.GroupRing, pytestconfig: pytest.Config
+) -> None:
+    """recompose_array inverts decompose_array on a RingArray."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+    transformer = wa_ring.get_transformer()
+    ring_array = abstract.RingArray(
+        [[get_random_ring_member(wa_ring, seed + 1), get_random_ring_member(wa_ring, seed + 2)]]
+    )
+    assert np.array_equal(
+        ring_array, transformer.recompose_array(transformer.decompose_array(ring_array))
+    )
+
+
+def test_transpose_is_involution_and_antihomomorphism(
+    wa_ring: abstract.GroupRing, pytestconfig: pytest.Config
+) -> None:
+    """Per-component transpose is an involution and an anti-homomorphism, on members and arrays."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+    transformer = wa_ring.get_transformer()
+    member_a = get_random_ring_member(wa_ring, seed + 1)
+    member_b = get_random_ring_member(wa_ring, seed + 2)
+    member_a_transpose = transformer.transpose(member_a)
+    member_b_transpose = transformer.transpose(member_b)
+    assert transformer.transpose(member_a_transpose) == member_a
+    assert transformer.transpose(member_b_transpose) == member_b
+    assert transformer.transpose(member_a * member_b) == member_b_transpose * member_a_transpose
+    ring_array = abstract.RingArray([[member_a, member_b]])
+    assert np.array_equal(
+        transformer.transpose_array(ring_array),
+        abstract.RingArray([[member_a_transpose], [member_b_transpose]]),
+    )
+
+
+def test_project_and_embed_arrays_with_block_merging(
+    wa_ring: abstract.GroupRing, pytestconfig: pytest.Config
+) -> None:
+    """project_array(merge_blocks=True) and embed_array(from_blocks=True) round-trip."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+    transformer = wa_ring.get_transformer()
+    ring_array = abstract.RingArray(
+        [[get_random_ring_member(wa_ring, seed + 1), get_random_ring_member(wa_ring, seed + 2)]]
+    )
+    for component_transformer in transformer.transformers:
+        projected_merged = component_transformer.project_array(ring_array, merge_blocks=True)
+        assert projected_merged.shape == (
+            ring_array.shape[0] * component_transformer.size,
+            ring_array.shape[1] * component_transformer.size,
+        )
+        projected_unmerged = component_transformer.project_array(ring_array, merge_blocks=False)
+        assert np.array_equal(
+            component_transformer.embed_array(projected_merged, from_blocks=True),
+            component_transformer.embed_array(projected_unmerged, from_blocks=False),
+        )
+
+
+def get_random_ring_member(ring: abstract.GroupRing, seed: int) -> abstract.RingMember:
+    """Construct a random ring member: a sum of random group generators with random coefficients."""
+    coeffs = ring.field.Random(ring.group.order, seed=seed)
+    terms = [(coeff, gen) for coeff, gen in zip(coeffs, ring.group.generate())]
+    return abstract.RingMember(ring, *terms)
+
+
+def test_wedderburn_artin_errors(
+    ring_cyclic3_gf2: abstract.GroupRing, pytestconfig: pytest.Config
+) -> None:
+    """The Wedderburn-Artin decomposition has limitations."""
+    ring = ring_cyclic3_gf2
+    transformer = ring.get_transformer()
+
+    different_ring = abstract.GroupRing(abstract.CyclicGroup(3), field=4)
+    with pytest.raises(ValueError, match="different ring"):
+        transformer.decompose(different_ring.one)
+    with pytest.raises(ValueError, match="different ring"):
+        transformer.decompose_array(abstract.RingArray([different_ring.one]))
+
+    with pytest.raises(ValueError, match=r"Provided .* components for a ring that should have"):
+        transformer.recompose([])
+    with pytest.raises(ValueError, match=r"Provided .* components for a ring that should have"):
+        transformer.recompose_array([])
+
+    with pytest.raises(ValueError, match="inconsistent shapes"):
+        transformer.recompose_array([ring.field.Zeros((1, 1, 1)), ring.field.Zeros((1, 1))])
+
+    with pytest.raises(ValueError, match=re.escape("does not live in GF(q^d)^{n × n}")):
+        transformer.recompose(galois.GF(3).Ones(2))
+    with pytest.raises(ValueError, match=re.escape("does not store matrices in GF(q^d)^{n × n}")):
+        transformer.recompose_array(galois.GF(3).Ones(2))
+
+    ring = abstract.GroupRing(abstract.CyclicGroup(2), field=2)
+    with pytest.raises(ValueError, match="only exists for semisimple rings"):
+        ring.get_transformer()
+    with pytest.raises(ValueError, match="only exists for semisimple rings"):
+        abstract.WedderburnArtinComponentTransformer(ring.one)
+
+
+def test_primitive_central_idempotent_validation(
+    ring_cyclic3_gf2: abstract.GroupRing, ring_dihedral3_gf5: abstract.GroupRing
+) -> None:
+    """A component transformer checks that its input is a primitive central idempotent (PCI).
+
+    The checks -- nonzero, idempotent, central, and rank equal to ``size**2 * degree`` -- are
+    necessary but not sufficient for primitivity, and ``skip_validation=True`` bypasses them.
+    """
+    transformer = abstract.WedderburnArtinComponentTransformer
+    ring = ring_cyclic3_gf2
+
+    # the zero element is not idempotent-with-a-component
+    with pytest.raises(ValueError, match="it is zero"):
+        transformer(abstract.RingMember(ring))
+
+    # a single non-identity group member is nonzero but not idempotent
+    non_idempotent = abstract.RingMember(ring, (ring.field(1), ring.group.generators[0]))
+    assert non_idempotent * non_idempotent != non_idempotent
+    with pytest.raises(ValueError, match="not idempotent"):
+        transformer(non_idempotent)
+
+    # a matrix unit |0><0| of a size-2 component is idempotent but not central
+    matrix_ring = ring_dihedral3_gf5
+    component = next(cc for cc in matrix_ring.get_transformer().transformers if cc.size == 2)
+    matrix_unit = abstract.RingMember.from_vector(component.matrix_basis[0], matrix_ring)
+    assert matrix_unit * matrix_unit == matrix_unit
+    with pytest.raises(ValueError, match="not central"):
+        transformer(matrix_unit)
+
+    # the ring identity is a central idempotent, but it spans every simple component at once, so its
+    # regular-representation rank exceeds size**2 * degree for any single component
+    with pytest.raises(ValueError, match=re.escape("(size**2 * degree)")):
+        transformer(matrix_ring.one)
+
+    # skip_validation bypasses the checks, e.g. for an idempotent from a trusted source, and it
+    # threads through the whole-ring transformer to each component transformer
+    trusted_pci = ring.get_primitive_central_idempotents()[0]
+    transformer(trusted_pci, skip_validation=True)
+    abstract.WedderburnArtinTransformer(ring, skip_validation=True)

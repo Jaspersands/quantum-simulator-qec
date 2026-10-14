@@ -101,6 +101,7 @@ pub struct Program {
 
 impl Program {
     pub fn new(circuit: &Circuit) -> Result<Program, String> {
+        circuit.check_runnable()?;
         let res = circuit.resolve()?;
         if res.observables.len() > 64 {
             return Err(format!("{} observables: the coherent sampler takes at most 64", res.observables.len()));
@@ -129,6 +130,7 @@ impl Program {
         };
         for ins in &res.instrs {
             match ins {
+                Instr::Fail(_) => {}
                 Instr::Reset { basis, qubits } => {
                     for &q in qubits {
                         slots.push(Slot::Hidden);
@@ -864,7 +866,8 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
         }
         prob[*g.members.last().unwrap()] = Some(angle.sin().powi(2));
     }
-    let res = circuit.resolve()?;
+    circuit.check_runnable()?;
+        let res = circuit.resolve()?;
     let mut out = Vec::new();
     let mut loc = 0usize;
     for ins in &res.instrs {

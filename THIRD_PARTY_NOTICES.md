@@ -154,6 +154,16 @@ Copyright Oscar Higgott. Licensed under the Apache License, Version 2.0
 `python/stabilizer_qec/beliefmatching/` is beliefmatching 0.2.0's package with its imports
 pointed at this package's ldpc, PyMatching, Stim and sinter.
 
+## qLDPC
+
+Copyright 2023-2024 The qLDPC Authors and Infleqtion Inc. (portions authored before June
+2024); Copyright 2024-present The qLDPC Authors. Licensed under the Apache License, Version 2.0
+(`LICENSES/Apache-2.0.txt`). Source: https://github.com/qLDPCOrg/qLDPC
+
+`python/stabilizer_qec/qldpc/` is qLDPC 0.4.1's package, and `tests/qldpc_port/` its tests, with
+their imports pointed at this package's Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract
+(and qldpc at stabilizer_qec.qldpc).
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

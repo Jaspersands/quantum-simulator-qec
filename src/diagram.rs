@@ -148,6 +148,7 @@ impl Builder {
                 .collect::<Vec<_>>()
         };
         match ins {
+            Instr::Fail(_) => {}
             Instr::Reset { basis, qubits } => {
                 let name = t(if *basis == Basis::X { "RX" } else { "R" });
                 for &q in qubits {

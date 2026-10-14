@@ -54,3 +54,10 @@ def assert_same_model(ours: str, theirs: str) -> None:
 import importlib.util as _importlib_util  # noqa: E402
 
 collect_ignore_glob = [] if _importlib_util.find_spec("scipy") else ["ldpc_port/test_*.py", "tesseract_port/test_tesseract_gari.py", "tesseract_port/test_tesseract_demutil.py"]
+
+# qLDPC's own tests (tests/qldpc_port) need what stabilizer_qec.qldpc does: Python 3.11 and the
+# `qldpc` extra.
+import sys as _sys  # noqa: E402
+
+if _sys.version_info < (3, 11) or not all(_importlib_util.find_spec(m) for m in ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs")):
+    collect_ignore_glob.append("qldpc_port/*")

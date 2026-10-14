@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: Apache-2.0
+# Ported from qLDPC 0.4.1 (qLDPCOrg/qLDPC; Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract are this
+# package's, and qldpc is stabilizer_qec.qldpc.
+
+"""Unit tests for syndrome_measurement.py."""
+
+import random
+
+import numpy as np
+import pytest
+import stabilizer_qec as stim
+import sympy
+
+from stabilizer_qec.qldpc import circuits, codes, math
+from stabilizer_qec.qldpc.objects import Pauli
+
+# default strategy used by the validity-checking helper below
+DEFAULT_STRATEGY = circuits.EdgeColoring()
+
+
+def test_syndrome_measurement(pytestconfig: pytest.Config) -> None:
+    """Verify that syndromes are read out correctly."""
+    seed = pytestconfig.getoption("randomly_seed", default=0)
+
+    # default strategies for non-CSS and CSS codes
+    assert syndrome_measurement_is_valid(codes.FiveQubitCode())
+    assert syndrome_measurement_is_valid(codes.SteaneCode())
+
+    # special strategies for toric and surface codes
+    assert syndrome_measurement_is_valid(codes.ToricCode(2, rotated=True))
+    assert syndrome_measurement_is_valid(codes.SurfaceCode(2, rotated=True))
+
+    # special strategy for HGPCodes
+    code_a = codes.ClassicalCode.random(5, 3, seed=seed)
+    code_b = codes.ClassicalCode.random(3, 2, seed=seed + 1)
+    assert syndrome_measurement_is_valid(codes.HGPCode(code_a, code_b))
+
+    # special strategy for QCCodes
+    np.random.seed(seed)
+    symbols = [sympy.Symbol(f"x_{ss}") for ss in range(3)]
+    orders = [np.random.randint(2, 6) for _ in range(len(symbols))]
+    term_indices_a = np.random.choice(range(np.prod(orders)), replace=False, size=4)
+    term_indices_b = np.random.choice(range(np.prod(orders)), replace=False, size=3)
+    term_exponents_a = [np.unravel_index(index, orders) for index in term_indices_a]
+    term_exponents_b = [np.unravel_index(index, orders) for index in term_indices_b]
+    poly_a = sum(
+        np.prod([symbol**exponent for symbol, exponent in zip(symbols, exponents_a)])
+        for exponents_a in term_exponents_a
+    )
+    poly_b = sum(
+        np.prod([symbol**exponent for symbol, exponent in zip(symbols, exponents_b)])
+        for exponents_b in term_exponents_b
+    )
+    assert syndrome_measurement_is_valid(codes.QCCode(orders, poly_a, poly_b))
+
+    # EdgeColoringXZ strategy
+    assert syndrome_measurement_is_valid(codes.SteaneCode(), circuits.EdgeColoringXZ())
+    with pytest.raises(TypeError, match="only supports CSS codes"):
+        circuits.EdgeColoringXZ().get_circuit(codes.FiveQubitCode())
+    with pytest.raises(ValueError, match="subsystem"):
+        circuits.EdgeColoring().get_circuit(codes.BaconShorCode(2))
+    with pytest.raises(ValueError, match="only supported for qubit codes"):
+        circuits.EdgeColoring().get_circuit(code=codes.SurfaceCode(2, field=3))
+
+
+def test_validate_syndrome_qubit_ids() -> None:
+    """Validate default, explicit, and unsupported syndrome-measurement layouts."""
+    code = codes.SurfaceCode(2)
+    qubit_ids = circuits.QubitIDs.from_code(code)
+    assert circuits.validate_syndrome_qubit_ids(code) == qubit_ids
+    assert circuits.validate_syndrome_qubit_ids(code, qubit_ids) is not qubit_ids
+
+    with pytest.raises(ValueError, match="subsystem"):
+        circuits.validate_syndrome_qubit_ids(codes.BaconShorCode(2))
+
+
+def syndrome_measurement_is_valid(
+    code: codes.QuditCode, strategy: circuits.SyndromeMeasurementStrategy = DEFAULT_STRATEGY
+) -> bool:
+    """Check the validity of syndrome measurement in a given code."""
+    # prepare a logical |0> state
+    state_prep = circuits.get_encoding_circuit(code)
+
+    # apply random Pauli errors to the data qubits
+    errors = random.choices([Pauli.I, Pauli.X, Pauli.Y, Pauli.Z], k=len(code))
+    error_ops = stim.Circuit()
+    for qubit, pauli in enumerate(errors):
+        error_ops.append(f"{pauli}_error", [qubit], [1])
+
+    # measure syndromes
+    syndrome_extraction, record = strategy.get_circuit(code)
+    for check in range(len(code), len(code) + code.num_checks):
+        syndrome_extraction.append("DETECTOR", record.get_target_rec(check))
+
+    # sample the circuit to obtain a syndrome vector
+    circuit = state_prep + error_ops + syndrome_extraction
+    syndrome = circuit.compile_detector_sampler().sample(1).ravel()
+
+    # compare against the expected syndrome
+    error_xz = code.field([pauli.value for pauli in errors]).T.ravel()
+    expected_syndrome = code.matrix @ math.symplectic_conjugate(error_xz)
+
+    return np.array_equal(expected_syndrome, syndrome)
+
+
+@pytest.mark.parametrize("code", [codes.SurfaceCode(3)])
+def test_syndrome_measurement_scheduling(code: codes.CSSCode) -> None:
+    """Verify valid gate scheduling in some syndrome measurement circuits."""
+    for strategy in [circuits.EdgeColoring(), circuits.EdgeColoringXZ()]:
+        circuit, _ = strategy.get_circuit(code)
+        circuit_without_ticks = stim.Circuit(str(circuit).replace("TICK", ""))
+        assert gate_schedule_is_valid(circuit)
+        assert not gate_schedule_is_valid(circuit_without_ticks)
+        assert circuit[-1].name == "TICK"
+
+    edge = next(iter(code.graph.edges))
+    single_layer = circuits.EdgeColoring.graph_to_circuit(
+        code.graph.edge_subgraph([edge]), circuits.QubitIDs.from_code(code), "smallest_last"
+    )
+    assert single_layer.num_ticks == 1
+
+
+def test_edge_coloring_xz_distance_tradeoff() -> None:
+    """The documented EdgeColoringXZ distance tradeoff remains observable."""
+    circuit = circuits.get_memory_experiment(
+        codes.SurfaceCode(5, rotated=True),
+        basis=Pauli.Z,
+        num_rounds=1,
+        noise_model=circuits.DepolarizingNoiseModel(1e-3),
+        syndrome_measurement_strategy=circuits.EdgeColoringXZ(),
+    )
+    assert len(circuit.shortest_graphlike_error()) == 4
+
+
+def gate_schedule_is_valid(circuit: stim.Circuit) -> bool:
+    """Check that no qubit is addressed twice between TICKS in a circuit."""
+    tick = stim.CircuitInstruction("TICK")
+    is_addressed_in_current_moment: dict[int, bool] = {}
+    for instruction in circuit:
+        if instruction == tick:
+            # reset the record of qubits that are addressed in the current moment
+            is_addressed_in_current_moment = {}
+        else:
+            # update the record of qubits that have been addressed in the current moment
+            for target in instruction.targets_copy():
+                if target.is_qubit_target:
+                    if is_addressed_in_current_moment.get(target.qubit_value, False):
+                        return False
+                    is_addressed_in_current_moment[target.qubit_value] = True
+    return True

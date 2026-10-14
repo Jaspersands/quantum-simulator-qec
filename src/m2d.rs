@@ -203,6 +203,7 @@ pub(crate) fn run(circuit: &Circuit, num_qubits: usize, sweeps: &[bool], seed: u
 fn run_block(instrs: &[Instr], sim: &mut StabilizerSimulator, sweeps: &[bool], rec: &mut Vec<bool>) {
     for ins in instrs {
         match ins {
+            Instr::Fail(_) => {}
             Instr::Reset { basis, qubits } => {
                 for &q in qubits {
                     reset(sim, *basis, q as usize);
@@ -296,6 +297,7 @@ const MAX_REFERENCE: u64 = 1 << 32;
 
 impl M2d {
     pub fn new(circuit: &Circuit) -> Result<M2d, String> {
+        circuit.check_runnable()?;
         let counts = Counts::of(&circuit.instrs)?;
         if counts.qubits > MAX_QUBITS {
             return Err(format!(

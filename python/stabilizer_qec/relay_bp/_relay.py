@@ -61,6 +61,8 @@ def _bits_vector(x: Any, n: int, what: str) -> List[int]:
 
 def _parity(matrix: Any, vector: np.ndarray) -> np.ndarray:
     """relay_bp's ``mul_mod2``: the matrix (its stored values) times the vector, mod 2."""
+    if matrix.shape[1] != vector.shape[0]:
+        raise ValueError(f"Dimension mismatch: the observable error matrix has {matrix.shape[1]} columns, the errors {vector.shape[0]}")
     prod = matrix @ vector.astype(np.int64)
     return (np.asarray(prod).ravel() % 2).astype(np.uint8)
 
@@ -201,10 +203,10 @@ class _Relay(_Decoder):
         pre_iter: int = 80,
         num_sets: int = 300,
         set_max_iter: int = 60,
-        gamma_dist_interval: Tuple[float, float] = (-0.24, 0.66),
+        gamma_dist_interval: Any = ...,
         explicit_gammas: Any = None,
         stop_nconv: int = 1,
-        stopping_criterion: str = "nconv",
+        stopping_criterion: Any = ...,
         logging: bool = False,
         seed: int = 0,
     ) -> None:
@@ -218,6 +220,11 @@ class _Relay(_Decoder):
 
                 warnings.warn(f"Number of different gamma sets {g.shape[0]} is smaller than the number of Relay legs {num_sets}. Legs will be reused.")
             gammas = g.tolist()
+        # (Defaults relay_bp's signature leaves unshown, as "...".)
+        if gamma_dist_interval is ...:
+            gamma_dist_interval = (-0.24, 0.66)
+        if stopping_criterion is ...:
+            stopping_criterion = "nconv"
         # relay_bp's reading: an unknown criterion is "nconv" stopping after one solution,
         # whatever stop_nconv says.
         crit = stopping_criterion if stopping_criterion in _STOPPING else "nconv"
@@ -354,9 +361,9 @@ class ObservableDecoderRunner:
             raise TypeError(f"decoder must be one of relay_bp's decoders, not {type(decoder).__name__}")
         self._x = decoder._x.copy()
         self._m, self._n, self._matrix = decoder._m, decoder._n, decoder._matrix
-        _, n, _, self._obs = _sparse_bits(observable_error_matrix)
-        if n != self._n:
-            raise ValueError(f"the observable error matrix has {n} columns; the decoder has {self._n} faults")
+        # (A matrix of the wrong width is taken, as relay_bp takes it; computing observables
+        # with it is the error.)
+        _, _, _, self._obs = _sparse_bits(observable_error_matrix)
         self.include_decode_result = bool(include_decode_result)
 
     def _decode(self, detectors: Any, engine: Any = None) -> DecodeResult:

@@ -38,6 +38,8 @@ plot = ["matplotlib>=3.5"]
 sinter = ["matplotlib>=3.5"]
 # stabilizer_qec.ldpc returns scipy's sparse matrices, as ldpc does.
 ldpc = ["scipy>=1.7"]
+# stabilizer_qec.qldpc (qLDPC 0.4.1) needs what qLDPC needs beyond its QEC stack, and Python 3.11.
+qldpc = ["scipy>=1.14.1", "galois>=0.4.2", "sympy>=1.12", "cvxpy>=1.3.2", "networkx>=2.6.2", "diskcache>=5", "platformdirs>=4", "pyperclip>=1.11", "tqdm>=4"]
 
 [project.scripts]
 stabilizer-qec = "stabilizer_qec._cli:main"

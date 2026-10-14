@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: Apache-2.0
+# Ported from qLDPC 0.4.1 (qLDPCOrg/qLDPC; Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract are this
+# package's, and qldpc is stabilizer_qec.qldpc.
+
+"""Tests for the custom-decoder package facade."""
+
+from __future__ import annotations
+
+import pytest
+
+from stabilizer_qec.qldpc import decoders
+from stabilizer_qec.qldpc.decoders import custom
+
+# Deprecated compatibility
+
+
+def test_deprecated_protocol_aliases() -> None:
+    """The v0.3.3 protocol aliases warn and resolve to their replacements."""
+    with pytest.warns(DeprecationWarning, match="Decoder is deprecated; use ErrorDecoder"):
+        assert custom.Decoder is decoders.ErrorDecoder
+    with pytest.warns(DeprecationWarning, match="BatchDecoder is deprecated"):
+        assert custom.BatchDecoder is decoders.BatchErrorDecoder

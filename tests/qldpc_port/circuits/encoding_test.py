@@ -1,0 +1,218 @@
+# SPDX-License-Identifier: Apache-2.0
+# Ported from qLDPC 0.4.1 (qLDPCOrg/qLDPC; Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract are this
+# package's, and qldpc is stabilizer_qec.qldpc.
+
+"""Unit tests for encoding.py."""
+
+from __future__ import annotations
+
+import numpy as np
+import numpy.typing as npt
+import pytest
+import stabilizer_qec as stim
+
+from stabilizer_qec.qldpc import circuits, codes, math
+from stabilizer_qec.qldpc.circuits import encoding
+from stabilizer_qec.qldpc.objects import Pauli
+
+
+def test_encoding_circuit(pytestconfig: pytest.Config) -> None:
+    """Prepare logical Pauli states of qubit codes."""
+    np.random.seed(pytestconfig.getoption("randomly_seed", default=0))
+
+    code = codes.SHPCode(codes.ClassicalCode.random(4, 2, seed=np.random.randint(2**31)))
+
+    for only_zero in [True, False]:
+        simulator = stim.TableauSimulator()
+
+        if not only_zero:
+            # choose random logical and gauge Paulis that should be +1 after encoding
+            bases = np.random.choice(
+                [Pauli.Z, Pauli.X, Pauli.Y],  # type:ignore[arg-type]
+                size=code.dimension + code.gauge_dimension,
+            )
+            basis_prep = stim.Circuit()
+            basis_prep.append("H", np.flatnonzero(bases != Pauli.Z))
+            basis_prep.append("S", np.flatnonzero(bases == Pauli.Y))
+            simulator.do(basis_prep)
+
+        encoder = circuits.get_encoding_circuit(code, only_zero=only_zero)
+        simulator.do(encoder)
+
+        # all stabilizers have expectation value +1
+        for op in code.get_stabilizer_ops():
+            string = math.op_to_string(op)
+            assert simulator.peek_observable_expectation(string) == 1
+
+        if only_zero:
+            # logical Z operators have expectation value +1
+            for op in code.get_logical_ops(Pauli.Z, symplectic=True):
+                string = math.op_to_string(op)
+                assert simulator.peek_observable_expectation(string) == 1
+
+        else:
+            # examine logical operators that should have expectation value +1
+            for qq in range(code.dimension):
+                basis = bases[qq]
+                op_x = code.get_logical_ops(Pauli.X, symplectic=True)[qq]
+                op_z = code.get_logical_ops(Pauli.Z, symplectic=True)[qq]
+                string = _get_logical_pauli_string(basis, op_x, op_z)
+                assert simulator.peek_observable_expectation(string) == 1
+
+            # examine gauge operators that should have expectation value +1
+            for qq in range(code.gauge_dimension):
+                basis = bases[code.dimension + qq]
+                op_x = code.get_gauge_ops(Pauli.X, symplectic=True)[qq]
+                op_z = code.get_gauge_ops(Pauli.Z, symplectic=True)[qq]
+                string = _get_logical_pauli_string(basis, op_x, op_z)
+                assert simulator.peek_observable_expectation(string) == 1
+
+
+def _get_logical_pauli_string(  # pragma: no cover
+    basis: Pauli, op_x: npt.NDArray[np.int_], op_z: npt.NDArray[np.int_]
+) -> stim.PauliString:
+    """Build a logical operator Pauli string from symplectic logical Pauli X and Z vectors."""
+    if basis is Pauli.X:
+        return math.op_to_string(op_x)
+    if basis is Pauli.Z:
+        return math.op_to_string(op_z)
+    string_x = math.op_to_string(op_x)
+    string_z = math.op_to_string(op_z)
+    return 1j * string_x * string_z
+
+
+def test_encoding_overcomplete_stabilizers() -> None:
+    """Build an encoding circuit for a code with an overcomplete stabilizer matrix."""
+    code = codes.ToricCode(4)  # has more stabilizer generators than len(code) - dimension
+    assert len(code.get_stabilizer_ops()) != len(code) - code.dimension - code.gauge_dimension
+
+    simulator = stim.TableauSimulator()
+    simulator.do(circuits.get_encoding_circuit(code))
+
+    # all stabilizers have expectation value +1
+    for op in code.get_stabilizer_ops():
+        assert simulator.peek_observable_expectation(math.op_to_string(op)) == 1
+
+
+def test_logical_tableau() -> None:
+    """Reconstruct a logical tableau."""
+    code = codes.FiveQubitCode()
+    encoder, decoder = circuits.get_encoder_and_decoder(code, deformation=stim.Circuit())
+
+    logical_circuit = stim.Circuit("H 0")
+    extended_logical_circuit = logical_circuit + stim.Circuit(f"I {len(code) - 1}")
+    physical_tableau = decoder.then(extended_logical_circuit.to_tableau()).then(encoder)
+    physical_circuit = physical_tableau.to_circuit()
+
+    reconstructed_logical_tableau = circuits.get_logical_tableau(code, physical_circuit)
+    assert logical_circuit.to_tableau() == reconstructed_logical_tableau
+
+    # logical Pauli operations (which flip logical operator signs) are valid logical operations
+    logical_x = math.op_to_string(code.get_logical_ops(Pauli.X, symplectic=True)[0])
+    reconstructed_logical_tableau = circuits.get_logical_tableau(code, logical_x.to_tableau())
+    assert stim.Circuit("X 0").to_tableau() == reconstructed_logical_tableau
+
+    # a physical circuit that does not preserve the code space is not a logical operation
+    with pytest.raises(ValueError, match="does not implement a logical operation"):
+        circuits.get_logical_tableau(code, stim.Circuit("X 0"))
+
+
+def test_state_stabilizers(pytestconfig: pytest.Config, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Identify the stabilizers of state prepared by a circuit."""
+    np.random.seed(pytestconfig.getoption("randomly_seed", default=0))
+
+    code = codes.SHPCode(codes.ClassicalCode.random(4, 2, seed=np.random.randint(2**31)))
+    encoder = circuits.get_encoding_circuit(code)
+
+    # prepare a random logical stabilizer state
+    circuit = stim.Tableau.random(num_qubits=code.dimension).to_circuit() + encoder
+
+    # the circuit can include detectors and observables
+    circuit.append("X", [len(code)])
+    circuit.append("M", [len(code)])
+    circuit.append("DETECTOR", [stim.target_rec(-1)])
+    simulator = stim.TableauSimulator()
+    simulator.do(circuit)
+
+    # all stabilizers of the code have expectation value +1
+    for op in code.get_stabilizer_ops():
+        string = math.op_to_string(op)
+        assert simulator.peek_observable_expectation(string) == 1
+
+    # all stabilizers of the state have expectation value +1
+    state_stabs = circuits.get_state_stabilizers(circuit, len(code))
+    assert len(state_stabs) == len(code)
+    for stab in state_stabs:
+        assert simulator.peek_observable_expectation(stab) == 1
+
+    # all logical stabilizers of the state have expectation value +1
+    logical_stabs = circuits.get_logical_state_stabilizers(circuit, code)
+    assert len(logical_stabs) == code.dimension
+    for stab in logical_stabs:
+        assert simulator.peek_observable_expectation(stab) == 1
+
+    # the logical stabilizers are "pure", and have no stabilizer content
+    for stab in logical_stabs:
+        decoded_stab = stab.before(encoder)
+        xs, zs = decoded_stab.to_numpy()
+        assert not np.any(xs[code.dimension :])
+        assert not np.any(zs[code.dimension :])
+
+    assert circuits.get_state_stabilizers(stim.Circuit("X 1"), [1]) == [stim.PauliString("-Z")]
+
+    class ZeroExpectationSimulator:
+        def do(self, _circuit: stim.Circuit) -> None:
+            pass
+
+        def peek_observable_expectation(self, _pauli: stim.PauliString) -> int:
+            return 0
+
+    monkeypatch.setattr(encoding.stim, "TableauSimulator", ZeroExpectationSimulator)
+    with pytest.raises(ValueError, match="not an eigenstate"):
+        circuits.get_state_stabilizers(stim.Circuit("H 0"), [0])
+
+
+def test_logical_tableau_validation() -> None:
+    """Invalid encoder/decoder dimensions fail before tableau restriction."""
+    with pytest.raises(ValueError, match="incompatible dimensions"):
+        encoding._get_logical_tableau_from_code_data(
+            1, 0, stim.Tableau(1), stim.Tableau(2), stim.Circuit()
+        )
+    with pytest.raises(ValueError, match="does not implement a logical operation"):
+        circuits.get_logical_tableau(codes.FiveQubitCode(), stim.Circuit("H 0 1"))
+
+
+def test_state_stabilizer_failure_regressions() -> None:
+    """Exercise row-space, detector-parity, noisy-sign, and zero-logical edge cases."""
+    ghz = circuits.get_state_stabilizers(stim.Circuit("H 0\nCX 0 1"), [0, 1])
+    assert stim.PauliString("+XX") in ghz
+    assert stim.PauliString("+ZZ") in ghz
+
+    repeated_detector = stim.Circuit("H 0\nM 0\nDETECTOR rec[-1] rec[-1]")
+    assert circuits.get_state_stabilizers(repeated_detector, [0]) == []
+
+    noisy_signs = [
+        circuits.get_state_stabilizers(stim.Circuit("X_ERROR(0.5) 0"), [0]) for _ in range(20)
+    ]
+    assert all(signs == noisy_signs[0] for signs in noisy_signs)
+
+    zero_logical = codes.TrivialCode(1, num_stabs_x=1)
+    assert circuits.get_logical_state_stabilizers(stim.Circuit("R 0"), zero_logical) == []
+
+    code = codes.SteaneCode()
+    data = tuple(range(3, 3 + len(code)))
+    prep = circuits.with_remapped_qubits(circuits.get_encoding_circuit(code, only_zero=True), data)
+    qids = circuits.QubitIDs(data, tuple(range(20, 20 + code.num_checks)))
+    assert len(circuits.get_logical_state_stabilizers(prep, code, qids)) == code.dimension
+
+
+def test_only_zero_subsystem_generator_positions() -> None:
+    """Only-zero encoding places logical-Z generators after stabilizers, before gauges."""
+    for distance in (2, 3):
+        code = codes.BaconShorCode(distance)
+        tableau = circuits.get_encoding_tableau(code, only_zero=True)
+        stabilizer_count = len(code.get_stabilizer_ops())
+        assert tableau.z_output(stabilizer_count) == math.op_to_string(
+            code.get_logical_ops(Pauli.Z, symplectic=True)[0]
+        )

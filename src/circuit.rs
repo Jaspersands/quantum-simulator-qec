@@ -84,6 +84,10 @@ pub enum Instr {
     /// (`I_ERROR[R_Z(theta=0.1)] 0`, see `nonpauli`). Only inside the `Gate` that tag writes;
     /// Clifford engines run it as the identity it is in Stim.
     NonPauli(Vec<crate::nonpauli::NonPauli>),
+    /// What Stim accepts in a circuit but refuses to run (an anti-Hermitian `MPP` or `SPP`
+    /// product such as `X0*Z0`): a marker beside the instruction's body, which simulating or
+    /// analysing the circuit refuses with `0`, as Stim does (`Resolved::failure`).
+    Fail(String),
 }
 
 /// What classically controls a `Feedback`: a measurement record (lookback, 1 is the latest)
@@ -247,6 +251,24 @@ impl Circuit {
         let mut shift = Vec::new();
         flatten_into(&self.instrs, &mut out, &mut shift);
         Circuit { instrs: out }
+    }
+
+    /// The first instruction Stim takes but refuses to run (`Instr::Fail`), if any: what
+    /// simulating or analysing the circuit fails with.
+    pub fn failure(&self) -> Option<String> {
+        fn find(instrs: &[Instr]) -> Option<String> {
+            instrs.iter().find_map(|i| match i {
+                Instr::Fail(message) => Some(message.clone()),
+                Instr::Gate { body, .. } | Instr::Repeat { body, .. } => find(body),
+                _ => None,
+            })
+        }
+        find(&self.instrs)
+    }
+
+    /// `failure` as an error.
+    pub fn check_runnable(&self) -> Result<(), String> {
+        self.failure().map_or(Ok(()), Err)
     }
 
     pub fn resolve(&self) -> Result<Resolved, String> {
@@ -728,8 +750,10 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
         }
         "SPP" | "SPP_DAG" => {
             none()?;
-            let mut body = Vec::new();
-            for (product, inverted) in pauli_products(&t, &name)? {
+            let mut failure = None;
+            let products = pauli_products(&t, &name, &mut failure)?;
+            let mut body: Vec<Instr> = failure.into_iter().map(Instr::Fail).collect();
+            for (product, inverted) in products {
                 if product.is_empty() {
                     continue; // ±1: only a global phase
                 }
@@ -897,7 +921,7 @@ fn pauli_code(c: char) -> Option<Pauli> {
 /// A Pauli product: each factor's qubit and Pauli, and whether the product is negated.
 type Product = (Vec<(u32, Pauli)>, bool);
 
-fn pauli_products(t: &[&str], name: &str) -> Result<Vec<Product>, String> {
+fn pauli_products(t: &[&str], name: &str, failure: &mut Option<String>) -> Result<Vec<Product>, String> {
     let mut out = Vec::new();
     for tok in t {
         let mut product: Vec<(u32, Pauli)> = Vec::new();
@@ -931,7 +955,8 @@ fn pauli_products(t: &[&str], name: &str) -> Result<Vec<Product>, String> {
             }
         }
         if phase % 2 == 1 {
-            return Err(format!("Acted on an anti-Hermitian operator (e.g. X0*Z0 instead of Y0) in {name} {}", t.join(" ")));
+            // Stim takes the product and refuses to run it; its Hermitian part stands in.
+            *failure = Some(format!("Acted on an anti-Hermitian operator (e.g. X0*Z0 instead of Y0) in {name} {}", t.join(" ")));
         }
         if phase % 4 == 2 {
             inverted = !inverted;
@@ -981,8 +1006,9 @@ fn reset_y(q: u32) -> Vec<Instr> {
 /// The Y-basis and Pauli-product measurements, each one record: `MY` and `MRY` on qubits,
 /// `MPP` on products, `MXX`, `MYY` and `MZZ` on pairs; `!` inverts a result.
 fn pauli_measurements(name: &str, flip: f64, t: &[&str]) -> Result<Vec<Instr>, String> {
+    let mut failure = None;
     let products: Vec<Product> = match name {
-        "MPP" => pauli_products(t, name)?,
+        "MPP" => pauli_products(t, name, &mut failure)?,
         "MY" | "MRY" => t
             .iter()
             .map(|tok| {
@@ -1021,7 +1047,7 @@ fn pauli_measurements(name: &str, flip: f64, t: &[&str]) -> Result<Vec<Instr>, S
         }
     };
     let reset = name == "MRY";
-    let mut body = Vec::new();
+    let mut body: Vec<Instr> = failure.into_iter().map(Instr::Fail).collect();
     for (product, inverted) in products {
         if product.is_empty() {
             // A product that cancels to ±1 reads its sign every time (as Stim).
@@ -1190,6 +1216,7 @@ pub(crate) fn instr_line(ins: &Instr) -> String {
 fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
     for ins in instrs {
         let line = match ins {
+            Instr::Fail(_) => continue,
             Instr::Reset { basis, qubits } => {
                 format!("{} {}", if *basis == Basis::X { "RX" } else { "R" }, join_q(qubits))
             }

@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+# Ported from qLDPC 0.4.1 (qLDPCOrg/qLDPC; Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract are this
+# package's, and qldpc is stabilizer_qec.qldpc.
+
+"""Unit tests for common.py."""
+
+from __future__ import annotations
+
+import random
+
+import numpy as np
+import pytest
+import stabilizer_qec as stim
+import sympy.combinatorics as comb
+
+from stabilizer_qec.qldpc import circuits, codes
+from qldpc_port.circuits.conftest import StimCircuitWrapper
+from stabilizer_qec.qldpc.math import symplectic_conjugate
+from stabilizer_qec.qldpc.objects import Pauli
+
+
+def test_restriction() -> None:
+    """restrict_to_qubits passes through for qubit codes and raises for qudit codes."""
+
+    @circuits.restrict_to_qubits
+    def get_empty_circuit(code: codes.QuditCode) -> stim.Circuit:
+        return stim.Circuit()
+
+    get_empty_circuit(codes.SurfaceCode(2, field=2))  # this does not raise an error
+
+    with pytest.raises(ValueError, match="only supported for qubit codes"):
+        get_empty_circuit(codes.SurfaceCode(2, field=3))
+
+
+def test_pauli_product_measurements(pytestconfig: pytest.Config) -> None:
+    """get_pauli_product_measurements correctly measures the syndrome of Pauli errors."""
+    np.random.seed(pytestconfig.getoption("randomly_seed", default=0))
+
+    code = codes.FiveQubitCode()
+    encoder = circuits.get_encoding_circuit(code)
+    stabilizers = code.get_stabilizer_ops()
+
+    error_vec = code.field.Random(len(code) * 2)
+    error_ops = stim.Circuit()
+    for qubit in range(len(code)):
+        xx_zz = (error_vec[qubit], error_vec[qubit + len(code)])
+        error_ops.append(str(Pauli(xx_zz)), qubit)
+
+    measurements = circuits.get_pauli_product_measurements(stabilizers)
+    outcomes = (encoder + error_ops + measurements).reference_sample()
+    syndrome = stabilizers @ symplectic_conjugate(error_vec)
+    assert np.array_equal(outcomes.astype(int), syndrome)
+
+
+def test_qubit_remap(pytestconfig: pytest.Config, num_qubits: int = 8) -> None:
+    """Remap the qubits in a stim.Circuit."""
+    random.seed(pytestconfig.getoption("randomly_seed", default=0))
+
+    # build a random qubit permutation
+    permutation = comb.Permutation.random(num_qubits)
+    qubit_map = permutation.array_form
+
+    # build a random circuit
+    circuit = stim.Tableau.random(num_qubits).to_circuit()
+    circuit.append(
+        stim.CircuitRepeatBlock(repeat_count=2, body=stim.Tableau.random(num_qubits).to_circuit())
+    )
+
+    # remap qubits using circuits.with_remapped_qubits
+    circuit_a = circuits.with_remapped_qubits(circuit, qubit_map)
+    assert circuit == circuits.with_remapped_qubits(circuit_a, qubit_map, inverse=True)
+
+    # manually construct a permutation circuit to implement the remapping
+    inverse_permutation_circuit = stim.Circuit()
+    for cycle in permutation.cyclic_form:
+        for qq in range(1, len(cycle)):
+            inverse_permutation_circuit.append("SWAP", [cycle[0], cycle[qq]])
+
+    # test that the two remapped circuits are equivalent
+    circuit_b = inverse_permutation_circuit.inverse() + circuit + inverse_permutation_circuit
+    assert circuit_a.to_tableau() == circuit_b.to_tableau()
+
+    # cover an edge case
+    circuit_a = circuits.with_remapped_qubits(stim.Circuit("MPP X1*!Y2 \n M !4"), {2: 3})
+    circuit_b = stim.Circuit("MPP X1*!Y3 \n M !4")
+    assert circuit_a == circuit_b
+
+    # a stim-wrapping circuit input is remapped and returned as the same wrapping type
+    wrapped_remapped = circuits.with_remapped_qubits(StimCircuitWrapper(circuit), qubit_map)
+    assert isinstance(wrapped_remapped, StimCircuitWrapper)
+    assert wrapped_remapped.stim_circuit == circuits.with_remapped_qubits(circuit, qubit_map)
+
+
+def test_finding_unaddressed_measurements() -> None:
+    """Identify measurements in a circuit that are not addressed by any detectors."""
+    circuit = stim.Circuit("""
+        M 0 1 2
+        DETECTOR rec[-3] rec[-1]
+    """)
+    assert circuits.get_unaddressed_measurements(circuit) == [1]
+
+    observable_only = stim.Circuit("M 0 1\nOBSERVABLE_INCLUDE(0) rec[-1]")
+    assert circuits.get_unaddressed_measurements(observable_only) == [0]
+    pauli_observable = stim.Circuit("M 0 1\nOBSERVABLE_INCLUDE(0) X0")
+    assert circuits.get_unaddressed_measurements(pauli_observable) == [0, 1]
+    out_of_range_pauli = stim.Circuit("M 0\nOBSERVABLE_INCLUDE(0) X5")
+    assert circuits.get_unaddressed_measurements(out_of_range_pauli) == [0]
+    assert circuits.get_pauli_product_measurements([[1, 0, 0, 1]]) == stim.Circuit("MPP X0*Z1")
+    with pytest.raises(ValueError, match="all-identity"):
+        circuits.get_pauli_product_measurements([[0, 0, 0, 0]])
+
+    mpad = stim.Circuit("MPAD 1 0")
+    assert circuits.with_remapped_qubits(mpad, [1, 0]) == mpad
+    with pytest.raises(ValueError, match="injective"):
+        circuits.with_remapped_qubits(stim.Circuit("H 0 1"), [0, 0])

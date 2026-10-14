@@ -414,10 +414,20 @@ impl Analyzer {
             }
             return Ok(());
         }
-        match set.iter().find(|&&t| t & OBS != 0) {
-            Some(&t) => Err(format!("observable L{} is not deterministic: it depends on the random outcome of {what} on qubit {q}", t & !OBS)),
-            None => Err(format!("detector D{} is not deterministic: it depends on the random outcome of {what} on qubit {q}", set[0])),
+        // Stim's opening lines (what tools match on), then which one and why, then all of them.
+        let mut head = String::new();
+        if set.iter().any(|&t| t & OBS != 0) {
+            head.push_str("The circuit contains non-deterministic observables.\n");
         }
+        if set.iter().any(|&t| t & OBS == 0) {
+            head.push_str("The circuit contains non-deterministic detectors.\n");
+        }
+        let first = match set.iter().find(|&&t| t & OBS != 0) {
+            Some(&t) => format!("observable L{} is not deterministic: it depends on the random outcome of {what} on qubit {q}", t & !OBS),
+            None => format!("detector D{} is not deterministic: it depends on the random outcome of {what} on qubit {q}", set[0]),
+        };
+        let all: Vec<String> = set.iter().map(|&t| if t & OBS != 0 { format!("    L{}", t & !OBS) } else { format!("    D{t}") }).collect();
+        Err(format!("{head}\n{first}\n\nThe collapse anti-commuted with these detectors/observables:\n{}", all.join("\n")))
     }
 
     fn sym_of(&self, q: usize, pauli: u8) -> Sym {
@@ -501,6 +511,7 @@ impl Analyzer {
         let reset_name = |basis: Basis| if basis == Basis::Z { "a Z-basis reset" } else { "an X-basis reset" };
         let measure_name = |basis: Basis| if basis == Basis::Z { "a Z-basis measurement" } else { "an X-basis measurement" };
         match ins {
+            Instr::Fail(message) => return Err(reversed_instruction(message)),
             Instr::Repeat { count, body, tag: own } => self.run_loop(body, *count, own, tag)?,
             Instr::Gate { body, tag: own, .. } => {
                 let inner = if own.is_empty() { tag.clone() } else { Some(Arc::<str>::from(own.as_str())) };
@@ -1491,3 +1502,14 @@ mod tests {
         same_as_flat(crate::fixtures::REP3);
     }
 }
+
+/// Stim's message for an instruction met while its error analysis walks the circuit backwards:
+/// the instruction's targets (and each product's factors) in reverse.
+fn reversed_instruction(message: &str) -> String {
+    let Some((head, inst)) = message.rsplit_once(" in ") else { return message.to_string() };
+    let mut words = inst.split(' ');
+    let name = words.next().unwrap_or("");
+    let targets: Vec<String> = words.rev().map(|w| w.split('*').rev().collect::<Vec<_>>().join("*")).collect();
+    format!("{head} in {name} {}", targets.join(" "))
+}
+

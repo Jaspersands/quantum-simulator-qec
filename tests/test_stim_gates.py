@@ -347,6 +347,19 @@ def test_gate_lines_print_as_written():
 
 
 def test_unsupported_gates_say_so():
-    for text in ["HERALDED_ERASE(0.1, 0.2) 0", "CX 0 rec[-1]", "CX rec[-1] sweep[0]", "MPP X0*Z0", "MXX 0 0"]:
+    for text in ["HERALDED_ERASE(0.1, 0.2) 0", "CX 0 rec[-1]", "CX rec[-1] sweep[0]", "MXX 0 0"]:
         with pytest.raises(ValueError):
             sq.Circuit(text)
+
+
+def test_anti_hermitian_products_are_taken_but_not_run():
+    # As Stim: the circuit holds MPP X0*Z0 (and prints it, and counts its record); simulating
+    # or analysing it is the error.
+    c = sq.Circuit("MPP X0*Z0 Z1")
+    assert str(c) == "MPP X0*Z0 Z1" and c.num_measurements == 2
+    message = "Acted on an anti-Hermitian operator (e.g. X0*Z0 instead of Y0) in MPP X0*Z0 Z1"
+    for run in (lambda: c.compile_sampler().sample(1), lambda: c.compile_detector_sampler().sample(1), lambda: c.compile_m2d_converter()):
+        with pytest.raises(ValueError, match=re.escape(message)):
+            run()
+    with pytest.raises(ValueError, match=re.escape("in MPP Z1 Z0*X0")):
+        c.detector_error_model()

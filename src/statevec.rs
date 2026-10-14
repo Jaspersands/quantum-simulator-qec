@@ -284,6 +284,7 @@ const CODE: [u8; 4] = [0, 1, 3, 2]; // Stim's letter order I, X, Y, Z as the eng
 
 impl Program {
     pub fn new(circuit: &Circuit) -> Result<Program, String> {
+        circuit.check_runnable()?;
         let res = circuit.resolve()?;
         // Qubits in use, renumbered in order.
         let mut used = std::collections::BTreeSet::new();
@@ -310,6 +311,7 @@ impl Program {
         let mut m = 0usize;
         for ins in &res.instrs {
             match ins {
+                Instr::Fail(_) => {}
                 Instr::Reset { basis, qubits } => steps.extend(qubits.iter().map(|q| Step::Reset { q: ix(q), basis: *basis })),
                 Instr::H(qs) => steps.extend(qs.iter().map(|q| Step::H(ix(q)))),
                 Instr::S(qs) => steps.extend(qs.iter().map(|q| Step::S(ix(q)))),
