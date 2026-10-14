@@ -48,3 +48,9 @@ def assert_same_model(ours: str, theirs: str) -> None:
     assert set(a) == set(b)
     for k in a:
         assert a[k] == pytest.approx(b[k], rel=1e-9, abs=1e-15), k
+
+# ldpc's own tests (tests/ldpc_port) need scipy, as stabilizer_qec.ldpc does: without it they are
+# not collected.
+import importlib.util as _importlib_util  # noqa: E402
+
+collect_ignore_glob = [] if _importlib_util.find_spec("scipy") else ["ldpc_port/test_*.py"]
