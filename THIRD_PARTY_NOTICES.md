@@ -103,6 +103,41 @@ arguments, defaults and properties, so that their results are ldpc's bit for bit
 `mod2/_mod2.py` reimplements its Cython and C++ linear algebra), and `tests/ldpc_port/` is its
 test suite (`python_test/`, with the code matrices in `tests/ldpc_port/pcms/`), run on the port.
 
+## relay_bp
+
+Copyright IBM 2025. Licensed under the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`).
+Source: https://github.com/trmue/relay (PyPI `relay-bp`)
+
+`src/relay.rs` and `src/relay_num.rs` port relay_bp 0.2.2's Relay-BP and min-sum decoders
+(`crates/relay_bp/src/bp/`) with their arithmetic in their order, in each number type relay_bp is
+built for; fixed point follows the `fixed` crate's rounding (reimplemented, not copied).
+`python/stabilizer_qec/relay_bp/` reproduces its Python interface, and its `stim/` subpackage is
+relay_bp's, each file marked as modified.
+
+## PyMatching
+
+Copyright 2022 Oscar Higgott. Licensed under the Apache License, Version 2.0
+(`LICENSES/Apache-2.0.txt`). Source: https://github.com/oscarhiggott/PyMatching
+
+The matching graph built by hand (`src/user_graph.rs`), its weight discretisation and the
+`pymatching` command line follow PyMatching 2.4, modified to fit this crate.
+
+## Tesseract
+
+Copyright 2025 Google LLC. Licensed under the Apache License, Version 2.0
+(`LICENSES/Apache-2.0.txt`). Source: https://github.com/quantumlib/tesseract-decoder
+
+The search decoder (`src/search.rs`) ports Tesseract's A* search (`src/tesseract.cc`,
+`src/common.cc`) with its arithmetic in its order, modified to fit this crate.
+
+## Chromobius
+
+Copyright 2023 Google LLC. Licensed under the Apache License, Version 2.0
+(`LICENSES/Apache-2.0.txt`). Source: https://github.com/quantumlib/chromobius
+
+The colour-code decoder (`src/color/`) ports Chromobius (`src/chromobius`) in its order,
+modified to fit this crate.
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

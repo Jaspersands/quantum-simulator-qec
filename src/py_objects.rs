@@ -1351,6 +1351,165 @@ impl PyMbp {
     }
 }
 
+/// One of IBM's decoders in one number type, behind a trait object.
+trait DynRelay: Send + Sync {
+    fn run(&mut self, syndrome: &[u8], relay: bool) -> crate::relay::RelayOutcome;
+    fn result(&self) -> (Vec<u32>, Vec<u32>, Vec<f64>);
+    fn quality(&self, error: &[u8]) -> f64;
+    fn log_lines(&self) -> Vec<String>;
+    fn boxed_clone(&self) -> Box<dyn DynRelay>;
+}
+
+struct RelayEngineN<N: crate::relay_num::RelayNum> {
+    core: std::sync::Arc<crate::relay::RelayCore<N>>,
+    work: crate::relay::RelayCoreWork<N>,
+}
+
+impl<N: crate::relay_num::RelayNum> DynRelay for RelayEngineN<N> {
+    fn run(&mut self, syndrome: &[u8], relay: bool) -> crate::relay::RelayOutcome {
+        if relay {
+            self.core.decode(syndrome, &mut self.work)
+        } else {
+            self.core.decode_min_sum(syndrome, &mut self.work)
+        }
+    }
+    fn result(&self) -> (Vec<u32>, Vec<u32>, Vec<f64>) {
+        (bits(&self.work.correction), bits(&self.work.decoded_detectors), self.work.posterior_ratios.clone())
+    }
+    fn quality(&self, error: &[u8]) -> f64 {
+        self.core.quality(error)
+    }
+    fn log_lines(&self) -> Vec<String> {
+        self.work.log_lines()
+    }
+    fn boxed_clone(&self) -> Box<dyn DynRelay> {
+        Box::new(RelayEngineN { core: self.core.clone(), work: self.work.clone() })
+    }
+}
+
+fn relay_engine<N: crate::relay_num::RelayNum>(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], config: RelayConfig) -> PyResult<Box<dyn DynRelay>> {
+    let core = crate::relay::RelayCore::<N>::new(num_checks, columns, priors, config).map_err(err)?;
+    let work = core.work();
+    Ok(Box::new(RelayEngineN { core: std::sync::Arc::new(core), work }))
+}
+
+/// One decode's result: (correction, checks it sets off, posteriors, converged, iterations,
+/// iteration limit, weight).
+type RelayResult = (Vec<u32>, Vec<u32>, Vec<f64>, bool, usize, usize, f64);
+
+/// IBM's `relay_bp` decoders (`RelayDecoder*` with `relay`, `MinSumBPDecoder*` without) in the
+/// number type `kind` ("f32", "f64", "i8", "i16", "i32", "i64", or "fixed" with `frac_bits`).
+/// Its state, random memory strengths included, continues from decode to decode.
+#[pyclass(name = "RelayEngine", module = "stabilizer_qec._core")]
+pub struct PyRelayEngine {
+    eng: Box<dyn DynRelay>,
+    relay: bool,
+    num_checks: usize,
+    num_vars: usize,
+}
+
+impl PyRelayEngine {
+    fn one(&mut self, syndrome: &[u8]) -> RelayResult {
+        let out = self.eng.run(syndrome, self.relay);
+        let (c, d, p) = self.eng.result();
+        (c, d, p, out.converged, out.iterations, out.max_iter, out.weight)
+    }
+}
+
+#[pymethods]
+impl PyRelayEngine {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (num_checks, columns, priors, kind, frac_bits, relay, pre_iter, legs, leg_iter, solutions, stop_after_first, gamma0, gamma_range, gammas, alpha, alpha_scaling, data_scale, max_data, logging, seed))]
+    fn new(
+        num_checks: usize,
+        columns: Vec<Vec<u32>>,
+        priors: Vec<f64>,
+        kind: &str,
+        frac_bits: Option<i64>,
+        relay: bool,
+        pre_iter: usize,
+        legs: usize,
+        leg_iter: usize,
+        solutions: Option<usize>,
+        stop_after_first: bool,
+        gamma0: Option<f64>,
+        gamma_range: (f64, f64),
+        gammas: Option<Vec<Vec<f64>>>,
+        alpha: Option<f64>,
+        alpha_scaling: f64,
+        data_scale: Option<f64>,
+        max_data: Option<f64>,
+        logging: bool,
+        seed: u64,
+    ) -> PyResult<Self> {
+        use crate::relay_num::Fixed;
+        let config = RelayConfig { pre_iter, legs, leg_iter, solutions, stop_after_first, gamma0, gamma_range, gammas, alpha, alpha_scaling, data_scale, max_data, logging: logging && relay, seed };
+        let (n, c, p) = (num_checks, &columns, &priors);
+        macro_rules! fixed {
+            ($($f:literal)*) => {
+                match frac_bits {
+                    $(Some($f) => relay_engine::<Fixed<$f>>(n, c, p, config)?,)*
+                    other => return Err(err(format!("Decoder does not support {other:?} fractional bits"))),
+                }
+            };
+        }
+        let eng = match kind {
+            "f32" => relay_engine::<f32>(n, c, p, config)?,
+            "f64" => relay_engine::<f64>(n, c, p, config)?,
+            "i8" => relay_engine::<i8>(n, c, p, config)?,
+            "i16" => relay_engine::<i16>(n, c, p, config)?,
+            "i32" => relay_engine::<i32>(n, c, p, config)?,
+            "i64" => relay_engine::<i64>(n, c, p, config)?,
+            "fixed" => fixed!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31),
+            _ => return Err(err(format!("unknown number type {kind:?}"))),
+        };
+        Ok(PyRelayEngine { eng, relay, num_checks, num_vars: columns.len() })
+    }
+
+    /// The decoder with its state as it is now, to go on independently.
+    fn copy(&self) -> Self {
+        PyRelayEngine { eng: self.eng.boxed_clone(), relay: self.relay, num_checks: self.num_checks, num_vars: self.num_vars }
+    }
+
+    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<RelayResult> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        Ok(self.one(&syndrome))
+    }
+
+    /// Each row in turn; with `fresh`, each from the state the decoder has now (as IBM's
+    /// parallel batches decode, each row on a copy), leaving it unchanged.
+    fn decode_batch(&mut self, rows: Vec<Vec<u8>>, fresh: bool) -> PyResult<Vec<RelayResult>> {
+        for r in &rows {
+            checked_syndrome(r, self.num_checks)?;
+        }
+        Ok(rows
+            .iter()
+            .map(|r| {
+                if fresh {
+                    let mut c = self.copy();
+                    c.one(r)
+                } else {
+                    self.one(r)
+                }
+            })
+            .collect())
+    }
+
+    /// IBM's decoding quality of an error: Σ ln((1 − p)/p) over its faults (finite ones).
+    fn quality(&self, error: Vec<u8>) -> PyResult<f64> {
+        if error.len() != self.num_vars {
+            return Err(err(format!("{} error bits for {} faults", error.len(), self.num_vars)));
+        }
+        Ok(self.eng.quality(&error))
+    }
+
+    /// IBM's Relay log lines for the last decode.
+    fn log_lines(&self) -> Vec<String> {
+        self.eng.log_lines()
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn relay_config(
     pre_iter: usize,
@@ -1364,7 +1523,7 @@ fn relay_config(
     alpha_scaling: f64,
     seed: u64,
 ) -> RelayConfig {
-    RelayConfig { pre_iter, legs, leg_iter, solutions, gamma0, gamma_range, gammas, alpha, alpha_scaling, seed }
+    RelayConfig { pre_iter, legs, leg_iter, solutions, gamma0, gamma_range, gammas, alpha, alpha_scaling, seed, ..RelayConfig::default() }
 }
 
 /// Relay-BP on a check matrix given by its columns. Its random memory strengths continue from
@@ -1592,6 +1751,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFlip>()?;
     m.add_class::<PyLdpcUf>()?;
     m.add_class::<PyMbp>()?;
+    m.add_class::<PyRelayEngine>()?;
     m.add_class::<PyRelay>()?;
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;

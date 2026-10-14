@@ -89,6 +89,8 @@ mod robin;
 mod chacha;
 #[doc(hidden)]
 pub mod relay;
+/// The number types Relay-BP runs in.
+pub mod relay_num;
 #[doc(hidden)]
 pub mod color;
 #[doc(hidden)]

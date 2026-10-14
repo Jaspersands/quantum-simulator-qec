@@ -434,6 +434,7 @@ impl RelayOptions {
                 alpha: None,
                 alpha_scaling: 1.0,
                 seed: 0,
+                ..crate::relay::RelayConfig::default()
             },
         }
     }

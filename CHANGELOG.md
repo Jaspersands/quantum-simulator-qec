@@ -172,6 +172,17 @@ noise on every gate. In progress on `feature/2.0`.
   `set_additional_stat_fields`, `reset_cluster_stats`), equal to ldpc's; `SoftInfoBpOsdDecoder`,
   an empty class in ldpc, decodes as it describes. Wrongly typed arguments to the BP decoders
   raise `TypeError`, as ldpc's do.
+- **`stabilizer_qec.relay_bp`: IBM's relay_bp 0.2.2, whole** (`import stabilizer_qec.relay_bp as
+  relay_bp`), bit for bit against relay_bp (`tests/test_relay_bp_package.py`): Relay-BP in f32, f64,
+  i32 and i64 (`RelayDecoderF32`…) and min-sum (Mem-)BP in f32, f64, i8, i16, i32, i64 and 64-bit
+  fixed point with 0–31 fractional bits (`MinSumBPDecoderF32`…`MinSumBPDecoderFixed`), with
+  `data_scale_value`, `max_data_value`, explicit memory strengths, the three stopping criteria
+  and relay_bp's `relay_logging.out`; `decode_detailed` and `DecodeResult`;
+  `ObservableDecoderRunner` (sequential and parallel batches, decoding from known errors with
+  relay_bp's error classification) and `ObservableDecodeResult`; and its `stim` subpackage
+  (`CheckMatrices`, the sinter decoders, the noise tools) on this package's Stim and sinter.
+  Rust: `RelayCore<N>` over `RelayNum` (`Relay` is `RelayCore<f64>`); `RelayConfig` gains
+  `stop_after_first`, `data_scale`, `max_data` and `logging` and implements `Default`.
 - **`MbpDecoder`** (also `mbp_decoder`): memory belief propagation over GF(4) (Kuo and Lai), as
   ldpc's `mbp_decoder`, whose C++ ldpc 2.4.1 does not ship (it is on ldpc's main branch and no
   longer builds). Ported as written and checked bit for bit, log-likelihood ratios included,
