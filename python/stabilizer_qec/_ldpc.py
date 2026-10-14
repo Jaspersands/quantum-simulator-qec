@@ -18,7 +18,7 @@ from . import _core
 from ._decoders import _bp_method, _columns, _lsd_method, _rebuild
 from ._util import call
 
-__all__ = ["BpDecoder", "BpDecoderBase", "BpLsdDecoder", "BpOsdDecoder", "SoftInfoBpDecoder"]
+__all__ = ["BpDecoder", "BpDecoderBase", "BpFlipDecoder", "BpLsdDecoder", "BpOsdDecoder", "LsdDecoder", "SoftInfoBpDecoder"]
 
 _SCHEDULES = {"parallel": "parallel", "p": "parallel", "0": "parallel", "serial": "serial", "s": "serial", "1": "serial", "serial_relative": "serial_relative", "sr": "serial_relative", "2": "serial_relative"}
 
@@ -303,7 +303,7 @@ class BpDecoderBase:
 
     def __reduce__(self) -> tuple:
         # Rebuilt from its matrix and options; the settings and last results come along.
-        state = {k: v for k, v in self.__dict__.items() if k not in ("_x", "m", "n", "_cols")}
+        state = {k: v for k, v in self.__dict__.items() if k not in ("m", "n", "_cols") and not type(v).__module__.startswith("stabilizer_qec._core")}
         args, kwargs = self._made_from
         return (_rebuild, (type(self), args, kwargs), state)
 
@@ -614,6 +614,123 @@ class BpLsdDecoder(BpDecoderBase):
     @property
     def bp_decoding(self) -> np.ndarray:
         return self._bp_decoding.astype(int)
+
+    @property
+    def lsd_method(self) -> Optional[str]:
+        return {"osd_0": "lSD_0", "osd_e": "LSD_E", "osd_cs": "LSD_CS"}.get(self._lsd_method)
+
+    @property
+    def lsd_order(self) -> int:
+        return self._lsd_order
+
+
+class BpFlipDecoder(BpDecoderBase):
+    """Bit flipping, then BP on what it leaves, as ldpc's ``BpFlipDecoder``: Gallager's
+    flipping for ``flip_iterations`` passes (0: the block length), every ``pflip_frequency``-th
+    pass flipping tied bits at random (``pflip_seed``; 0 is the clock), then BP decodes the
+    remaining syndrome. ``osd_method`` and ``osd_order`` are accepted and unused, as in ldpc."""
+
+    _core_factory = _core.Bp
+
+    def __init__(
+        self,
+        pcm: Any,
+        error_rate: Optional[float] = _Default(None),
+        error_channel: Any = _Default(None),
+        max_iter: int = _Default(0),
+        bp_method: str = _Default("minimum_sum"),
+        ms_scaling_factor: float = _Default(1.0),
+        schedule: str = _Default("parallel"),
+        omp_thread_count: int = _Default(1),
+        random_schedule_seed: int = _Default(False),
+        serial_schedule_order: Optional[List[int]] = _Default(None),
+        osd_method: int = 0,
+        osd_order: int = 0,
+        flip_iterations: int = 0,
+        pflip_frequency: int = 0,
+        pflip_seed: int = 0,
+    ) -> None:
+        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, osd_method=osd_method, osd_order=osd_order, flip_iterations=flip_iterations, pflip_frequency=pflip_frequency, pflip_seed=pflip_seed))
+        self._input = "syndrome"
+        self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, _Default(False), [None], ())
+        self.flip_iterations = flip_iterations
+        self._flip = call(_core.Flip, self.m, self._cols, int(flip_iterations), int(pflip_frequency), int(pflip_seed) & 0xFFFFFFFF)
+        self._decoding = np.zeros(self.n, dtype=np.uint8)
+
+    def decode(self, syndrome: np.ndarray) -> np.ndarray:
+        syndrome = np.asarray(syndrome)
+        if not len(syndrome) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
+        if not syndrome.any():
+            self._converge = True
+            return np.zeros(self.n, dtype=syndrome.dtype)
+        flipped, _, _ = call(self._flip.decode, [int(x != 0) for x in syndrome])
+        flipped = np.asarray(flipped, dtype=np.uint8)
+        residual = [int(x != 0) ^ y for x, y in zip(syndrome, self._syndrome_of(flipped))]
+        hard, llr, converged, iterations = call(self._x.decode, residual)
+        self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
+        self._decoding = np.asarray(hard, dtype=np.uint8) ^ flipped
+        return self._decoding.astype(syndrome.dtype)
+
+    @property
+    def decoding(self) -> np.ndarray:
+        # (ldpc's raises AttributeError.)
+        return self._decoding.astype(int)
+
+
+class LsdDecoder:
+    """Localised statistics decoding alone, given each bit's weight (lower: likelier), as
+    ldpc's ``LsdDecoder``: clusters grown from the syndrome ``bits_per_step`` bits at a time,
+    lightest first, each solved by OSD of ``lsd_order`` (``osd_method``/``osd_order`` accepted for
+    ``lsd_method``/``lsd_order``)."""
+
+    def __init__(self, pcm: Any, bits_per_step: int = 1, lsd_order: int = 0, lsd_method: Union[str, int] = 0, **kwargs: Any) -> None:
+        self._made_from = ((pcm,), dict(bits_per_step=bits_per_step, lsd_order=lsd_order, lsd_method=lsd_method, **kwargs))
+        lsd_method = kwargs.get("osd_method", lsd_method)
+        lsd_order = kwargs.get("osd_order", lsd_order)
+        if lsd_order < 0:
+            raise ValueError(f"lsd_order must be greater than or equal to 0. Not {lsd_order}.")
+        if isinstance(lsd_method, str):
+            if lsd_method.lower() not in ("osd_0", "osd_e", "osd_cs", "osde", "osdcs", "osd0", "lsd_0", "lsd_e", "lsd_cs", "lsd0", "lsdcs", "lsde"):
+                raise ValueError(f"lsd_method must be one of 'LSD_0', 'LSD_E', 'LSD_CS'. Not {lsd_method}.")
+        elif isinstance(lsd_method, int):
+            if lsd_method not in (0, 1, 2):
+                raise ValueError(f"lsd_method must be one of 0, 1, 2. Not {lsd_method}.")
+        else:
+            raise ValueError(f"lsd_method must be one of 'LSD_0' (0), 'LSD_E' (1), 'LSD_CS' (2). Not {lsd_method}.")
+        if not _is_matrix(pcm) and not isinstance(pcm, (list, tuple)):
+            raise TypeError(f"The input matrix is of an invalid type. Please input a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
+        self.m, self.n, cols = _columns(pcm)
+        method, order = _lsd_method(lsd_method, lsd_order)
+        self.bits_per_step = self.n if bits_per_step == 0 else int(bits_per_step)
+        self._lsd_method, self._lsd_order = method, order
+        self._x = call(_core.BpLsd, self.m, cols, [0.5] * self.n, 1, "product_sum", 1.0, method, order, self.bits_per_step, True)
+        self._decoding = np.zeros(self.n, dtype=np.uint8)
+        self.last_tied = False
+
+    def __reduce__(self) -> tuple:
+        args, kwargs = self._made_from
+        return (_rebuild, (type(self), args, kwargs), {"_decoding": self._decoding, "last_tied": self.last_tied})
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+
+    def decode(self, syndrome: np.ndarray, bit_weights: Any) -> np.ndarray:
+        syndrome = np.asarray(syndrome)
+        if not len(bit_weights) == self.n:
+            raise ValueError(f"The bit weights must have length {self.n}. Not {len(bit_weights)}.")
+        if not len(syndrome) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
+        correction, solved, ties, _ = call(self._x.decode_lsd, [int(x != 0) for x in syndrome], [float(w) for w in bit_weights])
+        if not solved:
+            raise ValueError("no correction explains the syndrome")
+        self.last_tied = ties > 0
+        self._decoding = np.asarray(correction, dtype=np.uint8)
+        return self._decoding.astype(syndrome.dtype)
+
+    @property
+    def decoding(self) -> np.ndarray:
+        return self._decoding.copy()
 
     @property
     def lsd_method(self) -> Optional[str]:

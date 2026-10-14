@@ -223,7 +223,7 @@ from ._stim import (
     target_z,
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, UnionFind, Window, WindowMatching
+from ._decoders import BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -306,6 +306,8 @@ __all__ = [
     "BpOsd",
     "BpOsdDecoder",
     "SoftInfoBpDecoder",
+    "BpFlipDecoder",
+    "LsdDecoder",
     "Circuit",
     "ColorMatching",
     "DetectorErrorModel",

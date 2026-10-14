@@ -1167,6 +1167,20 @@ impl PyBpLsd {
         self.work.serial.seed(seed);
     }
 
+    /// LSD alone on `weights`: (correction, solved, ties, final clusters' bits when `record`).
+    #[pyo3(signature = (syndrome, weights, record=false))]
+    #[allow(clippy::type_complexity)]
+    fn decode_lsd(&mut self, syndrome: Vec<u8>, weights: Vec<f64>, record: bool) -> PyResult<(Vec<u32>, bool, u32, Vec<(u32, Vec<u32>)>)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        if weights.len() != self.dec.bp.num_vars {
+            return Err(err(format!("{} bit weights for {} bits", weights.len(), self.dec.bp.num_vars)));
+        }
+        self.work.record = record;
+        let solved = self.dec.lsd_only(&syndrome, &weights, &mut self.work);
+        let w = &mut self.work;
+        Ok((bits(&w.correction), solved, w.ties, std::mem::take(&mut w.cluster_bits)))
+    }
+
     /// (correction, BP converged, iterations, solved, ties, each final cluster's bits in
     /// set order by cluster id when `record`, BP's decision, posteriors).
     #[pyo3(signature = (syndrome, record=false))]
@@ -1177,6 +1191,31 @@ impl PyBpLsd {
         let out = self.dec.decode(&syndrome, &mut self.work);
         let w = &mut self.work;
         Ok((bits(&w.correction), out.converged, out.iterations, out.solved, w.ties, std::mem::take(&mut w.cluster_bits), bits(&w.bp.hard), w.bp.llr.clone()))
+    }
+}
+
+/// Bit flipping on a check matrix given by its columns, as `ldpc`'s `FlipDecoder`.
+#[pyclass(name = "Flip", module = "stabilizer_qec._core")]
+pub struct PyFlip {
+    dec: crate::flip::Flip,
+    num_checks: usize,
+    n: usize,
+}
+
+#[pymethods]
+impl PyFlip {
+    #[new]
+    fn new(num_checks: usize, columns: Vec<Vec<u32>>, max_iter: usize, pfreq: usize, seed: u32) -> Self {
+        let n = columns.len();
+        PyFlip { dec: crate::flip::Flip::new(num_checks, columns, max_iter, pfreq, seed), num_checks, n }
+    }
+
+    /// (decoding, converged, iterations).
+    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<(Vec<u32>, bool, usize)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        let mut d = vec![0u8; self.n];
+        let out = self.dec.decode(&syndrome, &mut d);
+        Ok((bits(&d), out.converged, out.iterations))
     }
 }
 
@@ -1418,6 +1457,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBpOsd>()?;
     m.add_class::<PyDemBpLsd>()?;
     m.add_class::<PyBpLsd>()?;
+    m.add_class::<PyFlip>()?;
     m.add_class::<PyRelay>()?;
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;

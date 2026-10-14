@@ -657,4 +657,4 @@ class RelayBpDecoder:
         return np.asarray(correction, dtype=np.uint8)
 
 
-from ._ldpc import BpDecoder, BpLsdDecoder, BpOsdDecoder, SoftInfoBpDecoder  # noqa: E402 - they use the helpers above
+from ._ldpc import BpDecoder, BpFlipDecoder, BpLsdDecoder, BpOsdDecoder, LsdDecoder, SoftInfoBpDecoder  # noqa: E402 - they use the helpers above

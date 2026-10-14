@@ -140,6 +140,12 @@ noise on every gate. In progress on `feature/2.0`.
   Where ldpc's result depends on the C++ standard library (shuffles, and the order of ties in
   `std::sort` and `qsort`), this package reproduces libc++ and Apple's libc on macOS and
   libstdc++ and glibc on Linux; on Windows, Microsoft's shuffle, with stable sorts.
+- **ldpc's `BpFlipDecoder` and `LsdDecoder`**, bit for bit against ldpc 2.4.1
+  (`tests/test_ldpc_decoders.py`): bit flipping with seeded random flips (`flip_iterations`,
+  `pflip_frequency`, `pflip_seed`) followed by BP; and LSD alone on given bit weights. LSD's
+  sorts (candidates and free columns by weight, invalid clusters by size) are now the platform's
+  `std::sort`, so `BpLsdDecoder` and `LsdDecoder` agree with ldpc on ties too, leaving only
+  merges of three or more clusters at once, whose order ldpc takes from addresses.
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes

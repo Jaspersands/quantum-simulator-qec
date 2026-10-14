@@ -14,14 +14,14 @@
 //!
 //! This is `ldpc`'s `LsdDecoder` (src_cpp/lsd.hpp), ported so that its corrections are
 //! `ldpc`'s: the same growth and merge order, the same per-cluster elimination, and its
-//! clusters' sets iterated in `tsl::robin_set`'s order (`robin`). Three of its choices cannot
-//! be reproduced, because they depend on the order of equal keys under `std::sort` or on
-//! pointer values, and are made here as follows:
+//! clusters' sets iterated in `tsl::robin_set`'s order (`robin`). Its sorts (candidates by
+//! weight, free columns by weight, invalid clusters by size) are `std::sort`, which leaves
+//! equal keys in an order only the C++ library fixes; they are the platform library's sort as
+//! `cpp_random` reproduces it (libc++ on Apple, libstdc++ on Linux). Two things are not
+//! reproduced:
 //!
-//! - candidates of equal weight are taken in set order, and invalid clusters of equal size
-//!   grow in creation order: a stable sort. `std::sort` is stable too on short inputs (it
-//!   insertion-sorts up to 16 elements in libstdc++ and 30 in libc++), so only a sort of more
-//!   than 16 with equal keys where they matter can differ;
+//! - on Windows, the sorts are stable sorts, so where equal keys meet in a sort of more than
+//!   16 elements, the order may differ from MSVC's;
 //! - clusters to merge into one are merged in the order they were met. robin-map orders them by
 //!   the hash of their address, which libc++ scrambles (libstdc++ does not), so when a step
 //!   merges three or more clusters into one, the order ldpc merges them in is not
@@ -35,10 +35,14 @@
 //! `DenseOsdDecoder`).
 
 use crate::bp::{Bp, BpWork, Method, Schedule, SerialState};
+use crate::cpp_random::Library;
 use crate::osd::OsdMethod;
 use crate::plu::Plu;
 use crate::robin::RobinSet;
 use std::collections::HashMap;
+
+/// Whether `std::sort` here is only approximated (MSVC's), so equal keys count as ties.
+const UNSURE_SORT: bool = matches!(Library::NATIVE, Library::Msvc);
 
 const NONE: u32 = u32::MAX;
 
@@ -195,11 +199,10 @@ impl Lsd<'_> {
         let cands: Vec<u32> = self.clusters[me].candidates.iter().collect();
         let mut order: Vec<usize> = (0..cands.len()).collect();
         let w = |i: usize| weights[cands[i] as usize];
-        order.sort_by(|&a, &b| w(a).partial_cmp(&w(b)).unwrap_or(std::cmp::Ordering::Equal));
+        Library::NATIVE.sort_by(&mut order, &mut |&a, &b| w(a) < w(b));
         let take = per_step.min(order.len());
-        // Equal weights among the taken or at the cut, in a sort long enough for std::sort to
-        // be unstable.
-        if order.len() > 16 && (1..(take + 1).min(order.len())).any(|k| w(order[k]) == w(order[k - 1])) {
+        // Equal weights among the taken or at the cut, where the sort is not MSVC's.
+        if UNSURE_SORT && order.len() > 16 && (1..(take + 1).min(order.len())).any(|k| w(order[k]) == w(order[k - 1])) {
             self.ties += 1;
             self.clusters[me].tied = true;
         }
@@ -263,8 +266,8 @@ impl Lsd<'_> {
         }
         let wt = |col: usize| weights[c.local_to_bit[col] as usize];
         let mut cols = std::mem::take(&mut c.plu.not_pivot_cols);
-        cols.sort_by(|&a, &b| wt(a).partial_cmp(&wt(b)).unwrap_or(std::cmp::Ordering::Equal));
-        if cols.len() > 16 && cols.windows(2).any(|p| wt(p[0]) == wt(p[1])) {
+        Library::NATIVE.sort_by(&mut cols, &mut |&a, &b| wt(a) < wt(b));
+        if UNSURE_SORT && cols.len() > 16 && cols.windows(2).any(|p| wt(p[0]) == wt(p[1])) {
             self.ties += 1;
             c.tied = true;
         }
@@ -455,6 +458,14 @@ impl BpLsd {
         solved
     }
 
+    /// LSD alone on the given bit weights (`ldpc`'s `LsdDecoder`): the correction is left in
+    /// `w.correction`; whether it explains the syndrome.
+    pub fn lsd_only(&self, syndrome: &[u8], weights: &[f64], w: &mut BpLsdWork) -> bool {
+        w.ties = 0;
+        w.cluster_bits.clear();
+        self.lsd_on(syndrome, weights, w)
+    }
+
     fn lsd_on(&self, syndrome: &[u8], weights: &[f64], w: &mut BpLsdWork) -> bool {
         let mut s = Lsd {
             rows: &self.rows,
@@ -485,9 +496,8 @@ impl BpLsd {
                 solved = false;
                 break;
             }
-            // Equal sizes keep creation order; std::sort may not, past 16 clusters.
-            invalid.sort_by_key(|&c| s.clusters[c].bits.len());
-            if invalid.len() > 16 && invalid.windows(2).any(|p| s.clusters[p[0]].bits.len() == s.clusters[p[1]].bits.len()) {
+            Library::NATIVE.sort_by(&mut invalid, &mut |&a, &b| s.clusters[a].bits.len() < s.clusters[b].bits.len());
+            if UNSURE_SORT && invalid.len() > 16 && invalid.windows(2).any(|p| s.clusters[p[0]].bits.len() == s.clusters[p[1]].bits.len()) {
                 s.ties += 1;
                 for &c in &invalid {
                     s.clusters[c].tied = true;
