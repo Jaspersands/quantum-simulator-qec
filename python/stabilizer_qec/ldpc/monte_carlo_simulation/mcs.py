@@ -9,8 +9,24 @@ try:
     from tqdm import tqdm
 except ImportError:  # tqdm is optional: no progress bar
 
-    def tqdm(iterable=None, **kwargs):
-        return iterable
+    class tqdm:  # noqa: N801 - tqdm's name
+        """The iteration without a progress bar (what the simulation calls on a bar does
+        nothing)."""
+
+        def __init__(self, iterable=None, **kwargs):
+            self._iterable = iterable
+
+        def __iter__(self):
+            return iter(self._iterable)
+
+        def set_description(self, *args, **kwargs):
+            pass
+
+        def update(self, *args, **kwargs):
+            pass
+
+        def close(self):
+            pass
 from stabilizer_qec.ldpc.noise_models import generate_bsc_error
 
 
