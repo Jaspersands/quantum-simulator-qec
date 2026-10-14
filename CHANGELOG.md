@@ -113,6 +113,17 @@ noise on every gate. In progress on `feature/2.0`.
   numpy versions of them otherwise. Results are deltakit's (`tests/test_analysis_deltakit.py`,
   run where deltakit installs): fits to 10⁻⁷, intervals to 10⁻⁶, p_ij to 10⁻¹², and to
   10⁻⁴ without scipy and uncertainties.
+- **Subset sampling**: `stabilizer_qec.qsample` is qsample (dynamical subset sampling of
+  fault-tolerant protocols: `Protocol` graphs of circuits whose transitions check measurement
+  history, its error models, `DirectSampler` and `SubsetSampler` with the statistical error and
+  the upper bound from subsets not reached), ported onto this package's tableau simulator with
+  no dependency beyond numpy; its estimates agree with qsample's and with direct sampling
+  (`tests/test_qsample.py`). `stabilizer_qec.analysis.subset_sampling.SubsetSampler` does the
+  same for any Stim-format circuit and decoder: the circuit's noise channels are its fault
+  locations, each fault count's failure rate is sampled with exactly that many faults
+  injected through the flip simulator, and one run gives the logical error rate, its standard
+  deviation and both bounds at every scale of the noise. It agrees with direct sampling at
+  every scale (`tests/test_analysis.py`).
 - **PyMatching's command line**: `stabilizer-qec predict` and `stabilizer-qec count_mistakes`
   (and `python -m stabilizer_qec.pymatching`, `stabilizer_qec.pymatching.cli`), with
   PyMatching's flags and output byte for byte; `predict` also takes

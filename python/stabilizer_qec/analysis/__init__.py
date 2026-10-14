@@ -30,7 +30,7 @@ __all__ = [
     "samplers",
 ]
 
-from . import decoding, error_budget, pij, plotting
+from . import decoding, error_budget, pij, plotting, subset_sampling
 from ._dk._analysis import get_exp_fit, get_lambda_fit
 from ._dk._binomial_fit import DEFAULT_MAX_LIKELIHOOD_FACTOR, ConfidenceInterval, fit_binomial, fit_binomial_batch, fit_leppr_and_spam
 from ._dk._lambda import LambdaData, calculate_lambda_and_lambda_stddev, calculate_lambda_asymmetric
@@ -49,6 +49,7 @@ __all__ += [
     "error_budget",
     "pij",
     "plotting",
+    "subset_sampling",
     "DEFAULT_MAX_LIKELIHOOD_FACTOR",
     "ConfidenceInterval",
     "LambdaData",

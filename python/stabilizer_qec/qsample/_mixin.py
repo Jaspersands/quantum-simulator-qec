@@ -1,0 +1,76 @@
+# Ported from qsample 0.0.2 (Copyright Don Winter, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: this package's tableau simulator, and no networkx, anytree, simpleeval, scipy or dill.
+from __future__ import annotations
+
+__all__ = ['CircuitRunnerMixin']
+
+class CircuitRunnerMixin:
+    """Simulator mixin for running quantum circuits"""
+        
+    def _apply_gate(self, gate_symbol, qubits) -> "MeasurementResult":
+        """Apply a gate to the `qubits` of the current state
+        
+        Parameters
+        ----------
+        gate_symbol : str
+            The gate to apply
+        qubits : int or tuple
+            The qubit(s) to which the gate is applied
+        
+        Returns
+        -------
+        MeasurementResult
+            Outcome of measurement (if gate not `measure` value is None)
+        """
+        
+        gate = getattr(self, gate_symbol)    
+        args = (qubits,) if type(qubits)==int else qubits
+        return gate(*args)
+    
+    def run(self, circuit, fault_circuit=None):
+        """Apply gates in `circuit` sequentially to current state.
+        If `fault_circuit` is specified apply fault gates at end of each tick
+        
+        Measurements are stored and executed at the end of a tick.
+        Measurement results are saved in the order in which they appear in the
+        circuit into an output string.
+        
+        Parameters
+        ----------
+        circuit : Circuit
+            The circuit to simulate
+        fault_circuit : Circuit or None
+            Circuit of faults to iterate in parallel. Faults are applied *after*
+            gates in `circuit`, only for `measure` gates fault is applied before
+            
+        Returns
+        -------
+        str or None
+            Measurement results as bitstring (None if no measurements were made)
+        """
+        
+        msmt_res = []
+        for tick_index in range(circuit.n_ticks):
+            
+            msmts = []
+            
+            for gate, qubits in circuit[tick_index].items():
+                for qubit in sorted(qubits):
+                    if 'measure' in gate:
+                        msmts.append( (gate,qubit) ) # store measure gate, do not execute right away.
+                        continue
+                    res = self._apply_gate(gate, qubit) # execute gates in tick of circuit
+                        
+            if fault_circuit:
+                for f_gate, f_qubits in fault_circuit[tick_index].items():
+                    for f_qubit in f_qubits:
+                        self._apply_gate(f_gate, f_qubit) # execute gates in tick of fault circuit
+                    
+            for gate, qubit in msmts: # exec stored measurement at end of tick.
+                res = self._apply_gate(gate, qubit) # Execute measuremnt
+                msmt_res.append( int(res.value) ) # Append measurement result to list in order of occurence in tick.
+
+        if msmt_res: 
+            return ''.join(map(str, msmt_res))
+        else: 
+            return None # no measurement

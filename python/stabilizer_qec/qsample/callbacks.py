@@ -1,0 +1,498 @@
+# Ported from qsample 0.0.2 (Copyright Don Winter, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+# modified for stabilizer_qec: this package's tableau simulator, and no networkx, anytree, simpleeval, scipy or dill.
+from __future__ import annotations
+
+__all__ = ['Callback', 'CallbackList', 'CollectStatsPerShot', 'StopAtNoHits', 'PlotStats', 'RelStdTarget', 'StatsPerShot',
+           'VerboseCircuitExec', 'PlotERVPerShot', 'PrintERVPerShot', 'PathProducts', 'SubsetRates']
+
+from stabilizer_qec.qsample import math
+
+
+class _LazyPyplot:
+    # matplotlib is needed only by the plotting callbacks.
+    def __getattr__(self, name):
+        import matplotlib.pyplot
+
+        return getattr(matplotlib.pyplot, name)
+
+
+plt = _LazyPyplot()
+import numpy as np
+
+class Callback:
+    """Callback super class: All callbacks must inherit this class."""
+    
+    def on_sampler_begin(self, *args, **kwargs):
+        pass
+    
+    def on_sampler_end(self, *args, **kwargs):
+        pass
+
+    def on_circuit_begin(self, *args, **kwargs):
+        pass
+    
+    def on_circuit_end(self, *args ,**kwargs):
+        pass
+    
+    def on_protocol_begin(self, *args, **kwargs):
+        pass
+    
+    def on_protocol_end(self, *args ,**kwargs):
+        pass
+    
+    def store(self, log_dir, data, ext=""):
+        with open(log_dir + f'/{self.__class__.__name__}_{str(ext)}.json', 'w') as f:
+            json.dump(data, f)
+    
+class CallbackList:
+    """Manages execution of all specified callbacks
+    
+    Attributes
+    ----------
+    sampler : Sampler
+        Reference to sampler class for callbacks to access information
+        during sampling process
+    callbacks : list
+        List of user-specified callback instances
+    """
+    
+    def __init__(self, sampler, callbacks=[]):
+        """
+        Parameters
+        ----------
+        sampler : Sampler
+            Reference to sampler class for callbacks to access information
+            during sampling process
+        callbacks : list
+            List of user-specified callback instances
+        """
+        self.sampler = sampler
+        self.callbacks = callbacks
+        self._add_default_callbacks()
+        
+    def _add_default_callbacks(self):
+        pass
+    
+    def on_sampler_begin(self):
+        """Called by sampler at beginning of sampling process"""
+        for callback in self.callbacks:
+            callback.on_sampler_begin(sampler=self.sampler)
+            
+    def on_sampler_end(self):
+        """Called by sampler at end of sampling process"""
+        for callback in self.callbacks:
+            callback.on_sampler_end(sampler=self.sampler)
+            
+    def on_protocol_begin(self):
+        """Called by sampler at beginning of each protocol"""
+        for callback in self.callbacks:
+            callback.on_protocol_begin(sampler=self.sampler)
+            
+    def on_protocol_end(self):
+        """Called by sampler at end of each protocol"""
+        for callback in self.callbacks:
+            callback.on_protocol_end(sampler=self.sampler)
+            
+    def on_circuit_begin(self):
+        """Called by sampler at beginning of each circuit"""
+        for callback in self.callbacks:
+            callback.on_circuit_begin(sampler=self.sampler)
+            
+    def on_circuit_end(self, local_vars):
+        """Called by sampler at end of each circuit
+        
+        Parameters
+        ----------
+        local_vars : dict
+            Dictionary of all local variables at state after circuit execution
+        """
+        for callback in self.callbacks:
+            callback.on_circuit_end(sampler=self.sampler, local_vars=local_vars)
+            
+    def __iter__(self):
+        return iter(self.callbacks)
+
+class CollectStatsPerShot(Callback):
+    """Store information of Sampler.stats() with each shot and plot
+    each statistic as as function of shots after sampler ends
+    
+        Attributes
+    ----------
+    log_dir : str or None
+        The directory to which recorded stats are written (if desired)
+    data : list
+        For recording each statistic per shot
+    n_calls : int
+        Number of protocol calls (can deviate from `n_shots` due to early stopping)
+    """
+
+    def __init__(self, log_dir=None):
+        self.log_dir = log_dir
+        self.data = []
+        self.n_calls = 0
+
+    def on_protocol_end(self, sampler):
+
+        if sampler.__class__.__name__ == "DirectSampler":
+            # For direct sampler need to know which is current p_phy
+            stats = sampler.stats(idx=sampler.i)
+        else:
+            p_L = sampler.tree.subtree_sum(sampler.tree.root, sampler.tree.marked)
+            std = np.sqrt(sampler.tree.var(mode=1))
+            delta = sampler.tree.delta
+
+            std_up = np.sqrt(sampler.tree.var(mode=0))
+            stats = [p_L, std, delta, std_up]
+            stats = [e if not isinstance(e, np.ndarray) else e[0] for e in stats]
+
+        if sampler.__class__.__name__ == "DirectSampler":
+            self.data.append((sampler.i, stats))
+        else:
+            self.data.append(stats)
+
+        self.n_calls += 1
+        self.n_shots = sampler.n_shots
+
+class StopAtNoHits(Callback):
+    """Callback for DirectSampler only"""
+    
+    def on_protocol_end(self, sampler):
+        assert sampler.__class__.__name__ == "DirectSampler", "This callback only works for DirectSampler."
+        if sampler.shots[sampler.i] == sampler.n_shots and sampler.counts[sampler.i] == 0:
+            for j in range(sampler.i+1, len(sampler.counts)):
+                sampler.shots[j] = sampler.n_shots
+            sampler.break_sampling = True
+
+class PlotStats(Callback):
+    """Plot sampler statistics at end of sampling process"""
+        
+    def on_sampler_end(self, sampler):
+        
+        stats = sampler.stats()
+        xs = sampler.err_params.T     
+        x_label = sampler.err_model.groups
+        
+        def pop(stats_len, ax):
+            """Remove line from plot
+            
+            We want to have one line but keep all x-axes. So we first generate
+            all plots on all different axes and then only keep the axes and the
+            first plot. (This is a bit hacky, but there doesn't seem to be an
+            easier way to generate plots with multiple x-axes)
+            """
+            n_lines = int(stats_len/2)
+            for _ in range(n_lines):
+                ax.collections.pop()
+                ax.lines.pop()
+
+        def plot(ax, x, stats, i, drawn):
+            """Plot 2 or 4 plots (depending on return value of `sampler.stats()`,
+            which is different for `DirectSampler` and `SubsetSampler`)"""
+            stats_len = len(stats)
+            if stats_len == 4:
+                p_L_low, std_low, p_L_up, std_up = stats
+                ax.plot(x, p_L_low, label="SS low")
+                ax.plot(x, p_L_up, label="SS up")
+                ax.fill_between(x, p_L_low-std_low, p_L_low+std_low, alpha=0.2)
+                ax.fill_between(x, p_L_up-std_up, p_L_up+std_up, alpha=0.2)
+            else:
+                p_L, std = stats
+                ax.errorbar(x, p_L, fmt='--', c="black", yerr=std, label="Direct MC")
+
+            if len(set(x)) <= 1:
+                xticks = ax.get_xticks()
+                ax.set_xticks(xticks, [x[0]] * len(xticks))
+                pop(stats_len, ax)
+            else:
+                ax.set_xscale('log')
+                ax.set_yscale('log') 
+                if drawn:
+                    pop(stats_len, ax)
+                else:
+                    ax.plot(x,x ,'k:', alpha=0.5)
+                    ax.legend()
+                drawn = True
+
+            ax.xaxis.set_ticks_position('bottom')
+            ax.xaxis.set_label_position('bottom')
+            ax.spines['bottom'].set_position(('axes', -0.25 * i))
+            ax.set_xlabel(x_label[i])
+
+            return drawn
+        
+        fig,ax = plt.subplots(figsize=(6,4))
+        ax.set_ylabel('$p_L$')
+
+        drawn = plot(ax,xs[0],stats,0,False)
+        for i,x in enumerate(xs[1:],1):
+            ax = ax.twiny()
+            drawn = plot(ax,x,stats,i,drawn)
+        
+
+class RelStdTarget(Callback):
+    """Callback to stop sampling when the relative standard
+    deviation target `target` is reached
+    
+    Attributes
+    ----------
+    target : float
+        The relative standard deviation target value
+    include_delta : bool
+        Flag if in the comparision delta is also included
+    """
+    
+    def __init__(self, target=0.1, include_delta=True):
+        """
+        Parameters
+        ----------
+        target : float
+            The relative standard deviation target value
+        include_delta : bool
+            Flag if in the comparision delta is also included
+            
+        """
+        self.target = target
+        self.include_delta = include_delta
+        
+    def on_protocol_end(self, sampler):
+        if sampler.__class__.__name__ == "DirectSampler":
+            # For direct sampler need to know which is current p_phy
+            p_L, err = sampler.stats(idx=sampler.i)
+        else:
+            p_L = sampler.tree.subtree_sum(sampler.tree.root, sampler.tree.marked)
+            std = np.sqrt(sampler.tree.var(mode=1))
+            delta = sampler.tree.delta
+            
+            err = std + delta if self.include_delta else std
+            
+        if p_L > 0 and err / p_L < self.target: 
+            print(f'Rel. std target of {self.target} reached. Sampling stopped.') 
+            sampler.stop_sampling = True
+
+class StatsPerShot(Callback):
+    """Store information of `Sampler.stats()` with each shot and plot
+    each statistic as as function of shots after sampler ends
+    
+    Attributes
+    ----------
+    log_dir : str or None
+        The directory to which recorded stats are written (if desired)
+    data : list
+        For recording each statistic per shot
+    n_calls : int
+        Number of protocol calls (can deviate from `n_shots` due to early stopping)
+    """
+    
+    def __init__(self, log_dir=None):
+        self.log_dir = log_dir
+        self.data = []
+        self.n_calls = 0
+        
+    def on_protocol_end(self, sampler):
+        
+        if sampler.__class__.__name__ == "DirectSampler":
+            # For direct sampler need to know which is current p_phy
+            stats = sampler.stats(idx=sampler.i)
+        else:
+            p_L = sampler.tree.subtree_sum(sampler.tree.root, sampler.tree.marked)
+            std = np.sqrt(sampler.tree.var(mode=1))
+            delta = sampler.tree.delta
+            
+            std_up = np.sqrt(sampler.tree.var(mode=0))
+            stats = [p_L, std, delta, std_up]
+            stats = [e if not isinstance(e,np.ndarray) else e[0] for e in stats]
+            
+        self.data.append(stats)
+        self.n_calls += 1
+        self.n_shots = sampler.n_shots
+    
+    def on_sampler_end(self, **kwargs):
+        
+        data = np.array(self.data).T
+        n_cols = data.shape[0]
+            
+        fig, ax = plt.subplots(1, n_cols, figsize=(8*n_cols, 5))
+        labels = ['$p_L$', 'std[$p_L$]', '$\delta$', 'std[$p_L^{up}$]']
+        
+        for i in range(n_cols):
+            for j in range(int(self.n_calls / self.n_shots)):
+                ax[i].plot(range(self.n_shots), data[i][j*self.n_shots:(j+1)*self.n_shots])
+                ax[i].set_xlabel('# of samples')
+                ax[i].set_ylabel(labels[i])
+                if i != 0:
+                    ax[i].set_yscale('log')
+
+class VerboseCircuitExec(Callback):
+    """Callback to output detailed information about circuit selection, 
+    specific fault that occured, measurement outcome and next circuit"""
+    
+    def on_circuit_end(self, sampler, local_vars):
+        circuit = local_vars.get('circuit', None)
+        fault_circuit = local_vars.get('fault_circuit', None)
+        name = local_vars.get('pnode', None)
+        msmt = local_vars.get('msmt', None)
+
+        if circuit == None:
+            print(name)
+        elif circuit.noisy:
+            faults = [(i,tick) for i, tick in enumerate(fault_circuit._ticks) if tick]
+            print(f"{name} -> Faults: {faults} -> Msmt: {msmt}")
+        elif "COR" in name:
+            cor = [(i,tick) for i, tick in enumerate(circuit._ticks) if tick]
+            print(f"{name}: {cor}")
+        else:
+            print(f"{name} -> Msmt: {msmt}")
+
+class PlotERVPerShot(Callback):
+    """Callback to plot statistics about ERV values and selected subsets due to ERV"""
+    
+    def __init__(self, log_dir=None):
+        self.log_dir = log_dir
+        self.data = []
+        self.n_calls = 0
+        
+    def on_protocol_begin(self, **kwargs):
+        self.erv_vals = []
+        
+    def on_circuit_end(self, sampler, local_vars):
+        subset = local_vars.get("subset", None)
+        name = local_vars.get("pnode", None)
+        if subset:
+            erv_val = sampler.erv_vals[sampler.erv_idx]
+            self.erv_vals.append((name,subset,erv_val))
+        
+    def on_protocol_end(self, **kwargs):
+        self.data.append(self.erv_vals)
+        self.n_calls += 1
+        
+    def on_sampler_end(self, **kwargs):
+        data = dict()
+        for i, erv_sel in enumerate(self.data):
+            for j, (name, subset, erv) in enumerate(erv_sel):
+                key = (j, name, subset)
+                data[key] = data.get(key, []) + [(i,erv)]
+        
+        max_levels = max([k[0] for k in data.keys()])
+        max_subset_weight = max([sum(k[-1]) for k in data.keys()])
+        cmap = lambda p1, p2: (p1, 0, p2)
+
+        plt.figure(figsize=(6,4))
+        for k,vlist in sorted(data.items()):
+            p1 = k[0] / (max_levels + 1)
+            p2 = sum(k[-1]) / max_subset_weight if max_subset_weight != 0 else 0
+
+            xs = [x for x,_ in vlist]
+            ys = [np.nan if np.ma.is_masked(y) else y for _,y in vlist]
+            plt.plot(xs, ys, '.',label=k)#, color=cmap(p1,p2))
+            
+        plt.yscale('log')
+        plt.legend(ncol=3, loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.xlabel('# of samples')
+        plt.ylabel('ERV value of selection')
+            
+        if self.log_dir: 
+            self.store(self.log_dir, self.data, ext=self.n_calls)
+
+class PrintERVPerShot(Callback):
+    """Callback to print ERV statistics per shot"""
+    
+    def on_protocol_begin(self, sampler):
+        print("### Start protocol run ###")
+        
+    def on_protocol_end(self, sampler):
+        print('### End protocol run ###\n')
+    
+    def on_circuit_end(self, sampler, local_vars):
+        name = local_vars.get('pnode', None)
+        print(f"# ERV for circuit {name}")
+        for ss, log in zip(sampler.erv_subset_candidates, sampler.logs):
+            erv_str = ", ".join(list(map(str,log)))
+            if ss == sampler.erv_subset_candidates[sampler.erv_idx]:
+                erv_str = "\033[1m" + erv_str + "\033[0m"
+            print(erv_str)
+
+class PathProducts(Callback):
+    """Callback to plot distribution of sampled paths"""
+    
+    def __init__(self, log_dir=None):
+        self.log_dir = log_dir
+        
+    def on_sampler_end(self, sampler):
+        from stabilizer_qec.qsample.sampler.tree import Constant, Variable
+        data = []
+        names, marked = [], []
+        for leaf in sampler.tree.root.leaves:
+            if not leaf.is_root:
+                names.append( ":".join([f'{n.name}' for n in leaf.path]) )
+                marked.append(1 if leaf in sampler.tree.marked else 0)
+                pw_prod = np.prod([node.rate for node in leaf.path if isinstance(node, Variable)]) * 1 if leaf in sampler.tree.marked else 0
+                Aw_prod = np.prod([sampler.tree.constants[node.parent.circuit_id][node.name] for node in leaf.path[1:] if isinstance(node, Constant)])
+                data.append( (pw_prod, Aw_prod, Aw_prod * pw_prod) )
+                
+        self.plot(names, marked, np.array(data))
+        if self.log_dir: 
+            self.store(self.log_dir, [names,marked,data])
+
+    def plot(self, names, marked, data):
+        fig, ax = plt.subplots(1,1, figsize=(10,5))
+        
+        X = np.arange(len(names))
+        ax.bar(X - 0.3, data[:,0], 0.3)
+        ax.bar(X, data[:,1], 0.3)
+        ax.bar(X + 0.3, data[:,2], 0.3)
+        ax.set_yscale('log')
+        ax.legend([r'$\prod p_w$', r'$\prod A_w$', r'$\prod A_w p_w$'], loc='upper right')
+        
+        ax.set_xticks(X,names)
+        xticklabels = ax.get_xticklabels()
+        plt.setp(xticklabels, ha="right", rotation=45)
+        
+        for i, mark in enumerate(marked):
+            if mark: plt.setp(xticklabels[i], weight='bold')
+
+class SubsetRates(Callback):
+    """Callback to plot progression of each fail path as a function of shots"""
+    
+    def __init__(self, log_dir=None):
+        self.log_dir = log_dir
+        self.data = {}
+        self.n_calls = 0
+        
+    def on_protocol_end(self, sampler):
+        for leaf in sampler.tree.root.leaves:
+            if not leaf.is_root and leaf in sampler.tree.marked:
+                name = ":".join([f'{n.name}' for n in leaf.path]) 
+                prev_data = self.data.get(name, [])
+                prod = np.product([sampler.tree.value(node) for node in leaf.path[1:]])
+                self.data[name] = prev_data + [(leaf.rate, prod)]
+        self.n_calls += 1
+
+        
+    def on_sampler_end(self, sampler):
+                
+        import matplotlib as mpl
+        
+        names = list(self.data.keys())
+        rates = list(self.data.values())
+
+        cols = [mpl.cm.jet(x) for x in np.linspace(0.0, 1.0, len(names))]
+        xs = [range(self.n_calls - len(r), self.n_calls) for r in rates]
+        fig, ax = plt.subplots(1, 2, figsize=(20, 5))
+        y_labels = ['', '']
+            
+        for i in range(len(names)):
+            fail_rates, path_rates = np.array(rates[i]).T
+            ax[0].set_title(r'$p_{fail}$ (last node)')
+            ax[0].plot(xs[i], fail_rates, c=cols[i])
+            ax[0].set_xlim([0, self.n_calls])
+            ax[0].set_xlabel('# of samples')
+            
+            ax[1].set_title(r'$\prod A_w p_w$')
+            ax[1].plot(xs[i], path_rates, c=cols[i])
+            ax[1].set_xlim([0, self.n_calls])
+            ax[1].set_xlabel('# of samples')
+            
+        ax[1].legend(names, bbox_to_anchor=(1.04, 1), loc='upper left')
+        
+        if self.log_dir: 
+            self.store(self.log_dir, [names,marked,data], ext=self.n_calls)

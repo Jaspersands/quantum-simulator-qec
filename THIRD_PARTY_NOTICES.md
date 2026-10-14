@@ -76,3 +76,15 @@ and of uncertainties' propagation stand in when those packages are not installed
 Each file says so at its top. `analysis/pij.py`, `analysis/decoding.py`,
 `analysis/error_budget.py` and `analysis/plotting.py` follow deltakit's methods and formulas
 (the p_ij formulas are deltakit-decode's, reproduced) over this package's models.
+
+## qsample
+
+Copyright Don Winter. Licensed under the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`).
+Source: https://github.com/dpwinter/qsample
+
+`python/stabilizer_qec/qsample/` is qsample 0.0.2's source, modified: it runs on this package's
+tableau simulator (`qsample/sim.py`) in place of chp-sim and projectq, and needs none of
+networkx, anytree, simpleeval, scipy, dill, latextools or pydot (`qsample/_graph.py` and
+`qsample/_anytree.py` stand in for what it uses of them; matplotlib, tqdm, networkx and pydot are
+used to plot, show progress and draw when installed). It also fixes `utils.load`, which opened its
+file for writing. Each file says so at its top.

@@ -123,3 +123,39 @@ def test_plots(tmp_path):
     pij.plot_correlation_matrix(matrix, mapping)
     plt.savefig(tmp_path / "plots.png")
     plt.close("all")
+
+
+@pytest.mark.parametrize("noise", [(0.01, 0.01), (0.004, 0.02)])
+def test_subset_sampling_agrees_with_direct_sampling(noise):
+    from stabilizer_qec.analysis.subset_sampling import SubsetSampler
+
+    def circuit(scale):
+        p2, pm = (scale * x for x in noise)
+        return sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, after_clifford_depolarization=p2, before_measure_flip_probability=pm, after_reset_flip_probability=pm)
+
+    c = circuit(1.0)
+    s = SubsetSampler(c, seed=1)
+    assert s.probabilities == tuple(sorted(set(noise)))
+    s.run(30_000, max_weight=6)
+    assert s.failure_rates()[(0,) * len(s.groups)][0] == 0
+    assert all(f == 0 for w, (f, n) in s.failure_rates().items() if sum(w) == 1)  # distance 3
+    decoder = sq.Matching(c.detector_error_model(decompose_errors=True))
+    for scale in (1.0, 0.3):
+        dets, obs = circuit(scale).compile_detector_sampler(seed=2).sample(200_000, separate_observables=True)
+        direct = np.mean(np.any(decoder.decode_batch(dets).astype(bool) != obs, axis=1))
+        est = s.estimate(scale)
+        assert est.lower <= est.value <= est.upper
+        sigma = np.hypot(est.stddev, math.sqrt(direct * (1 - direct) / len(dets)))
+        assert abs(est.value - direct) < 4.5 * sigma, (scale, est, direct)
+
+
+def test_subset_probabilities_sum_to_one():
+    from stabilizer_qec.analysis.subset_sampling import SubsetSampler
+
+    c = sq.Circuit("X_ERROR(0.1) 0 1 2\nDEPOLARIZE1(0.03) 0 1\nM 0 1 2\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-2]")
+    s = SubsetSampler(c, seed=0)
+    assert s.num_locations == (2, 3)
+    total = sum(s.subset_probability(w) for w in s.subsets(5))
+    assert total == pytest.approx(1.0, abs=1e-12)
+    with pytest.raises(ValueError, match="not independent"):
+        SubsetSampler(sq.Circuit("E(0.1) X0\nELSE_CORRELATED_ERROR(0.1) X1\nM 0 1"))
