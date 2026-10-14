@@ -12,6 +12,10 @@ pub struct ColorDecoder {
     graph: SparseGraph,
     /// The Möbius model, for inspection.
     pub mobius: Dem,
+    /// Each Möbius edge's weight as PyMatching discretizes it for Chromobius (2²⁴ levels),
+    /// keyed by its nodes in order, and the constant a sum of them is divided by.
+    pm_weights: std::collections::HashMap<(u32, u32), i64>,
+    pm_scale: f64,
 }
 
 /// One decode's state; one per thread.
@@ -65,7 +69,19 @@ impl ColorDecoder {
         let lifted = Lifted::from_dem(dem, options)?;
         let mobius = Dem::parse(&lifted.mobius_text)?;
         let (graph, _) = crate::dem_decoder::DemDecoder::new(&mobius)?.into_parts(false);
-        Ok(ColorDecoder { lifted, graph, mobius })
+        // Chromobius's weight is PyMatching's: the matched edges' weights as PyMatching's
+        // search graph holds them (`pm::detector_error_model_to_mwpm(dem, 1 << 24, true)`),
+        // summed and divided by the graph's normalising constant.
+        let user = crate::user_graph::UserGraph::from_dem(&crate::dem_program::DemProgram::parse(&lifted.mobius_text)?)?;
+        let c = user.normalising_constant()?;
+        let mut pm_weights = std::collections::HashMap::new();
+        for e in &user.edges {
+            if let Some(v) = e.node2 {
+                let w = ((e.weight * c).round() as i32 as i64 * 2).abs();
+                pm_weights.insert((e.node1.min(v) as u32, e.node1.max(v) as u32), w);
+            }
+        }
+        Ok(ColorDecoder { lifted, graph, mobius, pm_weights, pm_scale: 2.0 * c })
     }
 
     pub fn num_detectors(&self) -> usize {
@@ -104,8 +120,9 @@ impl ColorDecoder {
             return Ok((0, 0.0));
         }
         let (prediction, edges) = self.graph.decode_with_edges(&mut w.scratch, &w.events).map_err(|_| ColorError::Unmatchable)?;
-        let weight = prediction.weight;
         let boundary = self.graph.num_nodes as u32;
+        let pm_sum: Option<i64> = edges.iter().map(|&(a, b)| self.pm_weights.get(&(a.min(b), a.max(b))).copied()).sum();
+        let weight = pm_sum.map_or(prediction.weight, |w| w as f64 / self.pm_scale);
         let mut flat: Vec<u32> = Vec::with_capacity(2 * edges.len());
         for &(a, b) in &edges {
             if a == boundary || b == boundary {

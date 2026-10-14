@@ -143,6 +143,16 @@ Copyright 2023 Google LLC. Licensed under the Apache License, Version 2.0
 
 The colour-code decoder (`src/color/`) ports Chromobius (`src/chromobius`) in its order,
 modified to fit this crate.
+`python/stabilizer_qec/chromobius/` ports Chromobius's Python bindings
+(`src/chromobius/pybind/`) onto that decoder.
+
+## beliefmatching
+
+Copyright Oscar Higgott. Licensed under the Apache License, Version 2.0
+(`LICENSES/Apache-2.0.txt`). Source: https://github.com/oscarhiggott/BeliefMatching
+
+`python/stabilizer_qec/beliefmatching/` is beliefmatching 0.2.0's package with its imports
+pointed at this package's ldpc, PyMatching, Stim and sinter.
 
 ## C and C++ standard library algorithms
 

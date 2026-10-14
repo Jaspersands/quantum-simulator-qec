@@ -199,6 +199,17 @@ noise on every gate. In progress on `feature/2.0`.
   decomposition, detector-basis classifiers, GARI). Rust: the search keeps Tesseract's verbose
   log, takes probabilities changed for one decode (`Search::decode_with_probabilities`) and
   adds beams with Tesseract's `size_t` wrap-around.
+- **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
+  `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
+  `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.
+  The weights are now Chromobius's bit for bit: PyMatching's discretized Möbius matching
+  weight (2²⁴ levels, divided by its normalising constant) as float32. `ColorMatching`'s
+  `return_weights` gives the same weights, which were the matcher's own scale and differed in
+  the last digits.
+- **`stabilizer_qec.beliefmatching`: beliefmatching 0.2.0 whole**, on this package's ldpc and
+  PyMatching (`BeliefMatching`, `detector_error_model_to_check_matrices`, `DemMatrices`,
+  `BeliefMatchingSinterDecoder`); `BeliefMatching` gains `from_stim_circuit` and
+  `from_detector_error_model`, and takes a circuit (decomposing its model), as beliefmatching's.
 - **`MbpDecoder`** (also `mbp_decoder`): memory belief propagation over GF(4) (Kuo and Lai), as
   ldpc's `mbp_decoder`, whose C++ ldpc 2.4.1 does not ship (it is on ldpc's main branch and no
   longer builds). Ported as written and checked bit for bit, log-likelihood ratios included,

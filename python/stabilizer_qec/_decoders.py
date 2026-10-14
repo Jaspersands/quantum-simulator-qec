@@ -125,8 +125,28 @@ class BeliefMatching(_DemDecoder):
         bp_method: str = "product_sum",
         ms_scaling_factor: float = 1.0,
     ) -> None:
+        if type(model).__name__ == "Circuit":
+            # As beliefmatching: a circuit's model with its faults decomposed.
+            from ._circuit import Circuit
+
+            model = (model if isinstance(model, Circuit) else Circuit(str(model))).detector_error_model(decompose_errors=True)
         model = self._made(_model(model), max_bp_iters=max_bp_iters, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor)
         self._x = call(_core.BeliefMatcher, model._d, count(max_bp_iters, "max_bp_iters"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"))
+
+    @classmethod
+    def from_detector_error_model(cls, model: ModelLike, *, max_bp_iters: int = 20, bp_method: str = "product_sum", ms_scaling_factor: float = 1.0) -> "BeliefMatching":
+        """As ``beliefmatching.BeliefMatching.from_detector_error_model``: from a decomposed
+        model."""
+        return cls(model, max_bp_iters=max_bp_iters, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor)
+
+    @classmethod
+    def from_stim_circuit(cls, circuit: Any, *, max_bp_iters: int = 20, bp_method: str = "product_sum", ms_scaling_factor: float = 1.0) -> "BeliefMatching":
+        """As ``beliefmatching.BeliefMatching.from_stim_circuit``: from a circuit's model with
+        its faults decomposed (``detector_error_model(decompose_errors=True)``)."""
+        from ._circuit import Circuit
+
+        c = circuit if isinstance(circuit, Circuit) else Circuit(str(circuit))
+        return cls(c, max_bp_iters=max_bp_iters, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor)
 
     def decode_batch(
         self,

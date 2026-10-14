@@ -267,7 +267,7 @@ impl UserGraph {
     }
 
     /// PyMatching's `get_edge_weight_normalising_constant` (before doubling).
-    fn normalising_constant(&self) -> Result<f64, String> {
+    pub(crate) fn normalising_constant(&self) -> Result<f64, String> {
         let mut max = 0f64;
         let mut integral = true;
         for e in &self.edges {
