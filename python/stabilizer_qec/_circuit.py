@@ -1022,7 +1022,7 @@ class DetectorErrorModel:
                 f.write(text)
 
     def copy(self) -> "DetectorErrorModel":
-        return DetectorErrorModel(str(self))
+        return DetectorErrorModel(self._d.exact_text())
 
     def __ne__(self, other: object) -> bool:
         r = self.__eq__(other)
@@ -1030,7 +1030,9 @@ class DetectorErrorModel:
 
     # Stim's list-of-instructions interface.
     def _items(self) -> list:
-        return _dem.parse_items(str(self))
+        # (The exact text: Stim's rounds numbers to 16 digits here, which would drop bits on
+        # every edit.)
+        return _dem.parse_items(self._d.exact_text())
 
     def _set_items(self, items: list) -> None:
         self._d = call(_core.Dem, _dem.items_exact_text(items))
@@ -1058,7 +1060,8 @@ class DetectorErrorModel:
     def append(self, instruction: Any, parens_arguments: Any = None, targets: Any = (), *, tag: str = "") -> None:
         """Append an instruction by name (with its arguments, targets and tag), or a
         DemInstruction, DemRepeatBlock or whole model."""
-        items = self._items()
+        # (Only the new instructions are parsed: building a model one instruction at a time
+        # stays linear.)
         if isinstance(instruction, str):
             if parens_arguments is None:
                 args = []
@@ -1066,19 +1069,19 @@ class DetectorErrorModel:
                 args = [float(parens_arguments)]
             else:
                 args = [float(a) for a in parens_arguments]
-            items.append(_dem.DemInstruction(instruction, args, list(targets), tag=tag))
+            text = _dem.DemInstruction(instruction, args, list(targets), tag=tag)._exact_text()
         else:
             if parens_arguments is not None or tuple(targets) != () or tag:
                 raise ValueError("Can't specify parens_arguments, targets or tag with a non-name instruction.")
             if isinstance(instruction, DetectorErrorModel):
-                items += instruction._items()
+                text = instruction._d.exact_text()
             elif isinstance(instruction, (_dem.DemInstruction, _dem.DemRepeatBlock)):
-                items.append(instruction)
+                text = instruction._exact_text()
             elif type(instruction).__module__.startswith("stim"):
-                items += _dem.parse_items(str(instruction) if type(instruction).__name__ != "DemRepeatBlock" else f"repeat {instruction.repeat_count} {{\n{instruction.body_copy()}\n}}")
+                text = str(instruction) if type(instruction).__name__ != "DemRepeatBlock" else f"repeat {instruction.repeat_count} {{\n{instruction.body_copy()}\n}}"
             else:
                 raise ValueError(f"Don't know how to append {instruction!r}")
-        self._set_items(items)
+        call(self._d.append_text, text)
 
     def __add__(self, other: object) -> "DetectorErrorModel":
         if not isinstance(other, DetectorErrorModel):
@@ -1226,10 +1229,11 @@ class DetectorErrorModel:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, DetectorErrorModel):
             return NotImplemented
-        return str(self) == str(other)
+        # (Exact, as Stim compares its models' numbers.)
+        return self._d.exact_text() == other._d.exact_text()
 
     def __reduce__(self) -> tuple:
-        return (DetectorErrorModel, (str(self),))
+        return (DetectorErrorModel, (self._d.exact_text(),))
 
     __hash__ = None  # type: ignore[assignment]
 

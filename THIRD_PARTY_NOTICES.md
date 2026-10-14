@@ -129,6 +129,12 @@ Copyright 2025 Google LLC. Licensed under the Apache License, Version 2.0
 
 The search decoder (`src/search.rs`) ports Tesseract's A* search (`src/tesseract.cc`,
 `src/common.cc`) with its arithmetic in its order, modified to fit this crate.
+`python/stabilizer_qec/tesseract_decoder/` ports Tesseract's Python package: its bindings
+(`src/*.pybind.h`), the multi-pass decoder (`src/multi_pass/`) and the simplex decoder
+(`src/simplex.cc`, solved here by an exact search instead of HiGHS) rewritten in Python, and its
+Python modules (`src/py/_tesseract_py_util/` as `demutil/`, `src/py/multi_pass_sinter_decoders.py`)
+with their imports pointed at this package. `tests/tesseract_port/` holds Tesseract's Python
+tests, modified the same way.
 
 ## Chromobius
 

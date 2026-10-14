@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pickle
+
 import pytest
 
 import stabilizer_qec as sq
@@ -68,5 +70,8 @@ def test_error_models_equal_stims(code, noise, decompose):
 def test_dem_text_round_trip(d3):
     dem = d3.detector_error_model(decompose_errors=True)
     again = sq.DetectorErrorModel(str(dem))
-    assert again == dem
+    # The text rounds numbers to Stim's 16 digits, so (as in Stim) the copy is equal only
+    # approximately; copies and pickles are exact.
+    assert str(again) == str(dem) and again.approx_equals(dem, atol=1e-12)
+    assert again != dem and dem.copy() == dem and pickle.loads(pickle.dumps(dem)) == dem
     assert (again.num_detectors, again.num_observables, again.num_errors) == (dem.num_detectors, 1, dem.num_errors)

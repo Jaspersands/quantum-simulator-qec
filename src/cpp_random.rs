@@ -172,6 +172,134 @@ impl Library {
     }
 }
 
+/// `std::mt19937_64`, whose outputs the C++ standard fixes.
+#[derive(Clone)]
+pub struct Mt19937_64 {
+    state: [u64; 312],
+    index: usize,
+}
+
+impl Mt19937_64 {
+    pub fn new(seed: u64) -> Mt19937_64 {
+        let mut state = [0u64; 312];
+        state[0] = seed;
+        for i in 1..312 {
+            state[i] = 6364136223846793005u64.wrapping_mul(state[i - 1] ^ (state[i - 1] >> 62)).wrapping_add(i as u64);
+        }
+        Mt19937_64 { state, index: 312 }
+    }
+
+    pub fn next_u64(&mut self) -> u64 {
+        const UPPER: u64 = 0xFFFF_FFFF_8000_0000;
+        const LOWER: u64 = 0x7FFF_FFFF;
+        if self.index >= 312 {
+            for i in 0..312 {
+                let x = (self.state[i] & UPPER) | (self.state[(i + 1) % 312] & LOWER);
+                let mut xa = x >> 1;
+                if x & 1 == 1 {
+                    xa ^= 0xB502_6F5A_A966_19E9;
+                }
+                self.state[i] = self.state[(i + 156) % 312] ^ xa;
+            }
+            self.index = 0;
+        }
+        let mut y = self.state[self.index];
+        self.index += 1;
+        y ^= (y >> 29) & 0x5555_5555_5555_5555;
+        y ^= (y << 17) & 0x71D6_7FFF_EDA6_0000;
+        y ^= (y << 37) & 0xFFF7_EEE0_0000_0000;
+        y ^ (y >> 43)
+    }
+}
+
+impl Urbg for Mt19937_64 {
+    const MIN: u64 = 0;
+    const MAX: u64 = u64::MAX;
+    fn next(&mut self) -> u64 {
+        self.next_u64()
+    }
+}
+
+/// `a·b + c` as a C++ build for this machine computes `c + a * b` or `a * b + c` written in one
+/// expression: contracted into a fused multiply-add on aarch64 (clang and gcc do there), not
+/// on x86-64.
+pub fn contracted(a: f64, b: f64, c: f64) -> f64 {
+    if cfg!(target_arch = "aarch64") {
+        a.mul_add(b, c)
+    } else {
+        a * b + c
+    }
+}
+
+impl Library {
+    /// `std::generate_canonical<double, 53>(g)`: a draw in [0, 1) from as many engine outputs
+    /// as cover 53 bits.
+    pub fn canonical<G: Urbg>(self, g: &mut G) -> f64 {
+        let range = (G::MAX - G::MIN) as f64 + 1.0; // 2^32 or 2^64
+        let bits = range.log2() as u32;
+        let k = 53u32.div_ceil(bits).max(1);
+        match self {
+            Library::LibCxx => {
+                let mut sp = (g.next() - G::MIN) as f64;
+                let mut base = range;
+                for _ in 1..k {
+                    sp += (g.next() - G::MIN) as f64 * base;
+                    base *= range;
+                }
+                sp / base
+            }
+            Library::LibStdCxx | Library::Msvc => {
+                let (mut sum, mut tmp) = (0.0f64, 1.0f64);
+                for _ in 0..k {
+                    sum += (g.next() - G::MIN) as f64 * tmp;
+                    tmp *= range;
+                }
+                let r = sum / tmp;
+                if r >= 1.0 {
+                    1.0f64.next_down()
+                } else {
+                    r
+                }
+            }
+        }
+    }
+}
+
+/// `std::normal_distribution<double>(mean 0, deviation 1)`: Marsaglia's polar method, which
+/// makes two values at a time; libc++ returns the first and keeps the second, libstdc++ (and
+/// Microsoft's) the reverse.
+#[derive(Clone, Debug, Default)]
+pub struct Normal {
+    saved: Option<f64>,
+}
+
+impl Normal {
+    pub fn sample<G: Urbg>(&mut self, lib: Library, g: &mut G) -> f64 {
+        if let Some(x) = self.saved.take() {
+            return x;
+        }
+        let (u, v, s) = loop {
+            let u = 2.0 * lib.canonical(g) - 1.0;
+            let v = 2.0 * lib.canonical(g) - 1.0;
+            let s = contracted(u, u, v * v);
+            if !(s > 1.0 || s == 0.0) {
+                break (u, v, s);
+            }
+        };
+        let f = (-2.0 * s.ln() / s).sqrt();
+        match lib {
+            Library::LibCxx => {
+                self.saved = Some(v * f);
+                u * f
+            }
+            Library::LibStdCxx | Library::Msvc => {
+                self.saved = Some(u * f);
+                v * f
+            }
+        }
+    }
+}
+
 impl Library {
     /// `std::sort(v.begin(), v.end(), less)` as this library implements it: unstable, so
     /// equal elements end in an order only the implementation fixes.
@@ -748,7 +876,7 @@ fn ms_partition<T: Copy>(v: &mut [T], first: usize, mut pfirst: usize, last: usi
     }
 }
 
-fn ms_push_heap_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, top: isize, val: T, c: &mut impl FnMut(&T, &T) -> bool) {
+pub(crate) fn ms_push_heap_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, top: isize, val: T, c: &mut impl FnMut(&T, &T) -> bool) {
     while top < hole {
         let idx = (hole - 1) >> 1;
         if !c(&v[base + idx as usize], &val) {
@@ -760,7 +888,7 @@ fn ms_push_heap_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, top
     v[base + hole as usize] = val;
 }
 
-fn ms_pop_heap_hole_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, bottom: isize, val: T, c: &mut impl FnMut(&T, &T) -> bool) {
+pub(crate) fn ms_pop_heap_hole_by_index<T: Copy>(v: &mut [T], base: usize, mut hole: isize, bottom: isize, val: T, c: &mut impl FnMut(&T, &T) -> bool) {
     let top = hole;
     let mut idx = hole;
     let max_non_leaf = (bottom - 1) >> 1;
@@ -1108,13 +1236,28 @@ fn libcxx_uniform<G: Urbg>(g: &mut G, a: u64, b: u64) -> u64 {
         return a;
     }
     let dt = 64u32;
-    let mut e = IndependentBits::new(if rp == 0 { dt } else {
+    let w = if rp == 0 { dt } else {
         let mut w = dt - rp.leading_zeros() - 1;
         if rp & (u64::MAX >> (dt - w)) != 0 {
             w += 1;
         }
         w
-    }, G::MAX - G::MIN + 1);
+    };
+    if G::MAX - G::MIN == u64::MAX {
+        // An engine filling the word (mt19937_64): libc++'s __independent_bits_engine takes
+        // one draw's low w bits.
+        let mask = if w >= 64 { u64::MAX } else { (1u64 << w) - 1 };
+        loop {
+            let u = g.next() & mask;
+            if rp == 0 {
+                return u;
+            }
+            if u < rp {
+                return u + a;
+            }
+        }
+    }
+    let mut e = IndependentBits::new(w, G::MAX - G::MIN + 1);
     if rp == 0 {
         return e.eval(g);
     }
@@ -1194,7 +1337,19 @@ fn libstdcxx_uniform<G: Urbg>(g: &mut G, a: u64, b: u64) -> u64 {
     let urange = b - a;
     let ret = if urngrange > urange {
         let uerange = urange + 1;
-        if urngrange == u64::from(u32::MAX) {
+        if urngrange == u64::MAX {
+            // A 64-bit engine: Lemire's method with a 128-bit product.
+            let mut product = u128::from(g.next()) * u128::from(uerange);
+            let mut low = product as u64;
+            if low < uerange {
+                let threshold = uerange.wrapping_neg() % uerange;
+                while low < threshold {
+                    product = u128::from(g.next()) * u128::from(uerange);
+                    low = product as u64;
+                }
+            }
+            (product >> 64) as u64
+        } else if urngrange == u64::from(u32::MAX) {
             let range = uerange as u32;
             let mut product = (g.next() - G::MIN) * u64::from(range);
             let mut low = product as u32;

@@ -754,6 +754,9 @@ impl SearchDecoder {
             detector_penalty: options.penalty,
             merge_errors: options.merge,
             flavour,
+            sparsify: None,
+            visualize: false,
+            verbose: false,
         };
         Ok(SearchDecoder { inner: crate::search::Search::new(d, config)?, num_detectors: d.num_detectors })
     }

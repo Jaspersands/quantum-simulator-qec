@@ -1,0 +1,600 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# Ported from Tesseract's tesseract_test.py (quantumlib/tesseract-decoder); modified for stabilizer_qec: imports point at this package.
+
+import numpy as np
+import pytest
+import stabilizer_qec as stim
+from stabilizer_qec import tesseract_decoder
+from tesseract_shared_decoding import (
+    shared_test_compile_decoder,
+    shared_test_cost_from_errors,
+    shared_test_decode,
+    shared_test_decode_batch,
+    shared_test_decode_batch_with_complex_model,
+    shared_test_decode_batch_with_invalid_dimensions,
+    shared_test_decode_batch_with_mismatched_syndrome_size,
+    shared_test_decode_complex_dem,
+    shared_test_decode_from_detection_events,
+    shared_test_decode_with_mismatched_syndrome_size,
+    shared_test_decoder_predicts_various_observable_flips,
+    shared_test_get_observables_from_errors,
+    shared_test_merge_errors_affects_cost,
+)
+
+_DETECTOR_ERROR_MODEL = stim.DetectorErrorModel("""
+error(0.125) D0
+error(0.375) D0 D1
+error(0.25) D1
+""")
+
+
+@pytest.mark.parametrize(
+    "detector_order, message",
+    [
+        ([0], "has size"),
+        ([0, 0], "more than once"),
+        ([0, 2], "out-of-range detector ID"),
+    ],
+)
+def test_detector_orders_must_be_permutations(detector_order, message):
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL, det_orders=[detector_order]
+    )
+    with pytest.raises(ValueError, match=message):
+        _ = config.det_orders
+    with pytest.raises(ValueError, match=message):
+        config.compile_decoder()
+
+
+def test_selected_detector_order_index_must_be_in_range():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL, det_orders=[[1, 0]]
+    )
+    decoder = config.compile_decoder()
+    with pytest.raises(IndexError):
+        decoder.decode_to_errors(np.zeros(2, dtype=bool), 1, 0)
+
+
+def test_detector_orders_property_round_trips_literal_orders():
+    config = tesseract_decoder.tesseract.TesseractConfig(_DETECTOR_ERROR_MODEL)
+    config.det_orders = [[1, 0], [0, 1]]
+
+    assert config.det_orders == [[1, 0], [0, 1]]
+    decoder = config.compile_decoder()
+    assert decoder.config.det_orders == [[1, 0], [0, 1]]
+
+
+def test_default_detector_orders_resolve_for_compile_decoder_dem():
+    # Passing an argument selects the no-DEM convenience constructor. Its
+    # generated orders must remain deferred until this DEM is
+    # supplied instead of being fixed as empty permutations.
+    config = tesseract_decoder.tesseract.TesseractConfig(det_beam=5)
+    decoder = config.compile_decoder_for_dem(_DETECTOR_ERROR_MODEL)
+
+    assert len(decoder.config.det_orders) == 20
+    assert all(sorted(order) == [0, 1] for order in decoder.config.det_orders)
+
+
+def test_reading_generated_detector_orders_does_not_bind_config_to_dem():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        stim.DetectorErrorModel("error(0.1) D0 D1")
+    )
+    assert all(len(order) == 2 for order in config.det_orders)
+
+    config.dem = stim.DetectorErrorModel("error(0.1) D0 D1 D2")
+
+    assert all(sorted(order) == [0, 1, 2] for order in config.det_orders)
+
+
+def test_create_tesseract_config():
+    config = tesseract_decoder.tesseract.TesseractConfig(_DETECTOR_ERROR_MODEL)
+    assert config.dem == _DETECTOR_ERROR_MODEL
+    assert config.det_beam == 5
+    assert config.no_revisit_dets is True
+
+    assert config.verbose is False
+    assert config.merge_errors is True
+    assert config.pqlimit == 200000
+    assert config.det_penalty == 0
+    assert config.create_visualization is False
+    assert len(config.det_orders) == 20
+    assert config.det_orders == tesseract_decoder.utils.build_det_orders(
+        _DETECTOR_ERROR_MODEL,
+        20,
+        tesseract_decoder.utils.DetectorOrderMethod.Index,
+        2384753,
+    )
+
+
+def test_generated_detector_orders_are_part_of_the_config():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL,
+        num_det_orders=3,
+        det_order_method=tesseract_decoder.utils.DetectorOrderMethod.BFS,
+        seed=123,
+    )
+
+    assert config.det_orders == tesseract_decoder.utils.build_det_orders(
+        _DETECTOR_ERROR_MODEL,
+        3,
+        tesseract_decoder.utils.DetectorOrderMethod.BFS,
+        123,
+    )
+
+
+def test_empty_literal_order_list_retains_generated_default():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL,
+        det_orders=[],
+    )
+    config.det_orders = []
+
+    assert config.det_orders == tesseract_decoder.utils.build_det_orders(
+        _DETECTOR_ERROR_MODEL,
+        20,
+        tesseract_decoder.utils.DetectorOrderMethod.Index,
+        2384753,
+    )
+
+
+@pytest.mark.parametrize(
+    "generation_option",
+    [
+        {"num_det_orders": 2},
+        {"det_order_method": (tesseract_decoder.utils.DetectorOrderMethod.Coordinate)},
+        {"seed": 123},
+    ],
+)
+def test_literal_and_generated_detector_order_options_are_mutually_exclusive(
+    generation_option,
+):
+    with pytest.raises(ValueError, match="cannot be combined"):
+        tesseract_decoder.tesseract.TesseractConfig(
+            _DETECTOR_ERROR_MODEL,
+            det_orders=[[0, 1]],
+            **generation_option,
+        )
+
+
+@pytest.mark.parametrize("count", [0, -1, True, 1.5])
+def test_generated_detector_order_count_must_be_a_positive_integer(count):
+    with pytest.raises(ValueError, match="num_det_orders"):
+        tesseract_decoder.tesseract.TesseractConfig(
+            _DETECTOR_ERROR_MODEL,
+            num_det_orders=count,
+        )
+
+
+@pytest.mark.parametrize("seed", [-1, True, 1.5])
+def test_generated_detector_order_seed_must_be_a_nonnegative_integer(seed):
+    with pytest.raises(ValueError, match="seed"):
+        tesseract_decoder.tesseract.TesseractConfig(
+            _DETECTOR_ERROR_MODEL,
+            seed=seed,
+        )
+
+
+def test_create_tesseract_config_with_dem():
+    """
+    Tests the constructor that takes a `dem` argument.
+    """
+
+    config = tesseract_decoder.tesseract.TesseractConfig(_DETECTOR_ERROR_MODEL)
+
+    assert config.dem == _DETECTOR_ERROR_MODEL
+    assert config.det_beam == 5
+    assert config.no_revisit_dets is True
+
+    assert config.verbose is False
+    assert config.merge_errors is True
+    assert config.pqlimit == 200000
+    assert config.det_penalty == 0
+    assert config.create_visualization is False
+    assert len(config.det_orders) == 20
+
+
+def test_create_tesseract_config_with_dem_and_custom_args():
+    """
+    Tests the constructor with a `dem` object and custom arguments.
+    """
+    # Create an instance with a dem and custom arguments.
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        dem=_DETECTOR_ERROR_MODEL, det_beam=100, merge_errors=False, det_penalty=0.5
+    )
+
+    assert config.dem == _DETECTOR_ERROR_MODEL
+    assert config.det_beam == 100
+    assert config.no_revisit_dets is True
+
+    assert config.verbose is False
+    assert config.merge_errors is False
+    assert config.pqlimit == 200000
+    assert config.det_penalty == 0.5
+    assert config.create_visualization is False
+    assert len(config.det_orders) == 20
+
+
+def test_compile_decoder_for_dem_basic_functionality():
+    """
+    Verifies that `compile_decoder_for_dem` returns a `TesseractDecoder` instance.
+    """
+    config = tesseract_decoder.tesseract.TesseractConfig()
+    assert len(config.det_orders) == 20
+    custom_dem = stim.DetectorErrorModel()
+    decoder = config.compile_decoder_for_dem(custom_dem)
+
+    assert isinstance(decoder, tesseract_decoder.tesseract.TesseractDecoder)
+
+
+def test_compile_decoder_for_dem_sets_dem_on_config():
+    """
+    Ensures that the `dem` property of the TesseractConfig object is updated
+    before the decoder is compiled.
+    """
+    config = tesseract_decoder.tesseract.TesseractConfig()
+    custom_dem = stim.DetectorErrorModel()
+    decoder = config.compile_decoder_for_dem(custom_dem)
+
+    # Check that the config object itself has been updated.
+    assert config.dem == custom_dem
+    # Check that the decoder's config also reflects the change.
+    assert decoder.config.dem == custom_dem
+
+
+def test_compile_decoder_for_dem_preserves_other_config_params():
+    """
+    Tests that other custom parameters are not overwritten when the `dem` is updated.
+    """
+    # Create a config with custom parameters.
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        det_beam=100, verbose=True, merge_errors=False
+    )
+
+    # Define a new DEM to pass to the method.
+    new_dem = stim.DetectorErrorModel()
+    decoder = config.compile_decoder_for_dem(new_dem)
+
+    # Assert that the new decoder's config has the new dem, but retains all the other custom parameters.
+    assert decoder.config.dem == new_dem
+    assert decoder.config.det_beam == 100
+    assert decoder.config.verbose is True
+    assert decoder.config.merge_errors is False
+
+
+def test_compile_decoder_for_dem_with_empty_dem():
+    """
+    Ensures the method works correctly with an empty `dem` object.
+    """
+    config = tesseract_decoder.tesseract.TesseractConfig(verbose=True)
+
+    empty_dem = stim.DetectorErrorModel()
+    decoder = config.compile_decoder_for_dem(empty_dem)
+
+    assert decoder.config.dem == empty_dem
+    assert decoder.config.verbose is True
+
+
+def test_create_tesseract_config_no_dem():
+    """
+    Tests the new constructor that does not require a `dem` argument.
+    """
+    # Create an instance with no arguments.
+    config = tesseract_decoder.tesseract.TesseractConfig()
+
+    assert config.dem == stim.DetectorErrorModel()
+    assert config.det_beam == 5
+    assert config.no_revisit_dets is True
+
+    assert config.verbose is False
+    assert config.merge_errors is True
+    assert config.pqlimit == 200000
+    assert config.det_penalty == 0.0
+    assert config.create_visualization is False
+
+
+def test_create_tesseract_config_no_dem_with_custom_args():
+    """
+    Tests the new constructor with custom arguments to ensure they are passed correctly.
+    """
+    # Create an instance with no dem but a custom det_beam.
+    config = tesseract_decoder.tesseract.TesseractConfig(det_beam=15, verbose=True)
+
+    assert config.dem == stim.DetectorErrorModel()
+    assert config.det_beam == 15
+    assert config.no_revisit_dets is True
+
+    assert config.verbose is True
+    assert config.merge_errors is True
+    assert config.pqlimit == 200000
+    assert config.det_penalty == 0.0
+    assert config.create_visualization is False
+
+
+def test_create_tesseract_decoder():
+    config = tesseract_decoder.tesseract.TesseractConfig(_DETECTOR_ERROR_MODEL)
+    decoder = tesseract_decoder.tesseract.TesseractDecoder(config)
+    decoder.decode_to_errors(np.array([True, False], dtype=bool))
+    decoder.decode_to_errors(
+        syndrome=np.array([True, False], dtype=bool), det_order=0, det_beam=0
+    )
+    assert decoder.get_observables_from_errors([1]) == []
+    assert decoder.cost_from_errors([1]) == pytest.approx(0.5108256237659907)
+
+
+def test_tesseract_compile_decoder():
+    shared_test_compile_decoder(
+        tesseract_decoder.tesseract.TesseractConfig,
+        tesseract_decoder.tesseract.TesseractDecoder,
+    )
+
+
+def test_tesseract_cost_from_errors():
+    shared_test_cost_from_errors(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_get_observables_from_errors():
+    shared_test_get_observables_from_errors(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_from_detection_events():
+    shared_test_decode_from_detection_events(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decoder_predicts_various_observable_flips():
+    shared_test_decoder_predicts_various_observable_flips(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode():
+    shared_test_decode(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_complex_dem():
+    shared_test_decode_complex_dem(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_batch_with_invalid_dimensions():
+    shared_test_decode_batch_with_invalid_dimensions(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_batch():
+    shared_test_decode_batch(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_batch_with_complex_model():
+    shared_test_decode_batch_with_complex_model(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_merge_errors_affects_cost():
+    shared_test_merge_errors_affects_cost(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_with_mismatched_syndrome_size():
+    shared_test_decode_with_mismatched_syndrome_size(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_tesseract_decode_batch_with_mismatched_syndrome_size():
+    shared_test_decode_batch_with_mismatched_syndrome_size(
+        tesseract_decoder.tesseract.TesseractDecoder,
+        tesseract_decoder.tesseract.TesseractConfig,
+    )
+
+
+def test_create_tesseract_config_sparsify_defaults():
+    config = tesseract_decoder.tesseract.TesseractConfig()
+    assert config.sparsify_errors is False
+    assert config.sparsify_base_degree == -1
+    assert config.sparsify_max_degree == -1
+    assert config.sparsify_reactivate_limit == -1
+
+
+def test_create_tesseract_config_sparsify_custom():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        sparsify_errors=True,
+        sparsify_base_degree=2,
+        sparsify_max_degree=4,
+        sparsify_reactivate_limit=10,
+    )
+    assert config.sparsify_errors is True
+    assert config.sparsify_base_degree == 2
+    assert config.sparsify_max_degree == 4
+    assert config.sparsify_reactivate_limit == 10
+
+
+def test_suggest_sparsify_reactivate_limit():
+    # Heuristic formula: round((4.5^(k-2) / 3) * num_detectors)
+    assert tesseract_decoder.tesseract.suggest_sparsify_reactivate_limit(2, 2) == 1
+    assert tesseract_decoder.tesseract.suggest_sparsify_reactivate_limit(2, 3) == 3
+    assert tesseract_decoder.tesseract.suggest_sparsify_reactivate_limit(0, 2) == 0
+    assert (
+        tesseract_decoder.tesseract.suggest_sparsify_reactivate_limit(1, 10_000)
+        == 2_147_483_647
+    )
+    with pytest.raises(ValueError, match="sparsify_base_degree must be >= 0"):
+        tesseract_decoder.tesseract.suggest_sparsify_reactivate_limit(2, -1)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        (
+            {"sparsify_reactivate_limit": -2},
+            "sparsify_reactivate_limit must be >= -1",
+        ),
+        (
+            {"sparsify_max_degree": -2},
+            "sparsify_max_degree must be >= -1",
+        ),
+    ],
+)
+def test_sparsify_negative_sentinels_rejected(kwargs, message):
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL,
+        sparsify_errors=True,
+        sparsify_base_degree=2,
+        **kwargs,
+    )
+    with pytest.raises(ValueError, match=message):
+        config.compile_decoder()
+
+
+def test_compile_decoder_resolves_auto_sparsify_reactivate_limit():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL,
+        sparsify_errors=True,
+        sparsify_base_degree=2,
+        sparsify_reactivate_limit=-1,
+    )
+    decoder = config.compile_decoder()
+    assert decoder.config.sparsify_reactivate_limit == min(
+        tesseract_decoder.tesseract.suggest_sparsify_reactivate_limit(
+            _DETECTOR_ERROR_MODEL.num_detectors,
+            2,
+        ),
+        _DETECTOR_ERROR_MODEL.num_errors,
+    )
+
+
+def test_compile_decoder_caps_auto_sparsify_reactivate_limit_at_error_count():
+    dem = stim.DetectorErrorModel("""
+        error(0.1) D0
+        detector(0, 0, 0) D0
+        detector(1, 0, 0) D1
+        detector(2, 0, 0) D2
+        detector(3, 0, 0) D3
+        detector(4, 0, 0) D4
+        detector(5, 0, 0) D5
+        detector(6, 0, 0) D6
+        detector(7, 0, 0) D7
+        detector(8, 0, 0) D8
+        detector(9, 0, 0) D9
+    """)
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        dem,
+        merge_errors=False,
+        sparsify_errors=True,
+        sparsify_base_degree=10_000,
+        sparsify_reactivate_limit=-1,
+    )
+    decoder = config.compile_decoder()
+    assert decoder.config.sparsify_reactivate_limit == dem.num_errors
+
+
+def test_compile_decoder_preserves_explicit_sparsify_reactivate_limit():
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL,
+        sparsify_errors=True,
+        sparsify_base_degree=2,
+        sparsify_reactivate_limit=10,
+    )
+    decoder = config.compile_decoder()
+    assert decoder.config.sparsify_reactivate_limit == 10
+
+
+def test_python_sparsify_changes_predicted_error_set():
+    dem = stim.DetectorErrorModel("""
+        error(0.1) D0
+        error(0.1) D1
+        error(0.1) D2
+        error(0.1) D3
+        error(0.01) D0 D1 D2 D3
+    """)
+    syndrome = np.array([1, 1, 1, 1], dtype=bool)
+
+    dense = tesseract_decoder.tesseract.TesseractConfig(
+        dem,
+        merge_errors=False,
+    ).compile_decoder()
+    dense.decode_to_errors(syndrome)
+    assert list(dense.predicted_errors_buffer) == [4]
+
+    sparse0 = tesseract_decoder.tesseract.TesseractConfig(
+        dem,
+        merge_errors=False,
+        sparsify_errors=True,
+        sparsify_base_degree=2,
+        sparsify_max_degree=4,
+        sparsify_reactivate_limit=0,
+    ).compile_decoder()
+    sparse0.decode_to_errors(syndrome)
+    assert sorted(sparse0.predicted_errors_buffer) == [0, 1, 2, 3]
+
+    sparse1 = tesseract_decoder.tesseract.TesseractConfig(
+        dem,
+        merge_errors=False,
+        sparsify_errors=True,
+        sparsify_base_degree=2,
+        sparsify_max_degree=4,
+        sparsify_reactivate_limit=1,
+    ).compile_decoder()
+    sparse1.decode_to_errors(syndrome)
+    assert list(sparse1.predicted_errors_buffer) == [4]
+
+
+def test_decoder_compilation_validation():
+    # sparsify_base_degree <= 0 throws
+    config = tesseract_decoder.tesseract.TesseractConfig(
+        _DETECTOR_ERROR_MODEL, sparsify_errors=True, sparsify_base_degree=-1
+    )
+    with pytest.raises(ValueError, match="sparsify_base_degree must be > 0"):
+        config.compile_decoder()
+
+    config.sparsify_base_degree = 0
+    with pytest.raises(ValueError, match="sparsify_base_degree must be > 0"):
+        config.compile_decoder()
+
+    # sparsify_max_degree < sparsify_base_degree throws
+    config.sparsify_base_degree = 3
+    config.sparsify_max_degree = 2
+    with pytest.raises(
+        ValueError, match="sparsify_max_degree must be >= sparsify_base_degree"
+    ):
+        config.compile_decoder()
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

@@ -26,8 +26,11 @@
 //! its arithmetic in its order, so its answers are Tesseract's: equal-cost states leave the
 //! queue in the order `std::priority_queue` gives them, which differs between libc++ and
 //! libstdc++, so both are implemented (`Flavour`), defaulting to the platform's own; so is
-//! the coin that orients its default detector orders. Its sparsified mode is not ported.
+//! the coin that orients its default detector orders. Detector orders are generated as
+//! Tesseract generates them, through the platform library's distributions (`cpp_random`), and
+//! its sparsified mode (`Sparsify`) is ported too.
 
+use crate::cpp_random::{contracted, Library, Mt19937_64, Normal};
 use std::collections::{HashMap, HashSet};
 
 /// Which C++ standard library's tie-breaking to reproduce.
@@ -35,15 +38,28 @@ use std::collections::{HashMap, HashSet};
 pub enum Flavour {
     LibCxx,
     LibStdCxx,
+    Msvc,
 }
 
 impl Flavour {
-    /// The platform's own: libc++ on Apple platforms, libstdc++ elsewhere.
+    /// The platform's own: libc++ on Apple platforms, Microsoft's on Windows, libstdc++
+    /// elsewhere.
     pub fn native() -> Flavour {
         if cfg!(target_vendor = "apple") {
             Flavour::LibCxx
+        } else if cfg!(windows) {
+            Flavour::Msvc
         } else {
             Flavour::LibStdCxx
+        }
+    }
+
+    /// The library, for its distributions.
+    pub fn library(self) -> Library {
+        match self {
+            Flavour::LibCxx => Library::LibCxx,
+            Flavour::LibStdCxx => Library::LibStdCxx,
+            Flavour::Msvc => Library::Msvc,
         }
     }
 }
@@ -71,6 +87,52 @@ pub struct SearchConfig {
     pub detector_penalty: f64,
     pub merge_errors: bool,
     pub flavour: Flavour,
+    /// Tesseract's sparsified mode: `None` off.
+    pub sparsify: Option<Sparsify>,
+    /// Record the search for Tesseract's visualizer (`Search::take_trace`).
+    pub visualize: bool,
+    /// Keep Tesseract's verbose log (`Search::take_log`).
+    pub verbose: bool,
+}
+
+/// Tesseract's sparsified mode: faults with at most `base_degree` detectors are always
+/// searched; of those with more (up to `max_degree`, -1 for any), only the
+/// `reactivate_limit` (-1: Tesseract's suggestion) sharing most detectors with the shot are.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Sparsify {
+    pub base_degree: i64,
+    pub max_degree: i64,
+    pub reactivate_limit: i64,
+}
+
+/// A cost as Tesseract's verbose log prints one (`std::cout` at precision 13).
+fn g13(x: f64) -> String {
+    crate::dem_program::fmt_g(x, 13)
+}
+
+/// `suggest_sparsify_reactivate_limit_capped`.
+pub fn suggest_reactivate_limit(num_detectors: usize, base_degree: i64, max_limit: i64) -> Result<i64, String> {
+    if base_degree < 0 {
+        return Err("sparsify_base_degree must be >= 0.".into());
+    }
+    if num_detectors == 0 || max_limit <= 0 {
+        return Ok(0);
+    }
+    let exponent = base_degree as f64 - 2.0;
+    let max_result = max_limit as f64;
+    let log_result = exponent * 4.5f64.ln() - 3.0f64.ln() + (num_detectors as f64).ln();
+    if !log_result.is_finite() || log_result >= max_result.ln() {
+        return Ok(max_limit);
+    }
+    let result = log_result.exp();
+    if !result.is_finite() {
+        return Ok(max_limit);
+    }
+    let rounded = result.round();
+    if rounded >= max_result {
+        return Ok(max_limit);
+    }
+    Ok(rounded as i64)
 }
 
 const INF_DET_BEAM: usize = u16::MAX as usize;
@@ -96,6 +158,14 @@ pub struct Search {
     /// Per fault, the detectors of faults sharing a detector with it, less its own.
     neighbors: Vec<Vec<u32>>,
     config: SearchConfig,
+    /// Sparsified mode: the faults always searched, the optional ones, and how many of those
+    /// to reactivate.
+    mandatory: Vec<u32>,
+    optional: Vec<u32>,
+    reactivate: usize,
+    /// The visualizer's lines, when asked for.
+    trace: std::sync::Mutex<Vec<String>>,
+    log: std::sync::Mutex<Vec<String>>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -131,12 +201,17 @@ impl Queue {
         a.gt(b)
     }
 
+    fn len(&self) -> usize {
+        self.heap.len()
+    }
+
     fn push(&mut self, n: Node) {
         self.heap.push(n);
         let last = self.heap.len() - 1;
         match self.flavour {
             Flavour::LibStdCxx => self.push_up_stdcxx(last, 0, n),
             Flavour::LibCxx => self.sift_up_cxx(self.heap.len()),
+            Flavour::Msvc => crate::cpp_random::ms_push_heap_by_index(&mut self.heap, 0, last as isize, 0, n, &mut |a: &Node, b: &Node| Queue::comp(a, b)),
         }
     }
 
@@ -184,6 +259,15 @@ impl Queue {
         }
         let top = self.heap[0];
         match self.flavour {
+            Flavour::Msvc => {
+                // pop_heap: the last value into the hole left at the root.
+                if len >= 2 {
+                    let value = self.heap[len - 1];
+                    self.heap[len - 1] = top;
+                    crate::cpp_random::ms_pop_heap_hole_by_index(&mut self.heap, 0, 0, (len - 1) as isize, value, &mut |a: &Node, b: &Node| Queue::comp(a, b));
+                }
+                self.heap.pop();
+            }
             Flavour::LibStdCxx => {
                 // __pop_heap: the last value goes through __adjust_heap from the root.
                 let value = self.heap[len - 1];
@@ -244,45 +328,6 @@ impl Queue {
     }
 }
 
-/// `std::mt19937_64`, whose outputs the C++ standard fixes.
-pub(crate) struct Mt64 {
-    state: [u64; 312],
-    index: usize,
-}
-
-impl Mt64 {
-    pub(crate) fn new(seed: u64) -> Mt64 {
-        let mut state = [0u64; 312];
-        state[0] = seed;
-        for i in 1..312 {
-            state[i] = 6364136223846793005u64.wrapping_mul(state[i - 1] ^ (state[i - 1] >> 62)).wrapping_add(i as u64);
-        }
-        Mt64 { state, index: 312 }
-    }
-
-    pub(crate) fn next(&mut self) -> u64 {
-        const UPPER: u64 = 0xFFFF_FFFF_8000_0000;
-        const LOWER: u64 = 0x7FFF_FFFF;
-        if self.index >= 312 {
-            for i in 0..312 {
-                let x = (self.state[i] & UPPER) | (self.state[(i + 1) % 312] & LOWER);
-                let mut xa = x >> 1;
-                if x & 1 == 1 {
-                    xa ^= 0xB502_6F5A_A966_19E9;
-                }
-                self.state[i] = self.state[(i + 156) % 312] ^ xa;
-            }
-            self.index = 0;
-        }
-        let mut y = self.state[self.index];
-        self.index += 1;
-        y ^= (y >> 29) & 0x5555_5555_5555_5555;
-        y ^= (y << 17) & 0x71D6_7FFF_EDA6_0000;
-        y ^= (y << 37) & 0xFFF7_EEE0_0000_0000;
-        y ^ (y >> 43)
-    }
-}
-
 /// `merge_weights`: the cost of either of two independent faults with these costs.
 fn merge_weights(a: f64, b: f64) -> f64 {
     let sgn = 1f64.copysign(a) * 1f64.copysign(b);
@@ -298,33 +343,31 @@ fn probability_of(cost: f64) -> f64 {
     1.0 / (1.0 + cost.exp())
 }
 
-/// Detector orders as Tesseract generates them (`build_det_orders`), seeds `seed + i`.
-/// Index orders are reproduced exactly for the flavour; BFS and coordinate orders use
-/// library-specific distributions (shuffles, normal draws) and are this crate's own.
+/// Detector orders as Tesseract generates them (`build_det_orders`): order `i` from
+/// `std::mt19937_64(seed + i)`, through the flavour's library's distributions.
 pub fn generated_orders(dem: &crate::dem::Dem, count: usize, method: OrderMethod, seed: u64, flavour: Flavour) -> Vec<Vec<u32>> {
     let n = dem.num_detectors;
+    let lib = flavour.library();
+    let graph = if method == OrderMethod::Bfs { detector_graph(dem) } else { Vec::new() };
     (0..count as u64)
         .map(|i| {
-            let mut rng = Mt64::new(seed.wrapping_add(i));
+            let mut rng = Mt19937_64::new(seed.wrapping_add(i));
             match method {
                 OrderMethod::Index => {
-                    let x = rng.next();
-                    let coin = match flavour {
-                        Flavour::LibCxx => x & 1 == 1,
-                        Flavour::LibStdCxx => x >> 63 == 1,
-                    };
-                    if coin { (0..n as u32).rev().collect() } else { (0..n as u32).collect() }
+                    // uniform_int_distribution<int>(0, 1)
+                    if lib.uniform(&mut rng, 0, 1) == 1 { (0..n as u32).rev().collect() } else { (0..n as u32).collect() }
                 }
-                OrderMethod::Bfs => bfs_order(dem, &mut rng),
-                OrderMethod::Coordinate => coordinate_order(dem, &mut rng),
+                OrderMethod::Bfs => bfs_order(&graph, &mut rng, lib),
+                OrderMethod::Coordinate => coordinate_order(dem, &mut rng, lib),
             }
         })
         .collect()
 }
 
-fn bfs_order(dem: &crate::dem::Dem, rng: &mut Mt64) -> Vec<u32> {
-    let n = dem.num_detectors;
-    let mut graph: Vec<Vec<u32>> = vec![Vec::new(); n];
+/// `build_detector_graph`: each detector's neighbours through faults of nonzero probability,
+/// sorted.
+pub fn detector_graph(dem: &crate::dem::Dem) -> Vec<Vec<u32>> {
+    let mut graph: Vec<Vec<u32>> = vec![Vec::new(); dem.num_detectors];
     for m in dem.mechanisms.iter().filter(|m| m.p > 0.0) {
         for (i, &a) in m.detectors.iter().enumerate() {
             for &b in &m.detectors[i + 1..] {
@@ -337,6 +380,11 @@ fn bfs_order(dem: &crate::dem::Dem, rng: &mut Mt64) -> Vec<u32> {
         g.sort_unstable();
         g.dedup();
     }
+    graph
+}
+
+fn bfs_order(graph: &[Vec<u32>], rng: &mut Mt19937_64, lib: Library) -> Vec<u32> {
+    let n = graph.len();
     let mut order = Vec::with_capacity(n);
     let mut visited = vec![false; n];
     let mut unvisited: Vec<u32> = (0..n as u32).collect();
@@ -351,16 +399,13 @@ fn bfs_order(dem: &crate::dem::Dem, rng: &mut Mt64) -> Vec<u32> {
     };
     let mut queue = std::collections::VecDeque::new();
     while !unvisited.is_empty() {
-        let start = unvisited[(rng.next() % unvisited.len() as u64) as usize];
+        let start = unvisited[lib.uniform(rng, 0, unvisited.len() as u64 - 1) as usize];
         mark(start, &mut visited, &mut unvisited);
         queue.push_back(start);
         order.push(start);
         while let Some(cur) = queue.pop_front() {
             let mut neigh = graph[cur as usize].clone();
-            for i in (1..neigh.len()).rev() {
-                let j = (rng.next() % (i as u64 + 1)) as usize;
-                neigh.swap(i, j);
-            }
+            lib.shuffle(&mut neigh, rng);
             for nb in neigh {
                 if !visited[nb as usize] {
                     mark(nb, &mut visited, &mut unvisited);
@@ -373,19 +418,28 @@ fn bfs_order(dem: &crate::dem::Dem, rng: &mut Mt64) -> Vec<u32> {
     order
 }
 
-fn coordinate_order(dem: &crate::dem::Dem, rng: &mut Mt64) -> Vec<u32> {
+fn coordinate_order(dem: &crate::dem::Dem, rng: &mut Mt19937_64, lib: Library) -> Vec<u32> {
     let n = dem.num_detectors;
     let coords = |d: usize| dem.detector_coords.get(d).map(Vec::as_slice).unwrap_or(&[]);
     let dims = (0..n).map(|d| coords(d).len()).max().unwrap_or(0);
     if dims == 0 {
         return (0..n as u32).collect();
     }
-    // A direction from normal draws (Box–Muller on the 53-bit uniforms).
-    let uniform = |rng: &mut Mt64| ((rng.next() >> 11) as f64 + 0.5) / (1u64 << 53) as f64;
-    let direction: Vec<f64> = (0..dims).map(|_| (-2.0 * uniform(rng).ln()).sqrt() * (std::f64::consts::TAU * uniform(rng)).cos()).collect();
-    let dot = |d: usize| coords(d).iter().zip(&direction).map(|(a, b)| a * b).sum::<f64>();
+    let mut normal = Normal::default();
+    let direction: Vec<f64> = (0..dims).map(|_| normal.sample(lib, rng)).collect();
+    let dot: Vec<f64> = (0..n).map(|d| coords(d).iter().zip(&direction).fold(0.0, |acc, (a, b)| contracted(*a, *b, acc))).collect();
     let mut with: Vec<u32> = (0..n as u32).filter(|&d| !coords(d as usize).is_empty()).collect();
-    with.sort_by(|&a, &b| dot(b as usize).total_cmp(&dot(a as usize)));
+    // std::stable_sort, largest projection first.
+    with.sort_by(|&a, &b| {
+        let (x, y) = (dot[a as usize], dot[b as usize]);
+        if x > y {
+            std::cmp::Ordering::Less
+        } else if y > x {
+            std::cmp::Ordering::Greater
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    });
     with.extend((0..n as u32).filter(|&d| coords(d as usize).is_empty()));
     with
 }
@@ -461,6 +515,27 @@ impl Search {
                 fault_to_model[f] = model;
             }
         }
+        Self::assemble(n, faults, fault_to_model, model_to_fault, config)
+    }
+
+    /// A search over faults given directly (cost, detectors, observables), none merged or
+    /// dropped; the faults are their own model faults.
+    pub fn from_faults(num_detectors: usize, faults: Vec<(f64, Vec<u32>, u64)>, config: SearchConfig) -> Result<Search, String> {
+        let faults: Vec<Fault> = faults
+            .into_iter()
+            .map(|(cost, mut detectors, observables)| {
+                detectors.sort_unstable();
+                Fault { cost, detectors, observables }
+            })
+            .collect();
+        if let Some(f) = faults.iter().find(|f| f.detectors.iter().any(|&d| d as usize >= num_detectors)) {
+            return Err(format!("a fault sets off detector {:?}, beyond {num_detectors}", f.detectors.last()));
+        }
+        let ids: Vec<usize> = (0..faults.len()).collect();
+        Self::assemble(num_detectors, faults, ids.clone(), ids, config)
+    }
+
+    fn assemble(n: usize, faults: Vec<Fault>, fault_to_model: Vec<usize>, model_to_fault: Vec<usize>, config: SearchConfig) -> Result<Search, String> {
         let mut d2e: Vec<Vec<u32>> = vec![Vec::new(); n];
         for (ei, f) in faults.iter().enumerate() {
             for &d in &f.detectors {
@@ -492,14 +567,39 @@ impl Search {
             set.sort_unstable();
             neighbors.push(set);
         }
-        Ok(Search { num_detectors: n, faults, fault_to_model, model_to_fault, d2e, neighbors, config })
+        let (mut mandatory, mut optional, mut reactivate) = (Vec::new(), Vec::new(), 0usize);
+        if let Some(sp) = config.sparsify {
+            if sp.base_degree <= 0 {
+                return Err("sparsify_base_degree must be > 0 when sparsify_errors is enabled.".into());
+            }
+            if sp.max_degree < -1 {
+                return Err("sparsify_max_degree must be >= -1.".into());
+            }
+            if sp.reactivate_limit < -1 {
+                return Err("sparsify_reactivate_limit must be >= -1.".into());
+            }
+            if sp.max_degree >= 0 && sp.max_degree < sp.base_degree {
+                return Err("sparsify_max_degree must be >= sparsify_base_degree.".into());
+            }
+            let limit = if sp.reactivate_limit == -1 { suggest_reactivate_limit(n, sp.base_degree, faults.len().min(i32::MAX as usize) as i64)? } else { sp.reactivate_limit };
+            reactivate = limit as usize;
+            for (ei, f) in faults.iter().enumerate() {
+                let degree = f.detectors.len() as i64;
+                if degree <= sp.base_degree {
+                    mandatory.push(ei as u32);
+                } else if sp.max_degree == -1 || degree <= sp.max_degree {
+                    optional.push(ei as u32);
+                }
+            }
+        }
+        Ok(Search { num_detectors: n, faults, fault_to_model, model_to_fault, d2e, neighbors, config, mandatory, optional, reactivate, trace: std::sync::Mutex::new(Vec::new()), log: std::sync::Mutex::new(Vec::new()) })
     }
 
     /// `get_detcost`: detector `d`'s cheapest share of an unblocked fault through it.
-    fn detcost(&self, d: u32, tuples: &[Tuple]) -> f64 {
+    fn detcost(&self, d: u32, tuples: &[Tuple], d2e: &[Vec<u32>]) -> f64 {
         let mut min_cost = f64::INFINITY;
         let mut min_count = u32::MAX as f64;
-        for &ei in &self.d2e[d as usize] {
+        for &ei in &d2e[d as usize] {
             let f = &self.faults[ei as usize];
             if f.cost * min_count >= min_cost * f.detectors.len() as f64 {
                 break;
@@ -522,12 +622,22 @@ impl Search {
         let mut best_cost = f64::MAX;
         let orders = self.config.orders.len();
         let beam = self.config.beam.unwrap_or(INF_DET_BEAM);
+        let sparse = self.sparse_d2e(detections);
+        let d2e = sparse.as_deref().unwrap_or(&self.d2e);
         let mut run = |order: usize, beam: usize| {
-            let found = self.search(detections, order, beam);
+            let found = self.search(detections, order, beam, d2e);
             let cost: f64 = found.faults.iter().map(|&m| self.cost_of_model_fault(m)).sum();
+            let (low, obs) = (found.low_confidence, self.observables(&found.faults));
             if !found.low_confidence && cost < best_cost {
                 best = Some(found.faults);
                 best_cost = cost;
+            }
+            if self.config.verbose {
+                let mask: Vec<String> = (0..64).filter(|k| obs >> k & 1 == 1).map(|k| k.to_string()).collect();
+                self.say(format!(
+                    "for detector_order {order} beam {} got low confidence {} and cost {} and obs_mask [{}]. Best cost so far: {}",
+                    beam as i64, low as u8, g13(cost), mask.join(", "), g13(best_cost)
+                ));
             }
         };
         if self.config.beam_climbing {
@@ -543,6 +653,152 @@ impl Search {
             }
         }
         Found { low_confidence: best_cost == f64::MAX, faults: best.unwrap_or_default() }
+    }
+
+    /// `decode_result` with error probabilities changed for this decode only (Tesseract's
+    /// `ErrorProbabilityUpdate`s, by model index; a later update of one fault wins): the
+    /// answer and its cost under the changed probabilities. The search's own probabilities
+    /// (and its detectors' fault orders) are restored before it returns.
+    pub fn decode_with_probabilities(&mut self, detections: &[u32], updates: &[(usize, f64)]) -> Result<(Found, f64), String> {
+        let mut retained = Vec::with_capacity(updates.len());
+        for &(model, p) in updates {
+            if !p.is_finite() || p <= 0.0 || p >= 1.0 {
+                return Err("Error probability must be finite and between 0 and 1.".into());
+            }
+            let n = self.model_to_fault.len();
+            let f = *self.model_to_fault.get(model).ok_or_else(|| format!("DEM error index {model} is out of range for {n} DEM errors."))?;
+            if f == usize::MAX {
+                return Err(format!("DEM error index {model} was removed from the decoder."));
+            }
+            retained.push(f);
+        }
+        let mut previous: Vec<(usize, f64)> = Vec::new();
+        for &f in &retained {
+            if !previous.iter().any(|&(g, _)| g == f) {
+                previous.push((f, self.faults[f].cost));
+            }
+        }
+        let mut affected = vec![false; self.num_detectors];
+        let mut detectors = Vec::new();
+        for &(f, _) in &previous {
+            for &d in &self.faults[f].detectors {
+                if !std::mem::replace(&mut affected[d as usize], true) {
+                    detectors.push(d);
+                }
+            }
+        }
+        for (&f, &(_, p)) in retained.iter().zip(updates) {
+            self.faults[f].cost = cost_of(p);
+        }
+        self.resort(&detectors);
+        let found = self.decode(detections);
+        let cost: f64 = found.faults.iter().map(|&m| self.cost_of_model_fault(m)).sum();
+        for &(f, c) in &previous {
+            self.faults[f].cost = c;
+        }
+        self.resort(&detectors);
+        Ok((found, cost))
+    }
+
+    /// Re-sorts these detectors' faults by cost per detector (`update_internal_costs`).
+    fn resort(&mut self, detectors: &[u32]) {
+        let faults = &self.faults;
+        let min_cost = |e: u32| {
+            let f = &faults[e as usize];
+            if f.detectors.is_empty() { f.cost } else { f.cost / f.detectors.len() as f64 }
+        };
+        for &d in detectors {
+            self.d2e[d as usize].sort_by(|&a, &b| min_cost(a).partial_cmp(&min_cost(b)).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b)));
+        }
+    }
+
+    /// One search, with detector order `order` and beam `beam` (Tesseract's
+    /// `decode_to_errors(detections, det_order, det_beam)`).
+    pub fn decode_once(&self, detections: &[u32], order: usize, beam: usize) -> Found {
+        let sparse = self.sparse_d2e(detections);
+        self.search(detections, order, beam, sparse.as_deref().unwrap_or(&self.d2e))
+    }
+
+    /// `build_sparse_d2e`: in sparsified mode, each detector's faults that are searched for
+    /// this shot.
+    fn sparse_d2e(&self, detections: &[u32]) -> Option<Vec<Vec<u32>>> {
+        self.config.sparsify?;
+        let mut lit = vec![false; self.num_detectors];
+        for &d in detections {
+            if (d as usize) < self.num_detectors {
+                lit[d as usize] = true;
+            }
+        }
+        let mut active = vec![false; self.faults.len()];
+        for &ei in &self.mandatory {
+            active[ei as usize] = true;
+        }
+        // (fault, overlap, degree, cost), most overlap first, then fewest detectors, cheapest,
+        // lowest index: a total order, so any sort gives Tesseract's.
+        let mut candidates: Vec<(u32, usize, usize, f64)> = Vec::new();
+        for &ei in &self.optional {
+            let f = &self.faults[ei as usize];
+            let overlap = f.detectors.iter().filter(|&&d| lit[d as usize]).count();
+            if overlap > 0 {
+                candidates.push((ei, overlap, f.detectors.len(), f.cost));
+            }
+        }
+        candidates.sort_by(|a, b| b.1.cmp(&a.1).then(a.2.cmp(&b.2)).then(a.3.partial_cmp(&b.3).unwrap_or(std::cmp::Ordering::Equal)).then(a.0.cmp(&b.0)));
+        for c in candidates.iter().take(self.reactivate) {
+            active[c.0 as usize] = true;
+        }
+        Some(self.d2e.iter().map(|list| list.iter().copied().filter(|&ei| active[ei as usize]).collect()).collect())
+    }
+
+    /// The visualizer's lines recorded since the last call.
+    pub fn take_trace(&self) -> Vec<String> {
+        std::mem::take(&mut *self.trace.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+
+    /// The verbose log's lines since the last call, as Tesseract prints them (its costs at the
+    /// precision of 13 digits its search sets).
+    pub fn take_log(&self) -> Vec<String> {
+        std::mem::take(&mut *self.log.lock().unwrap_or_else(|e| e.into_inner()))
+    }
+
+    fn say(&self, line: String) {
+        self.log.lock().unwrap_or_else(|e| e.into_inner()).push(line);
+    }
+
+    fn chain_text(&self, arena: &[(u32, u32, i64)], chain: i64, dets: &[u64]) -> (String, String) {
+        let mut errors = String::from("activated_errors = ");
+        let mut walker = chain;
+        while walker != -1 {
+            let (ei, _, parent) = arena[walker as usize];
+            errors.push_str(&format!("{ei}, "));
+            walker = parent;
+        }
+        let mut lit = String::from("activated_detectors = ");
+        for d in 0..self.num_detectors {
+            if dets[d / 64] >> (d % 64) & 1 == 1 {
+                lit.push_str(&format!("{d}, "));
+            }
+        }
+        (errors, lit)
+    }
+
+    /// `add_activated_errors` and `add_activated_detectors` for a node of the search.
+    fn record(&self, arena: &[(u32, u32, i64)], chain: i64, dets: &[u64]) {
+        let (errors, lit) = self.chain_text(arena, chain, dets);
+        let mut t = self.trace.lock().unwrap_or_else(|e| e.into_inner());
+        t.push(errors);
+        t.push(lit);
+    }
+
+    /// The faults the search works with, after merging and dropping those of probability 0:
+    /// (cost, detectors, observables).
+    pub fn retained(&self) -> impl Iterator<Item = (f64, &[u32], u64)> + '_ {
+        self.faults.iter().map(|f| (f.cost, f.detectors.as_slice(), f.observables))
+    }
+
+    /// The retained fault each model fault went into (`usize::MAX` for one dropped).
+    pub fn model_to_fault(&self) -> &[usize] {
+        &self.model_to_fault
     }
 
     /// The cost of the retained fault a model fault went into.
@@ -561,7 +817,7 @@ impl Search {
     }
 
     /// `decode_to_errors_with_graph`: one A* search.
-    fn search(&self, detections: &[u32], order_index: usize, beam: usize) -> Found {
+    fn search(&self, detections: &[u32], order_index: usize, beam: usize, d2e: &[Vec<u32>]) -> Found {
         let n = self.num_detectors;
         let ne = self.faults.len();
         let order = &self.config.orders[order_index];
@@ -577,19 +833,20 @@ impl Search {
         let mut initial_tuples = vec![Tuple::default(); ne];
         for &d in detections {
             flip(&mut initial, d);
-            for &ei in &self.d2e[d as usize] {
+            for &ei in &d2e[d as usize] {
                 initial_tuples[ei as usize].count += 1;
             }
         }
         let mut initial_cost = 0.0;
         for &d in detections {
-            initial_cost += self.detcost(d, &initial_tuples);
+            initial_cost += self.detcost(d, &initial_tuples, d2e);
         }
         if initial_cost == f64::INFINITY {
             return Found { faults: Vec::new(), low_confidence: true };
         }
         let mut min_num_dets = detections.len();
-        let mut max_num_dets = min_num_dets + beam;
+        // Tesseract's size_t arithmetic: a beam given as a negative int wraps.
+        let mut max_num_dets = min_num_dets.wrapping_add(beam);
         queue.push(Node { cost: initial_cost, num_dets: min_num_dets, depth: 0, chain: -1 });
         let mut pushed = 1usize;
         let limit = self.config.queue_limit.unwrap_or(usize::MAX);
@@ -603,7 +860,7 @@ impl Search {
             let mut walker = node.chain;
             while walker != -1 {
                 let (ei, min_det, parent) = arena[walker as usize];
-                for &oe in &self.d2e[min_det as usize] {
+                for &oe in &d2e[min_det as usize] {
                     tuples[oe as usize].blocked = true;
                     if oe == ei {
                         break;
@@ -615,6 +872,15 @@ impl Search {
                 walker = parent;
             }
             if node.num_dets == 0 {
+                if self.config.visualize {
+                    self.record(&arena, node.chain, &dets);
+                }
+                if self.config.verbose {
+                    let (errors, lit) = self.chain_text(&arena, node.chain, &dets);
+                    self.say(errors);
+                    self.say(lit);
+                    self.say(format!("Decoding complete. Cost: {} num_pq_pushed = {pushed}", g13(node.cost)));
+                }
                 let mut faults = vec![0usize; node.depth];
                 let mut walker = node.chain;
                 for i in 0..node.depth {
@@ -627,20 +893,29 @@ impl Search {
             if self.config.no_revisit && !visited.entry(node.num_dets).or_default().insert(dets.clone()) {
                 continue;
             }
+            if self.config.visualize {
+                self.record(&arena, node.chain, &dets);
+            }
+            if self.config.verbose {
+                self.say(format!("len(pq) = {} num_pq_pushed = {pushed}", queue.len()));
+                self.say(format!("num_dets = {} max_num_dets = {max_num_dets} cost = {}", node.num_dets, g13(node.cost)));
+                let (errors, lit) = self.chain_text(&arena, node.chain, &dets);
+                self.say(errors);
+                self.say(lit);
+            }
             if node.num_dets < min_num_dets {
                 min_num_dets = node.num_dets;
                 if self.config.no_revisit {
-                    for i in min_num_dets + beam + 1..=max_num_dets {
-                        if let Some(s) = visited.get_mut(&i) {
-                            s.clear();
-                        }
+                    let from = min_num_dets.wrapping_add(beam).wrapping_add(1);
+                    for (_, s) in visited.iter_mut().filter(|(&i, _)| i >= from && i <= max_num_dets) {
+                        s.clear();
                     }
                 }
-                max_num_dets = max_num_dets.min(min_num_dets + beam);
+                max_num_dets = max_num_dets.min(min_num_dets.wrapping_add(beam));
             }
             for d in 0..n as u32 {
                 if get(&dets, d) {
-                    for &ei in &self.d2e[d as usize] {
+                    for &ei in &d2e[d as usize] {
                         tuples[ei as usize].count += 1;
                     }
                 }
@@ -649,14 +924,14 @@ impl Search {
             let min_detector = *order.iter().find(|&&d| get(&dets, d)).expect("a lit detector");
             let mut prev: Option<u32> = None;
             let mut cache = vec![-1.0f64; n];
-            for &ei in &self.d2e[min_detector as usize] {
+            for &ei in &d2e[min_detector as usize] {
                 if tuples[ei as usize].blocked {
                     continue;
                 }
                 if let Some(pe) = prev {
                     for &d in &self.faults[pe as usize].detectors {
                         let lit = get(&dets, d);
-                        for &oe in &self.d2e[d as usize] {
+                        for &oe in &d2e[d as usize] {
                             let c = &mut next_tuples[oe as usize].count;
                             *c = if lit { c.wrapping_add(1) } else { c.wrapping_sub(1) };
                         }
@@ -675,7 +950,7 @@ impl Search {
                     } else {
                         next_num -= 1;
                     }
-                    for &oe in &self.d2e[d as usize] {
+                    for &oe in &d2e[d as usize] {
                         let c = &mut next_tuples[oe as usize].count;
                         *c = if lit { c.wrapping_add(1) } else { c.wrapping_sub(1) };
                     }
@@ -689,11 +964,11 @@ impl Search {
                 for &d in &self.faults[ei as usize].detectors {
                     if get(&dets, d) {
                         if cache[d as usize] == -1.0 {
-                            cache[d as usize] = self.detcost(d, &tuples);
+                            cache[d as usize] = self.detcost(d, &tuples, d2e);
                         }
                         next_cost -= cache[d as usize];
                     } else {
-                        next_cost += self.detcost(d, &next_tuples);
+                        next_cost += self.detcost(d, &next_tuples, d2e);
                     }
                 }
                 for &od in &self.neighbors[ei as usize] {
@@ -701,10 +976,10 @@ impl Search {
                         continue;
                     }
                     if cache[od as usize] == -1.0 {
-                        cache[od as usize] = self.detcost(od, &tuples);
+                        cache[od as usize] = self.detcost(od, &tuples, d2e);
                     }
                     next_cost -= cache[od as usize];
-                    next_cost += self.detcost(od, &next_tuples);
+                    next_cost += self.detcost(od, &next_tuples, d2e);
                 }
                 if next_cost == f64::INFINITY {
                     continue;
@@ -713,9 +988,15 @@ impl Search {
                 queue.push(Node { cost: next_cost, num_dets: next_num, depth: node.depth + 1, chain: arena.len() as i64 - 1 });
                 pushed += 1;
                 if pushed > limit {
+                    if self.config.verbose {
+                        self.say("setting low confidence flag".into());
+                    }
                     return Found { faults: Vec::new(), low_confidence: true };
                 }
             }
+        }
+        if self.config.verbose {
+            self.say("Decoding failed to converge within beam limit.".into());
         }
         Found { faults: Vec::new(), low_confidence: true }
     }
@@ -729,18 +1010,18 @@ mod tests {
     /// `std::mt19937_64`'s 10000th output for the default seed, as the standard requires.
     #[test]
     fn mt19937_64_is_the_standards() {
-        let mut r = Mt64::new(5489);
+        let mut r = Mt19937_64::new(5489);
         for _ in 0..9999 {
-            r.next();
+            r.next_u64();
         }
-        assert_eq!(r.next(), 9981545732273789042);
+        assert_eq!(r.next_u64(), 9981545732273789042);
     }
 
     /// Both heap flavours pop in priority order, whatever the pushes.
     #[test]
     fn the_queues_are_priority_queues() {
         let mut rng = Xorshift::new(4);
-        for flavour in [Flavour::LibCxx, Flavour::LibStdCxx] {
+        for flavour in [Flavour::LibCxx, Flavour::LibStdCxx, Flavour::Msvc] {
             let mut q = Queue { heap: Vec::new(), flavour };
             for step in 0..5000 {
                 if step % 3 == 2 {
@@ -790,7 +1071,7 @@ mod tests {
             for flavour in [Flavour::LibCxx, Flavour::LibStdCxx] {
                 // Unmerged, so each fault is the brute force's own (merging two faults of one
                 // symptom correctly makes either one more likely than both).
-                let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![(0..n as u32).collect()], detector_penalty: 0.0, merge_errors: false, flavour };
+                let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![(0..n as u32).collect()], detector_penalty: 0.0, merge_errors: false, flavour, sparsify: None, visualize: false, verbose: false };
                 let s = Search::new(&dem, config).unwrap();
                 for pattern in 1u32..1 << n {
                     let dets: Vec<u32> = (0..n as u32).filter(|&d| pattern >> d & 1 == 1).collect();

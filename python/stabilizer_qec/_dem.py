@@ -354,4 +354,5 @@ def items_exact_text(items: List[Any]) -> str:
 
 
 def _exact_text_of(dem: Any) -> str:
-    return items_exact_text(parse_items(str(dem)))
+    core = getattr(dem, "_d", None)
+    return items_exact_text(parse_items(core.exact_text() if core is not None else str(dem)))

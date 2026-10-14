@@ -813,13 +813,27 @@ impl DemOptions {
 #[derive(Clone, Debug)]
 pub struct DetectorErrorModel {
     program: DemProgram,
-    stats: Stats,
+    stats: OnceLock<Stats>,
     flat: OnceLock<std::result::Result<Dem, String>>,
 }
 
 impl DetectorErrorModel {
     pub(crate) fn from_program(program: DemProgram) -> DetectorErrorModel {
-        DetectorErrorModel { stats: program.stats(), program, flat: OnceLock::new() }
+        DetectorErrorModel { stats: OnceLock::new(), program, flat: OnceLock::new() }
+    }
+
+    fn stats(&self) -> &Stats {
+        self.stats.get_or_init(|| self.program.stats())
+    }
+
+    /// Appends the instructions of a piece of model text (parsed alone, so a model can be
+    /// built instruction by instruction without reading it again each time).
+    pub(crate) fn append_text(&mut self, text: &str) -> Result<()> {
+        let piece = DemProgram::parse(text)?;
+        self.program.instrs.extend(piece.instrs);
+        self.stats = OnceLock::new();
+        self.flat = OnceLock::new();
+        Ok(())
     }
 
     /// The model as written.
@@ -839,17 +853,17 @@ impl DetectorErrorModel {
 
     /// Detectors: one more than the largest index named, counted through loops.
     pub fn num_detectors(&self) -> usize {
-        usize::try_from(self.stats.num_detectors).unwrap_or(usize::MAX)
+        usize::try_from(self.stats().num_detectors).unwrap_or(usize::MAX)
     }
 
     /// Logical observables.
     pub fn num_observables(&self) -> usize {
-        self.stats.num_observables
+        self.stats().num_observables
     }
 
     /// Faults: `error` lines, counted through loops.
     pub fn num_errors(&self) -> usize {
-        usize::try_from(self.stats.num_errors).unwrap_or(usize::MAX)
+        usize::try_from(self.stats().num_errors).unwrap_or(usize::MAX)
     }
 
 
@@ -921,6 +935,13 @@ impl FromStr for DetectorErrorModel {
 impl fmt::Display for DetectorErrorModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.program.to_stim())
+    }
+}
+
+impl DetectorErrorModel {
+    /// The model's text with every number exact (Stim's text rounds them to its precision).
+    pub(crate) fn exact_text(&self) -> String {
+        self.program.to_exact_text()
     }
 }
 

@@ -150,8 +150,18 @@ pub fn fmt_g(x: f64, digits: usize) -> String {
     }
 }
 
-fn g16_args(args: &[f64]) -> String {
-    args.iter().map(|&v| fmt_g16(v)).collect::<Vec<_>>().join(", ")
+/// A number exactly: whole numbers as integers, others as the shortest decimal that reads
+/// back as the same double.
+pub fn fmt_exact(x: f64) -> String {
+    if x.fract() == 0.0 && x.abs() < 9.2e18 {
+        format!("{}", x as i64)
+    } else {
+        format!("{x:?}")
+    }
+}
+
+fn fmt_args(args: &[f64], fmt: fn(f64) -> String) -> String {
+    args.iter().map(|&v| fmt(v)).collect::<Vec<_>>().join(", ")
 }
 
 fn tagged(tag: &str) -> String {
@@ -162,10 +172,10 @@ fn tagged(tag: &str) -> String {
     }
 }
 
-fn with_args(name: &str, tag: &str, args: &[f64]) -> String {
+fn with_args(name: &str, tag: &str, args: &[f64], fmt: fn(f64) -> String) -> String {
     let mut s = format!("{name}{}", tagged(tag));
     if !args.is_empty() {
-        let _ = write!(s, "({})", g16_args(args));
+        let _ = write!(s, "({})", fmt_args(args, fmt));
     }
     s
 }
@@ -206,7 +216,15 @@ impl DemProgram {
     /// Stim's text.
     pub fn to_stim(&self) -> String {
         let mut s = String::new();
-        emit(&self.instrs, "", &mut s);
+        emit(&self.instrs, "", &mut s, fmt_g16);
+        s
+    }
+
+    /// The model's text with every number exactly (the shortest decimal that reads back as the
+    /// same double), for copies that must not lose the bits Stim's printing drops.
+    pub fn to_exact_text(&self) -> String {
+        let mut s = String::new();
+        emit(&self.instrs, "", &mut s, fmt_exact);
         s
     }
 
@@ -448,11 +466,11 @@ fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -
     Ok(())
 }
 
-fn emit(instrs: &[DemInstr], indent: &str, s: &mut String) {
+fn emit(instrs: &[DemInstr], indent: &str, s: &mut String, fmt: fn(f64) -> String) {
     for ins in instrs {
         match ins {
             DemInstr::Error { p, pieces, tag } => {
-                let _ = write!(s, "{indent}{}", with_args("error", tag, &[*p]));
+                let _ = write!(s, "{indent}{}", with_args("error", tag, &[*p], fmt));
                 for (k, piece) in pieces.iter().enumerate() {
                     if k > 0 {
                         s.push_str(" ^");
@@ -463,7 +481,7 @@ fn emit(instrs: &[DemInstr], indent: &str, s: &mut String) {
                 }
             }
             DemInstr::Detector { coords, targets, tag } => {
-                let _ = write!(s, "{indent}{}", with_args("detector", tag, coords));
+                let _ = write!(s, "{indent}{}", with_args("detector", tag, coords, fmt));
                 for &t in targets {
                     push_target(s, t);
                 }
@@ -475,11 +493,11 @@ fn emit(instrs: &[DemInstr], indent: &str, s: &mut String) {
                 }
             }
             DemInstr::Shift { coords, by, tag } => {
-                let _ = write!(s, "{indent}{} {by}", with_args("shift_detectors", tag, coords));
+                let _ = write!(s, "{indent}{} {by}", with_args("shift_detectors", tag, coords, fmt));
             }
             DemInstr::Repeat { count, body, tag } => {
                 let _ = writeln!(s, "{indent}repeat{} {count} {{", tagged(tag));
-                emit(body, &format!("{indent}    "), s);
+                emit(body, &format!("{indent}    "), s, fmt);
                 let _ = write!(s, "{indent}}}");
             }
         }

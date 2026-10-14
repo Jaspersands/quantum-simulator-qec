@@ -472,6 +472,16 @@ impl PyDem {
         self.dem.to_string()
     }
 
+    /// The model's text with every number exact, for copies (Stim's text rounds them).
+    fn exact_text(&self) -> String {
+        self.dem.exact_text()
+    }
+
+    /// Appends the instructions of a piece of model text.
+    fn append_text(&mut self, text: &str) -> PyResult<()> {
+        self.dem.append_text(text).map_err(api_err)
+    }
+
     /// The graph-like distance's faults as a model (see
     /// `DetectorErrorModel::shortest_graphlike_error`).
     fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
@@ -1671,6 +1681,7 @@ pub struct PyDemSearch {
 impl PyDemSearch {
     #[new]
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (dem, beam, beam_climbing, no_revisit, queue_limit, orders, num_orders, method, seed, penalty, merge, flavour, sparsify=None, visualize=false, verbose=false))]
     fn new(
         dem: &PyDem,
         beam: Option<usize>,
@@ -1684,6 +1695,9 @@ impl PyDemSearch {
         penalty: f64,
         merge: bool,
         flavour: &str,
+        sparsify: Option<(i64, i64, i64)>,
+        visualize: bool,
+        verbose: bool,
     ) -> PyResult<Self> {
         use crate::search::{Flavour, OrderMethod};
         let d = dem.flat()?;
@@ -1691,6 +1705,7 @@ impl PyDemSearch {
             "native" => Flavour::native(),
             "libc++" => Flavour::LibCxx,
             "libstdc++" => Flavour::LibStdCxx,
+            "msvc" => Flavour::Msvc,
             other => return Err(err(format!("unknown flavour '{other}'"))),
         };
         let orders = match orders {
@@ -1708,7 +1723,7 @@ impl PyDemSearch {
                 crate::search::generated_orders(d, num_orders, method, seed, flavour)
             }
         };
-        let config = crate::search::SearchConfig { beam, beam_climbing, no_revisit, queue_limit, orders: orders.clone(), detector_penalty: penalty, merge_errors: merge, flavour };
+        let config = crate::search::SearchConfig { beam, beam_climbing, no_revisit, queue_limit, orders: orders.clone(), detector_penalty: penalty, merge_errors: merge, flavour, sparsify: sparsify.map(|(base_degree, max_degree, reactivate_limit)| crate::search::Sparsify { base_degree, max_degree, reactivate_limit }), visualize, verbose };
         let dec = crate::search::Search::new(d, config).map_err(err)?;
         Ok(PyDemSearch { dec, num_detectors: d.num_detectors, num_observables: d.num_observables, orders })
     }
@@ -1730,6 +1745,97 @@ impl PyDemSearch {
         let found = self.dec.decode(&defects);
         (found.faults, found.low_confidence)
     }
+
+    /// One search with detector order `order` and beam `beam`: (model faults, gave up).
+    fn decode_once(&self, defects: Vec<u32>, order: usize, beam: usize) -> PyResult<(Vec<usize>, bool)> {
+        if order >= self.orders.len() {
+            return Err(err(format!("det_order {order} is beyond the {} detector orders", self.orders.len())));
+        }
+        if let Some(&d) = defects.iter().find(|&&d| d as usize >= self.num_detectors) {
+            return Err(err(format!("Symptom {d} references a detector >= num_detectors (= {}).", self.num_detectors)));
+        }
+        let found = self.dec.decode_once(&defects, order, beam);
+        Ok((found.faults, found.low_confidence))
+    }
+
+    /// The faults searched over, after merging and dropping those of probability 0: (cost,
+    /// detectors, observables).
+    fn retained(&self) -> Vec<(f64, Vec<u32>, Vec<u32>)> {
+        self.dec.retained().map(|(c, d, o)| (c, d.to_vec(), (0..64).filter(|k| o >> k & 1 == 1).collect())).collect()
+    }
+
+    /// The visualizer's lines recorded since the last call.
+    fn take_trace(&self) -> Vec<String> {
+        self.dec.take_trace()
+    }
+
+    /// The verbose log's lines since the last call.
+    fn take_log(&self) -> Vec<String> {
+        self.dec.take_log()
+    }
+
+    /// One shot's search with some model faults' probabilities changed for it alone:
+    /// (model faults, gave up, their cost under the changed probabilities).
+    fn decode_with_probabilities(&mut self, defects: Vec<u32>, updates: Vec<(usize, f64)>) -> PyResult<(Vec<usize>, bool, f64)> {
+        if let Some(&d) = defects.iter().find(|&&d| d as usize >= self.num_detectors) {
+            return Err(err(format!("Symptom {d} references a detector >= num_detectors (= {}).", self.num_detectors)));
+        }
+        let (found, cost) = self.dec.decode_with_probabilities(&defects, &updates).map_err(err)?;
+        Ok((found.faults, found.low_confidence, cost))
+    }
+
+    /// The retained fault each model fault went into (-1 for one dropped).
+    fn model_to_fault(&self) -> Vec<i64> {
+        self.dec.model_to_fault().iter().map(|&f| if f == usize::MAX { -1 } else { f as i64 }).collect()
+    }
+}
+
+/// Tesseract's generated detector orders for a model (`build_det_orders`).
+#[pyfunction]
+#[pyo3(signature = (dem, count, method, seed, flavour))]
+fn search_orders(dem: &PyDem, count: usize, method: &str, seed: u64, flavour: &str) -> PyResult<Vec<Vec<u32>>> {
+    use crate::search::{Flavour, OrderMethod};
+    let d = dem.flat()?;
+    let flavour = match flavour {
+        "native" => Flavour::native(),
+        "libc++" => Flavour::LibCxx,
+        "libstdc++" => Flavour::LibStdCxx,
+        "msvc" => Flavour::Msvc,
+        other => return Err(err(format!("unknown flavour '{other}'"))),
+    };
+    let method = match method {
+        "index" => OrderMethod::Index,
+        "bfs" => OrderMethod::Bfs,
+        "coordinate" => OrderMethod::Coordinate,
+        other => return Err(err(format!("unknown detector order method '{other}'"))),
+    };
+    Ok(crate::search::generated_orders(d, count, method, seed, flavour))
+}
+
+/// The cheapest set of faults (by index) setting off exactly `detections`, found by an exact
+/// search (no beam, no pruning): (faults, whether none exists).
+#[pyfunction]
+fn search_exact(num_detectors: usize, costs: Vec<f64>, detectors: Vec<Vec<u32>>, detections: Vec<u32>) -> PyResult<(Vec<usize>, bool)> {
+    if costs.len() != detectors.len() {
+        return Err(err("one cost per fault".into()));
+    }
+    let faults = costs.into_iter().zip(detectors).map(|(c, d)| (c, d, 0u64)).collect();
+    let config = crate::search::SearchConfig { beam: Some(usize::MAX / 4), beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![(0..num_detectors as u32).collect()], detector_penalty: 0.0, merge_errors: false, flavour: crate::search::Flavour::native(), sparsify: None, visualize: false, verbose: false };
+    let s = crate::search::Search::from_faults(num_detectors, faults, config).map_err(err)?;
+    let found = s.decode(&detections);
+    Ok((found.faults, found.low_confidence))
+}
+
+/// Tesseract's `build_detector_graph`: each detector's neighbours, sorted.
+#[pyfunction]
+fn search_detector_graph(dem: &PyDem) -> PyResult<Vec<Vec<u32>>> {
+    Ok(crate::search::detector_graph(dem.flat()?))
+}
+
+/// Tesseract's `suggest_sparsify_reactivate_limit`.
+#[pyfunction]
+fn suggest_sparsify_reactivate_limit(num_detectors: usize, sparsify_base_degree: i64) -> PyResult<i64> {
+    crate::search::suggest_reactivate_limit(num_detectors, sparsify_base_degree, i32::MAX as i64).map_err(err)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1756,5 +1862,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;
     m.add_class::<PyDemSearch>()?;
+    m.add_function(wrap_pyfunction!(search_orders, m)?)?;
+    m.add_function(wrap_pyfunction!(search_detector_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(search_exact, m)?)?;
+    m.add_function(wrap_pyfunction!(suggest_sparsify_reactivate_limit, m)?)?;
     Ok(())
 }

@@ -183,6 +183,22 @@ noise on every gate. In progress on `feature/2.0`.
   (`CheckMatrices`, the sinter decoders, the noise tools) on this package's Stim and sinter.
   Rust: `RelayCore<N>` over `RelayNum` (`Relay` is `RelayCore<f64>`); `RelayConfig` gains
   `stop_after_first`, `data_scale`, `max_data` and `logging` and implements `Default`.
+- **`stabilizer_qec.tesseract_decoder`: Tesseract, whole** (`import stabilizer_qec.tesseract_decoder
+  as tesseract_decoder`), against Tesseract's 2026-10-13 build (`tests/test_tesseract_package.py`)
+  and passing its own Python tests (`tests/tesseract_port/`): `TesseractConfig` and
+  `TesseractDecoder` with every setting (beams and `INF_DET_BEAM`, beam climbing, revisits,
+  `pqlimit`, `det_penalty`, merging, sparsified error activation, literal or generated detector
+  orders), giving Tesseract's errors, flags, observables and costs; its verbose log and
+  visualizer file line for line; `common`, `utils` and `viz`; the sinter decoders
+  (`TesseractSinterDecoder`, pickling in all three layouts, `decode_via_files`,
+  `make_tesseract_sinter_decoders_dict`); Tesseract's new **multi-pass decoder** (two detector
+  components, reweighted by correlations between passes; `SchedulingStrategy`,
+  `multi_pass_sinter_decoders`); the **simplex decoder**, whose integer programs are solved by an
+  exact search (errors outside a time window, which cost nothing, solved by linear algebra), the
+  same optimal cost as Tesseract's HiGHS and 30–100 times faster; and `demutil` (error
+  decomposition, detector-basis classifiers, GARI). Rust: the search keeps Tesseract's verbose
+  log, takes probabilities changed for one decode (`Search::decode_with_probabilities`) and
+  adds beams with Tesseract's `size_t` wrap-around.
 - **`MbpDecoder`** (also `mbp_decoder`): memory belief propagation over GF(4) (Kuo and Lai), as
   ldpc's `mbp_decoder`, whose C++ ldpc 2.4.1 does not ship (it is on ldpc's main branch and no
   longer builds). Ported as written and checked bit for bit, log-likelihood ratios included,
@@ -269,6 +285,13 @@ noise on every gate. In progress on `feature/2.0`.
 
 ### Fixed
 
+- Editing a `DetectorErrorModel` (`append`, `insert`, indexing, `copy`, pickling) keeps its
+  numbers exact; each edit went through its printed text, which rounds them to Stim's 16 digits,
+  so a merged probability could lose its last bit. `==` compares the numbers exactly, as Stim's.
+- `DetectorErrorModel.append` parses only what it appends; it re-read the whole model each
+  time, so building one instruction by instruction was quadratic (Tesseract's error
+  decomposition of a distance-5, 15-round surface code took 7 minutes; now half a second, as
+  on Stim).
 - The `ldpc`-style decoders (`BpDecoder`, `BpOsdDecoder`, `BpOsd`, `BeliefMatching`) take
   ldpc's aliases for `bp_method` (`"ps"`, `"ms"`, ...), as `BpLsd` already did.
 - Correlated matching, `BeliefMatching` and `UnionFind` decode models with a fault that flips
