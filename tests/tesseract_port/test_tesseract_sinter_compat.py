@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Ported from Tesseract's tesseract_sinter_compat_test.py (quantumlib/tesseract-decoder); modified for stabilizer_qec: imports point at this package.
+# Also for Python 3.9: annotations postponed (and Optional in a type alias).
+
+
+from __future__ import annotations
 
 import pathlib
 import shutil

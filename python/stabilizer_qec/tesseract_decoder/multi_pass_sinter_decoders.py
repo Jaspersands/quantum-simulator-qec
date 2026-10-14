@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Modified for stabilizer_qec: imports point at this package.
+# Also for Python 3.9: annotations postponed (and Optional in a type alias).
 
 """Sinter integration for Tesseract's two-component multi-pass decoder."""
+
+from __future__ import annotations
+
 
 from collections.abc import Callable, Sequence
 from numbers import Integral

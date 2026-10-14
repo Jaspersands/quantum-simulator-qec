@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Modified for stabilizer_qec: imports point at this package (``import stabilizer_qec as stim``).
+# Also for Python 3.9: annotations postponed (and Optional in a type alias).
 
 """Shared detector-basis classification and DEM annotation helpers."""
 
@@ -21,14 +22,14 @@ import json
 import math
 import re
 from collections.abc import Callable, Iterator, Sequence
-from typing import Literal
+from typing import Literal, Optional
 
 import stabilizer_qec as stim
 
 
 DetectorBasis = Literal["X", "Z"]
 DetectorBasisClassifier = Callable[
-    [int, Sequence[float], str], DetectorBasis | None
+    [int, Sequence[float], str], Optional[DetectorBasis]
 ]
 
 _BASIS_VALUES = ("X", "Z")

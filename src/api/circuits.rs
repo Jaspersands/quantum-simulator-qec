@@ -828,6 +828,7 @@ impl DetectorErrorModel {
 
     /// Appends the instructions of a piece of model text (parsed alone, so a model can be
     /// built instruction by instruction without reading it again each time).
+    #[cfg_attr(not(feature = "python"), allow(dead_code))]
     pub(crate) fn append_text(&mut self, text: &str) -> Result<()> {
         let piece = DemProgram::parse(text)?;
         self.program.instrs.extend(piece.instrs);
@@ -940,6 +941,7 @@ impl fmt::Display for DetectorErrorModel {
 
 impl DetectorErrorModel {
     /// The model's text with every number exact (Stim's text rounds them to its precision).
+    #[cfg_attr(not(feature = "python"), allow(dead_code))]
     pub(crate) fn exact_text(&self) -> String {
         self.program.to_exact_text()
     }

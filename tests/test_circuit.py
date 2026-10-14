@@ -70,8 +70,11 @@ def test_error_models_equal_stims(code, noise, decompose):
 def test_dem_text_round_trip(d3):
     dem = d3.detector_error_model(decompose_errors=True)
     again = sq.DetectorErrorModel(str(dem))
-    # The text rounds numbers to Stim's 16 digits, so (as in Stim) the copy is equal only
-    # approximately; copies and pickles are exact.
+    # The text holds Stim's digits for the platform: 16 on Apple silicon and Windows, which drop
+    # bits (as in Stim, the copy is then equal only approximately), 19 or more elsewhere, which
+    # keep them. Copies and pickles are exact everywhere.
+    exact_text = str(sq.DetectorErrorModel("error(0.1) D0")) != "error(0.1) D0"
     assert str(again) == str(dem) and again.approx_equals(dem, atol=1e-12)
-    assert again != dem and dem.copy() == dem and pickle.loads(pickle.dumps(dem)) == dem
+    assert (again == dem) == exact_text
+    assert dem.copy() == dem and pickle.loads(pickle.dumps(dem)) == dem
     assert (again.num_detectors, again.num_observables, again.num_errors) == (dem.num_detectors, 1, dem.num_errors)

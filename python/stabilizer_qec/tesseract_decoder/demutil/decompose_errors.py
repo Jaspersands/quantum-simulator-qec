@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Modified for stabilizer_qec: imports point at this package (``import stabilizer_qec as stim``).
+# Also for Python 3.9: annotations postponed (and Optional in a type alias).
+
+
+from __future__ import annotations
 
 import itertools
 import sys
