@@ -5,6 +5,7 @@ use std::str::FromStr;
 use super::{BitTable, Error, Result};
 use crate::batch_sampler::{BatchSampler, Counts};
 use crate::circuit;
+use crate::clifford::ir;
 use crate::dem::Dem;
 use crate::dem_program::{DemProgram, Stats};
 use std::sync::OnceLock;
@@ -117,8 +118,30 @@ impl Circuit {
         Circuit::default()
     }
 
-    /// Parse Stim's circuit text.
+    /// Parse Stim's circuit text. As Stim's parser, neighbouring instructions that can be
+    /// one are fused into one (`H 0` then `H 1` is `H 0 1`).
+    ///
+    /// ```
+    /// use stabilizer_qec::Circuit;
+    ///
+    /// let c: Circuit = "H 0\nH 1\nTICK\nH 2".parse()?;
+    /// assert_eq!(c.to_string(), "H 0 1\nTICK\nH 2\n");
+    /// # Ok::<(), stabilizer_qec::Error>(())
+    /// ```
     pub fn parse(text: &str) -> Result<Circuit> {
+        let engine = circuit::Circuit::parse(text)?;
+        // Errors are the engine's, at their lines as written; the text is rewritten only when
+        // something fuses, which the item structure shows.
+        match ir::Circuit::parse(text) {
+            Ok(fused) if !same_shape(&engine.instrs, &fused.items) => Circuit::from_engine(circuit::Circuit::parse(&fused.exact_text())?),
+            _ => Circuit::from_engine(engine),
+        }
+    }
+
+    /// Parse the text with each line its own instruction, nothing fused: the text of a circuit
+    /// written from its items, which edits such as Stim's `pop` leave unfused.
+    #[cfg_attr(not(feature = "python"), allow(dead_code))]
+    pub(crate) fn parse_unfused(text: &str) -> Result<Circuit> {
         Circuit::from_engine(circuit::Circuit::parse(text)?)
     }
 
@@ -260,10 +283,19 @@ impl Circuit {
     }
 
     /// Append another circuit's instructions.
+    /// Its first instruction is fused onto this circuit's last when they can be one, as Stim
+    /// fuses them.
     pub fn append_circuit(&mut self, other: &Circuit) -> Result<()> {
         let counts = self.counts.then(other.counts)?;
         fits(&counts)?;
-        self.inner.instrs.extend(other.inner.instrs.iter().cloned());
+        let mut rest = other.inner.instrs.iter();
+        if let (Some(last), Some(first)) = (self.inner.instrs.last(), other.inner.instrs.first()) {
+            if let Some(both) = fused(last, first) {
+                *self.inner.instrs.last_mut().expect("nonempty") = both;
+                rest.next();
+            }
+        }
+        self.inner.instrs.extend(rest.cloned());
         self.counts = counts;
         Ok(())
     }
@@ -506,6 +538,41 @@ impl FromStr for Circuit {
     fn from_str(text: &str) -> Result<Circuit> {
         Circuit::parse(text)
     }
+}
+
+/// Whether the engine's instructions are the parsed items one for one, loops alike: that is,
+/// whether parsing fused nothing.
+fn same_shape(instrs: &[circuit::Instr], items: &[ir::Item]) -> bool {
+    instrs.len() == items.len()
+        && instrs.iter().zip(items).all(|(i, it)| match (i, it) {
+            (circuit::Instr::Repeat { body, .. }, ir::Item::Repeat { body: b, .. }) => same_shape(body, &b.items),
+            (circuit::Instr::Repeat { .. }, _) | (_, ir::Item::Repeat { .. }) => false,
+            _ => true,
+        })
+}
+
+/// Two instructions as one, when Stim fuses them (the same gate, arguments and tag, of a kind
+/// that fuses): `H 0` and `H 1` are `H 0 1`.
+fn fused(a: &circuit::Instr, b: &circuit::Instr) -> Option<circuit::Instr> {
+    if matches!(a, circuit::Instr::Repeat { .. }) || matches!(b, circuit::Instr::Repeat { .. }) {
+        return None;
+    }
+    let (la, lb) = (circuit::instr_line(a), circuit::instr_line(b));
+    let head = |l: &str| l.split(|c: char| c == ' ' || c == '(' || c == '[').next().unwrap_or("").to_string();
+    if head(&la) != head(&lb) {
+        return None;
+    }
+    let one = |l: &str| match ir::Circuit::parse(l).ok()?.items.pop()? {
+        ir::Item::Op(op) => Some(op),
+        _ => None,
+    };
+    let (mut x, y) = (one(&la)?, one(&lb)?);
+    if !x.can_fuse(&y) {
+        return None;
+    }
+    x.targets.extend(y.targets);
+    let mut c = circuit::Circuit::parse(&x.exact_line()).ok()?;
+    (c.instrs.len() == 1).then(|| c.instrs.pop().expect("one"))
 }
 
 impl fmt::Display for Circuit {

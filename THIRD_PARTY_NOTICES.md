@@ -193,6 +193,15 @@ Source: https://github.com/quantumgizmos/bp_osd
 
 `python/stabilizer_qec/bposd/` is bposd 2.1's package on this package's ldpc.
 
+## MQT QECC
+
+Copyright (c) 2023 - 2026 Chair for Design Automation, TUM. Licensed under the MIT License
+(`python/stabilizer_qec/mqt_qecc/LICENSE`). Source: https://github.com/munich-quantum-toolkit/qecc
+
+`python/stabilizer_qec/mqt_qecc/` is MQT QECC 2.0.0's Python package, with its data files, and
+`tests/mqt_qecc_port/` its tests, with mqt.qecc at stabilizer_qec.mqt_qecc and its Stim, sinter,
+ldpc, PyMatching, qecsim and bposd this package's.
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

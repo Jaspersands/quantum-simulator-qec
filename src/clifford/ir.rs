@@ -295,10 +295,15 @@ impl Circuit {
 
     /// Parse Stim's text (structure only; the engine's parser validates gates and targets).
     pub fn parse(text: &str) -> Result<Circuit, String> {
+        Circuit::parse_with(text, true)
+    }
+
+    /// The same, each line its own instruction (`fuse` false): a circuit whose text was
+    /// written from its items, which edits such as Stim's `pop` leave unfused.
+    pub fn parse_with(text: &str, fuse: bool) -> Result<Circuit, String> {
         let lines: Vec<&str> = text.lines().collect();
         let mut pos = 0;
-        let c = parse_block(&lines, &mut pos, false)?;
-        Ok(c)
+        parse_block(&lines, &mut pos, false, fuse)
     }
 
     /// Append an instruction, fusing it with the last one when Stim would.
@@ -436,7 +441,7 @@ impl fmt::Display for Circuit {
     }
 }
 
-fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Circuit, String> {
+fn parse_block(lines: &[&str], pos: &mut usize, nested: bool, fuse: bool) -> Result<Circuit, String> {
     let mut c = Circuit::new();
     while *pos < lines.len() {
         let raw = lines[*pos];
@@ -459,13 +464,18 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Circuit,
             if count == 0 {
                 return Err("Repeating 0 times is not supported.".into());
             }
-            let body = parse_block(lines, pos, true)?;
+            let body = parse_block(lines, pos, true, fuse)?;
             c.push_repeat(count, body, &tag);
             continue;
         }
         let gate = gate_data::info(&name).ok_or_else(|| format!("Gate not found: '{name}'"))?;
         let targets = parse_targets(rest)?;
-        c.push_op(Instruction { gate, args, targets, tag });
+        let op = Instruction { gate, args, targets, tag };
+        if fuse {
+            c.push_op(op);
+        } else {
+            c.items.push(Item::Op(op));
+        }
     }
     if nested {
         return Err("Unterminated block. Got a '{' without an eventual '}'.".into());

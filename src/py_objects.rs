@@ -91,9 +91,13 @@ impl PyCircuit {
 
 #[pymethods]
 impl PyCircuit {
+    /// Stim's text, neighbouring instructions fused as Stim's parser fuses them; with `fuse`
+    /// false each line stays its own instruction (a circuit written from its items).
     #[new]
-    fn new(text: &str) -> PyResult<Self> {
-        Ok(PyCircuit { circuit: crate::api::Circuit::parse(text).map_err(api_err)? })
+    #[pyo3(signature = (text, fuse=true))]
+    fn new(text: &str, fuse: bool) -> PyResult<Self> {
+        let circuit = if fuse { crate::api::Circuit::parse(text) } else { crate::api::Circuit::parse_unfused(text) };
+        Ok(PyCircuit { circuit: circuit.map_err(api_err)? })
     }
 
     #[getter]

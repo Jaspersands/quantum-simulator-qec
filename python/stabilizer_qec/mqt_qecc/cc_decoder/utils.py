@@ -1,0 +1,32 @@
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+# Ported from MQT QECC 2.0.0 (munich-quantum-toolkit/qecc; Chair for Design Automation, TUM; MIT; see
+# THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, qecsim and bposd are this
+# package's, and mqt.qecc is stabilizer_qec.mqt_qecc.
+
+"""Utilities for the CC decoder."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ..codes.constructions.color_codes.color_code import LatticeType
+from ..codes.constructions.color_codes.hexagonal_color_code import HexagonalColorCode
+from ..codes.constructions.color_codes.square_octagon_color_code import SquareOctagonColorCode
+
+if TYPE_CHECKING:
+    from ..codes.constructions.color_codes.color_code import ColorCode
+
+
+def code_from_string(lattice_type: str, distance: int) -> ColorCode:
+    """Construct a color code from a string defining the lattice and a distance."""
+    if lattice_type == LatticeType.HEXAGON:
+        return HexagonalColorCode(distance)
+    if lattice_type == LatticeType.SQUARE_OCTAGON:
+        return SquareOctagonColorCode(distance)
+    msg = f"Unknown lattice type {lattice_type}. Please choose either hexagon or square_octagon."
+    raise ValueError(msg)

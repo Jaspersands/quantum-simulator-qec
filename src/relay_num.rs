@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(Fixed::<2>(5).div(Fixed(2)), Fixed(10));
         assert_eq!(Fixed::<2>(-5).div(Fixed(6)), Fixed(-3));
         assert_eq!(Fixed::<3>(i64::MIN).abs(), Fixed(i64::MIN));
-        assert_eq!(i8::MIN.abs(), i8::MIN);
+        assert_eq!(RelayNum::abs(i8::MIN), i8::MIN);
         assert_eq!(100i8.add(100), -56);
         assert_eq!(Fixed::<4>(24).to_f64(), 1.5);
     }

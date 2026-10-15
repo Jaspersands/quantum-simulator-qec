@@ -43,6 +43,20 @@ qldpc = ["scipy>=1.14.1", "galois>=0.4.2", "sympy>=1.12", "cvxpy>=1.3.2", "netwo
 # stabilizer_qec.qecsim (qecsim 1.0b9) and stabilizer_qec.bposd (bposd 2.1) need what those do.
 qecsim = ["scipy>=1.3", "networkx>=2.1", "mpmath>=1", "click>=7"]
 bposd = ["scipy>=1.7"]
+# stabilizer_qec.mqt_qecc (MQT QECC 2.0.0) needs what MQT QECC does, but for the tools of
+# this package's own (Stim, sinter, ldpc, PyMatching, qecsim, bposd): Python 3.10.
+mqt = [
+  "qiskit[qasm3-import]>=1.0.0; python_version >= '3.10'",
+  "matplotlib>=3.7.1; python_version >= '3.10'",
+  "numba>=0.57; python_version >= '3.10'",
+  "scipy>=1.15.2; python_version >= '3.10'",
+  "z3-solver>=4.15.3; python_version >= '3.10'",
+  "multiprocess>=0.70.17; python_version >= '3.10'",
+  "tqdm>=4.66.2; python_version >= '3.10'",
+  "networkx>=3.4.2; python_version >= '3.10'",
+  "mpmath>=1; python_version >= '3.10'",
+  "click>=7; python_version >= '3.10'",
+]
 
 [project.scripts]
 stabilizer-qec = "stabilizer_qec._cli:main"

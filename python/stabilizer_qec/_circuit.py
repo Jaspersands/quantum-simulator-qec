@@ -66,11 +66,11 @@ class Circuit:
     def __str__(self) -> str:
         """Stim's text: canonical names, neighbouring instructions fused, arguments to 6
         significant digits (the values themselves are kept exactly)."""
-        return _core.circuit_stim_text(self._c.__str__())
+        return _core.circuit_stim_text(self._c.__str__(), False)
 
     def _stim_exact_text(self) -> str:
         """The text with every argument exact, which parses back to an equal circuit."""
-        return _core.circuit_exact_text(self._c.__str__())
+        return _core.circuit_exact_text(self._c.__str__(), False)
 
     def __repr__(self) -> str:
         text = str(self)
@@ -101,9 +101,18 @@ class Circuit:
         # Pickled, copied and sent to other processes as its exact text.
         return (Circuit, (self._stim_exact_text(),))
 
-    # Stim's list-of-instructions interface.
+    # Stim's list-of-instructions interface. The core circuit's lines are its items: Stim's
+    # parser and ``append`` fuse neighbouring instructions that can be one (``H 0`` then
+    # ``H 1`` is ``H 0 1``), and the core does too, while ``pop`` and slicing leave neighbours
+    # apart, so the items are read, and edits written back, without fusing.
     def _items(self) -> list:
-        return _core.circuit_items(self._c.__str__())
+        return _core.circuit_items(self._c.__str__(), False)
+
+    @staticmethod
+    def _of_items(items: list) -> "Circuit":
+        out = Circuit.__new__(Circuit)
+        out._c = call(_core.Circuit, _stim._items_exact_text(items), False)
+        return out
 
     def __len__(self) -> int:
         """How many instructions and REPEAT blocks are at the top level."""
@@ -117,7 +126,7 @@ class Circuit:
         """The instruction or REPEAT block at an index, or a slice of them as a circuit."""
         items = self._items()
         if isinstance(index_or_slice, slice):
-            return Circuit(_stim._items_exact_text(items[index_or_slice]))
+            return Circuit._of_items(items[index_or_slice])
         if isinstance(index_or_slice, bool) or not isinstance(index_or_slice, (int, np.integer)):
             raise TypeError(f"circuit indices must be integers or slices, not {type(index_or_slice).__name__}")
         k = int(index_or_slice)
@@ -128,7 +137,7 @@ class Circuit:
         return _stim._item_object(items[k])
 
     def _set_items(self, items: list) -> None:
-        self._c = call(_core.Circuit, _stim._items_exact_text(items))
+        self._c = Circuit._of_items(items)._c
 
     def insert(self, index: int, operation: Any) -> None:
         """Insert an instruction, REPEAT block or circuit before ``index``."""
@@ -138,8 +147,18 @@ class Circuit:
             k += len(items)
         if not 0 <= k <= len(items):
             raise IndexError(f"index {index} out of range")
-        piece = _core.circuit_items(_stim_text(operation))
-        self._set_items(items[:k] + piece + items[k:])
+        # As Stim's: what is inserted fuses with its neighbours either side where it can.
+        piece = list(_core.circuit_items(_stim_text(operation), False))
+        if piece:
+            if k < len(items) and (both := _fused_item(piece[-1], items[k])) is not None:
+                piece[-1] = both
+                k_end = k + 1
+            else:
+                k_end = k
+            if k > 0 and (both := _fused_item(items[k - 1], piece[0])) is not None:
+                piece[0] = both
+                k -= 1
+            self._set_items(items[:k] + piece + items[k_end:])
 
     def pop(self, index: int = -1) -> Any:
         """Remove and return the instruction or REPEAT block at ``index``."""
@@ -382,6 +401,9 @@ class Circuit:
             if isinstance(name, Circuit):
                 # A circuit appended to itself is appended as it was.
                 call(self._c.append_circuit, name._c.copy() if name._c is self._c else name._c)
+            elif hasattr(name, "_stim_exact_text"):
+                # Ours: its lines are its items.
+                call(self._c.append_circuit, call(_core.Circuit, _stim_text(name), False))
             else:
                 call(self._c.append_text, _stim_text(name))
             return
@@ -790,6 +812,14 @@ def _args(arg: Any) -> list:
     except TypeError:
         raise TypeError(f"arg must be a number or a list of numbers, not {type(arg).__name__}") from None
     return [real(a, "arg") for a in items]
+
+
+def _fused_item(a: Any, b: Any) -> Any:
+    """Two items as one, where Stim fuses them (the same gate, arguments and tag)."""
+    if a[0] != "op" or b[0] != "op" or a[1] != b[1]:
+        return None
+    both = _core.circuit_items(_stim._items_exact_text([a, b]))
+    return both[0] if len(both) == 1 else None
 
 
 def _stim_text(obj: Any) -> str:
@@ -1952,7 +1982,7 @@ def _crumble_url(circuit: "Circuit", skip_detectors: bool, mark: Any) -> str:
                 out.append(_core.gate_target_text(t))
                 k2 += 1
 
-    write(call(_core.circuit_items, circuit._stim_exact_text()), marks)
+    write(call(_core.circuit_items, circuit._stim_exact_text(), False), marks)
     out.append("_")
     return "".join(out)
 

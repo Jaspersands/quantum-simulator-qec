@@ -82,3 +82,7 @@ if _sys.version_info < (3, 11) or not all(_importlib_util.find_spec(m) for m in 
 # qecsim's own tests (tests/qecsim_port) need the `qecsim` extra.
 if not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "mpmath", "click")):
     collect_ignore_glob += ["qecsim_port", "qecsim_port/*"]
+
+# MQT QECC's own tests (tests/mqt_qecc_port) need the `mqt` extra, and Python 3.10.
+if _sys.version_info < (3, 10) or not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "mpmath", "click", "qiskit", "z3", "numba", "matplotlib", "multiprocess", "tqdm")):
+    collect_ignore_glob += ["mqt_qecc_port", "mqt_qecc_port/*"]

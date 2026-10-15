@@ -16,6 +16,11 @@ noise on every gate. In progress on `feature/2.0`.
   (`H 0` then `H 1` is `H 0 1`), arguments print to 6 significant digits as Stim prints them,
   and there is no trailing newline. The arguments themselves stay exact: equality, pickling and
   copies use them, and `circuit[k].gate_args_copy()` returns them.
+- **A circuit's instructions are Stim's list**: the parser and `append` fuse an instruction
+  onto the one before it when they can be one, as Stim's do, while `pop`, slicing and REPEAT
+  bodies leave neighbours apart, and `insert` fuses only at its seams; `len`, indexing,
+  equality and the text follow (`c.pop(1)` of `RX 0`, `TICK`, `RX 1` leaves two instructions,
+  not `RX 0 1`). This holds in Rust too: `Circuit::parse` and `append_circuit` fuse.
 - **`BpDecoder`, `BpOsdDecoder` and `BpLsdDecoder` take ldpc's defaults**: `max_iter=0` (the
   block length), product-sum BP unless `bp_method` is given (ldpc's effective default, whatever
   its signatures say), `ms_scaling_factor=1.0`, and for BP+OSD `osd_method="osd_0"`. 1.x's
@@ -226,6 +231,15 @@ noise on every gate. In progress on `feature/2.0`.
   by bond dimension; planar, rotated planar, colour 6.6.6) and the fault-tolerant (time-repeated)
   runs. Its Blossom V interface works without Blossom V's library, on this package's exact matcher.
   `stabilizer_qec.bposd`: bposd 2.1 on this package's ldpc.
+- **`stabilizer_qec.mqt_qecc`: MQT QECC 2.0.0 whole** on this package's Stim, sinter, ldpc,
+  PyMatching, qecsim and bposd, passing its own tests (`tests/mqt_qecc_port/`): the **colour-code
+  decoder by MaxSAT** (LightsOut, `cc_decoder`), **analog information decoding** (single-shot and
+  quasi-single-shot with analog syndromes), **fault-tolerant state preparation** (synthesis,
+  verification and correction circuits, cat states, deterministic and heuristic, by SAT; encoders
+  of optimal depth or gate count), stabilizer and CSS codes with their constructions (bivariate
+  bicycle, hypergraph product, rotated surface, concatenated and colour codes, and its library
+  of instances), colour-code routing and compilation (`cococo`) and code switching. The `mqt` extra
+  installs what it needs (Python 3.10).
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.

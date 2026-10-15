@@ -596,16 +596,19 @@ fn gate_data_table<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
     Ok(out)
 }
 
-/// The circuit text as Stim prints it (fused, canonical names, `%g` arguments).
+/// The circuit text as Stim prints it (canonical names, `%g` arguments; neighbours fused
+/// unless `fuse` is false, for a circuit's own text, whose lines are its items).
 #[pyfunction]
-fn circuit_stim_text(text: &str) -> PyResult<String> {
-    Ok(ir::Circuit::parse(text).map_err(err)?.to_string())
+#[pyo3(signature = (text, fuse=true))]
+fn circuit_stim_text(text: &str, fuse: bool) -> PyResult<String> {
+    Ok(ir::Circuit::parse_with(text, fuse).map_err(err)?.to_string())
 }
 
-/// The circuit text fused and canonical but with exact arguments.
+/// The circuit text canonical but with exact arguments.
 #[pyfunction]
-fn circuit_exact_text(text: &str) -> PyResult<String> {
-    Ok(ir::Circuit::parse(text).map_err(err)?.exact_text())
+#[pyo3(signature = (text, fuse=true))]
+fn circuit_exact_text(text: &str, fuse: bool) -> PyResult<String> {
+    Ok(ir::Circuit::parse_with(text, fuse).map_err(err)?.exact_text())
 }
 
 fn items_to_py<'py>(py: Python<'py>, c: &ir::Circuit) -> PyResult<Bound<'py, PyList>> {
@@ -627,8 +630,8 @@ fn items_to_py<'py>(py: Python<'py>, c: &ir::Circuit) -> PyResult<Bound<'py, PyL
 /// Whether two circuits are equal up to arguments within `atol`.
 #[pyfunction]
 fn circuit_approx_equals(a: &str, b: &str, atol: f64) -> PyResult<bool> {
-    let a = ir::Circuit::parse(a).map_err(err)?;
-    let b = ir::Circuit::parse(b).map_err(err)?;
+    let a = ir::Circuit::parse_with(a, false).map_err(err)?;
+    let b = ir::Circuit::parse_with(b, false).map_err(err)?;
     Ok(a.approx_equals(&b, atol))
 }
 
@@ -913,8 +916,9 @@ fn stim_base64(data: &[u8]) -> String {
 
 /// The circuit's items: ("op", name, tag, args, targets) or ("repeat", count, tag, items).
 #[pyfunction]
-fn circuit_items<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyList>> {
-    let c = ir::Circuit::parse(text).map_err(err)?;
+#[pyo3(signature = (text, fuse=true))]
+fn circuit_items<'py>(py: Python<'py>, text: &str, fuse: bool) -> PyResult<Bound<'py, PyList>> {
+    let c = ir::Circuit::parse_with(text, fuse).map_err(err)?;
     items_to_py(py, &c)
 }
 

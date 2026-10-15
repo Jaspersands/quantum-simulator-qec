@@ -1,0 +1,31 @@
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+# Ported from MQT QECC 2.0.0 (munich-quantum-toolkit/qecc; Chair for Design Automation, TUM; MIT; see
+# THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, qecsim and bposd are this
+# package's, and mqt.qecc is stabilizer_qec.mqt_qecc.
+
+"""Utility functions needed across python tests."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+
+def check_and_load_json(file_name: str, results_dir: str) -> dict[str, Any]:
+    """Check that the results directory contains exactly one file with the given name and load it as JSON."""
+    results_path = Path(results_dir)
+    assert results_path.exists()
+    assert results_path.is_dir()
+    assert len(list(results_path.iterdir())) == 1
+    result_file = results_path / file_name
+    assert result_file.exists()
+    assert result_file.is_file()
+    with result_file.open("r") as f:
+        result: dict[str, Any] = json.load(f)
+    return result

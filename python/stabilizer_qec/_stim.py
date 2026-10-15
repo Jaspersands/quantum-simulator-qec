@@ -1541,5 +1541,5 @@ def _item_object(it: Any) -> Any:
         return CircuitInstruction._make(name, tag, args, targets)
     _, count, tag, body = it
     out = CircuitRepeatBlock.__new__(CircuitRepeatBlock)
-    out._count, out._tag, out._body = count, tag, Circuit(_items_exact_text(body))
+    out._count, out._tag, out._body = count, tag, Circuit._of_items(body)
     return out
