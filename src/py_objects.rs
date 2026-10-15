@@ -1861,35 +1861,7 @@ fn tn_ml_masses(num_checks: usize, columns: Vec<Vec<u32>>, logical: Vec<bool>, p
 /// weight), as Blossom V's `mwpm` (qecsim's interface): each node's mate.
 #[pyfunction]
 fn blossom_mwpm_ids(n: usize, edges: Vec<(usize, usize, i64)>) -> PyResult<Vec<usize>> {
-    if n == 0 {
-        return Ok(Vec::new());
-    }
-    if let Some(&(u, v, _)) = edges.iter().find(|&&(u, v, _)| u >= n || v >= n) {
-        return Err(err(format!("edge ({u}, {v}) names a node beyond the {n} nodes")));
-    }
-    // Every perfect matching has n/2 edges, so a constant shift keeps the optimum: weights
-    // from 1 up, and a non-edge dearer than any matching of edges.
-    let low = edges.iter().map(|e| e.2).min().unwrap_or(0);
-    let shifted: Vec<(usize, usize, i64)> = edges.iter().map(|&(u, v, w)| (u, v, w - low + 1)).collect();
-    let big = shifted.iter().try_fold(1i64, |acc, e| acc.checked_add(e.2)).ok_or_else(|| err("the weights are too large".into()))?;
-    let mut cost = vec![vec![big; n]; n];
-    let mut is_edge = vec![vec![false; n]; n];
-    for &(u, v, w) in &shifted {
-        if u == v {
-            continue;
-        }
-        if !is_edge[u][v] || w < cost[u][v] {
-            cost[u][v] = w;
-            cost[v][u] = w;
-            is_edge[u][v] = true;
-            is_edge[v][u] = true;
-        }
-    }
-    let mates = crate::blossom::min_weight_perfect_matching(n, &cost).ok_or_else(|| err("no perfect matching was found (an odd number of nodes, or too many)".into()))?;
-    if (0..n).any(|i| !is_edge[i][mates[i]]) {
-        return Err(err("the graph has no perfect matching".into()));
-    }
-    Ok(mates)
+    crate::blossom::mwpm_on_edges(n, &edges).map_err(err)
 }
 
 /// `std::shuffle` of 0..n by `std::mt19937_64(seed)`, as libstdc++ does it (CUDA-Q QEC's

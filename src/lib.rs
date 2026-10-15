@@ -125,6 +125,9 @@ pub mod shots;
 pub mod memory;
 #[doc(hidden)]
 pub mod parallel;
+/// Fusion Blossom: exact matching by a primal-dual blossom on the decoding graph, serial or
+/// partitioned and fused (Python's `stabilizer_qec.fusion_blossom`).
+pub mod fusion;
 #[doc(hidden)]
 pub mod batch;
 #[doc(hidden)]
@@ -141,6 +144,8 @@ mod py_objects;
 mod py_stim;
 #[cfg(feature = "python")]
 mod py_pm;
+#[cfg(feature = "python")]
+mod py_fusion;
 #[cfg(not(feature = "python"))]
 mod wasm_xc;
 #[cfg(not(feature = "python"))]
@@ -198,6 +203,7 @@ fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     py_objects::register(m)?;
     py_stim::register(m)?;
     py_pm::register(m)?;
+    py_fusion::register(m)?;
     Ok(())
 }
 

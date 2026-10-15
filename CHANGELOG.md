@@ -240,6 +240,17 @@ noise on every gate. In progress on `feature/2.0`.
   bicycle, hypergraph product, rotated surface, concatenated and colour codes, and its library
   of instances), colour-code routing and compilation (`cococo`) and code switching. The `mqt` extra
   installs what it needs (Python 3.10).
+- **`stabilizer_qec.fusion_blossom`: Fusion Blossom 0.2.13 whole**, a Rust port of its solvers
+  (`src/fusion/`): the **serial and parallel minimum-weight perfect matching** solvers
+  (`SolverSerial`, `SolverDualParallel`, `SolverParallel`, with partitions and fusion), erasures
+  and dynamic weights, the `max_tree_size` blend of union-find and MWPM, its example codes and
+  their random errors, the visualizer with its website (`fb.helper.open_visualizer`), JSON and
+  Stim's bit-packed prediction. Matchings, subgraphs, dual sums, snapshots, random errors and
+  visualizer files are fusion_blossom's exactly; its own tests pass (`tests/fusion_blossom_port/`).
+  Weights are 64-bit (its wheels' are 32-bit), and where it would call Blossom V this package's
+  exact matcher runs. sinter's `fusion_blossom` decoder uses it. Fixed on the way: with a tree-size
+  limit, a tree that grew by absorbing a matched pair collapsed while its root was still locked,
+  which deadlocks when, as here, nodes sit behind locks (fusion_blossom's wheels use raw pointers).
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.

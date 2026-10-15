@@ -584,6 +584,41 @@ impl Blossom {
 /// `cost[i][j]` is the weight of pairing `i` with `j`; `n` must be even. Returns
 /// the partner of each vertex, or `None` if any internal ceiling was reached —
 /// in which case the caller should keep whatever matching it already had.
+/// Minimum-weight perfect matching on a graph of `n` nodes given by its edges (u, v, integer
+/// weight): each node's mate, as Blossom V's interface gives it (qecsim's and Fusion
+/// Blossom's stand-in for Blossom V). The error is a graph with no perfect matching.
+pub(crate) fn mwpm_on_edges(n: usize, edges: &[(usize, usize, i64)]) -> Result<Vec<usize>, String> {
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+    if let Some(&(u, v, _)) = edges.iter().find(|&&(u, v, _)| u >= n || v >= n) {
+        return Err(format!("edge ({u}, {v}) names a node beyond the {n} nodes"));
+    }
+    // Every perfect matching has n/2 edges, so a constant shift keeps the optimum: weights
+    // from 1 up, and a non-edge dearer than any matching of edges.
+    let low = edges.iter().map(|e| e.2).min().unwrap_or(0);
+    let shifted: Vec<(usize, usize, i64)> = edges.iter().map(|&(u, v, w)| (u, v, w - low + 1)).collect();
+    let big = shifted.iter().try_fold(1i64, |acc, e| acc.checked_add(e.2)).ok_or("the weights are too large")?;
+    let mut cost = vec![vec![big; n]; n];
+    let mut is_edge = vec![vec![false; n]; n];
+    for &(u, v, w) in &shifted {
+        if u == v {
+            continue;
+        }
+        if !is_edge[u][v] || w < cost[u][v] {
+            cost[u][v] = w;
+            cost[v][u] = w;
+            is_edge[u][v] = true;
+            is_edge[v][u] = true;
+        }
+    }
+    let mates = min_weight_perfect_matching(n, &cost).ok_or("no perfect matching was found (an odd number of nodes, or too many)")?;
+    if (0..n).any(|i| !is_edge[i][mates[i]]) {
+        return Err("the graph has no perfect matching".into());
+    }
+    Ok(mates)
+}
+
 pub fn min_weight_perfect_matching(n: usize, cost: &[Vec<i64>]) -> Option<Vec<usize>> {
     if n == 0 {
         return Some(Vec::new());

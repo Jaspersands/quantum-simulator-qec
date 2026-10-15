@@ -1,16 +1,16 @@
 # Ported from sinter 1.16.0 (Copyright Google LLC, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
-# modified for stabilizer_qec: Stim and PyMatching are this package's, and scipy is not needed.
+# modified for stabilizer_qec: Stim, PyMatching and Fusion Blossom are this package's, and scipy is
+# not needed.
 import math
 import pathlib
-from typing import Callable, List, TYPE_CHECKING, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import stabilizer_qec as stim
 
 from stabilizer_qec.sinter._decoding._decoding_decoder_class import Decoder, CompiledDecoder
 
-if TYPE_CHECKING:
-    import fusion_blossom
+from stabilizer_qec import fusion_blossom
 
 
 class FusionBlossomCompiledDecoder(CompiledDecoder):
@@ -27,7 +27,6 @@ class FusionBlossomCompiledDecoder(CompiledDecoder):
     ) -> 'np.ndarray':
         num_shots = bit_packed_detection_event_data.shape[0]
         predictions = np.zeros(shape=(num_shots, (self.num_obs + 7) // 8), dtype=np.uint8)
-        import fusion_blossom
         for shot in range(num_shots):
             dets_sparse = np.flatnonzero(np.unpackbits(bit_packed_detection_event_data[shot], count=self.num_dets, bitorder='little'))
             syndrome = fusion_blossom.SyndromePattern(syndrome_vertices=dets_sparse)
@@ -45,15 +44,6 @@ class FusionBlossomDecoder(Decoder):
     """Use fusion blossom to predict observables from detection events."""
 
     def compile_decoder_for_dem(self, *, dem: 'stim.DetectorErrorModel') -> CompiledDecoder:
-        try:
-            import fusion_blossom
-        except ImportError as ex:
-            raise ImportError(
-                "The decoder 'fusion_blossom' isn't installed\n"
-                "To fix this, install the python package 'fusion_blossom' into your environment.\n"
-                "For example, if you are using pip, run `pip install fusion_blossom`.\n"
-            ) from ex
-
         solver, fault_masks = detector_error_model_to_fusion_blossom_solver_and_fault_masks(dem)
         return FusionBlossomCompiledDecoder(solver, fault_masks, dem.num_detectors, dem.num_observables)
 
@@ -68,15 +58,6 @@ class FusionBlossomDecoder(Decoder):
                          obs_predictions_b8_out_path: pathlib.Path,
                          tmp_dir: pathlib.Path,
                        ) -> None:
-        try:
-            import fusion_blossom
-        except ImportError as ex:
-            raise ImportError(
-                "The decoder 'fusion_blossom' isn't installed\n"
-                "To fix this, install the python package 'fusion-blossom' into your environment.\n"
-                "For example, if you are using pip, run `pip install fusion-blossom~=0.1.4`.\n"
-            ) from ex
-
         error_model = stim.DetectorErrorModel.from_file(dem_path)
         solver, fault_masks = detector_error_model_to_fusion_blossom_solver_and_fault_masks(error_model)
         num_det_bytes = math.ceil(num_dets / 8)
@@ -145,8 +126,6 @@ def iter_flatten_model(model: stim.DetectorErrorModel,
 
 def detector_error_model_to_fusion_blossom_solver_and_fault_masks(model: stim.DetectorErrorModel) -> Tuple['fusion_blossom.SolverSerial', np.ndarray]:
     """Convert a stim error model into a NetworkX graph."""
-
-    import fusion_blossom
 
     def handle_error(p: float, dets: List[int], frame_changes: List[int]):
         if p == 0:

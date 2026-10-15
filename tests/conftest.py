@@ -51,7 +51,7 @@ def assert_same_model(ours: str, theirs: str) -> None:
 
 # The references the differential tests reproduce, at the versions they reproduce: another
 # version (pip picks an older one where the newer has no wheel for the platform) is skipped.
-REFERENCE_VERSIONS = {"relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1")}
+REFERENCE_VERSIONS = {"fusion_blossom": ("fusion-blossom", "0.2.13"), "relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1")}
 
 
 def reference(module: str):

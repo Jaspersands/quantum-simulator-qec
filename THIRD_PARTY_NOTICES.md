@@ -202,6 +202,20 @@ Copyright (c) 2023 - 2026 Chair for Design Automation, TUM. Licensed under the M
 `tests/mqt_qecc_port/` its tests, with mqt.qecc at stabilizer_qec.mqt_qecc and its Stim, sinter,
 ldpc, PyMatching, qecsim and bposd this package's.
 
+## Fusion Blossom
+
+Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/fusion/LICENSE`, and
+`python/stabilizer_qec/fusion_blossom/LICENSE`). Source: https://github.com/yuewuo/fusion-blossom
+
+`src/fusion/` is a port of Fusion Blossom 0.2.13's Rust crate (its solvers, example codes,
+partitions and visualizer), with the parts of `parking_lot`, `rayon`, `weak_table`,
+`priority-queue`, `rand_xoshiro` and `serde_json` it uses written out in `src/fusion/shim.rs`;
+`src/py_fusion.rs` and `python/stabilizer_qec/fusion_blossom/` are its Python module, with its
+helper and visualizer website files, and `tests/fusion_blossom_port/` its tests and scripts.
+`shim.rs`'s `json!` macro is ported from serde_json (Copyright David Tolnay; MIT or Apache-2.0)
+and its Xoshiro256** and SplitMix64 follow rand_xoshiro (Copyright the Rust Project Developers
+and the Rand Project Developers; MIT or Apache-2.0).
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

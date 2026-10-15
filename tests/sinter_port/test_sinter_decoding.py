@@ -27,10 +27,6 @@ def get_test_decoders() -> Tuple[List[str], Dict[str, sinter.Decoder]]:
     except ImportError:
         available_decoders.remove('pymatching')
     try:
-        import fusion_blossom
-    except ImportError:
-        available_decoders.remove('fusion_blossom')
-    try:
         import mwpf
     except ImportError:
         available_decoders.remove('hypergraph_union_find')
