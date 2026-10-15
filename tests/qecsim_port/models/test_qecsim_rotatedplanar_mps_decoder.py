@@ -1,5 +1,6 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim, and equivalent cosets agree to 1e-11 (CPUs'
+# SVDs differ in the last bits: 1.1e-12 was seen where qecsim asked 1e-12).
 import itertools
 import logging
 
@@ -140,7 +141,7 @@ def test_rotated_planar_mps_decoder_cosets_probability_equivalence(sample_pauli_
     coset_g_ps, _ = decoder._coset_probabilities(prob_dist, sample_pauli_g)
     print('#Pr(fG)=', coset_f_ps)
     print('#Pr(gG)=', coset_g_ps)
-    assert all(_is_close(coset_f_ps, coset_g_ps, rtol=1e-12, atol=0)), (
+    assert all(_is_close(coset_f_ps, coset_g_ps, rtol=1e-11, atol=0)), (
         'Coset probabilites do not satisfy Pr(fG) ~= Pr(gG)')
 
 

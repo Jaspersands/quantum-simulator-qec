@@ -6,6 +6,7 @@ from __future__ import annotations
 import collections
 import os
 import re
+import sys
 
 # Plots render off screen (a CI runner's Tk may be unusable).
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -62,8 +63,43 @@ def reference(module: str):
     dist, want = REFERENCE_VERSIONS[module]
     have = importlib.metadata.version(dist)
     if have != want:
-        pytest.skip(f"{dist} {have} is installed; the test reproduces {want}")
+        pytest.skip(f"{dist} {have} is installed; the test reproduces {want}", allow_module_level=True)
+    if module in REFERENCE_PROBES and not _probe_runs(module):
+        pytest.skip(f"{dist} {have} crashes on this machine", allow_module_level=True)
     return found
+
+
+# References whose wheels may use instructions the machine lacks (Tesseract's has died of SIGILL on
+# CI runners): a small use of each, run apart, before a test uses it.
+REFERENCE_PROBES = {
+    "tesseract_decoder": "import stim, tesseract_decoder.tesseract as t\n"
+    "dem = stim.Circuit.generated('repetition_code:memory', distance=3, rounds=2, after_clifford_depolarization=0.01).detector_error_model()\n"
+    "t.TesseractDecoder(t.TesseractConfig(dem)).decode_to_errors([False] * dem.num_detectors)",
+}
+
+_PROBED: dict = {}
+
+
+def _probe_runs(module: str) -> bool:
+    import subprocess
+
+    if module not in _PROBED:
+        _PROBED[module] = subprocess.run([sys.executable, "-c", REFERENCE_PROBES[module]], capture_output=True).returncode == 0
+    return _PROBED[module]
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "perf: a timing comparison (qecsim's performance tests)")
+
+
+def pytest_collection_modifyitems(config, items):
+    """qecsim's timing races (marked `perf`), which qecsim runs as a task of their own, are not run
+    on CI, where the shared runners' load decides them."""
+    if os.environ.get("CI"):
+        skip = pytest.mark.skip(reason="a timing race, decided on CI by the shared runner's load")
+        for item in items:
+            if "perf" in item.keywords:
+                item.add_marker(skip)
 
 
 # ldpc's own tests (tests/ldpc_port) need scipy, as stabilizer_qec.ldpc does, and so do Tesseract's

@@ -1,5 +1,6 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim, and bsf_wt returns an int, as documented (NumPy's
+# count_nonzero gives a numpy integer on Python 3.14, which JSON cannot write).
 """
 This module contains functions for Pauli strings and binary symplectic vectors / matrices.
 
@@ -103,7 +104,7 @@ def bsf_wt(bsf):
     :rtype: int
     """
     assert np.array_equal(bsf % 2, bsf), 'BSF {} is not in binary form'.format(bsf)
-    return np.count_nonzero(sum(np.hsplit(bsf, 2)))
+    return int(np.count_nonzero(sum(np.hsplit(bsf, 2))))
 
 
 def bsp(a, b):

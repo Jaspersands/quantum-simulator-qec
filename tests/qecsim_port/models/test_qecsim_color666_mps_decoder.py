@@ -1,5 +1,6 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim, and chi=2's tolerance is 1e-14 (CPUs' SVDs
+# differ in the last bits: 1.1e-15 was seen where qecsim asked 1e-15).
 import itertools
 import logging
 
@@ -72,7 +73,7 @@ def test_color666_mps_decoder_sample_recovery(error_pauli):
     # (Note: rtol is getting smaller with larger chi)
     # (Note: approximate cosets values are getting closer to exact values with larger chi)
     (None, None, 1e-15),
-    (2, None, 1e-15),
+    (2, None, 1e-14),
     (4, None, 1e-14),
     (8, None, 1e-14),
     (16, None, 1e-15),
