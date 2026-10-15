@@ -540,6 +540,18 @@ pub mod priority_queue {
         index: HashMap<I, usize>,
     }
 
+    impl<I: Clone, P: Clone> Clone for PriorityQueue<I, P> {
+        fn clone(&self) -> Self {
+            PriorityQueue { items: self.items.clone(), index: self.index.clone() }
+        }
+    }
+
+    impl<I: std::fmt::Debug, P: std::fmt::Debug> std::fmt::Debug for PriorityQueue<I, P> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_list().entries(self.items.iter()).finish()
+        }
+    }
+
     impl<I: Hash + Eq + Clone, P: Ord> Default for PriorityQueue<I, P> {
         fn default() -> Self {
             PriorityQueue { items: Vec::new(), index: HashMap::new() }
@@ -557,6 +569,11 @@ pub mod priority_queue {
 
         pub fn is_empty(&self) -> bool {
             self.items.is_empty()
+        }
+
+        pub fn clear(&mut self) {
+            self.items.clear();
+            self.index.clear();
         }
 
         fn swap(&mut self, a: usize, b: usize) {
@@ -654,6 +671,38 @@ pub mod serde_json {
         PosInt(u64),
         NegInt(i64),
         Float(f64),
+    }
+
+    impl Number {
+        pub fn is_i64(&self) -> bool {
+            self.as_i64().is_some()
+        }
+        pub fn is_u64(&self) -> bool {
+            matches!(self, Number::PosInt(_))
+        }
+        pub fn is_f64(&self) -> bool {
+            matches!(self, Number::Float(_))
+        }
+        pub fn as_i64(&self) -> Option<i64> {
+            match self {
+                Number::PosInt(u) => i64::try_from(*u).ok(),
+                Number::NegInt(i) => Some(*i),
+                Number::Float(_) => None,
+            }
+        }
+        pub fn as_u64(&self) -> Option<u64> {
+            match self {
+                Number::PosInt(u) => Some(*u),
+                _ => None,
+            }
+        }
+        pub fn as_f64(&self) -> Option<f64> {
+            Some(match self {
+                Number::PosInt(u) => *u as f64,
+                Number::NegInt(i) => *i as f64,
+                Number::Float(x) => *x,
+            })
+        }
     }
 
     #[derive(Clone, Debug, PartialEq, Default)]
@@ -886,117 +935,188 @@ pub mod serde_json {
     }
 
     pub fn from_str<T: FromJson>(text: &str) -> Result<T, Error> {
-        let mut p = Parser { s: text.as_bytes(), k: 0 };
+        T::from_json(&parse(text)?)
+    }
+
+    /// Reads JSON text as `serde_json::from_str::<Value>` does, failing with its messages and
+    /// positions ("key must be a string at line 1 column 2"). Numbers that fit neither `u64` nor
+    /// `i64` are read as floats.
+    pub fn parse(text: &str) -> Result<Value, Error> {
+        let mut p = Parser { s: text.as_bytes(), k: 0, depth: 128 };
         let v = p.value()?;
-        p.ws();
-        if p.k != p.s.len() {
-            return Err(format!("trailing characters at {}", p.k));
+        match p.ws() {
+            Some(_) => Err(p.peek_error("trailing characters")),
+            None => Ok(v),
         }
-        T::from_json(&v)
     }
 
     struct Parser<'a> {
         s: &'a [u8],
         k: usize,
+        depth: usize,
     }
 
     impl Parser<'_> {
-        fn ws(&mut self) {
-            while self.k < self.s.len() && matches!(self.s[self.k], b' ' | b'\n' | b'\r' | b'\t') {
+        fn error_at(&self, i: usize, msg: &str) -> Error {
+            let start = self.s[..i].iter().rposition(|&c| c == b'\n').map_or(0, |p| p + 1);
+            let line = 1 + self.s[..start].iter().filter(|&&c| c == b'\n').count();
+            format!("{msg} at line {line} column {}", i - start)
+        }
+        /// An error at the character just read.
+        fn error(&self, msg: &str) -> Error {
+            self.error_at(self.k, msg)
+        }
+        /// An error at the character about to be read.
+        fn peek_error(&self, msg: &str) -> Error {
+            self.error_at((self.k + 1).min(self.s.len()), msg)
+        }
+        fn peek(&self) -> Option<u8> {
+            self.s.get(self.k).copied()
+        }
+        fn ws(&mut self) -> Option<u8> {
+            while let Some(b' ' | b'\n' | b'\r' | b'\t') = self.peek() {
                 self.k += 1;
             }
+            self.peek()
         }
-        fn eat(&mut self, c: u8) -> Result<(), Error> {
-            self.ws();
-            if self.s.get(self.k) == Some(&c) {
+        fn next(&mut self) -> Option<u8> {
+            let c = self.peek();
+            if c.is_some() {
                 self.k += 1;
-                Ok(())
-            } else {
-                Err(format!("expected '{}' at {}", c as char, self.k))
             }
+            c
         }
-        fn word(&mut self, w: &str, v: Value) -> Result<Value, Error> {
-            if self.s[self.k..].starts_with(w.as_bytes()) {
-                self.k += w.len();
-                Ok(v)
-            } else {
-                Err(format!("unexpected text at {}", self.k))
+        fn ident(&mut self, rest: &[u8], v: Value) -> Result<Value, Error> {
+            self.k += 1;
+            for &expected in rest {
+                match self.next() {
+                    None => return Err(self.error("EOF while parsing a value")),
+                    Some(c) if c != expected => return Err(self.error("expected ident")),
+                    _ => {}
+                }
             }
+            Ok(v)
         }
         fn value(&mut self) -> Result<Value, Error> {
-            self.ws();
-            match self.s.get(self.k) {
-                None => Err("unexpected end of JSON".into()),
-                Some(b'n') => self.word("null", Value::Null),
-                Some(b't') => self.word("true", Value::Bool(true)),
-                Some(b'f') => self.word("false", Value::Bool(false)),
-                Some(b'"') => Ok(Value::String(self.string()?)),
-                Some(b'[') => {
+            let Some(c) = self.ws() else {
+                return Err(self.peek_error("EOF while parsing a value"));
+            };
+            match c {
+                b'n' => self.ident(b"ull", Value::Null),
+                b't' => self.ident(b"rue", Value::Bool(true)),
+                b'f' => self.ident(b"alse", Value::Bool(false)),
+                b'-' => {
                     self.k += 1;
-                    let mut a = Vec::new();
-                    self.ws();
-                    if self.s.get(self.k) == Some(&b']') {
-                        self.k += 1;
-                        return Ok(Value::Array(a));
+                    self.number(false)
+                }
+                b'0'..=b'9' => self.number(true),
+                b'"' => {
+                    self.k += 1;
+                    Ok(Value::String(self.string()?))
+                }
+                b'[' | b'{' => {
+                    self.depth -= 1;
+                    if self.depth == 0 {
+                        return Err(self.peek_error("recursion limit exceeded"));
                     }
-                    loop {
-                        a.push(self.value()?);
-                        self.ws();
-                        match self.s.get(self.k) {
-                            Some(b',') => self.k += 1,
-                            Some(b']') => {
-                                self.k += 1;
-                                return Ok(Value::Array(a));
-                            }
-                            _ => return Err(format!("expected ',' or ']' at {}", self.k)),
-                        }
+                    self.k += 1;
+                    let v = if c == b'[' { self.array()? } else { self.object()? };
+                    self.depth += 1;
+                    Ok(v)
+                }
+                _ => Err(self.peek_error("expected value")),
+            }
+        }
+        fn array(&mut self) -> Result<Value, Error> {
+            let mut a = Vec::new();
+            loop {
+                let Some(c) = self.ws() else {
+                    return Err(self.peek_error("EOF while parsing a list"));
+                };
+                if c == b']' {
+                    self.k += 1;
+                    return Ok(Value::Array(a));
+                }
+                if !a.is_empty() {
+                    if c != b',' {
+                        return Err(self.peek_error("expected `,` or `]`"));
+                    }
+                    self.k += 1;
+                    match self.ws() {
+                        Some(b']') => return Err(self.peek_error("trailing comma")),
+                        None => return Err(self.peek_error("EOF while parsing a value")),
+                        _ => {}
                     }
                 }
-                Some(b'{') => {
-                    self.k += 1;
-                    let mut m = Map::new();
-                    self.ws();
-                    if self.s.get(self.k) == Some(&b'}') {
+                a.push(self.value()?);
+            }
+        }
+        fn object(&mut self) -> Result<Value, Error> {
+            let mut m = Map::new();
+            loop {
+                let c = match self.ws() {
+                    Some(b'}') => {
                         self.k += 1;
                         return Ok(Value::Object(m));
                     }
-                    loop {
-                        self.ws();
-                        let key = self.string()?;
-                        self.eat(b':')?;
-                        let v = self.value()?;
-                        m.insert(key, v);
-                        self.ws();
-                        match self.s.get(self.k) {
-                            Some(b',') => self.k += 1,
-                            Some(b'}') => {
-                                self.k += 1;
-                                return Ok(Value::Object(m));
-                            }
-                            _ => return Err(format!("expected ',' or '}}' at {}", self.k)),
-                        }
+                    Some(b',') if !m.is_empty() => {
+                        self.k += 1;
+                        self.ws()
                     }
+                    Some(c) if m.is_empty() => Some(c),
+                    Some(_) => return Err(self.peek_error("expected `,` or `}`")),
+                    None => return Err(self.peek_error("EOF while parsing an object")),
+                };
+                match c {
+                    Some(b'"') => self.k += 1,
+                    Some(b'}') => return Err(self.peek_error("trailing comma")),
+                    Some(_) => return Err(self.peek_error("key must be a string")),
+                    None => return Err(self.peek_error("EOF while parsing a value")),
                 }
-                Some(_) => self.number(),
+                let key = self.string()?;
+                match self.ws() {
+                    Some(b':') => self.k += 1,
+                    Some(_) => return Err(self.peek_error("expected `:`")),
+                    None => return Err(self.peek_error("EOF while parsing an object")),
+                }
+                let v = self.value()?;
+                m.insert(key, v);
             }
         }
-        fn string(&mut self) -> Result<String, Error> {
-            if self.s.get(self.k) != Some(&b'"') {
-                return Err(format!("expected a string at {}", self.k));
+        fn hex4(&mut self) -> Result<u16, Error> {
+            if self.k + 4 > self.s.len() {
+                self.k = self.s.len();
+                return Err(self.error("EOF while parsing a string"));
             }
-            self.k += 1;
+            let digits = &self.s[self.k..self.k + 4];
+            self.k += 4;
+            let mut n = 0u16;
+            for &d in digits {
+                let v = match d {
+                    b'0'..=b'9' => d - b'0',
+                    b'a'..=b'f' => d - b'a' + 10,
+                    b'A'..=b'F' => d - b'A' + 10,
+                    _ => return Err(self.error("invalid escape")),
+                };
+                n = n * 16 + v as u16;
+            }
+            Ok(n)
+        }
+        /// The rest of a string whose opening quote was read.
+        fn string(&mut self) -> Result<String, Error> {
             let mut out = Vec::new();
             loop {
-                match self.s.get(self.k) {
-                    None => return Err("unterminated string".into()),
-                    Some(b'"') => {
-                        self.k += 1;
-                        return String::from_utf8(out).map_err(|e| e.to_string());
-                    }
-                    Some(b'\\') => {
-                        let c = *self.s.get(self.k + 1).ok_or("unterminated escape")?;
-                        self.k += 2;
-                        match c {
+                let Some(c) = self.peek() else {
+                    return Err(self.error("EOF while parsing a string"));
+                };
+                self.k += 1;
+                match c {
+                    b'"' => return Ok(String::from_utf8(out).expect("JSON text is UTF-8")),
+                    b'\\' => {
+                        let Some(e) = self.next() else {
+                            return Err(self.error("EOF while parsing a string"));
+                        };
+                        match e {
                             b'"' => out.push(b'"'),
                             b'\\' => out.push(b'\\'),
                             b'/' => out.push(b'/'),
@@ -1006,45 +1126,91 @@ pub mod serde_json {
                             b'r' => out.push(b'\r'),
                             b't' => out.push(b'\t'),
                             b'u' => {
-                                let hex = std::str::from_utf8(self.s.get(self.k..self.k + 4).ok_or("short \\u escape")?).map_err(|e| e.to_string())?;
-                                let mut code = u32::from_str_radix(hex, 16).map_err(|e| e.to_string())?;
-                                self.k += 4;
-                                if (0xD800..0xDC00).contains(&code) && self.s.get(self.k..self.k + 2) == Some(b"\\u") {
-                                    let hex = std::str::from_utf8(self.s.get(self.k + 2..self.k + 6).ok_or("short \\u escape")?).map_err(|e| e.to_string())?;
-                                    let low = u32::from_str_radix(hex, 16).map_err(|e| e.to_string())?;
-                                    self.k += 6;
-                                    code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
-                                }
-                                let ch = char::from_u32(code).ok_or("invalid \\u escape")?;
-                                let mut buf = [0u8; 4];
-                                out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
+                                let ch = match self.hex4()? {
+                                    0xDC00..=0xDFFF => return Err(self.error("lone leading surrogate in hex escape")),
+                                    n1 @ 0xD800..=0xDBFF => {
+                                        for expected in [b'\\', b'u'] {
+                                            match self.peek() {
+                                                None => return Err(self.error("EOF while parsing a string")),
+                                                Some(c) => {
+                                                    self.k += 1;
+                                                    if c != expected {
+                                                        return Err(self.error("unexpected end of hex escape"));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        let n2 = self.hex4()?;
+                                        if !(0xDC00..=0xDFFF).contains(&n2) {
+                                            return Err(self.error("lone leading surrogate in hex escape"));
+                                        }
+                                        char::from_u32((((n1 - 0xD800) as u32) << 10 | (n2 - 0xDC00) as u32) + 0x1_0000).unwrap()
+                                    }
+                                    n => char::from_u32(n as u32).unwrap(),
+                                };
+                                out.extend_from_slice(ch.encode_utf8(&mut [0u8; 4]).as_bytes());
                             }
-                            _ => return Err(format!("invalid escape at {}", self.k)),
+                            _ => return Err(self.error("invalid escape")),
                         }
                     }
-                    Some(&c) => {
-                        out.push(c);
-                        self.k += 1;
-                    }
+                    0..=0x1F => return Err(self.error("control character (\\u0000-\\u001F) found while parsing a string")),
+                    _ => out.push(c),
                 }
             }
         }
-        fn number(&mut self) -> Result<Value, Error> {
-            let start = self.k;
-            while self.k < self.s.len() && matches!(self.s[self.k], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9') {
+        fn digits(&mut self, buf: &mut String) {
+            while let Some(c @ b'0'..=b'9') = self.peek() {
                 self.k += 1;
+                buf.push(c as char);
             }
-            let text = std::str::from_utf8(&self.s[start..self.k]).map_err(|e| e.to_string())?;
-            if text.is_empty() {
-                return Err(format!("unexpected character at {start}"));
+        }
+        fn number(&mut self, positive: bool) -> Result<Value, Error> {
+            let mut buf = String::from(if positive { "" } else { "-" });
+            match self.next() {
+                None => return Err(self.error("EOF while parsing a value")),
+                Some(b'0') => {
+                    buf.push('0');
+                    if let Some(b'0'..=b'9') = self.peek() {
+                        return Err(self.peek_error("invalid number"));
+                    }
+                }
+                Some(c @ b'1'..=b'9') => {
+                    buf.push(c as char);
+                    self.digits(&mut buf);
+                }
+                Some(_) => return Err(self.error("invalid number")),
             }
-            if let Ok(u) = text.parse::<u64>() {
+            if self.peek() == Some(b'.') {
+                self.k += 1;
+                buf.push('.');
+                let before = buf.len();
+                self.digits(&mut buf);
+                if buf.len() == before {
+                    return Err(self.peek_error(if self.peek().is_some() { "invalid number" } else { "EOF while parsing a value" }));
+                }
+            }
+            if let Some(e @ (b'e' | b'E')) = self.peek() {
+                self.k += 1;
+                buf.push(e as char);
+                if let Some(s @ (b'+' | b'-')) = self.peek() {
+                    self.k += 1;
+                    buf.push(s as char);
+                }
+                match self.next() {
+                    Some(c @ b'0'..=b'9') => buf.push(c as char),
+                    None => return Err(self.error("EOF while parsing a value")),
+                    Some(_) => return Err(self.error("invalid number")),
+                }
+                self.digits(&mut buf);
+            }
+            if let Ok(u) = buf.parse::<u64>() {
                 return Ok(Value::Number(Number::PosInt(u)));
             }
-            if let Ok(i) = text.parse::<i64>() {
-                return Ok(Value::Number(Number::NegInt(i)));
+            match buf.parse::<i64>() {
+                // serde_json reads `-0` as a float
+                Ok(i) if buf != "-0" => Ok(Value::Number(Number::NegInt(i))),
+                _ => Ok(Value::Number(Number::Float(buf.parse::<f64>().unwrap()))),
             }
-            text.parse::<f64>().map(|x| Value::Number(Number::Float(x))).map_err(|_| format!("invalid number '{text}'"))
         }
     }
 
@@ -1192,6 +1358,46 @@ pub mod serde_json {
     }
 
     // What the configurations read.
+    impl From<f64> for Value {
+        fn from(x: f64) -> Value {
+            x.to_json()
+        }
+    }
+    impl From<bool> for Value {
+        fn from(b: bool) -> Value {
+            Value::Bool(b)
+        }
+    }
+    impl From<usize> for Value {
+        fn from(u: usize) -> Value {
+            u.to_json()
+        }
+    }
+    impl From<i64> for Value {
+        fn from(i: i64) -> Value {
+            i.to_json()
+        }
+    }
+    impl From<String> for Value {
+        fn from(s: String) -> Value {
+            Value::String(s)
+        }
+    }
+    impl From<&str> for Value {
+        fn from(s: &str) -> Value {
+            Value::String(s.to_string())
+        }
+    }
+    impl<T: ToJson> From<Option<T>> for Value {
+        fn from(v: Option<T>) -> Value {
+            v.to_json()
+        }
+    }
+    impl<T: ToJson> From<Vec<T>> for Value {
+        fn from(v: Vec<T>) -> Value {
+            v.to_json()
+        }
+    }
     impl FromJson for Value {
         fn from_json(value: &Value) -> Result<Self, Error> {
             Ok(value.clone())

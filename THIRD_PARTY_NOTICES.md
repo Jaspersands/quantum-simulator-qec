@@ -216,6 +216,36 @@ helper and visualizer website files, and `tests/fusion_blossom_port/` its tests 
 and its Xoshiro256** and SplitMix64 follow rand_xoshiro (Copyright the Rust Project Developers
 and the Rand Project Developers; MIT or Apache-2.0).
 
+## MWPF
+
+Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/mwpf/LICENSE`, and
+`python/stabilizer_qec/mwpf/LICENSE`). Source: https://github.com/yuewuo/mwpf
+
+`src/mwpf/` is a port of MWPF 0.2.12's Rust crate (its solvers, relaxers, matrices, example codes,
+visualizer, HTML export, BP crate and command line), with the parts of `num-traits`,
+`itertools`, `hashbrown`, `lnexp`, `prettytable-rs`, `rand`'s `SmallRng` (Xoshiro256++ seeded by
+PCG32, following rand and rand_xoshiro: Copyright the Rust Project Developers and the Rand Project
+Developers; MIT or Apache-2.0), `clap`'s parsing and error messages and `serde_json`'s parser
+errors (Copyright David Tolnay; MIT or Apache-2.0) it uses written out in `src/mwpf/shim.rs`,
+`src/mwpf/cli.rs` and `src/fusion/shim.rs`, and the `highs` crate's calls into HiGHS (Copyright
+Ophir Lojkine and rust-or; MIT) in `src/mwpf/lp.rs`. `src/mwpf/cli_help.rs` holds the help texts MWPF's command line prints.
+`python/stabilizer_qec/mwpf/` is its Python package and `tests/mwpf_port/` its tests.
+`src/mwpf/visualize/standalone.html` is the visualizer MWPF's wheels embed (its `visualize/`
+built by Vite), which bundles Vue, three.js, TroisJS and Tweakpane (each under the MIT License).
+
+## HiGHS
+
+Copyright (c) 2024 HiGHS. Licensed under the MIT License (`src/highs/LICENSE.txt`). Source:
+https://github.com/ERGO-Code/HiGHS
+
+`src/highs/` is HiGHS 1.8.0's library (its `src/` and `extern/`, as the `highs-sys` 1.6.4 crate
+bundles it), which `build.rs` compiles for the `highs` feature that the Python wheels turn on; MWPF's
+relaxer optimizer solves its linear programs with it. It includes IPX and BASICLU (Copyright
+ERGO-Code; MIT), files from cuPDLP-C 0.3.0 (MIT), zstr 1.0.5 (Copyright Ontario Institute for
+Cancer Research; MIT), the LP file reader `filereaderlp` (Copyright (c) 2020 Michael Feldmeier;
+MIT, `src/highs/extern/filereaderlp/LICENSE`) and pdqsort (Copyright (c) 2021 Orson Peters; zlib
+License, `src/highs/extern/pdqsort/license.txt`).
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

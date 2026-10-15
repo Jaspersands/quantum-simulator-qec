@@ -251,6 +251,23 @@ noise on every gate. In progress on `feature/2.0`.
   exact matcher runs. sinter's `fusion_blossom` decoder uses it. Fixed on the way: with a tree-size
   limit, a tree that grew by absorbing a matched pair collapsed while its root was still locked,
   which deadlocks when, as here, nodes sit behind locks (fusion_blossom's wheels use raw pointers).
+- **`stabilizer_qec.mwpf`: MWPF 0.2.12 whole**, a Rust port (`src/mwpf/`) of the **hypergraph
+  minimum-weight parity factor** decoder (Wu et al., arXiv 2508.04969): `SolverSerialJointSingleHair`,
+  `SolverSerialSingleHair`, `SolverSerialUnionFind` and the BP wrapper, with erasures, heralds and
+  override weights; its example codes and their random errors, parity and echelon matrices, the
+  visualizer and its HTML export, benchmark suites, its sinter decoder (`SinterMWPFDecoder`),
+  heralded error models and reference circuits, and its **command line** (`mwpf benchmark`,
+  `matrix-speed`, `test ...`; help, errors and seeded output as MWPF's, run in process by
+  `stabilizer_qec.mwpf.run_cli`). Subgraphs, weight bounds, snapshots, random errors, configs and
+  their errors are MWPF's (`tests/test_mwpf_package.py`, `tests/test_mwpf_cli.py`); its own Python
+  tests pass (`tests/mwpf_port/`), and on circuits its sinter decoder predicts as MWPF's. Its
+  linear programs are solved by **HiGHS 1.8.0**, compiled in as MWPF's wheels compile it
+  (`src/highs/`, the `highs` feature, on in the wheels): the optimum HiGHS picks among several
+  steers MWPF's relaxers, and another solver's choice made some decodes run thousands of times
+  longer. A Rust build without the feature solves them with this crate's simplex, which perturbs
+  its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
+  codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
+  shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.

@@ -128,6 +128,8 @@ pub mod parallel;
 /// Fusion Blossom: exact matching by a primal-dual blossom on the decoding graph, serial or
 /// partitioned and fused (Python's `stabilizer_qec.fusion_blossom`).
 pub mod fusion;
+/// MWPF: hypergraph minimum-weight parity factor decoding (Python's `stabilizer_qec.mwpf`).
+pub mod mwpf;
 #[doc(hidden)]
 pub mod batch;
 #[doc(hidden)]
@@ -204,6 +206,7 @@ fn stabilizer_qec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     py_stim::register(m)?;
     py_pm::register(m)?;
     py_fusion::register(m)?;
+    mwpf::register(m)?;
     Ok(())
 }
 

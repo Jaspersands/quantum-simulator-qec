@@ -540,8 +540,7 @@ pub mod tests {
     use super::super::dual_module::*;
     use super::super::dual_module_parallel::*;
     use super::super::dual_module_serial::*;
-    #[cfg(feature = "unsafe_pointer")]
-    use super::super::pointers::UnsafePtr;
+    // (Fusion Blossom's `unsafe_pointer` feature imports UnsafePtr here; this port has no such feature)
     use super::super::primal_module::*;
     use super::super::primal_module_parallel::*;
     use super::super::visualize::*;

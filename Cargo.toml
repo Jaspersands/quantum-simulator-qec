@@ -11,7 +11,7 @@ readme = "docs/crate.md"
 keywords = ["quantum", "error-correction", "surface-code", "decoder", "stim"]
 categories = ["science", "simulation"]
 rust-version = "1.87"
-include = ["/src", "/data/surgery/golden.json", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/LICENSES", "/THIRD_PARTY_NOTICES.md", "/README.md", "/docs/crate.md", "/pyproject.toml", "/python/README.md", "/python/stabilizer_qec"]
+include = ["/src", "/build.rs", "/data/surgery/golden.json", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/LICENSES", "/THIRD_PARTY_NOTICES.md", "/README.md", "/docs/crate.md", "/pyproject.toml", "/python/README.md", "/python/stabilizer_qec"]
 
 
 [lib]
@@ -21,9 +21,13 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 rand = { version = "0.8", optional = true }
 
+[build-dependencies]
+# compiles HiGHS for the `highs` feature (build.rs)
+cc = { version = "1.2", optional = true, features = ["parallel"] }
+
 [dependencies.pyo3]
 version = "0.29"
-features = ["extension-module", "abi3-py39"]
+features = ["extension-module", "abi3-py39", "multiple-pymethods"]
 optional = true
 
 [features]
@@ -31,6 +35,9 @@ optional = true
 # the engine alone.
 default = []
 python = ["dep:pyo3", "dep:rand"]
+# MWPF's linear programs by HiGHS (C++, src/highs/), as MWPF's own wheels solve them; without it, by
+# this crate's simplex
+highs = ["dep:cc"]
 
 [profile.release]
 opt-level = 3

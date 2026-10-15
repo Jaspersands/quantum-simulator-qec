@@ -1,0 +1,331 @@
+"""stabilizer_qec.mwpf's command line (`run_cli`) against MWPF 0.2.12's: help, versions, errors (clap's
+messages, usage lines and suggestions) and exit codes, and the commands' output, each run in a process
+of its own since help, versions and errors end the process. Timings are compared as numbers, and a
+panic by its message."""
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+import pytest
+
+from conftest import reference
+
+reference("mwpf")
+
+CASES = [
+    ["--help"],
+    ["-h"],
+    ["--version"],
+    [],
+    ["help"],
+    ["benchmark", "--help"],
+    ["matrix-speed", "--help"],
+    ["decoder-speed", "--help"],
+    ["custom-test", "--help"],
+    ["test", "--help"],
+    ["test", "common", "--help"],
+    ["test", "code-capacity", "--help"],
+    ["test"],
+    ["bogus"],
+    ["benchmark"],
+    ["benchmark", "3"],
+    ["benchmark", "x", "0.1"],
+    ["benchmark", "3", "0.1", "--code-type", "nope"],
+    ["benchmark", "3", "0.1", "--bogus"],
+    ["benchmark", "3", "0.1", "--solver-config", "{bad"],
+    ["benchmark", "3", "0.1", "-r", "x"],
+    ["help", "benchmark"],
+    ["benchmark", "-h"],
+    ["matrix-speed", "-c", "nope"],
+    ["decoder-speed"],
+    ["benchmark", "3", "0.1", "-r", "5", "--verifier", "none"],
+    ["benchmark", "3", "0.1", "-r", "5", "-p", "joint-single-hair", "--verifier", "strict-actual-error"],
+    ["matrix-speed", "-r", "3", "--deterministic-seed", "1"],
+    ["custom-test"],
+    ["benchmark", "3", "0.1", "-r", "2", "--single-seed", "5", "--print-syndrome-pattern", "--print-error-pattern", "--verifier", "none"],
+    ["-V"],
+    ["--bogus"],
+    ["extra"],
+    ["-z"],
+    ["benchmark", "-V"],
+    ["benchmark", "--version"],
+    ["benchmark", "3", "0.1", "extra"],
+    ["benchmark", "3", "0.1", "-z"],
+    ["matrix-speed", "-h"],
+    ["matrix-speed", "-V"],
+    ["matrix-speed", "--version"],
+    ["matrix-speed", "--bogus"],
+    ["matrix-speed", "extra"],
+    ["matrix-speed", "-z"],
+    ["decoder-speed", "-h"],
+    ["decoder-speed", "-V"],
+    ["decoder-speed", "--version"],
+    ["decoder-speed", "-f", "x.cbor", "--bogus"],
+    ["decoder-speed", "-f", "x.cbor", "extra"],
+    ["decoder-speed", "-f", "x.cbor", "-z"],
+    ["custom-test", "-h"],
+    ["custom-test", "-V"],
+    ["custom-test", "--version"],
+    ["custom-test", "--bogus"],
+    ["custom-test", "extra"],
+    ["custom-test", "-z"],
+    ["custom-test2", "-h"],
+    ["custom-test2", "--help"],
+    ["custom-test2", "-V"],
+    ["custom-test2", "--version"],
+    ["custom-test2", "--bogus"],
+    ["custom-test2", "extra"],
+    ["custom-test2", "-z"],
+    ["test", "-h"],
+    ["test", "-V"],
+    ["test", "--version"],
+    ["test", "--bogus"],
+    ["test", "extra"],
+    ["test", "-z"],
+    ["test", "common", "-h"],
+    ["test", "common", "-V"],
+    ["test", "common", "--version"],
+    ["test", "common", "--bogus"],
+    ["test", "common", "extra"],
+    ["test", "common", "-z"],
+    ["test", "code-capacity", "-h"],
+    ["test", "code-capacity", "-V"],
+    ["test", "code-capacity", "--version"],
+    ["test", "code-capacity", "--bogus"],
+    ["test", "code-capacity", "extra"],
+    ["test", "code-capacity", "-z"],
+    ["help", "help"],
+    ["help", "test"],
+    ["help", "test", "code-capacity"],
+    ["help", "test", "common"],
+    ["test", "help"],
+    ["test", "help", "common"],
+    ["help", "bogus"],
+    ["help", "matrix-speed"],
+    ["help", "decoder-speed"],
+    ["help", "custom-test"],
+    ["help", "custom-test2"],
+    ["benchmark", "3", "0.1", "-r"],
+    ["benchmark", "3", "0.1", "-r", "1", "-r", "2"],
+    ["benchmark", "3", "0.1", "--total-rounds=x"],
+    ["benchmark", "3", "0.1", "-rx"],
+    ["benchmark", "3", "x"],
+    ["benchmark", "3", "-0.1"],
+    ["benchmark", "-3", "0.1"],
+    ["benchmark", "3", "0.1", "--", "--x"],
+    ["benchmark", "3", "0.1", "--pe"],
+    ["benchmark", "3", "0.1", "--enable-visualizer=1"],
+    ["benchmark", "3", "0.1", "--verifier", "x"],
+    ["benchmark", "3", "0.1", "-p", "x"],
+    ["decoder-speed", "-f"],
+    ["test", "code-capacity", "-p", "x"],
+    ["test", "code-capacity", "-cz"],
+    ["test", "bogus"],
+    ["matrix-speed", "--width", "-1"],
+    ["matrix-speed", "--one-density", "x"],
+    ["benchmark", "3", "0.1", "--solver-config", "[1]"],
+    ["benchmark", "3", "0.1", "--solver-config", ""],
+    ["benchmark", "3", "0.1", "--apply-deterministic-seed", "x"],
+    ["benchmark", "3", "0.1", "--bp-application-ratio", "x"],
+    ["--bogus"],
+    ["-x"],
+    ["benchmark", "300000000000000000000", "0.1"],
+    ["benchmark", "3", "0.1", "--code-type"],
+    ["benchmark", "3", "0.1", "--code-type=code-capacity-planar-code", "-r", "2", "--verifier", "none", "-p", "single-hair"],
+    # seeded: the actual-error verifier panics (unimplemented) when erasures are drawn, as on MWPF
+    ["benchmark", "3", "0.1", "-e", "0.1", "-r", "1", "--apply-deterministic-seed", "0"],
+    ["benchmark", "3", "0.1", "-e", "0.1", "-r", "1", "--apply-deterministic-seed", "1"],
+    ["custom-test", "x"],
+    ["custom-test2"],
+    ["matrix-speed", "-c", "echelon", "-r", "2"],
+    ["benchmark", "3", "0.1", "-n", "x"],
+    ["decoder-speed", "-f", "x.cbor", "--use-bp=x"],
+    ["benchmark", "3", "0.1", "--total-round"],
+    ["benchmark", "--total-round", "5"],
+    ["matrix-speed", "--widht", "3"],
+    ["--hel"],
+    ["--versio"],
+    ["--total-rounds", "5", "benchmark"],
+    ["--file-path", "x", "test", "decoder-speed"],
+    ["benchmar"],
+    ["tes"],
+    ["test", "commn"],
+    ["test", "code-capacit"],
+    ["benchmark", "3", "0.1", "-c", "code-capacity-planar"],
+    ["benchmark", "3", "0.1", "--verifier", "nne"],
+    ["help", "benchmar"],
+    ["test", "code-capacity", "--print-comand"],
+    ["decoder-speed", "--file-pat", "x"],
+    ["matrix-speed", "--hel"],
+    ["benchmark", "-r", "5"],
+    ["benchmark", "3", "-r", "5"],
+    ["decoder-speed", "-p", "union-find"],
+    ["decoder-speed", "--use-bp"],
+    ["benchmark", "--enable-visualizer=1"],
+    ["benchmark", "3", "--enable-visualizer=1"],
+    ["benchmark", "-r", "2", "--enable-visualizer=1"],
+    ["benchmark", "-r", "2", "--bogus"],
+    ["matrix-speed", "-r", "3", "--bogus"],
+    ["matrix-speed", "-r", "3", "--x=1"],
+    ["test", "code-capacity", "-c", "--bogus"],
+    ["test", "code-capacity", "-p", "union-find", "--bogus"],
+    ["test", "code-capacity", "--print-command=1"],
+    ["test", "code-capacity", "-c", "--print-command=1"],
+    ["test", "code-capacity", "-cc"],
+    ["test", "code-capacity", "-c", "-c"],
+    ["decoder-speed", "-f", "a", "-f", "b"],
+    ["decoder-speed", "--use-bp", "--use-bp"],
+    ["benchmark", "3", "0.1", "--use-bp", "--use-bp"],
+    ["help", "help", "help"],
+    ["help", "-h"],
+    ["help", "benchmark", "extra"],
+    ["test", "help", "help"],
+    ["test", "help", "x"],
+    ["--", "benchmark"],
+    ["benchmark", "--", "3", "0.1", "x"],
+    ["benchmark", "3", "0.1", "-r", "--pe", "1"],
+    ["benchmark", "3", "0.1", "-r", "-z"],
+    ["benchmark", "3", "0.1", "--total-rounds="],
+    ["benchmark", "3", "0.1", "-r="],
+    ["benchmark", "3", "0.1", "-r=5", "-r6"],
+    ["benchmark", "3", "0.1", "--code-type="],
+    ["benchmark", "3", "0.1", "--width", "5"],
+    ["-", "x"],
+    ["benchmark", "-", "0.1"],
+    ["benchmark", "--", "-3", "0.1", "-r", "1"],
+    ["test", "--", "common"],
+    ["test", "code-capacity", "x"],
+    ["decoder-speed", "-f", "x.cbor", "-p", "joint"],
+    ["matrix-speed", "-ch"],
+    ["matrix-speed", "-rh"],
+    ["benchmark", "x", "-h"],
+    ["benchmark", "3", "x", "--help"],
+    ["benchmark", "-h", "x"],
+    ["help", "test", "code-capacity", "extra"],
+    ["test", "-h", "common"],
+    ["test", "common", "-hV"],
+    ["-Vh"],
+    ["-hV"],
+    ["benchmark", "3", "0.1", "--enable-visualizer", "--enable-visualizer"],
+    ["benchmark", "3", "0.1", "--solver-type"],
+    ["decoder-speed", "--bp-max-iter", "-5"],
+    ["decoder-speed", "--bp-max-iter=-5"],
+    ["matrix-speed", "--deterministic-seed=18446744073709551616"],
+    ["matrix-speed", "--deterministic-seed=+5", "-r", "1"],
+    ["matrix-speed", "--one-density=inf", "-r", "1"],
+    ["matrix-speed", "--width=+3", "-r", "1"],
+    ["matrix-speed", "--one-density= 1"],
+    ["custom-test", "--", "x"],
+    ["matrix-speed", "--", "x"],
+    ["benchmark", "3", "0.1", "--", "4"],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\":1,}"],
+    ["benchmark", "3", "0.1", "--solver-config", "[1,]"],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\" 1}"],
+    ["benchmark", "3", "0.1", "--solver-config", "tru"],
+    ["benchmark", "3", "0.1", "--solver-config", "\"abc"],
+    ["benchmark", "3", "0.1", "--solver-config", "01"],
+    ["benchmark", "3", "0.1", "--solver-config", "1."],
+    ["benchmark", "3", "0.1", "--solver-config", "1e"],
+    ["benchmark", "3", "0.1", "--solver-config", "-"],
+    ["benchmark", "3", "0.1", "--solver-config", "[1 2]"],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\":1 \"b\":2}"],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\x\""],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\u12\""],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\ud800\""],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\ud800\\u0041\""],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\udc00\""],
+    ["benchmark", "3", "0.1", "--solver-config", "[1]x"],
+    ["benchmark", "3", "0.1", "--solver-config", "\n\n {"],
+    ["benchmark", "3", "0.1", "--solver-config", " \"a\u0001\""],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\":}"],
+    ["benchmark", "3", "0.1", "--solver-config", "["],
+    ["benchmark", "3", "0.1", "--solver-config", "{"],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\""],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\":1"],
+    ["benchmark", "3", "0.1", "--solver-config", "[1"],
+    ["benchmark", "3", "0.1", "--solver-config", "nul"],
+    ["benchmark", "3", "0.1", "--solver-config", "falsy"],
+    ["benchmark", "3", "0.1", "--solver-config", "1e+"],
+    ["benchmark", "3", "0.1", "--solver-config", "-a"],
+    ["benchmark", "3", "0.1", "--solver-config", "{,}"],
+    ["benchmark", "3", "0.1", "--solver-config", "[,1]"],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\ud800\\x\""],
+    ["benchmark", "3", "0.1", "--solver-config", "\"\\ud800\"x"],
+    ["benchmark", "3", "0.1", "--solver-config", "1.e5"],
+    ["benchmark", "3", "0.1", "--solver-config", "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[["],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\":1}}"],
+    ["benchmark", "3", "0.1", "--solver-config", "  "],
+    ["benchmark", "3", "0.1", "--solver-config", "1 2"],
+    ["benchmark", "3", "0.1", "--solver-config", "{\"a\":\"b\nc\"}"],
+    ["benchmark", "3", "0.1", "-r", "3", "--apply-deterministic-seed", "42", "--print-syndrome-pattern", "--print-error-pattern", "--verifier", "none"],
+    ["benchmark", "5", "0.05", "-r", "4", "--use-deterministic-seed", "--print-syndrome-pattern", "--print-error-pattern", "-p", "joint-single-hair", "--verifier", "strict-actual-error"],
+    ["benchmark", "4", "0.1", "-c", "code-capacity-planar-code", "-r", "3", "--apply-deterministic-seed", "7", "--print-syndrome-pattern", "-p", "single-hair"],
+    ["benchmark", "5", "0.1", "-c", "code-capacity-color-code", "-r", "3", "--apply-deterministic-seed", "7", "--print-error-pattern"],
+    ["benchmark", "5", "0.1", "-c", "code-capacity-repetition-code", "-r", "5", "--apply-deterministic-seed", "123", "--print-syndrome-pattern", "--starting-iteration", "2"],
+    ["benchmark", "3", "0.1", "--code-config", "{\"pxy\":0.05}", "-r", "3", "--apply-deterministic-seed", "9", "--print-syndrome-pattern"],
+    ["benchmark", "3", "0.2", "-e", "0.1", "-r", "3", "--apply-deterministic-seed", "11", "--print-syndrome-pattern", "--verifier", "none"],
+    ["benchmark", "3", "0.1", "--single-seed", "77", "--print-syndrome-pattern", "--print-error-pattern"],
+    ["benchmark", "3", "0.1", "-r", "3", "--apply-deterministic-seed", "5", "--use-bp", "--print-syndrome-pattern", "--verifier", "none"],
+    ["test", "code-capacity", "-c", "-p", "joint-single-hair", "--solver-config", "{\"cluster_node_limit\":50}"],
+    ["test", "common"],
+    ["matrix-speed", "-r", "50", "--deterministic-seed", "3", "--width", "10", "--height", "10"],
+]
+
+# (the binary's name, the arguments): None runs `run_cli([])`
+NAMED = [
+    ("foo", ["benchmark"]),
+    ("foo", ["--help"]),
+    ("foo", ["benchmark", "--help"]),
+    ("foo", ["bogus"]),
+    ("/x/y/mwpf2", ["test"]),
+    ("", ["benchmark"]),
+    ("", ["test", "common", "--bogus"]),
+    (None, []),
+    ("foo", ["help", "test", "help"]),
+    ("foo", ["-V"]),
+    ("dir/", ["benchmark", "3"]),
+]
+
+
+def run(module, argv0, args):
+    head = "[]" if argv0 is None else repr([argv0])
+    code = f"import sys; from {module} import run_cli; run_cli({head} + sys.argv[1:])"
+    p = subprocess.run([sys.executable, "-c", code, *args], capture_output=True, text=True, timeout=600)
+    return p.returncode, p.stdout, p.stderr
+
+
+TIME = re.compile(r"total (resolve|tuning) time [0-9.e+-]+")
+PANIC = re.compile(r"panicked at [^\n]*:\n(.*)\n")
+
+
+def normal(result):
+    code, out, err = result
+    if code == 1:
+        found = PANIC.search(err)
+        return code, out, found and found.group(1)
+    return code, TIME.sub(r"total \1 time T", out), TIME.sub(r"total \1 time T", err)
+
+
+def compare(argv0, args):
+    return normal(run("mwpf", argv0, args)), normal(run("stabilizer_qec.mwpf", argv0, args))
+
+
+def test_qec_playground_code():
+    # MWPF's wheels build QEC-Playground's codes on the qecp crate, which stabilizer_qec.mwpf does
+    # not include: the code type is parsed (and listed in the help) but cannot be built
+    code, out, err = run("stabilizer_qec.mwpf", "mwpf", ["benchmark", "3", "0.1", "-c", "qec-playground-code", "-r", "1"])
+    assert code == 1 and "QEC-Playground's codes are not part of stabilizer_qec.mwpf" in err
+
+
+@pytest.mark.parametrize("chunk", range(8))
+def test_cli(chunk):
+    cases = [("mwpf", a) for a in CASES] + NAMED
+    mine = cases[chunk::8]
+    with ThreadPoolExecutor(8) as pool:
+        results = list(pool.map(lambda c: compare(*c), mine))
+    differ = [(case, theirs, ours) for case, (theirs, ours) in zip(mine, results) if ours != theirs]
+    assert not differ
