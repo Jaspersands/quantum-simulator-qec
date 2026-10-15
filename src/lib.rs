@@ -102,6 +102,8 @@ pub mod search;
 #[doc(hidden)]
 pub mod lsd;
 #[doc(hidden)]
+pub mod ambiguity;
+#[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]
 pub mod belief;

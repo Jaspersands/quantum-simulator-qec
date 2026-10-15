@@ -92,7 +92,8 @@ pickling:
   `UnionFind`; `BeliefMatching`; `WindowMatching` (sliding or parallel windows): for models
   whose faults set off at most two detectors, or decomposed;
 - `BpOsd` and `BpLsd` (`ldpc`'s corrections), `RelayBp` (IBM's), `SearchDecoder`
-  (Tesseract's A*, exact on request): for any model, such as the gross code's;
+  (Tesseract's A*, exact on request), `AmbiguityClustering` (Riverlane's, from its paper): for
+  any model, such as the gross code's;
 - `ColorMatching` (Chromobius's): colour codes whose detectors carry its colour annotation
   (`CssCode.color_code(d).memory_circuit(..., annotate_colors=True)`).
 
@@ -223,7 +224,7 @@ from ._stim import (
     target_z,
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
+from ._decoders import AmbiguityClustering, BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -301,6 +302,7 @@ __all__ = [
     "FlippedMeasurement",
     "GateTargetWithCoords",
     "BpDecoder",
+    "AmbiguityClustering",
     "BpLsd",
     "BpLsdDecoder",
     "BpOsd",

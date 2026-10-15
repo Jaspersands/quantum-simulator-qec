@@ -149,7 +149,7 @@ def _parser(command: str) -> _Parser:
         add("--in", dest="input")
         add("--in_format", choices=FORMATS, default="01")
         add("--in_includes_appended_observables", action="store_true")
-        add("--decoder", default="matching", choices=["matching", "correlated_matching", "belief_matching", "union_find", "bposd", "bplsd", "relay_bp", "color_matching", "search"])
+        add("--decoder", default="matching", choices=["matching", "correlated_matching", "belief_matching", "union_find", "bposd", "bplsd", "relay_bp", "color_matching", "search", "ambiguity_clustering"])
     if command in ("predict", "count_mistakes"):
         add("--dem", required=True)
         add("--in", dest="input")
@@ -339,7 +339,7 @@ def cmd_sample_dem(a) -> None:
 def cmd_decode(a) -> None:
     from ._circuit import DetectorErrorModel
     from ._shots import decode_shots, encode_shots
-    from ._decoders import BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
+    from ._decoders import AmbiguityClustering, BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
     from ._matching import _CorrelatedMatching
 
     dem = DetectorErrorModel(_read_text(a.dem))
@@ -355,6 +355,7 @@ def cmd_decode(a) -> None:
         "relay_bp": lambda: RelayBp(dem),
         "color_matching": lambda: ColorMatching(dem),
         "search": lambda: SearchDecoder(dem),
+        "ambiguity_clustering": lambda: AmbiguityClustering(dem),
     }[a.decoder]()
     predictions = decoder.decode_batch(data[:, :nd]).astype(bool)
     _write(a.out, encode_shots(predictions, a.out_format, num_observables=no))

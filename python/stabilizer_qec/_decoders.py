@@ -304,6 +304,78 @@ class BpLsd(_DemDecoder):
         return out
 
 
+class AmbiguityClustering(_DemDecoder):
+    """Ambiguity Clustering on a detector error model (Wolanski and Barber, arXiv 2406.14527):
+    belief propagation, and where it does not explain the syndrome, an elimination that goes
+    only as far as the syndrome needs, ordered by BP's posteriors, grown by ``kappa`` times the
+    model's fault count further columns into blocks (clusters) of the matrix that are decoded
+    apart. A block whose logical effect its syndrome fixes is read off; an ambiguous one is
+    searched over its non-pivot columns, every choice of at most two, each observable set to the
+    value carrying more probability. Ambiguities in separate blocks add rather than multiply.
+
+    At ``kappa=0`` it is BP+OSD-0 (on the same BP). On the bivariate bicycle codes' memories
+    at the default ``kappa=0.05`` (the paper's largest) it is more accurate than ``BpOsd``'s
+    combination sweep of order 7 and 8 to 100 times faster. For codes whose faults flip three
+    or more detectors: give it the undecomposed model. BP is the paper's: 9 iterations of
+    product-sum, flooding (``schedule="serial"`` is ``ldpc``'s serial schedule).
+
+    >>> import stabilizer_qec as sq
+    >>> c = sq.memory_circuit(distance=5, rounds=5, p=0.003)
+    >>> dets, obs = c.compile_detector_sampler(seed=2).sample(1000, separate_observables=True)
+    >>> ac = sq.AmbiguityClustering(c.detector_error_model())
+    >>> int((ac.decode_batch(dets) != obs).any(axis=1).sum()) < 30
+    True
+    """
+
+    __slots__ = ()
+
+    def __init__(
+        self,
+        model: ModelLike,
+        *,
+        kappa: float = 0.05,
+        max_iter: int = 9,
+        bp_method: str = "product_sum",
+        ms_scaling_factor: float = 1.0,
+        schedule: str = "parallel",
+    ) -> None:
+        options = dict(kappa=kappa, max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule)
+        model = self._made(_model(model), **options)
+        kappa = real(kappa, "kappa")
+        if not 0 <= kappa:
+            raise ValueError(f"kappa is a fraction of the faults, at least 0, not {kappa}")
+        self._x = call(_core.DemAmbiguityClustering, model._d, count(max_iter, "max_iter"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"), kappa, schedule)
+
+    @property
+    def extra_columns(self) -> int:
+        """K: the columns stage 2 adds to the blocks, ``kappa`` times the fault count, rounded."""
+        return self._x.extra_columns
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        return_converged: bool = False,
+        return_stats: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Any:
+        """As ``Matching.decode_batch``. ``return_converged`` also returns, per shot, whether BP
+        explained it alone; ``return_stats`` returns, per shot, the blocks, the ambiguous blocks
+        and the solutions searched in them (an int array of shape (shots, 3))."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, flags, stats = call(self._x.decode_batch, packed, n, threads)
+        flags = np.frombuffer(flags, dtype=np.uint8)
+        _failed(list(np.flatnonzero(flags == 2)), "no correction explains the detection events")
+        out = [self._predictions(preds, n, bit_packed_predictions)]
+        if return_converged:
+            out.append(flags == 1)
+        if return_stats:
+            out.append(np.frombuffer(stats, dtype="<u4").reshape(n, 3).astype(np.int64))
+        return out[0] if len(out) == 1 else tuple(out)
+
+
 def _relay_args(legs, solutions, pre_iterations, iterations, gamma0, gamma_range, alpha, seed) -> tuple:
     lo, hi = (real(x, "gamma_range") for x in gamma_range)
     return (

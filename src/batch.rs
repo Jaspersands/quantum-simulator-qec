@@ -1,6 +1,7 @@
 //! The loops over shots that the Python bindings and the crate's API share: each decoder over
 //! Stim's b8 rows, cut across threads, results in shot order.
 
+use crate::ambiguity::{AcOutcome, AmbiguityClustering};
 use crate::belief::BeliefMatching;
 use crate::color::ColorDecoder;
 use crate::lsd::BpLsd;
@@ -108,6 +109,25 @@ pub fn syndrome_shots<D: SyndromeDecoder>(dec: &D, obs: &[u64], packed: &[u8], n
                 let flag = dec.decode_syndrome(&syndrome, &mut work);
                 let pred = dec.correction(&work).iter().zip(obs).filter(|(c, _)| **c != 0).fold(0u64, |a, (_, o)| a ^ o);
                 (pred, flag)
+            })
+            .collect()
+    })
+}
+
+/// Ambiguity Clustering of b8 shots: per shot its logical effect and what the decode did.
+pub fn ambiguity_shots(dec: &AmbiguityClustering, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, AcOutcome)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut syndrome = vec![0u8; nd];
+        range
+            .map(|s| {
+                let row = &packed[s * stride..(s + 1) * stride];
+                for (i, x) in syndrome.iter_mut().enumerate() {
+                    *x = (row[i / 8] >> (i % 8)) & 1;
+                }
+                let out = dec.decode(&syndrome, &mut work);
+                (work.observables, out)
             })
             .collect()
     })

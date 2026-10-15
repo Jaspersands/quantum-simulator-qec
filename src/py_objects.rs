@@ -869,6 +869,56 @@ impl PyDemBpLsd {
     }
 }
 
+/// Ambiguity Clustering on an undecomposed model: each fault a column, its prior the model's.
+#[pyclass(name = "DemAmbiguityClustering", module = "stabilizer_qec._core")]
+pub struct PyDemAmbiguityClustering {
+    dec: crate::ambiguity::AmbiguityClustering,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemAmbiguityClustering {
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, kappa: f64, schedule: &str) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
+        let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
+        let obs = d.mechanisms.iter().map(|m| m.observables).collect();
+        let extra = (kappa * columns.len() as f64).round() as usize;
+        let mut dec = crate::ambiguity::AmbiguityClustering::new(d.num_detectors, columns, obs, &priors, bp_method(method, scale)?, max_iter, extra).map_err(err)?;
+        dec.schedule = match schedule {
+            "parallel" => crate::bp::Schedule::Parallel,
+            "serial" => crate::bp::Schedule::Serial,
+            "serial_relative" => crate::bp::Schedule::SerialRelative,
+            other => return Err(err(format!("schedule '{other}' is not parallel, serial or serial_relative"))),
+        };
+        Ok(PyDemAmbiguityClustering { dec, num_detectors: d.num_detectors, num_observables: d.num_observables })
+    }
+
+    /// K, the columns stage 2 adds.
+    #[getter]
+    fn extra_columns(&self) -> usize {
+        self.dec.extra_columns
+    }
+
+    /// (observables as u64 per shot, one byte per shot: 1 where BP converged, 0 where AC ran,
+    /// 2 where no correction explains the shot; per shot the blocks, the ambiguous blocks and
+    /// the solutions searched, as u32s).
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::ambiguity_shots(dec, packed, nd, shots, threads));
+        let flags: Vec<u8> = out.iter().map(|(_, o)| if o.failed { 2 } else { u8::from(o.converged) }).collect();
+        let stats: Vec<u8> = out.iter().flat_map(|(_, o)| [o.blocks, o.ambiguous_blocks, o.solutions].into_iter().flat_map(|x| (x as u32).to_le_bytes())).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &flags), PyBytes::new(py, &stats)))
+    }
+}
+
 /// Window decoding of a model cut by time.
 #[pyclass(name = "WindowMatcher", module = "stabilizer_qec._core")]
 pub struct PyWindowMatcher {
@@ -1931,6 +1981,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyM2d>()?;
     m.add_class::<PyMatcher>()?;
     m.add_class::<PyUnionFinder>()?;
+    m.add_class::<PyDemAmbiguityClustering>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;
     m.add_class::<PyWindowMatcher>()?;

@@ -268,6 +268,15 @@ noise on every gate. In progress on `feature/2.0`.
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
   shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+- **`AmbiguityClustering`** (Wolanski and Barber, arXiv 2406.14527; Riverlane's, built from the
+  paper): BP, then an elimination that goes only as far as the syndrome needs, grown by `kappa`
+  times the fault count further columns into blocks of the matrix decoded apart, ambiguous blocks
+  searched over every choice of at most two non-pivot columns and each observable set by summed
+  probability. At `kappa=0` it is BP+OSD-0 on the same BP, shot for shot; at the default 0.05 it
+  beats BP+OSD-CS(7) on the bivariate bicycle codes' memories (on the gross code at p = 0.3%, 26
+  failures in 20,000 shots against 32) and runs 8 to 100 times faster. `return_stats` gives each
+  shot's blocks, ambiguous blocks and solutions searched; sinter and the command line know it as
+  `ambiguity_clustering`.
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.
