@@ -127,4 +127,4 @@ if _sys.version_info < (3, 10) or not all(_importlib_util.find_spec(m) for m in 
 # as in stabilizer_qec.mwpf (without them the package loads without these helpers), and so do their
 # tests in tests/mwpf_port.
 if _sys.version_info < (3, 10) or not _importlib_util.find_spec("numpy"):
-    collect_ignore_glob += ["mwpf_port/test_mwpf_sinter.py", "mwpf_port/test_mwpf_heralded_dem.py", "mwpf_port/test_mwpf_ref_circuit.py"]
+    collect_ignore_glob += ["mwpf_port/test_mwpf_sinter.py", "mwpf_port/test_mwpf_heralded_dem.py", "mwpf_port/test_mwpf_ref_circuit.py", "mwpf_port/test_mwpf_panic.py"]
