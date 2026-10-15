@@ -1306,7 +1306,7 @@ pub mod serde_json {
 /// expression of a `ToJson` type and its keys any expression giving a string.
 macro_rules! json {
     ($($json:tt)+) => {
-        json_internal!($($json)+)
+        $crate::fusion::shim::json_internal!($($json)+)
     };
 }
 
@@ -1318,64 +1318,64 @@ macro_rules! json_internal {
         vec![$($elems),*]
     };
     (@array [$($elems:expr,)*] null $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)* json_internal!(null)] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!(null)] $($rest)*)
     };
     (@array [$($elems:expr,)*] true $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)* json_internal!(true)] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!(true)] $($rest)*)
     };
     (@array [$($elems:expr,)*] false $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)* json_internal!(false)] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!(false)] $($rest)*)
     };
     (@array [$($elems:expr,)*] [$($array:tt)*] $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)* json_internal!([$($array)*])] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!([$($array)*])] $($rest)*)
     };
     (@array [$($elems:expr,)*] {$($map:tt)*} $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)* json_internal!({$($map)*})] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!({$($map)*})] $($rest)*)
     };
     (@array [$($elems:expr,)*] $next:expr, $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)* json_internal!($next),] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!($next),] $($rest)*)
     };
     (@array [$($elems:expr,)*] $last:expr) => {
-        json_internal!(@array [$($elems,)* json_internal!($last)])
+        $crate::fusion::shim::json_internal!(@array [$($elems,)* $crate::fusion::shim::json_internal!($last)])
     };
     (@array [$($elems:expr),*] , $($rest:tt)*) => {
-        json_internal!(@array [$($elems,)*] $($rest)*)
+        $crate::fusion::shim::json_internal!(@array [$($elems,)*] $($rest)*)
     };
 
     (@object $object:ident () () ()) => {};
     (@object $object:ident [$($key:tt)+] ($value:expr) , $($rest:tt)*) => {
         let _ = $object.insert(::std::string::String::from($($key)+), $value);
-        json_internal!(@object $object () ($($rest)*) ($($rest)*));
+        $crate::fusion::shim::json_internal!(@object $object () ($($rest)*) ($($rest)*));
     };
     (@object $object:ident [$($key:tt)+] ($value:expr)) => {
         let _ = $object.insert(::std::string::String::from($($key)+), $value);
     };
     (@object $object:ident ($($key:tt)+) (: null $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!(null)) $($rest)*);
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!(null)) $($rest)*);
     };
     (@object $object:ident ($($key:tt)+) (: true $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!(true)) $($rest)*);
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!(true)) $($rest)*);
     };
     (@object $object:ident ($($key:tt)+) (: false $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!(false)) $($rest)*);
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!(false)) $($rest)*);
     };
     (@object $object:ident ($($key:tt)+) (: [$($array:tt)*] $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!([$($array)*])) $($rest)*);
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!([$($array)*])) $($rest)*);
     };
     (@object $object:ident ($($key:tt)+) (: {$($map:tt)*} $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!({$($map)*})) $($rest)*);
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!({$($map)*})) $($rest)*);
     };
     (@object $object:ident ($($key:tt)+) (: $value:expr , $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!($value)) , $($rest)*);
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!($value)) , $($rest)*);
     };
     (@object $object:ident ($($key:tt)+) (: $value:expr) $copy:tt) => {
-        json_internal!(@object $object [$($key)+] (json_internal!($value)));
+        $crate::fusion::shim::json_internal!(@object $object [$($key)+] ($crate::fusion::shim::json_internal!($value)));
     };
     (@object $object:ident () (($key:expr) : $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object ($key) (: $($rest)*) (: $($rest)*));
+        $crate::fusion::shim::json_internal!(@object $object ($key) (: $($rest)*) (: $($rest)*));
     };
     (@object $object:ident ($($key:tt)*) ($tt:tt $($rest:tt)*) $copy:tt) => {
-        json_internal!(@object $object ($($key)* $tt) ($($rest)*) ($($rest)*));
+        $crate::fusion::shim::json_internal!(@object $object ($($key)* $tt) ($($rest)*) ($($rest)*));
     };
 
     (null) => {
@@ -1391,7 +1391,7 @@ macro_rules! json_internal {
         $crate::fusion::shim::serde_json::Value::Array(vec![])
     };
     ([ $($tt:tt)+ ]) => {
-        $crate::fusion::shim::serde_json::Value::Array(json_internal!(@array [] $($tt)+))
+        $crate::fusion::shim::serde_json::Value::Array($crate::fusion::shim::json_internal!(@array [] $($tt)+))
     };
     ({}) => {
         $crate::fusion::shim::serde_json::Value::Object($crate::fusion::shim::serde_json::Map::new())
@@ -1399,7 +1399,7 @@ macro_rules! json_internal {
     ({ $($tt:tt)+ }) => {
         $crate::fusion::shim::serde_json::Value::Object({
             let mut object = $crate::fusion::shim::serde_json::Map::new();
-            json_internal!(@object object () ($($tt)+) ($($tt)+));
+            $crate::fusion::shim::json_internal!(@object object () ($($tt)+) ($($tt)+));
             object
         })
     };
@@ -1407,6 +1407,8 @@ macro_rules! json_internal {
         $crate::fusion::shim::serde_json::ToJson::to_json(&$other)
     };
 }
+pub(crate) use json;
+pub(crate) use json_internal;
 
 /// `nonzero::nonzero!`: a nonzero constant.
 macro_rules! nz {

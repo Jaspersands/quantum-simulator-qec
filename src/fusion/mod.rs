@@ -7,6 +7,7 @@
 //! `stabilizer_qec.fusion_blossom` is its Python API.
 
 #![allow(clippy::all, dead_code, unused_imports, unused_variables, unused_mut, unused_macros)]
+#![allow(rustdoc::broken_intra_doc_links, rustdoc::private_intra_doc_links, rustdoc::bare_urls, rustdoc::invalid_html_tags, rustdoc::invalid_rust_codeblocks)]
 
 #[macro_use]
 pub(crate) mod shim;
