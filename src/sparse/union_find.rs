@@ -54,6 +54,8 @@ pub struct UfScratch {
     order: Vec<u32>,
     /// The last decode's correction, as edge ids.
     pub(crate) correction: Vec<u32>,
+    /// Per edge, a weight in half units for this decode alone (`u64::MAX` for none).
+    patch_w: Vec<u64>,
 }
 
 const NO_EDGE: u32 = u32::MAX;
@@ -87,12 +89,29 @@ impl SparseGraph {
             via: vec![NO_EDGE; n],
             order: Vec::new(),
             correction: Vec::new(),
+            patch_w: vec![u64::MAX; m],
         }
     }
 
     /// An edge's weight in half units.
-    fn uf_weight(&self, id: u32) -> u64 {
-        2 * self.w[self.halves[id as usize][0] as usize].max(0) as u64
+    fn uf_weight(&self, s: &UfScratch, id: u32) -> u64 {
+        match s.patch_w[id as usize] {
+            u64::MAX => 2 * self.w[self.halves[id as usize][0] as usize].max(0) as u64,
+            w => w,
+        }
+    }
+
+    /// `decode_union_find` on weights changed for this decode alone: `patch` lists (edge id,
+    /// even integer weight).
+    pub fn decode_union_find_patched(&self, s: &mut UfScratch, defects: &[u32], patch: &[(u32, i64)]) -> Option<u64> {
+        for &(id, w) in patch {
+            s.patch_w[id as usize] = 2 * w.max(0) as u64;
+        }
+        let out = self.decode_union_find(s, defects);
+        for &(id, _) in patch {
+            s.patch_w[id as usize] = u64::MAX;
+        }
+        out
     }
 
     fn uf_obs(&self, id: u32) -> u64 {
@@ -136,7 +155,7 @@ impl SparseGraph {
         s.rate[i] = rate;
         s.version[i] = s.version[i].wrapping_add(1);
         if rate > 0 {
-            let done = now + self.uf_weight(id).saturating_sub(s.support[i]).div_ceil(u64::from(rate));
+            let done = now + self.uf_weight(s, id).saturating_sub(s.support[i]).div_ceil(u64::from(rate));
             s.events.push(done, id, s.version[i]);
         }
     }

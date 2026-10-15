@@ -38,6 +38,7 @@ pub enum Method {
 /// A parity-check matrix as a Tanner graph. Edges are numbered in column
 /// order (variable by variable, checks ascending within each); each check
 /// lists its edges in variable order.
+#[derive(Clone)]
 pub struct Bp {
     pub num_checks: usize,
     pub num_vars: usize,
@@ -160,6 +161,11 @@ impl Bp {
             hard: vec![0; self.num_vars],
             candidate: vec![0; self.num_checks],
         }
+    }
+
+    /// One variable's new prior.
+    pub fn set_prior(&mut self, v: usize, p: f64) {
+        self.prior_llr[v] = ((1.0 - p) / p).ln();
     }
 
     /// New priors (`ldpc`'s `update_channel_probs`).

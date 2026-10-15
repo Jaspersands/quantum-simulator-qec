@@ -133,6 +133,28 @@ pub fn ambiguity_shots(dec: &AmbiguityClustering, packed: &[u8], nd: usize, num_
     })
 }
 
+/// Argument reweighting of b8 shots: per shot, its outcome (shot `s` seeds Relay-BP's memory
+/// strengths as `relay_shots` does).
+pub fn reweight_shots(dec: &crate::reweight::ArgumentReweighting, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<crate::reweight::ArOutcome> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut defects = Vec::new();
+        let mut syndrome = vec![0u8; nd];
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                syndrome.fill(0);
+                for &d in &defects {
+                    syndrome[d as usize] = 1;
+                }
+                dec.decode(&defects, &syndrome, s as u64, &mut work)
+            })
+            .collect()
+    })
+}
+
 /// Collision Clustering of b8 shots: (observables, `None` where no correction exists; stats).
 pub fn collision_shots(dec: &crate::clustering::CollisionClustering, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(Option<u64>, crate::clustering::ClusterStats)> {
     let stride = nd.div_ceil(8);
@@ -198,7 +220,7 @@ pub fn relay_shots(dec: &Relay, obs: &[u64], packed: &[u8], nd: usize, num_shots
 }
 
 /// A seed for shot `s` of a batch: SplitMix64's mix of the two.
-fn shot_seed(seed: u64, s: u64) -> u64 {
+pub(crate) fn shot_seed(seed: u64, s: u64) -> u64 {
     let mut z = seed.wrapping_add(s.wrapping_add(1).wrapping_mul(0x9e37_79b9_7f4a_7c15));
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);

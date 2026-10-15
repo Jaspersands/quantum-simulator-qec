@@ -106,6 +106,8 @@ pub mod ambiguity;
 #[doc(hidden)]
 pub mod clustering;
 #[doc(hidden)]
+pub mod reweight;
+#[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]
 pub mod belief;

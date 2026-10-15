@@ -99,7 +99,9 @@ pickling:
 - `ColorMatching` (Chromobius's): colour codes whose detectors carry its colour annotation
   (`CssCode.color_code(d).memory_circuit(..., annotate_colors=True)`);
 - `CompositeDecoder` (a model's independent parts, decoded apart by any of these) and
-  `SubgraphDecoder` (qLDPC's: chosen detector subgraphs, predictions combined).
+  `SubgraphDecoder` (qLDPC's: chosen detector subgraphs, predictions combined);
+  `ArgumentReweighting` (post-selection: decode again with the correction made less likely,
+  keep the shot if the answer holds) around matching, union-find, BP+OSD, BP+LSD or Relay-BP.
 
 On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
 `RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
@@ -228,7 +230,7 @@ from ._stim import (
     target_z,
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import AmbiguityClustering, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
+from ._decoders import AmbiguityClustering, ArgumentReweighting, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -307,6 +309,7 @@ __all__ = [
     "GateTargetWithCoords",
     "BpDecoder",
     "AmbiguityClustering",
+    "ArgumentReweighting",
     "CollisionClustering",
     "CompositeDecoder",
     "SubgraphDecoder",

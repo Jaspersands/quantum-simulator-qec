@@ -30,6 +30,7 @@ pub enum OsdMethod {
     CombinationSweep(usize),
 }
 
+#[derive(Clone)]
 pub struct BpOsd {
     pub bp: Bp,
     columns: Vec<Vec<u32>>,
@@ -82,6 +83,12 @@ impl BpOsd {
             OsdMethod::Exhaustive(k) | OsdMethod::CombinationSweep(k) => k,
         };
         Ok(BpOsd { bp, columns, weight, method, max_iter, osd, order, schedule: Schedule::Parallel })
+    }
+
+    /// One fault's new prior, for BP and for OSD's weight.
+    pub fn set_prior(&mut self, v: usize, p: f64) {
+        self.bp.set_prior(v, p);
+        self.weight[v] = (1.0 / p).ln();
     }
 
     /// New priors, for BP and for OSD's weights.

@@ -30,7 +30,7 @@ mod matcher;
 mod paths;
 mod state;
 mod tracker;
-mod union_find;
+pub(crate) mod union_find;
 #[cfg(test)]
 mod correlated_tests;
 #[cfg(test)]
@@ -76,6 +76,26 @@ impl SparseGraph {
         solver.reset();
         let result = solver.run(defects, false).map(|()| solver.extract());
         scratch.scan.copy_from_slice(&self.scan);
+        result
+    }
+
+    /// Pass one's prediction and edge set (as edge ids) on weights changed for this shot alone:
+    /// `patch` lists (edge id, even integer weight, as `int_weight` makes them). The scratch's
+    /// weights are the graph's again afterwards.
+    pub fn decode_edge_ids_patched(&self, scratch: &mut Scratch, defects: &[u32], patch: &[(u32, i64)]) -> Result<(Prediction, Vec<u32>), DecodeError> {
+        self.check_scratch(scratch);
+        for &(id, wt) in patch {
+            for &slot in self.halves[id as usize].iter().filter(|&&h| h != state::NONE) {
+                scratch.set_weight(slot as usize, wt);
+            }
+        }
+        let mut solver = Solver { g: self, s: scratch };
+        let result = solver.pass_one(defects).map(|p| (p, solver.s.edge_set.clone()));
+        for &(id, _) in patch {
+            for &slot in self.halves[id as usize].iter().filter(|&&h| h != state::NONE) {
+                scratch.scan[slot as usize] = self.scan[slot as usize];
+            }
+        }
         result
     }
 

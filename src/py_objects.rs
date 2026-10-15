@@ -1023,6 +1023,74 @@ impl PyDemLocalClustering {
     }
 }
 
+/// Argument reweighting (Xie et al. 2026) around matching, union-find, BP+OSD, BP+LSD or
+/// Relay-BP.
+#[pyclass(name = "DemArgumentReweighting", module = "stabilizer_qec._core")]
+pub struct PyDemArgumentReweighting {
+    dec: crate::reweight::ArgumentReweighting,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemArgumentReweighting {
+    /// `inner`: the BP decoder's core (a `DemBpOsd`, `DemBpLsd` or `DemRelay`), for those kinds.
+    #[new]
+    #[pyo3(signature = (dem, kind, inner, b, test, criterion))]
+    fn new(dem: &PyDem, kind: &str, inner: Option<&Bound<'_, PyAny>>, b: f64, test: &str, criterion: &str) -> PyResult<Self> {
+        use crate::reweight::{Criterion, Inner, Test};
+        let d = dem.flat()?;
+        let need = |what: &str| err(format!("the {what} decoder's core is needed"));
+        let inner = match kind {
+            "matching" | "union_find" => {
+                let (graph, _) = DemDecoder::new(d).map_err(err)?.into_parts(false);
+                if kind == "matching" { Inner::Matching(graph) } else { Inner::UnionFind(graph) }
+            }
+            "bposd" => {
+                let x = inner.ok_or_else(|| need("bposd"))?.cast::<PyDemBpOsd>().map_err(|e| err(e.to_string()))?.borrow();
+                Inner::BpOsd(x.dec.clone(), x.obs.clone())
+            }
+            "bplsd" => {
+                let x = inner.ok_or_else(|| need("bplsd"))?.cast::<PyDemBpLsd>().map_err(|e| err(e.to_string()))?.borrow();
+                Inner::BpLsd(x.dec.clone(), x.obs.clone())
+            }
+            "relay_bp" => {
+                let x = inner.ok_or_else(|| need("relay_bp"))?.cast::<PyDemRelay>().map_err(|e| err(e.to_string()))?.borrow();
+                Inner::Relay(x.dec.clone(), x.obs.clone(), x.dec.config.seed)
+            }
+            other => return Err(err(format!("decoder '{other}' is not matching, union_find, bposd, bplsd or relay_bp"))),
+        };
+        let test = match test {
+            "ratio" => Test::Ratio,
+            "exact_ratio" => Test::ExactRatio,
+            "gap" => Test::Gap,
+            other => return Err(err(format!("test '{other}' is not ratio, exact_ratio or gap"))),
+        };
+        let criterion = match criterion {
+            "pec" => Criterion::Physical,
+            "2r-lec" => Criterion::TwoRound,
+            "3r-lec" => Criterion::ThreeRound,
+            other => return Err(err(format!("criterion '{other}' is not pec, 2r-lec or 3r-lec"))),
+        };
+        let dec = crate::reweight::ArgumentReweighting::new(inner, b, test, criterion).map_err(err)?;
+        Ok(PyDemArgumentReweighting { dec, num_detectors: d.num_detectors, num_observables: d.num_observables })
+    }
+
+    /// (observables as u64 per shot, one byte per shot: 1 kept, 0 rejected, 2 no correction;
+    /// one byte per shot: the decodes run).
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::reweight_shots(dec, packed, nd, shots, threads));
+        let flags: Vec<u8> = out.iter().map(|o| if o.failed { 2 } else { u8::from(o.accepted) }).collect();
+        let rounds: Vec<u8> = out.iter().map(|o| o.rounds).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.observables))), PyBytes::new(py, &flags), PyBytes::new(py, &rounds)))
+    }
+}
+
 /// Window decoding of a model cut by time.
 #[pyclass(name = "WindowMatcher", module = "stabilizer_qec._core")]
 pub struct PyWindowMatcher {
@@ -2087,6 +2155,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyUnionFinder>()?;
     m.add_class::<PyDemCollisionClustering>()?;
     m.add_class::<PyDemLocalClustering>()?;
+    m.add_class::<PyDemArgumentReweighting>()?;
     m.add_class::<PyDemAmbiguityClustering>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;

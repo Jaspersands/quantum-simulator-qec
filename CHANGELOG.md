@@ -268,6 +268,16 @@ noise on every gate. In progress on `feature/2.0`.
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
   shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+- **`ArgumentReweighting`** (Xie, Yoshioka, Tsubouchi and Li, arXiv 2601.17757): post-selection
+  by asking the decoder again. It decodes, makes the correction's faults less likely (each prior
+  p to p^b, the paper's ratio test; `test="exact_ratio"` or `"gap"`, its appendices' variants),
+  decodes again, and keeps the shot if the second correction is the first (`criterion="pec"`),
+  has its logical effect (`"2r-lec"`), or still has it after a third decode with the second
+  suppressed too (`"3r-lec"`, the default and the paper's best). Around matching, union-find,
+  BP+OSD, BP+LSD or Relay-BP, each thread on its own copy, a shot's changed priors put back after
+  it. On a d = 5 surface-code memory at p = 0.2%, 3R-LEC at b = 1.2 rejects 3.7% of shots and
+  cuts the kept shots' logical error rate 5.5 times, which PEC needs 18% rejection for; on
+  [[72,12,6]] at p = 0.3% BP+OSD's falls 16 times at 11% rejection.
 - **`CompositeDecoder` and `SubgraphDecoder`**, built in (qLDPC's are in `stabilizer_qec.qldpc`):
   `CompositeDecoder` splits a model into the independent parts its faults connect (separate
   patches or blocks, and a decomposed model's X and Z sectors) and decodes each alone with any

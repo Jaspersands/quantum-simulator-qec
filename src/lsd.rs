@@ -361,6 +361,7 @@ fn dense_osd(c: &Cluster, method: OsdMethod, order: usize) -> Vec<u8> {
 }
 
 /// BP+LSD on a check matrix given by its columns.
+#[derive(Clone)]
 pub struct BpLsd {
     pub bp: Bp,
     columns: Vec<Vec<u32>>,

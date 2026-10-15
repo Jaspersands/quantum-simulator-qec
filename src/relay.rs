@@ -87,6 +87,7 @@ impl Default for RelayConfig {
 }
 
 /// The check matrix and the per-fault constants, in number type `N`.
+#[derive(Clone)]
 pub struct RelayCore<N: RelayNum> {
     pub num_checks: usize,
     pub num_vars: usize,
@@ -207,6 +208,19 @@ impl<N: RelayNum> RelayCore<N> {
         let weight = llr.iter().map(|&x| if x.is_finite() { x } else { 0.0 }).collect();
         let uniform = Uniform::new(lo, hi);
         Ok(RelayCore { num_checks, num_vars: columns.len(), var_start, edge_var, chk_start, chk_edges, prior, weight, data_scale, max_data, config, uniform })
+    }
+
+    /// The faults' priors (0 where a prior was 0).
+    pub fn priors(&self) -> Vec<f64> {
+        self.prior.iter().zip(&self.weight).map(|(p, &w)| if *p == N::max_value() { 0.0 } else { 1.0 / (1.0 + w.exp()) }).collect()
+    }
+
+    /// One fault's new prior, scaled and bounded as the others were.
+    pub fn set_prior(&mut self, v: usize, p: f64) {
+        let x = ((1.0 - p) / p).ln();
+        let scaled = if x == f64::INFINITY { N::max_value() } else { N::from_f64(self.config.data_scale.map_or(x, |s| s * x)).unwrap_or_else(N::max_value) };
+        self.prior[v] = self.max_data.map_or(scaled, |m| bound(scaled, m));
+        self.weight[v] = if x.is_finite() { x } else { 0.0 };
     }
 
     pub fn work(&self) -> RelayCoreWork<N> {

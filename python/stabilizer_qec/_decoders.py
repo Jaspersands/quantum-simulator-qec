@@ -618,6 +618,72 @@ def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> 
     return out
 
 
+class ArgumentReweighting(_DemDecoder):
+    """Post-selection by argument reweighting (Xie, Yoshioka, Tsubouchi and Li, arXiv
+    2601.17757): decode, make the correction less likely, decode again, and keep the shot only
+    if the answer holds. ``test="ratio"`` raises each of the correction's fault priors p to p^b
+    (the paper's practical ratio test), ``"exact_ratio"`` also raises every other fault's to
+    1 − (1 − p)^b so the correction's likelihood is exactly its b-th power, and ``"gap"`` takes
+    e^-b off the correction's likelihood, shared among its faults. A shot is kept when the second
+    correction is the first (``criterion="pec"``), has its logical effect (``"2r-lec"``), or when
+    a third decode, with the second correction suppressed too, still has it (``"3r-lec"``, the
+    paper's best at low rejection). A shot with nothing to correct is kept. Larger b rejects
+    more.
+
+    ``decoder`` is ``"matching"``, ``"union_find"`` (decomposed models), ``"bposd"``,
+    ``"bplsd"`` or ``"relay_bp"``, with that class's options as keywords. ``decode_batch``
+    returns the first decode's predictions and which shots are kept.
+
+    >>> import stabilizer_qec as sq
+    >>> c = sq.memory_circuit(distance=5, rounds=5, p=0.002)
+    >>> dets, obs = c.compile_detector_sampler(seed=1).sample(10_000, separate_observables=True)
+    >>> ar = sq.ArgumentReweighting(c.detector_error_model(decompose_errors=True), b=1.2)
+    >>> pred, kept = ar.decode_batch(dets)
+    >>> wrong = (pred != obs).any(axis=1)
+    >>> bool(wrong[kept].mean() < wrong.mean() / 2 and kept.mean() > 0.9)
+    True
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike, decoder: str = "matching", *, b: float = 1.1, test: str = "ratio", criterion: str = "3r-lec", **decoder_options: Any) -> None:
+        model = self._made(_model(model), decoder=decoder, b=b, test=test, criterion=criterion, **decoder_options)
+        bp = {"bposd": BpOsd, "bplsd": BpLsd, "relay_bp": RelayBp}
+        inner = None
+        if decoder in bp:
+            inner = bp[decoder](model, **decoder_options)._x
+        elif decoder_options:
+            raise TypeError(f"the {decoder} decoder takes no options here, not {', '.join(decoder_options)}")
+        self._x = call(_core.DemArgumentReweighting, model._d, decoder, inner, real(b, "b"), test, criterion)
+
+    def decode(self, syndrome: Any) -> tuple:
+        """One shot: (its predicted observable flips, whether it is kept)."""
+        s = np.asarray(syndrome)
+        if s.ndim != 1:
+            raise ValueError(f"a syndrome is 1-dimensional, not {s.ndim}-dimensional; use decode_batch for many")
+        pred, kept = self.decode_batch(s.reshape(1, -1))
+        return pred[0], bool(kept[0])
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        return_rounds: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> tuple:
+        """``(predictions, kept)``: the first decode's predictions (as ``Matching.decode_batch``)
+        and, per shot, whether it is kept. ``return_rounds`` also returns the decodes each shot
+        ran (1 to 3). A shot no correction explains raises ``ValueError``."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, flags, rounds = call(self._x.decode_batch, packed, n, threads)
+        flags = np.frombuffer(flags, dtype=np.uint8)
+        _failed(list(np.flatnonzero(flags == 2)), "no correction explains its detection events")
+        out = (self._predictions(preds, n, bit_packed_predictions), flags == 1)
+        return out + (np.frombuffer(rounds, dtype=np.uint8).astype(np.int64),) if return_rounds else out
+
+
 def _inner_decoders() -> dict:
     return {
         "matching": Matching,
