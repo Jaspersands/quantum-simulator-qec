@@ -50,6 +50,10 @@ def test_subset_sampling_agrees_with_direct_sampling(make):
     p_d, std_d = direct.stats()
     p_s, std_s, p_up, _ = subset.stats()
     for a, sa, b, sb, up in zip(p_d, std_d, p_s, std_s, p_up):
+        # direct sampling's spread from the larger rate: at q = 3e-3 it sees a handful of failures in
+        # 6000 shots, and the deviation estimated from so few underestimates it
+        rate = max(a, b)
+        sa = max(sa, np.sqrt(rate * (1 - rate) / 6000))
         assert abs(a - b) < 4.5 * np.hypot(sa, sb) + 1e-4, (a, b)
         assert up >= b
     # One run gives every rate below p_max: the low rates are far more precise than direct
