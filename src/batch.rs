@@ -133,6 +133,47 @@ pub fn ambiguity_shots(dec: &AmbiguityClustering, packed: &[u8], nd: usize, num_
     })
 }
 
+/// Collision Clustering of b8 shots: (observables, `None` where no correction exists; stats).
+pub fn collision_shots(dec: &crate::clustering::CollisionClustering, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(Option<u64>, crate::clustering::ClusterStats)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                dec.decode(&defects, &mut work)
+            })
+            .collect()
+    })
+}
+
+/// The Local Clustering Decoder on b8 shots, each with its b8 row of heralds (`nh` per shot)
+/// firing the adaptivity map's triggers: (observables, `None` where no correction exists;
+/// stats; the edges pre-grown).
+pub fn local_clustering_shots(dec: &crate::clustering::LocalClustering, packed: &[u8], nd: usize, heralds: Option<(&[u8], usize)>, num_shots: usize, threads: usize) -> Vec<(Option<u64>, crate::clustering::ClusterStats, u32)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.work();
+        let mut defects = Vec::new();
+        let mut triggers = Vec::new();
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                triggers.clear();
+                if let Some((h, nh)) = heralds {
+                    let hs = nh.div_ceil(8);
+                    crate::shots::defects_from_b8(&h[s * hs..(s + 1) * hs], nh, &mut triggers);
+                }
+                let (obs, stats) = dec.decode(&defects, &triggers, &mut work);
+                (obs, stats, work.pregrown_count())
+            })
+            .collect()
+    })
+}
+
 /// Relay-BP of b8 shots on a model's faults: (observables, a leg converged). Shot `s` draws
 /// its memory strengths from a generator seeded by the configured seed and `s`, so a batch's
 /// results do not depend on how it is cut across threads.

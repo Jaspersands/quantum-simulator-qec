@@ -119,6 +119,11 @@ impl SparseGraph {
         self.ends[id as usize]
     }
 
+    /// An edge's weight ln((1 − p)/p), as a float.
+    pub(crate) fn float_weight(&self, id: u32) -> f64 {
+        self.wf[id as usize]
+    }
+
     /// An edge's integer weight as built, before any reweighting.
     #[cfg(test)]
     pub(crate) fn weight_of(&self, id: u32) -> i64 {

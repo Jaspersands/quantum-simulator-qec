@@ -89,7 +89,9 @@ On a detector error model, each with `decode` and `decode_batch` (any thread cou
 pickling:
 
 - `Matching` (sparse blossom, PyMatching's results), with `enable_correlations`;
-  `UnionFind`; `BeliefMatching`; `WindowMatching` (sliding or parallel windows): for models
+  `UnionFind`, `CollisionClustering` and `LocalClustering` (Riverlane's hardware union-finds,
+  the second with its leakage-adaptive pre-growth); `BeliefMatching`; `WindowMatching`
+  (sliding or parallel windows): for models
   whose faults set off at most two detectors, or decomposed;
 - `BpOsd` and `BpLsd` (`ldpc`'s corrections), `RelayBp` (IBM's), `SearchDecoder`
   (Tesseract's A*, exact on request), `AmbiguityClustering` (Riverlane's, from its paper): for
@@ -224,7 +226,7 @@ from ._stim import (
     target_z,
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import AmbiguityClustering, BeliefMatching, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
+from ._decoders import AmbiguityClustering, BeliefMatching, CollisionClustering, LocalClustering, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -303,6 +305,8 @@ __all__ = [
     "GateTargetWithCoords",
     "BpDecoder",
     "AmbiguityClustering",
+    "CollisionClustering",
+    "LocalClustering",
     "BpLsd",
     "BpLsdDecoder",
     "BpOsd",

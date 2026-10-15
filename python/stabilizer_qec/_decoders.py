@@ -376,6 +376,248 @@ class AmbiguityClustering(_DemDecoder):
         return out[0] if len(out) == 1 else tuple(out)
 
 
+def _resolution(weighted: bool, weight_resolution: int) -> Union[int, None]:
+    if not weighted:
+        return None
+    r = count(weight_resolution, "weight_resolution")
+    if r < 1:
+        raise ValueError("weight_resolution must be at least 1")
+    return r
+
+
+class CollisionClustering(_DemDecoder):
+    """Collision Clustering (Barber et al., arXiv 2309.05558: Riverlane's union-find for an
+    ASIC) on the graph ``Matching`` uses. Each detection event has a ball, in the Cluster
+    Growth Stack, whose radius grows half an edge a round while its cluster is odd and off the
+    boundary; every pair of events from two clusters is compared each round, and their
+    clusters merge (in the Parent table, with Parity and Boundary registers) once their balls
+    overlap, r_i + r_j ≥ d(i, j). The edges the balls cover are peeled for the correction.
+
+    Its clusters are union-find's (Delfosse and Nickerson's, round by round), as the paper
+    claims: the tests check it shot by shot. Unweighted by default, as the hardware is (every
+    edge two steps); ``weighted=True`` scales each edge's weight to at most
+    ``weight_resolution`` steps, with distances by Dijkstra. ``return_stats`` gives the rounds
+    of growth and the pairs compared, the hardware's work. The model must be decomposed.
+
+    >>> import stabilizer_qec as sq
+    >>> c = sq.memory_circuit(distance=5, rounds=5, p=0.003)
+    >>> dem = c.detector_error_model(decompose_errors=True)
+    >>> dets, obs = c.compile_detector_sampler(seed=1).sample(2000, separate_observables=True)
+    >>> int((sq.CollisionClustering(dem).decode_batch(dets) != obs).any(axis=1).sum()) < 100
+    True
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike, *, weighted: bool = False, weight_resolution: int = 16) -> None:
+        model = self._made(_model(model), weighted=weighted, weight_resolution=weight_resolution)
+        self._x = call(_core.DemCollisionClustering, model._d, _resolution(weighted, weight_resolution))
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        return_stats: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Any:
+        """As ``Matching.decode_batch``; ``return_stats`` also returns, per shot, the rounds of
+        growth and the pairs of events compared (an int array of shape (shots, 2)). A shot no
+        correction explains raises ``ValueError``."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        preds, failed, stats = call(self._x.decode_batch, packed, n, threads)
+        _failed(failed, "no correction explains its detection events (an odd cluster with no boundary)")
+        pred = self._predictions(preds, n, bit_packed_predictions)
+        return (pred, np.frombuffer(stats, dtype="<u4").reshape(n, 2).astype(np.int64)) if return_stats else pred
+
+
+class LocalClustering(_DemDecoder):
+    """The Local Clustering Decoder (Ziad et al., arXiv 2411.10343: Riverlane's adaptive
+    union-find for an FPGA) on the graph ``Matching`` uses. Every vertex keeps a radius, a
+    cluster index (the lowest in its cluster), a parent, a parity and an activity bit, and a
+    controller runs the paper's stages: growing (active vertices' radii step up, to their
+    longest edge), merging (each vertex adopts a lower cluster index across an edge their radii
+    cover, and passes odd parity to its parent), picking (odd roots become active) and syncing
+    (activity spreads through the cluster), merging and syncing repeating while a vertex is
+    busy, until no vertex is active. The covered edges are peeled for the correction.
+
+    Its adaptivity engine pre-grows edges: ``adaptivity`` maps each trigger to the edges it
+    makes likely, as pairs of detectors (``num_detectors`` for the boundary), and the
+    ``heralds`` given to ``decode_batch`` say which triggers fired; the clusters form along the
+    pre-grown edges first. ``LocalClustering.from_circuit`` builds the paper's map for leakage:
+    a measurement heralded leaked means its qubit may have leaked any time since its last reset.
+
+    Without pre-grown edges its clusters are union-find's and its predictions are
+    ``CollisionClustering``'s, shot for shot. Unweighted by default, as the hardware is;
+    ``weighted=True`` scales each edge's weight to at most ``weight_resolution`` steps (the
+    paper's weighted software decoder). The model must be decomposed.
+
+    >>> import stabilizer_qec as sq
+    >>> c = sq.memory_circuit(distance=5, rounds=5, p=0.003)
+    >>> dem = c.detector_error_model(decompose_errors=True)
+    >>> dets, obs = c.compile_detector_sampler(seed=1).sample(2000, separate_observables=True)
+    >>> int((sq.LocalClustering(dem).decode_batch(dets) != obs).any(axis=1).sum()) < 100
+    True
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike, *, weighted: bool = False, weight_resolution: int = 16, adaptivity: Any = None) -> None:
+        pairs = [] if adaptivity is None else [[(int(u), int(v)) for u, v in edges] for edges in adaptivity]
+        model = self._made(_model(model), weighted=weighted, weight_resolution=weight_resolution, adaptivity=pairs or None)
+        nd = model.num_detectors
+        for edges in pairs:
+            for u, v in edges:
+                if not (0 <= u <= nd and 0 <= v <= nd):
+                    raise ValueError(f"adaptivity edge ({u}, {v}) names a detector outside 0..{nd} ({nd} is the boundary)")
+        self._x = call(_core.DemLocalClustering, model._d, _resolution(weighted, weight_resolution), pairs)
+
+    @classmethod
+    def from_circuit(cls, circuit: Any, *, leakage_aware: bool = True, weighted: bool = False, weight_resolution: int = 16) -> "LocalClustering":
+        """From a circuit's decomposed model, and, with ``leakage_aware``, the paper's leakage
+        adaptivity map: one trigger per measurement (as ``LeakageSampler.sample``'s heralds),
+        pre-growing the edges more likely if the measured qubit was leaked since its last
+        reset, so that every two-qubit gate since left its partner fully depolarized (and its
+        own readout random). Each is found by comparing the error model of the noiseless
+        circuit with those channels added to the decoding graph."""
+        dem = circuit.detector_error_model(decompose_errors=True)
+        if not leakage_aware:
+            return cls(dem, weighted=weighted, weight_resolution=weight_resolution)
+        edges = call(_core.DemLocalClustering, dem._d, None, []).edges
+        return cls(dem, weighted=weighted, weight_resolution=weight_resolution, adaptivity=_leakage_adaptivity(circuit, edges, dem.num_detectors))
+
+    @property
+    def adaptivity_sizes(self) -> list:
+        """Per trigger, how many edges of the graph it pre-grows."""
+        return self._x.adaptivity_sizes
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        heralds: Any = None,
+        return_stats: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_heralds: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Any:
+        """As ``Matching.decode_batch``. ``heralds``: per shot, which triggers of the
+        adaptivity map fired (shape (shots, triggers)); their edges are pre-grown.
+        ``return_stats`` also returns, per shot, the rounds of growth, the stage passes the
+        controller ran (the hardware's time steps) and the edges pre-grown (an int array of
+        shape (shots, 3)). A shot no correction explains raises ``ValueError``."""
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        h, nh = None, 0
+        if heralds is not None:
+            nh = len(self._x.adaptivity_sizes)
+            h, hn = rows_to_b8(heralds, nh, bit_packed_heralds, "heralds")
+            if hn != n:
+                raise ValueError(f"heralds has {hn} shots, not {n}")
+        preds, failed, stats = call(self._x.decode_batch, packed, n, threads, h, nh)
+        _failed(failed, "no correction explains its detection events (an odd cluster with no boundary)")
+        pred = self._predictions(preds, n, bit_packed_predictions)
+        return (pred, np.frombuffer(stats, dtype="<u4").reshape(n, 3).astype(np.int64)) if return_stats else pred
+
+
+def _split_into_edges(dets: list, edges: set, boundary: int) -> Union[list, None]:
+    """Detectors a fault flips, paired into edges of the graph (or to the boundary)."""
+    if not dets:
+        return []
+    a, rest = dets[0], dets[1:]
+    for k, b in enumerate(rest):
+        if (min(a, b), max(a, b)) in edges:
+            more = _split_into_edges(rest[:k] + rest[k + 1 :], edges, boundary)
+            if more is not None:
+                return [(min(a, b), max(a, b))] + more
+    if (a, boundary) in edges:
+        more = _split_into_edges(rest, edges, boundary)
+        if more is not None:
+            return [(a, boundary)] + more
+    return None
+
+
+def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> list:
+    """Per measurement, the graph's edges its qubit's leakage makes likely (as
+    ``LocalClustering.from_circuit``)."""
+    from ._circuit import Circuit
+    from ._stim import gate_data
+
+    edges = {(min(u, v), max(u, v)) for u, v in graph_edges}
+    flat = circuit.flattened().without_noise()
+    items = flat._items()
+    info = {}
+
+    def data(name: str):
+        if name not in info:
+            g = gate_data(name)
+            info[name] = (g.is_two_qubit_gate and g.is_unitary, g.is_reset, g.produces_measurements, g.is_two_qubit_gate, name == "MPP")
+        return info[name]
+
+    flag = (1 << 28) | (1 << 26)  # a record or a sweep bit
+    mask = (1 << 24) - 1
+    last_reset: dict = {}
+    # Per qubit, the (instruction, partner) of each two-qubit gate since its last reset.
+    gates: dict = {}
+    windows = []  # per measurement record: (instruction, qubit, [(instruction, partner)]) or None
+    for k, it in enumerate(items):
+        if it[0] != "op":
+            continue
+        name, targets = it[1], it[4]
+        unitary2, reset, measures, two, mpp = data(name)
+        if measures:
+            if mpp:
+                products = sum(1 for t in targets if t != 1 << 27) - sum(1 for t in targets if t == 1 << 27)
+                windows.extend([None] * products)
+            elif two:
+                windows.extend([None] * (len(targets) // 2))
+            else:
+                for t in targets:
+                    q = t & mask
+                    windows.append((k, q, list(gates.get(q, []))) if not t & flag else None)
+        if reset:
+            for t in targets:
+                q = t & mask
+                last_reset[q] = k
+                gates[q] = []
+        if unitary2:
+            for a, b in zip(targets[::2], targets[1::2]):
+                if (a | b) & flag:
+                    continue
+                a, b = a & mask, b & mask
+                gates.setdefault(a, []).append((k, b))
+                gates.setdefault(b, []).append((k, a))
+    out = []
+    cache: dict = {}
+    for w in windows:
+        if w is None:
+            out.append([])
+            continue
+        k, q, partners = w
+        key = (k, q, tuple(partners))
+        if key not in cache:
+            after: dict = {}
+            for g, p in partners:
+                after.setdefault(g, []).append(p)
+            noisy = []
+            for j, it in enumerate(items):
+                if j == k:
+                    noisy.append(("op", "DEPOLARIZE1", "", [0.75], [q]))
+                noisy.append(it)
+                if j in after:
+                    noisy.append(("op", "DEPOLARIZE1", "", [0.75], sorted(set(after[j]))))
+            found = set()
+            for _, targets in Circuit._of_items(noisy).detector_error_model()._d.flat_errors():
+                dets = sorted({d for obs, d in targets if not obs})
+                split = _split_into_edges(dets, edges, num_detectors) if len(dets) <= 6 else None
+                if split:
+                    found.update(split)
+            cache[key] = sorted(found)
+        out.append(cache[key])
+    return out
+
+
 def _relay_args(legs, solutions, pre_iterations, iterations, gamma0, gamma_range, alpha, seed) -> tuple:
     lo, hi = (real(x, "gamma_range") for x in gamma_range)
     return (

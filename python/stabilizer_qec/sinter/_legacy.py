@@ -12,17 +12,17 @@ from typing import Any
 import numpy as np
 
 from stabilizer_qec._circuit import Circuit, DetectorErrorModel
-from stabilizer_qec._decoders import AmbiguityClustering, BeliefMatching, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
+from stabilizer_qec._decoders import AmbiguityClustering, BeliefMatching, CollisionClustering, LocalClustering, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
 from stabilizer_qec.sinter._data import AnonTaskStats
 from stabilizer_qec.sinter._decoding._decoding_decoder_class import CompiledDecoder, Decoder
 from stabilizer_qec.sinter._decoding._sampler import CompiledSampler, Sampler
 
-KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_find", "bplsd", "relay_bp", "color_matching", "search", "ambiguity_clustering")
+KINDS = ("matching", "correlated_matching", "belief_matching", "bposd", "union_find", "bplsd", "relay_bp", "color_matching", "search", "ambiguity_clustering", "collision_clustering", "local_clustering")
 
 # The kinds that match on a graph, and so want the model decomposed.
-_GRAPH_KINDS = ("matching", "correlated_matching", "belief_matching", "union_find")
+_GRAPH_KINDS = ("matching", "correlated_matching", "belief_matching", "union_find", "collision_clustering", "local_clustering")
 
-_CLASSES = {"belief_matching": BeliefMatching, "union_find": UnionFind, "bposd": BpOsd, "bplsd": BpLsd, "relay_bp": RelayBp, "color_matching": ColorMatching, "search": SearchDecoder, "ambiguity_clustering": AmbiguityClustering}
+_CLASSES = {"belief_matching": BeliefMatching, "union_find": UnionFind, "bposd": BpOsd, "bplsd": BpLsd, "relay_bp": RelayBp, "color_matching": ColorMatching, "search": SearchDecoder, "ambiguity_clustering": AmbiguityClustering, "collision_clustering": CollisionClustering, "local_clustering": LocalClustering}
 
 
 def _check_kind(kind: str) -> str:

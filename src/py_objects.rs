@@ -919,6 +919,110 @@ impl PyDemAmbiguityClustering {
     }
 }
 
+/// The weights a clustering decoder grows by: every edge 2 steps (`None`), or each edge's
+/// weight in at most `resolution` steps.
+fn cluster_graph(dem: &PyDem, resolution: Option<u32>) -> PyResult<(crate::clustering::ClusterGraph, usize, usize)> {
+    let d = dem.flat()?;
+    if resolution == Some(0) {
+        return Err(err("weight_resolution must be at least 1".to_string()));
+    }
+    let (graph, _) = DemDecoder::new(d).map_err(err)?.into_parts(false);
+    Ok((crate::clustering::ClusterGraph::new(&graph, resolution), d.num_detectors, d.num_observables))
+}
+
+fn cluster_stats(stats: impl Iterator<Item = crate::clustering::ClusterStats>) -> Vec<u8> {
+    stats.flat_map(|s| [s.rounds, s.steps.min(u64::from(u32::MAX)) as u32].into_iter().flat_map(u32::to_le_bytes)).collect()
+}
+
+/// Collision Clustering (Barber et al. 2023) on a decomposed model's matching graph.
+#[pyclass(name = "DemCollisionClustering", module = "stabilizer_qec._core")]
+pub struct PyDemCollisionClustering {
+    dec: crate::clustering::CollisionClustering,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemCollisionClustering {
+    #[new]
+    #[pyo3(signature = (dem, resolution=None))]
+    fn new(dem: &PyDem, resolution: Option<u32>) -> PyResult<Self> {
+        let (graph, num_detectors, num_observables) = cluster_graph(dem, resolution)?;
+        Ok(PyDemCollisionClustering { dec: crate::clustering::CollisionClustering::new(graph), num_detectors, num_observables })
+    }
+
+    /// (observables as u64 per shot, the shots with no correction, per shot the rounds of
+    /// growth and the pairs compared as u32s).
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Vec<usize>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::collision_shots(dec, packed, nd, shots, threads));
+        let failed = out.iter().enumerate().filter(|(_, o)| o.0.is_none()).map(|(s, _)| s).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.0.unwrap_or(0)))), failed, PyBytes::new(py, &cluster_stats(out.iter().map(|o| o.1)))))
+    }
+}
+
+/// The Local Clustering Decoder (Ziad et al. 2024) on a decomposed model's matching graph,
+/// with its adaptivity map.
+#[pyclass(name = "DemLocalClustering", module = "stabilizer_qec._core")]
+pub struct PyDemLocalClustering {
+    dec: crate::clustering::LocalClustering,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+}
+
+#[pymethods]
+impl PyDemLocalClustering {
+    /// `adaptivity`: per trigger, the edges it pre-grows as detector pairs (`num_detectors`
+    /// for the boundary); pairs with no edge in the graph are left out.
+    #[new]
+    #[pyo3(signature = (dem, resolution=None, adaptivity=Vec::new()))]
+    fn new(dem: &PyDem, resolution: Option<u32>, adaptivity: Vec<Vec<(u32, u32)>>) -> PyResult<Self> {
+        let (graph, num_detectors, num_observables) = cluster_graph(dem, resolution)?;
+        let map = adaptivity.iter().map(|edges| {
+            let mut ids: Vec<u32> = edges.iter().filter_map(|&(u, v)| graph.edge_id(u, v)).collect();
+            ids.sort_unstable();
+            ids.dedup();
+            ids
+        }).collect();
+        Ok(PyDemLocalClustering { dec: crate::clustering::LocalClustering::new(graph, map), num_detectors, num_observables })
+    }
+
+    /// The graph's edges as detector pairs (`num_detectors` for the boundary).
+    #[getter]
+    fn edges(&self) -> Vec<(u32, u32)> {
+        self.dec.graph.ends.clone()
+    }
+
+    /// Per trigger, how many edges it pre-grows.
+    #[getter]
+    fn adaptivity_sizes(&self) -> Vec<usize> {
+        self.dec.adaptivity.iter().map(Vec::len).collect()
+    }
+
+    /// (observables as u64 per shot, the shots with no correction, per shot the rounds of
+    /// growth, the stage passes and the edges pre-grown as u32s). `heralds`: b8 rows of
+    /// `num_heralds` bits per shot, firing those triggers.
+    #[pyo3(signature = (packed, shots, threads, heralds=None, num_heralds=0))]
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize, heralds: Option<&[u8]>, num_heralds: usize) -> PyResult<(Bound<'py, PyBytes>, Vec<usize>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        if let Some(h) = heralds {
+            check_rows(h.len(), num_heralds.div_ceil(8), shots, num_heralds, "heralds")?;
+        }
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::local_clustering_shots(dec, packed, nd, heralds.map(|h| (h, num_heralds)), shots, threads));
+        let failed = out.iter().enumerate().filter(|(_, o)| o.0.is_none()).map(|(s, _)| s).collect();
+        let stats: Vec<u8> = out.iter().flat_map(|o| [o.1.rounds, o.1.steps.min(u64::from(u32::MAX)) as u32, o.2].into_iter().flat_map(u32::to_le_bytes)).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.0.unwrap_or(0)))), failed, PyBytes::new(py, &stats)))
+    }
+}
+
 /// Window decoding of a model cut by time.
 #[pyclass(name = "WindowMatcher", module = "stabilizer_qec._core")]
 pub struct PyWindowMatcher {
@@ -1981,6 +2085,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyM2d>()?;
     m.add_class::<PyMatcher>()?;
     m.add_class::<PyUnionFinder>()?;
+    m.add_class::<PyDemCollisionClustering>()?;
+    m.add_class::<PyDemLocalClustering>()?;
     m.add_class::<PyDemAmbiguityClustering>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;

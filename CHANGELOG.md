@@ -268,6 +268,20 @@ noise on every gate. In progress on `feature/2.0`.
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
   shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+- **`CollisionClustering` and `LocalClustering`** (Barber et al., arXiv 2309.05558, and Ziad et
+  al., arXiv 2411.10343: Riverlane's hardware union-finds, built from their papers). Collision
+  Clustering grows a ball per detection event and merges two clusters when a pair of their balls
+  overlaps, every pair compared each round; the Local Clustering Decoder runs the paper's
+  growing, merging, picking and syncing stages on per-vertex radii and cluster indices. Their
+  clusters are union-find's, and without pre-grown edges their predictions are the same, shot for
+  shot. Unweighted by default, as the hardware is (under SD6 the curves cross at 0.55%, the LCD
+  paper's figure); `weighted=True` scales the weights to steps (crossing near 0.68%, close to
+  matching's). `LocalClustering` takes an adaptivity map of triggers to edges it pre-grows, fired
+  by `decode_batch(heralds=...)`, and `LocalClustering.from_circuit` builds the paper's leakage
+  map, one trigger per measurement: with `compile_leakage_sampler`'s heralds it cuts failures 2 to
+  12 times on leaky surface-code memories. `return_stats` gives the rounds, the pairs compared or
+  stage passes run, and the edges pre-grown; sinter and the command line know them as
+  `collision_clustering` and `local_clustering`.
 - **`AmbiguityClustering`** (Wolanski and Barber, arXiv 2406.14527; Riverlane's, built from the
   paper): BP, then an elimination that goes only as far as the syndrome needs, grown by `kappa`
   times the fault count further columns into blocks of the matrix decoded apart, ambiguous blocks
