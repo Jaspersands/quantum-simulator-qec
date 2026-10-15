@@ -3,7 +3,6 @@
 //! Belief Propagation (BP) decoder implementation.
 
 use std::error::Error;
-use std::f64;
 
 use crate::mwpf::bp::custom_rng::RandomListShuffle;
 use crate::mwpf::bp::gf2sparse::GF2Sparse;

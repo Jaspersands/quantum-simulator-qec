@@ -109,7 +109,8 @@ pub mod primal_serial_default_configs {
         f64::MAX
     }
     pub fn cluster_node_limit() -> usize {
-        (2 << 53) - 1 // maximum integer that can be stored in JSON number without loss
+        // maximum integer that can be stored in JSON number without loss (usize's maximum on 32-bit targets)
+        ((2u64 << 53) - 1).min(usize::MAX as u64) as usize
     }
     pub fn only_solve_primal_once() -> bool {
         false

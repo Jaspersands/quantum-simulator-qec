@@ -122,3 +122,9 @@ if not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "mpmath",
 # MQT QECC's own tests (tests/mqt_qecc_port) need the `mqt` extra, and Python 3.10.
 if _sys.version_info < (3, 10) or not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "mpmath", "click", "qiskit", "z3", "numba", "matplotlib", "multiprocess", "tqdm")):
     collect_ignore_glob += ["mqt_qecc_port", "mqt_qecc_port/*"]
+
+# MWPF's sinter decoders, heralded DEMs and reference circuits need Python 3.10 and NumPy, in MWPF
+# as in stabilizer_qec.mwpf (without them the package loads without these helpers), and so do their
+# tests in tests/mwpf_port.
+if _sys.version_info < (3, 10) or not _importlib_util.find_spec("numpy"):
+    collect_ignore_glob += ["mwpf_port/test_mwpf_sinter.py", "mwpf_port/test_mwpf_heralded_dem.py", "mwpf_port/test_mwpf_ref_circuit.py"]

@@ -403,7 +403,7 @@ pub trait DualModuleImpl {
                 // if skipped, should check if is growable, if not return the obstacles that leads to that conclusion
                 for (dual_node_ptr, (grow_rate, _cluster_index)) in dual_node_deltas.into_iter() {
                     // check if the single direction is growable
-                    let mut actual_grow_rate = Rational::from_usize(std::usize::MAX).unwrap();
+                    let mut actual_grow_rate = Rational::from_usize(usize::MAX).unwrap();
                     let node_ptr_read = dual_node_ptr.ptr.read_recursive();
                     for edge_index in node_ptr_read.invalid_subgraph.hair.iter() {
                         actual_grow_rate = std::cmp::min(actual_grow_rate, self.get_edge_slack_tune(*edge_index));
