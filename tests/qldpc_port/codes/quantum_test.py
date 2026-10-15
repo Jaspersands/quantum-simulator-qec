@@ -1101,7 +1101,7 @@ def test_random_quantum_tanner_code_is_reproducible() -> None:
     # group members that the construction is built from
     script = (
         "import numpy as np;"
-        "from qldpc import abstract, codes;"
+        "from stabilizer_qec.qldpc import abstract, codes;"
         "code = codes.QTCode.random(abstract.CyclicGroup(8), codes.RepetitionCode(2), seed=7);"
         "print(np.asarray(code.matrix).tobytes().hex())"
     )

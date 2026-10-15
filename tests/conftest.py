@@ -49,6 +49,23 @@ def assert_same_model(ours: str, theirs: str) -> None:
     for k in a:
         assert a[k] == pytest.approx(b[k], rel=1e-9, abs=1e-15), k
 
+# The references the differential tests reproduce, at the versions they reproduce: another
+# version (pip picks an older one where the newer has no wheel for the platform) is skipped.
+REFERENCE_VERSIONS = {"relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1")}
+
+
+def reference(module: str):
+    """The reference module, or a skip when it is missing or another version."""
+    import importlib.metadata
+
+    found = pytest.importorskip(module)
+    dist, want = REFERENCE_VERSIONS[module]
+    have = importlib.metadata.version(dist)
+    if have != want:
+        pytest.skip(f"{dist} {have} is installed; the test reproduces {want}")
+    return found
+
+
 # ldpc's own tests (tests/ldpc_port) need scipy, as stabilizer_qec.ldpc does, and so do Tesseract's
 # GARI tests: without it they are not collected.
 import importlib.util as _importlib_util  # noqa: E402
@@ -60,4 +77,4 @@ collect_ignore_glob = [] if _importlib_util.find_spec("scipy") else ["ldpc_port/
 import sys as _sys  # noqa: E402
 
 if _sys.version_info < (3, 11) or not all(_importlib_util.find_spec(m) for m in ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs")):
-    collect_ignore_glob.append("qldpc_port/*")
+    collect_ignore_glob += ["qldpc_port", "qldpc_port/*"]

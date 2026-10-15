@@ -17,7 +17,9 @@ import sys
 import numpy as np
 import pytest
 
-T = pytest.importorskip("tesseract_decoder")
+from conftest import reference
+
+T = reference("tesseract_decoder")
 stim = pytest.importorskip("stim")
 
 import stabilizer_qec as sq  # noqa: E402

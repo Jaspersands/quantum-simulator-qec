@@ -5,6 +5,8 @@ import sys
 import numpy as np
 import pytest
 
+from conftest import reference
+
 import stabilizer_qec as sq
 
 
@@ -142,7 +144,7 @@ def test_color_matching_decodes_colour_codes():
 
 def test_color_matching_equals_chromobius():
     stim = pytest.importorskip("stim")
-    chromobius = pytest.importorskip("chromobius")
+    chromobius = reference("chromobius")
     for d, basis in [(3, "z"), (5, "x")]:
         c = sq.CssCode.color_code(d).memory_circuit(d, 0.002, basis=basis, annotate_colors=True)
         dem = stim.DetectorErrorModel(str(c.detector_error_model()))
@@ -175,7 +177,7 @@ def test_search_decoder(d3):
 
 def test_search_decoder_equals_tesseract():
     stim = pytest.importorskip("stim")
-    tesseract = pytest.importorskip("tesseract_decoder.tesseract")
+    tesseract = reference("tesseract_decoder").tesseract
     c = sq.CssCode.color_code(3).memory_circuit(3, 0.003)
     dem = stim.DetectorErrorModel(str(c.detector_error_model()))
     dets = stim.Circuit(str(c)).compile_detector_sampler(seed=9).sample(300)
@@ -299,7 +301,7 @@ def test_bplsd_matrix_decoder_reads_ldpcs_arguments():
 
 
 def relay_reference_case():
-    relay_bp = pytest.importorskip("relay_bp")
+    relay_bp = reference("relay_bp")
     scipy_sparse = pytest.importorskip("scipy.sparse")
     rng, pcm, channel = random_code(77, m=24, n=48)
     return relay_bp, scipy_sparse, rng, pcm, channel

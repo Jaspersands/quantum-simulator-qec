@@ -160,10 +160,9 @@ jobs:
       - name: Install the reference packages that build for this Python (tests skip the rest)
         shell: bash
         run: |
-          for p in stim pymatching ldpc beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm qldpc==0.4.1 chromobius relay-bp; do
+          for p in stim pymatching ldpc beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm qldpc==0.4.1 chromobius==1.1.1 relay-bp==0.2.2 tesseract-decoder==0.1.1.dev20261013012529; do
             python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
           done
-          python -m pip install --pre --only-binary=:all: tesseract-decoder || echo "::notice::tesseract-decoder is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
       - name: Tests
         run: python -m pytest tests -q
 

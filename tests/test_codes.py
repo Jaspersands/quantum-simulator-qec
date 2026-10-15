@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import stabilizer_qec as sq
-from conftest import assert_same_model
+from conftest import assert_same_model, reference
 
 
 @pytest.mark.parametrize("code", ["rotated", "xzzx"])
@@ -235,7 +235,7 @@ def test_colour_code_memories_carry_chromobius_annotations():
 
 def test_chromobius_decodes_the_annotated_colour_codes():
     stim = pytest.importorskip("stim")
-    chromobius = pytest.importorskip("chromobius")
+    chromobius = reference("chromobius")
     for d, limit in [(3, 0.03), (5, 0.01)]:
         for basis in ("z", "x"):
             c = sq.CssCode.color_code(d).memory_circuit(d, 0.001, basis=basis, annotate_colors=True)

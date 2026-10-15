@@ -12,7 +12,9 @@ import pathlib
 import numpy as np
 import pytest
 
-relay_bp = pytest.importorskip("relay_bp")
+from conftest import reference
+
+relay_bp = reference("relay_bp")
 
 import stabilizer_qec.relay_bp as ours  # noqa: E402
 
