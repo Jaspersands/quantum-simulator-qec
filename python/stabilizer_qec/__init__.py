@@ -106,6 +106,12 @@ pickling:
 On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
 `RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
 
+`stabilizer_qec.conformance` (Shen and Zhong's conformance checks, arXiv 2609.07035) checks what
+counting logical errors cannot: that a decoder's correction explains the syndrome, and that the
+same instance presented otherwise (faults reordered, detectors renumbered, faults split, weights
+scaled) gets an answer as good, holding each decoder to what it declares (this package's answer
+every capability question) and certifying, with no solver, any answer shown not minimum-weight.
+
 ## Beyond Pauli noise
 
 Coherent errors are tagged identities that Stim reads as identities, so circuits stay Stim's:
@@ -272,7 +278,7 @@ _REMOVED = {
 
 
 def __getattr__(name: str):
-    if name in ("sinter", "pymatching", "analysis", "qsample"):
+    if name in ("sinter", "pymatching", "analysis", "qsample", "conformance"):
         import importlib
 
         return importlib.import_module(f"stabilizer_qec.{name}")

@@ -803,7 +803,11 @@ class UnionFindDecoder:
     checks, a column with one check touching the boundary). Given ``llrs``, growth takes the
     ``bits_per_step`` lowest first (0: all). ``uf_method`` may also be a name, ``"inversion"`` or
     ``"peeling"``. (ldpc's own takes any non-empty string as inversion, ``"peeling"`` too, and its
-    declared default ``False`` is refused.)"""
+    declared default ``False`` is refused.) Corrections are ldpc's but where ``last_stuck`` says
+    the last decode left its algorithm: where ldpc's peeling goes round forever, or (ldpc 2.4.1
+    peels the boundary through a bit its spanning tree may not have taken) peels to a correction
+    that does not explain the syndrome, as on 78 of the distance-5 rotated surface code's 4096;
+    there a cluster is peeled through the tree's boundary bit, or solved by inversion."""
 
     def __init__(self, pcm: Any, uf_method: Union[bool, str] = False) -> None:
         if not _is_matrix(pcm):

@@ -268,6 +268,25 @@ noise on every gate. In progress on `feature/2.0`.
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
   shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+- **`stabilizer_qec.conformance`** (Shen and Zhong, arXiv 2609.07035): what can be checked about
+  a decoder's answers without knowing the right ones. Each correction must explain its syndrome
+  in the caller's indices, with any observables and weight returned being its own; and the same
+  instance presented otherwise (faults reordered, detectors renumbered, an extra or shifted
+  observable, decoded fresh or again, faults split in parallel halves, weights scaled) must get
+  as good an answer. Two feasible answers of different weight prove the heavier is not
+  minimum-weight with no solver: a `Certificate`, which `verify` and the standalone
+  `tools/verify_certificates.py` re-derive from the model's text. Against an exhaustive oracle
+  (up to 22 faults) answers are held to the optimum and to the code's radius. Verdicts follow
+  declarations as conformance testing has them: a declared capability is held to, a declined
+  one skipped, one the documentation is silent on measured but never failed. `population()` is
+  the paper's 4260 syndromes; `panel()` its nine configurations of PyMatching, fusion-blossom,
+  ldpc, MWPF and Tesseract, on this package's ports, held to their upstream documentation as the
+  paper audited it; `subjects()` this package's decoders, each declaring every capability. The
+  paper's findings reproduce (MWPF's union-find returns corrections up to 50% heavier under a
+  different detector numbering), and `audit()` of all 19 (1.35 million judged answers, 45 s)
+  finds no conformance failure, once three defects it found here were fixed (see Fixed; and
+  Relay-BP's declaration, which said its answers depend on the syndrome alone, when its seeded
+  stream runs across decodes).
 - **`ArgumentReweighting`** (Xie, Yoshioka, Tsubouchi and Li, arXiv 2601.17757): post-selection
   by asking the decoder again. It decodes, makes the correction's faults less likely (each prior
   p to p^b, the paper's ratio test; `test="exact_ratio"` or `"gap"`, its appendices' variants),
@@ -426,6 +445,14 @@ noise on every gate. In progress on `feature/2.0`.
 - Correlated matching, `BeliefMatching` and `UnionFind` decode models with a fault that flips
   observables and no detector (`error(p) L0`, which 2.0 keeps as Stim does), ignoring it as
   PyMatching does; they refused such models.
+- Found by `stabilizer_qec.conformance`: `UnionFindDecoder`'s peeling (and `BeliefFindDecoder`'s)
+  peeled the boundary through the last boundary bit it met, whether its spanning tree took it or
+  not, as ldpc 2.4.1 does, which leaves corrections that do not explain the syndrome (78 of the
+  distance-5 rotated surface code's 4096); there it now peels through the tree's boundary bit
+  (`last_stuck`), and elsewhere still equals ldpc's. `Matching.decode_to_edges_array(...,
+  enable_correlations=True)` returned the uncorrelated matching's edges; it returns the
+  correlated matching's, whose observables are `decode`'s, as PyMatching's (they differed on 77
+  of 2000 circuit-level shots).
 
 ## 1.9.0 — 2026-10-09
 

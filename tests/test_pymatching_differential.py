@@ -176,6 +176,32 @@ def test_models_and_circuits(task):
         assert np.array_equal(ours.decode_batch(np.packbits(dets, axis=1, bitorder="little"), bit_packed_shots=True, bit_packed_predictions=True), theirs.decode_batch(np.packbits(dets, axis=1, bitorder="little"), bit_packed_shots=True, bit_packed_predictions=True))
 
 
+def test_correlated_edges_are_the_correlated_matchings():
+    # decode_to_edges_array(enable_correlations=True) is pass two's matching, as PyMatching's:
+    # its edges flip the observables decode(enable_correlations=True) predicts (it was pass
+    # one's, which on 77 of these 2000 shots flips others; found by stabilizer_qec.conformance).
+    stim = pytest.importorskip("stim")
+    c = stim.Circuit.generated("surface_code:rotated_memory_z", distance=5, rounds=5, after_clifford_depolarization=0.005, before_measure_flip_probability=0.005)
+    dem = c.detector_error_model(decompose_errors=True)
+    dets, _ = c.compile_detector_sampler(seed=3).sample(2000, separate_observables=True)
+    ours = sq.Matching.from_detector_error_model(sq.DetectorErrorModel(str(dem)), enable_correlations=True)
+    theirs = pymatching.Matching.from_detector_error_model(dem, enable_correlations=True)
+    edge_obs = {}
+    for inst in dem.flattened():
+        if inst.type == "error":
+            for part in str(inst).split("^"):
+                d = [int(t[1:]) for t in part.split() if t.startswith("D")]
+                o = sum(1 for t in part.split() if t == "L0") % 2
+                edge_obs.setdefault((min(d), max(d)) if len(d) == 2 else (d[0], -1), o)
+    differ = 0
+    for s in dets.astype(np.uint8):
+        o = ours.decode(s, enable_correlations=True)
+        flips = sum(edge_obs[(min(u, v), max(u, v)) if min(u, v) >= 0 else (max(u, v), -1)] for u, v in ours.decode_to_edges_array(s, enable_correlations=True)) % 2
+        assert flips == o[0]
+        differ += not np.array_equal(o, theirs.decode(s, enable_correlations=True))
+    assert differ <= 4  # (ties)
+
+
 def test_errors_and_repr():
     m = sq.Matching()
     m.add_edge(0, 1)

@@ -572,8 +572,10 @@ class Matching:
     def decode_to_edges_array(self, syndrome: Any, *, enable_correlations: bool = False) -> np.ndarray:
         """The edges the correction flips, as an (edges × 2) int64 array of node pairs (-1: the
         boundary)."""
-        if enable_correlations:
-            self._check_correlations(True)
+        if self._check_correlations(enable_correlations):
+            events = self._events(syndrome)
+            edges = call(self._corr.decode_to_edges, [int(e) for e in events[events < self.num_detectors]])
+            return np.array(edges, dtype=np.int64).reshape(-1, 2)
         edges = call(self._g.decode_to_edges, [int(e) for e in self._events(syndrome)])
         return np.array(edges, dtype=np.int64).reshape(-1, 2)
 

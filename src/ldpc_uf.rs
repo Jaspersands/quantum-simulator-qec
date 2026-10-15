@@ -25,7 +25,12 @@
 //! Where `ldpc` would loop forever, this does not: a cluster that cannot grow and is still
 //! invalid (a syndrome nothing explains) is reported unsolved, and a cluster whose peeling goes
 //! round without end (its spanning tree's leaves run out, or come back, before its syndrome is
-//! peeled) is solved by inversion and counted in `UfOutcome::stuck`.
+//! peeled) is solved by inversion and counted in `UfOutcome::stuck`. And `ldpc` peels the
+//! boundary through the last boundary bit it meets, whether its spanning tree took that bit or
+//! not, which can peel to a correction that does not explain the cluster: on the distance-5
+//! rotated surface code's Z checks, 78 of the 4096 syndromes (found by
+//! `stabilizer_qec.conformance`). There this peels through the boundary bit the tree took,
+//! also counted in `stuck`; everywhere else its corrections are `ldpc`'s.
 
 use crate::cpp_random::Library;
 use crate::robin::RobinSet;
@@ -54,8 +59,9 @@ pub struct UfOutcome {
     pub solved: bool,
     /// Steps whose result may differ from `ldpc`'s (see the module notes).
     pub ties: u32,
-    /// Clusters whose peeling did not finish (where `ldpc`'s loops forever), solved by
-    /// inversion instead.
+    /// Clusters whose peeling did not finish (where `ldpc`'s loops forever), or peeled to a
+    /// correction that does not explain them, solved by peeling the boundary's tree edge, or
+    /// by inversion, instead.
     pub stuck: u32,
 }
 
@@ -281,13 +287,16 @@ impl State<'_> {
     }
 
     /// `peel_decode` on one cluster: peel a spanning tree of its checks; the erasure, or
-    /// `None` where peeling goes round forever.
-    fn peel(&mut self, me: usize, syndrome: &[u8]) -> Option<Vec<u32>> {
+    /// `None` where peeling goes round forever. The boundary's tree edge is, as in `ldpc`, the
+    /// last boundary bit met, which need not be the one the tree took; `tree_boundary` takes
+    /// the tree's instead.
+    fn peel(&mut self, me: usize, syndrome: &[u8], tree_boundary: bool) -> Option<Vec<u32>> {
         let uf = self.uf;
         let c = &mut self.clusters[me];
         let mut synds = RobinSet::new();
         for k in c.checks.iter() {
-            if syndrome[k as usize] != 0 {
+            // (BOUNDARY is among the checks on a second peel.)
+            if k != BOUNDARY && syndrome[k as usize] != 0 {
                 synds.insert(k);
             }
         }
@@ -310,7 +319,7 @@ impl State<'_> {
             }
             k = parent;
         };
-        let mut boundary_bit = NONE;
+        let (mut boundary_bit, mut tree_boundary_bit) = (NONE, NONE);
         for b in c.bits.iter() {
             let col = &uf.columns[b as usize];
             let (first, last) = (col[col.len() - 1], col[0]);
@@ -323,9 +332,15 @@ impl State<'_> {
             let (r0, r1) = (find(&mut roots, first), find(&mut roots, second));
             if r0 != r1 {
                 roots.insert(r1, r0);
+                if second == BOUNDARY {
+                    tree_boundary_bit = b;
+                }
             } else {
                 tree_bits.remove(b);
             }
+        }
+        if tree_boundary {
+            boundary_bit = tree_boundary_bit;
         }
         let connectivity = |tree_bits: &RobinSet, k: u32| uf.rows[k as usize].iter().filter(|&&b| tree_bits.contains(b)).count();
         let mut leaves = RobinSet::new();
@@ -363,6 +378,22 @@ impl State<'_> {
             }
         }
         (synds.len() == 0).then_some(erasure)
+    }
+
+    /// Whether `erasure` flips exactly the cluster's fired checks.
+    fn explains(&self, me: usize, syndrome: &[u8], erasure: &[u32]) -> bool {
+        // (A bit peeled twice is set once, as in the decoding.)
+        let mut set: Vec<u32> = erasure.to_vec();
+        set.sort_unstable();
+        set.dedup();
+        let mut flips: HashMap<u32, bool> = HashMap::new();
+        for &b in &set {
+            for &k in &self.uf.columns[b as usize] {
+                *flips.entry(k).or_insert(false) ^= true;
+            }
+        }
+        self.clusters[me].checks.iter().filter(|&k| k != BOUNDARY).all(|k| flips.get(&k).copied().unwrap_or(false) == (syndrome[k as usize] != 0))
+            && flips.iter().all(|(&k, &f)| !f || self.check_owner[k as usize] == me as u32)
     }
 }
 
@@ -446,7 +477,16 @@ impl LdpcUf {
                     continue;
                 }
                 let bits = if peel {
-                    match s.peel(cl, syndrome) {
+                    // Where ldpc's choice of the boundary's tree edge peels to a wrong answer,
+                    // the tree's.
+                    let mut peeled = s.peel(cl, syndrome, false).filter(|e| s.explains(cl, syndrome, e));
+                    if peeled.is_none() {
+                        peeled = s.peel(cl, syndrome, true).filter(|e| s.explains(cl, syndrome, e));
+                        if peeled.is_some() {
+                            stuck += 1;
+                        }
+                    }
+                    match peeled {
                         Some(bits) => bits,
                         None => {
                             stuck += 1;
@@ -512,6 +552,28 @@ mod tests {
                 assert!(out.solved);
                 assert_eq!(syndrome_of(&cols, m, &out.decoding), s);
             }
+        }
+    }
+
+    #[test]
+    fn peeling_explains_every_syndrome_of_a_rotated_surface_code() {
+        // The distance-5 rotated surface code's Z checks against X errors, parallel faults
+        // merged. Peeling the boundary through the last boundary bit met, which the tree need
+        // not have taken, as ldpc 2.4.1 does, gives corrections that do not explain [0, 5, 9]
+        // and 77 others.
+        let cols: Vec<Vec<u32>> = [
+            &[2][..], &[0, 2], &[0, 3], &[1, 3], &[1], &[2, 4], &[3, 4], &[3, 5], &[5], &[6], &[4, 6], &[4, 7], &[5, 7], &[6, 8], &[7, 8], &[7, 9], &[9], &[10],
+            &[8, 10], &[8, 11], &[9, 11],
+        ]
+        .iter()
+        .map(|c| c.to_vec())
+        .collect();
+        let uf = LdpcUf::new(12, cols.clone()).unwrap();
+        for k in 0..1u32 << 12 {
+            let s: Vec<u8> = (0..12).map(|i| (k >> i & 1) as u8).collect();
+            let out = uf.decode(&s, None, 1, true).unwrap();
+            assert!(out.solved);
+            assert_eq!(syndrome_of(&cols, 12, &out.decoding), s, "syndrome {k:b}");
         }
     }
 

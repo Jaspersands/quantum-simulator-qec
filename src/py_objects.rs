@@ -703,6 +703,25 @@ impl PyMatcher {
         let weights = le_f64(out.iter().map(|&(_, w)| w));
         Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights), failed))
     }
+
+    /// The edges one shot's matching uses (correlated: pass two's), as node pairs with -1 for
+    /// the boundary.
+    fn decode_to_edges(&self, defects: Vec<u32>) -> PyResult<Vec<(i64, i64)>> {
+        let mut scratch = crate::sparse::Scratch::new(&self.graph);
+        let mut defects = defects;
+        defects.sort_unstable();
+        let ids = match &self.corr {
+            Some(c) => self.graph.decode_correlated_edge_ids(c, &mut scratch, &defects),
+            None => self.graph.decode_edge_ids(&mut scratch, &defects),
+        }
+        .map_err(|_| PyValueError::new_err("No perfect matching could be found. This likely means that the syndrome has odd parity in the support of a connected component without a boundary."))?;
+        let n = self.graph.num_nodes as u32;
+        let end = |v: u32| if v == n { -1 } else { v as i64 };
+        Ok(ids.iter().map(|&id| {
+            let (u, v) = self.graph.edge_ends(id);
+            (end(u), end(v))
+        }).collect())
+    }
 }
 
 /// Weighted union-find on a decomposed model's matching graph.

@@ -108,7 +108,7 @@ def check_agreement(pairs) -> None:
     for ours, theirs, decode in pairs:
         a = decode(ours)
         if getattr(ours, "last_stuck", False):
-            continue  # ldpc's peeling never returns here
+            continue  # ldpc's peeling never returns here, or returns a wrong correction
         b = decode(theirs)
         same = np.array_equal(a, b)
         assert same or ours.last_tied
@@ -132,6 +132,30 @@ def test_union_find_decoder(planar):
                     yield ours, theirs, lambda d, s=s, llrs=llrs, bps=bps: d.decode(s, llrs, bps)
 
     check_agreement(pairs())
+
+
+def test_union_find_peeling_explains_what_ldpcs_does_not():
+    # ldpc 2.4.1 peels the boundary through the last boundary bit it meets, in its spanning tree
+    # or not: on the distance-5 rotated surface code (X errors, parallel faults merged) 78 of the
+    # 4096 syndromes get corrections that do not explain them. Ours peel through the tree's
+    # boundary bit there, and elsewhere equal ldpc's.
+    from ldpc import UnionFindDecoder as Theirs
+    from stabilizer_qec.conformance import population
+
+    inst = population()[5]
+    pcm = np.zeros((inst.num_detectors, inst.num_faults), dtype=np.uint8)
+    for j, (dets, _, _) in enumerate(inst.faults):
+        pcm[list(dets), j] = 1
+    ours, theirs = sq.UnionFindDecoder(pcm, uf_method="peeling"), Theirs(pcm, uf_method="")
+    wrong = stuck = 0
+    for k in range(1 << pcm.shape[0]):
+        s = ((k >> np.arange(pcm.shape[0])) & 1).astype(np.uint8)
+        a, b = ours.decode(s), theirs.decode(s)
+        assert np.array_equal(pcm @ a % 2, s)
+        wrong += not np.array_equal(pcm @ b % 2, s)
+        stuck += ours.last_stuck
+        assert ours.last_stuck or np.array_equal(a, b)
+    assert wrong == stuck == 78
 
 
 @pytest.mark.parametrize("planar", [True, False])
