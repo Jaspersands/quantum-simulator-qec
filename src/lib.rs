@@ -50,6 +50,10 @@ pub mod cpp_random;
 pub mod flip;
 /// `ldpc`'s union-find decoder on any check matrix.
 pub mod ldpc_uf;
+/// Lookup-table decoders, as CUDA-Q QEC's `single_error_lut` and `multi_error_lut`.
+pub mod lookup;
+/// Exact maximum-likelihood decoding by contraction (CUDA-Q QEC's `tensor_network_decoder`).
+pub mod tn_ml;
 /// Memory belief propagation over GF(4), as `ldpc`'s `mbp_decoder`.
 pub mod mbp;
 #[doc(hidden)]

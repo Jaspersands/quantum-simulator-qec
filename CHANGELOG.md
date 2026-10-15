@@ -206,6 +206,19 @@ noise on every gate. In progress on `feature/2.0`.
   plain, weighted and observable, ILP, GUF, composite, direct, frontier, subgraph, sequential and
   sliding windows, trivial, erasure bits, and its adapters for every decoder above). Needs Python
   3.11 and the `qldpc` extra (galois, sympy, cvxpy, networkx and others), as qLDPC does.
+- **`stabilizer_qec.cudaq_qec`: CUDA-Q QEC's decoders** (`import stabilizer_qec.cudaq_qec as qec`),
+  passing CUDA-Q's own decoder tests (`tests/cudaq_qec_port/`): `get_decoder` (dense or scipy
+  matrices, or a Stim model's text, with `O`, `error_rate_vec` and `output`), `Decoder`,
+  `DecoderResult`, `BatchDecoderResult`, `decode_async`, the `@decoder` registry; the
+  **single- and multi-error lookup tables** (Rust, `stabilizer_qec::lookup`), the **sliding
+  window** around any decoder (whole or streamed round by round, with boundary rounds), the
+  PyMatching plugin, the **tensor-network decoder** (exact maximum likelihood of a logical given a
+  soft syndrome, by contraction, `stabilizer_qec::tn_ml`; CUDA-Q's published values to 1e-15)
+  and the bundled examples; `dem_from_stim_text` and its `DetectorErrorModel` (round
+  canonicalization); and its matrix tools (`sort_pcm_columns`, `get_pcm_for_rounds`,
+  `pcm_extend_to_n_rounds`, `simplify_pcm`, `generate_random_pcm`, `shuffle_pcm_columns`, ...),
+  the random ones drawing as CUDA-Q's C++ does. CUDA-Q's quantum kernels, GPU and real-time
+  decoding need CUDA-Q itself.
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.

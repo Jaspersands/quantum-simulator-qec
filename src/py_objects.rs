@@ -1790,6 +1790,78 @@ impl PyDemSearch {
     }
 }
 
+/// CUDA-Q QEC's lookup table (`single_error_lut`, `multi_error_lut`) over a check matrix.
+#[pyclass(name = "LookupTable", module = "stabilizer_qec._core", frozen)]
+pub struct PyLookupTable {
+    table: crate::lookup::LookupTable,
+}
+
+#[pymethods]
+impl PyLookupTable {
+    #[new]
+    fn new(num_rows: usize, columns: Vec<Vec<u32>>, depth: usize, rates: Vec<f64>) -> PyResult<Self> {
+        Ok(PyLookupTable { table: crate::lookup::LookupTable::new(num_rows, &columns, depth, &rates).map_err(err)? })
+    }
+
+    /// The faults entered for the rows that fired, and their probability; None if none are.
+    fn lookup(&self, fired: Vec<u32>) -> Option<(Vec<u32>, f64)> {
+        self.table.lookup(&fired).map(|(e, p)| (e.to_vec(), p))
+    }
+
+    fn __len__(&self) -> usize {
+        self.table.len()
+    }
+}
+
+/// CUDA-Q QEC's `generate_random_pcm`: the (row, column) of each 1, drawn from
+/// `std::mt19937_64(seed)` through the platform C++ library's distributions.
+#[pyfunction]
+fn cudaq_random_pcm(n_rounds: usize, n_errs_per_round: usize, n_syndromes_per_round: usize, weight: i64, seed: u64) -> PyResult<Vec<(usize, usize)>> {
+    use crate::cpp_random::{Library, Mt19937_64};
+    if weight < 0 || weight as usize > n_syndromes_per_round {
+        return Err(err(format!("generate_random_pcm: weight must be in [0, n_syndromes_per_round]; got weight={weight}, n_syndromes_per_round={n_syndromes_per_round}")));
+    }
+    let lib = Library::NATIVE;
+    let mut g = Mt19937_64::new(seed);
+    let mut out = Vec::new();
+    for r in 0..n_rounds {
+        for c in 0..n_errs_per_round {
+            let c_ix = r * n_errs_per_round + c;
+            let all_in_round = lib.uniform(&mut g, 0, 1) == 1 || r == n_rounds - 1;
+            let row_max = if all_in_round { n_syndromes_per_round } else { 2 * n_syndromes_per_round };
+            if row_max == 0 {
+                continue;
+            }
+            let mut taken = vec![false; row_max];
+            for _ in 0..weight {
+                let mut row_ix = lib.uniform(&mut g, 0, row_max as u64 - 1) as usize;
+                while taken[row_ix] {
+                    row_ix = lib.uniform(&mut g, 0, row_max as u64 - 1) as usize;
+                }
+                taken[row_ix] = true;
+                out.push((r * n_syndromes_per_round + row_ix, c_ix));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Exact maximum-likelihood masses (mass_0, mass_1) of a logical given a soft syndrome
+/// (`tn_ml::masses`), for each syndrome.
+#[pyfunction]
+fn tn_ml_masses(num_checks: usize, columns: Vec<Vec<u32>>, logical: Vec<bool>, priors: Vec<f64>, syndromes: Vec<Vec<f64>>, order: Vec<usize>) -> PyResult<Vec<(f64, f64)>> {
+    syndromes.iter().map(|s| crate::tn_ml::masses(num_checks, &columns, &logical, &priors, s, &order).map_err(err)).collect()
+}
+
+/// `std::shuffle` of 0..n by `std::mt19937_64(seed)`, as the platform C++ library does it.
+#[pyfunction]
+fn cpp_shuffled_order(n: usize, seed: u64) -> Vec<u32> {
+    use crate::cpp_random::{Library, Mt19937_64};
+    let mut v: Vec<u32> = (0..n as u32).collect();
+    Library::NATIVE.shuffle(&mut v, &mut Mt19937_64::new(seed));
+    v
+}
+
 /// Tesseract's generated detector orders for a model (`build_det_orders`).
 #[pyfunction]
 #[pyo3(signature = (dem, count, method, seed, flavour))]
@@ -1862,6 +1934,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDemRelay>()?;
     m.add_class::<PyDemColorMatcher>()?;
     m.add_class::<PyDemSearch>()?;
+    m.add_class::<PyLookupTable>()?;
+    m.add_function(wrap_pyfunction!(cudaq_random_pcm, m)?)?;
+    m.add_function(wrap_pyfunction!(cpp_shuffled_order, m)?)?;
+    m.add_function(wrap_pyfunction!(tn_ml_masses, m)?)?;
     m.add_function(wrap_pyfunction!(search_orders, m)?)?;
     m.add_function(wrap_pyfunction!(search_detector_graph, m)?)?;
     m.add_function(wrap_pyfunction!(search_exact, m)?)?;

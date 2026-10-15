@@ -164,6 +164,18 @@ Copyright 2023-2024 The qLDPC Authors and Infleqtion Inc. (portions authored bef
 their imports pointed at this package's Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract
 (and qldpc at stabilizer_qec.qldpc).
 
+## CUDA-Q QEC
+
+Copyright (c) 2022 - 2026 NVIDIA Corporation & Affiliates. Licensed under the Apache License,
+Version 2.0 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/NVIDIA/cudaqx (`libs/qec`)
+
+`python/stabilizer_qec/cudaq_qec/` ports CUDA-Q QEC's decoder interface and its decoders (the
+lookup tables, `src/lookup.rs`; the sliding window; the PyMatching plugin; the bundled examples),
+its parity-check-matrix tools and its detector error model, from its C++ and Python sources; its
+`tensor_network_decoder` keeps CUDA-Q's interface and contracts exactly with `src/tn_ml.rs`.
+`tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder tests with their import pointed at this
+package.
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's
