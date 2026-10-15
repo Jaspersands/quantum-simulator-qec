@@ -233,7 +233,7 @@ def test_no_detectors_with_post_mask(decoder: str, force_streaming: Optional[boo
 def test_post_selection(decoder: str, force_streaming: Optional[bool]):
     if decoder == 'pymatching-correlated':
         pytest.skip("Correlated matching does not support error probabilities > 0.5 in from_detector_error_model")
-    if decoder in ('correlated_matching', 'belief_matching', 'union_find'):
+    if decoder in ('correlated_matching', 'belief_matching', 'union_find', 'collision_clustering', 'local_clustering'):
         pytest.skip("stabilizer_qec: these refuse error probabilities > 0.5, as correlated matching does")
     circuit = stim.Circuit("""
         X_ERROR(0.6) 0
