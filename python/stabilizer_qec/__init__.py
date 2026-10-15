@@ -91,13 +91,15 @@ pickling:
 - `Matching` (sparse blossom, PyMatching's results), with `enable_correlations`;
   `UnionFind`, `CollisionClustering` and `LocalClustering` (Riverlane's hardware union-finds,
   the second with its leakage-adaptive pre-growth); `BeliefMatching`; `WindowMatching`
-  (sliding or parallel windows): for models
-  whose faults set off at most two detectors, or decomposed;
+  (sliding or parallel windows): for models whose faults set off at most two detectors, or
+  decomposed;
 - `BpOsd` and `BpLsd` (`ldpc`'s corrections), `RelayBp` (IBM's), `SearchDecoder`
   (Tesseract's A*, exact on request), `AmbiguityClustering` (Riverlane's, from its paper): for
   any model, such as the gross code's;
 - `ColorMatching` (Chromobius's): colour codes whose detectors carry its colour annotation
-  (`CssCode.color_code(d).memory_circuit(..., annotate_colors=True)`).
+  (`CssCode.color_code(d).memory_circuit(..., annotate_colors=True)`);
+- `CompositeDecoder` (a model's independent parts, decoded apart by any of these) and
+  `SubgraphDecoder` (qLDPC's: chosen detector subgraphs, predictions combined).
 
 On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
 `RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
@@ -226,7 +228,7 @@ from ._stim import (
     target_z,
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import AmbiguityClustering, BeliefMatching, CollisionClustering, LocalClustering, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
+from ._decoders import AmbiguityClustering, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -306,6 +308,8 @@ __all__ = [
     "BpDecoder",
     "AmbiguityClustering",
     "CollisionClustering",
+    "CompositeDecoder",
+    "SubgraphDecoder",
     "LocalClustering",
     "BpLsd",
     "BpLsdDecoder",

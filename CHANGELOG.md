@@ -268,6 +268,13 @@ noise on every gate. In progress on `feature/2.0`.
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
   shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+- **`CompositeDecoder` and `SubgraphDecoder`**, built in (qLDPC's are in `stabilizer_qec.qldpc`):
+  `CompositeDecoder` splits a model into the independent parts its faults connect (separate
+  patches or blocks, and a decomposed model's X and Z sectors) and decodes each alone with any
+  built-in decoder, by name, or a callable; exact, so with matching it is matching, and BP+OSD
+  on two blocks is BP+OSD on each. `SubgraphDecoder` decodes chosen detector subgraphs, each
+  owning chosen observables, and warns, as qLDPC's does, where two subgraphs' predictions would
+  cancel or a detector is in none.
 - **`CollisionClustering` and `LocalClustering`** (Barber et al., arXiv 2309.05558, and Ziad et
   al., arXiv 2411.10343: Riverlane's hardware union-finds, built from their papers). Collision
   Clustering grows a ball per detection event and merges two clusters when a pair of their balls

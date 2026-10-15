@@ -618,6 +618,237 @@ def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> 
     return out
 
 
+def _inner_decoders() -> dict:
+    return {
+        "matching": Matching,
+        "union_find": UnionFind,
+        "collision_clustering": CollisionClustering,
+        "local_clustering": LocalClustering,
+        "belief_matching": BeliefMatching,
+        "bposd": BpOsd,
+        "bplsd": BpLsd,
+        "relay_bp": RelayBp,
+        "search": SearchDecoder,
+        "ambiguity_clustering": AmbiguityClustering,
+        "color_matching": ColorMatching,
+    }
+
+
+def _inner(decoder: Any) -> Any:
+    if isinstance(decoder, str):
+        table = _inner_decoders()
+        if decoder not in table:
+            raise ValueError(f"decoder must be one of {', '.join(map(repr, table))} or a callable taking a model, not {decoder!r}")
+        return table[decoder]
+    if not callable(decoder):
+        raise TypeError(f"decoder must be a name or a callable taking a model, not {type(decoder).__name__}")
+    return decoder
+
+
+def _restricted(model: DetectorErrorModel, detectors: list, observables: list) -> tuple:
+    """The model on ``detectors`` (renumbered in order) and ``observables``: the faults that flip
+    one of the detectors, each kept to those detectors and observables (a decomposed fault's
+    parts kept where they flip one of them, with their own observables). Also, per fault of the
+    model, whether it is kept, and its observables kept."""
+    det = {d: i for i, d in enumerate(detectors)}
+    obs = {o: i for i, o in enumerate(observables)}
+    coords = model.get_detector_coordinates(list(detectors)) if detectors else {}
+    lines = []
+    for i, d in enumerate(detectors):
+        c = coords.get(d)
+        lines.append(f"detector({', '.join(repr(float(x)) for x in c)}) D{i}" if c else f"detector D{i}")
+    lines += [f"logical_observable L{k}" for k in range(len(observables))]
+    kept = []
+    for inst in model.flattened():
+        if inst.type != "error":
+            continue
+        parts, part = [], ([], [], False)
+        for t in inst.targets_copy():
+            if t.is_separator():
+                parts.append(part)
+                part = ([], [], False)
+            elif t.is_relative_detector_id():
+                part = (part[0] + ([f"D{det[t.val]}"] if t.val in det else []), part[1], True)
+            elif t.is_logical_observable_id():
+                part = (part[0], part[1] + ([t.val] if t.val in obs else []), part[2])
+        parts.append(part)
+        # A part with no detectors at all goes with the fault's first part kept.
+        loose = [o for dets, os, any_det in parts if not any_det for o in os]
+        parts = [(dets, os) for dets, os, any_det in parts if dets]
+        if not parts:
+            kept.append(None)
+            continue
+        parts[0] = (parts[0][0], parts[0][1] + loose)
+        flipped = sorted({o for _, os in parts for o in os})
+        kept.append(flipped)
+        text = " ^ ".join(" ".join(dets + [f"L{obs[o]}" for o in os]) for dets, os in parts)
+        lines.append(f"error({inst.args_copy()[0]!r}) {text}")
+    return DetectorErrorModel("\n".join(lines)), kept
+
+
+class _Parts:
+    """A wrapper's decoders: per part, its detectors, its observables and its decoder."""
+
+    __slots__ = ("num_detectors", "num_observables", "parts")
+
+    def __init__(self, num_detectors: int, num_observables: int, parts: list) -> None:
+        self.num_detectors, self.num_observables, self.parts = num_detectors, num_observables, parts
+
+
+class SubgraphDecoder(_DemDecoder):
+    """Decodes a model by subgraphs, as qLDPC's ``SubgraphDecoder``: each subgraph is a set of
+    detectors (and optionally the observables it predicts), decoded alone by an inner decoder on
+    the model restricted to its detectors and the faults that flip them. The subgraphs'
+    predictions combine by exclusive or, so each observable flip should be predicted by exactly
+    one subgraph: a fault two subgraphs both see, flipping an observable both own, warns (their
+    predictions would cancel), as does a detector in no subgraph.
+
+    ``decoder`` is a built-in decoder's name (``"matching"``, ``"bposd"``, ...; as sinter's)
+    or a callable that makes a decoder from a ``DetectorErrorModel``. For decoding a CSS code's X
+    and Z sectors apart, or separate patches, ``CompositeDecoder`` finds the subgraphs itself.
+
+    >>> import stabilizer_qec as sq
+    >>> dem = sq.DetectorErrorModel("error(0.1) D0 L0\\nerror(0.1) D0 D1\\nerror(0.1) D2 L1\\nerror(0.1) D2 D3")
+    >>> dec = sq.SubgraphDecoder(dem, [[0, 1], [2, 3]], [[0], [1]])
+    >>> dec.decode([1, 0, 0, 1]).tolist()
+    [1, 1]
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike, subgraph_detectors: Any, subgraph_observables: Any = None, *, decoder: Any = "matching") -> None:
+        dets = [sorted({int(d) for d in ds}) for ds in subgraph_detectors]
+        obs = None if subgraph_observables is None else [sorted({int(o) for o in os}) for os in subgraph_observables]
+        model = self._made(_model(model), subgraph_detectors=dets, subgraph_observables=obs, decoder=decoder)
+        self._build(model, dets, obs, decoder, warn=True)
+
+    def _build(self, model: DetectorErrorModel, dets: list, obs: Union[list, None], decoder: Any, warn: bool) -> None:
+        import warnings
+
+        make = _inner(decoder)
+        nd, no = model.num_detectors, model.num_observables
+        if obs is not None and len(obs) != len(dets):
+            raise ValueError(f"{len(dets)} subgraphs of detectors but {len(obs)} sets of observables")
+        if obs is None:
+            obs = [list(range(no))] * len(dets)
+        for ds, os in zip(dets, obs):
+            if ds and not 0 <= ds[-1] < nd or ds and ds[0] < 0:
+                raise ValueError(f"a subgraph's detectors must be in 0..{nd - 1}")
+            if os and not (0 <= os[0] and os[-1] < no):
+                raise ValueError(f"a subgraph's observables must be in 0..{no - 1}")
+        parts = []
+        predictors: dict = {}
+        covered = set()
+        for ds, os in zip(dets, obs):
+            sub, kept = _restricted(model, ds, os)
+            covered.update(ds)
+            for k, flipped in enumerate(kept):
+                for o in flipped or ():
+                    predictors[k, o] = predictors.get((k, o), 0) + 1
+            parts.append((np.array(ds, dtype=np.int64), np.array(os, dtype=np.int64), make(sub) if sub.num_errors and os else None))
+        if warn:
+            twice = sorted({o for (_, o), c in predictors.items() if c > 1})
+            if twice:
+                warnings.warn(f"subgraphs share faults that flip observables {twice} they both predict: their predictions cancel", stacklevel=3)
+            if len(covered) < nd:
+                warnings.warn(f"{nd - len(covered)} detectors are in no subgraph", stacklevel=3)
+        self._x = _Parts(nd, no, parts)
+
+    @property
+    def num_subgraphs(self) -> int:
+        return len(self._x.parts)
+
+    @property
+    def subgraphs(self) -> list:
+        """Per subgraph, its detectors and observables."""
+        return [(ds.tolist(), os.tolist()) for ds, os, _ in self._x.parts]
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> np.ndarray:
+        """As ``Matching.decode_batch``: each subgraph's inner decoder on its detectors' columns,
+        their predictions combined by exclusive or."""
+        import inspect
+
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        nd, no = self._x.num_detectors, self._x.num_observables
+        rows = np.unpackbits(np.frombuffer(packed, dtype=np.uint8).reshape(n, -1), axis=1, count=nd, bitorder="little").astype(bool)
+        pred = np.zeros((n, no), dtype=np.uint8)
+        for ds, os, dec in self._x.parts:
+            if dec is None or not len(os):
+                continue
+            kw = {"threads": threads} if "threads" in inspect.signature(dec.decode_batch).parameters else {}
+            pred[:, os] ^= np.asarray(dec.decode_batch(rows[:, ds], **kw), dtype=np.uint8).reshape(n, len(os))
+        return np.packbits(pred, axis=1, bitorder="little") if bit_packed_predictions else pred
+
+
+class CompositeDecoder(SubgraphDecoder):
+    """Decodes each independent part of a model alone: its detectors split into the components
+    the faults connect (separate patches or blocks; in a decomposed model, whose parts count as
+    faults, a CSS code's X and Z sectors too, which its Y faults join otherwise), each
+    decoded by its own inner decoder on its own faults and observables, the predictions combined
+    by exclusive or. Every fault lies in one component, so this is exact: the predictions are the
+    inner decoder's on each part (for matching, the same as matching the whole model), and a
+    decoder that grows with the model (BP+OSD's elimination, a search) runs on the parts.
+
+    ``decoder`` is as ``SubgraphDecoder``'s. ``subgraphs`` lists the components found.
+
+    >>> import stabilizer_qec as sq
+    >>> dem = sq.DetectorErrorModel("error(0.1) D0 L0\\nerror(0.1) D0 D1\\nerror(0.1) D2 L1\\nerror(0.1) D2 D3")
+    >>> sq.CompositeDecoder(dem).subgraphs
+    [([0, 1], [0]), ([2, 3], [1])]
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model: ModelLike, *, decoder: Any = "matching") -> None:
+        model = self._made(_model(model), decoder=decoder)
+        nd = model.num_detectors
+        parent = list(range(nd))
+
+        def find(v: int) -> int:
+            while parent[v] != v:
+                parent[v] = parent[parent[v]]
+                v = parent[v]
+            return v
+
+        # Components of a decomposed model are its parts' (a Y fault's X and Z parts apart).
+        owned: dict = {}
+        parts = []
+        for inst in model.flattened():
+            if inst.type != "error":
+                continue
+            ds: list = []
+            os: list = []
+            for t in list(inst.targets_copy()) + [None]:
+                if t is None or t.is_separator():
+                    if ds:
+                        for d in ds[1:]:
+                            a, b = find(ds[0]), find(d)
+                            if a != b:
+                                parent[max(a, b)] = min(a, b)
+                        parts.append((ds[0], os))
+                    ds, os = [], []
+                elif t.is_relative_detector_id():
+                    ds.append(t.val)
+                elif t.is_logical_observable_id():
+                    os.append(t.val)
+        for d, os in parts:
+            owned.setdefault(find(d), set()).update(os)
+        members: dict = {}
+        for d in range(nd):
+            members.setdefault(find(d), []).append(d)
+        roots = [r for r in sorted(members) if r in owned]
+        dets = [members[r] for r in roots]
+        obs = [sorted(owned[r]) for r in roots]
+        self._build(model, dets, obs, decoder, warn=False)
+
+
 def _relay_args(legs, solutions, pre_iterations, iterations, gamma0, gamma_range, alpha, seed) -> tuple:
     lo, hi = (real(x, "gamma_range") for x in gamma_range)
     return (
