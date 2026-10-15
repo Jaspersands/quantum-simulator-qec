@@ -7,6 +7,7 @@ benchmark suites and HTML exports."""
 from __future__ import annotations
 
 import json
+import sys
 import pickle
 import random
 
@@ -46,7 +47,11 @@ def test_api_surface():
         a, b = getattr(ref.mwpf, name), getattr(mw, name)
         if isinstance(a, type):
             # public names (frozendict's and frozenlist's classes, which MWPF re-exports, are written
-            # in Python here, with private helpers of their own)
+            # in Python here, with private helpers of their own). frozendict's are its pure-Python
+            # implementation's, which it uses from Python 3.11; below that its C extension, with
+            # fewer methods, may stand in.
+            if name == "frozendict" and getattr(sys.modules["frozendict"], "c_ext", False):
+                continue
             assert {m for m in dir(a) if not m.startswith("_")} == {m for m in dir(b) if not m.startswith("_")}, name
 
 
