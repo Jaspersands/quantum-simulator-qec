@@ -40,6 +40,9 @@ sinter = ["matplotlib>=3.5"]
 ldpc = ["scipy>=1.7"]
 # stabilizer_qec.qldpc (qLDPC 0.4.1) needs what qLDPC needs beyond its QEC stack, and Python 3.11.
 qldpc = ["scipy>=1.14.1", "galois>=0.4.2", "sympy>=1.12", "cvxpy>=1.3.2", "networkx>=2.6.2", "diskcache>=5", "platformdirs>=4", "pyperclip>=1.11", "tqdm>=4"]
+# stabilizer_qec.qecsim (qecsim 1.0b9) and stabilizer_qec.bposd (bposd 2.1) need what those do.
+qecsim = ["scipy>=1.3", "networkx>=2.1", "mpmath>=1", "click>=7"]
+bposd = ["scipy>=1.7"]
 
 [project.scripts]
 stabilizer-qec = "stabilizer_qec._cli:main"

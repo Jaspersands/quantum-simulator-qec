@@ -78,3 +78,7 @@ import sys as _sys  # noqa: E402
 
 if _sys.version_info < (3, 11) or not all(_importlib_util.find_spec(m) for m in ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs")):
     collect_ignore_glob += ["qldpc_port", "qldpc_port/*"]
+
+# qecsim's own tests (tests/qecsim_port) need the `qecsim` extra.
+if not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "mpmath", "click")):
+    collect_ignore_glob += ["qecsim_port", "qecsim_port/*"]

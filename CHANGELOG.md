@@ -219,6 +219,13 @@ noise on every gate. In progress on `feature/2.0`.
   `pcm_extend_to_n_rounds`, `simplify_pcm`, `generate_random_pcm`, `shuffle_pcm_columns`, ...),
   the random ones drawing as CUDA-Q's C++ does. CUDA-Q's quantum kernels, GPU and real-time
   decoding need CUDA-Q itself.
+- **`stabilizer_qec.qecsim`: qecsim 1.0b9 whole**, passing its own tests (`tests/qecsim_port/`;
+  2,902, including its command-line tests, which qecsim itself can no longer load without
+  `pkg_resources`): planar, rotated planar, toric, rotated toric, colour 6.6.6 and small codes,
+  its error models, and its decoders, among them the **MPS tensor-network decoders** (exact and
+  by bond dimension; planar, rotated planar, colour 6.6.6) and the fault-tolerant (time-repeated)
+  runs. Its Blossom V interface works without Blossom V's library, on this package's exact matcher.
+  `stabilizer_qec.bposd`: bposd 2.1 on this package's ldpc.
 - **`stabilizer_qec.chromobius`: Chromobius 1.1.1's API** (`CompiledDecoder.from_dem`,
   `compile_decoder_for_dem`, `predict_obs_flips_from_dets_bit_packed`,
   `predict_weighted_obs_flips_from_dets_bit_packed`, `sinter_decoders`) on `ColorMatching`.

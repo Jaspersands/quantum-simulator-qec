@@ -1814,14 +1814,14 @@ impl PyLookupTable {
 }
 
 /// CUDA-Q QEC's `generate_random_pcm`: the (row, column) of each 1, drawn from
-/// `std::mt19937_64(seed)` through the platform C++ library's distributions.
+/// `std::mt19937_64(seed)` through libstdc++'s distributions (CUDA-Q QEC ships only Linux builds).
 #[pyfunction]
 fn cudaq_random_pcm(n_rounds: usize, n_errs_per_round: usize, n_syndromes_per_round: usize, weight: i64, seed: u64) -> PyResult<Vec<(usize, usize)>> {
     use crate::cpp_random::{Library, Mt19937_64};
     if weight < 0 || weight as usize > n_syndromes_per_round {
         return Err(err(format!("generate_random_pcm: weight must be in [0, n_syndromes_per_round]; got weight={weight}, n_syndromes_per_round={n_syndromes_per_round}")));
     }
-    let lib = Library::NATIVE;
+    let lib = Library::LibStdCxx;
     let mut g = Mt19937_64::new(seed);
     let mut out = Vec::new();
     for r in 0..n_rounds {
@@ -1853,12 +1853,48 @@ fn tn_ml_masses(num_checks: usize, columns: Vec<Vec<u32>>, logical: Vec<bool>, p
     syndromes.iter().map(|s| crate::tn_ml::masses(num_checks, &columns, &logical, &priors, s, &order).map_err(err)).collect()
 }
 
-/// `std::shuffle` of 0..n by `std::mt19937_64(seed)`, as the platform C++ library does it.
+/// Minimum-weight perfect matching on a graph of `n` nodes given by its edges (u, v, integer
+/// weight), as Blossom V's `mwpm` (qecsim's interface): each node's mate.
+#[pyfunction]
+fn blossom_mwpm_ids(n: usize, edges: Vec<(usize, usize, i64)>) -> PyResult<Vec<usize>> {
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+    if let Some(&(u, v, _)) = edges.iter().find(|&&(u, v, _)| u >= n || v >= n) {
+        return Err(err(format!("edge ({u}, {v}) names a node beyond the {n} nodes")));
+    }
+    // Every perfect matching has n/2 edges, so a constant shift keeps the optimum: weights
+    // from 1 up, and a non-edge dearer than any matching of edges.
+    let low = edges.iter().map(|e| e.2).min().unwrap_or(0);
+    let shifted: Vec<(usize, usize, i64)> = edges.iter().map(|&(u, v, w)| (u, v, w - low + 1)).collect();
+    let big = shifted.iter().try_fold(1i64, |acc, e| acc.checked_add(e.2)).ok_or_else(|| err("the weights are too large".into()))?;
+    let mut cost = vec![vec![big; n]; n];
+    let mut is_edge = vec![vec![false; n]; n];
+    for &(u, v, w) in &shifted {
+        if u == v {
+            continue;
+        }
+        if !is_edge[u][v] || w < cost[u][v] {
+            cost[u][v] = w;
+            cost[v][u] = w;
+            is_edge[u][v] = true;
+            is_edge[v][u] = true;
+        }
+    }
+    let mates = crate::blossom::min_weight_perfect_matching(n, &cost).ok_or_else(|| err("no perfect matching was found (an odd number of nodes, or too many)".into()))?;
+    if (0..n).any(|i| !is_edge[i][mates[i]]) {
+        return Err(err("the graph has no perfect matching".into()));
+    }
+    Ok(mates)
+}
+
+/// `std::shuffle` of 0..n by `std::mt19937_64(seed)`, as libstdc++ does it (CUDA-Q QEC's
+/// `shuffle_pcm_columns`; CUDA-Q QEC ships only Linux builds).
 #[pyfunction]
 fn cpp_shuffled_order(n: usize, seed: u64) -> Vec<u32> {
     use crate::cpp_random::{Library, Mt19937_64};
     let mut v: Vec<u32> = (0..n as u32).collect();
-    Library::NATIVE.shuffle(&mut v, &mut Mt19937_64::new(seed));
+    Library::LibStdCxx.shuffle(&mut v, &mut Mt19937_64::new(seed));
     v
 }
 
@@ -1938,6 +1974,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(cudaq_random_pcm, m)?)?;
     m.add_function(wrap_pyfunction!(cpp_shuffled_order, m)?)?;
     m.add_function(wrap_pyfunction!(tn_ml_masses, m)?)?;
+    m.add_function(wrap_pyfunction!(blossom_mwpm_ids, m)?)?;
     m.add_function(wrap_pyfunction!(search_orders, m)?)?;
     m.add_function(wrap_pyfunction!(search_detector_graph, m)?)?;
     m.add_function(wrap_pyfunction!(search_exact, m)?)?;

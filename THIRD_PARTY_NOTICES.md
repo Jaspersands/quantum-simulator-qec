@@ -176,6 +176,23 @@ its parity-check-matrix tools and its detector error model, from its C++ and Pyt
 `tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder tests with their import pointed at this
 package.
 
+## qecsim
+
+Copyright (c) 2016, qecsim developers. Licensed under the BSD 3-Clause License (its text is in
+`python/stabilizer_qec/qecsim/LICENSE`). Source: https://github.com/qecsim/qecsim
+
+`python/stabilizer_qec/qecsim/` is qecsim 1.0b9's package, and `tests/qecsim_port/` its tests,
+with qecsim at stabilizer_qec.qecsim; its command line's models come from a table (its entry
+points) rather than `pkg_resources`, and without Blossom V's library this package's exact matcher
+serves its Blossom V interface.
+
+## bposd
+
+Copyright (c) 2021 Joschka Roffe. Licensed under the MIT License (`python/stabilizer_qec/bposd/LICENSE`).
+Source: https://github.com/quantumgizmos/bp_osd
+
+`python/stabilizer_qec/bposd/` is bposd 2.1's package on this package's ldpc.
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

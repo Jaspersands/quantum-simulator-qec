@@ -3,8 +3,8 @@
 # Apache License 2.0; see THIRD_PARTY_NOTICES.md), modified for stabilizer_qec.
 """CUDA-Q QEC's parity-check-matrix tools: sorting columns by the rounds they touch, slicing
 rounds, extending, shuffling, simplifying and random matrices. Random matrices and shuffles
-draw from ``std::mt19937_64`` through the platform C++ library's distributions, as CUDA-Q's
-build for the platform does."""
+draw from ``std::mt19937_64`` through libstdc++'s distributions, as CUDA-Q's builds (Linux only)
+do, on every platform."""
 
 from __future__ import annotations
 
