@@ -4,7 +4,7 @@
 //! trajectories: ρ → Σ_k K_k ρ K_k†.
 //!
 //! ρ is held vectorised, as the state vector of 2n qubits whose amplitude `i | j << n` is
-//! ρ[i][j]: an operation K on the ket qubits and K̄ on the bra qubits n..2n is K ρ K†, so every
+//! `ρ[i][j]`: an operation K on the ket qubits and K̄ on the bra qubits n..2n is K ρ K†, so every
 //! gate is the state vector's own.
 //!
 //! Measurements branch only on what they record. `distribution` follows each record (an
@@ -42,7 +42,7 @@ pub fn phase_damping(lambda: f64) -> [M2; 2] {
 /// The Kraus operators of a Z-basis reset, |0⟩⟨0| and |0⟩⟨1|.
 const RESET: [M2; 2] = [[[C::ONE, C::ZERO], [C::ZERO, C::ZERO]], [[C::ZERO, C::ONE], [C::ZERO, C::ZERO]]];
 
-/// A density matrix on `n` qubits: ρ[i][j] with bit q of i (and j) qubit q.
+/// A density matrix on `n` qubits: `ρ[i][j]` with bit q of i (and j) qubit q.
 #[derive(Clone, Debug)]
 pub struct DensityMatrix {
     n: usize,
@@ -79,7 +79,7 @@ impl DensityMatrix {
         self.n
     }
 
-    /// ρ[i][j].
+    /// `ρ[i][j]`.
     pub fn get(&self, i: usize, j: usize) -> C {
         self.v.amplitudes()[i | j << self.n]
     }
