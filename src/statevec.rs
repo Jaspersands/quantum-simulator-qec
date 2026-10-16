@@ -451,6 +451,16 @@ impl Program {
         self.observables.len()
     }
 
+    /// Each detector's measurement records.
+    pub(crate) fn detector_records(&self) -> &[Vec<usize>] {
+        &self.detectors
+    }
+
+    /// Each observable's measurement records.
+    pub(crate) fn observable_records(&self) -> &[Vec<usize>] {
+        &self.observables
+    }
+
     fn ctx(&self) -> Ctx {
         Ctx { chain: false, leaked: if self.leaky { vec![false; self.num_qubits] } else { Vec::new() }, reads_one: self.leaked_reads_one }
     }

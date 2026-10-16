@@ -250,6 +250,7 @@ from ._decoders import AmbiguityClustering, ArgumentReweighting, LeakageAwareDec
 from ._predecoder import PreDecoder
 from ._density import DensityMatrixSimulator, fidelity, reduced_density_matrix, von_neumann_entropy
 from ._process import average_gate_fidelity, choi_of_unitary, convert_process, pauli_basis, process_fidelity, process_matrix
+from ._perturb import perturbative_logical_error_rate
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -361,6 +362,7 @@ __all__ = [
     "pauli_basis",
     "process_fidelity",
     "process_matrix",
+    "perturbative_logical_error_rate",
     "CoherentSampler",
     "LeakageSampler",
     "weighted_rate",

@@ -788,6 +788,52 @@ class Circuit:
         no = self.num_observables
         return {(tuple(d), tuple(bool(o >> k & 1) for k in range(no))): p for d, o, p in rows}
 
+    def perturbative_distribution(self, order: int = 1, *, symbolic: bool = False, degree: Any = None, max_terms: int = 1 << 22) -> dict:
+        """The outcome distribution summed over every set of at most ``order`` faults, as
+        QuantumClifford.jl's ``petrajectories``: ``{(detection events, observable flips):
+        weight}``, keyed as ``exact_distribution``. Each noise channel (a Pauli channel on a
+        qubit or pair, a measurement's flip, a herald, a chain of correlated errors) is a site
+        that makes none of its faults or one; a fault set's weight is its exact probability, its
+        faults' probabilities times every other site's probability of none. The weights are
+        lower bounds, short of the exact distribution by O(p^(order+1)), and equal to it once
+        ``order`` reaches the number of sites. A fault counts toward the order whether or not it
+        changes an outcome, as in QuantumClifford.
+
+        With ``symbolic``, each weight is a ``numpy.polynomial.Polynomial`` in a noise scale x,
+        every fault's probability p read as p·x (a correlated chain's faults too, each with its
+        probability of happening), cut at x^``degree`` (``order`` by default; ``"full"``
+        keeps every power, as QuantumClifford's symbolic expansion): up to x^``order`` its
+        coefficients are the exact Taylor coefficients of the outcome's probability.
+
+        For Clifford circuits with Pauli noise whose detectors and observables are
+        deterministic, of any size: each fault's effect is found once, by a Pauli frame per fault
+        carried through the circuit together, and the sum is a dynamic program over outcomes
+        (at most ``max_terms`` outcome and fault-count pairs at once).
+
+        >>> import stabilizer_qec as sq
+        >>> c = sq.Circuit("R 0 1\\nX_ERROR(0.1) 0 1\\nCX 0 1\\nM 1\\nDETECTOR rec[-1]")
+        >>> d = c.perturbative_distribution(order=1)
+        >>> round(d[((True,), ())], 6)  # one X on either qubit: 2 * 0.1 * 0.9
+        0.18
+        >>> d = c.perturbative_distribution(order=2, symbolic=True)
+        >>> [round(float(a), 12) for a in d[((True,), ())].coef]  # 2 (0.1 x) (1 - 0.1 x)
+        [0.0, 0.2, -0.02]
+        """
+        if degree is not None and degree != "full" and not (isinstance(degree, (int, np.integer)) and not isinstance(degree, bool) and degree >= 0):
+            raise ValueError(f"degree must be a non-negative integer or 'full', got {degree!r}")
+        if not symbolic and degree is not None:
+            raise ValueError("degree is for a symbolic expansion (symbolic=True)")
+        k = count(order, "order")
+        deg = None if not symbolic else (k if degree is None else (1 << 62) if degree == "full" else int(degree))
+        nd, rows = call(self._c.perturbative_distribution, k, deg, count(max_terms, "max_terms"))
+        no = self.num_observables
+        out = {}
+        for flipped, w in rows:
+            hit = set(flipped)
+            key = (tuple(i in hit for i in range(nd)), tuple(nd + i in hit for i in range(no)))
+            out[key] = np.polynomial.Polynomial(np.trim_zeros(np.asarray(w), "b") if np.any(w) else [0.0]) if symbolic else w[0]
+        return out
+
     def density_matrix(self, *, endian: str = "little", max_branches: int = 1 << 20) -> np.ndarray:
         """The density matrix the circuit leaves its qubits in (up to 12 qubits), from all of
         them in |0⟩: noise as channels, measurement outcomes averaged away (followed one by one,

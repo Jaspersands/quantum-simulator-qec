@@ -330,6 +330,22 @@ impl PyCircuit {
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
+
+    /// The perturbative expansion to `order` faults: (the number of detectors, each outcome as
+    /// its flipped detectors then the number of detectors plus each flipped observable, with its
+    /// weight, one number or, with `degree`, a polynomial's coefficients up to x^degree).
+    fn perturbative_distribution(&self, py: Python<'_>, order: usize, degree: Option<usize>, max_terms: usize) -> PyResult<(usize, Vec<(Vec<u32>, Vec<f64>)>)> {
+        let sites = crate::perturb::sites(&self.circuit.inner).map_err(err)?;
+        let out = py.detach(|| crate::perturb::expand(&sites.sites, order, degree, max_terms)).map_err(err)?;
+        Ok((sites.num_detectors, out))
+    }
+
+    /// The fault sites the perturbative expansion sums over: per site, each fault's
+    /// probability and effect (as `perturbative_distribution`'s outcomes).
+    fn perturbative_sites(&self) -> PyResult<Vec<Vec<(f64, Vec<u32>)>>> {
+        let sites = crate::perturb::sites(&self.circuit.inner).map_err(err)?;
+        Ok(sites.sites.into_iter().map(|s| s.faults).collect())
+    }
 }
 
 /// The per-shot frame sampler with leakage, one stream per shot.

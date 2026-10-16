@@ -94,9 +94,10 @@ class DensityMatrixSimulator:
     stabilizer state: it grows as circuits touch new qubits (at most 12), draws each recorded
     measurement outcome, and applies noise as channels.
 
-    >>> s = DensityMatrixSimulator(seed=1)
-    >>> s.do(Circuit("H 0\\nCX 0 1\\nI_ERROR[AMPLITUDE_DAMPING(gamma=0.5)] 0"))
-    >>> round(s.peek_observable_expectation(PauliString("ZZ")), 6)
+    >>> import stabilizer_qec as sq
+    >>> s = sq.DensityMatrixSimulator(seed=1)
+    >>> s.do(sq.Circuit("H 0\\nCX 0 1\\nI_ERROR[AMPLITUDE_DAMPING(gamma=0.5)] 0"))
+    >>> round(s.peek_observable_expectation(sq.PauliString("ZZ")), 6)
     0.5
     """
 
