@@ -774,13 +774,38 @@ class Circuit:
         measurement's herald: whether its qubit was leaked."""
         return LeakageSampler(self, leaked_reads_one, seed)
 
-    def exact_distribution(self, *, max_branches: int = 1 << 20) -> dict:
-        """Every outcome's exact probability, following every measurement outcome and noise
-        branch: ``{(detection events, observable flips): probability}``, each a tuple of bools.
-        For small circuits; more than ``max_branches`` branches is an error."""
-        rows = call(self._c.exact_distribution, count(max_branches, "max_branches"))
+    def exact_distribution(self, *, max_branches: int = 1 << 20, method: str = "state_vector") -> dict:
+        """Every outcome's exact probability: ``{(detection events, observable flips):
+        probability}``, each a tuple of bools. ``method="state_vector"`` (up to 24 qubits)
+        follows every measurement outcome and noise branch; ``"density_matrix"`` (up to 12)
+        applies each noise channel whole and branches only on what measurements record, far
+        fewer branches on a noisy circuit. For small circuits; more than ``max_branches``
+        branches is an error."""
+        if method not in ("state_vector", "density_matrix"):
+            raise ValueError(f"method must be 'state_vector' or 'density_matrix', got {method!r}")
+        run = self._c.exact_distribution if method == "state_vector" else self._c.density_distribution
+        rows = call(run, count(max_branches, "max_branches"))
         no = self.num_observables
         return {(tuple(d), tuple(bool(o >> k & 1) for k in range(no))): p for d, o, p in rows}
+
+    def density_matrix(self, *, endian: str = "little", max_branches: int = 1 << 20) -> np.ndarray:
+        """The density matrix the circuit leaves its qubits in (up to 12 qubits), from all of
+        them in |0⟩: noise as channels, measurement outcomes averaged away (followed one by one,
+        at most ``max_branches``, only when feedback reads them). Runs everything the exact
+        sampler runs, amplitude and phase damping and ``THERMAL_RELAXATION`` included. Qubit 0
+        is the least significant bit of an index for ``endian="little"``."""
+        from ._density import _matrix
+
+        n, data = call(self._c.density_matrix, count(max_branches, "max_branches"))
+        return _matrix(data, n, _stim._endian(endian))
+
+    def process_matrix(self, kind: str = "choi", *, max_branches: int = 1 << 20) -> np.ndarray:
+        """The circuit's process on its qubits (up to 6), measurement outcomes averaged away:
+        ``"choi"`` (Σ_ij |i⟩⟨j| ⊗ Λ(|i⟩⟨j|)), ``"superoperator"``, ``"ptm"`` (Pauli transfer
+        matrix) or ``"chi"``; the conventions are ``stabilizer_qec.process_matrix``'s."""
+        from ._process import process_matrix
+
+        return process_matrix(self, kind, max_branches=max_branches)
 
     def compile_m2d_converter(self, *, skip_reference_sample: bool = False) -> "MeasurementsToDetectionEventsConverter":
         """A converter from raw measurements (and sweep bits) to detection events, as

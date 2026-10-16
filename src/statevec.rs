@@ -102,6 +102,15 @@ impl StateVector {
         &self.amp
     }
 
+    pub(crate) fn amplitudes_mut(&mut self) -> &mut [C] {
+        &mut self.amp
+    }
+
+    /// All amplitudes zero.
+    pub(crate) fn zeros(n: usize) -> StateVector {
+        StateVector { n, amp: vec![C::ZERO; 1 << n] }
+    }
+
     pub fn apply_1q(&mut self, q: usize, m: &M2) {
         let bit = 1usize << q;
         for k in 0..self.amp.len() {
@@ -241,7 +250,7 @@ pub fn u3(theta: f64, phi: f64, lambda: f64) -> M2 {
 /// One step of the program: each instruction split into one step per target, qubits renumbered
 /// to the ones in use.
 #[derive(Clone, Debug)]
-enum Step {
+pub(crate) enum Step {
     H(usize),
     S(usize),
     Paulis(Vec<(usize, u8)>),
@@ -260,6 +269,7 @@ enum Step {
     Rotation { paulis: Vec<(usize, u8)>, theta: f64 },
     Unitary(usize, M2),
     Damp { q: usize, gamma: f64 },
+    Dephase { q: usize, lambda: f64 },
     Leak { q: usize, p: f64 },
     Seep { q: usize, p: f64 },
     Transport { a: usize, b: usize, p: f64 },
@@ -268,9 +278,9 @@ enum Step {
 /// A circuit ready for the state vector.
 #[derive(Clone, Debug)]
 pub struct Program {
-    steps: Vec<Step>,
+    pub(crate) steps: Vec<Step>,
     num_qubits: usize,
-    num_measurements: usize,
+    pub(crate) num_measurements: usize,
     detectors: Vec<Vec<usize>>,
     observables: Vec<Vec<usize>>,
     /// The noiseless reference's parity of each detector, then each observable.
@@ -285,6 +295,12 @@ const CODE: [u8; 4] = [0, 1, 3, 2]; // Stim's letter order I, X, Y, Z as the eng
 
 impl Program {
     pub fn new(circuit: &Circuit) -> Result<Program, String> {
+        Program::with_layout(circuit, false, MAX_QUBITS)
+    }
+
+    /// The program with qubits renumbered to the ones in use (`whole` false) or kept as the
+    /// circuit numbers them, every qubit up to its largest (`whole`), at most `max` of them.
+    pub fn with_layout(circuit: &Circuit, whole: bool, max: usize) -> Result<Program, String> {
         circuit.check_runnable()?;
         let res = circuit.resolve()?;
         // Qubits in use, renumbered in order.
@@ -295,7 +311,7 @@ impl Program {
                 for op in ops {
                     match op {
                         NonPauli::Rotation { pauli, .. } => used.extend(pauli.iter().map(|&(q, _)| q)),
-                        NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } | NonPauli::Herald { qubit } => {
+                        NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } | NonPauli::PhaseDamping { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } | NonPauli::Herald { qubit } => {
                             used.insert(*qubit);
                         }
                         NonPauli::Leakage { .. } | NonPauli::Relax { .. } | NonPauli::LeakageReset { .. } | NonPauli::Transport { .. } => {
@@ -306,8 +322,14 @@ impl Program {
                 }
             }
         }
-        if used.len() > MAX_QUBITS {
-            return Err(format!("the circuit uses {} qubits; the state vector holds at most {MAX_QUBITS}", used.len()));
+        if whole {
+            if let Some(&last) = used.iter().next_back() {
+                used.extend(0..last);
+            }
+        }
+        if used.len() > max {
+            let what = if max == MAX_QUBITS { "the state vector" } else { "the density matrix" };
+            return Err(format!("the circuit uses {} qubits; {what} holds at most {max}", used.len()));
         }
         let index: BTreeMap<u32, usize> = used.iter().enumerate().map(|(i, &q)| (q, i)).collect();
         let ix = |q: &u32| index[q];
@@ -387,6 +409,7 @@ impl Program {
                             }
                             NonPauli::U3 { qubit, theta, phi, lambda } => Step::Unitary(ix(qubit), u3(*theta, *phi, *lambda)),
                             NonPauli::AmplitudeDamping { gamma, qubit } => Step::Damp { q: ix(qubit), gamma: *gamma },
+                            NonPauli::PhaseDamping { lambda, qubit } => Step::Dephase { q: ix(qubit), lambda: *lambda },
                             NonPauli::Leak { p, qubit } => Step::Leak { q: ix(qubit), p: *p },
                             NonPauli::Seep { p, qubit } => Step::Seep { q: ix(qubit), p: *p },
                             NonPauli::LeakTransport { p, a, b } => Step::Transport { a: ix(a), b: ix(b), p: *p },
@@ -433,7 +456,7 @@ impl Program {
     }
 
     /// A record's detection events and observable flips.
-    fn outcome(&self, rec: &[bool]) -> (Vec<bool>, u64) {
+    pub(crate) fn outcome(&self, rec: &[bool]) -> (Vec<bool>, u64) {
         let parity = |recs: &Vec<usize>| recs.iter().fold(false, |a, &r| a ^ rec[r]);
         let nd = self.detectors.len();
         let dets = self.detectors.iter().enumerate().map(|(i, d)| parity(d) ^ self.reference[i]).collect();
@@ -590,6 +613,10 @@ fn branch_probs(step: &Step, sv: &StateVector, ctx: &Ctx) -> Vec<f64> {
             let p1 = gamma * sv.prob_one(*q);
             vec![1.0 - p1, p1]
         }
+        Step::Dephase { q, lambda } => {
+            let p1 = lambda * sv.prob_one(*q);
+            vec![1.0 - p1, p1]
+        }
         _ => vec![1.0],
     }
 }
@@ -601,7 +628,7 @@ fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, ctx: &mut Ct
     match step {
         // Leaked qubits take no part: their gates do nothing, a two-qubit gate with one leaves
         // the other a random Pauli, and measuring one reads 1 (or a coin).
-        Step::H(q) | Step::S(q) | Step::Unitary(q, _) | Step::Damp { q, .. } if ctx.leaked(*q) => {}
+        Step::H(q) | Step::S(q) | Step::Unitary(q, _) | Step::Damp { q, .. } | Step::Dephase { q, .. } if ctx.leaked(*q) => {}
         Step::Cx(a, b) | Step::Cz(a, b) if ctx.leaked(*a) || ctx.leaked(*b) => {
             if ctx.leaked(*a) != ctx.leaked(*b) {
                 let other = if ctx.leaked(*a) { *b } else { *a };
@@ -748,6 +775,14 @@ fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, ctx: &mut Ct
             let k = choose(&[1.0 - p1, p1]);
             let g = *gamma;
             let m: M2 = if k == 1 { [[C::ZERO, C::new(g.sqrt(), 0.0)], [C::ZERO, C::ZERO]] } else { [[C::ONE, C::ZERO], [C::ZERO, C::new((1.0 - g).sqrt(), 0.0)]] };
+            let n2 = sv.kraus(*q, &m);
+            sv.renormalise(n2);
+        }
+        Step::Dephase { q, lambda } => {
+            let p1 = lambda * sv.prob_one(*q);
+            let k = choose(&[1.0 - p1, p1]);
+            let l = *lambda;
+            let m: M2 = if k == 1 { [[C::ZERO, C::ZERO], [C::ZERO, C::new(l.sqrt(), 0.0)]] } else { [[C::ONE, C::ZERO], [C::ZERO, C::new((1.0 - l).sqrt(), 0.0)]] };
             let n2 = sv.kraus(*q, &m);
             sv.renormalise(n2);
         }

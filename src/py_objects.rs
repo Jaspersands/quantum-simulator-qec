@@ -314,6 +314,22 @@ impl PyCircuit {
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
+
+    /// The final density matrix over qubits 0..n (n, its entries as complex128 bytes),
+    /// records averaged away.
+    fn density_matrix<'py>(&self, py: Python<'py>, max_branches: usize) -> PyResult<(usize, Bound<'py, PyBytes>)> {
+        let program = crate::density::DensityProgram::with_layout(&self.circuit.inner, true).map_err(err)?;
+        let rho = py.detach(|| program.final_state(None, max_branches)).map_err(err)?;
+        Ok((rho.num_qubits(), density_bytes(py, &rho)))
+    }
+
+    /// `exact_distribution` by the density matrix: noise channels applied whole, branching only
+    /// on records.
+    fn density_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let program = crate::density::DensityProgram::new(&self.circuit.inner).map_err(err)?;
+        let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
+        Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
 }
 
 /// The per-shot frame sampler with leakage, one stream per shot.
@@ -2595,7 +2611,119 @@ fn suggest_sparsify_reactivate_limit(num_detectors: usize, sparsify_base_degree:
     crate::search::suggest_reactivate_limit(num_detectors, sparsify_base_degree, i32::MAX as i64).map_err(err)
 }
 
+/// ρ's entries as little-endian complex128 bytes.
+fn density_bytes<'py>(py: Python<'py>, rho: &crate::density::DensityMatrix) -> Bound<'py, PyBytes> {
+    let m = rho.matrix();
+    let mut out = Vec::with_capacity(m.len() * 16);
+    for c in m {
+        out.extend_from_slice(&c.re.to_le_bytes());
+        out.extend_from_slice(&c.im.to_le_bytes());
+    }
+    PyBytes::new(py, &out)
+}
+
+/// The density-matrix simulator behind `DensityMatrixSimulator`.
+#[pyclass(name = "DensityMatrixCore", module = "stabilizer_qec._core")]
+pub struct PyDensitySim {
+    rho: crate::density::DensityMatrix,
+    rec: Vec<bool>,
+    rng: crate::surface_code::Xorshift,
+}
+
+#[pymethods]
+impl PyDensitySim {
+    #[new]
+    fn new(n: usize, seed: u64) -> PyResult<Self> {
+        if n > crate::density::MAX_QUBITS {
+            return Err(err(format!("at most {} qubits", crate::density::MAX_QUBITS)));
+        }
+        Ok(PyDensitySim { rho: crate::density::DensityMatrix::new(n), rec: Vec::new(), rng: crate::surface_code::Xorshift::new(seed) })
+    }
+
+    fn copy(&self, seed: u64) -> Self {
+        PyDensitySim { rho: self.rho.clone(), rec: self.rec.clone(), rng: crate::surface_code::Xorshift::new(seed) }
+    }
+
+    #[getter]
+    fn num_qubits(&self) -> usize {
+        self.rho.num_qubits()
+    }
+
+    fn grow(&mut self, n: usize) -> PyResult<()> {
+        if n > crate::density::MAX_QUBITS {
+            return Err(err(format!("at most {} qubits", crate::density::MAX_QUBITS)));
+        }
+        self.rho.grow(n);
+        Ok(())
+    }
+
+    fn do_circuit(&mut self, py: Python<'_>, circuit: &PyCircuit) -> PyResult<()> {
+        let program = crate::density::DensityProgram::with_layout(&circuit.circuit.inner, true).map_err(err)?;
+        let rho = self.rho.clone();
+        let rng = &mut self.rng;
+        let (rho, rec) = py.detach(|| program.sample(rho, rng)).map_err(err)?;
+        self.rho = rho;
+        self.rec.extend(rec);
+        Ok(())
+    }
+
+    fn record(&self) -> Vec<bool> {
+        self.rec.clone()
+    }
+
+    fn matrix<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        density_bytes(py, &self.rho)
+    }
+
+    fn set_matrix(&mut self, n: usize, data: &[u8]) -> PyResult<()> {
+        self.rho = crate::density::DensityMatrix::from_matrix(n, &complex_entries(data)).map_err(err)?;
+        Ok(())
+    }
+
+    fn expectation(&self, paulis: Vec<(usize, u8)>) -> (f64, f64) {
+        let e = self.rho.expectation(&paulis);
+        (e.re, e.im)
+    }
+
+    fn purity(&self) -> f64 {
+        self.rho.purity()
+    }
+
+    fn apply_matrix(&mut self, qubits: Vec<usize>, data: &[u8]) -> PyResult<()> {
+        self.rho.apply_matrix(&qubits, &complex_entries(data)).map_err(err)
+    }
+
+    fn apply_kraus(&mut self, qubits: Vec<usize>, ops: Vec<Vec<u8>>) -> PyResult<()> {
+        let ops: Vec<Vec<crate::statevec::C>> = ops.iter().map(|d| complex_entries(d)).collect();
+        self.rho.apply_kraus(&qubits, &ops).map_err(err)
+    }
+
+    #[pyo3(signature = (qubit, forced=None))]
+    fn measure(&mut self, qubit: usize, forced: Option<bool>) -> PyResult<bool> {
+        if qubit >= self.rho.num_qubits() {
+            return Err(err(format!("qubit {qubit} is not below {}", self.rho.num_qubits())));
+        }
+        let outcome = self.rho.measure(qubit, forced, &mut self.rng);
+        self.rec.push(outcome);
+        Ok(outcome)
+    }
+
+    /// The circuit as a channel on the current state: records averaged away, none kept.
+    fn apply_channel(&mut self, py: Python<'_>, circuit: &PyCircuit, max_branches: usize) -> PyResult<()> {
+        let program = crate::density::DensityProgram::with_layout(&circuit.circuit.inner, true).map_err(err)?;
+        let rho = self.rho.clone();
+        self.rho = py.detach(|| program.final_state(Some(rho), max_branches)).map_err(err)?;
+        Ok(())
+    }
+}
+
+/// Little-endian complex128 bytes as numbers.
+fn complex_entries(data: &[u8]) -> Vec<crate::statevec::C> {
+    data.chunks_exact(16).map(|c| crate::statevec::C::new(f64::from_le_bytes(c[..8].try_into().unwrap()), f64::from_le_bytes(c[8..].try_into().unwrap()))).collect()
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<PyDensitySim>()?;
     m.add_class::<PyCircuit>()?;
     m.add_class::<PyDem>()?;
     m.add_class::<PySampler>()?;

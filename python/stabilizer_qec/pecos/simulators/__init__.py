@@ -22,6 +22,7 @@ from . import sim_class_types
 
 from ._sparsesim import SparseSim as pySparseSim  # Python sparse stabilizer sim
 from ._paulifaultprop import PauliFaultProp  # Pauli fault propagation sim
+from ._densitymatrix import DensityMatrix, ProcessMatrix  # stabilizer_qec's density matrix (new)
 
 # C++ version of SparseStabSim wrapper
 try:

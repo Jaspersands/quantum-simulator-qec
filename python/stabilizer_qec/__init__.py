@@ -131,7 +131,9 @@ the twirled circuit with weights that make them the coherent circuit's, at any s
 True
 
 `compile_exact_sampler` and `exact_distribution` run the state vector (up to 24 qubits; also T,
-U3 and amplitude damping). `twirled(merge=True)` is the coherence-aware model for a decoder.
+U3, amplitude and phase damping and T1/T2 relaxation, `I_ERROR[THERMAL_RELAXATION(t=…, t1=…,
+t2=…)]`). `Circuit.density_matrix` and `DensityMatrixSimulator` run the density matrix (up to 12
+qubits), noise as channels. `twirled(merge=True)` is the coherence-aware model for a decoder.
 `compile_leakage_sampler` runs `I_ERROR[LEAK(p=…)]`, `SEEP` and `LEAK_TRANSPORT`, with heralds,
 and Deltakit's dialect (`LEAKAGE(p)`, `RELAX(p)`, `HERALD_LEAKAGE_EVENT`, read as tagged lines
 Stim runs), with its measurements and leakage flags; `without_leakage()` is Deltakit's
@@ -246,6 +248,8 @@ from ._stim import (
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import AmbiguityClustering, ArgumentReweighting, LeakageAwareDecoder, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
 from ._predecoder import PreDecoder
+from ._density import DensityMatrixSimulator, fidelity, reduced_density_matrix, von_neumann_entropy
+from ._process import average_gate_fidelity, choi_of_unitary, convert_process, pauli_basis, process_fidelity, process_matrix
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -347,6 +351,16 @@ __all__ = [
     "DetectorErrorModel",
     "DetectorSampler",
     "ExactSampler",
+    "DensityMatrixSimulator",
+    "fidelity",
+    "reduced_density_matrix",
+    "von_neumann_entropy",
+    "average_gate_fidelity",
+    "choi_of_unitary",
+    "convert_process",
+    "pauli_basis",
+    "process_fidelity",
+    "process_matrix",
     "CoherentSampler",
     "LeakageSampler",
     "weighted_rate",

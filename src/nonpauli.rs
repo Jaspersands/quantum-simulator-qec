@@ -26,6 +26,9 @@ pub enum NonPauli {
     LeakTransport { p: f64, a: u32, b: u32 },
     /// Amplitude damping with decay probability `gamma`.
     AmplitudeDamping { gamma: f64, qubit: u32 },
+    /// Phase damping (Nielsen and Chuang's): Kraus operators diag(1, √(1−λ)) and diag(0, √λ),
+    /// coherences shrinking by √(1−λ).
+    PhaseDamping { lambda: f64, qubit: u32 },
     /// Deltakit's `LEAKAGE(p)`: with probability `p`, the qubit is marked leaked and fully
     /// depolarized (as Deltakit's, whether or not it was leaked); measuring it reads its state.
     Leakage { p: f64, qubit: u32 },
@@ -54,6 +57,7 @@ impl NonPauli {
             | NonPauli::Leak { qubit, .. }
             | NonPauli::Seep { qubit, .. }
             | NonPauli::AmplitudeDamping { qubit, .. }
+            | NonPauli::PhaseDamping { qubit, .. }
             | NonPauli::Leakage { qubit, .. }
             | NonPauli::Relax { qubit, .. }
             | NonPauli::Herald { qubit }
@@ -82,6 +86,7 @@ impl NonPauli {
             NonPauli::Seep { p, qubit } => format!("I_ERROR[SEEP(p={})] {qubit}", f(*p)),
             NonPauli::LeakTransport { p, a, b } => format!("II_ERROR[LEAK_TRANSPORT(p={})] {a} {b}", f(*p)),
             NonPauli::AmplitudeDamping { gamma, qubit } => format!("I_ERROR[AMPLITUDE_DAMPING(gamma={})] {qubit}", f(*gamma)),
+            NonPauli::PhaseDamping { lambda, qubit } => format!("I_ERROR[PHASE_DAMPING(lambda={})] {qubit}", f(*lambda)),
             NonPauli::Leakage { p, qubit } => format!("I_ERROR[LEAKAGE(p={})] {qubit}", f(*p)),
             NonPauli::Relax { p, qubit } => format!("I_ERROR[RELAX(p={})] {qubit}", f(*p)),
             NonPauli::Herald { qubit } => format!("MPAD[{}(qubits={qubit})] 0", crate::leakage::HERALD),
@@ -116,7 +121,7 @@ fn split(tag: &str) -> Result<(String, Vec<(String, String)>), String> {
 }
 
 /// The names this module knows; any other tag is inert.
-const KNOWN: &[&str] = &["R_X", "R_Y", "R_Z", "R_XX", "R_YY", "R_ZZ", "R_PAULI", "T", "T_DAG", "U3", "LEAK", "SEEP", "LEAK_TRANSPORT", "AMPLITUDE_DAMPING", "LEAKAGE", "RELAX", "RL"];
+const KNOWN: &[&str] = &["R_X", "R_Y", "R_Z", "R_XX", "R_YY", "R_ZZ", "R_PAULI", "T", "T_DAG", "U3", "LEAK", "SEEP", "LEAK_TRANSPORT", "AMPLITUDE_DAMPING", "PHASE_DAMPING", "THERMAL_RELAXATION", "LEAKAGE", "RELAX", "RL"];
 
 /// The operations a tagged `I`, `II`, `I_ERROR` or `II_ERROR` asks for on `targets`; `None`
 /// for an untagged or unknown one (inert, as in Stim).
@@ -232,6 +237,28 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
             single(&name)?;
             let gamma = prob(number("gamma")?, "gamma")?;
             targets.iter().map(|&q| NonPauli::AmplitudeDamping { gamma, qubit: q }).collect()
+        }
+        "PHASE_DAMPING" => {
+            single(&name)?;
+            let lambda = prob(number("lambda")?, "lambda")?;
+            targets.iter().map(|&q| NonPauli::PhaseDamping { lambda, qubit: q }).collect()
+        }
+        // Idling for `t` with relaxation time T1 and dephasing time T2 (T2 ≤ 2 T1), as
+        // Quantumsim's AmpPhDamp: amplitude damping γ = 1 − e^{−t/T1}, then phase damping
+        // λ = 1 − e^{−2t/Tφ}, 1/Tφ = 1/T2 − 1/(2 T1), so coherences decay as e^{−t/T2}.
+        "THERMAL_RELAXATION" => {
+            single(&name)?;
+            let (t, t1, t2) = (number("t")?, number("t1")?, number("t2")?);
+            if t < 0.0 || t1 <= 0.0 || t2 <= 0.0 {
+                return Err(format!("{here}: 't' must be at least 0 and 't1', 't2' positive"));
+            }
+            if t2 > 2.0 * t1 * (1.0 + 1e-12) {
+                return Err(format!("{here}: 't2' must not be greater than 2 t1"));
+            }
+            let gamma = 1.0 - (-t / t1).exp();
+            let rate = (1.0 / t2 - 1.0 / (2.0 * t1)).max(0.0);
+            let lambda = 1.0 - (-2.0 * t * rate).exp();
+            targets.iter().flat_map(|&q| [NonPauli::AmplitudeDamping { gamma, qubit: q }, NonPauli::PhaseDamping { lambda, qubit: q }]).collect()
         }
         _ => unreachable!(),
     };
