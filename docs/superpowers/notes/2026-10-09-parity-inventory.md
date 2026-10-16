@@ -267,8 +267,8 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 
 | ID | Feature | Status |
 |---|---|---|
-| U1 | QUITS codes: BB, BPC, HGP, LCS, Mitten, QLP (and polynomial QLP); circuit builders (cardinal, cardinal NS-merge, ZX colouration, custom); layouts (toric, BB toric, transversal); stabilizer-flow schedule validation | part |
-| U2 | QUITS sliding-window BP+OSD and BP+LSD for phenomenological and circuit memory; spacetime distance estimate; girth/cycle analysis and LDPC optimisation | gap |
+| U1 | QUITS codes: BB, BPC, HGP, LCS, Mitten, QLP (and polynomial QLP); circuit builders (cardinal, cardinal NS-merge, ZX colouration, custom); layouts (toric, BB toric, transversal); stabilizer-flow schedule validation | done (2.0 W7: `stabilizer_qec.quits`, QUITS 1.2.0 whole; its matrices and circuits equal to QUITS') |
+| U2 | QUITS sliding-window BP+OSD and BP+LSD for phenomenological and circuit memory; spacetime distance estimate; girth/cycle analysis and LDPC optimisation | done (2.0 W7: `stabilizer_qec.quits`; window decodes equal to QUITS' shot for shot) |
 | U3 | qec-util circuit tools: remove gauge detectors, remove detectors/observables, observables_to_detectors, redefine/merge observables, move observables to end, format rec targets | gap |
 | U4 | qec-util DEM tools: dem_difference, hyperedge decomposition to edges, disjoint graphs, flippable detectors/observables, errors triggering detectors, merge instructions | part |
 | U5 | qec-util analysis: p_ij matrix (exact and approximate), syndromes/defects/defect probabilities, logical error decay fit (`LogicalErrorProbDecayModel`), threshold estimation and plots, circuit distance upper bound | part |

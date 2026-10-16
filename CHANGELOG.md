@@ -240,6 +240,15 @@ noise on every gate. In progress on `feature/2.0`.
   bicycle, hypergraph product, rotated surface, concatenated and colour codes, and its library
   of instances), colour-code routing and compilation (`cococo`) and code switching. The `mqt` extra
   installs what it needs (Python 3.10).
+- **`stabilizer_qec.quits`: QUITS 1.2.0 whole** on this package's Stim and ldpc, passing its own
+  126 tests (`tests/quits_port/`): bivariate bicycle, balanced product cyclic, hypergraph product,
+  lift-connected surface, Mitten and (polynomial) quasi-cyclic lifted product codes, or any
+  parity-check matrices; circuits by ZX colouration, cardinal and cardinal NS-merge schedules and
+  each family's custom one (Mitten's hook-error-free too); the **sliding-window BP+OSD and BP+LSD
+  decoders**, phenomenological and circuit-level; space-time distance estimates; layouts; GF(2)
+  linear algebra, groups and lifts, and its LDPC generators. Against QUITS itself
+  (`tests/test_quits_differential.py`) every family's matrices, every strategy's circuit text and
+  every window decode are equal. The `quits` extra installs what it needs (Python 3.10).
 - **`stabilizer_qec.fusion_blossom`: Fusion Blossom 0.2.13 whole**, a Rust port of its solvers
   (`src/fusion/`): the **serial and parallel minimum-weight perfect matching** solvers
   (`SolverSerial`, `SolverDualParallel`, `SolverParallel`, with partitions and fusion), erasures

@@ -1,0 +1,295 @@
+"""
+@author: Mingyu Kang, Yingjia Lin
+"""
+
+import numpy as np
+
+from ..noise import ErrorModel
+from .circuit_construction import get_builder
+from .circuit_construction.circuit_build_options import CircuitBuildOptions
+from ..gf2_util import _gf2_inv_square, compute_lz_and_lx, get_circulant_mat, lift
+from .base import QldpcCode
+
+
+class BpcCode(QldpcCode):
+    supported_strategies = {"cardinal", "cardinalNSmerge", "zxcoloration"}
+
+    def __init__(self, p1, p2, lift_size, factor, canonical_basis="Z"):
+        '''
+        :param p1: First polynomial used to construct the bp code. Each entry of the list is the power of each polynomial term.
+                   e.g. p1 = [0, 1, 5] represents the polynomial 1 + x + x^5
+        :param p2: Second polynomial used to construct the bp code. Each entry of the list is the power of each polynomial term.
+        :param lift_size: Size of cyclic matrix to which each monomial entry is lifted.
+        :param factor: Power of the monomial generator of the cyclic subgroup that is factored out by the balanced product.
+                       e.g. if factor == 3, cyclic subgroup <x^3> is factored out.
+        :param canonical_basis: Basis choice for canonical logicals; "Z" or "X".
+        :note: BPC code does not currently support q = 1 (i.e., lift_size == factor).
+        '''
+        # Reference: R. Tiew & N. P. Breuckmann, arXiv:2411.03302 (balanced product cyclic codes).
+        # Note: To match the paper, p2 should use lift_size minus the powers listed there (transpose convention).
+        super().__init__()
+
+        self.p1, self.p2 = p1, p2
+        self.lift_size = lift_size
+        self.factor = factor
+        self.canonical_basis = canonical_basis.upper()
+
+        b1 = np.zeros((self.factor, self.factor), dtype=int)
+        b1_placeholder = np.zeros((self.factor, self.factor), dtype=int)
+        for power in p1:
+            mat, mat_placeholder = self.get_block_mat(power)
+            b1 = b1 + mat
+            b1_placeholder = b1_placeholder + mat_placeholder
+        b1T = (self.lift_size - b1.T) % self.lift_size
+        b1T_placeholder = b1_placeholder.T
+
+        self.b1, self.b1T = b1, b1T
+        self.b1_placeholder, self.b1T_placeholder = b1_placeholder, b1T_placeholder
+
+        h1 = lift(self.lift_size, b1, b1_placeholder)
+        h1T = lift(self.lift_size, b1T, b1T_placeholder)
+
+        h2 = np.zeros((self.lift_size, self.lift_size), dtype=int)
+        for power in p2:
+            h2 = h2 + get_circulant_mat(self.lift_size, power)
+        h2 = np.kron(np.eye(self.factor, dtype=int), h2)
+        h2T = h2.T
+
+        self.hz = np.concatenate((h2, h1T), axis=1)
+        self.hx = np.concatenate((h1, h2T), axis=1)
+
+        # q = lift_size / factor in the balanced product construction.
+        q = self.lift_size // self.factor
+        if q == 1:
+            raise ValueError(
+                "BpcCode does not currently support q = 1 (lift_size == factor)."
+            )
+        if q % 2 == 1:
+            self.lz, self.lx = self.get_canonical_logicals(canonical_basis=self.canonical_basis)
+        else:
+            self.lz, self.lx = compute_lz_and_lx(self.hz, self.hx)
+
+    def get_block_mat(self, power):
+        # Each column shifts down by "power" with wraparound.
+        # The number of wraps determines the exponent.
+        cols = np.arange(self.factor, dtype=int)
+        rows = (cols + power) % self.factor
+        wraps = (cols + power) // self.factor
+
+        mat = np.zeros((self.factor, self.factor), dtype=int)
+        mat_placeholder = np.zeros_like(mat)
+        mat[rows, cols] = wraps * self.factor
+        mat_placeholder[rows, cols] = 1
+        return mat, mat_placeholder
+
+    def get_canonical_logicals(self, canonical_basis="Z"):
+        '''
+        :return: Logical operators of the code as a list of tuples (logical_z, logical_x)
+                 where logical_z and logical_x are numpy arrays of shape (num_logicals, num_data_qubits)
+                 The logicals are written in the "canonical form" as described in Eq. 30 of arXiv:2411.03302
+        '''
+
+        lz = np.zeros((2 * (self.factor - 1) ** 2, self.hz.shape[1]), dtype=int)
+        lx = np.zeros((2 * (self.factor - 1) ** 2, self.hx.shape[1]), dtype=int)
+
+        cnt = 0
+        for i in range(self.factor - 1):
+            for j in range(self.factor - 1):
+                yi_vec = get_circulant_mat(self.factor, 0)[:, i]
+                xjgx_vec = (get_circulant_mat(self.factor, 0) + get_circulant_mat(self.factor, 1))[:, j]
+                xjgx_vec = np.tile(xjgx_vec, self.lift_size // self.factor)
+
+                prod = np.kron(yi_vec, xjgx_vec)
+                lz[cnt, :] = np.concatenate((np.zeros(self.hz.shape[1] - len(prod), dtype=int), prod))
+                lx[cnt, :] = np.concatenate((prod, np.zeros(self.hx.shape[1] - len(prod), dtype=int)))
+
+                cnt += 1
+
+        for i in range(self.factor - 1):
+            for j in range(self.factor - 1):
+                yigy_vec = (get_circulant_mat(self.factor, 0) + get_circulant_mat(self.factor, 1))[:, i]
+                xj_vec = get_circulant_mat(self.factor, 0)[:, j]
+                xj_vec = np.tile(xj_vec, self.lift_size // self.factor)
+
+                prod = np.kron(yigy_vec, xj_vec)
+                lz[cnt, :] = np.concatenate((prod, np.zeros(self.hz.shape[1] - len(prod), dtype=int)))
+                lx[cnt, :] = np.concatenate((np.zeros(self.hx.shape[1] - len(prod), dtype=int), prod))
+
+                cnt += 1
+
+        canonical_basis = canonical_basis.upper()
+        if canonical_basis not in ("Z", "X"):
+            raise ValueError("canonical_basis must be 'Z' or 'X'")
+        if canonical_basis == "Z":
+            pairing = (lz @ lx.T) & 1
+            inv_pairing = _gf2_inv_square(pairing)
+            lx = (inv_pairing.T @ lx) & 1
+        elif canonical_basis == "X":
+            pairing = (lx @ lz.T) & 1
+            inv_pairing = _gf2_inv_square(pairing)
+            lz = (inv_pairing @ lz) & 1
+
+        return lz, lx
+
+    def build_circuit(
+        self,
+        strategy="cardinal",
+        error_model=None,
+        num_rounds=0,
+        basis="Z",
+        circuit_build_options=None,
+        **opts,
+    ):
+        '''
+        Build a circuit for this balanced-product cyclic code using the selected strategy.
+
+        :param strategy: Circuit-construction strategy name (e.g., "cardinal").
+        :param error_model: ErrorModel specifying idle/single-/two-qubit/SPAM noise.
+        :param num_rounds: Number of noisy syndrome-extraction rounds after the zeroth round.
+        :param basis: Logical storage/measurement basis, either "Z" or "X".
+        :param circuit_build_options: CircuitBuildOptions controlling detector and noise toggles.
+        :param opts: Additional keyword arguments, e.g., seed for the cardinal strategy.
+        :return: Stim circuit.
+        '''
+        if error_model is None:
+            error_model = ErrorModel()
+        if circuit_build_options is None:
+            circuit_build_options = CircuitBuildOptions()
+        elif not isinstance(circuit_build_options, CircuitBuildOptions):
+            raise TypeError("circuit_build_options must be a CircuitBuildOptions instance.")
+        
+        if strategy in {"cardinal", "cardinalNSmerge"}:
+            seed = opts.get("seed", 1)
+            return self._build_cardinal_circuit(
+                error_model=error_model,
+                num_rounds=num_rounds,
+                basis=basis,
+                circuit_build_options=circuit_build_options,
+                seed=seed,
+                strategy=strategy,
+            )
+        elif strategy == "zxcoloration":
+            builder = get_builder("zxcoloration", self)
+            return builder.get_coloration_circuit(
+                error_model=error_model,
+                num_rounds=num_rounds,
+                basis=basis,
+                circuit_build_options=circuit_build_options,
+            )
+        else:
+            return super().build_circuit(strategy=strategy, **opts)
+        
+    def _build_cardinal_circuit(
+        self,
+        error_model=None,
+        num_rounds=0,
+        basis="Z",
+        circuit_build_options=None,
+        seed=1,
+        strategy="cardinal",
+    ):
+        """
+        Build a cardinal circuit for this balanced-product cyclic code.
+
+        :param seed: Random seed used by graph-edge orientation/coloring helpers.
+        """
+        if error_model is None:
+            error_model = ErrorModel()
+        if circuit_build_options is None:
+            circuit_build_options = CircuitBuildOptions()
+        elif not isinstance(circuit_build_options, CircuitBuildOptions):
+            raise TypeError("circuit_build_options must be a CircuitBuildOptions instance.")
+        builder = get_builder(strategy, self)
+        builder.build_graph()
+        data_qubits, zcheck_qubits, xcheck_qubits = [], [], []
+
+        # Add nodes to the Tanner graph
+        for i in range(self.factor):
+            for l in range(self.lift_size):
+                node = i * self.lift_size + l
+                data_qubits += [node]
+                # Bottom left: data qubits
+                self.graph.add_node(node, pos=(l + i/self.factor, i))
+
+        start = self.factor * self.lift_size
+        for i in range(self.factor):
+            for l in range(self.lift_size):
+                node = start + i * self.lift_size + l
+                xcheck_qubits += [node]
+                # Bottom right: X-check qubits
+                self.graph.add_node(node, pos=(self.lift_size + l + i/self.factor, i + 1/3))
+
+        start = 2 * self.factor * self.lift_size
+        for i in range(self.factor):
+            for l in range(self.lift_size):
+                node = start + i * self.lift_size + l
+                zcheck_qubits += [node]
+                # Top left: Z-check qubits
+                self.graph.add_node(node, pos=(l + (i+1/3)/self.factor, self.factor + i))
+
+        start = 3 * self.factor * self.lift_size
+        for i in range(self.factor):
+            for l in range(self.lift_size):
+                node = start + i * self.lift_size + l
+                data_qubits += [node]
+                # Top right: data qubits
+                self.graph.add_node(node, pos=(self.lift_size + l + (i+1/3)/self.factor, self.factor + i + 1/3))
+
+        self.data_qubits = sorted(np.array(data_qubits))
+        self.zcheck_qubits = sorted(np.array(zcheck_qubits))
+        self.xcheck_qubits = sorted(np.array(xcheck_qubits))
+        self.check_qubits = np.concatenate((self.zcheck_qubits, self.xcheck_qubits))
+        self.all_qubits = sorted(np.array(data_qubits + zcheck_qubits + xcheck_qubits))
+
+        hedge_bool_list = builder.get_classical_edge_bools(np.ones(self.b1.shape, dtype=int), seed)
+        vedge_bool_list = builder.get_classical_edge_bools(np.ones(self.b1.shape, dtype=int), seed)
+
+        # Add edges to the Tanner graph of each direction
+        for i in range(self.factor):
+            for j in range(self.factor):
+                shift = self.b1[i, j]
+                edge_bool = hedge_bool_list[(i, j)]
+
+                for l in range(self.lift_size):
+                    for k in range(2):  # 0 : bottom, 1 : top
+                        if k ^ edge_bool:
+                            direction = 'E'
+                        else:
+                            direction = 'W'
+
+                        control = (2 * k + 1) * self.factor * self.lift_size + i * self.lift_size + (l + shift) % self.lift_size
+                        target = 2 * k * self.factor * self.lift_size + j * self.lift_size + l
+                        builder.add_edge(direction, control, target)
+
+        def shuffle(node_no, qubit_no):
+            m, r = qubit_no // self.factor, qubit_no % self.factor
+            return r, self.lift_size // self.factor * node_no + m
+
+        for i in range(self.factor):
+            for j in range(len(self.p2)):
+                shift = self.p2[j]
+
+                for l in range(self.lift_size):
+                    for k in range(2):  # 0 : left, 1 : right
+                        i_shuffled, _ = shuffle(i, l)
+                        j_shuffled, _ = shuffle(i, (l + shift) % self.lift_size)
+                        edge_bool = vedge_bool_list[(i_shuffled, j_shuffled)]
+                        if k ^ edge_bool:
+                            direction = 'N'
+                        else:
+                            direction = 'S'
+
+                        control = k * self.factor * self.lift_size + i * self.lift_size + l
+                        target = (2 + k) * self.factor * self.lift_size + i * self.lift_size + (l + shift) % self.lift_size
+                        builder.add_edge(direction, control, target)
+
+        builder.color_edges()
+        return builder.get_cardinal_circuit(
+            error_model=error_model,
+            num_rounds=num_rounds,
+            basis=basis,
+            circuit_build_options=circuit_build_options,
+        )
+
+
+__all__ = ["BpcCode"]
