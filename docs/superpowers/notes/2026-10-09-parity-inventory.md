@@ -178,9 +178,9 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 
 | ID | Feature | Status |
 |---|---|---|
-| D1 | Collision Clustering decoder (CC, arXiv 2309.05558) | gap |
-| D2 | Local Clustering Decoder (LCD, arXiv 2411.10343): adaptive, leakage-aware | gap |
-| D3 | Ambiguity Clustering (BP-AC, arXiv 2406.14527) | gap |
+| D1 | Collision Clustering decoder (CC, arXiv 2309.05558) | done (2.0 W6: from the paper, in Rust, `src/clustering.rs`) |
+| D2 | Local Clustering Decoder (LCD, arXiv 2411.10343): adaptive, leakage-aware | done (2.0 W6: from the paper, in Rust, `src/clustering.rs`) |
+| D3 | Ambiguity Clustering (BP-AC, arXiv 2406.14527) | done (2.0 W6: from the paper, in Rust, `src/ambiguity.rs`) |
 | D4 | Leakage flags in data and leakage-aware decoding (`LeakageFlags`, `HERALD_LEAKAGE_EVENT`) | done (2.0 W6: dialect, sampler, `without_leakage`, `LeakageAwareDecoder`) |
 | D5 | Noise models: SD6, SI1000, phenomenological, toy, `PhysicalNoise` (T1/T2-derived), noise profiles per gate, `Leakage` and `Relax` channels | part (SD6, SI1000-like in data; no T1/T2) |
 | D6 | QPU model: native gate sets with times, `compile_circuit_to_native_gates` (CZ / CZSWAP), parallelise circuits, merge layers, remove identities | gap |
@@ -275,7 +275,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | U6 | qec-util samplers: sample_failures to file, merge batches | gap (= N2) |
 | U7 | PanQEC: 3D codes (3D toric, rhombic, XCube fracton, Haah-like), deformed (XZZX, biased) codes, BP-OSD, MBP, union-find, sweep-matching, threshold FSS analysis, GUI | done (2.0 W7: `stabilizer_qec.panqec`, PanQEC 0.1.7 whole; codes, noise, decodes, simulations and GUI equal to PanQEC's) |
 | U8 | qecsim: MPS tensor-network decoders (planar, colour 6.6.6, toric; exact and approximate by bond dimension), fault-tolerant (time-repeated) runs, Blossom V | gap (MPS decoders) |
-| U9 | PECOS: fault-tolerance checks (`t_errors_check`, `fault_check`, `distance_check`), pseudo-threshold tools, error generators, 4.4.4.4 surface and 4.8.8 colour codes, density-matrix and process-matrix simulators | gap |
+| U9 | PECOS: fault-tolerance checks (`t_errors_check`, `fault_check`, `distance_check`), pseudo-threshold tools, error generators, 4.4.4.4 surface and 4.8.8 colour codes, density-matrix and process-matrix simulators | part (2.0 W7: `stabilizer_qec.pecos`, PECOS 0.2.0 whole, its C++ simulator in Rust; simulators, codes, runs and rates equal to PECOS's, its broken checks fixed; density and process matrices with X1) |
 | U10 | Fusion Blossom: parallel MWPM by partitioned primal/dual, visualiser | part (window parallelism) |
 | U11 | MWPF: hypergraph minimum-weight parity factor decoder, hypergraph union-find (HUF), heralded-erasure DEMs | gap |
 | U12 | qsample: dynamical subset sampling (importance sampling by fault count, upper and lower bounds), protocol graphs with feed-forward | gap |

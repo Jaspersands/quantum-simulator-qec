@@ -136,3 +136,7 @@ if _sys.version_info < (3, 10) or not all(_importlib_util.find_spec(m) for m in 
 # PanQEC's own tests (tests/panqec_port) need the `panqec` extra (its GUI, Flask, is optional).
 if not all(_importlib_util.find_spec(m) for m in ("scipy", "pandas", "matplotlib", "click", "psutil", "tqdm")):
     collect_ignore_glob += ["panqec_port", "panqec_port/*"]
+
+# PECOS's own tests (tests/pecos_port) need the `pecos` extra.
+if not all(_importlib_util.find_spec(m) for m in ("scipy", "matplotlib", "networkx")):
+    collect_ignore_glob += ["pecos_port", "pecos_port/*"]

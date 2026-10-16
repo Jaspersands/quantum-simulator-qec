@@ -12,7 +12,8 @@ import pytest
 
 import stabilizer_qec as sq
 
-pytestmark = pytest.mark.skipif(sys.version_info < (3, 11), reason="stabilizer_qec.qldpc needs Python 3.11, as qLDPC")
+if sys.version_info < (3, 11):  # (at collection: the parameters are qLDPC's codes)
+    pytest.skip("stabilizer_qec.qldpc needs Python 3.11, as qLDPC", allow_module_level=True)
 pytest.importorskip("galois")
 pytest.importorskip("scipy")
 

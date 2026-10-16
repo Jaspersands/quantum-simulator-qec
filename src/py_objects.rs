@@ -1099,6 +1099,124 @@ fn prior_inner(d: &Dem, kind: &str, inner: Option<&Bound<'_, PyAny>>) -> PyResul
 
 /// The AI pre-decoder: the layout of a model's detectors and faults on a grid, the network, its
 /// optimizer's state, and the model's sampler for training.
+/// PECOS's sparse stabilizer simulator (`stabilizer_qec::pecos_sparse`), which
+/// `stabilizer_qec.pecos`'s `SparseSim` wraps as PECOS's Cython wraps its C++.
+#[pyclass(name = "PecosSparseSim", module = "stabilizer_qec._core")]
+pub struct PyPecosSparseSim {
+    sim: crate::pecos_sparse::SparseSim,
+}
+
+fn pecos_sets(py: Python<'_>, sets: &[crate::pecos_sparse::Set]) -> PyResult<Py<PyAny>> {
+    let list = pyo3::types::PyList::empty(py);
+    for s in sets {
+        let mut v: Vec<u32> = s.iter().copied().collect();
+        v.sort_unstable();
+        list.append(pyo3::types::PySet::new(py, &v)?)?;
+    }
+    Ok(list.into_any().unbind())
+}
+
+fn pecos_generators(py: Python<'_>, g: &crate::pecos_sparse::Generators) -> PyResult<Py<PyAny>> {
+    let d = PyDict::new(py);
+    d.set_item("col_x", pecos_sets(py, &g.col_x)?)?;
+    d.set_item("col_z", pecos_sets(py, &g.col_z)?)?;
+    d.set_item("row_x", pecos_sets(py, &g.row_x)?)?;
+    d.set_item("row_z", pecos_sets(py, &g.row_z)?)?;
+    Ok(d.into_any().unbind())
+}
+
+#[pymethods]
+impl PyPecosSparseSim {
+    #[new]
+    fn new(num_qubits: usize) -> Self {
+        PyPecosSparseSim { sim: crate::pecos_sparse::SparseSim::new(num_qubits) }
+    }
+    #[getter]
+    fn num_qubits(&self) -> usize {
+        self.sim.num_qubits
+    }
+    fn clear(&mut self) {
+        self.sim.clear();
+    }
+    /// The gate taking X and Z on `qubits[j]` to `images[2j]` and `images[2j + 1]`, each
+    /// `(phase, x bits, z bits)` for `i^phase prod X^x Z^z` over the gate's qubits.
+    fn gate(&mut self, qubits: Vec<usize>, images: Vec<(u8, u8, u8)>) -> PyResult<()> {
+        if qubits.len() > 8 || images.len() != 2 * qubits.len() {
+            return Err(PyValueError::new_err("a gate needs the images of X and Z on each of its (at most 8) qubits"));
+        }
+        for (a, &q) in qubits.iter().enumerate() {
+            if q >= self.sim.num_qubits {
+                return Err(PyValueError::new_err(format!("qubit {q} out of range")));
+            }
+            if qubits[..a].contains(&q) {
+                return Err(PyValueError::new_err("a gate's qubits must differ"));
+            }
+        }
+        let images: Vec<_> = images.into_iter().map(|(phase, x, z)| crate::pecos_sparse::Image { phase: phase % 4, x, z }).collect();
+        self.sim.gate(&qubits, &images);
+        Ok(())
+    }
+    fn is_deterministic(&self, qubit: usize) -> PyResult<bool> {
+        if qubit >= self.sim.num_qubits {
+            return Err(PyValueError::new_err(format!("qubit {qubit} out of range")));
+        }
+        Ok(self.sim.is_deterministic(qubit))
+    }
+    /// Measures Z on `qubit`: its determined outcome, or else `outcome` (0 or 1), collapsing
+    /// the state to it when `collapse`.
+    #[pyo3(signature = (qubit, outcome, collapse=true))]
+    fn measure(&mut self, qubit: usize, outcome: i64, collapse: bool) -> PyResult<u8> {
+        if qubit >= self.sim.num_qubits {
+            return Err(PyValueError::new_err(format!("qubit {qubit} out of range")));
+        }
+        if !self.sim.is_deterministic(qubit) && !(outcome == 0 || outcome == 1) {
+            return Err(PyValueError::new_err("forced_outcome was not 0 or 1"));
+        }
+        Ok(self.sim.measure(qubit, outcome.clamp(0, 1) as u8, collapse))
+    }
+    #[getter]
+    fn stabs(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        pecos_generators(py, &self.sim.stabs)
+    }
+    #[getter]
+    fn destabs(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        pecos_generators(py, &self.sim.destabs)
+    }
+    #[getter]
+    fn signs_minus(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let mut v: Vec<u32> = self.sim.signs_minus.iter().copied().collect();
+        v.sort_unstable();
+        Ok(pyo3::types::PySet::new(py, &v)?.into_any().unbind())
+    }
+    #[getter]
+    fn signs_i(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let mut v: Vec<u32> = self.sim.signs_i.iter().copied().collect();
+        v.sort_unstable();
+        Ok(pyo3::types::PySet::new(py, &v)?.into_any().unbind())
+    }
+    /// Replaces the generators by rows (lists of sets of qubits, one per generator).
+    fn set_rows(&mut self, stabs_x: Vec<Vec<u32>>, stabs_z: Vec<Vec<u32>>, destabs_x: Vec<Vec<u32>>, destabs_z: Vec<Vec<u32>>) -> PyResult<()> {
+        let n = self.sim.num_qubits;
+        let conv = |rows: Vec<Vec<u32>>| -> PyResult<Vec<crate::pecos_sparse::Set>> {
+            if rows.len() != n || rows.iter().flatten().any(|&q| q as usize >= n) {
+                return Err(PyValueError::new_err(format!("rows must be {n} sets of qubits below {n}")));
+            }
+            Ok(rows.into_iter().map(|r| r.into_iter().collect()).collect())
+        };
+        let (a, b, c, d) = (conv(stabs_x)?, conv(stabs_z)?, conv(destabs_x)?, conv(destabs_z)?);
+        self.sim.set_rows(a, b, c, d);
+        Ok(())
+    }
+    /// The signs, for `set_rows`'s callers: (minus, i) as sets of generator ids.
+    fn set_signs(&mut self, minus: Vec<u32>, i: Vec<u32>) {
+        self.sim.signs_minus = minus.into_iter().collect();
+        self.sim.signs_i = i.into_iter().collect();
+    }
+    fn __copy__(&self) -> Self {
+        PyPecosSparseSim { sim: self.sim.clone() }
+    }
+}
+
 #[pyclass(name = "PreDecoder", module = "stabilizer_qec._core")]
 pub struct PyPreDecoder {
     layout: crate::predecoder::Layout,
@@ -2486,6 +2604,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDemArgumentReweighting>()?;
     m.add_class::<PyDemLeakageAware>()?;
     m.add_class::<PyPreDecoder>()?;
+    m.add_class::<PyPecosSparseSim>()?;
     m.add_class::<PyDemAmbiguityClustering>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;

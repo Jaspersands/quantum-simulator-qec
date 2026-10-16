@@ -67,6 +67,8 @@ quits = [
 # stabilizer_qec.panqec (PanQEC 0.1.7) needs what PanQEC does beyond ldpc and PyMatching; its
 # GUI needs Flask too (`panqec-gui`).
 panqec = ["scipy>=1.8.0", "pandas>=1.4.2", "matplotlib>=3.3.4", "tqdm>=4.59.0", "python-dotenv>=0.17.0", "psutil>=5.8.0", "click>=8.1.2"]
+# stabilizer_qec.pecos (PECOS 0.2.0) needs what PECOS does (on NumPy 2 and networkx 3 too).
+pecos = ["scipy>=1.1.0", "matplotlib>=2.2.0", "networkx>=2.1.0", "sortedcontainers>=2.0.0"]
 panqec-gui = ["scipy>=1.8.0", "pandas>=1.4.2", "matplotlib>=3.3.4", "tqdm>=4.59.0", "python-dotenv>=0.17.0", "psutil>=5.8.0", "click>=8.1.2", "Flask>=2.0.1"]
 
 [project.scripts]

@@ -111,6 +111,8 @@ pub mod reweight;
 pub mod leakage;
 /// The AI pre-decoder: a 3D convolutional network over the detectors' grid, before a global decoder.
 pub mod predecoder;
+/// PECOS's sparse stabilizer simulator (its C++ `SparseSim`).
+pub mod pecos_sparse;
 #[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]

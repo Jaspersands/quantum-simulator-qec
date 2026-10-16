@@ -263,6 +263,25 @@ noise on every gate. In progress on `feature/2.0`.
   matchings fall otherwise, the same syndromes and weights), direct simulations and the GUI's
   answers, all equal. Memory BP takes the syndrome as an integer, where PanQEC's raises on NumPy
   2. The `panqec` extra installs what it needs.
+- **`stabilizer_qec.pecos`: PECOS 0.2.0 whole** (`quantum-pecos`), on NumPy 2 and networkx 3,
+  passing its own tests (`tests/pecos_port/`): the 4.4.4.4 and medial 4.4.4.4 surface codes and
+  the 4.8.8 colour code with their logical gates and instructions, logical circuits, error
+  generators (depolarizing, X, Z, XZ and gatewise, at the code-capacity, phenomenological and
+  circuit levels), the standard and timing circuit runners, MWPM2D, the fault-tolerance checks
+  (`t_errors_check`, `fault_check`, `distance_check`, `fault_tolerance_check`), logical error
+  rates and pseudo-thresholds. Its C++ sparse stabilizer simulator (`cySparseSim`, the default
+  `SparseSim`) is ported to Rust: on random circuits of every gate, initialization and
+  measurement it ends in PECOS's C++ simulator's stabilizer group with its outcomes. Against
+  PECOS itself (`tests/test_pecos_differential.py`, from `tests/data/pecos_reference.json`, as
+  PECOS needs NumPy 1): both simulators, every code's every instruction, errors and outputs on
+  the same seeds, and logical error rates are equal, MWPM2D's recoveries too, or among equally
+  good matchings (networkx 3 breaks ties otherwise) the same syndromes and weights. Where PECOS
+  0.2.0 itself raises, the port works: the fault-tolerance checks (on the instructions'
+  `final_logical_ops`, not a `logical_stabs` none has, and `ErrorCircuits.add_circuits`), the
+  medial and colour codes' initializations (their circuits' `metadata`, once `params`), the
+  colour code's initialized logical operators (PECOS labels its Z `X`), MWPM2D with no syndrome,
+  and measurement outcomes left to the default, -1 (drawn at random, as in PECOS's C++). The
+  `pecos` extra installs what it needs. (Its density- and process-matrix simulation is W8's.)
 - **`stabilizer_qec.fusion_blossom`: Fusion Blossom 0.2.13 whole**, a Rust port of its solvers
   (`src/fusion/`): the **serial and parallel minimum-weight perfect matching** solvers
   (`SolverSerial`, `SolverDualParallel`, `SolverParallel`, with partitions and fusion), erasures
