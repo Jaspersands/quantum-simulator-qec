@@ -239,7 +239,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | C2 | Single-error and multi-error lookup-table decoders | gap |
 | C3 | Sliding-window decoder around any inner decoder (boundary-aware) | part (matching only) |
 | C4 | Relay-BP gamma ensembles, `relay_solutions` post-processing; BP+OSD `osd_init_method="min_llr"`; sum-product BP variants | part |
-| C5 | AI pre-decoder pipeline: neural network clears local errors, residual goes to matching (NVIDIA Ising CNN, arXiv 2604.12841) | gap |
+| C5 | AI pre-decoder pipeline: neural network clears local errors, residual goes to matching (NVIDIA Ising CNN, arXiv 2604.12841) | done (2.0 W6: `PreDecoder`, Rust and numpy training, shipped weights, matching on the network's weights) |
 | C6 | Async and streaming API: `decode_async`, `enqueue_syndromes`, `get_corrections`, `reset_decoder`, decoder stats (latency) | part (`stream_memory`) |
 | C7 | Decoder server (real-time, RPC) | gap |
 | C8 | PCM utilities: `get_pcm_for_rounds`, `pcm_extend_to_n_rounds`, sorting/simplifying/shuffling columns, `generate_random_pcm`, timelike sparse detector matrix | gap |

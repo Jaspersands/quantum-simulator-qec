@@ -1097,6 +1097,198 @@ fn prior_inner(d: &Dem, kind: &str, inner: Option<&Bound<'_, PyAny>>) -> PyResul
     })
 }
 
+/// The AI pre-decoder: the layout of a model's detectors and faults on a grid, the network, its
+/// optimizer's state, and the model's sampler for training.
+#[pyclass(name = "PreDecoder", module = "stabilizer_qec._core")]
+pub struct PyPreDecoder {
+    layout: crate::predecoder::Layout,
+    net: crate::predecoder::Net,
+    trainer: Option<crate::predecoder::Trainer>,
+    sampler: crate::dem_sampler::DemSampler,
+    /// Matching or union-find on the network's priors.
+    soft: Option<crate::predecoder::Soft>,
+}
+
+fn f32_bytes(xs: &[f32]) -> Vec<u8> {
+    xs.iter().flat_map(|x| x.to_le_bytes()).collect()
+}
+
+#[pymethods]
+impl PyPreDecoder {
+    /// `hidden`: each hidden layer's filters. `soft`: matching or union_find, to decode on the
+    /// network's priors.
+    #[new]
+    #[pyo3(signature = (dem, hidden, kernel, seed, sectors=None, soft=None))]
+    fn new(dem: &PyDem, hidden: Vec<usize>, kernel: usize, seed: u64, sectors: Option<Vec<u32>>, soft: Option<&str>) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let layout = crate::predecoder::Layout::new(d, sectors.as_deref()).map_err(err)?;
+        let mut channels = vec![layout.num_inputs()];
+        channels.extend(hidden);
+        channels.push(layout.num_kinds());
+        let net = crate::predecoder::Net::new(&channels, kernel, seed).map_err(err)?;
+        let soft = match soft {
+            None => None,
+            Some(kind @ ("matching" | "union_find")) => Some(crate::predecoder::Soft::new(&layout, crate::reweight::PriorDecoder::new(prior_inner(d, kind, None)?))),
+            Some(other) => return Err(err(format!("decoder '{other}' is not matching or union_find"))),
+        };
+        Ok(PyPreDecoder { layout, net, trainer: None, sampler: crate::dem_sampler::DemSampler::new(d), soft })
+    }
+
+    #[getter]
+    fn dims(&self) -> (usize, usize, usize) {
+        let [t, y, x] = self.layout.dims;
+        (t, y, x)
+    }
+    #[getter]
+    fn num_sectors(&self) -> usize {
+        self.layout.num_sectors
+    }
+    #[getter]
+    fn sectors(&self) -> Vec<u32> {
+        self.layout.sector.clone()
+    }
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.layout.num_detectors
+    }
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.layout.num_observables
+    }
+    #[getter]
+    fn num_errors(&self) -> usize {
+        self.layout.parts.len()
+    }
+    /// Per output channel: (sector, boundary, dt, dy, dx).
+    #[getter]
+    fn kinds(&self) -> Vec<(u32, bool, i32, i32, i32)> {
+        self.layout.kinds.iter().map(|k| (k.sector, k.boundary, k.dt, k.dy, k.dx)).collect()
+    }
+    /// Per voxel and kind, 1 where a fault is.
+    #[getter]
+    fn mask<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.layout.slot.iter().map(|&s| u8::from(s != u32::MAX)).collect::<Vec<u8>>())
+    }
+    /// Per fault the network can apply, by voxel then kind (the order of the mask's ones):
+    /// (detectors, observables, probability).
+    #[getter]
+    fn faults(&self) -> Vec<(Vec<u32>, u64, f64)> {
+        self.layout.faults.iter().map(|f| (f.detectors.clone(), f.observables, f.p)).collect()
+    }
+    #[getter]
+    fn channels(&self) -> Vec<usize> {
+        self.net.channels.clone()
+    }
+    #[getter]
+    fn kernel(&self) -> usize {
+        self.net.kernel
+    }
+    /// The parameters, f32 little-endian: per layer its weights (kernel offset, input channel,
+    /// output channel), then its biases.
+    #[getter]
+    fn params<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &f32_bytes(&self.net.params))
+    }
+    #[setter]
+    fn set_params(&mut self, raw: &[u8]) -> PyResult<()> {
+        if raw.len() != 4 * self.net.params.len() {
+            return Err(err(format!("{} bytes is not {} parameters", raw.len(), self.net.params.len())));
+        }
+        for (p, b) in self.net.params.iter_mut().zip(raw.chunks_exact(4)) {
+            *p = f32::from_le_bytes([b[0], b[1], b[2], b[3]]);
+        }
+        Ok(())
+    }
+
+    /// The inputs (f32, shot by voxel by channel) of packed detection events, and with the
+    /// faults that fired (packed, the model's order), the labels (f32, shot by voxel by kind).
+    #[pyo3(signature = (dets, shots, errors=None))]
+    fn encode<'py>(&self, py: Python<'py>, dets: &[u8], shots: usize, errors: Option<&[u8]>) -> PyResult<(Bound<'py, PyBytes>, Option<Bound<'py, PyBytes>>)> {
+        let l = &self.layout;
+        let (sd, se) = (l.num_detectors.div_ceil(8), l.parts.len().div_ceil(8));
+        check_rows(dets.len(), sd, shots, l.num_detectors, "detectors")?;
+        let (nx, ny) = (l.num_voxels() * l.num_inputs(), l.num_voxels() * l.num_kinds());
+        let mut x = vec![0.0f32; shots * nx];
+        for s in 0..shots {
+            l.encode(&dets[s * sd..(s + 1) * sd], &mut x[s * nx..(s + 1) * nx]);
+        }
+        let y = match errors {
+            None => None,
+            Some(e) => {
+                check_rows(e.len(), se, shots, l.parts.len(), "errors")?;
+                let mut y = vec![0.0f32; shots * ny];
+                for s in 0..shots {
+                    l.labels(&e[s * se..(s + 1) * se], &mut y[s * ny..(s + 1) * ny]);
+                }
+                Some(PyBytes::new(py, &f32_bytes(&y)))
+            }
+        };
+        Ok((PyBytes::new(py, &f32_bytes(&x)), y))
+    }
+
+    /// The shots training draws: `shots` of the model's, the sampler's batches from `first` on
+    /// (packed detection events, packed faults that fired).
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, seed: u64, first: u64, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let (d, _, e) = py.detach(|| self.sampler.sample_seeded(seed, first, shots, threads, true));
+        (PyBytes::new(py, &d), PyBytes::new(py, &e))
+    }
+
+    /// The number of optimizer steps taken.
+    #[getter]
+    fn steps(&self) -> u64 {
+        self.trainer.as_ref().map_or(0, |t| t.step)
+    }
+
+    /// The mean loss of packed shots and the faults that fired, and its gradient (f32 bytes).
+    fn loss_and_grad<'py>(&self, py: Python<'py>, dets: &[u8], errors: &[u8], shots: usize, threads: usize) -> PyResult<(f64, Bound<'py, PyBytes>)> {
+        let l = &self.layout;
+        check_rows(dets.len(), l.num_detectors.div_ceil(8), shots, l.num_detectors, "detectors")?;
+        check_rows(errors.len(), l.parts.len().div_ceil(8), shots, l.parts.len(), "errors")?;
+        let (loss, grad) = py.detach(|| crate::predecoder::loss_and_grad(l, &self.net, dets, errors, shots, threads));
+        Ok((loss, PyBytes::new(py, &f32_bytes(&grad))))
+    }
+
+    /// `steps` steps of `batch` fresh shots each; the optimizer's state carries over between
+    /// calls with the same optimizer. Returns each step's mean loss.
+    #[pyo3(signature = (steps, batch, optimizer, lr, warmup, weight_decay, seed, threads))]
+    #[allow(clippy::too_many_arguments)]
+    fn train(&mut self, py: Python<'_>, steps: usize, batch: usize, optimizer: &str, lr: f32, warmup: usize, weight_decay: f32, seed: u64, threads: usize) -> PyResult<Vec<f64>> {
+        use crate::predecoder::{Optimizer, Trainer};
+        let opt = match optimizer {
+            "lion" => Optimizer::Lion { weight_decay },
+            "adam" => Optimizer::Adam,
+            other => return Err(err(format!("optimizer '{other}' is not lion or adam"))),
+        };
+        if self.trainer.as_ref().map(|t| t.optimizer) != Some(opt) {
+            self.trainer = Some(Trainer::new(opt, self.net.params.len()));
+        }
+        let PyPreDecoder { layout, net, trainer, sampler, .. } = self;
+        let trainer = trainer.as_mut().unwrap();
+        Ok(py.detach(|| crate::predecoder::train(layout, net, trainer, sampler, steps, batch.max(1), lr, warmup, seed, threads)))
+    }
+
+    /// Per shot, the observables of the faults applied and of the soft decoder's correction of
+    /// the rest on the network's priors (u64 each), and 1 where no correction explains the shot.
+    fn decode_soft<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threshold: f32, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let l = &self.layout;
+        check_rows(packed.len(), l.num_detectors.div_ceil(8), shots, l.num_detectors, "detectors")?;
+        let soft = self.soft.as_ref().ok_or_else(|| err("this pre-decoder has no soft decoder".into()))?;
+        let out = py.detach(|| crate::predecoder::decode_soft(l, &self.net, soft, packed, shots, threshold, threads));
+        let failed: Vec<u8> = out.iter().map(|o| u8::from(o.is_none())).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.unwrap_or(0)))), PyBytes::new(py, &failed)))
+    }
+
+    /// Per shot: the detection events left (packed), the observables of the faults applied (u64
+    /// each), how many were applied (u32 each).
+    fn predecode<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threshold: f32, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let l = &self.layout;
+        check_rows(packed.len(), l.num_detectors.div_ceil(8), shots, l.num_detectors, "detectors")?;
+        let (left, obs, applied) = py.detach(|| crate::predecoder::predecode(l, &self.net, packed, shots, threshold, threads));
+        let applied: Vec<u8> = applied.iter().flat_map(|a| a.to_le_bytes()).collect();
+        Ok((PyBytes::new(py, &left), PyBytes::new(py, &le_u64(obs)), PyBytes::new(py, &applied)))
+    }
+}
+
 /// Leakage-aware decoding from heralds around a decoder that weighs faults by their priors.
 #[pyclass(name = "DemLeakageAware", module = "stabilizer_qec._core")]
 pub struct PyDemLeakageAware {
@@ -2293,6 +2485,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDemLocalClustering>()?;
     m.add_class::<PyDemArgumentReweighting>()?;
     m.add_class::<PyDemLeakageAware>()?;
+    m.add_class::<PyPreDecoder>()?;
     m.add_class::<PyDemAmbiguityClustering>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;

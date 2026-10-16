@@ -1,0 +1,150 @@
+{
+ "machine": "macOS-27.2-arm64-arm-64bit-Mach-O",
+ "threads": 10,
+ "rows": [
+  {
+   "distance": 5,
+   "rounds": 5,
+   "p": 0.003,
+   "shots": 50000,
+   "matching": 847,
+   "correlated matching": 591,
+   "density reduction": 18.89,
+   "paper's pipeline": 779,
+   "reweighted": 574,
+   "reweighted us/shot": 185.6
+  },
+  {
+   "distance": 5,
+   "rounds": 5,
+   "p": 0.004,
+   "shots": 50000,
+   "matching": 1711,
+   "correlated matching": 1260,
+   "density reduction": 13.54,
+   "paper's pipeline": 1531,
+   "reweighted": 1234,
+   "reweighted us/shot": 190.6
+  },
+  {
+   "distance": 5,
+   "rounds": 5,
+   "p": 0.005,
+   "shots": 50000,
+   "matching": 3070,
+   "correlated matching": 2512,
+   "density reduction": 10.37,
+   "paper's pipeline": 2893,
+   "reweighted": 2345,
+   "reweighted us/shot": 189.0
+  },
+  {
+   "distance": 5,
+   "rounds": 5,
+   "p": 0.006,
+   "shots": 50000,
+   "matching": 4608,
+   "correlated matching": 3877,
+   "density reduction": 8.41,
+   "paper's pipeline": 4295,
+   "reweighted": 3620,
+   "reweighted us/shot": 191.4
+  },
+  {
+   "distance": 7,
+   "rounds": 7,
+   "p": 0.003,
+   "shots": 50000,
+   "matching": 557,
+   "correlated matching": 262,
+   "density reduction": 17.88,
+   "paper's pipeline": 516,
+   "reweighted": 304,
+   "reweighted us/shot": 479.8
+  },
+  {
+   "distance": 7,
+   "rounds": 7,
+   "p": 0.004,
+   "shots": 50000,
+   "matching": 1538,
+   "correlated matching": 970,
+   "density reduction": 12.41,
+   "paper's pipeline": 1425,
+   "reweighted": 872,
+   "reweighted us/shot": 485.1
+  },
+  {
+   "distance": 7,
+   "rounds": 7,
+   "p": 0.005,
+   "shots": 50000,
+   "matching": 3174,
+   "correlated matching": 2157,
+   "density reduction": 9.38,
+   "paper's pipeline": 2836,
+   "reweighted": 1952,
+   "reweighted us/shot": 485.5
+  },
+  {
+   "distance": 7,
+   "rounds": 7,
+   "p": 0.006,
+   "shots": 50000,
+   "matching": 5400,
+   "correlated matching": 4072,
+   "density reduction": 7.54,
+   "paper's pipeline": 4927,
+   "reweighted": 3666,
+   "reweighted us/shot": 489.1
+  },
+  {
+   "distance": 9,
+   "rounds": 9,
+   "p": 0.003,
+   "shots": 50000,
+   "matching": 363,
+   "correlated matching": 130,
+   "density reduction": 17.42,
+   "paper's pipeline": 337,
+   "reweighted": 147,
+   "reweighted us/shot": 986.6
+  },
+  {
+   "distance": 9,
+   "rounds": 9,
+   "p": 0.004,
+   "shots": 50000,
+   "matching": 1219,
+   "correlated matching": 579,
+   "density reduction": 12.07,
+   "paper's pipeline": 1110,
+   "reweighted": 538,
+   "reweighted us/shot": 1005.6
+  },
+  {
+   "distance": 9,
+   "rounds": 9,
+   "p": 0.005,
+   "shots": 50000,
+   "matching": 3096,
+   "correlated matching": 1821,
+   "density reduction": 8.96,
+   "paper's pipeline": 2812,
+   "reweighted": 1634,
+   "reweighted us/shot": 1010.5
+  },
+  {
+   "distance": 9,
+   "rounds": 9,
+   "p": 0.006,
+   "shots": 50000,
+   "matching": 5896,
+   "correlated matching": 3984,
+   "density reduction": 7.13,
+   "paper's pipeline": 5373,
+   "reweighted": 3533,
+   "reweighted us/shot": 1005.9
+  }
+ ]
+}

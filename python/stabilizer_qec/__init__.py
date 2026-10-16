@@ -104,6 +104,9 @@ pickling:
   keep the shot if the answer holds) around matching, union-find, BP+OSD, BP+LSD or Relay-BP;
   `LeakageAwareDecoder` (leakage heralds raising the priors of the faults a leak makes likely)
   around the same, or local clustering.
+- `PreDecoder` (NVIDIA's AI pre-decoder: a 3D convolutional network on the detectors' grid
+  removes the faults it is confident of, and matching or any of these decodes the rest),
+  trained here, in Rust or numpy, with weights for the rotated memory.
 
 On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
 `RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
@@ -242,6 +245,7 @@ from ._stim import (
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
 from ._decoders import AmbiguityClustering, ArgumentReweighting, LeakageAwareDecoder, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
+from ._predecoder import PreDecoder
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -322,6 +326,7 @@ __all__ = [
     "AmbiguityClustering",
     "ArgumentReweighting",
     "LeakageAwareDecoder",
+    "PreDecoder",
     "CollisionClustering",
     "CompositeDecoder",
     "SubgraphDecoder",

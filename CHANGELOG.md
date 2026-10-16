@@ -297,6 +297,26 @@ noise on every gate. In progress on `feature/2.0`.
   it. On a d = 5 surface-code memory at p = 0.2%, 3R-LEC at b = 1.2 rejects 3.7% of shots and
   cuts the kept shots' logical error rate 5.5 times, which PEC needs 18% rejection for; on
   [[72,12,6]] at p = 0.3% BP+OSD's falls 16 times at 11% rejection.
+- **`PreDecoder`, the AI pre-decoder** (NVIDIA's, Chamberland, Olle, Li, Thornton and Baratta,
+  arXiv 2604.12841, built from the paper, with our own weights): a fully convolutional 3D
+  network reads the detection events on the grid of the detectors' coordinates, gives each of
+  the model's graph-like faults a probability, applies those above the threshold, and a global
+  decoder decodes what is left. It runs on any decomposed model whose detectors have (x, y, t)
+  coordinates: inputs per sector (a CSS memory's X and Z detectors) and outputs per kind of
+  fault (sector and offset, or boundary), so weights trained on one distance run on any. The
+  network, its training (binary cross-entropy against the faults that fired, Lion or Adam, the
+  paper's schedule) and inference are in Rust, the same on any number of threads; training is
+  in numpy too, step for step the same but for rounding. Two pipelines: the paper's (hard
+  corrections, then any decoder on its own weights), and, by default for matching and
+  union-find, ours: matching the rest on the network's probabilities (the faults applied at
+  1 − q), which at threshold 1/2 is matching the whole syndrome on the network's signed
+  weights. `PreDecoder.pretrained` loads weights trained on `memory_circuit`'s rotated memory
+  (d = 9, p = 0.006, 3.1M shots; `tools/predecoder.py` trains them again). Over matching alone,
+  on 50,000 shots of d × d × d memories at p = 0.003 to 0.006 (`data/predecoder/evaluate.json`):
+  the syndrome 7 to 19 times sparser; the paper's pipeline 1.06 to 1.12 times fewer logical
+  errors; ours 1.27 to 1.48 times at d = 5, 1.47 to 1.83 at d = 7 and 1.67 to 2.47 at d = 9,
+  better than correlated matching from p = 0.004 up at every distance (at p = 0.006, d = 9: 3533
+  against its 3984 and matching's 5896), below it at p = 0.003 for d = 7 and 9.
 - **Deltakit's leakage dialect and leakage-aware decoding** (Riverlane's `LEAKAGE`, `RELAX`,
   `HERALD_LEAKAGE_EVENT` and `LeakageFlags`). Circuits read the dialect as tagged lines Stim runs
   (`I_ERROR[LEAKAGE(p=…)]`, `I_ERROR[RELAX(p=…)]`, `MPAD[HERALD_LEAKAGE_EVENT(qubits=…)](p)`,

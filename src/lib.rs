@@ -109,6 +109,8 @@ pub mod clustering;
 pub mod reweight;
 /// Deltakit's leakage dialect: lowering, writing back, and the circuit without leakage.
 pub mod leakage;
+/// The AI pre-decoder: a 3D convolutional network over the detectors' grid, before a global decoder.
+pub mod predecoder;
 #[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]
