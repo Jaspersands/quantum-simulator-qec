@@ -297,6 +297,20 @@ noise on every gate. In progress on `feature/2.0`.
   it. On a d = 5 surface-code memory at p = 0.2%, 3R-LEC at b = 1.2 rejects 3.7% of shots and
   cuts the kept shots' logical error rate 5.5 times, which PEC needs 18% rejection for; on
   [[72,12,6]] at p = 0.3% BP+OSD's falls 16 times at 11% rejection.
+- **Deltakit's leakage dialect and leakage-aware decoding** (Riverlane's `LEAKAGE`, `RELAX`,
+  `HERALD_LEAKAGE_EVENT` and `LeakageFlags`). Circuits read the dialect as tagged lines Stim runs
+  (`I_ERROR[LEAKAGE(p=…)]`, `I_ERROR[RELAX(p=…)]`, `MPAD[HERALD_LEAKAGE_EVENT(qubits=…)](p)`,
+  a record that is 0 when nothing leaks) and `to_deltakit_text()` writes it back. The leakage
+  sampler runs Deltakit's model (a leaked qubit is depolarized and read as it stands; a herald
+  reads 1 while its qubit is leaked), and `LeakageSampler.sample_measurements` gives Deltakit's
+  measurements and leakage flags; `Circuit.without_leakage()` is Deltakit's deinstrumentation,
+  loops kept (measurements converted on it are the sampler's detection events, shot for shot).
+  **`LeakageAwareDecoder`** takes heralds, leakage flags or herald detectors and, around
+  matching, union-find, BP+OSD, BP+LSD or Relay-BP, raises for the shot the priors of the faults
+  a leak makes likely (each partner of the leaked qubit since its reset, graded by when the leak
+  may have come); on a d = 5 memory with leakage at 0.3% per CX it cuts matching's logical
+  errors 4 times, BP+OSD's 7 times and Relay-BP's 3 times. `decoder="local_clustering"` is
+  `LocalClustering.from_circuit`, which now also takes heralds' records as triggers.
 - **`CompositeDecoder` and `SubgraphDecoder`**, built in (qLDPC's are in `stabilizer_qec.qldpc`):
   `CompositeDecoder` splits a model into the independent parts its faults connect (separate
   patches or blocks, and a decomposed model's X and Z sectors) and decodes each alone with any
@@ -453,6 +467,9 @@ noise on every gate. In progress on `feature/2.0`.
   enable_correlations=True)` returned the uncorrelated matching's edges; it returns the
   correlated matching's, whose observables are `decode`'s, as PyMatching's (they differed on 77
   of 2000 circuit-level shots).
+- `LeakageSampler.sample`'s heralds have one entry per measurement record, padded records and
+  heralded errors' included (they had one per measurement only, out of step with the record);
+  `LocalClustering.from_circuit` no longer reads an `MPAD`'s values as qubits.
 
 ## 1.9.0 — 2026-10-09
 

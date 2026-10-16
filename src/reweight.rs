@@ -59,9 +59,15 @@ pub enum Inner {
     Relay(Relay, Vec<u64>, u64),
 }
 
-pub struct ArgumentReweighting {
+/// A decoder whose fault priors a shot can change: each thread decodes on its own copy, and
+/// the priors a shot changed are put back after it.
+pub struct PriorDecoder {
     inner: Inner,
     priors: Vec<f64>,
+}
+
+pub struct ArgumentReweighting {
+    dec: PriorDecoder,
     pub b: f64,
     pub test: Test,
     pub criterion: Criterion,
@@ -99,22 +105,28 @@ pub struct ArWork {
 /// The smallest prior kept: below it a weight or log-likelihood ratio would be infinite.
 const TINY: f64 = 1e-300;
 
-impl ArgumentReweighting {
-    pub fn new(inner: Inner, b: f64, test: Test, criterion: Criterion) -> Result<ArgumentReweighting, String> {
-        let ok = match test {
-            Test::Gap => b > 0.0,
-            _ => b > 1.0,
-        };
-        if !ok || !b.is_finite() {
-            return Err(format!("b must be {} for the {} test, not {b}", if test == Test::Gap { "positive" } else { "above 1" }, if test == Test::Gap { "gap" } else { "ratio" }));
-        }
+impl PriorDecoder {
+    pub fn new(inner: Inner) -> PriorDecoder {
         let priors: Vec<f64> = match &inner {
             Inner::Matching(g) | Inner::UnionFind(g) => (0..g.num_edges() as u32).map(|id| 1.0 / (1.0 + g.float_weight(id).exp())).collect(),
             Inner::BpOsd(d, _) => d.bp.prior_llr().iter().map(|&l| 1.0 / (1.0 + l.exp())).collect(),
             Inner::BpLsd(d, _) => d.bp.prior_llr().iter().map(|&l| 1.0 / (1.0 + l.exp())).collect(),
             Inner::Relay(d, _, _) => d.priors(),
         };
-        Ok(ArgumentReweighting { inner, priors, b, test, criterion })
+        PriorDecoder { inner, priors }
+    }
+
+    pub fn num_faults(&self) -> usize {
+        self.priors.len()
+    }
+
+    /// The fault between detectors `u` and `v` of a matching graph (`num_detectors` for the
+    /// boundary); `None` for a BP decoder, whose faults are the model's.
+    pub fn edge(&self, u: u32, v: u32) -> Option<u32> {
+        match &self.inner {
+            Inner::Matching(g) | Inner::UnionFind(g) => g.edge_id(u, v),
+            _ => None,
+        }
     }
 
     pub fn work(&self) -> ArWork {
@@ -129,8 +141,13 @@ impl ArgumentReweighting {
         ArWork { state, p: self.priors.clone(), changed: vec![false; n], changed_list: Vec::new(), patch: Vec::new() }
     }
 
+    /// Fault `q`'s prior in this shot so far.
+    pub fn prior(&self, w: &ArWork, q: u32) -> f64 {
+        w.p[q as usize]
+    }
+
     /// Fault `q`'s prior is now `p` (for the rest of the shot).
-    fn set(&self, w: &mut ArWork, q: u32, p: f64) {
+    pub fn set(&self, w: &mut ArWork, q: u32, p: f64) {
         let p = p.clamp(TINY, 0.5);
         w.p[q as usize] = p;
         if !w.changed[q as usize] {
@@ -145,38 +162,9 @@ impl ArgumentReweighting {
         }
     }
 
-    /// Suppress correction `c` under the current priors.
-    fn reweight(&self, w: &mut ArWork, c: &[u32]) {
-        match self.test {
-            Test::Ratio => {
-                for &q in c {
-                    let p = w.p[q as usize];
-                    self.set(w, q, p.powf(self.b));
-                }
-            }
-            Test::ExactRatio => {
-                let mut in_c = vec![false; w.p.len()];
-                for &q in c {
-                    in_c[q as usize] = true;
-                }
-                for q in 0..w.p.len() as u32 {
-                    let p = w.p[q as usize];
-                    let to = if in_c[q as usize] { p.powf(self.b) } else { 1.0 - (1.0 - p).powf(self.b) };
-                    self.set(w, q, to);
-                }
-            }
-            Test::Gap => {
-                let ln_pc: f64 = c.iter().map(|&q| w.p[q as usize].ln()).sum();
-                for &q in c {
-                    let p = w.p[q as usize];
-                    self.set(w, q, (-(p.ln() / ln_pc) * self.b).exp() * p);
-                }
-            }
-        }
-    }
-
     /// One decode on the current priors: its observables and correction (sorted fault ids).
-    fn round(&self, w: &mut ArWork, defects: &[u32], syndrome: &[u8], seed: u64) -> Option<(u64, Vec<u32>)> {
+    /// `seed` seeds Relay-BP's memory strengths (`seed(shot)`); the rest ignore it.
+    pub fn round(&self, w: &mut ArWork, defects: &[u32], syndrome: &[u8], seed: u64) -> Option<(u64, Vec<u32>)> {
         let faults = |correction: &[u8]| -> Vec<u32> { correction.iter().enumerate().filter(|x| *x.1 != 0).map(|x| x.0 as u32).collect() };
         let fold = |c: &[u32], obs: &[u64]| c.iter().fold(0u64, |a, &q| a ^ obs[q as usize]);
         match (&self.inner, &mut w.state) {
@@ -215,14 +203,92 @@ impl ArgumentReweighting {
         }
     }
 
+    /// Relay-BP's seed for shot `shot`, the same in every round.
+    pub fn seed(&self, shot: u64) -> u64 {
+        match &self.inner {
+            Inner::Relay(_, _, seed) => crate::batch::shot_seed(*seed, shot),
+            _ => 0,
+        }
+    }
+
+    /// Put back the priors the shot changed.
+    pub fn restore(&self, w: &mut ArWork) {
+        let changed = std::mem::take(&mut w.changed_list);
+        for &q in &changed {
+            let p = self.priors[q as usize];
+            w.p[q as usize] = p;
+            w.changed[q as usize] = false;
+            match &mut w.state {
+                State::BpOsd(d, _) => d.set_prior(q as usize, p),
+                State::BpLsd(d, _) => d.bp.set_prior(q as usize, p),
+                State::Relay(d, _) => d.set_prior(q as usize, p),
+                State::Matching(_) | State::UnionFind(_) => {}
+            }
+        }
+        w.changed_list = changed;
+        w.changed_list.clear();
+    }
+}
+
+impl ArgumentReweighting {
+    pub fn new(inner: Inner, b: f64, test: Test, criterion: Criterion) -> Result<ArgumentReweighting, String> {
+        let ok = match test {
+            Test::Gap => b > 0.0,
+            _ => b > 1.0,
+        };
+        if !ok || !b.is_finite() {
+            return Err(format!("b must be {} for the {} test, not {b}", if test == Test::Gap { "positive" } else { "above 1" }, if test == Test::Gap { "gap" } else { "ratio" }));
+        }
+        Ok(ArgumentReweighting { dec: PriorDecoder::new(inner), b, test, criterion })
+    }
+
+    pub fn work(&self) -> ArWork {
+        self.dec.work()
+    }
+
+    fn set(&self, w: &mut ArWork, q: u32, p: f64) {
+        self.dec.set(w, q, p)
+    }
+
+    /// Suppress correction `c` under the current priors.
+    fn reweight(&self, w: &mut ArWork, c: &[u32]) {
+        match self.test {
+            Test::Ratio => {
+                for &q in c {
+                    let p = w.p[q as usize];
+                    self.set(w, q, p.powf(self.b));
+                }
+            }
+            Test::ExactRatio => {
+                let mut in_c = vec![false; w.p.len()];
+                for &q in c {
+                    in_c[q as usize] = true;
+                }
+                for q in 0..w.p.len() as u32 {
+                    let p = w.p[q as usize];
+                    let to = if in_c[q as usize] { p.powf(self.b) } else { 1.0 - (1.0 - p).powf(self.b) };
+                    self.set(w, q, to);
+                }
+            }
+            Test::Gap => {
+                let ln_pc: f64 = c.iter().map(|&q| w.p[q as usize].ln()).sum();
+                for &q in c {
+                    let p = w.p[q as usize];
+                    self.set(w, q, (-(p.ln() / ln_pc) * self.b).exp() * p);
+                }
+            }
+        }
+    }
+
+    fn round(&self, w: &mut ArWork, defects: &[u32], syndrome: &[u8], seed: u64) -> Option<(u64, Vec<u32>)> {
+        self.dec.round(w, defects, syndrome, seed)
+    }
+
     /// Decode one shot (its detection events as sorted `defects` and as one byte per detector)
     /// and decide whether to keep it. `shot` seeds Relay-BP's memory strengths, the same in
     /// every round.
     pub fn decode(&self, defects: &[u32], syndrome: &[u8], shot: u64, w: &mut ArWork) -> ArOutcome {
-        let seed = match &self.inner {
-            Inner::Relay(_, _, seed) => crate::batch::shot_seed(*seed, shot),
-            _ => 0,
-        };
+        let seed = self.dec.seed(shot);
         let mut out = ArOutcome::default();
         let outcome = (|| {
             out.rounds = 1;
@@ -252,21 +318,7 @@ impl ArgumentReweighting {
             Some(a) => out.accepted = a,
             None => out.failed = true,
         }
-        // Put back the priors the shot changed.
-        let changed = std::mem::take(&mut w.changed_list);
-        for &q in &changed {
-            let p = self.priors[q as usize];
-            w.p[q as usize] = p;
-            w.changed[q as usize] = false;
-            match &mut w.state {
-                State::BpOsd(d, _) => d.set_prior(q as usize, p),
-                State::BpLsd(d, _) => d.bp.set_prior(q as usize, p),
-                State::Relay(d, _) => d.set_prior(q as usize, p),
-                State::Matching(_) | State::UnionFind(_) => {}
-            }
-        }
-        w.changed_list = changed;
-        w.changed_list.clear();
+        self.dec.restore(w);
         out
     }
 }
@@ -298,7 +350,7 @@ mod tests {
                     assert_eq!((out.observables, out.accepted, out.failed), (0, kept, false), "b {b}, {criterion:?}");
                     assert_eq!(out.rounds, if criterion == Criterion::ThreeRound && kept { 3 } else { 2 });
                     // The priors are back: the same shot again decides the same.
-                    assert!(w.changed_list.is_empty() && w.p == ar.priors && !w.changed.iter().any(|&c| c));
+                    assert!(w.changed_list.is_empty() && w.p == ar.dec.priors && !w.changed.iter().any(|&c| c));
                     assert_eq!(ar.decode(&[0, 1], &[1, 1], 0, &mut w), out);
                 }
             }

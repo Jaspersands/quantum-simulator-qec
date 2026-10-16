@@ -252,7 +252,8 @@ enum Step {
     /// One Pauli product from `branches` (probability, product), or none with the rest.
     Channel(Vec<(f64, Vec<(usize, u8)>)>),
     Correlated { p: f64, paulis: Vec<(usize, u8)>, chained: bool },
-    Pad { flip: f64, value: bool },
+    /// A padded record; `leak`, a herald's qubit, adds whether it is leaked.
+    Pad { flip: f64, value: bool, leak: Option<usize> },
     /// A herald record, then I, X, Y or Z with probabilities `probs`.
     Herald { q: usize, probs: [f64; 4] },
     Feedback { pauli: u8, rec: usize, q: usize },
@@ -294,8 +295,11 @@ impl Program {
                 for op in ops {
                     match op {
                         NonPauli::Rotation { pauli, .. } => used.extend(pauli.iter().map(|&(q, _)| q)),
-                        NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } => {
+                        NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } | NonPauli::Herald { qubit } => {
                             used.insert(*qubit);
+                        }
+                        NonPauli::Leakage { .. } | NonPauli::Relax { .. } => {
+                            return Err("the state vector does not run Deltakit's LEAKAGE and RELAX, whose leaked qubits keep a depolarized state; the leakage sampler does".into());
                         }
                         NonPauli::LeakTransport { a, b, .. } => used.extend([*a, *b]),
                     }
@@ -309,6 +313,8 @@ impl Program {
         let ix = |q: &u32| index[q];
         let mut steps = Vec::new();
         let mut m = 0usize;
+        // A herald's qubits, for the pads that follow its markers.
+        let mut heralded = std::collections::VecDeque::new();
         for ins in &res.instrs {
             match ins {
                 Instr::Fail(_) => {}
@@ -354,7 +360,7 @@ impl Program {
                 }
                 Instr::Pad { flip, values } => {
                     m += values.len();
-                    steps.extend(values.iter().map(|&v| Step::Pad { flip: *flip, value: v }));
+                    steps.extend(values.iter().map(|&v| Step::Pad { flip: *flip, value: v, leak: heralded.pop_front() }));
                 }
                 Instr::Heralded { probs, qubits, .. } => {
                     m += qubits.len();
@@ -369,6 +375,10 @@ impl Program {
                 }
                 Instr::NonPauli(ops) => {
                     for op in ops {
+                        if let NonPauli::Herald { qubit } = op {
+                            heralded.push_back(ix(qubit));
+                            continue;
+                        }
                         steps.push(match op {
                             NonPauli::Rotation { pauli, theta } => Step::Rotation { paulis: pauli.iter().map(|(q, c)| (ix(q), *c)).collect(), theta: *theta },
                             NonPauli::T { qubit, dagger } => {
@@ -380,6 +390,7 @@ impl Program {
                             NonPauli::Leak { p, qubit } => Step::Leak { q: ix(qubit), p: *p },
                             NonPauli::Seep { p, qubit } => Step::Seep { q: ix(qubit), p: *p },
                             NonPauli::LeakTransport { p, a, b } => Step::Transport { a: ix(a), b: ix(b), p: *p },
+                            NonPauli::Leakage { .. } | NonPauli::Relax { .. } | NonPauli::Herald { .. } => unreachable!("refused or taken above"),
                         });
                     }
                 }
@@ -714,9 +725,9 @@ fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, ctx: &mut Ct
                 sv.pauli(&ctx.live(paulis));
             }
         }
-        Step::Pad { flip, value } => {
+        Step::Pad { flip, value, leak } => {
             let k = choose(&[1.0 - flip, *flip]);
-            rec.push(*value ^ (k == 1));
+            rec.push(*value ^ (k == 1) ^ leak.is_some_and(|q| ctx.leaked(q)));
         }
         Step::Herald { q, probs } => {
             let mut v = probs.to_vec();

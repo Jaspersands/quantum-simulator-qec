@@ -481,7 +481,7 @@ class LocalClustering(_DemDecoder):
         reset, so that every two-qubit gate since left its partner fully depolarized (and its
         own readout random). Each is found by comparing the error model of the noiseless
         circuit with those channels added to the decoding graph."""
-        dem = circuit.detector_error_model(decompose_errors=True)
+        dem = circuit.without_leakage().detector_error_model(decompose_errors=True)
         if not leakage_aware:
             return cls(dem, weighted=weighted, weight_resolution=weight_resolution)
         edges = call(_core.DemLocalClustering, dem._d, None, []).edges
@@ -538,13 +538,28 @@ def _split_into_edges(dets: list, edges: set, boundary: int) -> Union[list, None
     return None
 
 
-def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> list:
-    """Per measurement, the graph's edges its qubit's leakage makes likely (as
-    ``LocalClustering.from_circuit``)."""
+def _herald_qubits(tag: str) -> Union[list, None]:
+    """The qubits a herald's tag (``HERALD_LEAKAGE_EVENT(qubits=…)``) names; None for another."""
+    t = tag.strip()
+    if not t.startswith("HERALD_LEAKAGE_EVENT"):
+        return None
+    inner = t[len("HERALD_LEAKAGE_EVENT") :].strip()
+    if not (inner.startswith("(") and inner.endswith(")")):
+        return None
+    key, _, value = inner[1:-1].partition("=")
+    return [int(q) for q in value.split()] if key.strip() == "qubits" else None
+
+
+def _leakage_faults(circuit: Any, graded: bool = True) -> list:
+    """Per measurement record of ``circuit`` (a herald's too), the faults its qubit's leakage
+    makes likely, as (detectors, observables mask, probability): the faults of the noiseless
+    circuit's model with the partners of the two-qubit gates since the qubit's last reset
+    depolarized, and the qubit itself where it is read fully. ``graded``: the leak came at a
+    uniformly random point of those g gates, so the j-th's partner is depolarized with
+    probability j/(g + 1); else every partner fully. Detectors are the circuit's."""
     from ._circuit import Circuit
     from ._stim import gate_data
 
-    edges = {(min(u, v), max(u, v)) for u, v in graph_edges}
     flat = circuit.flattened().without_noise()
     items = flat._items()
     info = {}
@@ -557,17 +572,22 @@ def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> 
 
     flag = (1 << 28) | (1 << 26)  # a record or a sweep bit
     mask = (1 << 24) - 1
-    last_reset: dict = {}
     # Per qubit, the (instruction, partner) of each two-qubit gate since its last reset.
     gates: dict = {}
     windows = []  # per measurement record: (instruction, qubit, [(instruction, partner)]) or None
     for k, it in enumerate(items):
         if it[0] != "op":
             continue
-        name, targets = it[1], it[4]
+        name, tag, targets = it[1], it[2], it[4]
         unitary2, reset, measures, two, mpp = data(name)
         if measures:
-            if mpp:
+            if name == "MPAD":
+                heralded = _herald_qubits(tag)
+                if heralded is not None and len(heralded) == len(targets):
+                    windows.extend((k, q, list(gates.get(q, []))) for q in heralded)
+                else:
+                    windows.extend([None] * len(targets))
+            elif mpp:
                 products = sum(1 for t in targets if t != 1 << 27) - sum(1 for t in targets if t == 1 << 27)
                 windows.extend([None] * products)
             elif two:
@@ -578,9 +598,7 @@ def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> 
                     windows.append((k, q, list(gates.get(q, []))) if not t & flag else None)
         if reset:
             for t in targets:
-                q = t & mask
-                last_reset[q] = k
-                gates[q] = []
+                gates[t & mask] = []
         if unitary2:
             for a, b in zip(targets[::2], targets[1::2]):
                 if (a | b) & flag:
@@ -598,24 +616,222 @@ def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> 
         key = (k, q, tuple(partners))
         if key not in cache:
             after: dict = {}
-            for g, p in partners:
-                after.setdefault(g, []).append(p)
+            for rank, (g, p) in enumerate(partners, 1):
+                after.setdefault(g, []).append((p, rank / (len(partners) + 1) if graded else 1.0))
             noisy = []
             for j, it in enumerate(items):
                 if j == k:
                     noisy.append(("op", "DEPOLARIZE1", "", [0.75], [q]))
                 noisy.append(it)
-                if j in after:
-                    noisy.append(("op", "DEPOLARIZE1", "", [0.75], sorted(set(after[j]))))
-            found = set()
-            for _, targets in Circuit._of_items(noisy).detector_error_model()._d.flat_errors():
-                dets = sorted({d for obs, d in targets if not obs})
-                split = _split_into_edges(dets, edges, num_detectors) if len(dets) <= 6 else None
-                if split:
-                    found.update(split)
-            cache[key] = sorted(found)
+                for p, share in sorted(set(after.get(j, []))):
+                    noisy.append(("op", "DEPOLARIZE1", "", [0.75 * share], [p]))
+            found = []
+            for p, targets in Circuit._of_items(noisy).detector_error_model()._d.flat_errors():
+                dets = tuple(sorted({d for obs, d in targets if not obs}))
+                obs = 0
+                for is_obs, i in targets:
+                    if is_obs:
+                        obs ^= 1 << i
+                if dets:
+                    found.append((dets, obs, p))
+            cache[key] = found
         out.append(cache[key])
     return out
+
+
+def _kept_detectors(circuit: Any) -> tuple:
+    """(herald records, kept detectors, herald detector pairs) of a circuit: see
+    ``leakage::herald_map``."""
+    return call(_core.circuit_herald_map, circuit._stim_exact_text())
+
+
+def _leakage_adaptivity(circuit: Any, graph_edges: list, num_detectors: int) -> list:
+    """Per measurement record, the graph's edges its qubit's leakage makes likely (as
+    ``LocalClustering.from_circuit``), on the detectors of the circuit without leakage."""
+    edges = {(min(u, v), max(u, v)) for u, v in graph_edges}
+    renumber = {d: i for i, d in enumerate(_kept_detectors(circuit)[1])}
+    out = []
+    for faults in _leakage_faults(circuit, graded=False):
+        found = set()
+        for dets, _, _ in faults:
+            if any(d not in renumber for d in dets):
+                continue
+            dets = [renumber[d] for d in dets]
+            split = _split_into_edges(dets, edges, num_detectors) if len(dets) <= 6 else None
+            if split:
+                found.update(split)
+        out.append(sorted(found))
+    return out
+
+
+class LeakageAwareDecoder(_DemDecoder):
+    """Leakage-aware decoding from heralds (Deltakit's ``LeakageFlags``, Google's and
+    Riverlane's leakage-aware decoders), around matching, union-find, BP+OSD, BP+LSD or Relay-BP.
+    Each measurement record of the circuit is a trigger: one that found its qubit leaked (the
+    leakage sampler's heralds), or a ``HERALD_LEAKAGE_EVENT`` that fired, says the qubit leaked
+    some time since its last reset, so every two-qubit gate since may have left its partner
+    fully depolarized, and the faults that makes likely have their priors raised for that shot
+    (to their probability given the leak, combined with their own) before it is decoded once.
+    A shot with no trigger is decoded as the inner decoder decodes it. With ``graded`` (the
+    default) the leak came at a uniformly random point of the qubit's g gates since its reset,
+    so the j-th gate's partner is depolarized with probability j/(g + 1); ``graded=False``
+    depolarizes every partner fully (the map of the local clustering decoder's paper, which
+    sets those faults' priors to 1/2 and leaves Relay-BP, with no OSD to fall back on, worse
+    off than without heralds). On a d = 5 memory with Deltakit's leakage at every CX (0.3%),
+    heralds cut matching's logical errors 4 times graded, 2 times not.
+
+    Made from the circuit; decodes the detectors of ``circuit.without_leakage()`` (shots with
+    the circuit's own detectors are taken too: a detector reading only a herald fires its
+    trigger, and the rest are decoded). ``decode_batch`` takes the triggers as ``heralds``
+    (per measurement record, as ``LeakageSampler.sample`` gives them) or ``leakage_flags``
+    (per herald, as ``LeakageSampler.sample_measurements`` and Deltakit give them).
+    ``decoder="local_clustering"`` is ``LocalClustering.from_circuit``, its heralds pre-growing
+    the edges instead. Options are the inner decoder's.
+
+    >>> import stabilizer_qec as sq
+    >>> lines = []
+    >>> for line in str(sq.memory_circuit(distance=5, rounds=5, p=0.001)).splitlines():
+    ...     lines.append(line)
+    ...     if line.startswith("CX"):
+    ...         lines.append("LEAKAGE(0.003)" + line[2:])
+    >>> c = sq.Circuit("\\n".join(lines))
+    >>> dets, obs, heralds = c.compile_leakage_sampler(seed=1).sample(4000)
+    >>> dec = sq.LeakageAwareDecoder(c)
+    >>> plain = (dec.decode_batch(dets) != obs).any(axis=1).sum()
+    >>> aware = (dec.decode_batch(dets, heralds=heralds) != obs).any(axis=1).sum()
+    >>> bool(aware < plain / 3)
+    True
+    """
+
+    __slots__ = ("_lcd", "_records", "_heralds", "_herald_dets", "_kept", "_full")
+
+    def __init__(self, circuit: Any, decoder: str = "matching", *, graded: bool = True, **decoder_options: Any) -> None:
+        from ._circuit import Circuit
+
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._made_from = ((circuit,), dict(decoder=decoder, graded=graded, **decoder_options))
+        bp = {"bposd": BpOsd, "bplsd": BpLsd, "relay_bp": RelayBp}
+        graph = decoder in ("matching", "union_find", "local_clustering")
+        if not graph and decoder not in bp:
+            raise ValueError(f"decoder '{decoder}' is not matching, union_find, local_clustering, bposd, bplsd or relay_bp")
+        model = circuit.without_leakage().detector_error_model(decompose_errors=graph)
+        self._heralds, self._kept, self._herald_dets = (list(x) for x in _kept_detectors(circuit))
+        self._records = circuit.num_measurements
+        self._full = circuit.num_detectors
+        self._lcd = None
+        if decoder == "local_clustering":
+            edges = call(_core.DemLocalClustering, model._d, None, []).edges
+            self._lcd = LocalClustering(model, adaptivity=_leakage_adaptivity(circuit, edges, model.num_detectors), **decoder_options)
+            self._x = self._lcd._x
+            return
+        inner = None
+        if decoder in bp:
+            inner = bp[decoder](model, **decoder_options)._x
+        elif decoder_options:
+            raise TypeError(f"the {decoder} decoder takes no options here, not {', '.join(decoder_options)}")
+        nd = model.num_detectors
+        renumber = {d: i for i, d in enumerate(self._kept)}
+        edges = _graph_edges(model) if graph else set()
+        triggers = []
+        for faults in _leakage_faults(circuit, graded=bool(graded)):
+            pieces = []
+            for dets, obs, q in faults:
+                if any(d not in renumber for d in dets):
+                    continue
+                dets = [renumber[d] for d in dets]
+                if graph:
+                    # A fault of the leaked model, as the graph's edges it decomposes into.
+                    split = _split_into_edges(dets, edges, nd) if len(dets) <= 6 else None
+                    pieces.extend(([u] if v == nd else [u, v], 0, q) for u, v in split or [])
+                else:
+                    pieces.append((dets, obs, q))
+            triggers.append(pieces)
+        self._x = call(_core.DemLeakageAware, model._d, decoder, inner, triggers)
+
+    @property
+    def num_triggers(self) -> int:
+        """The triggers: one per measurement record of the circuit."""
+        return self._records
+
+    @property
+    def trigger_sizes(self) -> list:
+        """Per trigger, how many of the decoder's faults it raises (edges it pre-grows, for
+        local clustering)."""
+        return list(self._lcd.adaptivity_sizes if self._lcd is not None else self._x.trigger_sizes)
+
+    @property
+    def unmatched(self) -> int:
+        """Faults of the leaked circuits' models that are none of the decoder's, and so not
+        raised (0 for local clustering, whose triggers are the graph's edges)."""
+        return 0 if self._lcd is not None else self._x.unmatched
+
+    def _triggers(self, n: int, heralds: Any, leakage_flags: Any, herald_events: Any) -> Union[np.ndarray, None]:
+        fired = None
+
+        def add(rows: np.ndarray) -> None:
+            nonlocal fired
+            fired = rows if fired is None else fired | rows
+
+        if heralds is not None:
+            h = np.asarray(heralds, dtype=bool)
+            if h.shape != (n, self._records):
+                raise ValueError(f"heralds has shape {h.shape}, not ({n}, {self._records}): one per measurement record")
+            add(h)
+        if leakage_flags is not None:
+            f = np.asarray(leakage_flags, dtype=bool)
+            if f.shape != (n, len(self._heralds)):
+                raise ValueError(f"leakage_flags has shape {f.shape}, not ({n}, {len(self._heralds)}): one per herald")
+            rows = np.zeros((n, self._records), dtype=bool)
+            rows[:, self._heralds] = f
+            add(rows)
+        if herald_events is not None and self._herald_dets:
+            rows = np.zeros((n, self._records), dtype=bool)
+            dets = [d for d, _ in self._herald_dets]
+            rows[:, [r for _, r in self._herald_dets]] = herald_events[:, dets]
+            add(rows)
+        return fired
+
+    def decode_batch(
+        self,
+        shots: Any,
+        *,
+        heralds: Any = None,
+        leakage_flags: Any = None,
+        return_raised: bool = False,
+        bit_packed_shots: bool = False,
+        bit_packed_predictions: bool = False,
+        threads: int = 1,
+    ) -> Any:
+        """As ``Matching.decode_batch``, with the shots' triggers: ``heralds`` (shape (shots,
+        measurement records)), ``leakage_flags`` (shape (shots, heralds)), and, where the shots
+        are the circuit's own detectors, the detectors reading a herald. ``return_raised`` also
+        returns how many priors each shot raised. A shot no correction explains raises
+        ``ValueError``."""
+        events = None
+        if not bit_packed_shots:
+            s = np.asarray(shots)
+            if s.ndim == 2 and s.shape[1] == self._full and self._full != self.num_detectors:
+                events = s.astype(bool)
+                shots = events[:, self._kept]
+        packed, n, threads = self._shots(shots, bit_packed_shots, threads)
+        fired = self._triggers(n, heralds, leakage_flags, events)
+        if self._lcd is not None:
+            if return_raised:
+                pred, stats = self._lcd.decode_batch(shots, heralds=fired, return_stats=True, bit_packed_shots=bit_packed_shots, bit_packed_predictions=bit_packed_predictions, threads=threads)
+                return pred, stats[:, 2]
+            return self._lcd.decode_batch(shots, heralds=fired, bit_packed_shots=bit_packed_shots, bit_packed_predictions=bit_packed_predictions, threads=threads)
+        t = None if fired is None else rows_to_b8(fired, self._records, False, "triggers")[0]
+        preds, failed, raised = call(self._x.decode_batch, packed, n, threads, t)
+        _failed(list(np.flatnonzero(np.frombuffer(failed, dtype=np.uint8))), "no correction explains its detection events")
+        pred = self._predictions(preds, n, bit_packed_predictions)
+        return (pred, np.frombuffer(raised, dtype="<u4").astype(np.int64)) if return_raised else pred
+
+
+def _graph_edges(model: Any) -> set:
+    """The decomposed model's graph edges, as sorted pairs (the boundary as num_detectors)."""
+    edges = call(_core.DemLocalClustering, model._d, None, []).edges
+    return {(min(u, v), max(u, v)) for u, v in edges}
 
 
 class ArgumentReweighting(_DemDecoder):

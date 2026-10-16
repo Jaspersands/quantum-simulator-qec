@@ -648,9 +648,23 @@ fn circuit_transform(text: &str, which: &str) -> PyResult<String> {
         "inverse" => t::inverse(&c, false).map_err(err)?,
         "weak_inverse" => t::inverse(&c, true).map_err(err)?,
         "with_inlined_feedback" => t::with_inlined_feedback(&c).map_err(err)?,
+        "without_leakage" => crate::leakage::without_leakage(&c).map_err(err)?,
         _ => return Err(err(format!("unknown transformation {which}"))),
     };
     Ok(out.exact_text())
+}
+
+/// The text with leakage written in Deltakit's dialect.
+#[pyfunction]
+fn circuit_to_deltakit(text: &str) -> String {
+    crate::leakage::to_deltakit(text)
+}
+
+/// (herald records, detectors kept without leakage, (herald detector, its record) pairs).
+#[pyfunction]
+fn circuit_herald_map(text: &str) -> PyResult<(Vec<u64>, Vec<u64>, Vec<(u64, u64)>)> {
+    let m = crate::leakage::herald_map(&ir::Circuit::parse(text).map_err(err)?).map_err(err)?;
+    Ok((m.herald_records, m.kept_detectors, m.herald_detectors))
 }
 
 #[pyfunction]
@@ -973,6 +987,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(circuit_time_reversed_for_flows, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_missing_detectors, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_num_ticks, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_to_deltakit, m)?)?;
+    m.add_function(wrap_pyfunction!(circuit_herald_map, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_final_qubit_coordinates, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_detector_coordinates, m)?)?;
     m.add_function(wrap_pyfunction!(circuit_count_determined_measurements, m)?)?;

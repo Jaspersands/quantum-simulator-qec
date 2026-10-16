@@ -26,6 +26,14 @@ pub enum NonPauli {
     LeakTransport { p: f64, a: u32, b: u32 },
     /// Amplitude damping with decay probability `gamma`.
     AmplitudeDamping { gamma: f64, qubit: u32 },
+    /// Deltakit's `LEAKAGE(p)`: with probability `p`, the qubit is marked leaked and fully
+    /// depolarized (as Deltakit's, whether or not it was leaked); measuring it reads its state.
+    Leakage { p: f64, qubit: u32 },
+    /// Deltakit's `RELAX(p)`: with probability `p`, a leaked qubit is no longer leaked.
+    Relax { p: f64, qubit: u32 },
+    /// Deltakit's `HERALD_LEAKAGE_EVENT`: the padded record this marker comes before (in the
+    /// `MPAD[HERALD_LEAKAGE_EVENT(qubits=…)]` it is read from) is 1 when the qubit is leaked.
+    Herald { qubit: u32 },
 }
 
 impl NonPauli {
@@ -33,7 +41,14 @@ impl NonPauli {
     pub fn qubits(&self) -> Vec<u32> {
         match self {
             NonPauli::Rotation { pauli, .. } => pauli.iter().map(|&(q, _)| q).collect(),
-            NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } => vec![*qubit],
+            NonPauli::T { qubit, .. }
+            | NonPauli::U3 { qubit, .. }
+            | NonPauli::Leak { qubit, .. }
+            | NonPauli::Seep { qubit, .. }
+            | NonPauli::AmplitudeDamping { qubit, .. }
+            | NonPauli::Leakage { qubit, .. }
+            | NonPauli::Relax { qubit, .. }
+            | NonPauli::Herald { qubit } => vec![*qubit],
             NonPauli::LeakTransport { a, b, .. } => vec![*a, *b],
         }
     }
@@ -58,12 +73,15 @@ impl NonPauli {
             NonPauli::Seep { p, qubit } => format!("I_ERROR[SEEP(p={})] {qubit}", f(*p)),
             NonPauli::LeakTransport { p, a, b } => format!("II_ERROR[LEAK_TRANSPORT(p={})] {a} {b}", f(*p)),
             NonPauli::AmplitudeDamping { gamma, qubit } => format!("I_ERROR[AMPLITUDE_DAMPING(gamma={})] {qubit}", f(*gamma)),
+            NonPauli::Leakage { p, qubit } => format!("I_ERROR[LEAKAGE(p={})] {qubit}", f(*p)),
+            NonPauli::Relax { p, qubit } => format!("I_ERROR[RELAX(p={})] {qubit}", f(*p)),
+            NonPauli::Herald { qubit } => format!("MPAD[{}(qubits={qubit})] 0", crate::leakage::HERALD),
         }
     }
 
     /// Whether this is one of the leakage operations.
     pub fn is_leakage(&self) -> bool {
-        matches!(self, NonPauli::Leak { .. } | NonPauli::Seep { .. } | NonPauli::LeakTransport { .. })
+        matches!(self, NonPauli::Leak { .. } | NonPauli::Seep { .. } | NonPauli::LeakTransport { .. } | NonPauli::Leakage { .. } | NonPauli::Relax { .. } | NonPauli::Herald { .. })
     }
 }
 
@@ -87,7 +105,7 @@ fn split(tag: &str) -> Result<(String, Vec<(String, String)>), String> {
 }
 
 /// The names this module knows; any other tag is inert.
-const KNOWN: &[&str] = &["R_X", "R_Y", "R_Z", "R_XX", "R_YY", "R_ZZ", "R_PAULI", "T", "T_DAG", "U3", "LEAK", "SEEP", "LEAK_TRANSPORT", "AMPLITUDE_DAMPING"];
+const KNOWN: &[&str] = &["R_X", "R_Y", "R_Z", "R_XX", "R_YY", "R_ZZ", "R_PAULI", "T", "T_DAG", "U3", "LEAK", "SEEP", "LEAK_TRANSPORT", "AMPLITUDE_DAMPING", "LEAKAGE", "RELAX"];
 
 /// The operations a tagged `I`, `II`, `I_ERROR` or `II_ERROR` asks for on `targets`; `None`
 /// for an untagged or unknown one (inert, as in Stim).
@@ -184,6 +202,11 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
             single(&name)?;
             let p = prob(number("p")?, "p")?;
             targets.iter().map(|&q| if name == "LEAK" { NonPauli::Leak { p, qubit: q } } else { NonPauli::Seep { p, qubit: q } }).collect()
+        }
+        "LEAKAGE" | "RELAX" => {
+            single(&name)?;
+            let p = prob(number("p")?, "p")?;
+            targets.iter().map(|&q| if name == "LEAKAGE" { NonPauli::Leakage { p, qubit: q } } else { NonPauli::Relax { p, qubit: q } }).collect()
         }
         "LEAK_TRANSPORT" => {
             pairs(&name)?;

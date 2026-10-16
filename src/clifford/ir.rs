@@ -450,6 +450,9 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool, fuse: bool) -> Res
         if line.is_empty() {
             continue;
         }
+        // Deltakit's leakage dialect, read as the tagged lines Stim runs (see `leakage`).
+        let lowered = crate::leakage::lower_line(line)?;
+        let line = lowered.as_deref().unwrap_or(line);
         if line == "}" {
             if !nested {
                 return Err("Uninitiated block end.".into());

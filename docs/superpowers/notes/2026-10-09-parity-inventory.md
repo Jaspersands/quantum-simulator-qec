@@ -181,7 +181,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | D1 | Collision Clustering decoder (CC, arXiv 2309.05558) | gap |
 | D2 | Local Clustering Decoder (LCD, arXiv 2411.10343): adaptive, leakage-aware | gap |
 | D3 | Ambiguity Clustering (BP-AC, arXiv 2406.14527) | gap |
-| D4 | Leakage flags in data and leakage-aware decoding (`LeakageFlags`, `HERALD_LEAKAGE_EVENT`) | part (heralds sampled, not decoded) |
+| D4 | Leakage flags in data and leakage-aware decoding (`LeakageFlags`, `HERALD_LEAKAGE_EVENT`) | done (2.0 W6: dialect, sampler, `without_leakage`, `LeakageAwareDecoder`) |
 | D5 | Noise models: SD6, SI1000, phenomenological, toy, `PhysicalNoise` (T1/T2-derived), noise profiles per gate, `Leakage` and `Relax` channels | part (SD6, SI1000-like in data; no T1/T2) |
 | D6 | QPU model: native gate sets with times, `compile_circuit_to_native_gates` (CZ / CZSWAP), parallelise circuits, merge layers, remove identities | gap |
 | D7 | Codes: rotated/unrotated planar, unrotated toric, repetition, BB, generic `CSSCode`, `StabiliserCode`, schedules (orders, types) | part |

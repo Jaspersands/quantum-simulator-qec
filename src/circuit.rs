@@ -533,6 +533,10 @@ fn rec_targets(tokens: &[&str], name: &str) -> Result<Vec<u32>, String> {
 }
 
 fn parse_line(line: &str) -> Result<Instr, String> {
+    // Deltakit's leakage dialect, read as the tagged lines Stim runs (see `leakage`).
+    if let Some(lowered) = crate::leakage::lower_line(line)? {
+        return parse_line(&lowered);
+    }
     let (name, tag, args, t) = split_instruction(line)?;
     let ins = parse_instruction(&name, &args, &t)?;
     let ins = tagged(ins, tag);
@@ -541,6 +545,14 @@ fn parse_line(line: &str) -> Result<Instr, String> {
     if let (Instr::Gate { line, tag, .. }, "I" | "II" | "I_ERROR" | "II_ERROR") = (&ins, name.as_str()) {
         if let Some(ops) = crate::nonpauli::parse(&name, tag, &qubit_targets(&t, &name)?)? {
             return Ok(Instr::Gate { line: line.clone(), tag: tag.clone(), body: vec![Instr::NonPauli(ops)] });
+        }
+    }
+    // A herald (`MPAD[HERALD_LEAKAGE_EVENT(qubits=…)]`): its markers, then the pads they fill.
+    if let (Instr::Gate { line, tag, body }, "MPAD") = (&ins, name.as_str()) {
+        if let [Instr::Pad { values, .. }] = body.as_slice() {
+            if let Some(ops) = crate::leakage::herald_ops(tag, values.len())? {
+                return Ok(Instr::Gate { line: line.clone(), tag: tag.clone(), body: vec![Instr::NonPauli(ops), body[0].clone()] });
+            }
         }
     }
     Ok(ins)

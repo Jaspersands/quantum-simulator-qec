@@ -6,6 +6,7 @@ ties, which ldpc's C++ sorts order."""
 from __future__ import annotations
 
 import pickle
+import sys
 
 import numpy as np
 import pytest
@@ -146,16 +147,21 @@ def test_union_find_peeling_explains_what_ldpcs_does_not():
     pcm = np.zeros((inst.num_detectors, inst.num_faults), dtype=np.uint8)
     for j, (dets, _, _) in enumerate(inst.faults):
         pcm[list(dets), j] = 1
+    # On Windows ldpc's own peeling aborts the process (its C++ checks an index on a syndrome
+    # it cannot explain), so there only ours is run.
+    upstream = sys.platform != "win32"
     ours, theirs = sq.UnionFindDecoder(pcm, uf_method="peeling"), Theirs(pcm, uf_method="")
     wrong = stuck = 0
     for k in range(1 << pcm.shape[0]):
         s = ((k >> np.arange(pcm.shape[0])) & 1).astype(np.uint8)
-        a, b = ours.decode(s), theirs.decode(s)
+        a = ours.decode(s)
         assert np.array_equal(pcm @ a % 2, s)
-        wrong += not np.array_equal(pcm @ b % 2, s)
         stuck += ours.last_stuck
-        assert ours.last_stuck or np.array_equal(a, b)
-    assert wrong == stuck == 78
+        if upstream:
+            b = theirs.decode(s)
+            wrong += not np.array_equal(pcm @ b % 2, s)
+            assert ours.last_stuck or np.array_equal(a, b)
+    assert stuck == 78 and wrong == (78 if upstream else 0)
 
 
 @pytest.mark.parametrize("planar", [True, False])

@@ -155,6 +155,35 @@ pub fn reweight_shots(dec: &crate::reweight::ArgumentReweighting, packed: &[u8],
     })
 }
 
+/// Leakage-aware decoding of b8 shots, each with its b8 row of triggers (`nt` per shot):
+/// (observables, `None` where no correction exists; the priors raised).
+pub fn leakage_aware_shots(dec: &crate::leakage::LeakageAware, packed: &[u8], nd: usize, triggers: Option<&[u8]>, num_shots: usize, threads: usize) -> Vec<(Option<u64>, u32)> {
+    let stride = nd.div_ceil(8);
+    let nt = dec.num_triggers();
+    parallel(num_shots, threads, |range| {
+        let mut work = dec.dec.work();
+        let mut defects = Vec::new();
+        let mut fired = Vec::new();
+        let mut syndrome = vec![0u8; nd];
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                syndrome.fill(0);
+                for &d in &defects {
+                    syndrome[d as usize] = 1;
+                }
+                fired.clear();
+                if let Some(t) = triggers {
+                    let ts = nt.div_ceil(8);
+                    crate::shots::defects_from_b8(&t[s * ts..(s + 1) * ts], nt, &mut fired);
+                }
+                dec.decode(&defects, &syndrome, &fired, s as u64, &mut work)
+            })
+            .collect()
+    })
+}
+
 /// Collision Clustering of b8 shots: (observables, `None` where no correction exists; stats).
 pub fn collision_shots(dec: &crate::clustering::CollisionClustering, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(Option<u64>, crate::clustering::ClusterStats)> {
     let stride = nd.div_ceil(8);

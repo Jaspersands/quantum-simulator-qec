@@ -276,7 +276,7 @@ impl PyCircuit {
     /// The per-shot frame sampler, which runs leakage.
     #[pyo3(signature = (seed, leaked_reads_one=true))]
     fn leakage_sampler(&self, seed: u64, leaked_reads_one: bool) -> PyResult<PyLeakageSampler> {
-        let mut sampler = crate::frame_sampler::FrameSampler::new(&self.circuit.inner).map_err(err)?;
+        let mut sampler = crate::frame_sampler::FrameSampler::new(&self.circuit.inner).and_then(|s| s.with_reference(&self.circuit.inner)).map_err(err)?;
         sampler.leaked_reads_one = leaked_reads_one;
         Ok(PyLeakageSampler { sampler, seed, next: 0.into() })
     }
@@ -329,6 +329,33 @@ impl PyLeakageSampler {
     #[getter]
     fn num_observables(&self) -> usize {
         self.sampler.num_observables()
+    }
+
+    #[getter]
+    fn num_measurements(&self) -> usize {
+        self.sampler.num_measurements()
+    }
+
+    /// Measurement records b8, one row per shot (the stream `sample` draws from).
+    fn sample_measurements<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> Bound<'py, PyBytes> {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let w = sampler.num_measurements().div_ceil(8);
+        let rows: Vec<Vec<u8>> = py.detach(|| {
+            crate::parallel::parallel(shots, threads, |range| {
+                range
+                    .map(|s| {
+                        let mut rng = crate::surface_code::Xorshift::new(crate::batch_sampler::batch_seed(seed, first + s as u64));
+                        let mut row = vec![0u8; w];
+                        for (k, b) in sampler.sample_measurements(&mut rng).0.into_iter().enumerate() {
+                            row[k / 8] |= (b as u8) << (k % 8);
+                        }
+                        row
+                    })
+                    .collect()
+            })
+        });
+        PyBytes::new(py, &rows.concat())
     }
 
     /// (detection events b8, observable flips b8, heralds as one byte per measurement).
@@ -1044,6 +1071,115 @@ impl PyDemLocalClustering {
 
 /// Argument reweighting (Xie et al. 2026) around matching, union-find, BP+OSD, BP+LSD or
 /// Relay-BP.
+/// A decoder whose priors a shot can change: matching or union-find on the model's graph, or
+/// the BP decoder's core `inner` (a `DemBpOsd`, `DemBpLsd` or `DemRelay`) for those kinds.
+fn prior_inner(d: &Dem, kind: &str, inner: Option<&Bound<'_, PyAny>>) -> PyResult<crate::reweight::Inner> {
+    use crate::reweight::Inner;
+    let need = |what: &str| err(format!("the {what} decoder's core is needed"));
+    Ok(match kind {
+        "matching" | "union_find" => {
+            let (graph, _) = DemDecoder::new(d).map_err(err)?.into_parts(false);
+            if kind == "matching" { Inner::Matching(graph) } else { Inner::UnionFind(graph) }
+        }
+        "bposd" => {
+            let x = inner.ok_or_else(|| need("bposd"))?.cast::<PyDemBpOsd>().map_err(|e| err(e.to_string()))?.borrow();
+            Inner::BpOsd(x.dec.clone(), x.obs.clone())
+        }
+        "bplsd" => {
+            let x = inner.ok_or_else(|| need("bplsd"))?.cast::<PyDemBpLsd>().map_err(|e| err(e.to_string()))?.borrow();
+            Inner::BpLsd(x.dec.clone(), x.obs.clone())
+        }
+        "relay_bp" => {
+            let x = inner.ok_or_else(|| need("relay_bp"))?.cast::<PyDemRelay>().map_err(|e| err(e.to_string()))?.borrow();
+            Inner::Relay(x.dec.clone(), x.obs.clone(), x.dec.config.seed)
+        }
+        other => return Err(err(format!("decoder '{other}' is not matching, union_find, bposd, bplsd or relay_bp"))),
+    })
+}
+
+/// Leakage-aware decoding from heralds around a decoder that weighs faults by their priors.
+#[pyclass(name = "DemLeakageAware", module = "stabilizer_qec._core")]
+pub struct PyDemLeakageAware {
+    dec: crate::leakage::LeakageAware,
+    #[pyo3(get)]
+    num_detectors: usize,
+    #[pyo3(get)]
+    num_observables: usize,
+    /// The triggers' faults that are not the decoder's (a fault of the leaked circuit's model
+    /// with no match in the decoder's).
+    #[pyo3(get)]
+    unmatched: usize,
+}
+
+#[pymethods]
+impl PyDemLeakageAware {
+    /// `triggers`: per trigger, its faults as (detectors, observables, probability given the
+    /// trigger). For matching and union-find each must be an edge (one or two detectors); for
+    /// the BP decoders, one of the model's faults.
+    #[new]
+    #[pyo3(signature = (dem, kind, inner, triggers))]
+    fn new(dem: &PyDem, kind: &str, inner: Option<&Bound<'_, PyAny>>, triggers: Vec<Vec<(Vec<u32>, u64, f64)>>) -> PyResult<Self> {
+        let d = dem.flat()?;
+        let dec = crate::reweight::PriorDecoder::new(prior_inner(d, kind, inner)?);
+        let n = d.num_detectors as u32;
+        let mut index: std::collections::HashMap<(Vec<u32>, u64), u32> = std::collections::HashMap::new();
+        if !matches!(kind, "matching" | "union_find") {
+            for (k, m) in d.mechanisms.iter().enumerate() {
+                let mut dets = m.detectors.clone();
+                dets.sort_unstable();
+                index.entry((dets, m.observables)).or_insert(k as u32);
+            }
+        }
+        let mut unmatched = 0usize;
+        let mut resolved = Vec::with_capacity(triggers.len());
+        for faults in triggers {
+            let mut q_of: std::collections::BTreeMap<u32, f64> = std::collections::BTreeMap::new();
+            for (mut dets, obs, q) in faults {
+                dets.sort_unstable();
+                let fault = match (kind, dets.as_slice()) {
+                    ("matching" | "union_find", [a]) => dec.edge(*a, n),
+                    ("matching" | "union_find", [a, b]) => dec.edge(*a, *b),
+                    ("matching" | "union_find", _) => None,
+                    _ => index.get(&(dets, obs)).copied(),
+                };
+                match fault {
+                    Some(f) => {
+                        let p = q_of.entry(f).or_insert(0.0);
+                        *p = *p * (1.0 - q) + q * (1.0 - *p);
+                    }
+                    None => unmatched += 1,
+                }
+            }
+            resolved.push(q_of.into_iter().collect());
+        }
+        let dec = crate::leakage::LeakageAware::new(dec, resolved).map_err(err)?;
+        Ok(PyDemLeakageAware { dec, num_detectors: d.num_detectors, num_observables: d.num_observables, unmatched })
+    }
+
+    /// Per trigger, how many of the decoder's faults it raises.
+    #[getter]
+    fn trigger_sizes(&self) -> Vec<usize> {
+        self.dec.trigger_sizes()
+    }
+
+    /// (observables as u64 per shot, one byte per shot: 1 where no correction explains it; the
+    /// priors each shot raised, u32 each). `triggers`: b8 rows, one bit per trigger.
+    #[pyo3(signature = (packed, shots, threads, triggers=None))]
+    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize, triggers: Option<&[u8]>) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let nt = self.dec.num_triggers();
+        if let Some(t) = triggers {
+            check_rows(t.len(), nt.div_ceil(8), shots, nt, "triggers")?;
+        }
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::leakage_aware_shots(dec, packed, nd, triggers, shots, threads));
+        let failed: Vec<u8> = out.iter().map(|o| u8::from(o.0.is_none())).collect();
+        let raised: Vec<u8> = out.iter().flat_map(|o| o.1.to_le_bytes()).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|o| o.0.unwrap_or(0)))), PyBytes::new(py, &failed), PyBytes::new(py, &raised)))
+    }
+}
+
 #[pyclass(name = "DemArgumentReweighting", module = "stabilizer_qec._core")]
 pub struct PyDemArgumentReweighting {
     dec: crate::reweight::ArgumentReweighting,
@@ -1059,28 +1195,9 @@ impl PyDemArgumentReweighting {
     #[new]
     #[pyo3(signature = (dem, kind, inner, b, test, criterion))]
     fn new(dem: &PyDem, kind: &str, inner: Option<&Bound<'_, PyAny>>, b: f64, test: &str, criterion: &str) -> PyResult<Self> {
-        use crate::reweight::{Criterion, Inner, Test};
+        use crate::reweight::{Criterion, Test};
         let d = dem.flat()?;
-        let need = |what: &str| err(format!("the {what} decoder's core is needed"));
-        let inner = match kind {
-            "matching" | "union_find" => {
-                let (graph, _) = DemDecoder::new(d).map_err(err)?.into_parts(false);
-                if kind == "matching" { Inner::Matching(graph) } else { Inner::UnionFind(graph) }
-            }
-            "bposd" => {
-                let x = inner.ok_or_else(|| need("bposd"))?.cast::<PyDemBpOsd>().map_err(|e| err(e.to_string()))?.borrow();
-                Inner::BpOsd(x.dec.clone(), x.obs.clone())
-            }
-            "bplsd" => {
-                let x = inner.ok_or_else(|| need("bplsd"))?.cast::<PyDemBpLsd>().map_err(|e| err(e.to_string()))?.borrow();
-                Inner::BpLsd(x.dec.clone(), x.obs.clone())
-            }
-            "relay_bp" => {
-                let x = inner.ok_or_else(|| need("relay_bp"))?.cast::<PyDemRelay>().map_err(|e| err(e.to_string()))?.borrow();
-                Inner::Relay(x.dec.clone(), x.obs.clone(), x.dec.config.seed)
-            }
-            other => return Err(err(format!("decoder '{other}' is not matching, union_find, bposd, bplsd or relay_bp"))),
-        };
+        let inner = prior_inner(&d, kind, inner)?;
         let test = match test {
             "ratio" => Test::Ratio,
             "exact_ratio" => Test::ExactRatio,
@@ -2175,6 +2292,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDemCollisionClustering>()?;
     m.add_class::<PyDemLocalClustering>()?;
     m.add_class::<PyDemArgumentReweighting>()?;
+    m.add_class::<PyDemLeakageAware>()?;
     m.add_class::<PyDemAmbiguityClustering>()?;
     m.add_class::<PyBeliefMatcher>()?;
     m.add_class::<PyDemBpOsd>()?;

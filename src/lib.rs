@@ -107,6 +107,8 @@ pub mod ambiguity;
 pub mod clustering;
 #[doc(hidden)]
 pub mod reweight;
+/// Deltakit's leakage dialect: lowering, writing back, and the circuit without leakage.
+pub mod leakage;
 #[doc(hidden)]
 pub mod surgery;
 #[doc(hidden)]

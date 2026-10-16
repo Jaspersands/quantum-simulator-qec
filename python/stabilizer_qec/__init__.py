@@ -101,7 +101,9 @@ pickling:
 - `CompositeDecoder` (a model's independent parts, decoded apart by any of these) and
   `SubgraphDecoder` (qLDPC's: chosen detector subgraphs, predictions combined);
   `ArgumentReweighting` (post-selection: decode again with the correction made less likely,
-  keep the shot if the answer holds) around matching, union-find, BP+OSD, BP+LSD or Relay-BP.
+  keep the shot if the answer holds) around matching, union-find, BP+OSD, BP+LSD or Relay-BP;
+  `LeakageAwareDecoder` (leakage heralds raising the priors of the faults a leak makes likely)
+  around the same, or local clustering.
 
 On a check matrix, with `ldpc`'s arguments: `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder`, and
 `RelayBpDecoder` with IBM's. `tools/decoder_check.py` holds each against its authors' package.
@@ -127,7 +129,10 @@ True
 
 `compile_exact_sampler` and `exact_distribution` run the state vector (up to 24 qubits; also T,
 U3 and amplitude damping). `twirled(merge=True)` is the coherence-aware model for a decoder.
-`compile_leakage_sampler` runs `I_ERROR[LEAK(p=…)]`, `SEEP` and `LEAK_TRANSPORT`, with heralds.
+`compile_leakage_sampler` runs `I_ERROR[LEAK(p=…)]`, `SEEP` and `LEAK_TRANSPORT`, with heralds,
+and Deltakit's dialect (`LEAKAGE(p)`, `RELAX(p)`, `HERALD_LEAKAGE_EVENT`, read as tagged lines
+Stim runs), with its measurements and leakage flags; `without_leakage()` is Deltakit's
+deinstrumentation and `to_deltakit_text()` writes the dialect back.
 
 ## The command line
 
@@ -236,7 +241,7 @@ from ._stim import (
     target_z,
 )
 from ._codes import Automorphism, BivariateBicycleCode, CssCode, Gauging, StreamResult, memory_circuit, stream_memory
-from ._decoders import AmbiguityClustering, ArgumentReweighting, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
+from ._decoders import AmbiguityClustering, ArgumentReweighting, LeakageAwareDecoder, BeliefMatching, CollisionClustering, CompositeDecoder, LocalClustering, SubgraphDecoder, BpDecoder, BpLsd, BpLsdDecoder, BpOsd, BpOsdDecoder, ColorMatching, Matching, RelayBp, RelayBpDecoder, SearchDecoder, SoftInfoBpDecoder, BpFlipDecoder, LsdDecoder, UnionFind, UnionFindDecoder, BeliefFindDecoder, MbpDecoder, SoftInfoBpOsdDecoder, Window, WindowMatching
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -316,6 +321,7 @@ __all__ = [
     "BpDecoder",
     "AmbiguityClustering",
     "ArgumentReweighting",
+    "LeakageAwareDecoder",
     "CollisionClustering",
     "CompositeDecoder",
     "SubgraphDecoder",

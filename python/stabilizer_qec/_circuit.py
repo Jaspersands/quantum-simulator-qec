@@ -196,6 +196,23 @@ class Circuit:
         """Every instruction's tag removed."""
         return self._transformed("without_tags")
 
+    def without_leakage(self) -> "Circuit":
+        """The circuit with no leakage: no leakage noise (``LEAKAGE``, ``RELAX``, and this
+        package's ``LEAK``, ``SEEP`` and ``LEAK_TRANSPORT``), no herald, no detector reading a
+        herald, and every other record lookback renumbered; an observable keeps its other
+        records. Deltakit's deinstrumentation (``Measurements.to_detectors_and_observables``
+        converts measurements on it), with loops kept: a loop whose lookbacks reach before it
+        has its first iterations peeled off."""
+        return self._transformed("without_leakage")
+
+    def to_deltakit_text(self) -> str:
+        """The circuit's text with its leakage in Deltakit's dialect (``LEAKAGE(p)``,
+        ``RELAX(p)``, ``HERALD_LEAKAGE_EVENT(p)``), which Deltakit's Stim reads. A circuit
+        reads that dialect too, as the tagged instructions Stim runs
+        (``I_ERROR[LEAKAGE(p=…)]``, ``I_ERROR[RELAX(p=…)]``,
+        ``MPAD[HERALD_LEAKAGE_EVENT(qubits=…)]``)."""
+        return call(_core.circuit_to_deltakit, str(self))
+
     def inverse(self) -> "Circuit":
         """The unitary inverse: operations inverted and in reverse. Noise, measurements and
         resets have no inverse and raise ``ValueError``."""
@@ -1705,13 +1722,14 @@ class LeakageSampler:
     """Shots of a circuit with leakage, and which measurements found their qubit leaked. Made
     by ``Circuit.compile_leakage_sampler``."""
 
-    __slots__ = ("_s", "_m")
+    __slots__ = ("_s", "_m", "_h")
 
     def __init__(self, circuit: Circuit, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._s = call(circuit._c.leakage_sampler, seed_of(seed), bool(leaked_reads_one))
         self._m = circuit.num_measurements
+        self._h = np.asarray(call(_core.circuit_herald_map, circuit._stim_exact_text())[0], dtype=np.int64)
 
     def __reduce__(self) -> tuple:
         raise TypeError("a LeakageSampler is a position in a stream of shots; send the circuit and a seed")
@@ -1726,13 +1744,36 @@ class LeakageSampler:
 
     def sample(self, shots: int, *, threads: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """``(detection events, observable flips, heralds)`` for ``shots`` shots: bool arrays
-        of shape (shots, detectors), (shots, observables) and (shots, measurements), the last
+        of shape (shots, detectors), (shots, observables) and (shots, measurement records), the
+        last saying which measurements found their qubit leaked (False for other records), and
         empty in width when the circuit has no leakage."""
         shots = count(shots, "shots")
         d, o, h = call(self._s.sample, shots, count(threads, "threads"))
         heralds = np.frombuffer(h, dtype=np.uint8).astype(bool)
         heralds = heralds.reshape(shots, -1) if heralds.size else np.zeros((shots, 0), dtype=bool)
         return b8_to_rows(d, shots, self.num_detectors, False), b8_to_rows(o, shots, self.num_observables, False), heralds
+
+    @property
+    def num_measurements(self) -> int:
+        return self._m
+
+    @property
+    def num_heralds(self) -> int:
+        """The circuit's ``HERALD_LEAKAGE_EVENT`` records."""
+        return len(self._h)
+
+    def sample_measurements(self, shots: int, *, threads: int = 1) -> tuple[np.ndarray, np.ndarray]:
+        """``(measurements, leakage flags)`` for ``shots`` shots, as Deltakit's simulation
+        returns them: bool arrays of shape (shots, measurements less heralds) and (shots,
+        heralds), each herald's record in the second. The circuit's ``without_leakage()``
+        converts the first to detection events and observable flips (its
+        ``compile_m2d_converter``); ``LeakageAwareDecoder`` takes the second. From the same
+        stream of shots as ``sample``."""
+        shots = count(shots, "shots")
+        rows = b8_to_rows(call(self._s.sample_measurements, shots, count(threads, "threads")), shots, self._m, False)
+        flags = np.zeros(self._m, dtype=bool)
+        flags[self._h] = True
+        return rows[:, ~flags], rows[:, flags]
 
 
 class CoherentSampler:

@@ -20,16 +20,25 @@ use crate::surface_code::Xorshift;
 pub struct Shot {
     pub detectors: Vec<bool>,
     pub observables: u64,
-    /// For a circuit with leakage, whether each measurement found its qubit leaked; empty
-    /// otherwise.
+    /// For a circuit with leakage, per measurement record, whether a measurement found its
+    /// qubit leaked (false for other records); empty otherwise.
     pub heralds: Vec<bool>,
 }
+
+/// How a qubit is leaked: not, by `LEAK` (measuring it reads 1, or a coin), or by Deltakit's
+/// `LEAKAGE` (it was depolarized, and measuring it reads its state).
+const NOT_LEAKED: u8 = 0;
+const LEAKED: u8 = 1;
+const DELTAKIT_LEAKED: u8 = 2;
 
 pub struct FrameSampler {
     /// Whether the circuit has leakage (`I_ERROR[LEAK(p=…)]` and the rest): a leaked flag per
     /// qubit, set by LEAK and LEAK_TRANSPORT, cleared by SEEP and by a reset. A two-qubit gate
     /// with a leaked partner leaves the other qubit a uniformly random Pauli (Google's model),
     /// and measuring a leaked qubit reads 1 (or a coin flip, `leaked_reads_one = false`).
+    /// Deltakit's model is its own: `LEAKAGE` leaks a qubit and depolarizes it, after which it
+    /// is measured as it stands; `RELAX` returns it as it is; a reset returns it too, and a
+    /// leaked partner depolarizes as above. A herald's record is 1 while its qubit is leaked.
     leaky: bool,
     pub leaked_reads_one: bool,
     /// The noiseless reference record, which a leaked qubit's 1 is a flip from.
@@ -42,9 +51,9 @@ pub struct FrameSampler {
 }
 
 /// After a two-qubit gate, a leaked partner leaves the other qubit a uniformly random Pauli.
-fn leaked_partner(leaked: &[bool], a: usize, b: usize, x: &mut [bool], z: &mut [bool], rng: &mut Xorshift) {
+fn leaked_partner(leaked: &[u8], a: usize, b: usize, x: &mut [bool], z: &mut [bool], rng: &mut Xorshift) {
     for (l, o) in [(a, b), (b, a)] {
-        if leaked[l] && !leaked[o] {
+        if leaked[l] != NOT_LEAKED && leaked[o] == NOT_LEAKED {
             apply(x, z, o, [0, 1, 3, 2][(rng.next_u64() % 4) as usize]);
         }
     }
@@ -88,7 +97,43 @@ impl FrameSampler {
         self.observables.len()
     }
 
+    pub fn num_measurements(&self) -> usize {
+        self.num_measurements
+    }
+
     pub fn sample(&self, rng: &mut Xorshift) -> Shot {
+        let (rec, pauli_obs, heralds) = self.run(rng);
+        let parity = |recs: &[usize]| recs.iter().fold(false, |acc, &m| acc ^ rec[m]);
+        let detectors = self.detectors.iter().map(|r| parity(r)).collect();
+        let mut observables = pauli_obs;
+        for (k, r) in self.observables.iter().enumerate() {
+            if parity(r) {
+                observables |= 1u64 << k;
+            }
+        }
+        Shot { detectors, observables, heralds }
+    }
+
+    /// The same sampler, ready for `sample_measurements` (a leaky one already is).
+    pub fn with_reference(mut self, circuit: &Circuit) -> Result<FrameSampler, String> {
+        if self.reference.len() != self.num_measurements {
+            self.reference = crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1);
+        }
+        Ok(self)
+    }
+
+    /// One shot's measurement record, and its heralds as `sample`'s.
+    pub fn sample_measurements(&self, rng: &mut Xorshift) -> (Vec<bool>, Vec<bool>) {
+        let (mut rec, _, heralds) = self.run(rng);
+        for (r, &reference) in rec.iter_mut().zip(&self.reference) {
+            *r ^= reference;
+        }
+        (rec, heralds)
+    }
+
+    /// One shot: its record as flips from the reference, its Pauli targets' observable flips,
+    /// and its heralds.
+    fn run(&self, rng: &mut Xorshift) -> (Vec<bool>, u64, Vec<bool>) {
         let nq = self.num_qubits;
         let mut x = vec![false; nq];
         let mut z: Vec<bool> = (0..nq).map(|_| rng.next_u64() & 1 == 1).collect();
@@ -96,8 +141,10 @@ impl FrameSampler {
         // Whether the current chain of correlated errors has fired.
         let mut chain = false;
         let mut pauli_obs = 0u64;
-        let mut leaked = vec![false; if self.leaky { nq } else { 0 }];
+        let mut leaked = vec![NOT_LEAKED; if self.leaky { nq } else { 0 }];
         let mut heralds = Vec::new();
+        // A herald's readings, for the pads that follow its markers.
+        let mut pending = std::collections::VecDeque::new();
         for ins in &self.instrs {
             match ins {
                 Instr::Fail(_) => {}
@@ -105,7 +152,7 @@ impl FrameSampler {
                     for &q in qubits {
                         let q = q as usize;
                         if self.leaky {
-                            leaked[q] = false;
+                            leaked[q] = NOT_LEAKED;
                         }
                         match basis {
                             Basis::Z => {
@@ -161,13 +208,13 @@ impl FrameSampler {
                             Basis::X => z[q],
                         };
                         if self.leaky {
-                            heralds.push(leaked[q]);
-                            if leaked[q] {
+                            heralds.push(leaked[q] != NOT_LEAKED);
+                            if leaked[q] == LEAKED {
                                 // A leaked qubit reads 1: a flip from the reference's value.
                                 r = if self.leaked_reads_one { !self.reference[rec.len()] } else { rng.next_u64() & 1 == 1 };
                             }
                             if *reset {
-                                leaked[q] = false;
+                                leaked[q] = NOT_LEAKED;
                             }
                         }
                         if *flip > 0.0 && rng.next_f64() < *flip {
@@ -277,6 +324,9 @@ impl FrameSampler {
                             u < acc
                         });
                         rec.push(case.is_some());
+                        if self.leaky {
+                            heralds.push(false);
+                        }
                         if let Some(k) = case {
                             apply(&mut x, &mut z, q as usize, [0, 1, 3, 2][k]);
                         }
@@ -284,7 +334,12 @@ impl FrameSampler {
                 }
                 Instr::Pad { flip, values } => {
                     for _ in values {
-                        rec.push(*flip > 0.0 && rng.next_f64() < *flip);
+                        // A herald's pad reads its qubit's leakage, a flip from the pad's value.
+                        let leaked_now = pending.pop_front().unwrap_or(false);
+                        rec.push(leaked_now ^ (*flip > 0.0 && rng.next_f64() < *flip));
+                        if self.leaky {
+                            heralds.push(false);
+                        }
                     }
                 }
                 // Signs, annotations and ticks leave a frame alone; loops and gates are
@@ -302,14 +357,35 @@ impl FrameSampler {
                     for op in ops {
                         match *op {
                             NonPauli::Leak { p, qubit } => {
-                                if rng.next_f64() < p {
-                                    leaked[qubit as usize] = true;
+                                if rng.next_f64() < p && leaked[qubit as usize] == NOT_LEAKED {
+                                    leaked[qubit as usize] = LEAKED;
                                 }
                             }
+                            NonPauli::Leakage { p, qubit } => {
+                                let q = qubit as usize;
+                                if rng.next_f64() < p {
+                                    // Deltakit's Pauli mixture: I, X, Y or Z, a quarter each.
+                                    leaked[q] = DELTAKIT_LEAKED;
+                                    x[q] ^= rng.next_u64() & 1 == 1;
+                                    z[q] ^= rng.next_u64() & 1 == 1;
+                                }
+                            }
+                            NonPauli::Relax { p, qubit } => {
+                                let q = qubit as usize;
+                                if rng.next_f64() < p && leaked[q] != NOT_LEAKED {
+                                    // A qubit LEAK took returns at random; LEAKAGE's already is.
+                                    if leaked[q] == LEAKED {
+                                        x[q] ^= rng.next_u64() & 1 == 1;
+                                        z[q] = rng.next_u64() & 1 == 1;
+                                    }
+                                    leaked[q] = NOT_LEAKED;
+                                }
+                            }
+                            NonPauli::Herald { qubit } => pending.push_back(leaked[qubit as usize] != NOT_LEAKED),
                             NonPauli::Seep { p, qubit } => {
                                 let q = qubit as usize;
-                                if rng.next_f64() < p && leaked[q] {
-                                    leaked[q] = false;
+                                if rng.next_f64() < p && leaked[q] != NOT_LEAKED {
+                                    leaked[q] = NOT_LEAKED;
                                     // Back in |0⟩ or |1⟩ at random.
                                     x[q] ^= rng.next_u64() & 1 == 1;
                                     z[q] = rng.next_u64() & 1 == 1;
@@ -317,8 +393,8 @@ impl FrameSampler {
                             }
                             NonPauli::LeakTransport { p, a, b } => {
                                 let (a, b) = (a as usize, b as usize);
-                                if rng.next_f64() < p && leaked[a] != leaked[b] {
-                                    let back = if leaked[a] { a } else { b };
+                                if rng.next_f64() < p && (leaked[a] == NOT_LEAKED) != (leaked[b] == NOT_LEAKED) {
+                                    let back = if leaked[a] != NOT_LEAKED { a } else { b };
                                     leaked.swap(a, b);
                                     x[back] ^= rng.next_u64() & 1 == 1;
                                     z[back] = rng.next_u64() & 1 == 1;
@@ -339,15 +415,7 @@ impl FrameSampler {
                 | Instr::Gate { .. } => {}
             }
         }
-        let parity = |recs: &[usize]| recs.iter().fold(false, |acc, &m| acc ^ rec[m]);
-        let detectors = self.detectors.iter().map(|r| parity(r)).collect();
-        let mut observables = pauli_obs;
-        for (k, r) in self.observables.iter().enumerate() {
-            if parity(r) {
-                observables |= 1u64 << k;
-            }
-        }
-        Shot { detectors, observables, heralds }
+        (rec, pauli_obs, heralds)
     }
 }
 
@@ -389,6 +457,30 @@ mod tests {
         let q = predict(&|m| m.observables & 1 == 1);
         let rate = obs as f64 / n as f64;
         assert!((rate - q).abs() < 5.0 * (q * (1.0 - q) / n as f64).sqrt(), "L0: sampled {rate}, model {q}");
+    }
+
+    /// Deltakit's model: LEAKAGE(1) leaks qubit 0 every shot and a herald reads it; a CX with
+    /// it depolarizes qubit 1, whose measurement is a coin; RELAX(1) returns it, and an inverted
+    /// herald then reads its pad's value. A record per measurement and pad in `heralds`.
+    #[test]
+    fn deltakit_leakage_and_heralds() {
+        let c = Circuit::parse("R 0 1\nLEAKAGE(1) 0\nHERALD_LEAKAGE_EVENT 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]\nCX 0 1\nM 1\nDETECTOR rec[-1]\nRELAX(1) 0\nHERALD_LEAKAGE_EVENT !0\nDETECTOR rec[-1]").unwrap();
+        let sampler = FrameSampler::new(&c).unwrap();
+        let mut rng = Xorshift::new(5);
+        let mut coin = 0;
+        for _ in 0..2000 {
+            let shot = sampler.sample(&mut rng);
+            assert_eq!((shot.detectors[0], shot.detectors[1], shot.detectors[3]), (true, false, false));
+            assert_eq!(shot.heralds, vec![false, false, false, false]);
+            coin += shot.detectors[2] as usize;
+        }
+        assert!((850..1150).contains(&coin), "{coin}");
+        // A reset returns a leaked qubit; a measurement reads a LEAKAGE-leaked qubit's state,
+        // where LEAK's reads 1.
+        let c = Circuit::parse("R 0\nLEAKAGE(1) 0\nR 0\nHERALD_LEAKAGE_EVENT 0\nDETECTOR rec[-1]\nLEAKAGE(1) 0\nM 0\nDETECTOR rec[-1]").unwrap();
+        let sampler = FrameSampler::new(&c).unwrap();
+        let fired: usize = (0..2000).map(|_| sampler.sample(&mut rng)).inspect(|s| assert!(!s.detectors[0] && s.heralds == vec![false, true])).map(|s| s.detectors[1] as usize).sum();
+        assert!((850..1150).contains(&fired), "{fired}");
     }
 
     #[test]
