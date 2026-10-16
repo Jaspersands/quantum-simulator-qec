@@ -249,6 +249,20 @@ noise on every gate. In progress on `feature/2.0`.
   linear algebra, groups and lifts, and its LDPC generators. Against QUITS itself
   (`tests/test_quits_differential.py`) every family's matrices, every strategy's circuit text and
   every window decode are equal. The `quits` extra installs what it needs (Python 3.10).
+- **`stabilizer_qec.panqec`: PanQEC 0.1.7 whole** on this package's ldpc and PyMatching, passing
+  its own tests (`tests/panqec_port/`, 789 with its slow ones and its doctests): 2D and 3D toric,
+  planar and rotated surface codes, rhombic and hollow codes, the X-cube fracton model, 6.6.6,
+  4.8.8 and 3D colour codes, their Clifford deformations (XZZX, XY and others) and biased Pauli
+  noise; its sweep-matching, rotated sweep-matching, X-cube matching, matching, BP+OSD, memory BP
+  and union-find decoders; direct, batch and splitting (MCMC) simulations, the finite-size-scaling
+  threshold analysis, its command line and the 2D/3D **GUI** (`python -m stabilizer_qec.panqec
+  start-gui`; Flask, the `panqec-gui` extra). Against PanQEC itself
+  (`tests/test_panqec_differential.py`): every registered code's stabilizers, logicals and
+  coordinates, plain and deformed, the noise drawn on the same seeds, every decoder's corrections
+  on the same errors (on PyMatching's matcher; on this package's, whose ties between equally good
+  matchings fall otherwise, the same syndromes and weights), direct simulations and the GUI's
+  answers, all equal. Memory BP takes the syndrome as an integer, where PanQEC's raises on NumPy
+  2. The `panqec` extra installs what it needs.
 - **`stabilizer_qec.fusion_blossom`: Fusion Blossom 0.2.13 whole**, a Rust port of its solvers
   (`src/fusion/`): the **serial and parallel minimum-weight perfect matching** solvers
   (`SolverSerial`, `SolverDualParallel`, `SolverParallel`, with partitions and fusion), erasures

@@ -273,7 +273,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | U4 | qec-util DEM tools: dem_difference, hyperedge decomposition to edges, disjoint graphs, flippable detectors/observables, errors triggering detectors, merge instructions | part |
 | U5 | qec-util analysis: p_ij matrix (exact and approximate), syndromes/defects/defect probabilities, logical error decay fit (`LogicalErrorProbDecayModel`), threshold estimation and plots, circuit distance upper bound | part |
 | U6 | qec-util samplers: sample_failures to file, merge batches | gap (= N2) |
-| U7 | PanQEC: 3D codes (3D toric, rhombic, XCube fracton, Haah-like), deformed (XZZX, biased) codes, BP-OSD, MBP, union-find, sweep-matching, threshold FSS analysis, GUI | part (XZZX, bias in memory_circuit) |
+| U7 | PanQEC: 3D codes (3D toric, rhombic, XCube fracton, Haah-like), deformed (XZZX, biased) codes, BP-OSD, MBP, union-find, sweep-matching, threshold FSS analysis, GUI | done (2.0 W7: `stabilizer_qec.panqec`, PanQEC 0.1.7 whole; codes, noise, decodes, simulations and GUI equal to PanQEC's) |
 | U8 | qecsim: MPS tensor-network decoders (planar, colour 6.6.6, toric; exact and approximate by bond dimension), fault-tolerant (time-repeated) runs, Blossom V | gap (MPS decoders) |
 | U9 | PECOS: fault-tolerance checks (`t_errors_check`, `fault_check`, `distance_check`), pseudo-threshold tools, error generators, 4.4.4.4 surface and 4.8.8 colour codes, density-matrix and process-matrix simulators | gap |
 | U10 | Fusion Blossom: parallel MWPM by partitioned primal/dual, visualiser | part (window parallelism) |

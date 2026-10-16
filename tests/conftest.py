@@ -52,7 +52,7 @@ def assert_same_model(ours: str, theirs: str) -> None:
 
 # The references the differential tests reproduce, at the versions they reproduce: another
 # version (pip picks an older one where the newer has no wheel for the platform) is skipped.
-REFERENCE_VERSIONS = {"fusion_blossom": ("fusion-blossom", "0.2.13"), "relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1"), "mwpf": ("mwpf", "0.2.12"), "quits": ("quits", "1.2.0")}
+REFERENCE_VERSIONS = {"fusion_blossom": ("fusion-blossom", "0.2.13"), "relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1"), "mwpf": ("mwpf", "0.2.12"), "quits": ("quits", "1.2.0"), "panqec": ("panqec", "0.1.7")}
 
 
 def reference(module: str):
@@ -132,3 +132,7 @@ if _sys.version_info < (3, 10) or not _importlib_util.find_spec("numpy"):
 # QUITS' own tests (tests/quits_port) need the `quits` extra, and Python 3.10, as QUITS does.
 if _sys.version_info < (3, 10) or not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "tqdm")):
     collect_ignore_glob += ["quits_port", "quits_port/*"]
+
+# PanQEC's own tests (tests/panqec_port) need the `panqec` extra (its GUI, Flask, is optional).
+if not all(_importlib_util.find_spec(m) for m in ("scipy", "pandas", "matplotlib", "click", "psutil", "tqdm")):
+    collect_ignore_glob += ["panqec_port", "panqec_port/*"]
