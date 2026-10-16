@@ -64,7 +64,9 @@ def test_the_dialect_is_read_as_tagged_lines_stim_runs_and_written_back():
     assert sq.Circuit(c.to_deltakit_text()) == c
     # The engines that run no leakage see an identity and a padded record.
     assert c.num_measurements == 3 and c.num_detectors == 2
-    assert str(c.detector_error_model().without_tags()).split() == "error(0.01) D0 detector D1".split()
+    # (Stim's Linux builds print the probability from a long double: 0.01000000000000000021.)
+    error, *rest = str(c.detector_error_model().without_tags()).split()
+    assert float(error[6:-1]) == pytest.approx(0.01) and rest == "D0 detector D1".split()
     assert str(c.without_leakage()).split() == "R 0 1 CX 0 1 M 1 DETECTOR rec[-1]".split()
     for bad, match in [
         ("LEAKAGE 0", "one argument"),

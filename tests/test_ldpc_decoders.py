@@ -148,7 +148,8 @@ def test_union_find_peeling_explains_what_ldpcs_does_not():
     for j, (dets, _, _) in enumerate(inst.faults):
         pcm[list(dets), j] = 1
     # On Windows ldpc's own peeling aborts the process (its C++ checks an index on a syndrome
-    # it cannot explain), so there only ours is run.
+    # it cannot explain), so there only ours is run; its spanning trees follow MSVC's sort, as
+    # ldpc's Windows wheels do, so it peels through the tree's bit on other syndromes.
     upstream = sys.platform != "win32"
     ours, theirs = sq.UnionFindDecoder(pcm, uf_method="peeling"), Theirs(pcm, uf_method="")
     wrong = stuck = 0
@@ -161,7 +162,7 @@ def test_union_find_peeling_explains_what_ldpcs_does_not():
             b = theirs.decode(s)
             wrong += not np.array_equal(pcm @ b % 2, s)
             assert ours.last_stuck or np.array_equal(a, b)
-    assert stuck == 78 and wrong == (78 if upstream else 0)
+    assert (stuck, wrong) == (78, 78) if upstream else stuck > 0
 
 
 @pytest.mark.parametrize("planar", [True, False])
