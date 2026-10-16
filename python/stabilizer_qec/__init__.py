@@ -251,6 +251,22 @@ from ._predecoder import PreDecoder
 from ._density import DensityMatrixSimulator, fidelity, reduced_density_matrix, von_neumann_entropy
 from ._process import average_gate_fidelity, choi_of_unitary, convert_process, pauli_basis, process_fidelity, process_matrix
 from ._perturb import perturbative_logical_error_rate
+from .clifford import (
+    bigram,
+    canonicalize_clip,
+    canonicalize_gott,
+    canonicalize_rref,
+    clifford_cardinality,
+    entanglement_entropy,
+    enumerate_cliffords,
+    enumerate_phases,
+    enumerate_single_qubit_gates,
+    graph_gate,
+    graph_gate_sequence,
+    graph_state,
+    mutual_information,
+    symplectic_gram_schmidt,
+)
 
 try:
     __version__ = _version("stabilizer-qec")
@@ -363,6 +379,20 @@ __all__ = [
     "process_fidelity",
     "process_matrix",
     "perturbative_logical_error_rate",
+    "bigram",
+    "canonicalize_clip",
+    "canonicalize_gott",
+    "canonicalize_rref",
+    "clifford_cardinality",
+    "entanglement_entropy",
+    "enumerate_cliffords",
+    "enumerate_phases",
+    "enumerate_single_qubit_gates",
+    "graph_gate",
+    "graph_gate_sequence",
+    "graph_state",
+    "mutual_information",
+    "symplectic_gram_schmidt",
     "CoherentSampler",
     "LeakageSampler",
     "weighted_rate",

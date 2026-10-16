@@ -639,6 +639,15 @@ class Tableau:
         return Tableau._wrap(_core.TableauCore.random(int(num_qubits), _seed(None)))
 
     @staticmethod
+    def from_graph(adjacency: Any) -> "Tableau":
+        """The tableau preparing the graph state of ``adjacency`` (a symmetric boolean matrix)
+        from |0…0⟩: H on every qubit, then CZ on every edge. Its stabilizers (Z images) are X on
+        each vertex times Z on its neighbours; ``graph_state`` goes the other way."""
+        from .clifford import _from_graph
+
+        return _from_graph(adjacency)
+
+    @staticmethod
     def iter_all(num_qubits: int, *, unsigned: bool = False) -> "TableauIterator":
         """Every tableau on ``num_qubits`` (with all signs, unless ``unsigned``)."""
         return TableauIterator(num_qubits, unsigned)
