@@ -321,3 +321,52 @@ def test_enumerate_phases():
     ts = list(sq.enumerate_phases(sq.Tableau.from_named_gate("CNOT")))
     assert len(ts) == len({_key(t) for t in ts}) == 16
     assert ts[0] == sq.Tableau.from_named_gate("CNOT")
+
+
+def test_overcomplete_generators():
+    # A cyclic repetition code's three checks are two independent ones: its entropies are the
+    # independent pair's, every algorithm alike (the graph state's refusing a mixed state).
+    checks = ["ZZ_", "_ZZ", "Z_Z"]
+    for sub in ([0], [0, 1], [0, 1, 2]):
+        assert sq.entanglement_entropy(checks, sub) == sq.entanglement_entropy(checks[:2], sub) == 1
+    assert sq.entanglement_entropy(checks, [0, 1], "clip") == 1
+    assert sq.mutual_information(checks, [0], [1]) == sq.mutual_information(checks[:2], [0], [1]) == 1
+    with pytest.raises(ValueError, match="pure"):
+        sq.entanglement_entropy(checks, [0], "graph")
+    # A pure state listed with a repeat is still pure.
+    ghz = ["XXX", "ZZ_", "_ZZ", "Z_Z"]
+    assert sq.entanglement_entropy(ghz, [0], "graph") == 1
+    assert sq.graph_state(ghz)[0].sum() == 4
+    with pytest.raises(ValueError, match="−I"):
+        sq.entanglement_entropy(["ZZ", "-ZZ"], [0])
+
+
+def test_invalid_states_are_refused():
+    for state in (["X", "Z"], ["XZ", "ZZ"]):
+        for f in (sq.canonicalize_clip, sq.bigram, sq.graph_state, lambda s: sq.entanglement_entropy(s, [0])):
+            with pytest.raises(ValueError, match="commute"):
+                f(state)
+    # One Pauli string is one generator, not its letters.
+    assert sq.canonicalize_clip("XZ") == [sq.PauliString("XZ")]
+    assert sq.entanglement_entropy("XX", [0]) == 1
+    assert sq.canonicalize_clip(sq.PauliString("XYZ")) == [sq.PauliString("XYZ")]
+    # A state read once (an iterator) gives what its list does.
+    ghz = ["XXXX", "ZZ__", "_ZZ_", "__ZZ"]
+    assert sq.mutual_information(iter(ghz), [0], [1], num_qubits=4) == sq.mutual_information(ghz, [0], [1]) == 1
+
+
+def test_invalid_arguments_are_refused():
+    with pytest.raises(ValueError):
+        sq.graph_gate([4], [], [], 2)
+    with pytest.raises(TypeError):
+        list(sq.enumerate_phases("X"))
+    with pytest.raises(ValueError):
+        sq.clifford_cardinality(-1)
+    with pytest.raises(TypeError):
+        sq.enumerate_cliffords(1, 2.7)
+    with pytest.raises(ValueError):
+        sq.canonicalize_rref(["XZ", "ZX"], [-1])
+    for bad in ([[0, np.nan], [np.nan, 0]], [[0, 2], [2, 0]], 0):
+        with pytest.raises(ValueError):
+            sq.Tableau.from_graph(bad)
+    assert len(sq.Tableau.from_graph([])) == len(sq.Tableau.from_graph(np.zeros((0, 0)))) == 0

@@ -21,6 +21,7 @@ qubits for a mixed state), a ``Tableau`` (its stabilizers, the Z images) or a
 
 from __future__ import annotations
 
+import operator
 from typing import Any, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -86,6 +87,9 @@ def _paulis_of(state: Any) -> list:
         return state.to_stabilizers()
     if isinstance(state, TableauSimulator):
         return state.canonical_stabilizers()
+    if isinstance(state, (str, PauliString)) or type(state).__name__ == "PauliString":
+        # One generator, not its letters.
+        return [PauliString(state if isinstance(state, (str, PauliString)) else str(state))]
     return [PauliString(p) for p in state]
 
 
@@ -101,7 +105,31 @@ def _rows(state: Any, num_qubits: Optional[int] = None) -> _Rows:
         xs, zs = p.to_numpy()
         x[k, : len(xs)], z[k, : len(zs)] = xs, zs
         neg[k] = p.sign == -1
+    # The symplectic products, in blocks of rows; integers below 2^24 are exact in float32.
+    xf, zf = x.astype(np.float32), z.astype(np.float32)
+    for s in range(0, len(paulis), 2048):
+        if ((xf[s : s + 2048] @ zf.T + zf[s : s + 2048] @ xf.T) % 2).any():
+            raise ValueError("the stabilizers do not commute")
     return _Rows(x, z, neg)
+
+
+def _independent(r: _Rows) -> _Rows:
+    """The rows with dependent ones dropped (an overcomplete list of checks, as a code's often
+    is), the group unchanged; a product of them equal to −I is no stabilizer state."""
+    if _rank_gf2(np.hstack([r.x, r.z])) == len(r.neg):
+        return r
+    # Filled from the last row up, the rows above the pivots are products equal to ±I.
+    k = _rref(r, range(r.x.shape[1]))
+    if r.neg[:k].any():
+        raise ValueError("the stabilizers are inconsistent: a product of them is −I")
+    return _Rows(r.x[k:], r.z[k:], r.neg[k:])
+
+
+def _qubit_list(qubits: Iterable[int], n: int) -> List[int]:
+    out = [operator.index(q) for q in qubits]
+    if any(not 0 <= q < n for q in out):
+        raise ValueError(f"the qubits {out} are not all among the state's {n}")
+    return out
 
 
 def _clip(r: _Rows) -> None:
@@ -223,7 +251,7 @@ def canonicalize_rref(state: Any, qubits: Optional[Iterable[int]] = None) -> Tup
     from the last row up (Audenaert and Plenio 2005): ``(stabilizers, k)``, the first ``k``
     of them acting trivially on ``qubits``. Tracing ``qubits`` out leaves those ``k``."""
     r = _rows(state)
-    cols = range(r.x.shape[1]) if qubits is None else [int(q) for q in qubits]
+    cols = range(r.x.shape[1]) if qubits is None else _qubit_list(qubits, r.x.shape[1])
     k = _rref(r, cols)
     return r.paulis(), k
 
@@ -311,7 +339,7 @@ def graph_state(state: Any) -> Tuple[np.ndarray, List[int], List[int], List[int]
     >>> [(int(a), int(b)) for a, b in zip(*np.nonzero(np.triu(adj)))], h, ip, z
     ([(0, 1), (0, 2)], [1, 2], [], [2])
     """
-    return _adjacency(_rows(state))
+    return _adjacency(_independent(_rows(state)))
 
 
 def graph_gate_sequence(h_idx: Sequence[int], ip_idx: Sequence[int], z_idx: Sequence[int]) -> Any:
@@ -330,8 +358,11 @@ def graph_gate(h_idx: Sequence[int], ip_idx: Sequence[int], z_idx: Sequence[int]
     """``graph_gate_sequence`` as one Tableau on ``num_qubits`` qubits."""
     from ._stim import Tableau
 
+    n = operator.index(num_qubits)
+    for qubits in (h_idx, ip_idx, z_idx):
+        _qubit_list(qubits, n)
     c = graph_gate_sequence(h_idx, ip_idx, z_idx)
-    c.append("I", [int(num_qubits) - 1]) if num_qubits else None
+    c.append("I", [n - 1]) if n else None
     return Tableau.from_circuit(c)
 
 
@@ -339,7 +370,12 @@ def _from_graph(adjacency: Any) -> Any:
     from ._circuit import Circuit
     from ._stim import Tableau
 
-    a = np.asarray(adjacency).astype(bool)
+    a = np.asarray(adjacency)
+    if a.size == 0:
+        a = a.reshape(0, 0)
+    if a.ndim != 2 or not np.isin(a, (0, 1)).all():
+        raise ValueError("the adjacency matrix must be a square matrix of 0s and 1s")
+    a = a.astype(bool)
     n = a.shape[0]
     if a.shape != (n, n) or (a != a.T).any() or a.diagonal().any():
         raise ValueError("the adjacency matrix must be square, symmetric and without loops")
@@ -357,17 +393,18 @@ def entanglement_entropy(state: Any, subsystem: Iterable[int], algorithm: str = 
     stabilizer group). ``algorithm``: ``"rref"`` (tracing the rest out, ``canonicalize_rref``;
     any state), ``"clip"`` (the clipped gauge's ``bigram``; a contiguous subsystem) or
     ``"graph"`` (the rank over GF(2) of the graph state's adjacency between the subsystem and
-    the rest; a pure state). A mixed state is fewer generators than qubits; ``num_qubits``
-    widens the state past its generators' length.
+    the rest; a pure state). A mixed state is fewer independent generators than qubits
+    (dependent ones, as an overcomplete list of checks has, are dropped); ``num_qubits`` widens
+    the state past its generators' length.
 
     >>> import stabilizer_qec as sq
     >>> ghz = ["XXXX", "ZZ__", "_ZZ_", "__ZZ"]
     >>> [sq.entanglement_entropy(ghz, range(k), "clip") for k in range(5)]
     [0, 1, 1, 1, 0]
     """
-    r = _rows(state, num_qubits)
+    r = _independent(_rows(state, num_qubits))
     rows, n = r.x.shape
-    sub = sorted({int(q) for q in subsystem})
+    sub = sorted({operator.index(q) for q in subsystem})
     if sub and not 0 <= sub[0] <= sub[-1] < n:
         raise ValueError(f"the subsystem has qubits outside the state's {n}")
     if algorithm == "clip":
@@ -392,9 +429,10 @@ def entanglement_entropy(state: Any, subsystem: Iterable[int], algorithm: str = 
 
 def mutual_information(state: Any, a: Iterable[int], b: Iterable[int], *, num_qubits: Optional[int] = None) -> int:
     """S(A) + S(B) − S(AB) of two disjoint subsystems, in bits."""
-    a, b = sorted({int(q) for q in a}), sorted({int(q) for q in b})
+    a, b = sorted({operator.index(q) for q in a}), sorted({operator.index(q) for q in b})
     if set(a) & set(b):
         raise ValueError("the subsystems overlap")
+    state = _paulis_of(state)  # read once: it may be an iterator
     s = lambda q: entanglement_entropy(state, q, "rref", num_qubits=num_qubits)  # noqa: E731
     return s(a) + s(b) - s(a + b)
 
@@ -403,13 +441,16 @@ def _rank_gf2(m: np.ndarray) -> int:
     m = np.array(m, dtype=bool)
     rank = 0
     for c in range(m.shape[1] if m.ndim == 2 else 0):
-        pivot = next((r for r in range(rank, m.shape[0]) if m[r, c]), None)
-        if pivot is None:
+        if rank == m.shape[0]:
+            break
+        below = np.flatnonzero(m[rank:, c])
+        if not len(below):
             continue
+        pivot = rank + int(below[0])
         m[[rank, pivot]] = m[[pivot, rank]]
-        for r in range(m.shape[0]):
-            if r != rank and m[r, c]:
-                m[r] ^= m[rank]
+        hit = m[:, c].copy()
+        hit[rank] = False
+        m[hit] ^= m[rank]
         rank += 1
     return rank
 
@@ -531,6 +572,9 @@ def clifford_cardinality(n: int, *, phases: bool = True) -> int:
     >>> sq.clifford_cardinality(7, phases=False)
     27930968965434591767112450048000
     """
+    n = operator.index(n)
+    if n < 0:
+        raise ValueError(f"n must be at least 0, got {n}")
     base = 2 ** (n * n)
     for j in range(1, n + 1):
         base *= 4**j - 1
@@ -577,15 +621,17 @@ def enumerate_cliffords(n: int, index: Optional[int] = None, *, padded_n: Option
     >>> [str(t.x_output(q)) for q in range(3)], [str(t.z_output(q)) for q in range(3)]
     (['+X__', '+__Z', '+_Z_'], ['+Z__', '+__X', '+_X_'])
     """
-    padded = n if padded_n is None else int(padded_n)
+    n = operator.index(n)
+    padded = n if padded_n is None else operator.index(padded_n)
     if n < 1 or padded < n:
         raise ValueError(f"n must be positive and padded_n at least n, got n={n}, padded_n={padded_n}")
     size = (4**n - 1) * 2 ** (2 * n - 1) if only_coset else clifford_cardinality(n, phases=False)
     if index is None:
         return (_tableau(_enumerate(n, i + 1, padded, only_coset)) for i in range(size))
+    index = operator.index(index)
     if not 0 <= index < size:
         raise IndexError(f"index {index} is not below the {size} Cliffords")
-    return _tableau(_enumerate(n, int(index) + 1, padded, only_coset))
+    return _tableau(_enumerate(n, index + 1, padded, only_coset))
 
 
 _SINGLE_QUBIT_PATTERNS = (
@@ -607,6 +653,7 @@ def enumerate_single_qubit_gates(index: int, *, phases: Tuple[bool, bool] = (Fal
     >>> sq.enumerate_single_qubit_gates(5) == sq.Tableau.from_named_gate("S")
     True
     """
+    index = operator.index(index)
     if not 0 <= index < 6:
         raise IndexError("there are 6 single-qubit Cliffords up to signs (index 0 to 5)")
     xx, xz, zx, zz = _SINGLE_QUBIT_PATTERNS[index]
@@ -626,7 +673,12 @@ def enumerate_phases(op: Any) -> Iterator[Any]:
     from ._stim import Tableau
 
     if not isinstance(op, Tableau):
-        return (t for o in op for t in enumerate_phases(o))
+        if isinstance(op, (str, bytes)) or not hasattr(op, "__iter__"):
+            raise TypeError(f"enumerate_phases takes a Tableau or an iterable of them, got {type(op).__name__}")
+        ops = list(op)
+        if not all(isinstance(o, Tableau) for o in ops):
+            raise TypeError("enumerate_phases takes a Tableau or an iterable of Tableaux")
+        return (t for o in ops for t in enumerate_phases(o))
     x2x, x2z, z2x, z2z, _, _ = op.to_numpy()
     n = len(op)
 
