@@ -48,6 +48,15 @@ def _assert_codes_equal(a, b):
         np.testing.assert_array_equal(_dense(a.Hz), _dense(b.Hz))
 
 
+def test_repetition_code_equal():
+    # In PanQEC's wheel, not registered in its config (nor its source on GitHub).
+    from panqec.codes.repetition._repetition_code import RepetitionCode as Ref
+    from stabilizer_qec.panqec.codes.repetition._repetition_code import RepetitionCode as Ours
+
+    for size in (3, 4, 7):
+        _assert_codes_equal(Ours(size), Ref(size))
+
+
 @pytest.mark.parametrize("name", CODE_NAMES)
 def test_codes_equal(name):
     made = 0

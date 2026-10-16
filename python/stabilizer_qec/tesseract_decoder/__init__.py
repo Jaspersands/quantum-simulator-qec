@@ -10,7 +10,7 @@ import enum as _enum
 from typing import Any as _Any
 from typing import Iterator as _Iterator
 
-from . import common, simplex, tesseract, tesseract_sinter_compat, utils, viz
+from . import common, demutil, simplex, tesseract, tesseract_sinter_compat, utils, viz
 from ._multi_pass import _compile_multi_pass_decoder_for_dem, _MultiPassSinterCompiledDecoder
 from .tesseract_sinter_compat import TesseractSinterDecoder, make_tesseract_sinter_decoders_dict
 
