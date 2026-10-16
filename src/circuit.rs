@@ -376,7 +376,9 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
             }
             return Err(format!("line {lineno}: unmatched '}}'"));
         }
-        if let Some(rest) = line.strip_suffix('{') {
+        // `REPEAT 5 {}` is an empty block on one line, as Stim reads it.
+        let empty = line.strip_suffix('}').map(str::trim_end).and_then(|r| r.strip_suffix('{'));
+        if let Some(rest) = empty.or_else(|| line.strip_suffix('{')) {
             let (name, tag, args, parts) = split_instruction(rest).map_err(|e| format!("line {lineno}: {e}"))?;
             if name != "REPEAT" {
                 return Err(format!("line {lineno}: only REPEAT opens a block, got '{name}'"));
@@ -389,7 +391,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
             if count == 0 {
                 return Err(format!("line {lineno}: Repeating 0 times is not supported."));
             }
-            let body = parse_block(lines, pos, true)?;
+            let body = if empty.is_some() { Vec::new() } else { parse_block(lines, pos, true)? };
             out.push(Instr::Repeat { count, body, tag: tag.to_string() });
             continue;
         }
@@ -858,7 +860,7 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
                 }
                 Instr::Gate { line: gate_line(&name, &args, &t), tag: String::new(), body }
             }
-            None => return Err(format!("unsupported instruction '{name}'")),
+            None => return Err(format!("Gate not found: '{name}' (an unsupported instruction)")),
         },
     })
 }
@@ -1367,6 +1369,9 @@ mod tests {
         assert!(Circuit::parse("M !0").is_ok());
         assert!(Circuit::parse("X_ERROR(1.5) 0").is_err());
         assert!(Circuit::parse("REPEAT 2 {\nH 0\n").is_err());
+        let empty = Circuit::parse("H 0\nREPEAT 5 {}  # none\nX 1").unwrap();
+        assert!(matches!(&empty.instrs[1], Instr::Repeat { count: 5, body, .. } if body.is_empty()));
+        assert!(Circuit::parse("REPEAT 5 {H 0}").is_err());
     }
 
     #[test]

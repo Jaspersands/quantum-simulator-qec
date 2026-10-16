@@ -43,6 +43,8 @@ pub mod generated;
 pub mod dem;
 #[doc(hidden)]
 pub mod dem_build;
+/// Deltakit's Stim: how its leakage runs, for the leakage sampler and the error model in its mode.
+pub(crate) mod deltakit;
 #[doc(hidden)]
 pub mod dem_program;
 pub mod user_graph;

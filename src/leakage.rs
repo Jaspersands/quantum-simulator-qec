@@ -31,10 +31,82 @@ use std::collections::VecDeque;
 use crate::clifford::ir::{self, GateTarget, Instruction, Item};
 use crate::nonpauli::NonPauli;
 
-const NAMES: [&str; 3] = ["LEAKAGE", "RELAX", "HERALD_LEAKAGE_EVENT"];
+const NAMES: [&str; 4] = ["LEAKAGE", "RELAX", "HERALD_LEAKAGE_EVENT", "RL"];
 
 /// The tag of a lowered herald.
 pub const HERALD: &str = "HERALD_LEAKAGE_EVENT";
+
+/// The tag a two-qubit gate's leakage transport is lowered to (Deltakit's `CX(p1, p2, p3, p4)`).
+pub const TRANSPORT: &str = "LEAKAGE_TRANSPORT";
+
+/// The keys of a transport tag, in the order of Deltakit's four arguments: leakage spreading
+/// from the first qubit (control) to the second and back, then leakage moving (mobility) from
+/// the first to the second and back.
+const TRANSPORT_KEYS: [&str; 4] = ["spread", "spread_back", "mobility", "mobility_back"];
+
+/// The two-qubit gates leakage passes through in Deltakit's Stim, by every name Stim reads.
+pub const TRANSPORT_GATES: [&str; 9] = ["CX", "ZCX", "CNOT", "CY", "ZCY", "CZ", "ZCZ", "SQRT_XX", "SQRT_XX_DAG"];
+
+/// A herald's tag, for the qubits its records read.
+pub fn herald_tag(qubits: &[u32]) -> String {
+    format!("{HERALD}(qubits={})", qubits.iter().map(u32::to_string).collect::<Vec<_>>().join(" "))
+}
+
+/// The four probabilities of a transport tag (`LEAKAGE_TRANSPORT(spread=…, spread_back=…,
+/// mobility=…, mobility_back=…)`), if `tag` is one.
+pub fn transport_args(tag: &str) -> Option<Result<[f64; 4], String>> {
+    let inner = tag.trim().strip_prefix(TRANSPORT)?.trim();
+    let inner = inner.strip_prefix('(').and_then(|s| s.strip_suffix(')'))?;
+    let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+    let mut out = [0.0; 4];
+    if parts.len() != 4 {
+        return Some(Err(format!("{TRANSPORT}: four arguments ({}), not {}", TRANSPORT_KEYS.join(", "), parts.len())));
+    }
+    for (k, (part, key)) in parts.iter().zip(TRANSPORT_KEYS).enumerate() {
+        let value = part.split_once('=').filter(|(k, _)| k.trim() == key).map(|(_, v)| v.trim());
+        match value.and_then(|v| v.parse::<f64>().ok()) {
+            Some(p) if (0.0..=1.0).contains(&p) => out[k] = p,
+            _ => return Some(Err(format!("{TRANSPORT}: argument {} must be {key}=<probability>, not '{part}'", k + 1))),
+        }
+    }
+    Some(Ok(out))
+}
+
+/// A line naming a transport gate with four arguments (Deltakit's `CX(p1, p2, p3, p4) 0 1`),
+/// lowered to the gate tagged with them; `None` for the gate with any other arguments, which
+/// Stim reads (or refuses) itself.
+fn lower_transport(indent: &str, name: &str, rest: &str) -> Result<Option<String>, String> {
+    let tagged = rest.starts_with('[');
+    let after_tag = if tagged {
+        match rest.find(']') {
+            Some(close) => &rest[close + 1..],
+            None => return Ok(None),
+        }
+    } else {
+        rest
+    };
+    let Some(inner) = after_tag.trim_start().strip_prefix('(') else {
+        return Ok(None);
+    };
+    let Some(close) = inner.find(')') else {
+        return Ok(None);
+    };
+    let args: Vec<&str> = inner[..close].split(',').map(str::trim).filter(|a| !a.is_empty()).collect();
+    if args.len() != 4 {
+        return Ok(None);
+    }
+    if tagged {
+        return Err(format!("{name}: a gate with Deltakit's four leakage transport arguments takes no tag"));
+    }
+    for a in &args {
+        match a.parse::<f64>() {
+            Ok(p) if (0.0..=1.0).contains(&p) => {}
+            _ => return Err(format!("{name}: '{a}' is not a probability")),
+        }
+    }
+    let kv: Vec<String> = TRANSPORT_KEYS.iter().zip(&args).map(|(k, v)| format!("{k}={v}")).collect();
+    Ok(Some(format!("{indent}{name}[{TRANSPORT}({})]{}", kv.join(", "), &inner[close + 1..]).trim_end().to_string()))
+}
 
 /// A line of Deltakit's dialect (its comment stripped) as the tagged line it is read as; `None`
 /// for any other line.
@@ -42,10 +114,13 @@ pub fn lower_line(line: &str) -> Result<Option<String>, String> {
     let trimmed = line.trim_start();
     let end = trimmed.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).unwrap_or(trimmed.len());
     let name = trimmed[..end].to_ascii_uppercase();
+    let indent = &line[..line.len() - trimmed.len()];
+    if TRANSPORT_GATES.contains(&name.as_str()) {
+        return lower_transport(indent, &name, &trimmed[end..]);
+    }
     if !NAMES.contains(&name.as_str()) {
         return Ok(None);
     }
-    let indent = &line[..line.len() - trimmed.len()];
     let mut rest = &trimmed[end..];
     if rest.starts_with('[') {
         return Err(format!("{name}: Deltakit's instruction takes no tag"));
@@ -84,6 +159,15 @@ pub fn lower_line(line: &str) -> Result<Option<String>, String> {
         let flip = args.first().map(|a| format!("({a})")).unwrap_or_default();
         let values = list(&|&(_, inv)| if inv { "1".into() } else { "0".into() });
         return Ok(Some(format!("{indent}MPAD[{HERALD}(qubits={})]{flip} {values}", list(&|&(q, _)| q.to_string())).trim_end().to_string()));
+    }
+    if name == "RL" {
+        if !args.is_empty() {
+            return Err(format!("{name} takes no arguments"));
+        }
+        if qubits.iter().any(|q| q.1) {
+            return Err(format!("{name}: a leakage reset's target is not inverted"));
+        }
+        return Ok(Some(format!("{indent}I[RL] {}", list(&|&(q, _)| q.to_string())).trim_end().to_string()));
     }
     if args.len() != 1 {
         return Err(format!("{name} takes one argument, its probability"));
@@ -130,8 +214,14 @@ fn raise_line(line: &str) -> Option<String> {
     let indent = &line[..line.len() - trimmed.len()];
     let code = crate::circuit::strip_comment(trimmed).trim_end();
     let (name, tag, args, targets) = crate::circuit::split_instruction(code).ok()?;
-    let arg = |v: f64| format!("{v:?}");
+    let arg = ir::stim_arg;
+    if TRANSPORT_GATES.contains(&name.as_str()) {
+        let p = transport_args(tag)?.ok()?;
+        let p: Vec<String> = p.iter().map(|&v| arg(v)).collect();
+        return Some(format!("{indent}{name}({}) {}", p.join(", "), targets.join(" ")).trim_end().to_string());
+    }
     match name.as_str() {
+        "I" if tag.trim() == "RL" => Some(format!("{indent}RL {}", targets.join(" ")).trim_end().to_string()),
         "I_ERROR" => {
             let ops = crate::nonpauli::parse("I_ERROR", tag, &targets.iter().map(|t| t.parse().ok()).collect::<Option<Vec<u32>>>()?).ok()??;
             let (word, p) = match ops.first()? {

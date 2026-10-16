@@ -182,18 +182,20 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | D2 | Local Clustering Decoder (LCD, arXiv 2411.10343): adaptive, leakage-aware | done (2.0 W6: from the paper, in Rust, `src/clustering.rs`) |
 | D3 | Ambiguity Clustering (BP-AC, arXiv 2406.14527) | done (2.0 W6: from the paper, in Rust, `src/ambiguity.rs`) |
 | D4 | Leakage flags in data and leakage-aware decoding (`LeakageFlags`, `HERALD_LEAKAGE_EVENT`) | done (2.0 W6: dialect, sampler, `without_leakage`, `LeakageAwareDecoder`) |
-| D5 | Noise models: SD6, SI1000, phenomenological, toy, `PhysicalNoise` (T1/T2-derived), noise profiles per gate, `Leakage` and `Relax` channels | part (SD6, SI1000-like in data; no T1/T2) |
-| D6 | QPU model: native gate sets with times, `compile_circuit_to_native_gates` (CZ / CZSWAP), parallelise circuits, merge layers, remove identities | gap |
-| D7 | Codes: rotated/unrotated planar, unrotated toric, repetition, BB, generic `CSSCode`, `StabiliserCode`, schedules (orders, types) | part |
-| D8 | Stability experiments (`css_code_stability_circuit`, `QECExperimentType.STABILITY`) | gap |
+| D5 | Noise models: SD6, SI1000, phenomenological, toy, `PhysicalNoise` (T1/T2-derived), noise profiles per gate, `Leakage` and `Relax` channels | done (2.0 W7: `stabilizer_qec.deltakit.explorer.qpu`, Deltakit's own, its circuits and DEMs equal to Deltakit's) |
+| D6 | QPU model: native gate sets with times, `compile_circuit_to_native_gates` (CZ / CZSWAP), parallelise circuits, merge layers, remove identities | done (2.0 W7: `stabilizer_qec.deltakit.explorer.qpu`, Deltakit's own, its compiled circuits equal to Deltakit's) |
+| D7 | Codes: rotated/unrotated planar, unrotated toric, repetition, BB, generic `CSSCode`, `StabiliserCode`, schedules (orders, types) | done (2.0 W7: `stabilizer_qec.deltakit.explorer.codes`, Deltakit's own, every code's memory circuits equal to Deltakit's) |
+| D8 | Stability experiments (`css_code_stability_circuit`, `QECExperimentType.STABILITY`) | done (2.0 W7: as in Deltakit, through its cloud client, `stabilizer_qec.deltakit.Client`; Deltakit builds none locally either) |
 | D9 | Correlation matrix p_ij from data, `create_dem_from_pij`, DEM vs p_ij comparison | done (2.0 W4: `stabilizer_qec.analysis`, deltakit's analysis) |
 | D10 | Λ fits (`calculate_lambda_*`, asymmetric), logical error per round fits, `simulate_different_round_numbers`, `predict_quops_*`, `predict_distance_for_quops` | done (2.0 W4: `stabilizer_qec.analysis`, deltakit's analysis) |
 | D11 | Error budget (`get_error_budget`: sensitivity of Λ to each noise parameter, plot) | done (2.0 W4: `stabilizer_qec.analysis`, deltakit's analysis) |
 | D12 | Plots: defect diagram, defect rates, detection probability on patch, Λ, LEPPR, correlation matrix | done (2.0 W4: `stabilizer_qec.analysis`, deltakit's analysis) |
-| D13 | Decoding graphs: hypergraph objects, graph distance, logicals extraction, window ids, JSON I/O | part |
-| D14 | Data formats: b8/01/csv for syndromes, logical flips, measurements; c64 | part |
+| D13 | Decoding graphs: hypergraph objects, graph distance, logicals extraction, window ids, JSON I/O | done (2.0 W7: `stabilizer_qec.deltakit.core.decoding_graphs`, Deltakit's own) |
+| D14 | Data formats: b8/01/csv for syndromes, logical flips, measurements; c64 | done (2.0 W7: `stabilizer_qec.deltakit.core.data_formats`, Deltakit's own) |
 | D15 | Decoder managers and run_decoding_on_circuit; empirical decoding error distribution | done (2.0 W4: `stabilizer_qec.analysis`, deltakit's analysis) |
-| D16 | Noise sources for code-capacity matching: exhaustive, fixed weight, uniform erasure | gap |
+| D16 | Noise sources for code-capacity matching: exhaustive, fixed weight, uniform erasure | done (2.0 W7: `stabilizer_qec.deltakit.decode.noise_sources`, Deltakit's own) |
+
+deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visualiser) are W10's.
 
 ## Q — qLDPC 0.4.1 (Infleqtion)
 

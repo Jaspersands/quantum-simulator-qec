@@ -11,6 +11,14 @@ import sys
 # Plots render off screen (a CI runner's Tk may be unusable).
 os.environ.setdefault("MPLBACKEND", "Agg")
 
+# deltakit_stim's pybind11 must set up the internals it shares with matplotlib's before
+# matplotlib does: imported after matplotlib.pyplot, its circuits' iteration raises "Caught an
+# unknown exception!" (the IndexError that ends it untranslated).
+try:
+    import deltakit_stim  # noqa: F401
+except ImportError:
+    pass
+
 import pytest
 
 import stabilizer_qec as sq
@@ -52,7 +60,7 @@ def assert_same_model(ours: str, theirs: str) -> None:
 
 # The references the differential tests reproduce, at the versions they reproduce: another
 # version (pip picks an older one where the newer has no wheel for the platform) is skipped.
-REFERENCE_VERSIONS = {"fusion_blossom": ("fusion-blossom", "0.2.13"), "relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1"), "mwpf": ("mwpf", "0.2.12"), "quits": ("quits", "1.2.0"), "panqec": ("panqec", "0.1.7")}
+REFERENCE_VERSIONS = {"fusion_blossom": ("fusion-blossom", "0.2.13"), "relay_bp": ("relay-bp", "0.2.2"), "tesseract_decoder": ("tesseract-decoder", "0.1.1.dev20261013012529"), "chromobius": ("chromobius", "1.1.1"), "mwpf": ("mwpf", "0.2.12"), "quits": ("quits", "1.2.0"), "panqec": ("panqec", "0.1.7"), "deltakit_stim": ("deltakit-stim", "0.2.7")}
 
 
 def reference(module: str):
@@ -136,6 +144,11 @@ if _sys.version_info < (3, 10) or not all(_importlib_util.find_spec(m) for m in 
 # PanQEC's own tests (tests/panqec_port) need the `panqec` extra (its GUI, Flask, is optional).
 if not all(_importlib_util.find_spec(m) for m in ("scipy", "pandas", "matplotlib", "click", "psutil", "tqdm")):
     collect_ignore_glob += ["panqec_port", "panqec_port/*"]
+
+# Deltakit's own tests (tests/deltakit_port) need the `deltakit` extra, Python 3.11, and the
+# pytest plugins Deltakit tests with.
+if _sys.version_info < (3, 11) or not all(_importlib_util.find_spec(m) for m in ("scipy", "networkx", "matplotlib", "pandas", "galois", "uncertainties", "pathos", "plotly", "gql", "pytest_mock", "pytest_lazy_fixtures")):
+    collect_ignore_glob += ["deltakit_port", "deltakit_port/*"]
 
 # PECOS's own tests (tests/pecos_port) need the `pecos` extra.
 if not all(_importlib_util.find_spec(m) for m in ("scipy", "matplotlib", "networkx")):

@@ -10,7 +10,7 @@ import numpy as np
 from . import _core, _dem, _stim
 import math
 from typing import Tuple
-from ._util import b8_to_rows, call, count, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
+from ._util import b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
 
 class Circuit:
@@ -50,6 +50,9 @@ class Circuit:
 
     __slots__ = ("_c",)
 
+    # Deltakit's Stim's error model (``stabilizer_qec.deltakit_stim``), not Stim's.
+    _deltakit = False
+
     def __init__(self, stim_program_text: Union[str, "Circuit", Any] = "", *, text: Union[str, None] = None) -> None:
         if text is not None:  # 1.x's keyword
             stim_program_text = text
@@ -60,7 +63,7 @@ class Circuit:
         """Read a ``.stim`` file, from a path or an open file."""
         if hasattr(file, "read"):
             return cls(file.read())
-        with open(file, encoding="utf-8") as f:
+        with open_file(file, encoding="utf-8") as f:
             return cls(f.read())
 
     def __str__(self) -> str:
@@ -108,9 +111,9 @@ class Circuit:
     def _items(self) -> list:
         return _core.circuit_items(self._c.__str__(), False)
 
-    @staticmethod
-    def _of_items(items: list) -> "Circuit":
-        out = Circuit.__new__(Circuit)
+    @classmethod
+    def _of_items(cls, items: list) -> "Circuit":
+        out = cls.__new__(cls)
         out._c = call(_core.Circuit, _stim._items_exact_text(items), False)
         return out
 
@@ -126,7 +129,7 @@ class Circuit:
         """The instruction or REPEAT block at an index, or a slice of them as a circuit."""
         items = self._items()
         if isinstance(index_or_slice, slice):
-            return Circuit._of_items(items[index_or_slice])
+            return type(self)._of_items(items[index_or_slice])
         if isinstance(index_or_slice, bool) or not isinstance(index_or_slice, (int, np.integer)):
             raise TypeError(f"circuit indices must be integers or slices, not {type(index_or_slice).__name__}")
         k = int(index_or_slice)
@@ -177,7 +180,7 @@ class Circuit:
         self._c = call(_core.Circuit, "")
 
     def _transformed(self, which: str) -> "Circuit":
-        return Circuit(call(_core.circuit_transform, self._stim_exact_text(), which))
+        return type(self)(call(_core.circuit_transform, self._stim_exact_text(), which))
 
     def decomposed(self) -> "Circuit":
         """The circuit in (mostly) H, S, CX, M and R, as Stim's ``decomposed``."""
@@ -301,7 +304,7 @@ class Circuit:
         if hasattr(file, "write"):
             file.write(text)
         else:
-            with open(file, "w", encoding="utf-8") as f:
+            with open_file(file, "w", encoding="utf-8") as f:
                 f.write(text)
 
     # Flows.
@@ -327,12 +330,12 @@ class Circuit:
         """The circuit run backwards, its detectors and observables re-expressed, with the
         given flows turned around."""
         text, fl = call(_core.circuit_time_reversed_for_flows, self._stim_exact_text(), [str(_stim.Flow(f)) for f in flows], bool(dont_turn_measurements_into_resets))
-        return Circuit(text), [_stim.Flow._of(f) for f in fl]
+        return type(self)(text), [_stim.Flow._of(f) for f in fl]
 
     def missing_detectors(self, *, unknown_input: bool = False) -> "Circuit":
         """Detectors the circuit could declare but doesn't (independent of the declared
         detectors and observables)."""
-        return Circuit(call(_core.circuit_missing_detectors, self._stim_exact_text(), bool(unknown_input)))
+        return type(self)(call(_core.circuit_missing_detectors, self._stim_exact_text(), bool(unknown_input)))
 
     def to_qasm(self, *, open_qasm_version: int, skip_dets_and_obs: bool = False) -> str:
         """The circuit as OpenQASM 2 or 3, as Stim's ``to_qasm`` writes it. Version 3 keeps
@@ -389,7 +392,7 @@ class Circuit:
 
     def copy(self) -> "Circuit":
         """A copy, to change without changing this one."""
-        out = Circuit.__new__(Circuit)
+        out = type(self).__new__(type(self))
         out._c = self._c.copy()
         return out
 
@@ -455,7 +458,7 @@ class Circuit:
         decoder assume. With ``merge``, rotations that are the same fault in different places
         (either side of a gate that leaves them alone, say) become one with their angles added,
         sin²(Σθ): the coherence-aware model. Merging writes the circuit without loops."""
-        out = Circuit.__new__(Circuit)
+        out = type(self).__new__(type(self))
         out._c = call(self._c.twirled, bool(merge))
         return out
 
@@ -463,7 +466,7 @@ class Circuit:
         """``REPEAT repetitions { self }``, as Stim's: nothing for 0, the circuit for 1."""
         if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):
             return NotImplemented
-        out = Circuit.__new__(Circuit)
+        out = type(self).__new__(type(self))
         out._c = call(self._c.repeated, count(repetitions, "repetitions"))
         return out
 
@@ -535,7 +538,7 @@ class Circuit:
             threshold = 1.0 if approximate_disjoint_errors else None
         else:
             threshold = real(approximate_disjoint_errors, "approximate_disjoint_errors")
-        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures), bool(allow_gauge_detectors), bool(block_decomposition_from_introducing_remnant_edges)))
+        return DetectorErrorModel._wrap(call(self._c.detector_error_model, bool(decompose_errors), threshold, bool(flatten_loops), bool(ignore_decomposition_failures), bool(allow_gauge_detectors), bool(block_decomposition_from_introducing_remnant_edges), self._deltakit))
 
     def diagram(self, type: str = "timeline-text", *, tick: Union[int, range, None] = None, rows: Union[int, None] = None, filter_coords: Any = None) -> "Diagram":
         """A picture of the circuit, with Stim's ``diagram`` types:
@@ -629,6 +632,8 @@ class Circuit:
         before_measure_flip_probability: float = 0.0,
         after_reset_flip_probability: float = 0.0,
         annotate_colors: bool = False,
+        after_reset_leakage: float = 0.0,
+        after_clifford_leakage_and_relaxation: float = 0.0,
     ) -> "Circuit":
         """One of Stim's generated memory experiments, character for character as
         ``stim.Circuit.generated`` writes it, with the same arguments. ``code_task`` is
@@ -640,6 +645,10 @@ class Circuit:
         basis annotation, as its authors annotate these circuits. Chromobius does not decode
         them under circuit noise (its tests leave them out), and neither does
         ``ColorMatching``; it does decode ``CssCode.color_code`` memories.
+
+        ``after_reset_leakage`` and ``after_clifford_leakage_and_relaxation`` are Deltakit's
+        Stim's: ``LEAKAGE(p)`` after each reset (``MR`` included), and after each two-qubit
+        gate's noise, with ``RELAX(p)`` after each single-qubit gate's.
 
         >>> c = Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=5,
         ...                       after_clifford_depolarization=0.001)
@@ -658,6 +667,8 @@ class Circuit:
             probability(before_measure_flip_probability, "before_measure_flip_probability"),
             probability(after_reset_flip_probability, "after_reset_flip_probability"),
             bool(annotate_colors),
+            probability(after_reset_leakage, "after_reset_leakage"),
+            probability(after_clifford_leakage_and_relaxation, "after_clifford_leakage_and_relaxation"),
         )
         return cls(text)
 
@@ -1056,7 +1067,7 @@ class DetectorErrorModel:
         """Read a ``.dem`` file, from a path or an open file."""
         if hasattr(file, "read"):
             return cls(file.read())
-        with open(file, encoding="utf-8") as f:
+        with open_file(file, encoding="utf-8") as f:
             return cls(f.read())
 
     def to_file(self, file: Any) -> None:
@@ -1065,7 +1076,7 @@ class DetectorErrorModel:
         if hasattr(file, "write"):
             file.write(text)
         else:
-            with open(file, "w", encoding="utf-8") as f:
+            with open_file(file, "w", encoding="utf-8") as f:
                 f.write(text)
 
     def copy(self) -> "DetectorErrorModel":
@@ -1680,7 +1691,7 @@ class DetectorSampler:
         nd, no = self.num_detectors, self.num_observables
         rows = np.concatenate(([obs] if prepend_observables else []) + [dets] + ([obs] if append_observables else []), axis=1)
         names = [f"L{k}" for k in range(no)] * prepend_observables + [f"D{k}" for k in range(nd)] + [f"L{k}" for k in range(no)] * append_observables
-        with open(filepath, "wb") as f:
+        with open_file(filepath, "wb") as f:
             f.write(encode_shots(rows, format, num_detectors=rows.shape[1], names=names))
         if obs_out_filepath is not None:
             write_shot_data_file(data=obs, path=obs_out_filepath, format=obs_out_format, num_observables=no)

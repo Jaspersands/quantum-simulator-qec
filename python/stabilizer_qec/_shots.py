@@ -20,7 +20,7 @@ from typing import Any, Union
 
 import numpy as np
 
-from ._util import count
+from ._util import count, open_file
 
 FORMATS = ("01", "b8", "r8", "ptb64", "hits", "dets")
 
@@ -168,7 +168,7 @@ def write_shot_data_file(
     a = np.asarray(data)
     if a.dtype == np.uint8 and a.ndim == 2:
         a = np.unpackbits(a, axis=1, bitorder="little", count=n).astype(bool)
-    with open(path, "wb") as f:
+    with open_file(path, "wb") as f:
         f.write(encode_shots(a, format, num_measurements, num_detectors, num_observables))
 
 
@@ -186,7 +186,7 @@ def read_shot_data_file(
     """Read shots from a file in one of Stim's result formats, as ``stim.read_shot_data_file``:
     (shots, n) bool, or bit-packed uint8 rows (``bit_pack`` is Stim's older name). With
     ``separate_observables``, ``(measurements and detectors, observables)``."""
-    with open(path, "rb") as f:
+    with open_file(path, "rb") as f:
         a = decode_shots(f.read(), format, num_measurements, num_detectors, num_observables)
     packed = bit_packed or bit_pack
 

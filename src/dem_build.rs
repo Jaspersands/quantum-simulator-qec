@@ -29,6 +29,7 @@ use crate::circuit::{Basis, Circuit, Control, Instr};
 use crate::dem::{depolarize1_component, depolarize2_component, fused, pauli_channel_1_independent};
 use crate::dem_program::{DemInstr, DemProgram, OBS};
 use crate::explain::{rank, Detail, Location, Recorder};
+use crate::nonpauli::NonPauli;
 
 /// Sorted, distinct targets: detectors by index, observables with the `OBS` bit.
 type Sym = Vec<u64>;
@@ -164,6 +165,19 @@ struct Tracker {
     rec: BTreeMap<u64, Sym>,
     m: u64,
     d: u64,
+    /// Deltakit's mode only (empty otherwise): per qubit, what its last herald walked past
+    /// reads (Deltakit's `l_data`), which Deltakit neither compares nor shifts in folding loops.
+    leak: Vec<Leak>,
+}
+
+/// A qubit's herald, met walking backwards (Deltakit's `LeakageData`): the herald record's
+/// symptom, the leakage that reached the qubit before it, and the part of that not yet walked
+/// past, both in single precision as Deltakit keeps them.
+#[derive(Clone, Default)]
+struct Leak {
+    herald: Sym,
+    total: f32,
+    rest: f32,
 }
 
 impl Tracker {
@@ -338,9 +352,91 @@ struct Analyzer {
     block_remnants: bool,
     /// The current channel's combinations (reused, see `Combos`).
     combos: Combos,
+    /// Deltakit's mode (see `deltakit`): each herald record's leakage, by record index.
+    dk: Option<Arc<HashMap<u64, f32>>>,
+    /// How deep in gates' bodies the walk is: Deltakit's roles are the circuit's instructions'.
+    depth: u32,
 }
 
 impl Analyzer {
+    /// A circuit-level instruction as Deltakit's error analyzer takes it before its own undo:
+    /// a transport gate's leakage terms, a reset forgetting heralds, or a herald, which it
+    /// takes whole (true).
+    fn deltakit(&mut self, ins: &Instr) -> Result<bool, String> {
+        match crate::deltakit::role(ins) {
+            crate::deltakit::Role::Transport { pairs, tag, .. } => {
+                if self.accumulate {
+                    let tag = tag.map(|t| Arc::<str>::from(t.as_str()));
+                    for &(c, t) in pairs.iter().rev() {
+                        for (q, other) in [(c, t), (t, c)] {
+                            let l = &self.t.leak[q as usize];
+                            if l.herald.is_empty() || l.total <= 0.0 {
+                                continue;
+                            }
+                            // The share of the qubit's leakage that came before this gate, in
+                            // Deltakit's precision.
+                            let p = depolarize1_component(0.75 * f64::from(l.rest / l.total));
+                            let herald = l.herald.clone();
+                            self.leakage_errors(p, other, &herald, &tag);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            crate::deltakit::Role::Reset(qubits) => {
+                for &q in qubits.iter().rev() {
+                    self.t.leak[q as usize] = Leak::default();
+                }
+                Ok(false)
+            }
+            crate::deltakit::Role::Herald { qubits, flip } => {
+                let map = self.dk.clone().expect("Deltakit's mode");
+                for &(q, _) in qubits.iter().rev() {
+                    let r = self.t.take_record()?;
+                    if flip > 0.0 {
+                        let origin = Origin { name: "herald flip", a: q, b: None, pauli: (1, 0) };
+                        self.add_at(flip, &[&r], origin, &None, None);
+                    }
+                    let total = map.get(&self.t.m).copied().unwrap_or(0.0);
+                    if !r.is_empty() && total > 0.0 {
+                        self.leakage_errors(depolarize1_component(0.75), q, &r, &None);
+                    }
+                    self.t.leak[q as usize] = Leak { herald: r, total, rest: total };
+                }
+                Ok(true)
+            }
+            crate::deltakit::Role::Other => Ok(false),
+        }
+    }
+
+    /// Deltakit's leakage terms: `q` depolarized (independently X, Z and Y, each with
+    /// probability `p`) together with the herald firing, a combination that is only herald
+    /// detectors left out.
+    fn leakage_errors(&mut self, p: f64, q: u32, herald: &[u64], tag: &Option<Arc<str>>) {
+        let qi = q as usize;
+        let mut combos = std::mem::take(&mut self.combos);
+        combos.build(&[&self.t.sz[qi], &self.t.sx[qi], herald]);
+        let mut pieces = [&[][..]; 1 << MAX_BASIS];
+        for k in 5..8 {
+            let m = combos.pieces(k, &mut pieces);
+            let only_herald = if self.decompose {
+                let mut nonempty = pieces[..m].iter().filter(|x| !x.is_empty());
+                match (nonempty.next(), nonempty.next()) {
+                    (None, _) => true,
+                    (Some(x), None) => subset(x, herald),
+                    _ => false,
+                }
+            } else {
+                subset(&pieces[..m].iter().fold(Sym::new(), |acc, x| xor(&acc, x)), herald)
+            };
+            if !only_herald {
+                let origin = Origin { name: "leakage", a: q, b: None, pauli: (0, 0) };
+                self.add_at(p, &pieces[..m], origin, tag, None);
+            }
+        }
+        self.combos = combos;
+    }
+
     fn spend(&mut self, units: u64) -> Result<(), String> {
         self.work = self.work.saturating_add(units);
         let merged = MERGED.with(|m| m.replace(0));
@@ -450,6 +546,10 @@ impl Analyzer {
             if let (Some(r), Some(v)) = (self.prov.as_mut(), view.as_ref()) {
                 r.enter(&v[i]);
             }
+            if self.dk.is_some() && self.depth == 0 && self.deltakit(ins)? {
+                self.spend(1 + ins.qubits().len() as u64)?;
+                continue;
+            }
             // A tagged instruction is a gate holding it untagged.
             let (ins, tag) = match ins {
                 Instr::Gate { body, tag, .. } if !tag.is_empty() && body.len() == 1 => (&body[0], Some(Arc::<str>::from(tag.as_str()))),
@@ -518,7 +618,9 @@ impl Analyzer {
                 if let Some(r) = self.prov.as_mut() {
                     r.enter_gate();
                 }
+                self.depth += 1;
                 let done = self.undo_block(body, &inner);
+                self.depth -= 1;
                 if let Some(r) = self.prov.as_mut() {
                     r.leave_gate();
                 }
@@ -813,6 +915,23 @@ impl Analyzer {
                     r.ticks = r.ticks.saturating_sub(1);
                 }
             }
+            // Deltakit's LEAKAGE takes its probability off the share of its qubit's leakage
+            // still ahead of the walk (single precision, never below 0); its RL is a reset.
+            Instr::NonPauli(ops) if self.dk.is_some() => {
+                for op in ops {
+                    match *op {
+                        NonPauli::Leakage { p, qubit } if self.accumulate => {
+                            let l = &mut self.t.leak[qubit as usize];
+                            l.rest = (f64::from(l.rest) - p) as f32;
+                            if l.rest < 0.0 {
+                                l.rest = 0.0;
+                            }
+                        }
+                        NonPauli::LeakageReset { qubit } => self.t.leak[qubit as usize] = Leak::default(),
+                        _ => {}
+                    }
+                }
+            }
             Instr::QubitCoords { .. } | Instr::Pauli { .. } | Instr::NonPauli(_) => {}
         }
         Ok(())
@@ -882,8 +1001,10 @@ impl Analyzer {
             prov: None,
             ignore_failures: false,
             allow_gauge: false,
-        block_remnants: false,
-        combos: Combos::default(),
+            block_remnants: false,
+            combos: Combos::default(),
+            dk: self.dk.clone(),
+            depth: 0,
         };
         let (mut hare_iter, mut tortoise_iter) = (0u64, 0u64);
         while hare_iter < iterations {
@@ -1083,10 +1204,23 @@ pub fn build_with(circuit: &Circuit, decompose: bool, approximate: Option<f64>, 
 /// `build_with`, also with Stim's `allow_gauge_detectors` and
 /// `block_decomposition_from_introducing_remnant_edges`.
 pub fn build_full(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool) -> Result<DemProgram, String> {
+    build_mode(circuit, decompose, approximate, fold, ignore_failures, allow_gauge, block_remnants, false)
+}
+
+/// `build_full` as Deltakit's Stim builds a model (see `deltakit`): with the leakage its
+/// heralds read.
+#[allow(clippy::too_many_arguments)]
+pub fn build_deltakit(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool) -> Result<DemProgram, String> {
+    build_mode(circuit, decompose, approximate, fold, ignore_failures, allow_gauge, block_remnants, true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_mode(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool, deltakit: bool) -> Result<DemProgram, String> {
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
+    let leak = if deltakit { vec![Leak::default(); nq] } else { Vec::new() };
     let mut a = Analyzer {
-        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors, leak },
         accumulate: true,
         fold,
         decompose,
@@ -1100,6 +1234,8 @@ pub fn build_full(circuit: &Circuit, decompose: bool, approximate: Option<f64>, 
         allow_gauge,
         block_remnants,
         combos: Combos::default(),
+        dk: deltakit.then(|| Arc::new(crate::deltakit::herald_leakage(&circuit.instrs))),
+        depth: 0,
     };
     a.undo_block(&circuit.instrs, &None)?;
     // Every qubit starts in |0>, which is a Z-basis reset at time zero.
@@ -1135,7 +1271,7 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
-        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors, leak: Vec::new() },
         accumulate: false,
         fold: false,
         decompose: false,
@@ -1149,6 +1285,8 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
         allow_gauge: false,
         block_remnants: false,
         combos: Combos::default(),
+        dk: None,
+        depth: 0,
     };
     a.undo_block(&circuit.instrs, &None)?;
     Ok(a.prov.take().map(|r| r.records).unwrap_or_default())
@@ -1169,7 +1307,7 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, ObsBits)>, Stri
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
-        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors },
+        t: Tracker { sx: vec![Sym::new(); nq], sz: vec![Sym::new(); nq], rec: BTreeMap::new(), m: counts.measurements, d: counts.detectors, leak: Vec::new() },
         accumulate: false,
         fold: !sweeps_in_loops(&circuit.instrs, false),
         decompose: false,
@@ -1184,6 +1322,8 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, ObsBits)>, Stri
         allow_gauge: false,
         block_remnants: false,
         combos: Combos::default(),
+        dk: None,
+        depth: 0,
     };
     a.undo_block(&circuit.instrs, &None)?;
     for q in 0..nq {

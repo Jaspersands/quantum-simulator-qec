@@ -438,14 +438,16 @@ fn decode_b8_belief<'py>(
 /// One of Stim's generated memory experiments as Stim's text: (task, distance, rounds, and the
 /// four noise strengths in Stim's order).
 #[pyfunction]
-#[pyo3(signature = (task, distance, rounds, clifford, round_data, measure, reset, annotate_colors=false))]
+#[pyo3(signature = (task, distance, rounds, clifford, round_data, measure, reset, annotate_colors=false, reset_leakage=0.0, clifford_leakage=0.0))]
 #[allow(clippy::too_many_arguments)]
-fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, round_data: f64, measure: f64, reset: f64, annotate_colors: bool) -> PyResult<String> {
+fn generated_circuit(task: &str, distance: u32, rounds: u64, clifford: f64, round_data: f64, measure: f64, reset: f64, annotate_colors: bool, reset_leakage: f64, clifford_leakage: f64) -> PyResult<String> {
     let noise = crate::generated::Noise {
         after_clifford_depolarization: clifford,
         before_round_data_depolarization: round_data,
         before_measure_flip_probability: measure,
         after_reset_flip_probability: reset,
+        after_reset_leakage: reset_leakage,
+        after_clifford_leakage_and_relaxation: clifford_leakage,
     };
     if annotate_colors {
         return crate::generated::generate_annotated(task, distance, rounds, &noise).map_err(err);
@@ -489,6 +491,7 @@ fn generated_header(task: &str, distance: u32, rounds: u64, clifford: f64, round
         before_round_data_depolarization: round_data,
         before_measure_flip_probability: measure,
         after_reset_flip_probability: reset,
+        ..Default::default()
     };
     crate::generated::header(task, distance, rounds, &noise).map_err(err)
 }

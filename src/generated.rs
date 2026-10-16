@@ -13,6 +13,10 @@ pub struct Noise {
     pub before_round_data_depolarization: f64,
     pub before_measure_flip_probability: f64,
     pub after_reset_flip_probability: f64,
+    /// Deltakit's Stim's two more: `LEAKAGE(p)` after each reset (and `MR`), and after each
+    /// two-qubit gate's depolarization, with `RELAX(p)` after each single-qubit gate's.
+    pub after_reset_leakage: f64,
+    pub after_clifford_leakage_and_relaxation: f64,
 }
 
 /// The tasks Stim generates, by its names.
@@ -32,6 +36,8 @@ pub fn generate(task: &str, distance: u32, rounds: u64, noise: &Noise) -> Result
         ("before_round_data_depolarization", noise.before_round_data_depolarization),
         ("before_measure_flip_probability", noise.before_measure_flip_probability),
         ("after_reset_flip_probability", noise.after_reset_flip_probability),
+        ("after_reset_leakage", noise.after_reset_leakage),
+        ("after_clifford_leakage_and_relaxation", noise.after_clifford_leakage_and_relaxation),
     ] {
         if !(0.0..=1.0).contains(&p) {
             return Err(format!("{name} must be a probability in [0, 1], not {p}"));
@@ -264,6 +270,9 @@ impl Gen {
         if self.noise.after_clifford_depolarization > 0.0 {
             emit(c, op_p(if two { "DEPOLARIZE2" } else { "DEPOLARIZE1" }, self.noise.after_clifford_depolarization, targets));
         }
+        if self.noise.after_clifford_leakage_and_relaxation > 0.0 {
+            emit(c, op_p(if two { "LEAKAGE" } else { "RELAX" }, self.noise.after_clifford_leakage_and_relaxation, targets));
+        }
     }
 
     fn flip(basis: char) -> &'static str {
@@ -284,6 +293,9 @@ impl Gen {
 
     fn reset(&self, c: &mut Vec<String>, targets: &[u32], basis: char) {
         emit(c, op(&Self::named("R", basis), targets));
+        if self.noise.after_reset_leakage > 0.0 {
+            emit(c, op_p("LEAKAGE", self.noise.after_reset_leakage, targets));
+        }
         if self.noise.after_reset_flip_probability > 0.0 {
             emit(c, op_p(Self::flip(basis), self.noise.after_reset_flip_probability, targets));
         }
@@ -301,6 +313,9 @@ impl Gen {
             emit(c, op_p("X_ERROR", self.noise.before_measure_flip_probability, targets));
         }
         emit(c, op("MR", targets));
+        if self.noise.after_reset_leakage > 0.0 {
+            emit(c, op_p("LEAKAGE", self.noise.after_reset_leakage, targets));
+        }
         if self.noise.after_reset_flip_probability > 0.0 {
             emit(c, op_p("X_ERROR", self.noise.after_reset_flip_probability, targets));
         }

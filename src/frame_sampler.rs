@@ -41,6 +41,11 @@ pub struct FrameSampler {
     /// leaked partner depolarizes as above. A herald's record is 1 while its qubit is leaked.
     leaky: bool,
     pub leaked_reads_one: bool,
+    /// Deltakit's Stim exactly (`new_deltakit`, see `deltakit`): leakage passes only through its
+    /// transport gates (the markers `deltakit::sampler_instrs` places after each of their
+    /// pairs), a herald's noise only hides leakage, `RL` returns a qubit, and this package's
+    /// own `LEAK`, `SEEP` and `LEAK_TRANSPORT` are the inert tags they are to Deltakit.
+    deltakit: bool,
     /// The noiseless reference record, which a leaked qubit's 1 is a flip from.
     reference: Vec<bool>,
     instrs: Vec<Instr>,
@@ -48,6 +53,29 @@ pub struct FrameSampler {
     num_measurements: usize,
     detectors: Vec<Vec<usize>>,
     observables: Vec<Vec<usize>>,
+}
+
+/// After a pair of Deltakit's transport gates (its `propagate_leakage`): a leaked first qubit
+/// depolarizes the second, spreads its leakage there with `p[0]` and moves it there (mobility,
+/// to an unleaked second qubit) with `p[2]`; then the same from the second qubit, as it now
+/// stands, with `p[1]` and `p[3]`. Deltakit draws each event independently per shot, as here,
+/// except that its mobility skips ahead a whole batch once a mobility draw lands on a leaked
+/// partner; here every shot draws.
+fn deltakit_transport(leaked: &mut [u8], a: usize, b: usize, p: [f64; 4], x: &mut [bool], z: &mut [bool], rng: &mut Xorshift) {
+    for (c, t, spread, mobility) in [(a, b, p[0], p[2]), (b, a, p[1], p[3])] {
+        if leaked[c] == NOT_LEAKED {
+            continue;
+        }
+        x[t] ^= rng.next_u64() & 1 == 1;
+        z[t] ^= rng.next_u64() & 1 == 1;
+        if spread > 0.0 && rng.next_f64() < spread {
+            leaked[t] = DELTAKIT_LEAKED;
+        }
+        if mobility > 0.0 && rng.next_f64() < mobility && leaked[t] == NOT_LEAKED {
+            leaked[t] = DELTAKIT_LEAKED;
+            leaked[c] = NOT_LEAKED;
+        }
+    }
 }
 
 /// After a two-qubit gate, a leaked partner leaves the other qubit a uniformly random Pauli.
@@ -80,6 +108,48 @@ impl FrameSampler {
         Ok(FrameSampler {
             leaky,
             leaked_reads_one: true,
+            deltakit: false,
+            reference,
+            instrs: res.instrs,
+            num_qubits: res.num_qubits,
+            num_measurements: res.num_measurements,
+            detectors: res.detectors,
+            observables: res.observables,
+        })
+    }
+
+    /// A sampler of Deltakit's Stim (its leakage model exactly, see `deltakit`).
+    pub fn new_deltakit(circuit: &Circuit) -> Result<FrameSampler, String> {
+        circuit.check_runnable()?;
+        let split = Circuit { instrs: crate::deltakit::sampler_instrs(&circuit.instrs)? };
+        let res = split.resolve()?;
+        if res.observables.len() > 64 {
+            return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
+        }
+        let mut reference = crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1);
+        // Deltakit's reference reads a herald as 0, an inverted target too.
+        let mut m = 0usize;
+        let mut markers = 0usize;
+        for ins in &res.instrs {
+            match ins {
+                Instr::Measure { qubits, .. } | Instr::Heralded { qubits, .. } => m += qubits.len(),
+                Instr::NonPauli(ops) => markers += ops.iter().filter(|o| matches!(o, NonPauli::Herald { .. })).count(),
+                Instr::Pad { values, .. } => {
+                    for _ in values {
+                        if markers > 0 {
+                            markers -= 1;
+                            reference[m] = false;
+                        }
+                        m += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(FrameSampler {
+            leaky: true,
+            leaked_reads_one: false,
+            deltakit: true,
             reference,
             instrs: res.instrs,
             num_qubits: res.num_qubits,
@@ -181,7 +251,7 @@ impl FrameSampler {
                         if z[t] {
                             z[c] ^= true;
                         }
-                        if self.leaky {
+                        if self.leaky && !self.deltakit {
                             leaked_partner(&leaked, c, t, &mut x, &mut z, rng);
                         }
                     }
@@ -195,7 +265,7 @@ impl FrameSampler {
                         if x[b] {
                             z[a] ^= true;
                         }
-                        if self.leaky {
+                        if self.leaky && !self.deltakit {
                             leaked_partner(&leaked, a, b, &mut x, &mut z, rng);
                         }
                     }
@@ -334,9 +404,12 @@ impl FrameSampler {
                 }
                 Instr::Pad { flip, values } => {
                     for _ in values {
-                        // A herald's pad reads its qubit's leakage, a flip from the pad's value.
-                        let leaked_now = pending.pop_front().unwrap_or(false);
-                        rec.push(leaked_now ^ (*flip > 0.0 && rng.next_f64() < *flip));
+                        // A herald's pad reads its qubit's leakage, a flip from the pad's value
+                        // (Deltakit's noise only hides leakage).
+                        let herald = pending.pop_front();
+                        let leaked_now = herald.unwrap_or(false);
+                        let noise = *flip > 0.0 && rng.next_f64() < *flip;
+                        rec.push(if self.deltakit && herald.is_some() { leaked_now && !noise } else { leaked_now ^ noise });
                         if self.leaky {
                             heralds.push(false);
                         }
@@ -350,6 +423,30 @@ impl FrameSampler {
                         let q = q as usize;
                         if (p & 1 != 0 && z[q]) != (p & 2 != 0 && x[q]) {
                             pauli_obs ^= 1u64 << index;
+                        }
+                    }
+                }
+                Instr::NonPauli(ops) if self.deltakit => {
+                    for op in ops {
+                        match *op {
+                            NonPauli::Leakage { p, qubit } => {
+                                let q = qubit as usize;
+                                if rng.next_f64() < p {
+                                    leaked[q] = DELTAKIT_LEAKED;
+                                    x[q] ^= rng.next_u64() & 1 == 1;
+                                    z[q] ^= rng.next_u64() & 1 == 1;
+                                }
+                            }
+                            NonPauli::Relax { p, qubit } => {
+                                let q = qubit as usize;
+                                if leaked[q] != NOT_LEAKED && rng.next_f64() < p {
+                                    leaked[q] = NOT_LEAKED;
+                                }
+                            }
+                            NonPauli::LeakageReset { qubit } => leaked[qubit as usize] = NOT_LEAKED,
+                            NonPauli::Herald { qubit } => pending.push_back(leaked[qubit as usize] != NOT_LEAKED),
+                            NonPauli::Transport { a, b, p } => deltakit_transport(&mut leaked, a as usize, b as usize, p, &mut x, &mut z, rng),
+                            _ => {}
                         }
                     }
                 }

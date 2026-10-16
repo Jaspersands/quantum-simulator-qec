@@ -313,6 +313,16 @@ impl Circuit {
                 last.targets.extend(op.targets);
                 return;
             }
+            // Deltakit's heralds fuse as its Stim fuses `HERALD_LEAKAGE_EVENT 0` and
+            // `HERALD_LEAKAGE_EVENT 1`: one herald of both qubits.
+            if last.gate.name == "MPAD" && op.gate.name == "MPAD" && last.args == op.args {
+                if let (Some(Ok(mut a)), Some(Ok(b))) = (crate::leakage::herald_qubits(&last.tag), crate::leakage::herald_qubits(&op.tag)) {
+                    a.extend(b);
+                    last.tag = crate::leakage::herald_tag(&a);
+                    last.targets.extend(op.targets);
+                    return;
+                }
+            }
         }
         self.items.push(Item::Op(op));
     }

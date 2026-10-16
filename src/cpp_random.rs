@@ -1087,7 +1087,7 @@ pub enum CLibrary {
     Bsd,
     /// glibc (a stable merge sort, as in every release but 2.37 and 2.38).
     Glibc,
-    /// Microsoft's CRT (not reproduced: stable here).
+    /// Microsoft's CRT (its median-of-three quicksort, `msvc_qsort`).
     Msvc,
 }
 
@@ -1103,7 +1103,122 @@ impl CLibrary {
     pub fn qsort<T: Copy>(self, v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
         match self {
             CLibrary::Bsd => bsd_qsort(v, cmp),
-            CLibrary::Glibc | CLibrary::Msvc => v.sort_by(|a, b| cmp(a, b)),
+            CLibrary::Glibc => v.sort_by(|a, b| cmp(a, b)),
+            CLibrary::Msvc => msvc_qsort(v, cmp),
+        }
+    }
+}
+
+/// Microsoft's CRT `qsort` (ucrt/stdlib/qsort.cpp, as in every CRT since Visual C++ 6): a
+/// quicksort on an explicit stack, its pivot the median of the first, middle and last elements
+/// and followed as it is swapped, ranges of eight or fewer sorted by selecting the largest, and
+/// the smaller part split first. Unstable, so its order among equal elements is its own.
+fn msvc_qsort<T: Copy>(v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+    use std::cmp::Ordering::{Equal, Greater};
+    const CUTOFF: usize = 8;
+    if v.len() < 2 {
+        return;
+    }
+    let mut stack: Vec<(usize, usize)> = Vec::new();
+    let (mut lo, mut hi) = (0usize, v.len() - 1);
+    loop {
+        let size = hi - lo + 1;
+        if size <= CUTOFF {
+            // shortsort: move the largest of lo..=hi to hi, then shrink.
+            let mut h = hi;
+            while h > lo {
+                let mut max = lo;
+                for p in lo + 1..=h {
+                    if cmp(&v[p], &v[max]) == Greater {
+                        max = p;
+                    }
+                }
+                v.swap(max, h);
+                h -= 1;
+            }
+        } else {
+            let mut mid = lo + size / 2;
+            if cmp(&v[lo], &v[mid]) == Greater {
+                v.swap(lo, mid);
+            }
+            if cmp(&v[lo], &v[hi]) == Greater {
+                v.swap(lo, hi);
+            }
+            if cmp(&v[mid], &v[hi]) == Greater {
+                v.swap(mid, hi);
+            }
+            // Positions as signed offsets: higuy can step to one below lo.
+            let (mut loguy, mut higuy) = (lo as isize, hi as isize);
+            let (lo_i, hi_i) = (lo as isize, hi as isize);
+            loop {
+                if mid as isize > loguy {
+                    loop {
+                        loguy += 1;
+                        if !(loguy < mid as isize && cmp(&v[loguy as usize], &v[mid]) != Greater) {
+                            break;
+                        }
+                    }
+                }
+                if mid as isize <= loguy {
+                    loop {
+                        loguy += 1;
+                        if !(loguy <= hi_i && cmp(&v[loguy as usize], &v[mid]) != Greater) {
+                            break;
+                        }
+                    }
+                }
+                loop {
+                    higuy -= 1;
+                    if !(higuy > mid as isize && cmp(&v[higuy as usize], &v[mid]) == Greater) {
+                        break;
+                    }
+                }
+                if higuy < loguy {
+                    break;
+                }
+                v.swap(loguy as usize, higuy as usize);
+                if mid as isize == higuy {
+                    mid = loguy as usize;
+                }
+            }
+            higuy += 1;
+            if (mid as isize) < higuy {
+                loop {
+                    higuy -= 1;
+                    if !(higuy > mid as isize && cmp(&v[higuy as usize], &v[mid]) == Equal) {
+                        break;
+                    }
+                }
+            }
+            if mid as isize >= higuy {
+                loop {
+                    higuy -= 1;
+                    if !(higuy > lo_i && cmp(&v[higuy as usize], &v[mid]) == Equal) {
+                        break;
+                    }
+                }
+            }
+            if higuy - lo_i >= hi_i - loguy {
+                if lo_i < higuy {
+                    stack.push((lo, higuy as usize));
+                }
+                if loguy < hi_i {
+                    lo = loguy as usize;
+                    continue;
+                }
+            } else {
+                if loguy < hi_i {
+                    stack.push((loguy as usize, hi));
+                }
+                if lo_i < higuy {
+                    hi = higuy as usize;
+                    continue;
+                }
+            }
+        }
+        match stack.pop() {
+            Some((l, h)) => (lo, hi) = (l, h),
+            None => return,
         }
     }
 }
@@ -1547,6 +1662,36 @@ mod tests {
             assert!(idx.windows(2).all(|w| key[w[0]] >= key[w[1]]));
             assert_eq!(digest(&idx), digest_want, "heap sort, n {n}, {distinct} distinct keys");
         }
+    }
+
+    /// Microsoft's CRT qsort sorts (it is checked against Microsoft's own where it runs, on
+    /// Windows, through ldpc's OSD in tests/test_panqec_differential.py), and its order among
+    /// equal values is not the input's.
+    #[test]
+    fn msvc_qsort_sorts() {
+        let mut x: u64 = 88_172_645_463_325_252;
+        let mut reordered = false;
+        for n in [0usize, 1, 2, 3, 8, 9, 10, 40, 41, 500, 3000] {
+            for distinct in [1u64, 2, 5, 1000] {
+                let mut o: Vec<(f64, usize)> = (0..n)
+                    .map(|i| {
+                        x ^= x << 13;
+                        x ^= x >> 7;
+                        x ^= x << 17;
+                        ((x % distinct) as f64, i)
+                    })
+                    .collect();
+                let mut stable = o.clone();
+                stable.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                CLibrary::Msvc.qsort(&mut o, &mut |a, b| a.0.partial_cmp(&b.0).unwrap());
+                assert!(o.windows(2).all(|w| w[0].0 <= w[1].0), "n {n}");
+                let mut idx: Vec<usize> = o.iter().map(|r| r.1).collect();
+                reordered |= idx != stable.iter().map(|r| r.1).collect::<Vec<_>>();
+                idx.sort_unstable();
+                assert!(idx.iter().copied().eq(0..n));
+            }
+        }
+        assert!(reordered);
     }
 
     /// macOS's qsort, from a C program (tools/c_qsort.c): (value, index) records sorted by

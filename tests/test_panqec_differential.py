@@ -20,6 +20,17 @@ import stabilizer_qec.panqec.config as our_config  # noqa: E402
 import stabilizer_qec.panqec.simulation  # noqa: E402,F401
 import panqec.config as ref_config  # noqa: E402
 import panqec.simulation  # noqa: E402,F401
+from panqec.decoders.sweepmatch import _rotated_sweep_decoder, _sweep_decoder_3d  # noqa: E402
+
+
+def _default_direction(self):
+    return int(self._rng.choice([0, 1, 2], size=1)[0])
+
+
+# PanQEC 0.1.7's sweep decoders convert a one-element array to an int, which NumPy 2.4 refuses;
+# the reference takes the port's fix (the same draw).
+_sweep_decoder_3d.SweepDecoder3D.get_default_direction = _default_direction
+_rotated_sweep_decoder.RotatedSweepDecoder3D.get_default_direction = _default_direction
 
 CODE_NAMES = list(ref_config.CODES)
 SIZES = [(3,), (4,), (2, 3, 4), (3, 4, 3)]
@@ -209,7 +220,8 @@ def test_gui_answers_equal():
 
     for path in ("/", "/2d", "/3d", "/main.css", "/js/main.js"):
         a, b = both(path)
-        assert a == b
+        # A Windows checkout ends the port's files' lines CRLF.
+        assert a.replace(b"\r\n", b"\n") == b.replace(b"\r\n", b"\n")
     for dim in (2, 3):
         a, b = both("/code-names", {"dimension": dim})
         assert json.loads(a) == json.loads(b)

@@ -38,6 +38,13 @@ noise on every gate. In progress on `feature/2.0`.
 - Text shot files (`01`, `hits`, `dets`) may end their lines `\r\n`, as files written in text
   mode on Windows do.
 - `REPEAT 0 { ... }` is an error, as in Stim ("Repeating 0 times is not supported.").
+- **Errors as Stim words them**: an unknown instruction is `Gate not found: 'NAME'` (was
+  `unsupported instruction 'NAME'`), and a file that cannot be opened raises `ValueError`
+  ("Failed to open 'path' for reading." or "... to write."), not `OSError`. `REPEAT 5 {}` on one
+  line is an empty block, as Stim reads it.
+- **ldpc's OSD on Windows sorts as Microsoft's `qsort` does**: its unstable order among columns of
+  equal reliability (was a stable sort there), so `BpOsdDecoder` (and PanQEC's and QUITS' BP+OSD
+  on it) decodes as ldpc does on Windows as well as on macOS and Linux.
 - `stabilizer-qec gen` and `analyze_errors` end their output with a newline, as Stim's do;
   `str(DetectorErrorModel)` has no final newline and its `repr` is Stim's.
 - **A fault that flips observables and no detector is kept in the model** as `error(p) L0`, as
@@ -282,6 +289,35 @@ noise on every gate. In progress on `feature/2.0`.
   colour code's initialized logical operators (PECOS labels its Z `X`), MWPM2D with no syndrome,
   and measurement outcomes left to the default, -1 (drawn at random, as in PECOS's C++). The
   `pecos` extra installs what it needs. (Its density- and process-matrix simulation is W8's.)
+- **`stabilizer_qec.deltakit`: Deltakit 0.10 whole** (Riverlane's toolkit: deltakit-circuit,
+  -core and -decode 0.9.2, -explorer 0.9.4), passing its own tests (`tests/deltakit_port/`):
+  `deltakit.circuit` (its circuit model: gates, noise channels, annotations, layers, noise
+  factories, Stim conversion both ways), `deltakit.core` (decoding graphs and hypergraphs, DEM
+  parsing, windowing, b8/01/csv data formats), `deltakit.decode` (its matching decoders, noise
+  sources for code-capacity matching, decoder managers and analysis engines) and
+  `deltakit.explorer` (rotated and unrotated planar, toric, repetition, bivariate bicycle and
+  generic CSS codes with their schedules, memory experiments, QPUs with native gate sets and
+  times, compilation to them, the SD6, SI1000 (with leakage), toy, phenomenological and
+  T1/T2-derived physical noise models, analysis, error budgets, types and plots). Its cloud
+  client is Deltakit's, calling Riverlane's server only with the user's token, for what runs
+  only there in Deltakit too (stability circuits, its cloud decoders). Against Deltakit itself
+  (`tests/test_deltakit_differential.py`): every code's memory circuits in both bases, compiled to
+  native gate sets under every noise model, equal as text and as detector error models. The
+  `deltakit` extra (Python 3.11) installs what it needs.
+- **`stabilizer_qec.deltakit_stim`: Deltakit's Stim** (`deltakit_stim` 0.2.7), which Deltakit
+  imports as `stim`: this package's Stim with Deltakit's leakage instructions native (`LEAKAGE`,
+  `RELAX`, `RL`, `HERALD_LEAKAGE_EVENT`, and leakage spreading and mobility as the four arguments
+  of `CX`, `CY`, `CZ`, `SQRT_XX` and `SQRT_XX_DAG`). It prints, iterates and indexes them as
+  Deltakit's does; its samplers run Deltakit's leakage model, and its detector error models
+  are Deltakit's, with each herald's leakage and each transport gate's depolarized partner, in
+  Deltakit's single-precision arithmetic. `Circuit.generated` takes Deltakit's
+  `after_reset_leakage` and `after_clifford_leakage_and_relaxation`. Against `deltakit_stim`
+  itself (`tests/test_deltakit_stim_differential.py`): text, instructions, gate data, noise
+  removal, decomposition, generated circuits and detector error models (heralds, transport,
+  loops, decomposition) equal, and sampled rates equal within sampling error. One difference is
+  kept on purpose: Deltakit's frame simulator stops moving leakage (mobility) for the rest of a
+  batch once a move lands on an already leaked partner, which here, as the probability says,
+  every shot draws anew. In the base `Circuit` these lines stay inert tags, as Stim reads them.
 - **`stabilizer_qec.fusion_blossom`: Fusion Blossom 0.2.13 whole**, a Rust port of its solvers
   (`src/fusion/`): the **serial and parallel minimum-weight perfect matching** solvers
   (`SolverSerial`, `SolverDualParallel`, `SolverParallel`, with partitions and fusion), erasures

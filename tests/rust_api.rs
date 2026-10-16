@@ -47,7 +47,7 @@ fn circuits_parse_print_and_count() {
     let looped: Circuit = "REPEAT 1000000000 {\n M 0\n DETECTOR rec[-1]\n}\nCZ sweep[3] 0".parse().unwrap();
     assert_eq!((looped.num_detectors(), looped.num_sweep_bits()), (1_000_000_000, 4));
     let err = "FOO 0".parse::<Circuit>().unwrap_err();
-    assert!(err.message().contains("unsupported instruction"), "{err}");
+    assert!(err.message().contains("Gate not found"), "{err}");
 }
 
 #[test]

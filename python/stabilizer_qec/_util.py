@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import secrets
 import sys
 from typing import Any, Callable, TypeVar
@@ -11,6 +12,16 @@ import numpy as np
 T = TypeVar("T")
 
 _REPORT = "https://github.com/Jaspersands/quantum-simulator-qec/issues"
+
+
+def open_file(path: Any, mode: str = "r", **kwargs: Any) -> Any:
+    """``open``, raising Stim's ValueError where the file cannot be opened ("Failed to open
+    'x' for reading." / "... to write.")."""
+    try:
+        return open(path, mode, **kwargs)
+    except OSError as e:
+        verb = "for reading" if "r" in mode else "to write"
+        raise ValueError(f"Failed to open '{os.fspath(path)}' {verb}.") from e
 
 
 def call(fn: Callable[..., T], *args: Any) -> T:

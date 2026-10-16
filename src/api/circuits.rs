@@ -350,7 +350,8 @@ impl Circuit {
     /// ```
     pub fn detector_error_model(&self, options: &DemOptions) -> Result<DetectorErrorModel> {
         let o = options;
-        let program = crate::dem_build::build_full(&self.inner, o.decompose_errors, o.approximate_disjoint_errors, !o.flatten_loops, o.ignore_decomposition_failures, o.allow_gauge_detectors, o.block_decomposition_from_introducing_remnant_edges)?;
+        let build = if o.deltakit_leakage { crate::dem_build::build_deltakit } else { crate::dem_build::build_full };
+        let program = build(&self.inner, o.decompose_errors, o.approximate_disjoint_errors, !o.flatten_loops, o.ignore_decomposition_failures, o.allow_gauge_detectors, o.block_decomposition_from_introducing_remnant_edges)?;
         Ok(DetectorErrorModel::from_program(program))
     }
 
@@ -815,9 +816,19 @@ pub struct DemOptions {
     ignore_decomposition_failures: bool,
     allow_gauge_detectors: bool,
     block_decomposition_from_introducing_remnant_edges: bool,
+    deltakit_leakage: bool,
 }
 
 impl DemOptions {
+    /// The model Deltakit's Stim builds (`deltakit_stim`, Riverlane's fork): with the leakage
+    /// its `HERALD_LEAKAGE_EVENT`s read, each herald firing with its qubit depolarized, and with
+    /// its partners' depolarized at each `CX`, `CY`, `CZ`, `SQRT_XX` or `SQRT_XX_DAG` after the
+    /// leakage came.
+    pub fn deltakit_leakage(mut self, yes: bool) -> DemOptions {
+        self.deltakit_leakage = yes;
+        self
+    }
+
     /// Undecomposed, no approximation.
     pub fn new() -> DemOptions {
         DemOptions::default()

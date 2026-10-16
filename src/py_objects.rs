@@ -224,10 +224,11 @@ impl PyCircuit {
     /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
     /// `flatten` writes it without folding its loops; `ignore_failures` keeps faults that cannot
     /// be decomposed whole.
-    #[pyo3(signature = (decompose, approximate=None, flatten=false, ignore_failures=false, allow_gauge=false, block_remnants=false))]
+    #[pyo3(signature = (decompose, approximate=None, flatten=false, ignore_failures=false, allow_gauge=false, block_remnants=false, deltakit=false))]
     #[allow(clippy::too_many_arguments)]
-    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool) -> PyResult<PyDem> {
+    fn detector_error_model(&self, decompose: bool, approximate: Option<f64>, flatten: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool, deltakit: bool) -> PyResult<PyDem> {
         let options = crate::api::DemOptions::new()
+            .deltakit_leakage(deltakit)
             .decompose_errors(decompose)
             .approximate_disjoint_errors(approximate)
             .flatten_loops(flatten)
@@ -273,9 +274,13 @@ impl PyCircuit {
         Ok(PyM2d { m2d: M2d::new(&self.circuit.inner).map_err(err)? })
     }
 
-    /// The per-shot frame sampler, which runs leakage.
-    #[pyo3(signature = (seed, leaked_reads_one=true))]
-    fn leakage_sampler(&self, seed: u64, leaked_reads_one: bool) -> PyResult<PyLeakageSampler> {
+    /// The per-shot frame sampler, which runs leakage (Deltakit's Stim exactly, `deltakit`).
+    #[pyo3(signature = (seed, leaked_reads_one=true, deltakit=false))]
+    fn leakage_sampler(&self, seed: u64, leaked_reads_one: bool, deltakit: bool) -> PyResult<PyLeakageSampler> {
+        if deltakit {
+            let sampler = crate::frame_sampler::FrameSampler::new_deltakit(&self.circuit.inner).map_err(err)?;
+            return Ok(PyLeakageSampler { sampler, seed, next: 0.into() });
+        }
         let mut sampler = crate::frame_sampler::FrameSampler::new(&self.circuit.inner).and_then(|s| s.with_reference(&self.circuit.inner)).map_err(err)?;
         sampler.leaked_reads_one = leaked_reads_one;
         Ok(PyLeakageSampler { sampler, seed, next: 0.into() })

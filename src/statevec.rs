@@ -298,8 +298,8 @@ impl Program {
                         NonPauli::T { qubit, .. } | NonPauli::U3 { qubit, .. } | NonPauli::AmplitudeDamping { qubit, .. } | NonPauli::Leak { qubit, .. } | NonPauli::Seep { qubit, .. } | NonPauli::Herald { qubit } => {
                             used.insert(*qubit);
                         }
-                        NonPauli::Leakage { .. } | NonPauli::Relax { .. } => {
-                            return Err("the state vector does not run Deltakit's LEAKAGE and RELAX, whose leaked qubits keep a depolarized state; the leakage sampler does".into());
+                        NonPauli::Leakage { .. } | NonPauli::Relax { .. } | NonPauli::LeakageReset { .. } | NonPauli::Transport { .. } => {
+                            return Err("the state vector does not run Deltakit's LEAKAGE, RELAX and RL, whose leaked qubits keep a depolarized state; the leakage sampler does".into());
                         }
                         NonPauli::LeakTransport { a, b, .. } => used.extend([*a, *b]),
                     }
@@ -390,7 +390,7 @@ impl Program {
                             NonPauli::Leak { p, qubit } => Step::Leak { q: ix(qubit), p: *p },
                             NonPauli::Seep { p, qubit } => Step::Seep { q: ix(qubit), p: *p },
                             NonPauli::LeakTransport { p, a, b } => Step::Transport { a: ix(a), b: ix(b), p: *p },
-                            NonPauli::Leakage { .. } | NonPauli::Relax { .. } | NonPauli::Herald { .. } => unreachable!("refused or taken above"),
+                            NonPauli::Leakage { .. } | NonPauli::Relax { .. } | NonPauli::LeakageReset { .. } | NonPauli::Transport { .. } | NonPauli::Herald { .. } => unreachable!("refused or taken above"),
                         });
                     }
                 }

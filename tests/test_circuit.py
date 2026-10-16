@@ -35,7 +35,7 @@ def test_from_file(tmp_path):
 
 
 def test_bad_circuits():
-    with pytest.raises(ValueError, match="unsupported instruction"):
+    with pytest.raises(ValueError, match="Gate not found"):
         sq.Circuit("FOO 0")
     # A circuit reading before its first measurement can be held (a piece of a larger one), but
     # not sampled, analysed or converted.

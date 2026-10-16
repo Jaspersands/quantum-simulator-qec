@@ -1,0 +1,13 @@
+error(0.005731712759107312517) D4
+error(0.005125248374863214905) D7
+error(0.005731712759107332467) D0 D4
+error(0.005125248374863278222) D3 D7
+detector(2, 0, 1) D0
+detector(2, 4, 1) D1
+detector(4, 2, 1) D2
+detector(4, 6, 1) D3
+detector(2, 0, 2) D4
+detector(2, 4, 2) D5
+detector(4, 2, 2) D6
+detector(4, 6, 2) D7
+logical_observable L0

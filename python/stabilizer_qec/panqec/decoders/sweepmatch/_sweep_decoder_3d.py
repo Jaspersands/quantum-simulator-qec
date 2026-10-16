@@ -86,7 +86,7 @@ class SweepDecoder3D(BaseDecoder):
 
     def get_default_direction(self):
         """The default direction when all faces are excited."""
-        direction = int(self._rng.choice([0, 1, 2], size=1))
+        direction = int(self._rng.choice([0, 1, 2], size=1)[0])
         return direction
 
     def get_initial_state(self, syndrome: np.ndarray) -> np.ndarray:
