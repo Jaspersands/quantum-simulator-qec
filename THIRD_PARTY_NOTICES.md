@@ -256,6 +256,22 @@ Cancer Research; MIT), the LP file reader `filereaderlp` (Copyright (c) 2020 Mic
 MIT, `src/highs/extern/filereaderlp/LICENSE`) and pdqsort (Copyright (c) 2021 Orson Peters; zlib
 License, `src/highs/extern/pdqsort/license.txt`).
 
+## QuantumClifford.jl
+
+Copyright (c) 2023 Stefan Krastanov. Licensed under the MIT License (the notice above, under
+qec-util, with this copyright line). Source: https://github.com/QuantumSavory/QuantumClifford.jl
+
+`python/stabilizer_qec/clifford.py` ports QuantumClifford.jl 0.11.8's canonical forms (clipped
+gauge, partial-trace and Gottesman forms), entanglement entropies, graph-state conversion and
+Clifford enumeration, modified to work on this package's Pauli strings and tableaux with qubits
+counted from 0. `src/perturb.rs` follows its perturbative expansion (`petrajectories`). Its
+tests' pinned values are checked in `tests/test_clifford.py` and `tests/test_perturbative.py`.
+
+## Quantumsim
+
+Quantumsim 0.2.0 (https://gitlab.com/quantumsim/quantumsim) is used only as a reference in
+tests (`tests/test_density.py`, when it is installed); none of its code is in this package.
+
 ## C and C++ standard library algorithms
 
 ldpc's random serial schedule, serial-relative schedule and OSD depend on how the platform's

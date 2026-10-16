@@ -183,6 +183,12 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - **A resource estimate**: magic-state factories, Litinski's floor plans, reaction time from this
   decoder's measured latency, and storage options, priced on noise and decoding measured here and
   checked against Gidney's RSA-2048 and Lee et al.'s FeMoco estimates.
+- **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
+  with amplitude and phase damping and T1/T2 relaxation, process matrices (Choi, Pauli transfer,
+  χ), and QuantumClifford.jl's perturbative expansion run on detection events: a decoder's
+  logical error rate as an exact series in the noise, with no sampling, on circuits of any
+  size. With it, QuantumClifford's graph states, entanglement entropies and Clifford
+  enumeration.
 - **Web explainer**: `index.html` plus `css/` and `js/`. No build step, no dependencies. The lattice
   at the top of the page runs the engine live, the interactive figures are driven by it, the
   threshold table is plotted as it is measured, and the bench streams its estimate.

@@ -307,7 +307,7 @@ noise on every gate. In progress on `feature/2.0`.
   medial and colour codes' initializations (their circuits' `metadata`, once `params`), the
   colour code's initialized logical operators (PECOS labels its Z `X`), MWPM2D with no syndrome,
   and measurement outcomes left to the default, -1 (drawn at random, as in PECOS's C++). The
-  `pecos` extra installs what it needs. (Its density- and process-matrix simulation is W8's.)
+  `pecos` extra installs what it needs; its density- and process-matrix simulators are below.
 - **`stabilizer_qec.deltakit`: Deltakit 0.10 whole** (Riverlane's toolkit: deltakit-circuit,
   -core and -decode 0.9.2, -explorer 0.9.4), passing its own tests (`tests/deltakit_port/`):
   `deltakit.circuit` (its circuit model: gates, noise channels, annotations, layers, noise
@@ -337,6 +337,52 @@ noise on every gate. In progress on `feature/2.0`.
   kept on purpose: Deltakit's frame simulator stops moving leakage (mobility) for the rest of a
   batch once a move lands on an already leaked partner, which here, as the probability says,
   every shot draws anew. In the base `Circuit` these lines stay inert tags, as Stim reads them.
+- **Density matrices**: a density-matrix simulator in Rust (up to 12 qubits) that runs everything
+  the exact sampler runs, noise channels applied whole and measurements branching only on what
+  they record. `Circuit.density_matrix()` (the final state, outcomes averaged away),
+  `Circuit.exact_distribution(method="density_matrix")` (far fewer branches on a noisy circuit),
+  and `DensityMatrixSimulator`, acted on circuit by circuit as `TableauSimulator` is: unitaries
+  and Kraus channels on any qubits, forced measurements in any basis, expectations, purity,
+  reduced states, entropy and fidelity (with `reduced_density_matrix`, `fidelity` and
+  `von_neumann_entropy`). Checked against Quantumsim 0.2.0's density matrices (to 1e-10), the
+  state vector's exact distributions and trajectories, and the tableau.
+- **Phase damping and thermal relaxation**: `I_ERROR[PHASE_DAMPING(lambda=…)]` and
+  `I_ERROR[THERMAL_RELAXATION(t=…, t1=…, t2=…)]` (amplitude damping then phase damping, as
+  Quantumsim's T1/T2 channel), in the density matrix and the state vector's exact distributions
+  and trajectories.
+- **Process matrices**: `process_matrix(circuit, kind)` and `Circuit.process_matrix` give a
+  channel on up to 6 qubits as its Choi matrix, superoperator, Pauli transfer matrix or χ
+  matrix; `convert_process` between them, `process_fidelity`, `average_gate_fidelity`,
+  `choi_of_unitary` and `pauli_basis`. Checked against the closed forms of Clifford gates,
+  depolarizing and damping channels.
+- **PECOS's density- and process-matrix simulators**, which PECOS 0.2.0 declares and does not
+  ship: `stabilizer_qec.pecos.simulators.DensityMatrix` and `ProcessMatrix` on its simulator
+  interface and gate symbols (and ProjectQ's further gates: T, rotations, controlled rotations,
+  Toffoli), checked gate by gate and on random circuits against PECOS's stabilizer simulators,
+  and on PECOS's own logical runs. An initialization is a reset (PECOS's stabilizer simulators
+  force a measurement outcome instead; the same on a qubit not entangled with others).
+- **The perturbative expansion** (QuantumClifford.jl's `petrajectories`, on detection events):
+  `Circuit.perturbative_distribution(order)` sums the outcome distribution over every set of at
+  most `order` faults, each weighted by its exact probability, so the weights fall short of the
+  exact distribution by O(p^(order+1)) and equal it at full order; `symbolic=True` gives each
+  outcome's probability as a polynomial in a noise scale x, exact to x^order (QuantumClifford's
+  symbolic expansion with `degree="full"`). Each fault's effect is found once, by a Pauli frame
+  per fault carried through the circuit together, and the sum is a dynamic program, so it runs
+  on circuits of any size (a distance-3 surface-code memory to third order in a third of a
+  second). `perturbative_logical_error_rate(circuit, order, decoder=)` decodes each outcome once:
+  a decoder's failure rate with no sampling noise, however small, as a number or a series.
+  QuantumClifford's pinned Bell-purification polynomials are reproduced.
+- **`stabilizer_qec.clifford`: QuantumClifford.jl's stabilizer-state structure and Clifford
+  enumeration**, re-exported at the top level: the clipped gauge (`canonicalize_clip`, `bigram`),
+  the partial-trace form (`canonicalize_rref`) and Gottesman's standard form
+  (`canonicalize_gott`); `entanglement_entropy` three ways (clipped gauge, partial trace, graph
+  state; pure and mixed states) and `mutual_information`; `graph_state` (a stabilizer state's
+  graph and the local Cliffords to it), `graph_gate_sequence`, `graph_gate` and
+  `Tableau.from_graph`; `enumerate_cliffords` in QuantumClifford's symplectic order,
+  `symplectic_gram_schmidt`, `clifford_cardinality`, `enumerate_single_qubit_gates` and
+  `enumerate_phases`. Passes QuantumClifford's own tests and pinned values; the entropies
+  equal the state vector's Schmidt entropies and the density matrix's, and the enumeration is a
+  bijection onto `Tableau.iter_all`.
 - **`stabilizer_qec.fusion_blossom`: Fusion Blossom 0.2.13 whole**, a Rust port of its solvers
   (`src/fusion/`): the **serial and parallel minimum-weight perfect matching** solvers
   (`SolverSerial`, `SolverDualParallel`, `SolverParallel`, with partitions and fusion), erasures

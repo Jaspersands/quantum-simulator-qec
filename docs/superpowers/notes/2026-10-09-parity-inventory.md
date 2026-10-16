@@ -277,7 +277,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | U6 | qec-util samplers: sample_failures to file, merge batches | done (2.0 W4: `stabilizer_qec.analysis`, qec-util whole) |
 | U7 | PanQEC: 3D codes (3D toric, rhombic, XCube fracton, Haah-like), deformed (XZZX, biased) codes, BP-OSD, MBP, union-find, sweep-matching, threshold FSS analysis, GUI | done (2.0 W7: `stabilizer_qec.panqec`, PanQEC 0.1.7 whole; codes, noise, decodes, simulations and GUI equal to PanQEC's) |
 | U8 | qecsim: MPS tensor-network decoders (planar, colour 6.6.6, toric; exact and approximate by bond dimension), fault-tolerant (time-repeated) runs, Blossom V | done (2.0 W6: `stabilizer_qec.qecsim`, qecsim whole, its MPS decoders too) |
-| U9 | PECOS: fault-tolerance checks (`t_errors_check`, `fault_check`, `distance_check`), pseudo-threshold tools, error generators, 4.4.4.4 surface and 4.8.8 colour codes, density-matrix and process-matrix simulators | part (2.0 W7: `stabilizer_qec.pecos`, PECOS 0.2.0 whole, its C++ simulator in Rust; simulators, codes, runs and rates equal to PECOS's, its broken checks fixed; density and process matrices with X1) |
+| U9 | PECOS: fault-tolerance checks (`t_errors_check`, `fault_check`, `distance_check`), pseudo-threshold tools, error generators, 4.4.4.4 surface and 4.8.8 colour codes, density-matrix and process-matrix simulators | done (2.0 W7: `stabilizer_qec.pecos`, PECOS 0.2.0 whole, its C++ simulator in Rust; simulators, codes, runs and rates equal to PECOS's, its broken checks fixed. W8: its `DensityMatrix` and `ProcessMatrix` simulators, which PECOS declares and does not ship, checked against its stabilizer simulators and logical runs) |
 | U10 | Fusion Blossom: parallel MWPM by partitioned primal/dual, visualiser | done (2.0 W6: `stabilizer_qec.fusion_blossom`, Fusion Blossom whole in Rust) |
 | U11 | MWPF: hypergraph minimum-weight parity factor decoder, hypergraph union-find (HUF), heralded-erasure DEMs | done (2.0 W6: `stabilizer_qec.mwpf`, MWPF whole in Rust; not `QECPlaygroundCode`, an integration with QEC-Playground's simulator, see the spec's out of scope) |
 | U12 | qsample: dynamical subset sampling (importance sampling by fault count, upper and lower bounds), protocol graphs with feed-forward | done (2.0 W4: `stabilizer_qec.qsample`) |
@@ -299,9 +299,9 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 
 | ID | Feature | Status |
 |---|---|---|
-| X1 | Density-matrix simulation (Quantumsim, PECOS) with amplitude/phase damping | part (state vector with trajectories) |
-| X2 | Perturbative symbolic error rates (QuantumClifford.jl `petrajectories`) | gap |
-| X3 | Graph states, entanglement entropy, Clifford enumeration (QuantumClifford.jl) | gap |
+| X1 | Density-matrix simulation (Quantumsim, PECOS) with amplitude/phase damping | done (2.0 W8: `DensityMatrixSimulator`, `Circuit.density_matrix`, `exact_distribution(method="density_matrix")`, phase damping and `THERMAL_RELAXATION`, process matrices; equal to Quantumsim 0.2.0's to 1e-10) |
+| X2 | Perturbative symbolic error rates (QuantumClifford.jl `petrajectories`) | done (2.0 W8: `Circuit.perturbative_distribution`, numeric or symbolic, and `perturbative_logical_error_rate`; QuantumClifford's pinned polynomials) |
+| X3 | Graph states, entanglement entropy, Clifford enumeration (QuantumClifford.jl) | done (2.0 W8: `stabilizer_qec.clifford`, QuantumClifford's algorithms and tests) |
 | X4 | Post-selection decoding by soft output (arXiv 2601.17757) | done (2.0 W6: argument reweighting's post-selection) |
 | X5 | Decoder conformance checks: syndrome consistency, presentation sensitivity, min-weight check (arXiv 2609.07035) | done (2.0 W6: `stabilizer_qec.conformance`) |
 | X6 | Microsoft QDK QEC: validating and debugging encoded programs | gap (= F5) |
