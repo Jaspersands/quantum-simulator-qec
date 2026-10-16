@@ -242,3 +242,18 @@ def test_chromobius_decodes_the_annotated_colour_codes():
             decoder = chromobius.compile_decoder_for_dem(stim.DetectorErrorModel(str(c.detector_error_model())))
             dets, obs = stim.Circuit(str(c)).compile_detector_sampler(seed=1).sample(4000, separate_observables=True, bit_packed=True)
             assert np.mean(np.any(decoder.predict_obs_flips_from_dets_bit_packed(dets) != obs, axis=1)) < limit
+
+
+@pytest.mark.parametrize("basis", ["z", "x"])
+def test_memory_circuit_orientations(basis):
+    # ZH is the rotated patch as this package lays it out, CNOT order and all.
+    for d in (3, 5):
+        assert str(sq.memory_circuit(distance=d, rounds=3, p=0.001, basis=basis, orientation="ZH")) == str(sq.memory_circuit(distance=d, rounds=3, p=0.001, basis=basis))
+    for o in ("XV", "XH", "ZV", "O1", "o2", " zv "):
+        for d in (3, 5):
+            c = sq.memory_circuit(distance=d, rounds=2, p=0.001, basis=basis, orientation=o)
+            assert c.num_observables == 1 and c.num_detectors == 2 * (d * d - 1)
+            assert len(c.detector_error_model().shortest_graphlike_error()) == d
+    for bad in (dict(orientation="north"), dict(orientation="XV", code="xzzx"), dict(orientation="XV", noise="si1000")):
+        with pytest.raises(ValueError):
+            sq.memory_circuit(distance=3, rounds=2, p=0.001, **bad)

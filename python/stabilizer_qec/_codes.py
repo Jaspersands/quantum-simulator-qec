@@ -2,7 +2,7 @@
 logical operations, and the streamed million-round memory."""
 
 
-from typing import Any, NamedTuple, Sequence, Union
+from typing import Any, NamedTuple, Optional, Sequence, Union
 
 import numpy as np
 
@@ -30,6 +30,7 @@ def memory_circuit(
     noise: str = "sd6",
     eta: float = 0.5,
     basis: str = "z",
+    orientation: Optional[str] = None,
 ) -> Circuit:
     """A surface-code memory experiment: a distance-``distance`` patch (``"rotated"`` or
     ``"xzzx"``, distance 2 to 11) prepared in ``basis``, held for ``rounds`` rounds of syndrome
@@ -38,10 +39,24 @@ def memory_circuit(
     ``noise="sd6"`` is the standard circuit-level model at strength ``p`` (two-qubit
     depolarizing after every CNOT, single-qubit after every gate and on every idle qubit,
     flips on every reset and measurement), as Stim's generated circuits use. ``"current"`` is
-    the engine's own model, with bias ``eta`` = p_Z / (p_X + p_Y)."""
+    the engine's own model, with bias ``eta`` = p_Z / (p_X + p_Y).
+
+    ``orientation`` (``"XV"``, ``"XH"``, ``"ZV"``, ``"ZH"``, or NVIDIA Ising's ``"O1"``-``"O4"``)
+    lays the rotated patch out as CUDA-Q QEC's surface code of that orientation, with its CNOT
+    order, under SD6 noise (any distance from 2); ``"ZH"`` is the default patch's own."""
     _choice(code, _CODES, "code")
     _choice(noise, ("sd6", "current"), "noise")
     _choice(basis, _BASES, "basis")
+    if orientation is not None:
+        if code != "rotated" or noise != "sd6":
+            raise ValueError("orientation applies to the rotated code under sd6 noise")
+        from .cudaq_qec._codes import oriented_memory_circuit, sc_orientation_from_str
+
+        try:
+            o = sc_orientation_from_str(orientation)
+        except RuntimeError as e:
+            raise ValueError(str(e)) from None
+        return oriented_memory_circuit(count(distance, "distance", 2), count(rounds, "rounds", 1), probability(p), basis, o)
     text = call(_core.generate_circuit, code, count(distance, "distance"), count(rounds, "rounds"), noise, probability(p), real(eta, "eta"), basis)
     return Circuit(text)
 

@@ -231,6 +231,25 @@ noise on every gate. In progress on `feature/2.0`.
   `pcm_extend_to_n_rounds`, `simplify_pcm`, `generate_random_pcm`, `shuffle_pcm_columns`, ...),
   the random ones drawing as CUDA-Q's C++ does. CUDA-Q's quantum kernels, GPU and real-time
   decoding need CUDA-Q itself.
+- **CUDA-Q QEC's codes and memory experiments** in `stabilizer_qec.cudaq_qec`, passing CUDA-Q's
+  code tests (`tests/cudaq_qec_port/test_qec_codes.py`, from its C++ unit tests, and
+  `test_surface_code.py`): `get_code` (`"steane"`, `"repetition"`, `"surface_code"`, `stabilizers=`
+  overrides, the `@code` registry for Python codes), `Code`'s parity, observable and schedule
+  accessors; the surface code's **four orientations** `XV`, `XH`, `ZV`, `ZH` (NVIDIA Ising's
+  `O1`-`O4`) with `stabilizer_grid`, its roles, coordinates, stabilizers, observables and CNOT
+  schedules (each hook along the logical it cannot shorten), all as CUDA-Q's; `memory_circuit`,
+  `sample_memory_circuit`, `dem_from_memory_circuit` (and their `x_`/`z_` forms) on a code with
+  CUDA-Q's `NoiseModel` channels, detectors laid out as its kernels lay them out; and
+  `sample_code_capacity` drawing as CUDA-Q's `std::mt19937` does (its seeded test data, equal).
+- **`memory_circuit(..., orientation=)`**: the rotated SD6 memory in any of the four
+  orientations (`"ZH"`, the default layout, is the circuit `memory_circuit` has always built).
+- **`stabilizer_qec.tsim`: Tsim's encoders** (bloqade-tsim 0.1.5's `TransversalEncoder`,
+  `SteaneEncoder` and `ColorEncoder5`, and its program-text shorthand, passing its tests in
+  `tests/tsim_port/`) on this package's `Circuit`, each encoding checked by `Tableau` (the
+  encoded stabilizers and logicals the inputs' images) and each encoded circuit's logical
+  outcomes against the unencoded one's. `tsim_to_native` reads Tsim's tagged Stim (`S[T]`,
+  rotations in half-turns, `SPP[T]`) as this package's non-Clifford operations, checked against
+  a state vector of Tsim's definitions.
 - **`stabilizer_qec.qecsim`: qecsim 1.0b9 whole**, passing its own tests (`tests/qecsim_port/`;
   2,902, including its command-line tests, which qecsim itself can no longer load without
   `pkg_resources`): planar, rotated planar, toric, rotated toric, colour 6.6.6 and small codes,

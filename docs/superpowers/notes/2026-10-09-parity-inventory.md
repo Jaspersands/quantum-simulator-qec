@@ -225,12 +225,12 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | ID | Feature | Status |
 |---|---|---|
 | T1 | Clifford+T sampling by stabilizer rank (ZX), cost exponential in non-Clifford count, 80+ qubits | gap (state vector ≤ 24 qubits) |
-| T2 | Gates T, T_DAG, R_X/Y/Z, U3, R_PAULI, TPP, R_XX/YY/ZZ (plain gates, not only tags) | part (tags) |
+| T2 | Gates T, T_DAG, R_X/Y/Z, U3, R_PAULI, TPP, R_XX/YY/ZZ (plain gates, not only tags) | part (tags; W7's `tsim_to_native` reads Tsim's half-turn tags as ours, the conventions to reconcile in W9) |
 | T3 | CCZ, CCX | gap |
 | T4 | `CompiledStateProbs.probability_of` (exact output probabilities) | part (exact_distribution ≤ 24) |
 | T5 | `to_matrix`, `to_tensor`, `tcount`, `is_clifford`, `cast_to_stim`, `inverse` with non-Clifford gates | gap |
 | T6 | DEM of a non-Clifford circuit (Clifford part, non-deterministic observables allowed) | part |
-| T7 | Encoders: TransversalEncoder, Steane encoder, colour-code encoder | gap |
+| T7 | Encoders: TransversalEncoder, Steane encoder, colour-code encoder | done (2.0 W7: `stabilizer_qec.tsim`, on `Circuit`, verified by `Tableau`) |
 | T8 | GPU (JAX, CUDA) | gap |
 
 ## C — CUDA-Q QEC 0.8, cuStabilizer
@@ -247,7 +247,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | C8 | PCM utilities: `get_pcm_for_rounds`, `pcm_extend_to_n_rounds`, sorting/simplifying/shuffling columns, `generate_random_pcm`, timelike sparse detector matrix | done (2.0 W6: `stabilizer_qec.cudaq_qec`) |
 | C9 | `sample_code_capacity`, `sample_memory_circuit` (x/z), `dem_from_memory_circuit` (x/z), `dem_sampling` | done (2.0 W6: `stabilizer_qec.cudaq_qec`) |
 | C10 | GPU frame sampling (cuStabilizer: X/Z/leakage tables, up to 150× one CPU thread) and GPU decoders | gap |
-| C11 | Surface-code orientations XV, XH, ZV, ZH | gap |
+| C11 | Surface-code orientations XV, XH, ZV, ZH | done (2.0 W7: `cudaq_qec.surface_code`/`stabilizer_grid` as CUDA-Q's, `memory_circuit(orientation=)`) |
 
 ## M — MQT QECC 2.0
 

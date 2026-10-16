@@ -173,8 +173,18 @@ Version 2.0 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/NVIDIA/cudaq
 lookup tables, `src/lookup.rs`; the sliding window; the PyMatching plugin; the bundled examples),
 its parity-check-matrix tools and its detector error model, from its C++ and Python sources; its
 `tensor_network_decoder` keeps CUDA-Q's interface and contracts exactly with `src/tn_ml.rs`.
-`tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder tests with their import pointed at this
-package.
+Its codes (`stabilizer_grid`, the surface code's orientations, Steane, repetition), noise models
+and memory experiments (`python/stabilizer_qec/cudaq_qec/_codes.py`) are ported from its C++
+sources. `tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder and code tests (the C++ code tests in
+Python) with their import pointed at this package.
+
+## Tsim
+
+Copyright 2026 QuEra Computing Inc. Licensed under the Apache License, Version 2.0
+(`python/stabilizer_qec/tsim/LICENSE`). Source: https://github.com/QuEraComputing/tsim
+
+`python/stabilizer_qec/tsim/` holds bloqade-tsim 0.1.5's encoders and program-text utilities on
+this package's `Circuit`, and `tests/tsim_port/` its program-text tests.
 
 ## qecsim
 
