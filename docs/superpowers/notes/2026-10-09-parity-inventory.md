@@ -199,24 +199,24 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 
 | ID | Feature | Status |
 |---|---|---|
-| Q1 | Classical codes: repetition, ring, cyclic, Golay, Hamming, extended Hamming, Reed–Muller, Reed–Solomon, BCH, simplex, Tanner | gap |
-| Q2 | Quantum codes: five-qubit, Steane, quantum Hamming, quantum Reed–Muller, tetrahedral, quantum Golay, iceberg, C4, C6, many-hypercube, TB, GALA, QC, BB (general, toric layouts), HGP, CHGP, CRC, SHP, Bacon–Shor, SHYPS, LP, SLP, QT, surface, toric, generalized surface, T4 | part (surface, colour, BB, HGP) |
-| Q3 | Qudit codes over GF(q) (`QuditCode`, `QuditPauli`, fields) | gap |
-| Q4 | Non-CSS stabilizer codes (symplectic), subsystem codes, conversion to CSS/SWEL | gap |
-| Q5 | Logical operators (canonical basis, symplectic Gram–Schmidt), dual basis | part (CSS logicals) |
-| Q6 | Distance: exact (Brouwer–Zimmermann for CSS; brute force), bounds by random search, upper bounds | part (MILP) |
-| Q7 | Code equivalence, canonical forms, `forget_distance`, code parameters | gap |
-| Q8 | Groups and rings: cyclic, dihedral, alternating, symmetric, quaternion, small groups, SL/PSL/GL/PGL, group rings, lifts, Wedderburn–Artin | part (BB automorphisms) |
-| Q9 | Encoding circuits and tableaus, logical tableaus, encoder/decoder pairs | gap |
-| Q10 | Transversal gates: transversal S, transversal ops, automorphism group, transversal circuits for given logical Cliffords | part (BB automorphisms) |
-| Q11 | Memory experiments for any code: syndrome-measurement strategies (edge colouring, EdgeColoringXZ), AlphaSyndrome (MCTS schedule search), Bell-state logical prep, observables | part (CSS memory, one schedule) |
-| Q12 | State-prep diagnostics (flags, post-selection, discard rate) | gap |
-| Q13 | Noise models: `NoiseModel` rules, depolarizing, SI1000, Pauli channels, `as_noiseless_circuit` | part |
-| Q14 | Decoders: lookup (plain, weighted, observable), ILP, GUF, composite, direct, frontier, subgraph, sequential and sliding windows, trivial; erasure flags | part |
-| Q15 | `DetectorErrorModelArrays`: simplified, without_detectors, post_selected_on, with_decomposed_errors, to_circuit | gap |
-| Q16 | Code-capacity DEMs and decoders; Monte Carlo with weight-truncated error-rate functions (`ErrorRateFunc`, Jeffreys variance, sample allocation by weight) | gap |
-| Q17 | Experimental surgery: bridges between codes, Cheeger constant, gadget boosting, single and joint Pauli-product measurement circuits | part (gross gauging) |
-| Q18 | External: qecdb / QLDPC-challenge code fetch, GAP/Magma groups, sqetch distance bounds | gap (network or third-party; offline equivalents only) |
+| Q1 | Classical codes: repetition, ring, cyclic, Golay, Hamming, extended Hamming, Reed–Muller, Reed–Solomon, BCH, simplex, Tanner | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q2 | Quantum codes: five-qubit, Steane, quantum Hamming, quantum Reed–Muller, tetrahedral, quantum Golay, iceberg, C4, C6, many-hypercube, TB, GALA, QC, BB (general, toric layouts), HGP, CHGP, CRC, SHP, Bacon–Shor, SHYPS, LP, SLP, QT, surface, toric, generalized surface, T4 | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q3 | Qudit codes over GF(q) (`QuditCode`, `QuditPauli`, fields) | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q4 | Non-CSS stabilizer codes (symplectic), subsystem codes, conversion to CSS/SWEL | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q5 | Logical operators (canonical basis, symplectic Gram–Schmidt), dual basis | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q6 | Distance: exact (Brouwer–Zimmermann for CSS; brute force), bounds by random search, upper bounds | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q7 | Code equivalence, canonical forms, `forget_distance`, code parameters | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q8 | Groups and rings: cyclic, dihedral, alternating, symmetric, quaternion, small groups, SL/PSL/GL/PGL, group rings, lifts, Wedderburn–Artin | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q9 | Encoding circuits and tableaus, logical tableaus, encoder/decoder pairs | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q10 | Transversal gates: transversal S, transversal ops, automorphism group, transversal circuits for given logical Cliffords | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q11 | Memory experiments for any code: syndrome-measurement strategies (edge colouring, EdgeColoringXZ), AlphaSyndrome (MCTS schedule search), Bell-state logical prep, observables | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q12 | State-prep diagnostics (flags, post-selection, discard rate) | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q13 | Noise models: `NoiseModel` rules, depolarizing, SI1000, Pauli channels, `as_noiseless_circuit` | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q14 | Decoders: lookup (plain, weighted, observable), ILP, GUF, composite, direct, frontier, subgraph, sequential and sliding windows, trivial; erasure flags | done (2.0 W6: `stabilizer_qec.qldpc`) |
+| Q15 | `DetectorErrorModelArrays`: simplified, without_detectors, post_selected_on, with_decomposed_errors, to_circuit | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q16 | Code-capacity DEMs and decoders; Monte Carlo with weight-truncated error-rate functions (`ErrorRateFunc`, Jeffreys variance, sample allocation by weight) | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q17 | Experimental surgery: bridges between codes, Cheeger constant, gadget boosting, single and joint Pauli-product measurement circuits | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
+| Q18 | External: qecdb / QLDPC-challenge code fetch, GAP/Magma groups, sqetch distance bounds | done (2.0 W6: `stabilizer_qec.qldpc`, qLDPC 0.4.1 whole; W7 cross-checks) |
 
 ## T — Tsim (QuEra, bloqade-tsim 0.1.5)
 
@@ -251,17 +251,17 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 
 | ID | Feature | Status |
 |---|---|---|
-| M1 | Encoding-circuit synthesis: Gottesman, heuristic, gate-optimal and depth-optimal (SAT), for CSS and non-CSS | gap |
-| M2 | Fault-tolerant state preparation: verification circuits (gate-optimal), deterministic verification with corrections, flags, hooks | gap |
-| M3 | Cat-state preparation (balanced tree, line, pruned, fused) and experiments | gap |
-| M4 | Clifford synthesis (exact gate count and depth, SAT), CNOT-circuit synthesis (greedy and rollout) | gap |
-| M5 | Code switching compiler (minimal switching, min cut) | gap |
+| M1 | Encoding-circuit synthesis: Gottesman, heuristic, gate-optimal and depth-optimal (SAT), for CSS and non-CSS | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
+| M2 | Fault-tolerant state preparation: verification circuits (gate-optimal), deterministic verification with corrections, flags, hooks | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
+| M3 | Cat-state preparation (balanced tree, line, pruned, fused) and experiments | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
+| M4 | Clifford synthesis (exact gate count and depth, SAT), CNOT-circuit synthesis (greedy and rollout) | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
+| M5 | Code switching compiler (minimal switching, min cut) | done (2.0 W6: `stabilizer_qec.mqt_qecc.code_switching`) |
 | M6 | Colour-code MaxSAT decoder (LightsOut) | gap |
 | M7 | Analog Tanner-graph decoding (soft syndromes), single-shot and quasi-single-shot simulators | gap |
-| M8 | Codes: concatenated (CSS), quantum Hamming, iceberg, many-hypercube, 3D/4D (sparse) hypergraph product, hexagonal and square-octagon colour codes, rotated surface | part |
+| M8 | Codes: concatenated (CSS), quantum Hamming, iceberg, many-hypercube, 3D/4D (sparse) hypergraph product, hexagonal and square-octagon colour codes, rotated surface | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 | M9 | Stabilizer tableau objects (`StabilizerTableau`, `Pauli`, symplectic vectors and matrices), `CliffordIsometry` | gap (= S3/S5) |
-| M10 | Routing for lattice surgery (cococo: hill climbing, snake builders, teleportation router, Steiner trees) | gap |
-| M11 | Fault sets, coset leaders, undetectable-fault search on CNOT circuits | part |
+| M10 | Routing for lattice surgery (cococo: hill climbing, snake builders, teleportation router, Steiner trees) | done (2.0 W6: `stabilizer_qec.mqt_qecc.cococo`) |
+| M11 | Fault sets, coset leaders, undetectable-fault search on CNOT circuits | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 
 ## U — QUITS, qec-util, PanQEC, qecsim, PECOS, Fusion Blossom, MWPF, qsample
 
