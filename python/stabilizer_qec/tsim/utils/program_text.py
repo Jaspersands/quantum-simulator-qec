@@ -1,6 +1,8 @@
 # Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5; Apache License 2.0; see LICENSE in this directory),
-# modified for stabilizer_qec: tsim is stabilizer_qec.tsim.
+# modified for stabilizer_qec: tsim is stabilizer_qec.tsim; annotations postponed (Python 3.9).
 """Conversion utilities between tsim shorthand and stim program text."""
+
+from __future__ import annotations
 
 import re
 from collections.abc import Callable
