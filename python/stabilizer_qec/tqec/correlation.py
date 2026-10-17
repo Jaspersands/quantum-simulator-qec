@@ -11,8 +11,14 @@ import operator
 from copy import copy
 from dataclasses import dataclass
 from functools import cached_property, lru_cache, partial, reduce
-from itertools import accumulate, chain, combinations, pairwise, product, repeat, starmap
+from itertools import accumulate, chain, combinations, product, repeat, starmap
 from typing import TYPE_CHECKING, Callable, Generator, Iterable, Iterator, NamedTuple, Optional, Sequence
+
+
+def pairwise(iterable):
+    """``itertools.pairwise`` (Python 3.10+), for 3.9."""
+    items = list(iterable)
+    return zip(items, items[1:])
 
 from ._errors import TQECError
 from .cube import CubeKind, Port, YHalfCube, ZXCube

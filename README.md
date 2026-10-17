@@ -190,6 +190,13 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   and reweights the twirl of thousands of small rotations around them — magic-state injection
   and distillation under over-rotation on every gate, where the twirl misjudges the encoded
   state's infidelity by two to three times and turns a working distillation into a broken one.
+- **Fault-tolerant compilation, two ways**: tqec's block graphs (`stabilizer_qec.tqec`: cubes,
+  pipes, ports, correlation surfaces found on a ZX graph of its own, the gallery, Collada and
+  JSON files, every gallery graph equal to tqec's) compiled to circuits on the lattice-surgery
+  engine where they fit; and Loom's Eka model (`stabilizer_qec.loom`: rotated-surface-code
+  blocks, reset, syndrome rounds, logical measurements, grow, shrink, merge, split, conditional
+  Paulis) interpreted to circuits gate for gate as Loom writes them, with Loom's validator on
+  this package's tableau simulator and exporters to Stim, OpenQASM 3, PennyLane and CUDA-Q.
 - **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
   with amplitude and phase damping and T1/T2 relaxation, process matrices (Choi, Pauli transfer,
   χ), and QuantumClifford.jl's perturbative expansion run on detection events: a decoder's

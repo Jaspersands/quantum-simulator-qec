@@ -224,6 +224,19 @@ pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data. t
 TQEC community's, licensed under the Apache License, Version 2.0; the licence is in
 `python/stabilizer_qec/tqec/LICENSE`.
 
+## Loom
+
+`python/stabilizer_qec/loom/` is a port of Loom's Eka model (`loom.eka`: lattice, Pauli
+operators, stabilizers, blocks, syndrome circuits, the circuit IR and the operations), its
+interpreter (`loom.interpreter` and the rotated surface code's grow, shrink, merge and split
+applicators), its validator (`loom.validator`), its rotated-surface-code factory
+(`loom_rotated_surface_code`) and its Stim, OpenQASM 3, PennyLane and CUDA-Q executors
+(`loom.executor`) from el-loom 0.4.0 (https://github.com/entropicalabs/el-loom), rewritten on
+plain dataclasses and this package's tableau simulator without pydantic, igraph, plotly, scipy
+or numpy. Loom is Copyright 2024 Entropica Labs Pte Ltd and licensed under the Apache License,
+Version 2.0; the licence is in `python/stabilizer_qec/loom/LICENSE`. `tests/loom_port/
+fixtures.json` records outputs of el-loom 0.4.0 the tests compare against.
+
 ## Fusion Blossom
 
 Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/fusion/LICENSE`, and

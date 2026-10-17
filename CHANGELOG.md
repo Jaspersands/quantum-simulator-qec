@@ -707,6 +707,28 @@ noise on every gate. In progress on `feature/2.0`.
   compile (the CNOT's decoded logical error rate equals the engine's own CNOT's), and graphs
   with Hadamard pipes, spatial cubes, Y half cubes or open ports are refused with tqec named.
   tqec's plaquette templates and detector search are not ported.
+- **`stabilizer_qec.loom`: Loom's Eka model, interpreter, validator and exporters** (Entropica
+  Labs' el-loom 0.4.0, ported on plain dataclasses without pydantic, igraph, plotly or scipy;
+  Apache 2.0): `Lattice`, `PauliOperator`, `Stabilizer`, `Block` with Loom's validation,
+  `SyndromeCircuit` and Loom's circuit IR (channels, nested circuits with its timing and
+  unrolling), the operations (reset, syndrome rounds, logical measurements and Paulis,
+  conditional Paulis, grow, shrink, merge, split; Loom's other operations are defined for
+  interchange and refused), `Eka` with Loom's dict form (its JSON reads here and back),
+  `RotatedSurfaceCode.create` (stabilizers, ancillas, schedules, syndrome circuits, logicals,
+  charges, boundaries and corners equal to Loom's on 72 configurations), `interpret_eka` with
+  Loom's syndromes, detectors, logical observables, stabilizer and logical evolutions and
+  corrections, `EkaToStimConverter` (this package's `Circuit`) and `eka_to_circuit`, and the
+  `EkaToQasmConverter`, `EkaToCudaqConverter` and `EkaToPennylaneConverter` text exporters.
+  On fourteen recorded experiments (memories, merges horizontal and vertical and at distance
+  5, merge and split, a conditional Pauli after a split, grow, shrink, parallel operations) the
+  Stim text equals Loom's byte for byte, except the shrink, where Loom orders a block's
+  stabilizers by a Python set of strings (hash-randomised run to run) and the gates, detectors
+  and observables are the same; the QASM and CUDA-Q texts equal Loom's, PennyLane's up to the
+  wire-register ids. The validator (`is_circuit_valid`, `is_syndrome_extraction_circuit_valid`,
+  `is_logical_operation_circuit_valid`) runs on `TableauSimulator` with Loom's three checks
+  and gives Loom's verdicts. Not ported: the auxiliary CNOT, transversal Hadamard, move,
+  rotate, Y-wall phase gate and state injection applicators, base and logical operations,
+  if-else circuits, error models, and the Mimiq and Guppy exporters.
 
 ### Fixed
 
