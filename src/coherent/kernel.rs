@@ -640,7 +640,14 @@ impl Kernel {
     }
 }
 
-fn symmetric_difference(a: &[usize], b: &[usize]) -> Vec<usize> {
+impl Kernel {
+    /// A location's random word; a set's key is the XOR of its locations'.
+    pub(crate) fn zobrist(&self, l: usize) -> u64 {
+        self.zobrist[l]
+    }
+}
+
+pub(crate) fn symmetric_difference(a: &[usize], b: &[usize]) -> Vec<usize> {
     let (mut i, mut j, mut out) = (0, 0, Vec::with_capacity(a.len() + b.len()));
     while i < a.len() || j < b.len() {
         if j == b.len() || (i < a.len() && a[i] < b[j]) {

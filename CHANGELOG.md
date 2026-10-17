@@ -678,7 +678,17 @@ noise on every gate. In progress on `feature/2.0`.
   clusters, since members of different clusters overlap through a T gate. The samplers'
   reading of the tags: a rotation written on `I`/`II` is a gate (exact), on `I_ERROR`/`II_ERROR`
   an error (twirled and reweighted); `twirled()` now twirls the errors alone and keeps the
-  gates; 1.9 treated `I[R_Z(…)]` as an error too.
+  gates; 1.9 treated `I[R_Z(…)]` as an error too. The experiments (`tools/clifford_t.py
+  inject|distill`, `data/clifford_t/`, the README's tables): under an over-rotation after every
+  gate, the twirl under-reads the infidelity of a |T⟩ state injected into the Steane and
+  [[17,1,5]] colour codes by two to three times (Steane, ε = 0.02: 0.0015 against the exact
+  0.0043; ε = 0.1: 0.040 against 0.094) and the joint sampler reads it within sampling error;
+  on Tsim's 5-qubit distillation protocol the twirl turns a working protocol into a broken one
+  (ε = 0.01: acceptance 11.6% and output infidelity 2 × 10⁻² against the exact 16.8% and
+  2 × 10⁻⁵), the joint sampler puts the acceptance back and the infidelity within one to two
+  orders of magnitude (a cancellation-dominated quantity the truncation does not reach), and in
+  the protocol encoded in the colour code (85 qubits, 801 rotations) it is the only estimate
+  there is, at about a second per shot.
 
 ### Fixed
 

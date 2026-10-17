@@ -1,0 +1,108 @@
+{
+ "tsim": "0.1.5",
+ "shots": 50000,
+ "cases": {
+  "prep": {
+   "exact_infidelity": 0.03333333333333333,
+   "tsim_infidelity": 0.03442,
+   "z": 1.3328515248132233,
+   "ours_s_per_shot": 3.145455000048969e-06,
+   "tsim_s_per_shot": 2.7447224999195895e-06,
+   "tsim_first_call_s": 2.008153458999004,
+   "peak_terms": 2
+  },
+  "distillation": {
+   "chi2": 36.95192104354102,
+   "dof": 31,
+   "p_value": 0.21306626152867014,
+   "exact": {
+    "infidelity": 0.0059090094149913015,
+    "acceptance": 0.14154526748971188
+   },
+   "ours": {
+    "infidelity": 0.006462731581214994,
+    "acceptance": 0.13926
+   },
+   "tsim": {
+    "infidelity": 0.006346967559943582,
+    "acceptance": 0.1418
+   },
+   "ours_s_per_shot": 6.573253417998785e-05,
+   "tsim_s_per_shot": 0.002236507556659926,
+   "tsim_first_call_s": 129.82382054199843,
+   "peak_terms": 32
+  },
+  "distillation_noisy": {
+   "chi2": 36.94657421722194,
+   "dof": 31,
+   "p_value": 0.2132417100170484,
+   "ours": {
+    "infidelity": 0.04144838212634823,
+    "acceptance": 0.1298
+   },
+   "tsim": {
+    "infidelity": 0.03596894311519569,
+    "acceptance": 0.12622
+   },
+   "ours_s_per_shot": 6.549303916006465e-05,
+   "tsim_s_per_shot": 0.00304164915500005,
+   "tsim_first_call_s": 166.052523499995,
+   "peak_terms": 32
+  },
+  "encoded_distillation": {
+   "qubits": 85,
+   "non_clifford_gates": 10,
+   "detector_rates_ours": [
+    0.1895,
+    0.19,
+    0.1755,
+    0.181,
+    0.205,
+    0.195,
+    0.183,
+    0.3215,
+    0.1615,
+    0.16,
+    0.157,
+    0.154,
+    0.1635,
+    0.1465,
+    0.153,
+    0.2655,
+    0.1385,
+    0.132,
+    0.1365,
+    0.1425,
+    0.1295,
+    0.14,
+    0.134,
+    0.236,
+    0.1535,
+    0.1465,
+    0.1535,
+    0.169,
+    0.154,
+    0.148,
+    0.1555,
+    0.2545,
+    0.22,
+    0.218,
+    0.218,
+    0.2325,
+    0.225,
+    0.2185,
+    0.214,
+    0.3635,
+    0.446,
+    0.529,
+    0.491,
+    0.5335,
+    0.5245
+   ],
+   "shots": 2000,
+   "ours_s_per_shot": 0.002135840062499483,
+   "peak_terms": 32,
+   "tsim": "not run (--tsim-encoded): Tsim's compilation of the 85-qubit circuit was killed for memory here"
+  }
+ }
+}

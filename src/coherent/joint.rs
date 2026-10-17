@@ -57,7 +57,10 @@ pub struct JointSampler {
     group_gens: Vec<Vec<usize>>,
     by_location: Vec<Vec<usize>>,
     options: CoherentOptions,
-    /// With the whole kernel (small circuits): every element, one class.
+    /// Whether to sum over the products of every two untouched generators too (quadratic in
+    /// their number: for small circuits).
+    pairs: bool,
+    /// With the whole kernel (small circuits): every element.
     whole: Option<Vec<Element>>,
 }
 
@@ -99,7 +102,13 @@ impl JointSampler {
                 by_location[l].push(i);
             }
         }
-        Ok(JointSampler { program, kernel_program, kernel, solver, loc_of_twirl, twirl_of_loc, generators, group_gens, by_location, options, whole: None })
+        Ok(JointSampler { program, kernel_program, kernel, solver, loc_of_twirl, twirl_of_loc, generators, group_gens, by_location, options, pairs: false, whole: None })
+    }
+
+    /// The same, summing also over the products of every two untouched generators.
+    pub fn with_pairs(mut self, pairs: bool) -> JointSampler {
+        self.pairs = pairs;
+        self
     }
 
     /// The same, weighing every shot with the whole kernel: for small circuits, the exact
@@ -157,15 +166,31 @@ impl JointSampler {
             }
         }
         let touched = self.kernel.touched(&self.generators, &self.by_location, &fired_locs, self.options.hops);
+        let mut untouched = Vec::new();
         let mut t = touched.iter().peekable();
         for (g, e) in self.generators.iter().enumerate() {
             if t.peek() == Some(&&g) {
                 t.next();
                 continue;
             }
+            untouched.push(g);
             add(vec![e.clone()], &mut out);
         }
         let mut element_of = |members: &[usize]| self.kernel_program.element(members, &self.solver);
+        if self.pairs {
+            for (i, &a) in untouched.iter().enumerate() {
+                for &b in &untouched[i + 1..] {
+                    let members = super::kernel::symmetric_difference(&self.generators[a].members, &self.generators[b].members);
+                    if members.is_empty() {
+                        continue;
+                    }
+                    let key = members.iter().fold(0u64, |h, &l| h ^ self.kernel.zobrist(l));
+                    if let Some(e) = cache.entry(key).or_insert_with(|| element_of(&members)).clone() {
+                        add(vec![e], &mut out);
+                    }
+                }
+            }
+        }
         for cluster in self.kernel.clusters(&self.generators, &touched) {
             let elements = self.kernel.products(&self.generators, &cluster, &self.options, cache, &mut element_of);
             add(elements, &mut out);

@@ -364,6 +364,48 @@ def coherent_capacity():
     return rows
 
 
+def clifford_t_tsim():
+    """tools/clifford_t.py check: the stabilizer-rank sampler against Tsim on Tsim's demos."""
+    d = load("data/clifford_t/tsim_check.json")
+    c = d["cases"]
+    rows = []
+    rows.append(f"| magic-state preparation, 1 qubit | 1 | 4 | {d['shots']:,} | infidelity {c['prep']['tsim_infidelity']:.4f} against the exact {c['prep']['exact_infidelity']:.4f} ({c['prep']['z']:.1f}σ) | {time_us(c['prep']['ours_s_per_shot'] * 1e6)} | {time_us(c['prep']['tsim_s_per_shot'] * 1e6)} |")
+    for key, label, gates in (("distillation", "distillation, 5 qubits", 12), ("distillation_noisy", "distillation with noise on its gates", 12)):
+        r = c[key]
+        p = f"p = {r['p_value']:.2f}" if r.get("p_value") is not None else ""
+        rows.append(f"| {label} | 5 | {gates} | {d['shots']:,} | χ² = {r['chi2']:.1f} on {r['dof']} ({p}) | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6)} |")
+    r = c["encoded_distillation"]
+    tsim = f"χ² = {r['chi2']:.1f} on {r['dof']}" if "chi2" in r else "Tsim's compilation is killed for memory on a 16 GB machine"
+    rows.append(f"| distillation in the [[17,1,5]] colour code | {r['qubits']} | {r['non_clifford_gates']} | {r['shots']:,} | {tsim} | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6) if 'tsim_s_per_shot' in r else '—'} |")
+    return rows
+
+
+def clifford_t_inject():
+    """tools/clifford_t.py inject: an encoded magic state's infidelity under over-rotation."""
+    d = load("data/clifford_t/inject.json")
+    rows = []
+    for code, label in (("steane_d3", "Steane [[7,1,3]]"), ("color_d5", "colour [[17,1,5]]")):
+        if code not in d["codes"]:
+            continue
+        for eps, r in d["codes"][code]["eps"].items():
+            rows.append(f"| {label} | {eps} | {r['twirl']['infidelity']:.4f} | {r['coherent']['infidelity']:.4f} ({round(100 * r['coherent']['ess'] / d['shots'])}%) | {r['exact']['infidelity']:.4f} |")
+    return rows
+
+
+def clifford_t_distill():
+    """tools/clifford_t.py distill: Tsim's distillation protocol under over-rotation."""
+    d = load("data/clifford_t/distill.json")
+    rows = []
+    for key, label in (("unencoded", "5 qubits"), ("encoded", "in the [[17,1,5]] colour code")):
+        for eps, r in d[key].items():
+            n = d["shots"] if key == "unencoded" else d["encoded_shots"]
+            ex = r.get("exact")
+            acc = f"{r['twirl']['acceptance']:.3f} / {r['coherent']['acceptance']:.3f} / " + (f"{ex['acceptance']:.3f}" if ex else "—")
+            inf = f"{sci(r['twirl']['infidelity'])} / {sci(r['coherent']['infidelity'])} / " + (sci(ex["infidelity"]) if ex else "—")
+            rows.append(f"| {label} | {eps} | {r['qubits']} | {r['timing']['locations']} | {acc} | {inf} | {round(100 * r['coherent']['ess'] / n)}% | {time_us(r['timing']['coherent_s'] / n * 1e6)} |")
+    return rows
+
+
 # Each table's header row (as a regex), and the function giving its body.
 TABLES = [
     ("gross", r"\| code \| p \| shots \| failures \| per cycle, BP\+OSD-CS \[95%\] \| per cycle, BP\+OSD-0 \| BP alone \|", gross),
@@ -387,6 +429,9 @@ TABLES = [
     ("estimate validation", r"\| case \| d \| physical qubits \(× source\) \| time \(× source\) \|", estimate_validation),
     ("estimate full", r"\| algorithm \| decoder \| d \| physical qubits \(block \+ factories \+ storage\) \| per Toffoli \| run time \| bound \|", estimate_full),
     ("estimate lambda", r"\| algorithm \| Λ \(from\) \| d \| physical qubits \| run time \| decoding cores \|", estimate_lambda),
+    ("clifford+t against tsim", r"\| circuit \| qubits \| non-Clifford gates \| Tsim shots \| agreement \| ours, per shot \| Tsim, per shot \|", clifford_t_tsim),
+    ("clifford+t injection", r"\| code \| ε \| Pauli twirl \| joint sampler \(sample size kept\) \| state vector \|", clifford_t_inject),
+    ("clifford+t distillation", r"\| circuit \| ε \| qubits \| rotations \| acceptance: twirl / joint / exact \| output infidelity: twirl / joint / exact \| sample size kept \| per shot \|", clifford_t_distill),
 ]
 
 

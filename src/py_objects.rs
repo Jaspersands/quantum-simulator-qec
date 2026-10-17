@@ -338,11 +338,11 @@ impl PyCircuit {
     }
 
     /// The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
-    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
-    fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyJointSampler> {
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, pairs=false))]
+    fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool) -> PyResult<PyJointSampler> {
         let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops };
         let inner = &self.circuit.inner;
-        let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options)).map_err(err)?;
+        let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options).map(|s| s.with_pairs(pairs))).map_err(err)?;
         Ok(PyJointSampler { sampler, seed, next: 0.into() })
     }
 

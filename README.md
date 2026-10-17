@@ -183,6 +183,13 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - **A resource estimate**: magic-state factories, Litinski's floor plans, reaction time from this
   decoder's measured latency, and storage options, priced on noise and decoding measured here and
   checked against Gidney's RSA-2048 and Lee et al.'s FeMoco estimates.
+- **Clifford+T circuits, with coherent noise on every gate**: a stabilizer-rank sampler for
+  circuits with T gates and rotations at any qubit count (exact, the cost growing with the
+  non-Clifford gates, checked bit for bit against the state vector and against Tsim), Tsim's
+  circuit surface, and the joint coherent sampler, which runs the non-Clifford gates exactly
+  and reweights the twirl of thousands of small rotations around them — magic-state injection
+  and distillation under over-rotation on every gate, where the twirl misjudges the encoded
+  state's infidelity by two to three times and turns a working distillation into a broken one.
 - **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
   with amplitude and phase damping and T1/T2 relaxation, process matrices (Choi, Pauli transfer,
   χ), and QuantumClifford.jl's perturbative expansion run on detection events: a decoder's
@@ -1381,11 +1388,116 @@ Coherent over twirled logical error, by distance:
 - The weights' spread grows with the circuit's volume times θ. The effective sample size stays
   above about 40% to d = 11 at θ = 0.01 per tick, but falls to a few percent there at θ = 0.02.
   The table's last column reports it for every point.
-- The coherent sampler takes Pauli rotations. T gates, amplitude damping and feedback go to the
-  state vector.
+- The coherent sampler takes Pauli rotations as its errors. A circuit with T gates (or any
+  non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
+  go to the state vector.
 - Leakage-aware decoding is not here; deltakit-stim's Local Clustering Decoder does it.
 
 Tutorial 05 runs all of it.
+
+## Clifford+T circuits, and coherent noise on every gate
+
+Two samplers arrived in 2.0 for circuits that are not Clifford.
+
+**The stabilizer-rank sampler** (`Circuit.compile_stabilizer_rank_sampler`; `compile_sampler`
+and `compile_detector_sampler` use it on any circuit with non-Clifford gates) runs Clifford+T
+circuits — `I[T] 0`, `I[R_Z(theta=…)] 0`, `I[U3(…)] 0`, any Pauli rotation written as a gate —
+at any qubit count, exactly, with a cost that grows with the number of non-Clifford gates rather
+than of qubits: Tsim's territory (QuEra, bloqade-tsim). The state is a sum of Clifford branches
+kept as Pauli cosets of a reference tableau that is the same in every shot: a term is named by
+its Pauli's anticommutation with the stabilizer generators, Clifford gates cost nothing per
+term, a non-Clifford gate splits each term as a sum of Paulis, and terms that land on one coset
+add — the interference — so seven T gates on the Steane code's |0⟩ are eight terms, not 128.
+Its `exact_distribution(method="stabilizer_rank")` follows every branch and equals the state
+vector's distribution to 10⁻¹⁰ on random circuits of T gates, rotations, U3, noise, measurements
+in every basis, resets and feedback. Against Tsim itself on Tsim's own demonstration circuits
+(`tools/clifford_t.py check`, Tsim installed):
+
+| circuit | qubits | non-Clifford gates | Tsim shots | agreement | ours, per shot | Tsim, per shot |
+|---|---|---|---|---|---|---|
+| magic-state preparation, 1 qubit | 1 | 4 | 50,000 | infidelity 0.0344 against the exact 0.0333 (1.3σ) | 3.1 µs | 2.7 µs |
+| distillation, 5 qubits | 5 | 12 | 50,000 | χ² = 37.0 on 31 (p = 0.21) | 65.7 µs | 2.24 ms |
+| distillation with noise on its gates | 5 | 12 | 50,000 | χ² = 36.9 on 31 (p = 0.21) | 65.5 µs | 3.04 ms |
+| distillation in the [[17,1,5]] colour code | 85 | 10 | 2,000 | Tsim's compilation is killed for memory on a 16 GB machine | 2.14 ms | — |
+
+Tsim's circuit surface came with it: `Circuit.tcount()`, `Circuit.is_clifford`,
+`Circuit.to_matrix()`, `Circuit.inverse()` of tagged gates,
+`detector_error_model(allow_non_deterministic_observables=True)`, and
+`stabilizer_qec.tsim.Circuit(text)`, which reads Tsim's shorthand (`T 0`, `TPP X0*Z1`,
+`R_Z(0.25) 0`, `CCZ 0 1 2`).
+
+**The joint sampler** is the release's new thing. Tsim's cost is exponential in every rotation,
+so coherent noise on every gate is out of its reach; the 1.9 coherent sampler above needs a
+Clifford reference circuit, so a T gate is out of its. `compile_coherent_sampler` on a circuit
+with both runs the non-Clifford *gates* exactly, as the stabilizer-rank sampler does, draws the
+coherent *errors* (`I_ERROR[R_Z(theta=…)]`, `II_ERROR[R_ZZ(…)]`) as their Pauli twirl, and
+weights each shot by the interference the twirl drops: a pairwise sum over the error sets the
+circuit's spacetime kernel relates to the shot's, every non-Clifford gate a location in that
+kernel's search (that is where the interference running through a T gate is found), each
+member's state a re-run of the exact engine with its errors inserted and the shot's outcomes
+forced, the overlaps dot products of the two runs' terms in one Pauli frame. With the whole
+kernel the weighted twirl equals the state vector's distribution exactly, on random circuits
+with T gates, U3, rotations, coherent errors, Pauli noise, resets and mid-circuit measurements;
+`exact_distribution(method="coherent")` is that check. Truncated to the kernel's local
+generators, as the coherent sampler is, it is what runs at size.
+
+Two experiments, both under an over-rotation after every gate — exp(−iεZ) after each one-qubit
+gate, exp(−iεZZ) after each two-qubit gate, exp(−iεX) after each reset — by the Pauli twirl of
+those errors (what every Stim-based tool assumes), by the joint sampler, and by the state
+vector where it fits (`tools/clifford_t.py inject|distill`, `data/clifford_t/`).
+
+*Magic-state injection.* A |T⟩ state encoded into the Steane code (7 qubits) and the [[17,1,5]]
+colour code (17 qubits); the encoded state's infidelity from its X_L and Y_L expectations,
+postselected on no detected error:
+
+| code | ε | Pauli twirl | joint sampler (sample size kept) | state vector |
+|---|---|---|---|---|
+| Steane [[7,1,3]] | 0.01 | -0.0001 | 0.0001 (98%) | 0.0011 |
+| Steane [[7,1,3]] | 0.02 | 0.0015 | 0.0043 (91%) | 0.0043 |
+| Steane [[7,1,3]] | 0.05 | 0.0098 | 0.0272 (64%) | 0.0259 |
+| Steane [[7,1,3]] | 0.1 | 0.0401 | 0.0942 (30%) | 0.0941 |
+| colour [[17,1,5]] | 0.01 | 0.0013 | 0.0015 (97%) | 0.0010 |
+| colour [[17,1,5]] | 0.02 | 0.0029 | 0.0049 (88%) | 0.0040 |
+| colour [[17,1,5]] | 0.05 | 0.0089 | 0.0243 (55%) | 0.0246 |
+| colour [[17,1,5]] | 0.1 | 0.0437 | 0.0941 (24%) | 0.0960 |
+
+The twirl under-reads the infidelity of the encoded magic state by two to three times at every
+angle (on the Steane code, 0.0015 against the true 0.0043 at ε = 0.02; 0.040 against 0.094 at
+ε = 0.1); the joint sampler reads it within sampling error.
+
+*Magic-state distillation.* Tsim's 5-qubit distillation protocol (Rodriguez et al. 2025, Tsim's
+own demonstration), which accepts on a syndrome and leaves a better |T⟩ on its first qubit —
+unencoded, where the state vector is the truth, and encoded in the [[17,1,5]] colour code (85
+data qubits, 801 coherent rotations, 10 non-Clifford gates), where no state vector reaches and,
+on this machine, Tsim's compilation of the circuit is killed for memory:
+
+| circuit | ε | qubits | rotations | acceptance: twirl / joint / exact | output infidelity: twirl / joint / exact | sample size kept | per shot |
+|---|---|---|---|---|---|---|---|
+| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.164 / 0.168 | 2.0 × 10⁻² / 6.2 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 2.70 ms |
+| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.163 / 0.168 | 2.2 × 10⁻² / 1.9 × 10⁻³ / 5.2 × 10⁻⁵ | 97% | 2.60 ms |
+| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.153 / 0.167 | 3.5 × 10⁻² / 1.2 × 10⁻² / 1.0 × 10⁻⁵ | 83% | 4.39 ms |
+| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.127 / 0.180 / — | 2.6 × 10⁻¹ / 1.9 × 10⁻¹ / — | 96% | 847.9 ms |
+| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.107 / 0.155 / — | 2.8 × 10⁻¹ / 1.9 × 10⁻¹ / — | 77% | 1384.7 ms |
+| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.030 / 0.076 / — | 4.4 × 10⁻¹ / 3.1 × 10⁻¹ / — | 22% | 680.2 ms |
+
+Here the twirl is not merely off: it turns a working protocol into a broken one. Unencoded at
+ε = 0.01 the protocol accepts 16.8% of runs and leaves an output infidelity of 2 × 10⁻⁵ (the
+coherent errors on the Clifford gates nearly cancel); the twirl says 11.6% and 2 × 10⁻². The
+joint sampler puts the acceptance back within a few percent and the infidelity within one to
+two orders of magnitude of the truth — not all the way: an observable that coherent
+cancellation drives three orders of magnitude below the twirl's value needs products of
+kernel generators no fault touched, which the truncation leaves out (raising its `order` or
+reach does not change the estimate, nor does adding every pair of untouched generators: the
+missing terms are higher products). In the encoded protocol, where every quantity is the
+joint sampler's or nobody's, it keeps 77–96% of its sample size at ε ≤ 0.02 and runs at about a
+second per shot.
+
+**Limits.** The joint sampler's truncation is the coherent sampler's, and its bias is the
+distance between the pairwise sum over local generators and the whole kernel: small where the
+coherent correction is itself first order in the errors (the injection), large where a result
+rests on cancellation (the distilled state's infidelity). The whole kernel is affordable for a
+few dozen rotations only (`exact_distribution(method="coherent")`). Weights can be negative
+when the truncation misses interference; `effective_sample_size` reports the spread.
 
 ## Lattice surgery
 

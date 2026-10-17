@@ -169,7 +169,7 @@ def timed(fn) -> tuple[Any, float]:
     return out, time.perf_counter() - t
 
 
-def check(shots: int, out: pathlib.Path) -> dict:
+def check(shots: int, out: pathlib.Path, tsim_encoded: bool = False) -> dict:
     import tsim
 
     results: dict = {"tsim": getattr(tsim, "__version__", "0.1.5"), "shots": shots, "cases": {}}
@@ -198,11 +198,12 @@ def check(shots: int, out: pathlib.Path) -> dict:
     results["cases"]["prep"] = {"exact_infidelity": p1, "tsim_infidelity": rate, "z": float(z_scores(np.array([p1]), 10**12, np.array([rate]), shots)[0]), **timing}
     save("prep")
 
-    # 2. Distillation without noise: our exact record probabilities against Tsim's histogram.
+    # 2. Distillation with the inputs' depolarizing noise only: our exact record probabilities
+    # (every noise branch followed) against Tsim's histogram.
     text = distillation_text()
-    sampler = ours_tsim.Circuit(text).compile_stabilizer_rank_sampler(seed=0)
     records = np.array([[(i >> k) & 1 for k in range(5)] for i in range(32)], dtype=bool)
-    probs = sampler.probability_of(records)
+    dist = sq.Circuit(str(ours_tsim.Circuit(text)) + "\n" + "\n".join(f"DETECTOR rec[-{k}]" for k in range(5, 0, -1))).exact_distribution(method="stabilizer_rank")
+    probs = np.array([dist.get((tuple(bool(b) for b in r), ()), 0.0) for r in records])
     o, t, timing = both_records(text, shots)
     hist_t = histogram(t)
     inf_o, acc_o = post_select(o)
@@ -250,8 +251,13 @@ def check(shots: int, out: pathlib.Path) -> dict:
     }
     results["cases"]["encoded_distillation"] = case
     save("encoded_distillation")
-    # Tsim's side, from its own encoder, in a process of its own: compiling its graph of the
-    # 85-qubit circuit was killed for memory on a 16 GB machine.
+    # Tsim's side, from its own encoder, in a process of its own, on request: compiling its
+    # graph of the 85-qubit circuit is killed for memory on a 16 GB machine (exit code 137),
+    # and takes the parent with it.
+    if not tsim_encoded:
+        case["tsim"] = "not run (--tsim-encoded): Tsim's compilation of the 85-qubit circuit was killed for memory here"
+        save("encoded_distillation")
+        return results
     tsim_out = out.with_name("tsim_encoded.npz")
     script = (
         "import sys, time, numpy as np\nsys.path.insert(0, sys.argv[1])\nfrom clifford_t import encoded_distillation_with\n"
@@ -424,6 +430,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("check", help="Tsim's demo circuits by both samplers")
     p.add_argument("--shots", type=int, default=50_000)
     p.add_argument("--out", type=pathlib.Path, default=OUT / "tsim_check.json")
+    p.add_argument("--tsim-encoded", action="store_true", help="also compile the 85-qubit circuit with Tsim (needs more memory than 16 GB)")
     p = sub.add_parser("inject", help="an encoded magic state under over-rotation on every gate")
     p.add_argument("--eps", type=float, nargs="+", default=[0.01, 0.02, 0.05, 0.1])
     p.add_argument("--shots", type=int, default=20_000)
@@ -435,7 +442,7 @@ def main(argv=None) -> int:
     p.add_argument("--out", type=pathlib.Path, default=OUT / "distill.json")
     a = ap.parse_args(argv)
     if a.cmd == "check":
-        check(a.shots, a.out)
+        check(a.shots, a.out, a.tsim_encoded)
     elif a.cmd == "inject":
         inject(a.eps, a.shots, a.out)
     elif a.cmd == "distill":
