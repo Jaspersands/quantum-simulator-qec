@@ -762,6 +762,15 @@ noise on every gate. In progress on `feature/2.0`.
   the required error rates, the factory's rounds, units, distances, qubits, durations and
   output error, every frontier entry in order; and live against the installed QDK. Not
   ported: the report text and the profiling.
+- **The lattice-surgery CNOT's threshold under leakage** (Plaquette's experiment;
+  `tools/surgery_leakage.py` → `data/surgery/leakage.json`, a README table): SD6 noise at p
+  with `LEAKAGE(f·p)` after every CX on both qubits and `RELAX(0.1)` seepage, d = 3, 5, 7,
+  20,000 shots a point, decoded by matching blind to the leakage and leakage-aware with the
+  sampler's heralds; the threshold by the crossing of the two largest distances and by
+  qec-util's Wang–Harrington–Preskill fit with a bootstrap interval. Leakage at 3%, 10% and
+  30% of the error rate takes the threshold from 0.49% to 0.45%, 0.37% and 0.23%; at 50% the
+  distance-5 CNOT is worse than the distance-3 one at every p (no threshold); heralds cut the
+  logical error by one to two parts in twenty and move the threshold by less than its interval.
 
 ### Fixed
 

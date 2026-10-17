@@ -1657,6 +1657,33 @@ and after. That is the sum-of-parts law a resource estimate assumes, measured. *
 merged at once**, measuring Z₁Z₂ and Z₂Z₃ together, fail 18.04%, 9.36% and 4.61% at d = 3, 5, 7
 and p = 0.3%.
 
+**With leakage** (`tools/surgery_leakage.py`, Plaquette's experiment on this CNOT: the circuit noise
+is SD6 at p, and after every CX each of its qubits leaks with probability f·p; a leaked qubit reads
+1, leaves every two-qubit partner a random Pauli, and returns at a reset or, with probability 0.1,
+at each of its gates; 20,000 shots per point, d = 3, 5, 7, p from 0.2% to 0.5%). The threshold is
+where the d = 5 and d = 7 curves cross, and in brackets qec-util's Wang–Harrington–Preskill fit
+with its 97.5% bootstrap interval. The decoder is matching on the model without leakage, blind
+to it, or leakage-aware: the sampler's heralds raise the priors of the faults a leak makes likely:
+
+| leakage per CX | threshold, decoder blind to leakage | threshold, heralds used | d = 7 at p = 0.3%: blind / heralded |
+|---|---|---|---|
+| none | 0.49% (fit 0.46%, 0.46–0.47%) | — | 11.2% / — |
+| 0.03 × p | 0.45% (fit 0.42%, 0.42–0.43%) | 0.44% (fit 0.43%, 0.42–0.43%) | 14.6% / 14.4% |
+| 0.1 × p | 0.37% (fit 0.34%, 0.33–0.34%) | 0.37% (fit 0.34%, 0.34–0.35%) | 22.1% / 20.9% |
+| 0.3 × p | 0.23% (fit 0.21%, 0.21–0.22%) | 0.23% (fit 0.21%, 0.21–0.22%) | 42.9% / 41.0% |
+
+- **Leakage lowers the threshold in proportion to its share.** Three per cent of the error
+  rate as leakage takes the CNOT's threshold from 0.49% to 0.45%; a tenth, to 0.37%; three
+  tenths, to 0.23%. At half the error rate (leakage 0.5p, a 3,000-shot run not in the table)
+  the distance-5 CNOT is worse than the distance-3 one at every p measured: no threshold at
+  all. The reason is in
+  the model: a leaked data qubit is never corrected, only waited out, and while it is leaked it
+  feeds a random Pauli to four stabilizer measurements a round.
+- **Heralds buy a little, not a threshold.** Knowing which measurements read a leaked qubit
+  cuts the logical error by one to two parts in twenty at every leakage rate and moves the
+  threshold by less than its interval. The heralded faults are the partner qubits'; the leaked
+  qubit's own, out of the code until it returns, are what the decoder cannot repair.
+
 ## Circuit distance
 
 A code's distance counts the fewest errors on its data qubits that change a logical value

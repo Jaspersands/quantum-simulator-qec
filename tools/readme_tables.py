@@ -167,6 +167,27 @@ def surgery_cnot():
     return rows
 
 
+def surgery_leakage():
+    L = load("data/surgery/leakage.json")
+    big = max(L["distances"])
+    rows = []
+    for f in L["fractions"]:
+        r = L["fractions_results"][f"{f:g}"]
+        at = L["points"][f"f{f:g}/d{big}/p0.003"]
+        rate = lambda k: f"{at[k] / at['shots'] * 100:.1f}%"  # noqa: E731
+
+        def thr(which):
+            c = r[which]["crossing"]
+            if c is None:
+                return "none up to " + f"{max(L['ps']) * 100:.1f}%"
+            fit = r[which]["fit"]
+            return f"{c * 100:.2f}%" + (f" (fit {fit[0] * 100:.2f}%, {fit[1] * 100:.2f}–{fit[2] * 100:.2f}%)" if fit else "")
+
+        leak = "none" if f == 0 else f"{f:g} × p"
+        rows.append(f"| {leak} | {thr('blind')} | {'—' if f == 0 else thr('aware')} | {rate('fails_blind')} / {'—' if f == 0 else rate('fails_aware')} |")
+    return rows
+
+
 def per_merge(points):
     """The failure each merge adds: a least-squares line through ln(1 - P) against k."""
     xs = [q["k"] for q in points]; ys = [math.log(1 - q["rate_any"]) for q in points]
@@ -418,6 +439,7 @@ TABLES = [
     ("surgery timing", r"\| d \| p \| T = 2 \| T = d \| T = 2d \| T = d, plain \| either patch, T = d \|", surgery_timing),
     ("surgery CNOT", r"\| d \| p \| Z inputs \| X inputs \| Z inputs, plain \| three patches idle as long \| CNOT ÷ idle \|", surgery_cnot),
     ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
+    ("surgery leakage", r"\| leakage per CX \| threshold, decoder blind to leakage \| threshold, heralds used \| d = 7 at p = 0.3%: blind / heralded \|", surgery_leakage),
     ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
     ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
     ("decoder checks", r"\| decoder \| against \| cases \| shots \| equal \| ties \| otherwise \| time \(× theirs\) \|", decoder_checks),
