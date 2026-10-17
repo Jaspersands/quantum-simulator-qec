@@ -771,6 +771,26 @@ noise on every gate. In progress on `feature/2.0`.
   30% of the error rate takes the threshold from 0.49% to 0.45%, 0.37% and 0.23%; at 50% the
   distance-5 CNOT is worse than the distance-3 one at every p (no threshold); heralds cut the
   logical error by one to two parts in twenty and move the threshold by less than its interval.
+- **`stabilizer_qec.realtime`: decoding in the background, a decoder queue with statistics,
+  and a decoder server** (CUDA-Q QEC's `decode_async`, `enqueue_syndromes`, `get_corrections`,
+  `reset_decoder` and decoder statistics; its real-time host API). Every decoder has
+  `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the engine
+  and returns an `AsyncResult` (`ready`, `wait`, `get`, its latency and service time).
+  `DecoderQueue(decoder, workers=n)` takes `enqueue_syndromes` (a ticket back),
+  `get_corrections` (by ticket, or the oldest uncollected batch, in order), `pending`, `reset`
+  and `stats()`: a `DecoderStats` with shots and batches decoded, latency from enqueue to
+  result (mean, median, 99th percentile, maximum), the decode's own time, shots per second and
+  the deepest the queue got — fed faster than it decodes, the latency shows it.
+  `cudaq_qec.configure_decoders`, `enqueue_syndromes`, `get_corrections`, `reset_decoder` and
+  `decoder_stats` are the host API over it, for this package's decoders and CUDA-Q QEC's
+  `Decoder` objects alike. `stabilizer-qec serve --dem model.dem --decoder matching --tcp
+  host:port` (or `--stdio`, `--circuit`, `--workers`) serves a decoder over a framed protocol
+  (`realtime.Protocol`: a 20-byte header and b8 syndromes in, b8 predictions out; `STATS`,
+  `RESET`, `ERROR` frames), and `DecoderClient.connect(host, port)` or
+  `DecoderClient.spawn(dem, decoder=...)` (a subprocess on its pipes) decodes through it with
+  `decode_batch`, `decode`, `stats` and `reset`. Over TCP and over the pipes the predictions
+  equal the local decoder's shot for shot (Relay-BP's per batch: it seeds a shot's memory
+  strengths from its place in its batch).
 
 ### Fixed
 

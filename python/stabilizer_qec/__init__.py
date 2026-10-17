@@ -308,7 +308,7 @@ _REMOVED = {
 
 
 def __getattr__(name: str):
-    if name in ("sinter", "pymatching", "analysis", "qsample", "conformance"):
+    if name in ("sinter", "pymatching", "analysis", "qsample", "conformance", "realtime"):
         import importlib
 
         return importlib.import_module(f"stabilizer_qec.{name}")

@@ -576,6 +576,14 @@ class Matching:
             return out, np.frombuffer(weights, dtype="<f8").copy()
         return out
 
+    def decode_async(self, shots: Any, **kwargs: Any) -> Any:
+        """``decode_batch(shots, **kwargs)`` on a background thread: a ``realtime.AsyncResult``
+        whose ``get()`` is the predictions. A single syndrome gives one row."""
+        from .realtime import decode_async
+
+        s = np.asarray(shots)
+        return decode_async(self, s.reshape(1, -1) if s.ndim == 1 else shots, **kwargs)
+
     def decode_to_edges_array(self, syndrome: Any, *, enable_correlations: bool = False) -> np.ndarray:
         """The edges the correction flips, as an (edges × 2) int64 array of node pairs (-1: the
         boundary)."""
@@ -686,6 +694,12 @@ class _CorrelatedMatching:
 
     def decode(self, z: Any, **kwargs: Any) -> Any:
         return self.matching.decode(z, enable_correlations=True, **kwargs)
+
+    def decode_async(self, shots: Any, **kwargs: Any) -> Any:
+        from .realtime import decode_async
+
+        s = np.asarray(shots)
+        return decode_async(self, s.reshape(1, -1) if s.ndim == 1 else shots, **kwargs)
 
     def decode_batch(self, shots: Any, **kwargs: Any) -> Any:
         return self.matching.decode_batch(shots, enable_correlations=True, **kwargs)

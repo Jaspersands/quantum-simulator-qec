@@ -76,7 +76,54 @@ from ._pcm import (
 
 __version__ = "0.8.1"
 
+from ..realtime import DecoderQueue as _DecoderQueue
+
+_queues: dict = {}
+
+
+def configure_decoders(decoders, *, workers: int = 1) -> list:
+    """CUDA-Q QEC's real-time host API: registers decoders (a dict ``{id: decoder}`` or a list,
+    numbered from 0) behind queues; returns their ids. Any decoder with ``decode_batch`` or
+    ``decode`` (this package's, or a ``Decoder``)."""
+    items = decoders.items() if isinstance(decoders, dict) else enumerate(decoders)
+    ids = []
+    for key, dec in items:
+        if key in _queues:
+            _queues[key].close(wait=False)
+        decode = dec.decode_batch if hasattr(dec, "decode_batch") else (lambda s, _d=dec: [_d.decode(row) for row in s])
+        _queues[key] = _DecoderQueue(dec, workers=workers, decode=decode, name=f"{type(dec).__name__}#{key}")
+        ids.append(key)
+    return ids
+
+
+def _queue(decoder_id):
+    if decoder_id not in _queues:
+        raise KeyError(f"decoder {decoder_id!r} is not configured; call configure_decoders first")
+    return _queues[decoder_id]
+
+
+def enqueue_syndromes(decoder_id, syndromes) -> int:
+    """Queues a batch of syndromes to a configured decoder; returns the batch's ticket."""
+    return _queue(decoder_id).enqueue_syndromes(syndromes)
+
+
+def get_corrections(decoder_id, ticket=None, timeout=None):
+    """The corrections of the oldest batch not yet collected (or of ``ticket``), waited for."""
+    return _queue(decoder_id).get_corrections(ticket, timeout)
+
+
+def reset_decoder(decoder_id) -> None:
+    """Drops the decoder's queued batches and its statistics."""
+    _queue(decoder_id).reset()
+
+
+def decoder_stats(decoder_id):
+    """The decoder's `stabilizer_qec.realtime.DecoderStats`."""
+    return _queue(decoder_id).stats()
+
+
 __all__ = [
+    "configure_decoders", "enqueue_syndromes", "get_corrections", "reset_decoder", "decoder_stats",
     "BitFlipChannel", "Code", "DecoderContext", "Depolarization1", "Depolarization2", "DepolarizationChannel", "NoiseModel", "Pauli1", "Pauli2",
     "PhaseFlipChannel", "TwoQubitBitFlip", "TwoQubitDepolarization", "XError", "XH", "XV", "YError", "ZError", "ZH", "ZV", "amx", "amz", "code",
     "d_sparse", "decoder_context_from_memory_circuit", "dem_from_memory_circuit", "empty", "generate_random_bit_flips", "get_available_codes",

@@ -62,6 +62,15 @@ class _DemDecoder:
     def decode_batch(self, shots: Any, **kwargs: Any) -> Any:  # pragma: no cover - overridden
         raise NotImplementedError
 
+    def decode_async(self, shots: Any, **kwargs: Any) -> Any:
+        """``decode_batch(shots, **kwargs)`` on a background thread (the GIL released in the
+        engine): a ``realtime.AsyncResult`` whose ``get()`` is the predictions, ``ready()``
+        whether they are in. A single syndrome gives one row."""
+        from .realtime import decode_async
+
+        s = np.asarray(shots)
+        return decode_async(self, s.reshape(1, -1) if s.ndim == 1 else shots, **kwargs)
+
 
 def _failed(failed: list, what: str) -> None:
     if failed:

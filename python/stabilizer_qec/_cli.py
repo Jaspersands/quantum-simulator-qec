@@ -35,6 +35,7 @@ COMMANDS = {
     "repl": "Read operations from stdin and run them, printing measurement results as they happen.",
     "sample": "Samples measurements from a circuit.",
     "sample_dem": "Samples detection events from a detector error model.",
+    "serve": "Serve a decoder to clients over TCP or over stdin/stdout (stabilizer_qec.realtime.DecoderClient).",
 }
 
 FORMATS = ["01", "b8", "r8", "ptb64", "hits", "dets"]
@@ -114,6 +115,16 @@ def _parser(command: str) -> _Parser:
         add("--allow_gauge_detectors", action="store_true")
         add("--block_decompose_from_introducing_remnant_edges", action="store_true")
         add("--detector_hypergraph", action="store_true", help="deprecated (Stim's); no effect")
+    if command == "serve":
+        from .realtime import DECODERS
+
+        add("--dem", help="the detector error model file the decoder is built on")
+        add("--circuit", help="a circuit file; its error model is built here (decomposed for the graph decoders)")
+        add("--decoder", choices=list(DECODERS), default="matching")
+        add("--tcp", help="host:port to listen on (port 0 picks one and prints it to stderr)")
+        add("--stdio", action="store_true", help="serve one client over stdin and stdout")
+        add("--workers", type=int, default=1, help="batches decoded at once")
+        add("--threads", type=int, default=0, help="threads per batch, for decoders that take them (0: every core)")
     if command == "explain_errors":
         add("--dem_filter")
         add("--single", action="store_true")
@@ -345,6 +356,26 @@ def cmd_sample_dem(a) -> None:
         _write(a.obs_out, encode_shots(obs, a.obs_out_format, num_observables=s.num_observables))
     if a.err_out:
         _write(a.err_out, encode_shots(errs, a.err_out_format, num_measurements=s.num_errors))
+
+
+def cmd_serve(a) -> None:
+    from ._circuit import DetectorErrorModel
+    from .realtime import make_decoder, serve
+
+    if (a.dem is None) == (a.circuit is None):
+        raise UsageError("give --dem or --circuit, one of the two")
+    if bool(a.tcp) == bool(a.stdio):
+        raise UsageError("give --tcp host:port or --stdio, one of the two")
+    if a.dem is not None:
+        decoder = make_decoder(a.decoder, DetectorErrorModel(_read_text(a.dem)))
+    else:
+        decoder = make_decoder(a.decoder, circuit=_read_text(a.circuit))
+
+    def ready(server) -> None:
+        host, port = server.server_address[:2]
+        print(f"stabilizer-qec serve: {a.decoder} on {host}:{port}", file=sys.stderr, flush=True)
+
+    serve(decoder, tcp=a.tcp, stdio=a.stdio, workers=a.workers, threads=a.threads, ready=ready)
 
 
 def cmd_decode(a) -> None:
