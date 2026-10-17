@@ -823,7 +823,7 @@ class Circuit:
         records, ``probability_of`` a record's exact probability.
 
         >>> import stabilizer_qec as sq
-        >>> c = sq.Circuit("R 0\nH 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]")
+        >>> c = sq.Circuit("R 0\\nH 0\\nI[T] 0\\nH 0\\nM 0\\nDETECTOR rec[-1]")
         >>> p = c.exact_distribution(method="stabilizer_rank")[((True,), ())]
         >>> round(p, 6)  # sin²(π/8)
         0.146447
