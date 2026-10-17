@@ -430,7 +430,7 @@ impl Solver {
                     }
                 }
             }
-            "DETECTOR" | "OBSERVABLE_INCLUDE" | "TICK" | "QUBIT_COORDS" | "SHIFT_COORDS" | "DEPOLARIZE1" | "DEPOLARIZE2" | "X_ERROR" | "Y_ERROR" | "Z_ERROR" | "PAULI_CHANNEL_1" | "PAULI_CHANNEL_2" | "E" | "ELSE_CORRELATED_ERROR" => {}
+            "DETECTOR" | "OBSERVABLE_INCLUDE" | "TICK" | "QUBIT_COORDS" | "SHIFT_COORDS" | "DEPOLARIZE1" | "DEPOLARIZE2" | "X_ERROR" | "Y_ERROR" | "Z_ERROR" | "PAULI_CHANNEL_1" | "PAULI_CHANNEL_2" | "E" | "ELSE_CORRELATED_ERROR" | "I_ERROR" | "II_ERROR" => {}
             "HERALDED_ERASE" | "HERALDED_PAULI_CHANNEL_1" => {
                 for _ in &op.targets {
                     self.in_past -= 1;

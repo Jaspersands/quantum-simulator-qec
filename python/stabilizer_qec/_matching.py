@@ -62,6 +62,13 @@ def _csc(matrix: Any) -> Tuple[int, int, np.ndarray, np.ndarray]:
             m = csc_matrix(matrix)
         m.eliminate_zeros()
         m.sort_indices()
+        bad = m.data[m.data != 1]
+        if len(bad):
+            # PyMatching's check, its entries read as 8-bit integers.
+            v = int(np.asarray(bad[:1]).astype(np.uint8)[0])
+            if v == 0:
+                raise ValueError("`matrix.data` must only contain ones, but a zero was found. First call `matrix.eliminate_zeros()` before using this method.")
+            raise ValueError(f"`matrix.data` must only contain ones, but the element {v} was found.")
         return m.shape[0], m.shape[1], np.asarray(m.indptr), np.asarray(m.indices)
     except ImportError:
         a = np.asarray(matrix)

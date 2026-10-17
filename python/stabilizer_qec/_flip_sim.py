@@ -87,6 +87,13 @@ class FlipSimulator:
         """Back to |0> in every instance with empty records (the size is kept)."""
         self._s.clear()
 
+    def __copy__(self) -> "FlipSimulator":
+        """``copy.copy``: an independent simulator (its random numbers continue the original's), not one sharing this state."""
+        return self.copy(copy_rng=True)
+
+    def __deepcopy__(self, memo: dict) -> "FlipSimulator":
+        return self.copy(copy_rng=True)
+
     def copy(self, *, copy_rng: bool = False, seed: Optional[int] = None) -> "FlipSimulator":
         """A simulator with the same state; its random numbers are the original's only with
         ``copy_rng``, otherwise freshly seeded (from ``seed`` if given)."""

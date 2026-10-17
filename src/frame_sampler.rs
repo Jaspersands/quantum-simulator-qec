@@ -104,7 +104,7 @@ impl FrameSampler {
             return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
         }
         let leaky = res.instrs.iter().any(|i| matches!(i, Instr::NonPauli(ops) if ops.iter().any(|o| o.is_leakage())));
-        let reference = if leaky { crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1) } else { Vec::new() };
+        let reference = if leaky { crate::m2d::reference(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits) } else { Vec::new() };
         Ok(FrameSampler {
             leaky,
             leaked_reads_one: true,
@@ -126,7 +126,7 @@ impl FrameSampler {
         if res.observables.len() > 64 {
             return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
         }
-        let mut reference = crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1);
+        let mut reference = crate::m2d::reference(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits);
         // Deltakit's reference reads a herald as 0, an inverted target too.
         let mut m = 0usize;
         let mut markers = 0usize;
@@ -187,7 +187,7 @@ impl FrameSampler {
     /// The same sampler, ready for `sample_measurements` (a leaky one already is).
     pub fn with_reference(mut self, circuit: &Circuit) -> Result<FrameSampler, String> {
         if self.reference.len() != self.num_measurements {
-            self.reference = crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1);
+            self.reference = crate::m2d::reference(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits);
         }
         Ok(self)
     }

@@ -217,3 +217,51 @@ def test_union_find_arguments():
     assert bf.uf_method == "inversion" and bf.bits_per_step == 2
     assert bf.decode(np.zeros(3, dtype=np.uint8)).sum() == 0 and bf.converge
     assert np.array_equal(pickle.loads(pickle.dumps(bf)).decode(np.array([1, 0, 1])), bf.decode(np.array([1, 0, 1])))
+
+
+def test_ldpc_argument_checks_match_ldpcs():
+    import warnings
+
+    import stabilizer_qec.ldpc as ours
+    from ldpc.codes import hamming_code, rep_code, ring_code
+
+    h = hamming_code(3)
+    for P in (ldpc, ours):
+        with pytest.raises(ValueError, match="OSD_0"):
+            P.BpOsdDecoder(h, error_rate=0.1, osd_method="OSD_0", osd_order=2)
+        with pytest.raises(ValueError):
+            P.BpOsdDecoder(np.array([[2, 1, 0], [0, 1, 1]]), error_rate=0.1)
+    dense = h.toarray().astype(float) if hasattr(h, "toarray") else np.asarray(h, dtype=float)
+    syndrome = np.array([1, 0, 1], dtype=np.uint8)
+    assert np.array_equal(ours.BpOsdDecoder(dense, error_rate=0.1).decode(syndrome), ldpc.BpOsdDecoder(dense, error_rate=0.1).decode(syndrome))
+    # BeliefFind runs BP on a zero syndrome too.
+    for P in (ldpc, ours):
+        d = P.BeliefFindDecoder(rep_code(3), error_rate=0.1, max_iter=5)
+        d.decode(np.array([1, 0], dtype=np.uint8))
+        d.decode(np.array([0, 0], dtype=np.uint8))
+        if P is ldpc:
+            want = (d.iter, np.round(d.log_prob_ratios, 6).tolist())
+    assert (d.iter, np.round(d.log_prob_ratios, 6).tolist()) == want
+    # A received vector set after construction is decoded as one.
+    v = np.array([0, 1, 1, 0, 0, 0, 0, 0], dtype=np.uint8)
+    warnings.simplefilter("ignore")
+    for name, kw in [("BpOsdDecoder", {"osd_method": "OSD_CS", "osd_order": 2}), ("BeliefFindDecoder", {}), ("BpLsdDecoder", {})]:
+        got = []
+        for P in (ldpc, ours):
+            d = getattr(P, name)(ring_code(8), error_rate=0.1, max_iter=5, **kw)
+            d.input_vector_type = "received_vector"
+            got.append(d.decode(v).tolist())
+        assert got[0] == got[1], name
+
+
+def test_matching_takes_only_binary_check_matrices():
+    pymatching = pytest.importorskip("pymatching")
+    import stabilizer_qec.pymatching as ours
+
+    for h in ([[2, 1, 0], [0, 3, 1]], [[0.5, 1, 0], [0, 1, 1]]):
+        with pytest.raises(ValueError) as theirs:
+            pymatching.Matching(np.array(h))
+        with pytest.raises(ValueError) as mine:
+            ours.Matching(np.array(h))
+        assert str(mine.value) == str(theirs.value)
+    assert ours.Matching(np.array([[1.0, 1, 0], [0, 1, 1]])).num_edges == 3

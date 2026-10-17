@@ -269,3 +269,52 @@ def test_simulator_operators_and_measurements():
     assert c.current_measurement_record() == []
     with pytest.raises(ValueError):
         c.apply_unitary([0], np.eye(4))
+
+
+def test_observables_keep_their_signs():
+    s = sq.DensityMatrixSimulator()
+    s.do(sq.Circuit("H 0\nS 0"))  # |+i>, <Y> = 1
+    assert s.peek_observable_expectation(sq.PauliString("-Y")) == pytest.approx(-1)
+    stim = pytest.importorskip("stim")
+    assert s.peek_observable_expectation(stim.PauliString("-Y")) == pytest.approx(-1)
+    assert sq.PauliString(stim.PauliString("-iXZ")) == sq.PauliString("-iXZ")
+    for imaginary in ("iY", "-iZ"):
+        with pytest.raises(ValueError, match="Hermitian"):
+            s.peek_observable_expectation(sq.PauliString(imaginary))
+
+
+def test_set_density_matrix_takes_only_density_matrices():
+    s = sq.DensityMatrixSimulator(1)
+    for bad in (np.eye(2), np.array([[0.5, 1], [0, 0.5]]), np.diag([1.5, -0.5]), np.array([[np.nan, 0], [0, 1]])):
+        with pytest.raises(ValueError):
+            s.set_density_matrix(bad)
+    s.set_density_matrix(np.eye(2) / 2)
+    assert s.purity() == pytest.approx(0.5)
+
+
+def test_fidelity_of_pure_states_is_exact():
+    rng = np.random.default_rng(7)
+    for d in (2, 4, 8):
+        q, r = np.linalg.qr(rng.normal(size=(d, d)) + 1j * rng.normal(size=(d, d)))
+        j = sq.choi_of_unitary(q * (np.diag(r) / abs(np.diag(r))))
+        assert abs(sq.process_fidelity(j, j) - 1) < 1e-12
+    # A small infidelity is not swamped by the square roots of round-off.
+    j = sq.Circuit("DEPOLARIZE1(1e-10) 0").process_matrix()
+    assert 1 - sq.process_fidelity(j, sq.choi_of_unitary(np.eye(2))) == pytest.approx(1e-10, rel=1e-4)
+    a, b = np.diag([0.5, 0.3, 0.2, 0.0]), np.diag([0.25, 0.25, 0.25, 0.25])
+    assert sq.fidelity(a, b) == pytest.approx(np.sum(np.sqrt(np.diag(a) * np.diag(b))) ** 2)
+
+
+def test_copies_are_independent():
+    import copy
+
+    for make, act, look in [
+        (lambda: sq.DensityMatrixSimulator(1), lambda s: s.do(sq.Circuit("X 0")), lambda s: s.probabilities().tolist()),
+        (lambda: sq.TableauSimulator(), lambda s: s.x(0), lambda s: s.peek_z(0)),
+        (lambda: sq.FlipSimulator(batch_size=4, num_qubits=1), lambda s: s.do(sq.Circuit("M 0")), lambda s: s.num_measurements),
+    ]:
+        for how in (copy.copy, copy.deepcopy):
+            s = make()
+            before = look(s)
+            act(how(s))
+            assert look(s) == before

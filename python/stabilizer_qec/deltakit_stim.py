@@ -79,10 +79,11 @@ def _dialect_op(name: str, tag: str, args: list, targets: list) -> Optional[tupl
     if name == "I" and tag.strip() == "RL":
         return "RL", [], targets
     if name == "MPAD" and (m := _HERALD_TAG.fullmatch(tag)):
-        qubits = [int(q) for q in m.group(1).split()]
+        # An inverted target is marked in the tag (or, as written before, by a pad of 1).
+        qubits = [(int(q.lstrip("!")), q.startswith("!")) for q in m.group(1).split()]
         if len(qubits) == len(targets):
             inv = 1 << 31
-            return "HERALD_LEAKAGE_EVENT", list(args), [q | (inv if v else 0) for q, v in zip(qubits, targets)]
+            return "HERALD_LEAKAGE_EVENT", list(args), [q | (inv if i or v else 0) for (q, i), v in zip(qubits, targets)]
     if name in _TRANSPORT_GATES and (p := _transport(tag)) is not None:
         return name, p, targets
     return None
@@ -173,6 +174,11 @@ class Circuit(_circuit.Circuit):
         out = super().without_noise()
         text = re.sub(r"\[LEAKAGE_TRANSPORT\([^)\]]*\)\]", "", out._stim_exact_text())
         return type(self)(text)
+
+    def without_tags(self) -> "Circuit":
+        """The tags removed, Deltakit's instructions kept (they carry no tags in its Stim; here
+        their lowered forms' tags are what they are)."""
+        return type(self)(re.sub(r"(?m)^(\s*[A-Za-z_][A-Za-z0-9_]*)\[[^\]\n]*\]", r"\1", str(self)))
 
     def decomposed(self) -> "Circuit":
         """Stim's ``decomposed``; Deltakit's instructions stay (the transport gates' arguments

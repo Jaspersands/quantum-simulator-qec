@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; the sign's phase corrected (below).
 
 """
 Functions:
@@ -119,7 +119,9 @@ def find_logical_signs(state,
     test_x = set()
     test_z = set()
 
-    for stab in build_stabs:
+    reorder = 0  # the -1s of moving each Z past the next generator's X in the product
+    for stab in sorted(build_stabs):
+        reorder += len(test_z & stabs.row_x[stab])
         test_x ^= stabs.row_x[stab]
         test_z ^= stabs.row_z[stab]
 
@@ -138,37 +140,16 @@ def find_logical_signs(state,
     # Get the sign of the logical operator
     # --------------------------
 
-    # First, the minus sign
-    logical_minus = len(build_stabs & stabs.signs_minus)
+    # modified for stabilizer_qec: the generators (each a sign times X^x Z^z, a W = XZ = -iY)
+    # multiply to (-1)^(minus + reorder) i^(imaginary) X^x Z^z, and the logical is i^(#Y) X^x Z^z,
+    # so its eigenvalue is (-1)^(minus + reorder) i^(#Y - imaginary). PECOS's dropped the
+    # reordering's -1s and took the Ys' i the other way (Y0 on |+i> gave 2).
+    logical_minus = len(build_stabs & stabs.signs_minus) + reorder
+    logical_i = len(logical_xs & logical_zs) - len(build_stabs & stabs.signs_i)
+    phase = (2 * logical_minus + logical_i) % 4  # the eigenvalue as a power of i
 
-    # Second, the number of imaginary numbers
-    logical_i = len(build_stabs & stabs.signs_i)
-
-    # Translate the Ws to Ys... W = -i(iW) = -iY => For each Y add another -1 and +i.
-    logical_ws = logical_xs & logical_zs
-    num_ys = len(logical_ws)
-
-    logical_minus += num_ys
-    logical_i += num_ys
-
-    # Do (-1)^even = 1 -> 0, (-1)^odd = -1 -> 1
-    logical_minus %= 2
-
-    # Reinterpret number of is
-    logical_i %= 4
-
-    # num_is %4 = 0 => +1 => logical_i = 0, logical_minus += 0
-    # num_is %4 = 1 => +i => logical_i = 1, logical_minus += 0
-
-    if logical_i == 2:  # num_is %4 = 2 => -1 => logical_i = 0, logical_minus += 1
-        logical_i = 0
-        logical_minus += 1
-    elif logical_i == 3:  # num_is %4 = 3 => -i => logical_i = 1, logical_minus += 1
-        logical_i = 1
-        logical_minus += 1
-
-    if logical_i != 0:
+    if phase % 2:
         raise Exception('Logical operator has an imaginary sign... Not allowed if logical state is stabilized '
                         'by logical op!')
 
-    return logical_minus
+    return phase // 2

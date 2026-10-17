@@ -5,8 +5,10 @@ same."""
 
 from __future__ import annotations
 
+import functools
 import inspect
 import os
+import threading
 from typing import Any, Union
 
 import numpy as np
@@ -17,6 +19,18 @@ from ._decoders import ModelLike, _DemDecoder, _failed, _inner, _model, _rebuild
 from ._util import call, count, real, rows_to_b8, u64_to_rows
 
 _PRETRAINED = os.path.join(os.path.dirname(__file__), "data", "predecoder_memory.npz")
+
+
+def _serial(method: Any) -> Any:
+    """A method run with the pre-decoder's other such calls kept out: training borrows the
+    network with the GIL released, where a call from another thread would find it borrowed."""
+
+    @functools.wraps(method)
+    def run(self: "PreDecoder", *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return run
 
 
 class PreDecoder(_DemDecoder):
@@ -61,7 +75,7 @@ class PreDecoder(_DemDecoder):
     True
     """
 
-    __slots__ = ("_dec", "_threshold", "_np", "_reweight")
+    __slots__ = ("_dec", "_threshold", "_np", "_reweight", "_lock")
 
     def __init__(
         self,
@@ -89,6 +103,7 @@ class PreDecoder(_DemDecoder):
             kernel = int(weights["kernel"])
         hidden = [count(h, "hidden", 1) for h in hidden]
         secs = None if sectors is None else [count(s, "sectors") for s in sectors]
+        self._lock = threading.RLock()
         self._x = call(_core.PreDecoder, model._d, hidden, count(kernel, "kernel", 1), count(seed, "seed"), secs, graph if reweight else None)
         self.threshold = threshold
         self._reweight = bool(reweight)
@@ -161,6 +176,7 @@ class PreDecoder(_DemDecoder):
         return self._x.steps if self._np is None else self._np["step"]
 
     @property
+    @_serial
     def weights(self) -> dict:
         """The network: its channels (inputs, hidden layers, outputs), its kernel, the kinds of
         its outputs, and per layer its weights (kernel × kernel × kernel × in × out) and biases,
@@ -170,6 +186,7 @@ class PreDecoder(_DemDecoder):
         return {"channels": list(channels), "kernel": k, "kinds": [tuple(x) for x in self._x.kinds], "layers": [(w.copy(), b.copy()) for w, b in _split(params, channels, k)]}
 
     @weights.setter
+    @_serial
     def weights(self, weights: dict) -> None:
         channels, k = self._x.channels, self._x.kernel
         theirs = list(weights["channels"])
@@ -191,6 +208,7 @@ class PreDecoder(_DemDecoder):
         if self._np is not None:
             self._np["params"] = flat.astype(np.float32)
 
+    @_serial
     def save(self, path: Union[str, os.PathLike]) -> None:
         """Writes the weights to ``path`` (numpy's ``.npz``), for ``PreDecoder(model, path)``."""
         w = self.weights
@@ -198,6 +216,7 @@ class PreDecoder(_DemDecoder):
         arrays.update({f"b{i}": b for i, (_, b) in enumerate(w["layers"])})
         np.savez(path, channels=np.array(w["channels"]), kernel=np.array(w["kernel"]), kinds=np.array(w["kinds"], dtype=np.int64).reshape(-1, 5), **arrays)
 
+    @_serial
     def train(
         self,
         steps: int,
@@ -236,6 +255,7 @@ class PreDecoder(_DemDecoder):
             self._np = {"optimizer": optimizer, "params": np.frombuffer(self._x.params, dtype="<f4").astype(np.float32), "m": np.zeros(n, np.float32), "v": np.zeros(n, np.float32), "step": 0}
         return _train_numpy(self, steps, batch, optimizer, np.float32(lr), count(warmup, "warmup"), np.float32(real(weight_decay, "weight_decay")), count(seed, "seed"), threads)
 
+    @_serial
     def loss_and_grad(self, dets: Any, errors: Any, *, engine: str = "rust", threads: int = 1) -> tuple:
         """The mean loss of shots (their detection events, and the model's faults that fired, as
         its sampler's ``return_errors`` gives them) and its gradient by the parameters, flat."""
@@ -251,6 +271,7 @@ class PreDecoder(_DemDecoder):
         params = np.frombuffer(self._x.params, dtype="<f4").astype(np.float32)
         return _loss_and_grad_numpy(self, params, packed, errs, n)
 
+    @_serial
     def predecode(self, shots: Any, *, bit_packed_shots: bool = False, threads: int = 1) -> tuple:
         """Per shot: the detection events the pre-decoder leaves (bool, shots × detectors), the
         observables of the faults it applied (uint8, shots × observables), and how many it
@@ -261,6 +282,7 @@ class PreDecoder(_DemDecoder):
         left = np.unpackbits(np.frombuffer(left, dtype=np.uint8).reshape(n, -1), axis=1, count=nd, bitorder="little").astype(bool)
         return left, u64_to_rows(obs, n, self.num_observables, False), np.frombuffer(applied, dtype="<u4").astype(np.int64)
 
+    @_serial
     def decode_batch(
         self,
         shots: Any,

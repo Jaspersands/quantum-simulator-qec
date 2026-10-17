@@ -129,9 +129,13 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
     if tag.is_empty() || !matches!(gate, "I" | "II" | "I_ERROR" | "II_ERROR") {
         return Ok(None);
     }
-    let Ok((name, args)) = split(tag) else {
+    let (name, args) = match split(tag) {
+        Ok(parsed) => parsed,
+        // A known name written wrongly (`AMPLITUDE_DAMPING(0.1)`, its argument unnamed) is an
+        // error, not someone else's tag to ignore.
+        Err(e) if KNOWN.contains(&tag.split('(').next().unwrap_or("").trim()) => return Err(format!("{gate}[{tag}]: {e}")),
         // A tag that is not of our form at all is someone else's, and inert.
-        return Ok(None);
+        Err(_) => return Ok(None),
     };
     if !KNOWN.contains(&name.as_str()) {
         return Ok(None);

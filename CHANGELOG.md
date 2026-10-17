@@ -73,6 +73,34 @@ noise on every gate. In progress on `feature/2.0`.
   enough; 1.x code that built with it now decodes without correlations unless the decode call
   asks too. `decode_batch` casts shots of any integer or bool
   dtype as PyMatching does, where 1.x refused values other than 0 and 1.
+- **A reference sample takes every random measurement as 0, as Stim's does** (it was a seeded
+  draw): `reference_sample()`, the samplers' references and the measurement-to-detection
+  converter, which now takes detectors and observables that are not deterministic (gauge
+  detectors) and compares them with that reference, as Stim's converter does. A seed's raw
+  measurement shots change with it; detection events do not.
+- `num_qubits` counts targets as written, as Stim does: an `II`'s or `I_ERROR`'s, an `MPAD`'s
+  values and the qubits of products that cancel; a circuit's tableau (`Tableau.from_circuit`)
+  is that wide.
+- Correlated matching merges parallel edges as PyMatching does (their probabilities combined,
+  the first edge's observables kept); it kept the likelier edge's observables.
+- The density matrix and the perturbative expansion refuse a chain of correlated errors broken by
+  another instruction (`E`, `X 0`, `ELSE_CORRELATED_ERROR`); an `ELSE_CORRELATED_ERROR` with no
+  chain before it starts one, as in Stim.
+- The text timeline has no trailing newline (an empty circuit's is `''`), as Stim's.
+- Parsing as Stim parses: spaces around a product's `*` (`MPP X0 * Y1`), products in `E`
+  (`E(0.1) X0*Y1`, its factors), `CZ` on two classical bits (no gate), lowercase `d0`/`l0` in
+  a model; arguments must follow the name directly and a space must follow them
+  (`X_ERROR (0.1) 0` and `X_ERROR(0.1)0` are refused), and a model's `detector` and
+  `logical_observable` take one target.
+- `Tableau.iter_all` runs in Stim's order; `str(GateData)` prints no flows, as Stim's;
+  `PauliString.after`/`before` refuse an operation on a qubit past the string, naming it as
+  Stim does; `PauliString([True])` is `+X`; `DemTarget("^").val` raises, as Stim's.
+- `set_density_matrix` takes only density matrices (finite, Hermitian, trace 1, no negative
+  eigenvalue). The ldpc decoders and `Matching` refuse check matrices with entries other than 0
+  and 1 (they read 2 as 0 or as 1), with ldpc's and PyMatching's messages, and take float 0/1
+  matrices, as ldpc does; `BpOsdDecoder` refuses an order above 0 for OSD-0, as ldpc does.
+- `DemSampler.sample` refuses a replay whose row count is not `shots`; `sample_write` and the
+  CLI's `sample_dem` replay the first `shots` rows and refuse fewer, as Stim's.
 - The package and crate are licensed `MIT AND Apache-2.0`: the parts ported from Stim keep
   Stim's Apache-2.0 licence (`THIRD_PARTY_NOTICES.md`, `LICENSES/`), shipped in the wheels,
   the sdist and the crate.
@@ -368,8 +396,8 @@ noise on every gate. In progress on `feature/2.0`.
   outcome's probability as a polynomial in a noise scale x, exact to x^order (QuantumClifford's
   symbolic expansion with `degree="full"`). Each fault's effect is found once, by a Pauli frame
   per fault carried through the circuit together, and the sum is a dynamic program, so it runs
-  on circuits of any size (a distance-3 surface-code memory to third order in a third of a
-  second). `perturbative_logical_error_rate(circuit, order, decoder=)` decodes each outcome once:
+  on circuits of any size (a distance-3 surface-code memory to third order in 0.2 seconds for
+  two rounds, 4 seconds for three). `perturbative_logical_error_rate(circuit, order, decoder=)` decodes each outcome once:
   a decoder's failure rate with no sampling noise, however small, as a number or a series.
   QuantumClifford's pinned Bell-purification polynomials are reproduced.
 - **`stabilizer_qec.clifford`: QuantumClifford.jl's stabilizer-state structure and Clifford
@@ -633,6 +661,49 @@ noise on every gate. In progress on `feature/2.0`.
 - `LeakageSampler.sample`'s heralds have one entry per measurement record, padded records and
   heralded errors' included (they had one per measurement only, out of step with the record);
   `LocalClustering.from_circuit` no longer reads an `MPAD`'s values as qubits.
+
+- Found by a system-wide adversarial pass after W8 (eight agents, each against a reference):
+  - Leakage: two heralds in a row fused into a crash, and `append` and `+` never merged them;
+    an inverted herald target (`!q`) read 1 when the qubit was not leaked; a probability kept
+    its spelling in the lowered tag, so equal circuits compared unequal; `LEAKAGE` with no
+    targets printed lowered; `deltakit_stim`'s `without_tags` removed Deltakit's instructions
+    (its Stim keeps them). An empty `repeat` block in a model prints as Stim prints it.
+  - The density matrix: a chain of correlated errors was grouped wrongly after a stray
+    `ELSE_CORRELATED_ERROR`; small seeds were biased; feedback in one `do` could not read the
+    records of the previous; a circuit with feedback branched on every record, not only those
+    fed back, and observables blocked `density_matrix()`. A `stim.PauliString`'s sign was
+    dropped, an imaginary observable read 0 (Stim's error now), and the fidelity lost about
+    1e-8 to the square roots of round-off (a unitary's process fidelity with itself came out
+    above 1).
+  - PECOS's simulators: the density and process matrices took NumPy angles badly (the gate text
+    held `np.float64(…)`), qubits past the simulator (and a process matrix's reference qubits),
+    NumPy integer qubits not at all, a one-qubit gate on two qubits, and `forced_outcome=2`;
+    unseeded, they ignored the runner's seed. `cySparseSim.logical_sign` crashed, and
+    `pySparseSim`'s (PECOS's own) dropped the −1s of reordering X and Z when multiplying
+    generators, so `Y0 Y1` on a Bell-like state read −1 and `Y0` on |+i⟩ returned 2. A Choi
+    matrix given to `convert_process` was not shape-checked.
+  - The perturbative expansion: a stray `ELSE_CORRELATED_ERROR` panicked, `DEPOLARIZE1` above
+    3/4 and more than 64 observables were refused, a known tag's positional arguments were
+    dropped, and a huge `degree` overflowed. The CHANGELOG's timing for it was for two rounds.
+  - Stim's surface: `TableauSimulator.do` panicked on an odd number of pair targets and took
+    `CX 0 0`; `flow_generators` refused `I_ERROR`; the text timeline drew `MPAD`'s arguments,
+    `QUBIT_COORDS`, shifted coordinates and where detectors and observables sit unlike Stim; a
+    model printed `detector(-0)` as `0`; a replay returned its padding bits.
+  - Decoders: `beliefmatching.BeliefMatching(stim.Circuit)` crashed; `BeliefFindDecoder` skipped
+    BP on a zero syndrome (ldpc's `iter` and `log_prob_ratios` come from that run); a received
+    vector set after construction was decoded as a syndrome by BP+OSD, BP+LSD and BeliefFind;
+    correlated matching refused `error(0)` and `D0 D1 ^ D0 D1`.
+  - Robustness: `copy.copy` of a `TableauSimulator`, `FlipSimulator` or
+    `DensityMatrixSimulator` shared its state with the original (it copies now; Stim's
+    raises); a `FlipSimulator`, `DensityMatrixSimulator` or `PreDecoder` used from two threads
+    raised "Already borrowed" (calls wait their turn now); `detslice-with-ops-svg` failed past
+    the last tick; `DetectorErrorModel.get_detector_coordinates` walked every pass of a loop
+    (a `repeat` of 10^12 hung; it skips passes declaring no wanted detector) and kept a
+    detector's last declaration, where Stim keeps its first; `Matching` of a model naming a
+    detector past the largest index panicked; the CLI's `diagram` ignored `--remove_noise` and
+    refused `--tick A:B` (read now as Stim's command line reads it: a `detslice-text` at the
+    range's first tick, a `timeline-text` ignoring it); the `hits` format set a bit named twice,
+    where Stim toggles it.
 
 ## 1.9.0 — 2026-10-09
 

@@ -45,28 +45,6 @@ fn flip(a: &mut Bits, c: usize) {
     a[c / 64] ^= 1 << (c % 64);
 }
 
-/// The steps with each chain of correlated errors one channel, as the density matrix groups
-/// them.
-fn grouped(steps: &[Step]) -> Vec<Step> {
-    let mut out: Vec<Step> = Vec::new();
-    let mut none = 1.0;
-    for step in steps {
-        match step {
-            Step::Correlated { p, paulis, chained } => {
-                if !*chained {
-                    none = 1.0;
-                    out.push(Step::Channel(Vec::new()));
-                }
-                let Some(Step::Channel(branches)) = out.last_mut() else { unreachable!("an ELSE_CORRELATED_ERROR follows its E") };
-                branches.push((p * none, paulis.clone()));
-                none *= 1.0 - p;
-            }
-            other => out.push(other.clone()),
-        }
-    }
-    out
-}
-
 /// What a step injects: (probability, Pauli product, whether the record it writes flips).
 fn faults_of(step: &Step) -> Option<Vec<(f64, Vec<(usize, u8)>, bool)>> {
     match step {
@@ -80,16 +58,18 @@ fn faults_of(step: &Step) -> Option<Vec<(f64, Vec<(usize, u8)>, bool)>> {
 /// The circuit's fault sites and their effects. The circuit must be Clifford with Pauli noise,
 /// its detectors and observables deterministic.
 pub fn sites(circuit: &Circuit) -> Result<Sites, String> {
-    let program = Program::with_layout(circuit, false, usize::MAX)?;
-    let steps = grouped(&program.steps);
+    // Observables as records, any number of them.
+    let program = Program::with_layout_for(circuit, false, usize::MAX, crate::statevec::Outcomes::Records)?;
+    // Each chain of correlated errors one site, as the density matrix groups them.
+    let steps = crate::density::grouped(&program.steps, "the perturbative expansion")?;
     for step in &steps {
         if matches!(step, Step::Rotation { .. } | Step::Unitary(..) | Step::Damp { .. } | Step::Dephase { .. } | Step::Leak { .. } | Step::Seep { .. } | Step::Transport { .. }) {
             return Err("the perturbative expansion takes Clifford circuits with Pauli noise (no rotations, T, U3, damping or leakage)".into());
         }
     }
-    // Detectors and observables must be deterministic: the error model's builder checks (any
-    // channel taken, its disjoint cases approximated, as only the check is wanted).
-    crate::dem_build::build(circuit, false, Some(1.0), false)?;
+    // Detectors and observables must be deterministic: the converter's backward walk checks,
+    // noise aside (so any channel Stim samples is taken).
+    crate::dem_build::sweep_effects(circuit, true)?;
     let width: usize = steps.iter().filter_map(faults_of).map(|f| f.len()).sum();
     let words = width.div_ceil(64).max(1);
     let n = program.num_qubits();

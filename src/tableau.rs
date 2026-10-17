@@ -8,6 +8,8 @@ pub struct Tableau {
     // r is phase bits (0 for +1, 1 for -1) of size 2*N + 1
     r: Vec<u8>,
     rng_state: u64,
+    /// Every random outcome 0, as Stim's reference sample takes them.
+    pub zero_random: bool,
 }
 
 #[inline]
@@ -60,6 +62,7 @@ impl Tableau {
             z,
             r,
             rng_state: if seed == 0 { 0xdead_beef_1234_5678 } else { seed },
+            zero_random: false,
         }
     }
 
@@ -205,7 +208,7 @@ impl Tableau {
 
                 // Choose a random outcome 0 or 1
                 self.rng_state = self.rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-                let outcome = ((self.rng_state >> 32) & 1) as u8;
+                let outcome = if self.zero_random { 0 } else { ((self.rng_state >> 32) & 1) as u8 };
                 self.r[p] = outcome;
                 outcome
             }

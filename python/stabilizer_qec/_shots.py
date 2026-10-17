@@ -137,7 +137,7 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
                 k = int(t)
                 if not 0 <= k < n:
                     raise ValueError(f"hit {k} is out of range for {n} bits")
-                row[k] = True
+                row[k] ^= True  # a bit listed twice is toggled twice, as Stim reads it
             rows.append(row)
         return np.array(rows, dtype=bool).reshape(len(rows), n)
     offsets = {"M": (0, num_measurements), "D": (num_measurements, num_detectors), "L": (num_measurements + num_detectors, num_observables)}

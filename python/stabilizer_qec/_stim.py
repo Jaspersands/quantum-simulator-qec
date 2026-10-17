@@ -33,9 +33,9 @@ def _phase_of(value: Any) -> int:
 
 
 def _pauli_value(v: Any) -> int:
-    if isinstance(v, (bool, np.bool_)):
+    if isinstance(v, np.bool_):
         raise ValueError(f"Expected a Pauli: {v!r}")
-    if isinstance(v, (int, np.integer)):
+    if isinstance(v, (int, np.integer)):  # Python's bools too, as Stim takes them (True is X)
         if 0 <= int(v) < 4:
             return int(v)
         raise ValueError(f"Expected a pauli in [0, 1, 2, 3, 'I', '_', 'X', 'Y', 'Z'] but got {v!r}.")
@@ -250,7 +250,38 @@ class PauliString:
             return PauliString._wrap(self._p.conjugate_by_tableau(operation._t, [int(t) for t in targets], backward))
         if targets is not None:
             raise ValueError("Don't specify targets when the operation is a circuit or instruction.")
-        return PauliString._wrap(self._p.conjugate_by_circuit(_stim_text_of(operation), backward))
+        text = _stim_text_of(operation)
+        self._check_reach(text, backward)
+        return PauliString._wrap(self._p.conjugate_by_circuit(text, backward))
+
+    def _check_reach(self, text: str, backward: bool) -> None:
+        """Stim's refusal of an operation on a qubit past the string, naming it and the string as
+        conjugated up to it."""
+        from ._circuit import Circuit
+
+        c = Circuit(text)
+        n = len(self)
+        if c.num_qubits <= n:
+            return
+        notes = ("QUBIT_COORDS", "DETECTOR", "OBSERVABLE_INCLUDE", "SHIFT_COORDS", "TICK", "MPAD")
+
+        def reaches(op: Any) -> bool:
+            if isinstance(op, CircuitRepeatBlock):
+                return any(reaches(o) for o in op.body_copy())
+            return op.name not in notes and any(q is not None and q >= n for q in (t.qubit_value for t in op.targets_copy()))
+
+        def walk(items: list, cur: "PauliString") -> "PauliString":
+            for op in reversed(items) if backward else items:
+                if reaches(op):
+                    if isinstance(op, CircuitRepeatBlock):
+                        walk(list(op.body_copy()), cur)  # its first pass names the operation
+                    raise ValueError(f"The instruction '{op}' targets qubits outside the pauli string '{cur}'.")
+                if not isinstance(op, CircuitRepeatBlock) and op.name in notes:
+                    continue
+                cur = PauliString._wrap(cur._p.conjugate_by_circuit(_stim_text_of(op), backward))
+            return cur
+
+        walk(list(c), self)
 
     def to_tableau(self) -> "Tableau":
         """The Pauli product as a tableau."""
@@ -325,6 +356,9 @@ def _to_core_pauli(arg: Any) -> Any:
         return arg.copy()._p
     if isinstance(arg, str):
         return _core.PauliStringCore.from_text(arg)
+    if type(arg).__name__ == "PauliString":
+        # Another package's (stim.PauliString): its text keeps its sign, as iterating it would not.
+        return _core.PauliStringCore.from_text(str(arg))
     if isinstance(arg, (int, np.integer)) and not isinstance(arg, bool):
         if arg < 0:
             raise ValueError("num_qubits must be non-negative")
@@ -598,15 +632,19 @@ class Tableau:
                 raise ValueError("the quadrants must all be square and of the same size")
             return a.astype(np.uint8).tobytes()
 
-        def sign(a: Optional[np.ndarray]) -> bytes:
+        def sign(a: Optional[np.ndarray], name: str) -> bytes:
             if a is None:
                 return bytes(n)
             a = np.asarray(a)
             if a.dtype == np.uint8:
+                if a.shape != ((n + 7) // 8,):
+                    raise ValueError(f"{name} had dtype=uint8 (meaning it is bit packed) but its shape was {a.shape[0] if a.ndim == 1 else a.shape} instead of {(n + 7) // 8}.")
                 a = np.unpackbits(a, bitorder="little", count=n).astype(bool)
+            if a.shape != (n,):
+                raise ValueError(f"{name} had dtype=bool_ but its shape was {a.shape[0] if a.ndim == 1 else a.shape} instead of {n}.")
             return a.astype(np.uint8).tobytes()
 
-        return Tableau._wrap(_core.TableauCore.from_bits(n, quad(x2x), quad(x2z), quad(z2x), quad(z2z), sign(x_signs), sign(z_signs)))
+        return Tableau._wrap(_core.TableauCore.from_bits(n, quad(x2x), quad(x2z), quad(z2x), quad(z2z), sign(x_signs, "x_signs"), sign(z_signs, "z_signs")))
 
     @staticmethod
     def from_named_gate(name: str) -> "Tableau":
@@ -659,8 +697,8 @@ def _tableau_from_bits(n: int, *bits: bytes) -> "Tableau":
 
 
 class TableauIterator:
-    """Iterates every Clifford tableau of a size: each symplectic basis once, then (unless
-    unsigned) each assignment of signs."""
+    """Iterates every Clifford tableau of a size, in Stim's order: each symplectic basis once,
+    with (unless unsigned) each assignment of signs."""
 
     def __init__(self, num_qubits: int, unsigned: bool = False) -> None:
         self._n = int(num_qubits)
@@ -674,49 +712,38 @@ class TableauIterator:
         return next(self._gen)
 
     def _generate(self) -> Iterator[Tableau]:
+        # Stim's order: qubit by qubit, its X image then its Z image, each the next Pauli string
+        # that fits, strings counted as numbers whose low n bits are the X mask and high n bits
+        # the Z mask (qubit 0 the lowest of each); then, unless unsigned, the signs, counted
+        # down from all minus (the X images' signs the low bits, qubit 0's lowest).
         n = self._n
-        all_ps = [list(p) for p in itertools.product(range(4), repeat=n)]
-        bits = [(tuple(1 if v in (1, 2) else 0 for v in p), tuple(1 if v in (2, 3) else 0 for v in p)) for p in all_ps]
+        code = (0, 1, 3, 2)  # (x, z) as from_paulis takes it: I, X, Y, Z = 0-3
+        xbits = [v & ((1 << n) - 1) for v in range(4**n)]
+        zbits = [v >> n for v in range(4**n)]
+        all_ps = [[code[((xbits[v] >> q) & 1) | (((zbits[v] >> q) & 1) << 1)] for q in range(n)] for v in range(4**n)]
 
         def sym(a: int, b: int) -> int:
-            (xa, za), (xb, zb) = bits[a], bits[b]
-            return sum((xa[k] & zb[k]) ^ (xb[k] & za[k]) for k in range(n)) & 1
-
-        def rows(chosen: List[int]) -> List[int]:
-            out = []
-            for c in chosen:
-                x, z = bits[c]
-                out.append(int("".join(map(str, x + z)) or "0", 2))
-            return out
-
-        def independent(chosen: List[int]) -> bool:
-            basis: List[int] = []
-            for v in rows(chosen):
-                for b in basis:
-                    v = min(v, v ^ b)
-                if v == 0:
-                    return False
-                basis.append(v)
-            return True
+            return (bin(xbits[a] & zbits[b]).count("1") + bin(xbits[b] & zbits[a]).count("1")) & 1
 
         def rec(k: int, xs: List[int], zs: List[int]) -> Iterator[Tuple[List[int], List[int]]]:
+            # Commuting with every earlier image keeps the images independent: a product of the
+            # earlier pairs commuting with all of them is the identity.
             if k == n:
                 yield xs, zs
                 return
             prior = xs + zs
             for x in range(1, len(all_ps)):
-                if any(sym(x, p) for p in prior) or not independent(prior + [x]):
+                if any(sym(x, p) for p in prior):
                     continue
                 for z in range(1, len(all_ps)):
-                    if not sym(x, z) or any(sym(z, p) for p in prior) or not independent(prior + [x, z]):
-                        continue
-                    yield from rec(k + 1, xs + [x], zs + [z])
+                    if sym(x, z) and not any(sym(z, p) for p in prior):
+                        yield from rec(k + 1, xs + [x], zs + [z])
 
         for xs, zs in rec(0, [], []):
-            sign_choices = [(0,) * (2 * n)] if self._unsigned else itertools.product((0, 2), repeat=2 * n)
-            for signs in sign_choices:
-                px = [_core.PauliStringCore.from_paulis(all_ps[x], signs[k]) for k, x in enumerate(xs)]
-                pz = [_core.PauliStringCore.from_paulis(all_ps[z], signs[n + k]) for k, z in enumerate(zs)]
+            masks = [0] if self._unsigned else range((1 << (2 * n)) - 1, -1, -1)
+            for mask in masks:
+                px = [_core.PauliStringCore.from_paulis(all_ps[x], 2 * ((mask >> k) & 1)) for k, x in enumerate(xs)]
+                pz = [_core.PauliStringCore.from_paulis(all_ps[z], 2 * ((mask >> (n + k)) & 1)) for k, z in enumerate(zs)]
                 yield Tableau._wrap(_core.TableauCore.from_conjugated_generators(px, pz))
 
 
@@ -739,6 +766,13 @@ class TableauSimulator:
 
     def __init__(self, *, seed: Optional[int] = None) -> None:
         self._s = _core.TableauSimulatorCore(_seed(seed))
+
+    def __copy__(self) -> "TableauSimulator":
+        """``copy.copy``: an independent simulator (its random numbers continue the original's), not one sharing this state."""
+        return self.copy(copy_rng=True)
+
+    def __deepcopy__(self, memo: dict) -> "TableauSimulator":
+        return self.copy(copy_rng=True)
 
     def copy(self, *, copy_rng: bool = False, seed: Optional[int] = None) -> "TableauSimulator":
         if copy_rng and seed is not None:
@@ -1307,11 +1341,7 @@ class GateData:
             u = self.unitary_matrix
             rows = ", ".join("[" + ", ".join(repr(complex(v)) for v in row) + "]" for row in u)
             lines.append(f"    .unitary_matrix = np.array([{rows}], dtype=np.complex64)")
-        if self.flows is not None and t is None:
-            lines.append("    .flows = [")
-            for f in self.flows:
-                lines.append(f"        {f!r},")
-            lines.append("    ]")
+        # Stim prints no flows (``.flows`` has them).
         lines.append("}")
         return "\n".join(lines)
 

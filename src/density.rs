@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 
 use crate::circuit::{Basis, Circuit};
-use crate::statevec::{Program, StateVector, Step, C, M2};
+use crate::statevec::{Outcomes, Program, StateVector, Step, C, M2};
 use crate::surface_code::Xorshift;
 
 /// The most qubits the density matrix holds (4^12 entries, 256 MB).
@@ -427,25 +427,37 @@ fn apply_dense(amp: &mut [C], qubits: &[usize], u: &[C]) {
 }
 
 /// The steps with each chain of correlated errors (`E`, then its `ELSE_CORRELATED_ERROR`s) one
-/// Pauli channel: the k-th fires with probability p_k Π_{j<k} (1 − p_j).
-fn grouped(steps: &[Step]) -> Vec<Step> {
+/// Pauli channel: the k-th fires with probability p_k Π_{j<k} (1 − p_j). A chain must be
+/// unbroken: an `ELSE_CORRELATED_ERROR` after other operations fires on whether its chain did,
+/// which no channel says (the state vector, which follows each run, takes it). One before any
+/// `E` fires as an `E` would, as in Stim.
+pub(crate) fn grouped(steps: &[Step], who: &str) -> Result<Vec<Step>, String> {
     let mut out: Vec<Step> = Vec::new();
     let mut none = 1.0;
+    // Whether the last step is a chain's channel, and whether any chain has begun.
+    let (mut open, mut begun) = (false, false);
     for step in steps {
         match step {
             Step::Correlated { p, paulis, chained } => {
-                if !*chained {
+                if *chained && !open && begun {
+                    return Err(format!("{who} takes a chain of correlated errors unbroken: an ELSE_CORRELATED_ERROR right after its E or another ELSE_CORRELATED_ERROR (the state vector takes any)"));
+                }
+                if !*chained || !open {
                     none = 1.0;
                     out.push(Step::Channel(Vec::new()));
                 }
-                let Some(Step::Channel(branches)) = out.last_mut() else { unreachable!("an ELSE_CORRELATED_ERROR follows its E") };
+                let Some(Step::Channel(branches)) = out.last_mut() else { unreachable!("pushed above") };
                 branches.push((p * none, paulis.clone()));
                 none *= 1.0 - p;
+                (open, begun) = (true, true);
             }
-            other => out.push(other.clone()),
+            other => {
+                out.push(other.clone());
+                open = false;
+            }
         }
     }
-    out
+    Ok(out)
 }
 
 /// A circuit ready for the density matrix.
@@ -455,15 +467,16 @@ pub struct DensityProgram {
 }
 
 impl DensityProgram {
-    /// Qubits renumbered to the ones in use.
+    /// Qubits renumbered to the ones in use, for the outcomes' distribution.
     pub fn new(circuit: &Circuit) -> Result<DensityProgram, String> {
-        DensityProgram::with_layout(circuit, false)
+        DensityProgram::with_layout(circuit, false, Outcomes::Packed)
     }
 
-    /// Qubits renumbered (`whole` false) or as the circuit numbers them.
-    pub fn with_layout(circuit: &Circuit, whole: bool) -> Result<DensityProgram, String> {
-        let program = Program::with_layout(circuit, whole, MAX_QUBITS)?;
-        let steps = grouped(&program.steps);
+    /// Qubits renumbered (`whole` false) or as the circuit numbers them; `outcomes` what the
+    /// results carry (`StateOnly` for the state alone, any observables then allowed).
+    pub fn with_layout(circuit: &Circuit, whole: bool, outcomes: Outcomes) -> Result<DensityProgram, String> {
+        let program = Program::with_layout_for(circuit, whole, MAX_QUBITS, outcomes)?;
+        let steps = grouped(&program.steps, "the density matrix")?;
         if steps.iter().any(|s| matches!(s, Step::Leak { .. } | Step::Seep { .. } | Step::Transport { .. })) {
             return Err("the density matrix does not run leakage; the leakage sampler and the state vector do".into());
         }
@@ -480,7 +493,7 @@ impl DensityProgram {
         let mut out = BTreeMap::new();
         let mut leaves = 0usize;
         let rho = DensityMatrix::new(self.num_qubits());
-        self.branch(0, rho, Vec::new(), 1.0, &mut |rec, _, p| {
+        self.branch(0, rho, Vec::new(), 1.0, None, &mut |rec, _, p| {
             leaves += 1;
             if leaves > max_branches {
                 return Err(format!("more than {max_branches} branches"));
@@ -510,7 +523,14 @@ impl DensityProgram {
         }
         let mut sum = DensityMatrix { n: rho.n, v: StateVector::zeros(2 * rho.n) };
         let mut leaves = 0usize;
-        self.branch(0, rho, Vec::new(), 1.0, &mut |_, s, p| {
+        // Only the records feedback reads are followed; the rest are averaged as they come.
+        let mut read = vec![false; self.program.num_measurements];
+        for step in &self.steps {
+            if let Step::Feedback { rec, .. } = step {
+                read[*rec] = true;
+            }
+        }
+        self.branch(0, rho, Vec::new(), 1.0, Some(&read), &mut |_, s, p| {
             leaves += 1;
             if leaves > max_branches {
                 return Err(format!("more than {max_branches} branches"));
@@ -543,7 +563,9 @@ impl DensityProgram {
         Ok((rho, rec))
     }
 
-    fn branch(&self, mut pc: usize, mut rho: DensityMatrix, mut rec: Vec<bool>, prob: f64, leaf: &mut dyn FnMut(&[bool], &DensityMatrix, f64) -> Result<(), String>) -> Result<(), String> {
+    /// Each run on from step `pc`, branching on its records: on every one, or (with `read`)
+    /// only on those `read` marks, the others averaged (their bits then left unset).
+    fn branch(&self, mut pc: usize, mut rho: DensityMatrix, mut rec: Vec<bool>, prob: f64, read: Option<&[bool]>, leaf: &mut dyn FnMut(&[bool], &DensityMatrix, f64) -> Result<(), String>) -> Result<(), String> {
         while pc < self.steps.len() {
             if let Some(parts) = rho.step(&self.steps[pc], &rec)? {
                 let mut parts = parts;
@@ -551,6 +573,13 @@ impl DensityProgram {
                     let (bit, _, s) = parts.pop().unwrap();
                     rec.push(bit);
                     rho = s;
+                } else if read.is_some_and(|r| !r[rec.len()]) {
+                    let mut sum = DensityMatrix { n: rho.n, v: StateVector::zeros(2 * rho.n) };
+                    for (_, w, s) in parts {
+                        sum.add_scaled(&s, w);
+                    }
+                    rec.push(false);
+                    rho = sum;
                 } else {
                     for (bit, w, s) in parts {
                         if w * prob < 1e-15 {
@@ -558,7 +587,7 @@ impl DensityProgram {
                         }
                         let mut r = rec.clone();
                         r.push(bit);
-                        self.branch(pc + 1, s, r, prob * w, leaf)?;
+                        self.branch(pc + 1, s, r, prob * w, read, leaf)?;
                     }
                     return Ok(());
                 }
@@ -670,10 +699,41 @@ mod tests {
     fn final_state_with_and_without_feedback() {
         // Measure-and-correct leaves |0⟩: the feedback branches; without it the qubit is mixed.
         let c = Circuit::parse("H 0\nM 0\nCX rec[-1] 0").unwrap();
-        let rho = DensityProgram::with_layout(&c, true).unwrap().final_state(None, 1 << 10).unwrap();
+        let rho = DensityProgram::with_layout(&c, true, Outcomes::StateOnly).unwrap().final_state(None, 1 << 10).unwrap();
         assert!((rho.get(0, 0).re - 1.0).abs() < 1e-12);
         let c = Circuit::parse("H 0\nM 0").unwrap();
-        let rho = DensityProgram::with_layout(&c, true).unwrap().final_state(None, 1 << 10).unwrap();
+        let rho = DensityProgram::with_layout(&c, true, Outcomes::StateOnly).unwrap().final_state(None, 1 << 10).unwrap();
         assert!((rho.get(0, 0).re - 0.5).abs() < 1e-12 && rho.get(0, 1).norm2() < 1e-24);
+    }
+
+    #[test]
+    fn only_records_feedback_reads_are_followed() {
+        // 30 random records, one read: two branches, not 2^30.
+        let text = format!("{}H 1\nM 1\nCX rec[-1] 0", "H 1\nM 1\n".repeat(30));
+        let c = Circuit::parse(&text).unwrap();
+        let rho = DensityProgram::with_layout(&c, true, Outcomes::StateOnly).unwrap().final_state(None, 4).unwrap();
+        // Qubit 0 corrected to the last outcome, which qubit 1 holds: |00⟩ and |11⟩, half each.
+        assert!((rho.get(0, 0).re - 0.5).abs() < 1e-12 && (rho.get(3, 3).re - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn chains_of_correlated_errors_are_unbroken() {
+        // An ELSE before any E fires as an E would, as in Stim.
+        let c = Circuit::parse("ELSE_CORRELATED_ERROR(0.25) X0\nM 0").unwrap();
+        let a = DensityProgram::new(&c).unwrap().distribution(16).unwrap();
+        let b = Program::new(&c).unwrap().distribution(16).unwrap();
+        assert_eq!(a.len(), b.len());
+        // One after other operations (here a channel, which it must not join) is refused.
+        for between in ["X_ERROR(0.1) 1", "H 0", "M 1"] {
+            let c = Circuit::parse(&format!("E(0.5) X0\n{between}\nELSE_CORRELATED_ERROR(0.5) X1\nM 0 1")).unwrap();
+            assert!(DensityProgram::new(&c).err().unwrap().contains("unbroken"), "{between}");
+        }
+        // Within one chain, the state vector's numbers.
+        let c = Circuit::parse("E(0.5) X0\nELSE_CORRELATED_ERROR(0.5) X1\nELSE_CORRELATED_ERROR(0.2) X0 X1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]").unwrap();
+        let a = DensityProgram::new(&c).unwrap().distribution(16).unwrap();
+        let b = Program::new(&c).unwrap().distribution(16).unwrap();
+        for (k, p) in &a {
+            assert!((p - b[k]).abs() < 1e-12);
+        }
     }
 }

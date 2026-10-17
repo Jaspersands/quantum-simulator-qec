@@ -56,9 +56,9 @@ class DemTarget:
 
     @property
     def val(self) -> int:
-        """The detector or observable index (the separator's is a sentinel)."""
+        """The detector or observable index (a separator has none)."""
         if self._kind == "^":
-            return 0xFFFFFFFFFFFFFFFF
+            raise ValueError("Separator doesn't have an integer value.")
         return self._v
 
     def is_relative_detector_id(self) -> bool:

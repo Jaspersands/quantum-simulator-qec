@@ -47,9 +47,9 @@ const TRANSPORT_KEYS: [&str; 4] = ["spread", "spread_back", "mobility", "mobilit
 /// The two-qubit gates leakage passes through in Deltakit's Stim, by every name Stim reads.
 pub const TRANSPORT_GATES: [&str; 9] = ["CX", "ZCX", "CNOT", "CY", "ZCY", "CZ", "ZCZ", "SQRT_XX", "SQRT_XX_DAG"];
 
-/// A herald's tag, for the qubits its records read.
-pub fn herald_tag(qubits: &[u32]) -> String {
-    format!("{HERALD}(qubits={})", qubits.iter().map(u32::to_string).collect::<Vec<_>>().join(" "))
+/// A herald's tag, for the qubits its records read (`!` before an inverted target's).
+pub fn herald_tag(targets: &[(u32, bool)]) -> String {
+    format!("{HERALD}(qubits={})", targets.iter().map(|&(q, inv)| format!("{}{q}", if inv { "!" } else { "" })).collect::<Vec<_>>().join(" "))
 }
 
 /// The four probabilities of a transport tag (`LEAKAGE_TRANSPORT(spread=…, spread_back=…,
@@ -104,7 +104,8 @@ fn lower_transport(indent: &str, name: &str, rest: &str) -> Result<Option<String
             _ => return Err(format!("{name}: '{a}' is not a probability")),
         }
     }
-    let kv: Vec<String> = TRANSPORT_KEYS.iter().zip(&args).map(|(k, v)| format!("{k}={v}")).collect();
+    // The probabilities written one way (exactly), so `0.10` and `0.1` are one tag.
+    let kv: Vec<String> = TRANSPORT_KEYS.iter().zip(&args).map(|(k, v)| format!("{k}={}", ir::exact_arg(v.parse().expect("checked")))).collect();
     Ok(Some(format!("{indent}{name}[{TRANSPORT}({})]{}", kv.join(", "), &inner[close + 1..]).trim_end().to_string()))
 }
 
@@ -157,8 +158,10 @@ pub fn lower_line(line: &str) -> Result<Option<String>, String> {
             return Err(format!("{name} takes at most one argument, the probability of flipping its result"));
         }
         let flip = args.first().map(|a| format!("({a})")).unwrap_or_default();
-        let values = list(&|&(_, inv)| if inv { "1".into() } else { "0".into() });
-        return Ok(Some(format!("{indent}MPAD[{HERALD}(qubits={})]{flip} {values}", list(&|&(q, _)| q.to_string())).trim_end().to_string()));
+        // Deltakit's herald reads 0 when its qubit is not leaked, an inverted target too (its
+        // reference sample is 0 there): the inversion is kept in the tag for the text alone.
+        let values = list(&|_| "0".into());
+        return Ok(Some(format!("{indent}MPAD[{}]{flip} {values}", herald_tag(&qubits)).trim_end().to_string()));
     }
     if name == "RL" {
         if !args.is_empty() {
@@ -175,15 +178,29 @@ pub fn lower_line(line: &str) -> Result<Option<String>, String> {
     if qubits.iter().any(|q| q.1) {
         return Err(format!("{name}: a noise channel's target is not inverted"));
     }
-    Ok(Some(format!("{indent}I_ERROR[{name}(p={})] {}", args[0], list(&|&(q, _)| q.to_string())).trim_end().to_string()))
+    let p = ir::exact_arg(args[0].parse().expect("checked"));
+    Ok(Some(format!("{indent}I_ERROR[{name}(p={p})] {}", list(&|&(q, _)| q.to_string())).trim_end().to_string()))
+}
+
+/// The qubits a herald's tag names, each whether its target was inverted (`!q`), if `tag` is one.
+pub fn herald_targets(tag: &str) -> Option<Result<Vec<(u32, bool)>, String>> {
+    let inner = tag.trim().strip_prefix(HERALD)?.trim();
+    let inner = inner.strip_prefix('(').and_then(|s| s.strip_suffix(')'))?;
+    let qubits = inner.trim().strip_prefix("qubits")?.trim_start().strip_prefix('=')?;
+    Some(
+        qubits
+            .split_whitespace()
+            .map(|t| {
+                let (q, inv) = t.strip_prefix('!').map_or((t, false), |q| (q, true));
+                crate::circuit::uint::<u32>(q).filter(|&q| q < 1 << 24).map(|q| (q, inv)).ok_or_else(|| format!("{HERALD}: '{t}' is not a qubit"))
+            })
+            .collect(),
+    )
 }
 
 /// The qubits a herald's tag names, if `tag` is one.
 pub fn herald_qubits(tag: &str) -> Option<Result<Vec<u32>, String>> {
-    let inner = tag.trim().strip_prefix(HERALD)?.trim();
-    let inner = inner.strip_prefix('(').and_then(|s| s.strip_suffix(')'))?;
-    let qubits = inner.trim().strip_prefix("qubits")?.trim_start().strip_prefix('=')?;
-    Some(qubits.split_whitespace().map(|q| crate::circuit::uint::<u32>(q).filter(|&q| q < 1 << 24).ok_or_else(|| format!("{HERALD}: '{q}' is not a qubit"))).collect())
+    Some(herald_targets(tag)?.map(|t| t.into_iter().map(|(q, _)| q).collect()))
 }
 
 /// A herald `MPAD`'s markers: one per padded record, the qubit it reads. `values` are the
@@ -223,21 +240,24 @@ fn raise_line(line: &str) -> Option<String> {
     match name.as_str() {
         "I" if tag.trim() == "RL" => Some(format!("{indent}RL {}", targets.join(" ")).trim_end().to_string()),
         "I_ERROR" => {
-            let ops = crate::nonpauli::parse("I_ERROR", tag, &targets.iter().map(|t| t.parse().ok()).collect::<Option<Vec<u32>>>()?).ok()??;
+            // A line without targets is read on one, to name its channel.
+            let qubits = if targets.is_empty() { vec![0] } else { targets.iter().map(|t| t.parse().ok()).collect::<Option<Vec<u32>>>()? };
+            let ops = crate::nonpauli::parse("I_ERROR", tag, &qubits).ok()??;
             let (word, p) = match ops.first()? {
                 NonPauli::Leakage { p, .. } => ("LEAKAGE", *p),
                 NonPauli::Relax { p, .. } => ("RELAX", *p),
                 _ => return None,
             };
-            Some(format!("{indent}{word}({}) {}", arg(p), targets.join(" ")))
+            Some(format!("{indent}{word}({}) {}", arg(p), targets.join(" ")).trim_end().to_string())
         }
         "MPAD" => {
-            let qubits = herald_qubits(tag)?.ok()?;
+            let qubits = herald_targets(tag)?.ok()?;
             if qubits.len() != targets.len() {
                 return None;
             }
             let flip = args.first().map(|&p| format!("({})", arg(p))).unwrap_or_default();
-            let t: Vec<String> = qubits.iter().zip(&targets).map(|(q, v)| format!("{}{q}", if *v == "1" { "!" } else { "" })).collect();
+            // Inverted in the tag (or, as written before, by a pad of 1).
+            let t: Vec<String> = qubits.iter().zip(&targets).map(|(&(q, inv), v)| format!("{}{q}", if inv || *v == "1" { "!" } else { "" })).collect();
             Some(format!("{indent}HERALD_LEAKAGE_EVENT{flip} {}", t.join(" ")).trim_end().to_string())
         }
         _ => None,
@@ -529,7 +549,10 @@ mod tests {
     fn deltakit_lines_lower_and_raise() {
         assert_eq!(lower_line("LEAKAGE(0.01) 0 3").unwrap().unwrap(), "I_ERROR[LEAKAGE(p=0.01)] 0 3");
         assert_eq!(lower_line("  relax(0.5) 2").unwrap().unwrap(), "  I_ERROR[RELAX(p=0.5)] 2");
-        assert_eq!(lower_line("HERALD_LEAKAGE_EVENT 0 !4").unwrap().unwrap(), "MPAD[HERALD_LEAKAGE_EVENT(qubits=0 4)] 0 1");
+        assert_eq!(lower_line("HERALD_LEAKAGE_EVENT 0 !4").unwrap().unwrap(), "MPAD[HERALD_LEAKAGE_EVENT(qubits=0 !4)] 0 0");
+        // Probabilities written one way, so equal circuits are equal.
+        assert_eq!(lower_line("LEAKAGE(0.10) 0").unwrap(), lower_line("LEAKAGE(1e-1) 0").unwrap());
+        assert_eq!(lower_line("CX(0.0, 0, 0.10, 0) 0 1").unwrap(), lower_line("CX(0, 0, 0.1, 0) 0 1").unwrap());
         assert_eq!(lower_line("HERALD_LEAKAGE_EVENT(0.02) 1").unwrap().unwrap(), "MPAD[HERALD_LEAKAGE_EVENT(qubits=1)](0.02) 0");
         assert_eq!(lower_line("M 0").unwrap(), None);
         assert_eq!(lower_line("LEAKAGES 0").unwrap(), None);
@@ -540,6 +563,16 @@ mod tests {
         let text = "LEAKAGE(0.01) 0 3\nRELAX(0.5) 2\nHERALD_LEAKAGE_EVENT(0.02) 0 !4\nM 0\n";
         let lowered: String = text.lines().map(|l| lower_line(l).unwrap().unwrap_or(l.to_string()) + "\n").collect();
         assert_eq!(to_deltakit(&lowered), text);
+    }
+
+    #[test]
+    fn heralds_fuse_by_joining_their_qubits() {
+        // Two equal heralds are one of both: their tags are equal, but list one qubit each.
+        let c = ir("MPAD[HERALD_LEAKAGE_EVENT(qubits=0)] 0\nMPAD[HERALD_LEAKAGE_EVENT(qubits=0)] 0\nMPAD[HERALD_LEAKAGE_EVENT(qubits=!1)] 0");
+        assert_eq!(c.to_string(), "MPAD[HERALD_LEAKAGE_EVENT(qubits=0 0 !1)] 0 0 0");
+        assert_eq!(to_deltakit(&c.to_string()), "HERALD_LEAKAGE_EVENT 0 0 !1\n");
+        // A different flip probability does not fuse.
+        assert_eq!(ir("MPAD[HERALD_LEAKAGE_EVENT(qubits=0)](0.1) 0\nMPAD[HERALD_LEAKAGE_EVENT(qubits=1)] 0").items.len(), 2);
     }
 
     #[test]

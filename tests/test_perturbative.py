@@ -170,3 +170,10 @@ def test_refusals():
         sq.Circuit("M 0").perturbative_distribution(symbolic=True, degree="all")
     with pytest.raises(ValueError, match="terms"):
         _circuit(0.01).perturbative_distribution(order=3, max_terms=4)
+
+
+def test_a_huge_degree_is_full():
+    c = sq.Circuit("R 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR rec[-1]")
+    full = c.perturbative_distribution(order=1, symbolic=True, degree="full")
+    huge = c.perturbative_distribution(order=1, symbolic=True, degree=2**64)
+    assert {k: v.coef.tolist() for k, v in full.items()} == {k: v.coef.tolist() for k, v in huge.items()}

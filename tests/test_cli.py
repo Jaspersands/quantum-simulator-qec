@@ -175,3 +175,26 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     assert path.read_text().startswith("# Generated repetition_code circuit.")
     assert sq.main(command_line_args=["gen", "--code", "nope"]) == 1
     assert sq.main(command_line_args=["sample", "--help"]) == 0
+
+
+@needs_stim
+def test_diagram_flags_and_replayed_shot_counts(files):
+    c = files / "noisy.stim"
+    c.write_text("X_ERROR(0.1) 0\nH 0\nTICK\nH 0\nTICK\nM 0\nDETECTOR rec[-1]\n")
+    both("diagram", "--in", str(c), "--type", "timeline-text", "--remove_noise")
+    both("diagram", "--in", str(c), "--type", "detslice-text", "--tick", "1:3")
+    both("diagram", "--in", str(c), "--type", "timeline-text", "--tick", "1:3")
+    assert ours("diagram", "--in", str(c), "--type", "detslice-with-ops-svg").startswith(b"<svg")
+    dem, replay = files / "r.dem", files / "r.01"
+    dem.write_text("error(1) D0 L0\nerror(0) D1\ndetector D2\n")
+    replay.write_text("01\n10\n")
+    for shots in ("1", "2"):
+        both("sample_dem", "--in", str(dem), "--shots", shots, "--replay_err_in", str(replay), "--replay_err_in_format", "01")
+    r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "sample_dem", "--in", str(dem), "--shots", "3", "--replay_err_in", str(replay), "--replay_err_in_format", "01"], capture_output=True)
+    assert r.returncode != 0 and b"Expected more error data" in r.stderr
+
+
+@needs_stim
+def test_hits_toggle_a_bit_named_twice():
+    both("convert", "--in_format", "hits", "--out_format", "01", "--num_measurements", "3", stdin=b"0,0\n1,1,1\n")
+    both("convert", "--in_format", "dets", "--out_format", "01", "--num_detectors", "3", stdin=b"shot D0 D0 D1\n")

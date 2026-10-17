@@ -510,3 +510,55 @@ def test_model_targets_stay_as_written(seed):
     assert str(b.flattened()) == str(a.flattened())
     assert (b.num_detectors, b.num_observables, b.num_errors) == (a.num_detectors, a.num_observables, a.num_errors)
     assert sq.DetectorErrorModel(str(a)) == b
+
+
+def test_tableau_iteration_order():
+    import itertools
+
+    for n, unsigned, k in [(1, False, 100), (2, True, 720), (2, False, 2000), (3, True, 2000)]:
+        a = [str(t) for t in itertools.islice(stim.Tableau.iter_all(n, unsigned=unsigned), k)]
+        b = [str(t) for t in itertools.islice(sq.Tableau.iter_all(n, unsigned=unsigned), k)]
+        assert a == b, (n, unsigned)
+
+
+def test_gate_data_prints_as_stims():
+    for name in sorted({g.name for g in stim.gate_data().values()} - {"SPP", "SPP_DAG"}):
+        assert str(sq.gate_data(name)).replace("stabilizer_qec.", "stim.") == str(stim.gate_data(name)), name
+
+
+def test_conjugation_refuses_qubits_past_the_string():
+    cases = ["CX 0 3", "H 0\nTICK\nCX 0 3\nH 1", "REPEAT 2 {\n CX 0 3\n}", "H 0\nREPEAT 3 {\n S 0\n}\nREPEAT 2 {\n H 0\n CX 0 3\n}", "X_ERROR(0.1) 5", "DETECTOR rec[-1]", "QUBIT_COORDS(1) 5", "S 0\nH 1\nH 0"]
+
+    def run(m, text, how):
+        try:
+            return str(getattr(m.PauliString("X"), how)(m.Circuit(text)))
+        except ValueError as e:
+            return str(e)
+
+    for text in cases:
+        for how in ("after", "before"):
+            assert run(sq, text, how) == run(stim, text, how), (text, how)
+    assert str(sq.PauliString([True, False])) == str(stim.PauliString([True, False]))
+    eye, zero = np.eye(2, dtype=bool), np.zeros((2, 2), dtype=bool)
+    for m in (stim, sq):
+        with pytest.raises(ValueError, match="shape"):
+            m.Tableau.from_numpy(x2x=eye, x2z=zero, z2x=zero, z2z=eye, x_signs=np.zeros(3, dtype=bool))
+
+
+def test_parsing_spacing_as_stim():
+    for text in ["MPP X0 * Y1", "MPP X0 *Y1", "SPP X0 * Y1 Z2", "E(0.25) X0*Y1\nM 0 1\nDETECTOR rec[-1]", "CZ sweep[5] sweep[2]\nM 0", "M 0\nCZ rec[-1] sweep[0]\nM 0"]:
+        a, b = stim.Circuit(text), sq.Circuit(text)
+        assert str(a.detector_error_model()) == str(b.detector_error_model()), text
+        assert a.num_qubits == b.num_qubits
+    for text in ["MPP X0 * * Y1", "MPP *X0", "MPP X0*", "X_ERROR (0.1) 0", "X_ERROR(0.1)0", "M(0.1)0"]:
+        with pytest.raises(ValueError):
+            stim.Circuit(text)
+        with pytest.raises(ValueError):
+            sq.Circuit(text)
+
+
+def test_tableau_width_counts_padding_bits():
+    for text in ["MPAD 1\nH 0", "MPAD 0 1\nH 0", "REPEAT 2 {\n    MPAD 1\n}\nH 0"]:
+        a = stim.Tableau.from_circuit(stim.Circuit(text), ignore_measurement=True)
+        b = sq.Tableau.from_circuit(sq.Circuit(text), ignore_measurement=True)
+        assert str(a) == str(b), text

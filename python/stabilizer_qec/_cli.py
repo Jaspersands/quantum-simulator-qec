@@ -281,7 +281,15 @@ def cmd_diagram(a) -> None:
             d = _circuit(text).diagram("matchgraph-svg")
     else:
         c = _circuit(text)
-        tick = None if a.tick is None else int(a.tick)
+        if a.remove_noise:
+            c = c.without_noise()
+        tick = None
+        # Stim's command line ignores a tick for the text timeline.
+        if a.tick is not None and kind != "timeline-text":
+            # A tick (`--tick 3`) or, as Stim writes a range, `--tick A:B` for ticks A to B - 1;
+            # a text slice is drawn at one tick, a range's first, as Stim's command line draws it.
+            start, sep, stop = a.tick.partition(":")
+            tick = range(int(start), int(stop)) if sep and kind != "detslice-text" else int(start)
         d = c.diagram(kind, tick=tick)
     out = str(d)
     _write(a.out, out if out.endswith("\n") else out + "\n")
@@ -328,6 +336,9 @@ def cmd_sample_dem(a) -> None:
     replay = None
     if a.replay_err_in:
         replay = decode_shots(_read_bytes(a.replay_err_in), a.replay_err_in_format, num_measurements=s.num_errors)
+        if len(replay) < a.shots:
+            raise ValueError("Expected more error data for the requested number of shots.")
+        replay = replay[: a.shots]
     dets, obs, errs = s.sample(a.shots, return_errors=a.err_out is not None, recorded_errors_to_replay=replay)
     _write(a.out, encode_shots(dets, a.out_format, num_detectors=s.num_detectors))
     if a.obs_out:

@@ -68,9 +68,12 @@ pub(crate) fn role(ins: &Instr) -> Role {
         Instr::Reset { qubits, .. } | Instr::Measure { reset: true, qubits, .. } => Role::Reset(qubits.clone()),
         Instr::Gate { line, tag, body } => {
             if let [Instr::NonPauli(ops), Instr::Pad { flip, values }] = body.as_slice() {
-                if ops.iter().all(|o| matches!(o, NonPauli::Herald { .. })) && ops.len() == values.len() && crate::leakage::herald_qubits(tag).is_some() {
-                    let qubits = ops.iter().zip(values).map(|(o, &v)| (o.qubits()[0], v)).collect();
-                    return Role::Herald { qubits, flip: *flip };
+                if let Some(Ok(targets)) = crate::leakage::herald_targets(tag) {
+                    if ops.iter().all(|o| matches!(o, NonPauli::Herald { .. })) && ops.len() == values.len() && targets.len() == values.len() {
+                        // Inverted in the tag (or, as written before, by a pad of 1).
+                        let qubits = ops.iter().zip(values).zip(&targets).map(|((o, &v), &(_, inv))| (o.qubits()[0], v || inv)).collect();
+                        return Role::Herald { qubits, flip: *flip };
+                    }
                 }
             }
             let Ok((name, _, _, targets)) = crate::circuit::split_instruction(line.trim()) else {

@@ -20,6 +20,13 @@ impl StabilizerSimulator {
         }
     }
 
+    /// A simulator whose random outcomes are all 0 (Stim's reference sample).
+    pub fn zero_biased(n: usize) -> Self {
+        let mut sim = StabilizerSimulator::new(n);
+        sim.tableau.zero_random = true;
+        sim
+    }
+
     pub fn n(&self) -> usize {
         self.tableau.n
     }

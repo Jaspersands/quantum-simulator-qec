@@ -989,7 +989,8 @@ mod tests {
             for basis in [Basis::Z, Basis::X] {
                 for merged in [1usize, 2, d] {
                     let c = surgery(d, merged, basis, 0.0).circuit().unwrap();
-                    let m = M2d::new(&c).unwrap_or_else(|e| panic!("d = {d} {basis:?} T = {merged}: {e}"));
+                    crate::dem_build::sweep_effects(&c, true).unwrap_or_else(|e| panic!("d = {d} {basis:?} T = {merged}: {e}"));
+                    let m = M2d::new(&c).unwrap();
                     assert_eq!(m.num_observables, if basis == Basis::Z { 3 } else { 1 });
                 }
             }
@@ -1037,11 +1038,11 @@ mod tests {
             for basis in [Basis::Z, Basis::X] {
                 for (name, prog) in [("cnot", cnot(d, d, 0.0, basis)), ("vertical", vertical(d, d, 0.0, basis))] {
                     let c = prog.circuit().unwrap();
-                    M2d::new(&c).unwrap_or_else(|e| panic!("{name}, d = {d}, {basis:?}: {e}"));
+                    crate::dem_build::sweep_effects(&c, true).unwrap_or_else(|e| panic!("{name}, d = {d}, {basis:?}: {e}"));
                 }
             }
             for (name, prog) in [("repeated", repeated(d, 3, d, 0.0)), ("line", line(d, 3, d, 0.0))] {
-                M2d::new(&prog.circuit().unwrap()).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
+                crate::dem_build::sweep_effects(&prog.circuit().unwrap(), true).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
             }
         }
     }
@@ -1128,10 +1129,10 @@ mod tests {
             ];
             for (name, prep, read, observables) in cases {
                 let circuit = cnot_with(d, d, 0.0, prep, read, observables).circuit().unwrap();
-                M2d::new(&circuit).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
+                crate::dem_build::sweep_effects(&circuit, true).unwrap_or_else(|e| panic!("{name}, d = {d}: {e}"));
             }
             let circuit = cnot_with(d, d, 0.0, [X, Z], [Z, Z], vec![z_t]).circuit().unwrap();
-            let err = M2d::new(&circuit).err().unwrap_or_default();
+            let err = crate::dem_build::sweep_effects(&circuit, true).err().unwrap_or_default();
             assert!(err.contains("not deterministic"), "d = {d}: after |+0⟩, Z_T alone should be random: {err}");
         }
     }
@@ -1183,7 +1184,7 @@ mod tests {
                 vec![Term::Logical { patch: 1, basis: Basis::Z, line: 0 }],
             ],
         };
-        M2d::new(&prog(0.0).circuit().unwrap()).unwrap();
+        crate::dem_build::sweep_effects(&prog(0.0).circuit().unwrap(), true).unwrap();
         let (failed, of) = uncorrected(&prog(0.001).circuit().unwrap());
         assert_eq!(failed, 0, "{failed} of {of} single faults uncorrected");
     }

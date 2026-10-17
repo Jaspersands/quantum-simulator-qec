@@ -293,6 +293,16 @@ pub struct Program {
 
 const CODE: [u8; 4] = [0, 1, 3, 2]; // Stim's letter order I, X, Y, Z as the engine's codes.
 
+/// What a program's results carry: outcomes as `outcome` packs them (at most 64 observables,
+/// each of measurement records), each observable's records (any number of them), or the state
+/// alone (observables, which leave the state alone, of any kind).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcomes {
+    Packed,
+    Records,
+    StateOnly,
+}
+
 impl Program {
     pub fn new(circuit: &Circuit) -> Result<Program, String> {
         Program::with_layout(circuit, false, MAX_QUBITS)
@@ -301,6 +311,11 @@ impl Program {
     /// The program with qubits renumbered to the ones in use (`whole` false) or kept as the
     /// circuit numbers them, every qubit up to its largest (`whole`), at most `max` of them.
     pub fn with_layout(circuit: &Circuit, whole: bool, max: usize) -> Result<Program, String> {
+        Program::with_layout_for(circuit, whole, max, Outcomes::Packed)
+    }
+
+    /// The same, its results carrying `outcomes`.
+    pub fn with_layout_for(circuit: &Circuit, whole: bool, max: usize, outcomes: Outcomes) -> Result<Program, String> {
         circuit.check_runnable()?;
         let res = circuit.resolve()?;
         // Qubits in use, renumbered in order.
@@ -392,7 +407,7 @@ impl Program {
                     Control::Rec(k) => steps.push(Step::Feedback { pauli: *pauli, rec: m - *k as usize, q: ix(qubit) }),
                     Control::Sweep(_) => {}
                 },
-                Instr::Observable { paulis, .. } if !paulis.is_empty() => {
+                Instr::Observable { paulis, .. } if !paulis.is_empty() && outcomes != Outcomes::StateOnly => {
                     return Err("the state vector does not take observables of Pauli targets".into());
                 }
                 Instr::NonPauli(ops) => {
@@ -421,12 +436,12 @@ impl Program {
                 Instr::Repeat { .. } | Instr::Gate { .. } => unreachable!("resolve flattens loops and gates"),
             }
         }
-        if res.observables.len() > 64 {
+        if res.observables.len() > 64 && outcomes == Outcomes::Packed {
             return Err(format!("{} observables: the state vector takes at most 64", res.observables.len()));
         }
         let reference = {
             // The converter's reference run, so detection events are the converter's.
-            let rec = crate::m2d::run(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits, &[], 1);
+            let rec = crate::m2d::reference(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits);
             let parity = |recs: &Vec<usize>| recs.iter().fold(false, |a, &r| a ^ rec[r]);
             res.detectors.iter().chain(&res.observables).map(parity).collect()
         };

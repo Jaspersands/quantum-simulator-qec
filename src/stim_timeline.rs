@@ -245,13 +245,12 @@ impl Drawer {
                 let index = a.first().copied().unwrap_or(0.0) as u64;
                 let mut refs = Vec::new();
                 let mut paulis = Vec::new();
-                let (mut earliest, mut q) = (i64::MAX, u32::MAX);
+                // Drawn as a detector is, on its lowest measured qubit.
+                let mut q = u32::MAX;
                 for t in tokens {
                     if let Some(k) = t.strip_prefix("rec[-").and_then(|r| r.strip_suffix(']')).and_then(|r| r.parse::<u32>().ok()) {
                         let (s, mq) = self.lookback(k);
-                        if s.base < earliest {
-                            (earliest, q) = (s.base, mq);
-                        }
+                        q = q.min(mq);
                         refs.push(format!("rec[{}]", s.text()));
                     } else {
                         let t = t.trim_start_matches('!');
@@ -296,7 +295,7 @@ impl Drawer {
                 for t in tokens {
                     if let Ok(v) = t.parse::<u32>() {
                         let r = self.record(v);
-                        self.place(vec![(v, format!("MPAD:{r}"))], false);
+                        self.place(vec![(v, format!("MPAD{}:{r}", args_text(a)))], false);
                     }
                 }
             }
@@ -305,7 +304,16 @@ impl Drawer {
                     if let Some(q) = qubit(t) {
                         let at: Vec<f64> = a.iter().enumerate().map(|(k, &v)| v + self.shift.get(k).map_or(0.0, |s| s.0)).collect();
                         self.coords.insert(q, at);
-                        self.place(vec![(q, format!("QUBIT_COORDS{}", args_text(a)))], false);
+                        // The coordinates shifted, as a detector's, and `()` for none.
+                        let parts: Vec<String> = a
+                            .iter()
+                            .enumerate()
+                            .map(|(k, &v)| {
+                                let (base, steps) = self.shift.get(k).cloned().unwrap_or((0.0, vec![0.0; self.depth]));
+                                coord_text(v + base, &steps)
+                            })
+                            .collect();
+                        self.place(vec![(q, format!("QUBIT_COORDS({})", parts.join(",")))], false);
                     }
                 }
             }
@@ -404,6 +412,22 @@ impl Drawer {
             self.shift.push((0.0, steps));
         }
         self.walk(body);
+        // Later passes' records measure the first pass's qubits (for where a detector reading
+        // one after the loop is drawn).
+        if let (Ok(base), Ok(per)) = (usize::try_from(r0), usize::try_from(per_rec)) {
+            for pass in 1..count as usize {
+                let at = base + pass * per;
+                if per == 0 || at + per > 1 << 22 {
+                    break;
+                }
+                if self.rec_qubit.len() < at + per {
+                    self.rec_qubit.resize(at + per, u32::MAX);
+                }
+                for j in 0..per {
+                    self.rec_qubit[at + j] = self.rec_qubit.get(base + j).copied().unwrap_or(u32::MAX);
+                }
+            }
+        }
         self.close_group();
         if self.any_used() {
             self.next_moment();
@@ -515,7 +539,8 @@ impl Drawer {
             lines.remove(rows);
             lines.remove(0);
         }
-        lines.join("\n") + "\n"
+        // No newline after the last line, as Stim's text.
+        lines.join("\n")
     }
 }
 
@@ -524,6 +549,10 @@ pub fn timeline_text(circuit: &Circuit) -> Result<String, String> {
     let counts = crate::batch_sampler::Counts::of(&circuit.instrs)?;
     if counts.qubits > 4096 {
         return Err(format!("{} qubits: a timeline draws at most 4096", counts.qubits));
+    }
+    if counts.qubits == 0 {
+        // No qubit, no line: Stim's empty text.
+        return Ok(String::new());
     }
     let has_ticks = circuit.to_stim().lines().any(|l| l.trim_start().starts_with("TICK"));
     let mut d = Drawer {

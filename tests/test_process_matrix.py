@@ -239,3 +239,68 @@ def test_pecos_process_matrix():
     np.testing.assert_allclose(pm.superoperator(), sq.Circuit("X_ERROR(0.1) 0").process_matrix("superoperator"), atol=1e-12)
     with pytest.raises(ValueError):
         pc.simulators.ProcessMatrix(7)
+
+
+def test_a_choi_matrix_is_shape_checked():
+    with pytest.raises(ValueError):
+        sq.convert_process(np.eye(3), "choi", "ptm")
+    with pytest.raises(ValueError):
+        sq.process_fidelity(np.eye(3), np.eye(3))
+
+
+def test_pecos_density_matrix_checks_its_arguments():
+    for cls in (pc.simulators.DensityMatrix, pc.simulators.ProcessMatrix):
+        s = cls(2)
+        # NumPy angles and qubits, as PECOS's own simulators take them.
+        s.run_gate("RX", {np.int64(0)}, angle=np.float64(0.3))
+        s.run_gate("RZZ", {(0, np.int64(1))}, angle=np.linspace(0, 1, 3)[1])
+        s.run_gate("CRX", {(0, 1)}, angle=np.float32(0.2))
+        for sym, loc, kw in [("H", 5, {}), ("measure Z", 5, {}), ("CRX", (0, 4), {"angle": 0.3}), ("TOFFOLI", (0, 1, 2), {})]:
+            with pytest.raises(IndexError):
+                s.run_gate(sym, {loc}, **kw)
+        with pytest.raises(TypeError):
+            s.run_gate("X", {(0, 1)})
+        with pytest.raises(ValueError):
+            s.run_gate("measure Z", {0}, forced_outcome=2)
+        with pytest.raises(IndexError):
+            s.apply_kraus([4], [np.eye(2)])
+        with pytest.raises(IndexError):
+            s.logical_sign(pc.circuits.QuantumCircuit([{"Z": {3}}]))
+    # Unseeded, the runner's seed of NumPy's generator repeats a run, as for the SparseSims.
+    qc = pc.circuits.QuantumCircuit()
+    qc.append("H", set(range(6)))
+    qc.append("measure Z", set(range(6)))
+    runs = [dict(pc.circuit_runners.Standard(seed=5).run(pc.simulators.DensityMatrix(6), qc)[0]) for _ in range(2)]
+    assert runs[0] == runs[1]
+
+
+def test_pecos_logical_signs_agree_with_the_density_matrix():
+    import random
+
+    random.seed(5)
+    gates1 = ["H", "S", "Sd", "X", "Y", "Z", "Q", "R", "F1", "H2"]
+    checked = 0
+    for _ in range(150):
+        n = random.randint(1, 3)
+        sims = [pc.simulators.pySparseSim(n), pc.simulators.cySparseSim(n), pc.simulators.DensityMatrix(n)]
+        for _ in range(random.randint(0, 10)):
+            if n > 1 and random.random() < 0.4:
+                g, loc = random.choice(["CNOT", "CZ", "SWAP"]), tuple(random.sample(range(n), 2))
+            else:
+                g, loc = random.choice(gates1), random.randrange(n)
+            for s in sims:
+                s.run_gate(g, {loc})
+        for _ in range(30):
+            ops = {}
+            for q in range(n):
+                p = random.choice("IXYZ")
+                if p != "I":
+                    ops.setdefault(p, set()).add(q)
+            op = pc.circuits.QuantumCircuit([ops]) if ops else None
+            if op is None or abs(abs(sims[2].logical_sign(op, allow_float=True)) - 1) > 1e-9:
+                continue
+            want = sims[2].logical_sign(op)
+            assert sims[0].logical_sign(op) == want and sims[1].logical_sign(op) == want, ops
+            checked += 1
+            break
+    assert checked > 100

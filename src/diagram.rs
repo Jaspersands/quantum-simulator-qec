@@ -1193,6 +1193,8 @@ pub fn slices_svg_filtered(circuit: &Circuit, ticks: std::ops::Range<u64>, rows:
         return Err(format!("{n} ticks: at most 400 panels"));
     }
     let nq = crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits;
+    // The last panel's slice after its operations is the circuit's end, past its last TICK.
+    let total_ticks = if ops { circuit.resolve()?.instrs.iter().filter(|i| matches!(i, Instr::Tick)).count() as u64 } else { u64::MAX };
     let pos = qubit_positions(circuit, nq);
     let (minx, maxx) = pos.iter().flatten().fold((0.0f64, 0.0f64), |(a, b), p| (a.min(p.0), b.max(p.0)));
     let (miny, maxy) = pos.iter().flatten().fold((0.0f64, 0.0f64), |(a, b), p| (a.min(p.1), b.max(p.1)));
@@ -1219,7 +1221,7 @@ pub fn slices_svg_filtered(circuit: &Circuit, ticks: std::ops::Range<u64>, rows:
         let _ = write!(s, "<g><title>Tick {tick}</title><rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"none\" class=\"tick\" stroke=\"#ccc\"/>", ox + 2.0, oy + 2.0, pw - 4.0, ph - 4.0);
         let _ = write!(s, "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"12\">Tick {tick}</text>", ox + 8.0, oy + 16.0);
         if slice {
-            for (name, support) in &kept(detector_slice(circuit, tick + u64::from(ops))?, keep) {
+            for (name, support) in &kept(detector_slice(circuit, (tick + u64::from(ops)).min(total_ticks))?, keep) {
                 let pts: Vec<(f64, f64)> = support.iter().map(|&(q, _)| px(q)).collect();
                 let c = colour(support);
                 let title = format!("<title>{name}</title>");

@@ -119,7 +119,13 @@ def chi_to_choi(chi: Any) -> np.ndarray:
 
 
 _FROM_CHOI = {"choi": lambda j: j, "superoperator": choi_to_superop, "ptm": choi_to_ptm, "chi": choi_to_chi}
-_TO_CHOI = {"choi": lambda j: np.asarray(j, dtype=np.complex128), "superoperator": superop_to_choi, "ptm": ptm_to_choi, "chi": chi_to_choi}
+def _as_choi(j: Any) -> np.ndarray:
+    j = np.asarray(j, dtype=np.complex128)
+    _dim(j, 2)
+    return j
+
+
+_TO_CHOI = {"choi": _as_choi, "superoperator": superop_to_choi, "ptm": ptm_to_choi, "chi": chi_to_choi}
 
 
 def process_matrix(circuit: Any, kind: str = "choi", *, max_branches: int = 1 << 20) -> np.ndarray:

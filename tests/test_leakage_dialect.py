@@ -59,7 +59,7 @@ def deltakit_memory(distance=5, rounds=5, p=0.001, pl=0.002, flip=0.0, herald_de
 
 def test_the_dialect_is_read_as_tagged_lines_stim_runs_and_written_back():
     c = sq.Circuit(SMALL)
-    assert str(c).splitlines()[1:3] == ["I_ERROR[LEAKAGE(p=0.1)] 0", "MPAD[HERALD_LEAKAGE_EVENT(qubits=0 1)](0.01) 0 1"]
+    assert str(c).splitlines()[1:3] == ["I_ERROR[LEAKAGE(p=0.1)] 0", "MPAD[HERALD_LEAKAGE_EVENT(qubits=0 !1)](0.01) 0 0"]
     assert c.to_deltakit_text().split() == SMALL.split()
     assert sq.Circuit(c.to_deltakit_text()) == c
     # The engines that run no leakage see an identity and a padded record.
@@ -86,7 +86,7 @@ def test_the_dialect_is_read_as_tagged_lines_stim_runs_and_written_back():
 
 def test_deltakits_model():
     # LEAKAGE(0.1) then a herald on qubit 0 (flipped 1%): its detector fires about 10.8%;
-    # the inverted herald on qubit 1 only by its flips. A CX with a leaked qubit 0
+    # the inverted herald on qubit 1 (Deltakit reads !q as q) only by its flips. A CX with a leaked qubit 0
     # depolarizes qubit 1, so M 1 fires half the time that 0 leaked.
     s = sq.Circuit(SMALL).compile_leakage_sampler(seed=3)
     d, _, h = s.sample(100_000, threads=4)
@@ -96,7 +96,7 @@ def test_deltakits_model():
     assert h.shape == (100_000, 3) and not h[:, :2].any()
     m, f = s.sample_measurements(100_000, threads=4)
     assert m.shape == (100_000, 1) and f.shape == (100_000, 2) and s.num_heralds == 2
-    assert abs(f[:, 0].mean() - leaked) < 0.004 and abs((~f[:, 1]).mean() - 0.01) < 0.002
+    assert abs(f[:, 0].mean() - leaked) < 0.004 and abs(f[:, 1].mean() - 0.01) < 0.002
 
 
 def test_measurements_convert_on_the_circuit_without_leakage_shot_for_shot():

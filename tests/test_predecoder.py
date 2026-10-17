@@ -169,3 +169,16 @@ def test_pretrained_weights_beat_matching(distance):
     plain = (sq.Matching(dem).decode_batch(dets) != obs).any(axis=1).sum()
     ours = (pre.decode_batch(dets, threads=4) != obs).any(axis=1).sum()
     assert ours < 0.9 * plain, (ours, plain)
+
+
+def test_calls_from_threads_wait_for_training():
+    import concurrent.futures as cf
+
+    c = sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=2, after_clifford_depolarization=0.01)
+    p = sq.PreDecoder(c.detector_error_model(decompose_errors=True))
+    dets = c.compile_detector_sampler(seed=1).sample(32)
+    with cf.ThreadPoolExecutor(4) as ex:
+        jobs = [ex.submit(p.train, 2, batch=16) for _ in range(2)] + [ex.submit(p.predecode, dets) for _ in range(4)] + [ex.submit(p.decode_batch, dets) for _ in range(2)]
+        for j in jobs:
+            j.result()
+    assert p.steps == 4

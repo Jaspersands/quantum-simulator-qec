@@ -206,7 +206,7 @@ impl Counts {
         let mut s = Shape { lenient: true, ..Shape::default() };
         shape(&compile(instrs), &mut s)?;
         Ok(Counts {
-            qubits: instrs.iter().flat_map(Instr::qubits).map(|q| q as usize + 1).max().unwrap_or(0),
+            qubits: instrs.iter().flat_map(Instr::written_qubits).map(|q| q as usize + 1).max().unwrap_or(0),
             measurements: s.measurements,
             detectors: s.detectors,
             observables: s.observables,

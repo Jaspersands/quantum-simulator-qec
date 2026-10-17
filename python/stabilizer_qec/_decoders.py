@@ -547,7 +547,7 @@ def _herald_qubits(tag: str) -> Union[list, None]:
     if not (inner.startswith("(") and inner.endswith(")")):
         return None
     key, _, value = inner[1:-1].partition("=")
-    return [int(q) for q in value.split()] if key.strip() == "qubits" else None
+    return [int(q.lstrip("!")) for q in value.split()] if key.strip() == "qubits" else None
 
 
 def _leakage_faults(circuit: Any, graded: bool = True) -> list:
@@ -1421,15 +1421,20 @@ def _columns(pcm: Any) -> tuple[int, int, list]:
     if hasattr(pcm, "tocsc"):
         m = pcm.tocsc()
         m.eliminate_zeros()
+        if not np.all(m.data == 1):
+            raise ValueError("Input matrix must be a binary matrix.")
         rows, cols = m.shape
         cols_list = [sorted(int(r) for r in m.indices[m.indptr[j] : m.indptr[j + 1]]) for j in range(cols)]
         return rows, cols, cols_list
     a = np.asarray(pcm)
     if a.ndim != 2:
         raise ValueError(f"a check matrix is 2-dimensional, not {a.ndim}-dimensional")
-    if not (np.issubdtype(a.dtype, np.integer) or np.issubdtype(a.dtype, np.bool_)):
-        raise TypeError(f"a check matrix holds 0/1 integers or bools, not {a.dtype}")
-    a = (a % 2) != 0
+    if not (np.issubdtype(a.dtype, np.integer) or np.issubdtype(a.dtype, np.bool_) or np.issubdtype(a.dtype, np.floating)):
+        raise TypeError(f"a check matrix holds 0/1 numbers or bools, not {a.dtype}")
+    # Entries 0 and 1 only (ldpc's floats included), as ldpc and PyMatching require.
+    if not np.isin(a, (0, 1)).all():
+        raise ValueError("Input matrix must be a binary matrix.")
+    a = a != 0
     return a.shape[0], a.shape[1], [list(map(int, np.flatnonzero(a[:, j]))) for j in range(a.shape[1])]
 
 

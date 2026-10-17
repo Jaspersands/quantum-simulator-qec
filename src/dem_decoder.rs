@@ -132,22 +132,26 @@ pub(crate) type MergedEdges = (Vec<(u32, u32, f64, u64)>, usize);
 
 /// The model's graph-like pieces as merged edges `(u, v, p, observables)`,
 /// sorted, with `v == num_detectors` standing for the boundary, and the number
-/// of conflicting parallel edges. Parallel edges with the same observables
-/// combine as independent events, which is what PyMatching 2.4 does. With
-/// different observables the more probable one is kept and the conflict is
-/// counted: for any code of distance three or more that count is zero, since a
-/// conflict is a weight-two logical operator.
+/// of conflicting parallel edges. Parallel edges combine as independent events,
+/// the first one's observables kept, which is what PyMatching 2.4 does (its
+/// `MERGE_STRATEGY` default for a model) whether or not their observables
+/// agree; those that disagree are counted. Stim's own decomposed colour codes
+/// have such pairs (`D2` and `D2 L0`).
 pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
     let boundary = dem.num_detectors as u32;
     let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
     let mut conflicts = 0usize;
     for m in &dem.mechanisms {
-        // A mechanism that fires no detector (an undetectable flip of observables) gives
-        // nothing to match; PyMatching drops it too.
-        if m.detectors.is_empty() {
+        // A mechanism that never fires adds nothing (PyMatching's edge of infinite weight).
+        if m.p == 0.0 {
             continue;
         }
         if m.pieces.is_empty() {
+            // One that fires no detector (an undetectable flip of observables) gives
+            // nothing to match; PyMatching drops it too.
+            if m.detectors.is_empty() {
+                continue;
+            }
             return Err(format!(
                 "mechanism on detectors {:?} fires more than two detectors and has no decomposition",
                 m.detectors
@@ -166,12 +170,11 @@ pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
                 None => {
                     edges.insert(key, (m.p, piece.observables));
                 }
-                Some(e) if e.1 == piece.observables => e.0 = xor_prob(e.0, m.p),
                 Some(e) => {
-                    conflicts += 1;
-                    if m.p > e.0 {
-                        *e = (m.p, piece.observables);
+                    if e.1 != piece.observables {
+                        conflicts += 1;
                     }
+                    e.0 = xor_prob(e.0, m.p);
                 }
             }
         }
@@ -449,6 +452,19 @@ mod tests {
     }
 
     #[test]
+    fn parallel_edges_merge_as_pymatching_merges_them() {
+        // Different observables: the probabilities combined, the first one's observables kept.
+        let dem = Dem::parse("error(0.1) D0\nerror(0.2) D0 L0").unwrap();
+        let (edges, conflicts) = merged_edges(&dem).unwrap();
+        assert_eq!((edges.len(), conflicts), (1, 1));
+        assert!((edges[0].2 - (0.1 * 0.8 + 0.2 * 0.9)).abs() < 1e-15 && edges[0].3 == 0);
+        // A mechanism of probability 0 adds nothing; pieces cancelling as a whole are still edges.
+        assert_eq!(merged_edges(&Dem::parse("error(0) D0 D1\nerror(0.1) D0").unwrap()).unwrap().0.len(), 1);
+        assert!(DemDecoder::new(&Dem::parse("error(0) D0 D1\nerror(0.1) D0").unwrap()).is_ok());
+        assert!(DemDecoder::new(&Dem::parse("error(0.1) D0 D1 ^ D0 D1\nerror(0.1) D0").unwrap()).is_ok());
+    }
+
+    #[test]
     fn undetectable_flips_of_observables_are_ignored() {
         // Kept in the model as Stim keeps them; nothing to match, as in PyMatching.
         let dem = Dem::parse("error(0.1) D0\nerror(0.1) D0 L0\nerror(0.1) L0").unwrap();
@@ -624,8 +640,11 @@ mod tests {
 
     #[test]
     fn conflicting_parallel_edges_are_counted() {
+        // Merged as PyMatching merges them: the first one's observables, whichever is likelier.
         let dec = DemDecoder::new(&Dem::parse("error(0.1) D0 D1 L0\nerror(0.2) D0 D1").unwrap()).unwrap();
         assert_eq!(dec.conflicts, 1);
+        assert_eq!(dec.decode(&[0, 1]).unwrap().observables, 1);
+        let dec = DemDecoder::new(&Dem::parse("error(0.2) D0 D1\nerror(0.1) D0 D1 L0").unwrap()).unwrap();
         assert_eq!(dec.decode(&[0, 1]).unwrap().observables, 0);
     }
 

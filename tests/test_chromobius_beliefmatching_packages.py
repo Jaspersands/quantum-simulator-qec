@@ -108,3 +108,13 @@ def test_belief_matching_constructors():
     expected = sq.BeliefMatching(c.detector_error_model(decompose_errors=True)).decode_batch(dets)
     for dec in (sq.BeliefMatching.from_stim_circuit(c), sq.BeliefMatching(c), sq.BeliefMatching.from_detector_error_model(c.detector_error_model(decompose_errors=True))):
         assert np.array_equal(dec.decode_batch(dets), expected)
+
+
+def test_belief_matching_takes_a_stim_circuit():
+    pytest.importorskip("scipy")
+    import stabilizer_qec.beliefmatching as ours
+
+    c = stim.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.005)
+    dets = c.compile_detector_sampler(seed=1).sample(20)
+    want = ours.BeliefMatching(c.detector_error_model(decompose_errors=True)).decode_batch(dets)
+    assert np.array_equal(ours.BeliefMatching(c).decode_batch(dets), want)

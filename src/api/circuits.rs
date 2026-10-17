@@ -568,10 +568,9 @@ fn fused(a: &circuit::Instr, b: &circuit::Instr) -> Option<circuit::Instr> {
         _ => None,
     };
     let (mut x, y) = (one(&la)?, one(&lb)?);
-    if !x.can_fuse(&y) {
+    if !x.fuse(&y) {
         return None;
     }
-    x.targets.extend(y.targets);
     let mut c = circuit::Circuit::parse(&x.exact_line()).ok()?;
     (c.instrs.len() == 1).then(|| c.instrs.pop().expect("one"))
 }

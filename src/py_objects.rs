@@ -243,7 +243,7 @@ impl PyCircuit {
     fn reference_sample<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let inner = &self.circuit.inner;
         let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
-        let bits = py.detach(|| crate::m2d::run(inner, qubits, &[], 1));
+        let bits = py.detach(|| crate::m2d::reference(inner, qubits));
         let mut row = vec![0u8; bits.len().div_ceil(8)];
         for (k, &b) in bits.iter().enumerate() {
             if b {
@@ -261,7 +261,7 @@ impl PyCircuit {
             Vec::new()
         } else {
             let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
-            py.detach(|| crate::m2d::run(inner, qubits, &[], 1))
+            py.detach(|| crate::m2d::reference(inner, qubits))
         };
         Ok(PyMeasurementSampler { sampler, reference, seed, next: 0.into() })
     }
@@ -318,7 +318,7 @@ impl PyCircuit {
     /// The final density matrix over qubits 0..n (n, its entries as complex128 bytes),
     /// records averaged away.
     fn density_matrix<'py>(&self, py: Python<'py>, max_branches: usize) -> PyResult<(usize, Bound<'py, PyBytes>)> {
-        let program = crate::density::DensityProgram::with_layout(&self.circuit.inner, true).map_err(err)?;
+        let program = crate::density::DensityProgram::with_layout(&self.circuit.inner, true, crate::statevec::Outcomes::StateOnly).map_err(err)?;
         let rho = py.detach(|| program.final_state(None, max_branches)).map_err(err)?;
         Ok((rho.num_qubits(), density_bytes(py, &rho)))
     }
@@ -2653,11 +2653,12 @@ impl PyDensitySim {
         if n > crate::density::MAX_QUBITS {
             return Err(err(format!("at most {} qubits", crate::density::MAX_QUBITS)));
         }
-        Ok(PyDensitySim { rho: crate::density::DensityMatrix::new(n), rec: Vec::new(), rng: crate::surface_code::Xorshift::new(seed) })
+        // The seed mixed, as every sampler's: Xorshift's first draws from small seeds are tiny.
+        Ok(PyDensitySim { rho: crate::density::DensityMatrix::new(n), rec: Vec::new(), rng: crate::surface_code::Xorshift::new(crate::batch_sampler::batch_seed(seed, 0)) })
     }
 
     fn copy(&self, seed: u64) -> Self {
-        PyDensitySim { rho: self.rho.clone(), rec: self.rec.clone(), rng: crate::surface_code::Xorshift::new(seed) }
+        PyDensitySim { rho: self.rho.clone(), rec: self.rec.clone(), rng: crate::surface_code::Xorshift::new(crate::batch_sampler::batch_seed(seed, 0)) }
     }
 
     #[getter]
@@ -2673,13 +2674,24 @@ impl PyDensitySim {
         Ok(())
     }
 
-    fn do_circuit(&mut self, py: Python<'_>, circuit: &PyCircuit) -> PyResult<()> {
-        let program = crate::density::DensityProgram::with_layout(&circuit.circuit.inner, true).map_err(err)?;
-        let rho = self.rho.clone();
-        let rng = &mut self.rng;
-        let (rho, rec) = py.detach(|| program.sample(rho, rng)).map_err(err)?;
+    // This and `apply_channel` run holding the interpreter's lock: releasing it while the
+    // simulator is borrowed would let another thread's call on it fail, not wait.
+    fn do_circuit(&mut self, circuit: &PyCircuit) -> PyResult<()> {
+        // Lookbacks may read the records of earlier circuits, as TableauSimulator's do: as many
+        // of them as the deepest reaches go first, as pads, and are dropped after.
+        let k = (deepest_lookback(&circuit.circuit.inner.instrs) as usize).min(self.rec.len());
+        let padded;
+        let inner = if k > 0 {
+            let pads: Vec<&str> = self.rec[self.rec.len() - k..].iter().map(|&b| if b { "1" } else { "0" }).collect();
+            padded = crate::circuit::Circuit::parse(&format!("MPAD {}\n{}", pads.join(" "), circuit.circuit.inner.to_stim())).map_err(err)?;
+            &padded
+        } else {
+            &circuit.circuit.inner
+        };
+        let program = crate::density::DensityProgram::with_layout(inner, true, crate::statevec::Outcomes::StateOnly).map_err(err)?;
+        let (rho, rec) = program.sample(self.rho.clone(), &mut self.rng).map_err(err)?;
         self.rho = rho;
-        self.rec.extend(rec);
+        self.rec.extend(&rec[k..]);
         Ok(())
     }
 
@@ -2725,12 +2737,26 @@ impl PyDensitySim {
     }
 
     /// The circuit as a channel on the current state: records averaged away, none kept.
-    fn apply_channel(&mut self, py: Python<'_>, circuit: &PyCircuit, max_branches: usize) -> PyResult<()> {
-        let program = crate::density::DensityProgram::with_layout(&circuit.circuit.inner, true).map_err(err)?;
-        let rho = self.rho.clone();
-        self.rho = py.detach(|| program.final_state(Some(rho), max_branches)).map_err(err)?;
+    fn apply_channel(&mut self, circuit: &PyCircuit, max_branches: usize) -> PyResult<()> {
+        let program = crate::density::DensityProgram::with_layout(&circuit.circuit.inner, true, crate::statevec::Outcomes::StateOnly).map_err(err)?;
+        self.rho = program.final_state(Some(self.rho.clone()), max_branches).map_err(err)?;
         Ok(())
     }
+}
+
+/// The deepest record a circuit's instructions read back (`k` of `rec[-k]`), loops included.
+fn deepest_lookback(instrs: &[crate::circuit::Instr]) -> u32 {
+    use crate::circuit::{Control, Instr};
+    instrs
+        .iter()
+        .map(|i| match i {
+            Instr::Detector { recs, .. } | Instr::Observable { recs, .. } => recs.iter().copied().max().unwrap_or(0),
+            Instr::Feedback { control: Control::Rec(k), .. } => *k,
+            Instr::Repeat { body, .. } | Instr::Gate { body, .. } => deepest_lookback(body),
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 /// Little-endian complex128 bytes as numbers.

@@ -182,6 +182,7 @@ fn reset(sim: &mut StabilizerSimulator, basis: Basis, q: usize) {
     }
 }
 
+#[cfg(test)]
 /// SplitMix64's finaliser. The tableau draws its random outcomes from an LCG, whose first bits
 /// barely move between small consecutive seeds, so each run's seed is mixed first.
 fn mix(k: u64) -> u64 {
@@ -191,12 +192,22 @@ fn mix(k: u64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// One noiseless run of the circuit with the given sweep bits, its loops run pass by pass: its
-/// measurement record.
+/// One noiseless run of the circuit with the given sweep bits, its loops run pass by pass, each
+/// random outcome drawn from `seed`: its measurement record.
+#[cfg(test)]
 pub(crate) fn run(circuit: &Circuit, num_qubits: usize, sweeps: &[bool], seed: u64) -> Vec<bool> {
     let mut sim = StabilizerSimulator::with_seed(num_qubits.max(1), mix(seed));
     let mut rec = Vec::new();
     run_block(&circuit.instrs, &mut sim, sweeps, &mut rec);
+    rec
+}
+
+/// The reference sample, as Stim's: the noiseless run with every random outcome 0 (so a
+/// random measurement reads 0, as `stim.Circuit.reference_sample` gives it).
+pub(crate) fn reference(circuit: &Circuit, num_qubits: usize) -> Vec<bool> {
+    let mut sim = StabilizerSimulator::zero_biased(num_qubits.max(1));
+    let mut rec = Vec::new();
+    run_block(&circuit.instrs, &mut sim, &[], &mut rec);
     rec
 }
 
@@ -313,12 +324,13 @@ impl M2d {
         }
         let num_measurements = usize::try_from(counts.measurements).map_err(|_| "too many measurements for this machine")?;
         let num_detectors = usize::try_from(counts.detectors).map_err(|_| "too many detectors for this machine")?;
-        // Deterministic detectors and observables, and the sweep bits' effects, by the backward
-        // walk; it also refuses records read before the first measurement.
-        let effects = crate::dem_build::sweep_effects(circuit)?;
+        // The sweep bits' effects, by the backward walk; it also refuses records read before
+        // the first measurement. Detectors and observables need not be deterministic: each is
+        // compared with the reference sample, as Stim's converter compares them.
+        let effects = crate::dem_build::sweep_effects(circuit, false)?;
         let mut ops = Vec::new();
         compile(&circuit.instrs, &mut ops);
-        let reference = run(circuit, counts.qubits, &[], 1);
+        let reference = reference(circuit, counts.qubits);
         let (mut ref_det, mut ref_obs) = (Vec::with_capacity(num_detectors), ObsBits::new());
         walk(&ops, &mut 0, &|i| reference[i as usize], &mut |b| ref_det.push(b), &mut ref_obs);
         let (sweep_det, sweep_obs) = effects.into_iter().unzip();
@@ -569,9 +581,12 @@ mod tests {
     }
 
     #[test]
-    fn nondeterministic_detectors_are_refused() {
-        let c = Circuit::parse("RX 0\nM 0\nDETECTOR rec[-1]\n").unwrap();
-        assert!(M2d::new(&c).err().unwrap().contains("not deterministic"));
+    fn nondeterministic_detectors_compare_with_the_reference() {
+        // As Stim's converter: the reference sample reads a random outcome as 0.
+        let c = Circuit::parse("RX 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]\n").unwrap();
+        let m = M2d::new(&c).unwrap();
+        assert_eq!(m.convert(&[false], &[]), (vec![false], 0));
+        assert_eq!(m.convert(&[true], &[]), (vec![true], 1));
     }
 
     #[test]

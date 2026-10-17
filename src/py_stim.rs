@@ -468,6 +468,9 @@ impl PyTableauSimulatorCore {
     /// One instruction from its parts; the targets are Stim's 32-bit encodings.
     fn do_instruction(&mut self, name: &str, args: Vec<f64>, targets: Vec<u32>, tag: &str) -> PyResult<()> {
         let inst = Instruction::new(name, args, targets.into_iter().map(GateTarget).collect(), tag).map_err(err)?;
+        // Checked as a circuit's line is (targets in pairs and distinct, probabilities), as
+        // Stim checks a simulator's gate.
+        crate::circuit::Circuit::parse(&inst.exact_line()).map_err(err)?;
         let n = inst.targets.iter().filter(|t| t.has_qubit_value() && inst.gate.name != "MPAD").map(|t| t.value() as usize + 1).max().unwrap_or(0);
         self.s.ensure_large_enough_for_qubits(n);
         self.s.do_gate(&inst).map_err(err)
@@ -848,10 +851,11 @@ impl PyFlipSimCore {
         (self.sim.xs.len(), self.sim.meas.len(), self.sim.dets.len(), self.sim.obs.len())
     }
 
-    fn do_circuit(&mut self, py: Python<'_>, text: &str) -> PyResult<()> {
+    fn do_circuit(&mut self, text: &str) -> PyResult<()> {
+        // Run holding the interpreter's lock: releasing it while the simulator is borrowed
+        // would let another thread's call on it fail ("Already borrowed"), not wait.
         let c = ir::Circuit::parse(text).map_err(err)?;
-        let sim = &mut self.sim;
-        py.detach(move || sim.do_circuit(&c)).map_err(err)
+        self.sim.do_circuit(&c).map_err(err)
     }
 
     fn clear(&mut self) {

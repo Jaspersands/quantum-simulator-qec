@@ -96,3 +96,10 @@ def test_mobility_where_deltakit_stalls():
     herald0, herald1 = 0.2 * (1 - 0.9 * 0.2), 0.2 * (0.1 + 0.9 * 0.2)
     assert abs(a[2] - herald0) < 0.005 and abs(a[1] - herald1) < 0.005, a
     assert abs(b[2] - 0.2) < 0.005 and abs(b[1] - 0.02) < 0.005, b
+
+
+def test_without_tags_keeps_deltakits_instructions():
+    text = "R 0 1\nLEAKAGE(0.1) 0\nCX(0.1, 0.2, 0.3, 0.4) 0 1\nHERALD_LEAKAGE_EVENT(0.01) 0\nRL 1\nS[a] 0\nM 0\nDETECTOR rec[-1]\nDETECTOR rec[-2]"
+    a, b = dk.Circuit(text).without_tags(), ours.Circuit(text).without_tags()
+    assert str(a) == str(b)
+    assert str(a.detector_error_model()) == str(b.detector_error_model())

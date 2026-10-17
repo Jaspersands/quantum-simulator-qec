@@ -39,7 +39,7 @@ RULES = {
 
 def same(text):
     want = str(stim.Circuit(text).diagram("timeline-text"))
-    assert str(sq.Circuit(text).diagram("timeline-text")) == want + "\n", text
+    assert str(sq.Circuit(text).diagram("timeline-text")) == want, text
 
 
 @pytest.mark.parametrize("name", list(RULES))

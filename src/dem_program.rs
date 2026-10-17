@@ -123,6 +123,11 @@ pub const STIM_PRECISION: usize = if cfg!(all(target_arch = "x86_64", not(target
 
 /// A number as Stim prints one in a model on this machine (`fmt_g` at `STIM_PRECISION`).
 pub fn fmt_g16(x: f64) -> String {
+    // A model's numbers go through C++'s stream, which keeps a negative zero's sign (a
+    // circuit's printer does not).
+    if x == 0.0 && x.is_sign_negative() {
+        return "-0".into();
+    }
     fmt_g(x, STIM_PRECISION)
 }
 
@@ -498,6 +503,10 @@ fn emit(instrs: &[DemInstr], indent: &str, s: &mut String, fmt: fn(f64) -> Strin
             DemInstr::Repeat { count, body, tag } => {
                 let _ = writeln!(s, "{indent}repeat{} {count} {{", tagged(tag));
                 emit(body, &format!("{indent}    "), s, fmt);
+                if body.is_empty() {
+                    // An empty block keeps a blank line, as Stim writes it.
+                    s.push('\n');
+                }
                 let _ = write!(s, "{indent}}}");
             }
         }
@@ -538,10 +547,10 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         let tag = tag.to_string();
         let bad = |t: &str| format!("line {lineno}: bad target '{t}'");
         let detector = |t: &str| -> Result<u64, String> {
-            t.strip_prefix('D').and_then(crate::circuit::uint::<u64>).filter(|&d| d <= MAX_DETECTOR).ok_or_else(|| bad(t))
+            t.strip_prefix(['D', 'd']).and_then(crate::circuit::uint::<u64>).filter(|&d| d <= MAX_DETECTOR).ok_or_else(|| bad(t))
         };
         let observable = |t: &str| -> Result<u32, String> {
-            let l = t.strip_prefix('L').and_then(crate::circuit::uint::<u32>).ok_or_else(|| bad(t))?;
+            let l = t.strip_prefix(['L', 'l']).and_then(crate::circuit::uint::<u32>).ok_or_else(|| bad(t))?;
             Ok(l)
         };
         out.push(match name.as_str() {
@@ -560,15 +569,18 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
                 for t in &tokens {
                     if *t == "^" {
                         pieces.push(Vec::new());
-                    } else if t.starts_with('D') {
+                    } else if t.starts_with(['D', 'd']) {
                         pieces.last_mut().unwrap().push(detector(t)?);
-                    } else if t.starts_with('L') {
+                    } else if t.starts_with(['L', 'l']) {
                         pieces.last_mut().unwrap().push(OBS | u64::from(observable(t)?));
                     } else {
                         return Err(bad(t));
                     }
                 }
                 DemInstr::Error { p: args[0], pieces, tag }
+            }
+            "DETECTOR" | "LOGICAL_OBSERVABLE" if tokens.len() != 1 => {
+                return Err(format!("line {lineno}: '{}' instruction takes 1 target but got {} arguments.", name.to_ascii_lowercase(), tokens.len()));
             }
             "DETECTOR" => {
                 let targets = tokens.iter().map(|t| detector(t)).collect::<Result<Vec<_>, _>>()?;
@@ -597,7 +609,16 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
 
 #[cfg(test)]
 mod tests {
-    use super::fmt_g;
+    use super::{fmt_g, DemProgram};
+
+    #[test]
+    fn lines_are_read_as_stim_reads_them() {
+        let text = |t: &str| DemProgram::parse(t).map(|d| d.to_stim());
+        assert_eq!(text("error(0.5) d0 l1\ndetector(1) d3\nlogical_observable l2").unwrap().trim_end(), "error(0.5) D0 L1\ndetector(1) D3\nlogical_observable L2");
+        for bad in ["detector D0 D1", "detector(1)", "logical_observable L0 L1", "logical_observable", "error (0.1) D0", "error(0.1)D0"] {
+            assert!(text(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn numbers_print_as_stims_do() {

@@ -347,6 +347,9 @@ struct Analyzer {
     /// Stim's `allow_gauge_detectors`: a detector depending on a random outcome becomes a 50%
     /// error on it rather than a refusal.
     allow_gauge: bool,
+    /// The same for observables too: the converter's walk, which takes any (Stim's converter
+    /// compares with its reference sample, deterministic or not).
+    any_gauge: bool,
     /// Stim's `block_decomposition_from_introducing_remnant_edges`: split a piece only into
     /// pieces the model already has.
     block_remnants: bool,
@@ -499,7 +502,7 @@ impl Analyzer {
         if set.is_empty() {
             return Ok(());
         }
-        if self.allow_gauge && set.iter().all(|&t| t & OBS == 0) {
+        if self.allow_gauge && (self.any_gauge || set.iter().all(|&t| t & OBS == 0)) {
             let origin = Origin { name: "gauge", a: q as u32, b: None, pauli: (0, 0) };
             self.add_at(0.5, &[&set], origin, tag, None);
             let max = *set.last().expect("not empty");
@@ -1001,6 +1004,7 @@ impl Analyzer {
             prov: None,
             ignore_failures: false,
             allow_gauge: false,
+        any_gauge: false,
             block_remnants: false,
             combos: Combos::default(),
             dk: self.dk.clone(),
@@ -1232,6 +1236,7 @@ fn build_mode(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold
         prov: None,
         ignore_failures,
         allow_gauge,
+        any_gauge: false,
         block_remnants,
         combos: Combos::default(),
         dk: deltakit.then(|| Arc::new(crate::deltakit::herald_leakage(&circuit.instrs))),
@@ -1283,6 +1288,7 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
         prov: Some(Box::new(Recorder::new(count_ticks(&circuit.instrs)))),
         ignore_failures: false,
         allow_gauge: false,
+        any_gauge: false,
         block_remnants: false,
         combos: Combos::default(),
         dk: None,
@@ -1292,10 +1298,10 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
     Ok(a.prov.take().map(|r| r.records).unwrap_or_default())
 }
 
-/// What each sweep bit's X flips, as (detectors, observables), and a check that every detector
-/// and observable is deterministic: the backward walk, collecting no faults. Loops are folded
-/// unless a sweep bit is read inside one, whose every pass counts.
-pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, ObsBits)>, String> {
+/// What each sweep bit's X flips, as (detectors, observables), and (with `deterministic`) a
+/// check that every detector and observable is deterministic: the backward walk, collecting no
+/// faults. Loops are folded unless a sweep bit is read inside one, whose every pass counts.
+pub fn sweep_effects(circuit: &Circuit, deterministic: bool) -> Result<Vec<(Vec<u32>, ObsBits)>, String> {
     fn sweeps_in_loops(instrs: &[Instr], inside: bool) -> bool {
         instrs.iter().any(|i| match i {
             Instr::Repeat { body, .. } => sweeps_in_loops(body, true),
@@ -1319,7 +1325,8 @@ pub fn sweep_effects(circuit: &Circuit) -> Result<Vec<(Vec<u32>, ObsBits)>, Stri
         sweeps: Some(vec![Sym::new(); counts.sweep_bits]),
         prov: None,
         ignore_failures: false,
-        allow_gauge: false,
+        allow_gauge: !deterministic,
+        any_gauge: !deterministic,
         block_remnants: false,
         combos: Combos::default(),
         dk: None,

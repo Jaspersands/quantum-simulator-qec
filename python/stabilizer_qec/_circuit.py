@@ -8,6 +8,7 @@ from typing import Any, Union
 import numpy as np
 
 from . import _core, _dem, _stim
+import bisect
 import math
 from typing import Tuple
 from ._util import b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
@@ -803,7 +804,10 @@ class Circuit:
         every fault's probability p read as p·x (a correlated chain's faults too, each with its
         probability of happening), cut at x^``degree`` (``order`` by default; ``"full"``
         keeps every power, as QuantumClifford's symbolic expansion): up to x^``order`` its
-        coefficients are the exact Taylor coefficients of the outcome's probability.
+        coefficients are the exact Taylor coefficients of the outcome's probability. The
+        polynomials are in the monomial basis, so with many sites at noise that is not small a
+        full expansion's coefficients grow and alternate, and evaluating it far from x = 0
+        cancels away its digits (the numeric expansion at full order has no such loss).
 
         For Clifford circuits with Pauli noise whose detectors and observables are
         deterministic, of any size: each fault's effect is found once, by a Pauli frame per fault
@@ -824,7 +828,8 @@ class Circuit:
         if not symbolic and degree is not None:
             raise ValueError("degree is for a symbolic expansion (symbolic=True)")
         k = count(order, "order")
-        deg = None if not symbolic else (k if degree is None else (1 << 62) if degree == "full" else int(degree))
+        # A degree past the number of sites is "full" (the engine clamps it so).
+        deg = None if not symbolic else (k if degree is None else (1 << 62) if degree == "full" else min(int(degree), 1 << 62))
         nd, rows = call(self._c.perturbative_distribution, k, deg, count(max_terms, "max_terms"))
         no = self.num_observables
         out = {}
@@ -1310,27 +1315,69 @@ class DetectorErrorModel:
             if not 0 <= k < n:
                 raise ValueError(f"Detector index {k} is too big. The detector error model has {n} detectors)")
         found: dict = {}
+        order = sorted(wanted)
+
+        def add_mul(a: list, b: list, k: int) -> list:
+            return [(a[i] if i < len(a) else 0.0) + (b[i] if i < len(b) else 0.0) * k for i in range(max(len(a), len(b)))]
+
+        def extent(items: list) -> tuple:
+            """One pass's detector and coordinate shifts, and the lowest and highest detector
+            it declares relative to its start (None for none)."""
+            shift, offset, lo, hi = [], 0, None, None
+            for it in items:
+                if isinstance(it, _dem.DemRepeatBlock):
+                    d, s, l, h = extent(it._body._items())
+                    if l is not None and it.repeat_count:
+                        lo = offset + l if lo is None else min(lo, offset + l)
+                        hi = max(hi or 0, offset + d * (it.repeat_count - 1) + h)
+                    shift, offset = add_mul(shift, s, it.repeat_count), offset + d * it.repeat_count
+                elif it.type == "shift_detectors":
+                    shift, offset = add_mul(shift, it.args_copy(), 1), offset + sum(it.targets_copy())
+                elif it.type == "detector":
+                    for t in it.targets_copy():
+                        lo = offset + t.val if lo is None else min(lo, offset + t.val)
+                        hi = max(hi or 0, offset + t.val)
+            return offset, shift, lo, hi
+
+        def size(items: list) -> int:
+            return sum(1 + it.repeat_count * size(it._body._items()) if isinstance(it, _dem.DemRepeatBlock) else 1 for it in items)
+
+        # Stim walks every pass, adding each shift in turn; so does this, up to a few million
+        # instructions. Past that only the passes that declare a wanted detector are walked
+        # (the shifts before them multiplied, their rounding Stim's but for the last bits), so
+        # a long loop costs nothing where Stim's takes as long as the loop.
+        exact = size(self._items()) <= 1 << 22
 
         def walk(items: list, shift: list, offset: int) -> Tuple[list, int]:
             for it in items:
-                if isinstance(it, _dem.DemRepeatBlock):
-                    body = it._body._items()
+                if isinstance(it, _dem.DemRepeatBlock) and exact:
                     for _ in range(it.repeat_count):
-                        shift, offset = walk(body, shift, offset)
+                        shift, offset = walk(it._body._items(), shift, offset)
+                elif isinstance(it, _dem.DemRepeatBlock):
+                    # The first declaration of a detector wins, as in Stim.
+                    body, reps = it._body._items(), it.repeat_count
+                    d, s, lo, hi = extent(body)
+                    passes: set = set()
+                    if lo is not None and reps:
+                        first = bisect.bisect_left(order, offset + lo)
+                        for w in order[first : bisect.bisect_right(order, offset + d * (reps - 1) + hi)]:
+                            if d == 0:
+                                passes.add(0)
+                                break
+                            passes.update(range(max(0, -(-(w - offset - hi) // d)), min(reps - 1, (w - offset - lo) // d) + 1))
+                    for k in sorted(passes):
+                        walk(body, add_mul(shift, s, k), offset + d * k)
+                    shift, offset = add_mul(shift, s, reps), offset + d * reps
                 elif it.type == "shift_detectors":
-                    a = it.args_copy()
-                    shift = [(shift[k] if k < len(shift) else 0.0) + (a[k] if k < len(a) else 0.0) for k in range(max(len(shift), len(a)))]
-                    offset += sum(it.targets_copy())
+                    shift, offset = add_mul(shift, it.args_copy(), 1), offset + sum(it.targets_copy())
                 elif it.type == "detector":
                     for t in it.targets_copy():
-                        d = t.val + offset
-                        if d in wanted:
-                            a = it.args_copy()
-                            found[d] = [v + (shift[k] if k < len(shift) else 0.0) for k, v in enumerate(a)]
+                        if t.val + offset in wanted and t.val + offset not in found:
+                            found[t.val + offset] = [v + (shift[k] if k < len(shift) else 0.0) for k, v in enumerate(it.args_copy())]
             return shift, offset
 
         walk(self._items(), [], 0)
-        return {k: found.get(k, []) for k in sorted(wanted)}
+        return {k: found.get(k, []) for k in order}
 
     def __str__(self) -> str:
         text = self._d.__str__()
@@ -1633,8 +1680,13 @@ class DemSampler:
         nd, no, ne = self.num_detectors, self.num_observables, self.num_errors
         if recorded_errors_to_replay is not None:
             raw, n = rows_to_b8(recorded_errors_to_replay, ne, np.asarray(recorded_errors_to_replay).dtype == np.uint8, "recorded_errors_to_replay")
+            if n != shots:
+                raise ValueError("recorded_errors_to_replay.shape[0] != shots")
             d, o = call(self._s.replay, raw, n)
-            shots, e = n, (b8_to_rows(raw, n, ne, bit_packed) if return_errors else None)
+            # The faults replayed, the padding bits of packed rows cleared, as Stim returns them.
+            e = b8_to_rows(raw, n, ne, False) if return_errors else None
+            if e is not None and bit_packed:
+                e = np.packbits(e, axis=1, bitorder="little")
         else:
             d, o, e = call(self._s.sample, shots, count(threads, "threads"), bool(return_errors))
             e = b8_to_rows(e, shots, ne, bit_packed) if return_errors else None
@@ -1661,6 +1713,9 @@ class DemSampler:
         replay = None
         if replay_err_in_file is not None:
             replay = read_shot_data_file(path=replay_err_in_file, format=replay_err_in_format, num_measurements=ne)
+            if len(replay) < shots:
+                raise ValueError("Expected more error data for the requested number of shots.")
+            replay = replay[:shots]
         d, o, e = self.sample(shots, return_errors=err_out_file is not None, recorded_errors_to_replay=replay)
         if det_out_file is not None:
             write_shot_data_file(data=d, path=det_out_file, format=det_out_format, num_detectors=self.num_detectors)

@@ -311,6 +311,18 @@ class BpDecoderBase:
                 s[r] ^= 1
         return s
 
+    def _decode_received(self, input_vector: Any, decode_syndrome: Any) -> Any:
+        """``input_vector_type`` set to ``"received_vector"`` after construction (ldpc's BP+OSD,
+        BP+LSD and BeliefFind honour it): the codeword nearest the received vector, the error
+        its syndrome decodes to taken off it. None for a syndrome."""
+        if self._input != "received_vector":
+            return None
+        v = np.asarray(input_vector)
+        self._check_length(v)
+        bits = (v != 0).astype(np.uint8)
+        error = np.asarray(decode_syndrome(np.array(self._syndrome_of(bits), dtype=np.uint8)), dtype=np.uint8)
+        return (error ^ bits).astype(v.dtype)
+
     def __reduce__(self) -> tuple:
         # Rebuilt from its matrix and options; the settings and last results come along.
         state = {k: v for k, v in self.__dict__.items() if k not in ("m", "n", "_cols") and not type(v).__module__.startswith("stabilizer_qec._core")}
@@ -476,7 +488,7 @@ class BpOsdDecoder(BpDecoderBase):
         name = _osd_name(osd_method)
         if name is None:
             raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods: 'OSD_0', 'OSD_E' or 'OSD_CS'.")
-        order = 0 if name == "osd_0" else int(osd_order)
+        order = int(osd_order)
         self._check_order(name, order)
         self._input = "syndrome"
         core_name = "osd_0" if name in ("osd_0", "osd_off") else name
@@ -496,6 +508,12 @@ class BpOsdDecoder(BpDecoderBase):
             warnings.warn("WARNING: Running the 'OSD_E' (Exhaustive method) with search depth greater than 15 is not recommended. Use the 'osd_cs' method instead.")
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
+        codeword = self._decode_received(syndrome, self._decode_syndrome)
+        if codeword is not None:
+            return codeword
+        return self._decode_syndrome(syndrome)
+
+    def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
             raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
@@ -603,6 +621,12 @@ class BpLsdDecoder(BpDecoderBase):
         self._stat_fields: dict = {}
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
+        codeword = self._decode_received(syndrome, self._decode_syndrome)
+        if codeword is not None:
+            return codeword
+        return self._decode_syndrome(syndrome)
+
+    def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         """The correction. ``last_tied`` says whether this decode made a choice ldpc might
         make otherwise (equal keys in a long sort, or a merge of many clusters at once)."""
         syndrome = np.asarray(syndrome)
@@ -900,12 +924,16 @@ class BeliefFindDecoder(BpDecoderBase):
         self.last_tied = self.last_stuck = False
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
+        codeword = self._decode_received(syndrome, self._decode_syndrome)
+        if codeword is not None:
+            return codeword
+        return self._decode_syndrome(syndrome)
+
+    def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
             raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
-        if not syndrome.any():
-            self._converge = True
-            return np.zeros(self.n, dtype=syndrome.dtype)
+        # BP runs on a zero syndrome too (ldpc's iter and log_prob_ratios are that run's).
         hard, llr, converged, iterations = call(self._x.decode, [int(x != 0) for x in syndrome])
         self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
         self._decoding = np.asarray(hard, dtype=np.uint8)
@@ -1157,7 +1185,7 @@ class SoftInfoBpOsdDecoder(SoftInfoBpDecoder):
         name = _osd_name(osd_method)
         if name is None:
             raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods: 'OSD_0', 'OSD_E' or 'OSD_CS'.")
-        order = 0 if name == "osd_0" else int(osd_order)
+        order = int(osd_order)
         BpOsdDecoder._check_order(name, order)
         self._osd, self._order = name, order
         core_name = "osd_0" if name in ("osd_0", "osd_off") else name

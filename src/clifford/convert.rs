@@ -269,8 +269,21 @@ pub fn unitary_to_tableau(m: &[C64], little_endian: bool) -> Result<Tableau, Str
 
 /// The tableau of a circuit's unitary part (Stim's `circuit_to_tableau`); `inverse` returns the
 /// inverse tableau instead.
+/// One more than the largest qubit any instruction names, MPAD's padding bits included: the
+/// size Stim gives a circuit's tableau.
+fn tableau_width(c: &ir::Circuit) -> u64 {
+    c.items
+        .iter()
+        .map(|it| match it {
+            ir::Item::Op(op) => op.targets.iter().filter(|t| t.has_qubit_value()).map(|t| t.value() as u64 + 1).max().unwrap_or(0),
+            ir::Item::Repeat { body, .. } => tableau_width(body),
+        })
+        .max()
+        .unwrap_or(0)
+}
+
 pub fn circuit_to_tableau(c: &ir::Circuit, ignore_noise: bool, ignore_measurement: bool, ignore_reset: bool, inverse: bool) -> Result<Tableau, String> {
-    let n = c.count_qubits() as usize;
+    let n = tableau_width(c) as usize;
     let mut sim = TableauSimulator::new(n, 0);
     let mut err: Result<(), String> = Ok(());
     c.for_each_operation(&mut |op| {

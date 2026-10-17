@@ -59,9 +59,11 @@ def reduced_density_matrix(rho: np.ndarray, keep: Sequence[int], *, endian: str 
     return _reorder(r, len(keep)) if little else r
 
 
-def _sqrtm_psd(m: np.ndarray) -> np.ndarray:
-    w, v = np.linalg.eigh((m + m.conj().T) / 2)
-    return (v * np.sqrt(np.clip(w, 0, None))) @ v.conj().T
+def _psd_eigenvalues(w: np.ndarray) -> np.ndarray:
+    """A PSD matrix's eigenvalues with round-off (a few ulps of the largest) taken as 0: its
+    square root, ~1e-8 for a round-off of 1e-16, would otherwise count."""
+    top = max(float(w[-1]), 0.0) if len(w) else 0.0
+    return np.where(w > 4 * np.finfo(float).eps * len(w) * top, w, 0.0)
 
 
 def fidelity(rho: Any, sigma: Any) -> float:
@@ -73,9 +75,15 @@ def fidelity(rho: Any, sigma: Any) -> float:
         a, b = b, a
     if b.ndim == 1:
         return float(np.real(np.vdot(b, a @ b)))
-    s = _sqrtm_psd(a)
-    w = np.linalg.eigvalsh(s @ b @ s)
-    return float(np.sum(np.sqrt(np.clip(w, 0, None))) ** 2)
+    wa, va = np.linalg.eigh((a + a.conj().T) / 2)
+    wa = _psd_eigenvalues(wa)
+    wb = _psd_eigenvalues(np.linalg.eigvalsh((b + b.conj().T) / 2))
+    if np.count_nonzero(wa) <= 1 or np.count_nonzero(wb) <= 1:
+        # Either is pure (a unitary's Choi state): the fidelity is Tr ρσ, with no square roots.
+        return float(np.real(np.sum(a * b.T)))
+    s = (va * np.sqrt(wa)) @ va.conj().T
+    w = _psd_eigenvalues(np.linalg.eigvalsh(s @ b @ s))
+    return float(np.sum(np.sqrt(w)) ** 2)
 
 
 def von_neumann_entropy(rho: Any, *, base: float = 2) -> float:
@@ -105,6 +113,13 @@ class DensityMatrixSimulator:
 
     def __init__(self, num_qubits: int = 0, *, seed: Optional[int] = None) -> None:
         self._s = call(_core.DensityMatrixCore, int(num_qubits), _seed(seed))
+
+    def __copy__(self) -> "DensityMatrixSimulator":
+        """``copy.copy``: an independent simulator (freshly seeded), not one sharing this state."""
+        return self.copy()
+
+    def __deepcopy__(self, memo: dict) -> "DensityMatrixSimulator":
+        return self.copy()
 
     def copy(self, *, seed: Optional[int] = None) -> "DensityMatrixSimulator":
         out = DensityMatrixSimulator.__new__(DensityMatrixSimulator)
@@ -187,6 +202,14 @@ class DensityMatrixSimulator:
         n = int(round(np.log2(rho.shape[0]))) if rho.ndim == 2 and rho.shape[0] else -1
         if n < 0 or rho.shape != (1 << n, 1 << n):
             raise ValueError(f"a density matrix is 2^n by 2^n, got shape {rho.shape}")
+        if not np.isfinite(rho).all():
+            raise ValueError("the density matrix has entries that are not finite")
+        if not np.allclose(rho, rho.conj().T, rtol=0, atol=1e-9):
+            raise ValueError("the density matrix is not Hermitian")
+        if abs(np.trace(rho).real - 1) > 1e-9:
+            raise ValueError(f"the density matrix's trace is {np.trace(rho).real:.12g}, not 1")
+        if np.linalg.eigvalsh(rho)[0] < -1e-9:
+            raise ValueError("the density matrix has a negative eigenvalue")
         if not _endian(endian):
             rho = _reorder(rho, n)
         call(self._s.set_matrix, n, rho.astype("<c16").tobytes())
@@ -209,6 +232,8 @@ class DensityMatrixSimulator:
     def peek_observable_expectation(self, observable: Any) -> float:
         """Tr(ρ P) for a Pauli string, its sign included."""
         paulis, sign = _paulis(observable)
+        if np.imag(sign) != 0:
+            raise ValueError("Observable isn't Hermitian; it has imaginary sign. Need observable.sign in [1, -1].")
         if paulis and max(q for q, _ in paulis) >= self.num_qubits:
             self.set_num_qubits(max(q for q, _ in paulis) + 1)
         re, _ = self._s.expectation(paulis)

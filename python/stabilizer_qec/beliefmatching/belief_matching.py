@@ -221,7 +221,8 @@ class BeliefMatching:
         kwargs
             Additional keyword arguments are passed to `ldpc.bp_decoder`
         """
-        if isinstance(model, stim.Circuit):
+        # modified for stabilizer_qec: any package's circuit (Stim's too), not only this one's.
+        if isinstance(model, stim.Circuit) or type(model).__name__ == "Circuit":
             model = model.detector_error_model(decompose_errors=True)
         self._initialise_from_detector_error_model(
             model=model, max_bp_iters=max_bp_iters, bp_method=bp_method, **kwargs

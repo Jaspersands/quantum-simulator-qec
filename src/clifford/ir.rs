@@ -154,6 +154,32 @@ impl Instruction {
         self.gate.name == other.gate.name && self.args == other.args && self.tag == other.tag && !self.has_flag(FLAG_IS_NOT_FUSABLE)
     }
 
+    /// Fuse `other` onto the end of this one when Stim would, or when both are Deltakit's
+    /// heralds with the same flip probability: one herald of both's qubits, as Deltakit's Stim
+    /// fuses `HERALD_LEAKAGE_EVENT 0` and `HERALD_LEAKAGE_EVENT 1`. A herald's tag lists its
+    /// qubits, so two heralds' tags are joined, never compared. Whether it fused.
+    pub fn fuse(&mut self, other: &Instruction) -> bool {
+        if self.gate.name == "MPAD" && other.gate.name == "MPAD" {
+            if let (Some(a), Some(b)) = (crate::leakage::herald_targets(&self.tag), crate::leakage::herald_targets(&other.tag)) {
+                let (Ok(mut a), Ok(b)) = (a, b) else {
+                    return false;
+                };
+                if self.args != other.args {
+                    return false;
+                }
+                a.extend(b);
+                self.tag = crate::leakage::herald_tag(&a);
+                self.targets.extend(other.targets.iter().cloned());
+                return true;
+            }
+        }
+        if self.can_fuse(other) {
+            self.targets.extend(other.targets.iter().cloned());
+            return true;
+        }
+        false
+    }
+
     /// How many measurement results the instruction records.
     pub fn count_measurement_results(&self) -> u64 {
         if !self.gate.produces_measurements {
@@ -309,19 +335,8 @@ impl Circuit {
     /// Append an instruction, fusing it with the last one when Stim would.
     pub fn push_op(&mut self, op: Instruction) {
         if let Some(Item::Op(last)) = self.items.last_mut() {
-            if last.can_fuse(&op) {
-                last.targets.extend(op.targets);
+            if last.fuse(&op) {
                 return;
-            }
-            // Deltakit's heralds fuse as its Stim fuses `HERALD_LEAKAGE_EVENT 0` and
-            // `HERALD_LEAKAGE_EVENT 1`: one herald of both qubits.
-            if last.gate.name == "MPAD" && op.gate.name == "MPAD" && last.args == op.args {
-                if let (Some(Ok(mut a)), Some(Ok(b))) = (crate::leakage::herald_qubits(&last.tag), crate::leakage::herald_qubits(&op.tag)) {
-                    a.extend(b);
-                    last.tag = crate::leakage::herald_tag(&a);
-                    last.targets.extend(op.targets);
-                    return;
-                }
             }
         }
         self.items.push(Item::Op(op));

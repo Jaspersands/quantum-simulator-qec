@@ -244,6 +244,10 @@ impl UserGraph {
     /// independent mechanisms.
     pub fn from_dem(dem: &DemProgram) -> Result<UserGraph, String> {
         let stats = dem.stats();
+        let max = crate::dem_program::MAX_DETECTOR;
+        if stats.num_detectors > max + 1 {
+            return Err(format!("the model names detector {}, past the largest index, {max}", stats.num_detectors - 1));
+        }
         let mut g = UserGraph::new(stats.num_detectors as usize, stats.num_observables);
         for i in &dem.flattened()?.instrs {
             let DemInstr::Error { p, pieces, .. } = i else { continue };

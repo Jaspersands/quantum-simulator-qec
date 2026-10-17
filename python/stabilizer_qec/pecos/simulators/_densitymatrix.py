@@ -5,6 +5,8 @@
 ``run_circuit``, the gate symbols PECOS's simulators share), run on stabilizer_qec's density
 matrix (up to 12 qubits; a process matrix tracks its Choi state, up to 6)."""
 
+import numbers
+
 import numpy as np
 
 from ... import _density, _process
@@ -61,9 +63,21 @@ _TOFFOLI = np.eye(8, dtype=complex)
 _TOFFOLI[6:, 6:] = [[0, 1], [1, 0]]
 
 
-def _text(template):
+def _locate(location, arity=None):
+    """A gate's location as its qubits: one qubit (any integer, NumPy's included) or a tuple of
+    them, as many as the gate takes (PECOS's SparseSims refuse the rest too)."""
+    qubits = (location,) if np.ndim(location) == 0 else tuple(location)
+    for q in qubits:
+        if not isinstance(q, numbers.Integral) or isinstance(q, bool):
+            raise TypeError(f'a qubit is an integer, got {q!r}')
+    if arity is not None and len(qubits) != arity:
+        raise TypeError(f'the gate acts on {arity} qubit(s), got the location {location!r}')
+    return tuple(int(q) for q in qubits)
+
+
+def _text(template, arity):
     def gate(state, location, **params):
-        qubits = (location,) if isinstance(location, int) else tuple(location)
+        qubits = _locate(location, arity)
         state._run(template.format(*qubits), qubits)
     return gate
 
@@ -71,29 +85,32 @@ def _text(template):
 def _matrix(make, angle=False):
     """A gate given by its matrix, the first location the most significant bit."""
     def gate(state, location, **params):
-        qubits = [location] if isinstance(location, int) else list(location)
-        m = make(params['angle']) if angle else make
-        state._unitary(qubits, m)
+        m = np.asarray(make(params['angle']) if angle else make)
+        state._unitary(_locate(location, int(m.shape[0]).bit_length() - 1), m)
     return gate
 
 
 def _rotation(axis, two=False):
     def gate(state, location, angle=None, **params):
-        qubits = (location,) if isinstance(location, int) else tuple(location)
-        tag = f"II[R_{axis}{axis}(theta={angle / 2!r})]" if two else f"I[R_{axis}(theta={angle / 2!r})]"
+        qubits = _locate(location, 2 if two else 1)
+        theta = float(angle) / 2
+        tag = f"II[R_{axis}{axis}(theta={theta!r})]" if two else f"I[R_{axis}(theta={theta!r})]"
         state._run(f"{tag} {' '.join(map(str, qubits))}", qubits)
     return gate
 
 
 def _entangle(state, location, **params):
-    qubits = list(location)
+    qubits = _locate(location)
     state._run(f"H {qubits[0]}\n" + "".join(f"CX {qubits[0]} {q}\n" for q in qubits[1:]), qubits)
 
 
 def _measure(basis):
     def gate(state, location, forced_outcome=-1, **params):
+        if forced_outcome not in (0, 1, -1, None):
+            raise ValueError('forced_outcome was not 0, 1, or -1')
         forced = None if forced_outcome not in (0, 1) else bool(forced_outcome)
-        return int(state._measure(location, basis, forced))
+        (qubit,) = _locate(location, 1)
+        return int(state._measure(qubit, basis, forced))
     return gate
 
 
@@ -104,14 +121,14 @@ def _force_output(state, location, forced_output=-1, **params):
 def _gate_dict():
     d = {}
     for symbol, gate in _CLIFFORD_1.items():
-        d[symbol] = _text(gate + ' {0}')
+        d[symbol] = _text(gate + ' {0}', 1)
     d['idle'] = d['noop'] = d['I']
     for symbol, text in _CLIFFORD_2.items():
-        d[symbol] = _text(text)
+        d[symbol] = _text(text, 2)
     for symbol, text in _INIT.items():
-        d[symbol] = _text(text)
+        d[symbol] = _text(text, 1)
     d.update({
-        'T': _text('I[T] {0}'), 'Td': _text('I[T_DAG] {0}'),
+        'T': _text('I[T] {0}', 1), 'Td': _text('I[T_DAG] {0}', 1),
         'RX': _rotation('X'), 'RY': _rotation('Y'), 'RZ': _rotation('Z'),
         'RXX': _rotation('X', True), 'RYY': _rotation('Y', True), 'RZZ': _rotation('Z', True),
         'PhaseRot': _matrix(lambda t: np.diag([1, np.exp(1j * t)]), angle=True),
@@ -128,6 +145,12 @@ def _gate_dict():
 gate_dict = _gate_dict()
 
 
+def _seed(seed):
+    """No seed: one drawn from NumPy's global generator, so a run PECOS's runners seed
+    (``np.random.seed``) repeats, as their SparseSims' do."""
+    return int(np.random.randint(0, 2**63 - 1, dtype=np.int64)) if seed is None else seed
+
+
 class _Gates:
     """The gate dictionary on a density matrix (for a process matrix, its system qubits, the
     Choi state's first ``num_qubits``)."""
@@ -135,19 +158,27 @@ class _Gates:
     def _q(self, q):
         return q
 
+    def _check(self, qubits):
+        """Each qubit one of the simulator's (a process matrix's reference qubits are not)."""
+        for q in qubits:
+            if not isinstance(q, numbers.Integral) or isinstance(q, bool):
+                raise TypeError(f'a qubit is an integer, got {q!r}')
+            if not 0 <= q < self.num_qubits:
+                raise IndexError(f'qubit {q} is not one of the simulator\'s {self.num_qubits}')
+        return [self._q(int(q)) for q in qubits]
+
     def _run(self, text, qubits):
         from ... import Circuit
 
-        for q in qubits:
-            if not 0 <= q < self.num_qubits:
-                raise IndexError(f'qubit {q} is not one of the simulator\'s {self.num_qubits}')
+        self._check(qubits)
         self._sim.do(Circuit(text))
 
     def _unitary(self, qubits, matrix):
-        self._sim.apply_unitary([self._q(q) for q in qubits], matrix, endian='big')
+        self._sim.apply_unitary(self._check(qubits), matrix, endian='big')
 
     def _measure(self, qubit, basis, forced):
-        return self._sim.measure(self._q(qubit), basis=basis, forced=forced)
+        (q,) = self._check([qubit])
+        return self._sim.measure(q, basis=basis, forced=forced)
 
     def add_gate(self, symbol, gate_obj, make_func=True):
         """Adds a gate: a function (state, location, **params), or with ``make_func`` a unitary
@@ -166,8 +197,8 @@ class _Gates:
         for symbol, locations, _ in logical_op.items():
             if symbol not in ('X', 'Y', 'Z'):
                 raise Exception('Can not currently handle logical operator with operator "%s"!' % symbol)
-            for q in locations:
-                letters[self._q(q)] = symbol
+            for q in self._check(list(locations)):
+                letters[q] = symbol
         from ... import PauliString
 
         width = max(letters) + 1 if letters else 0
@@ -197,7 +228,7 @@ class DensityMatrix(_Gates, _DensityMatrixBase):
         super().__init__()
         self.bindings = dict(gate_dict)
         self.num_qubits = num_qubits
-        self._sim = _density.DensityMatrixSimulator(num_qubits, seed=seed)
+        self._sim = _density.DensityMatrixSimulator(num_qubits, seed=_seed(seed))
 
     def density_matrix(self, *, endian='little'):
         return self._sim.density_matrix(endian=endian)
@@ -210,7 +241,7 @@ class DensityMatrix(_Gates, _DensityMatrixBase):
 
     def apply_kraus(self, qubits, operators):
         """A channel by its Kraus operators, the first qubit the most significant bit."""
-        self._sim.apply_kraus(list(qubits), operators, endian='big')
+        self._sim.apply_kraus(self._check(list(qubits)), operators, endian='big')
 
 
 class ProcessMatrix(_Gates, _ProcessMatrixBase):
@@ -228,7 +259,7 @@ class ProcessMatrix(_Gates, _ProcessMatrixBase):
         super().__init__()
         self.bindings = dict(gate_dict)
         self.num_qubits = num_qubits
-        self._sim = _density.DensityMatrixSimulator(2 * num_qubits, seed=seed)
+        self._sim = _density.DensityMatrixSimulator(2 * num_qubits, seed=_seed(seed))
         d = 1 << num_qubits
         omega = np.zeros(d * d, dtype=complex)
         for i in range(d):
@@ -251,4 +282,4 @@ class ProcessMatrix(_Gates, _ProcessMatrixBase):
 
     def apply_kraus(self, qubits, operators):
         """A channel by its Kraus operators, the first qubit the most significant bit."""
-        self._sim.apply_kraus([self._q(q) for q in qubits], operators, endian='big')
+        self._sim.apply_kraus(self._check(list(qubits)), operators, endian='big')

@@ -108,6 +108,31 @@ impl std::fmt::Display for Control {
 }
 
 impl Instr {
+    /// Every qubit the instruction names as Stim counts them for `num_qubits`: its targets as
+    /// written, not only those it acts on (an identity's, a product's that cancels, and a
+    /// pad's values, which Stim reads as qubit targets).
+    pub fn written_qubits(&self) -> Vec<u32> {
+        match self {
+            Instr::Gate { line, body, .. } => {
+                let mut out = body.iter().flat_map(Instr::written_qubits).collect::<Vec<_>>();
+                if let Ok((_, _, _, targets)) = split_instruction(line.trim()) {
+                    for t in targets {
+                        for factor in t.split('*') {
+                            let q = factor.trim_start_matches('!').trim_start_matches(['X', 'Y', 'Z', 'x', 'y', 'z']);
+                            if let Some(q) = uint::<u32>(q) {
+                                out.push(q);
+                            }
+                        }
+                    }
+                }
+                out
+            }
+            Instr::Repeat { body, .. } => body.iter().flat_map(Instr::written_qubits).collect(),
+            Instr::Pad { values, .. } => values.iter().map(|&v| v as u32).collect(),
+            other => other.qubits(),
+        }
+    }
+
     /// Every qubit the instruction names.
     pub fn qubits(&self) -> Vec<u32> {
         match self {
@@ -447,8 +472,8 @@ pub(crate) fn split_instruction(line: &str) -> Result<Split<'_>, String> {
             return Err(format!("{name}[{tag}]: the tag must be followed by arguments or a space"));
         }
     }
-    let mut rest = rest.trim_start();
     let mut args = Vec::new();
+    // The arguments follow the name or tag directly, and a space follows them, as in Stim.
     if let Some(inner) = rest.strip_prefix('(') {
         let close = inner.find(')').ok_or_else(|| format!("{name}: unclosed '('"))?;
         for a in inner[..close].split(',') {
@@ -458,9 +483,37 @@ pub(crate) fn split_instruction(line: &str) -> Result<Split<'_>, String> {
             }
             args.push(a.parse::<f64>().ok().filter(|v| v.is_finite()).ok_or_else(|| format!("{name}: bad argument '{a}'"))?);
         }
-        rest = inner[close + 1..].trim_start();
+        rest = &inner[close + 1..];
+        if rest.starts_with(|c: char| !c.is_whitespace()) {
+            return Err(format!("{name}: Targets must be separated by spacing."));
+        }
     }
-    Ok((name, tag, args, rest.split_whitespace().collect()))
+    let targets: Vec<&str> = rest.split_whitespace().collect();
+    if let Some(t) = targets.first().filter(|t| t.starts_with(['(', '['])) {
+        return Err(format!("{name}: Unrecognized target prefix '{}'.", &t[..1]));
+    }
+    Ok((name, tag, args, targets))
+}
+
+/// Stim's spacing around a product's `*`: `X0 * Y1`, `X0 *Y1` and `X0* Y1` are all `X0*Y1`.
+/// None when no target starts or ends with one.
+fn join_products(name: &str, t: &[&str]) -> Result<Option<Vec<String>>, String> {
+    if !t.iter().any(|s| s.starts_with('*') || s.ends_with('*')) {
+        return Ok(None);
+    }
+    let mut out: Vec<String> = Vec::new();
+    let mut glue = false;
+    for s in t {
+        match out.last_mut() {
+            Some(last) if glue || s.starts_with('*') => last.push_str(s),
+            _ => out.push(s.to_string()),
+        }
+        glue = s.ends_with('*');
+    }
+    if out.iter().any(|s| s.starts_with('*') || s.ends_with('*') || s.contains("**")) {
+        return Err(format!("Gate {name} given combiners ('*') that aren't between other targets: {}.", out.join(" ")));
+    }
+    Ok(Some(out))
 }
 
 /// The largest qubit index Stim accepts (its targets keep 24 bits for it).
@@ -540,6 +593,10 @@ fn parse_line(line: &str) -> Result<Instr, String> {
         return parse_line(&lowered);
     }
     let (name, tag, args, t) = split_instruction(line)?;
+    if let Some(joined) = join_products(&name, &t)? {
+        let head = &line[..t[0].as_ptr() as usize - line.as_ptr() as usize];
+        return parse_line(&format!("{head}{}", joined.join(" ")));
+    }
     let ins = parse_instruction(&name, &args, &t)?;
     let ins = tagged(ins, tag);
     // A tag that asks for a non-Pauli operation on an identity (`I_ERROR[R_Z(theta=0.1)] 0`)
@@ -782,7 +839,8 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
         "E" | "CORRELATED_ERROR" | "ELSE_CORRELATED_ERROR" => {
             exactly(1)?;
             let mut paulis = Vec::new();
-            for tok in &t {
+            // Stim reads a product here (`E(0.1) X0*Y1`) as its factors.
+            for tok in t.iter().flat_map(|s| s.split('*')) {
                 let code = tok.chars().next().and_then(pauli_code).filter(|&c| c != 0);
                 let (Some(code), Some(q)) = (code, tok.get(1..)) else {
                     return Err(format!("{name}: bad Pauli target '{tok}'"));
@@ -891,6 +949,8 @@ fn controlled_pairs(name: &str, t: &[&str]) -> Result<Vec<Instr>, String> {
     for pair in t.chunks(2) {
         let (a, b) = (control(pair[0]), control(pair[1]));
         let fed = match (a, b) {
+            // A Z on a classical bit does nothing: Stim runs `CZ rec[-1] sweep[0]` as no gate.
+            (Some(_), Some(_)) if pauli == 2 => continue,
             (Some(_), Some(_)) => return Err(format!("Measurement record editing is not supported. ({name} {} {}: a pair cannot be two classical bits; Stim parses this but refuses to run it)", pair[0], pair[1])),
             (Some(c), None) if classical_first || pauli == 2 => Some((c, qubit(pair[1], name)?)),
             (None, Some(c)) if !classical_first || pauli == 2 => Some((c, qubit(pair[0], name)?)),
@@ -1404,6 +1464,35 @@ mod tests {
         assert!(Circuit::parse("CZ sweep[x] 1").is_err());
         assert!(Circuit::parse("CX sweep[x] 1").is_err());
         assert!(Circuit::parse("X(0.1) 0").is_err());
+        // Two classical bits under a CZ are no gate, as Stim runs them; under the rest an error.
+        for line in ["CZ sweep[5] sweep[2]", "M 0\nCZ rec[-1] sweep[0]", "M 0\nCZ sweep[0] rec[-1]"] {
+            let c = Circuit::parse(line).unwrap();
+            assert_eq!(c.to_stim().trim_end(), line);
+            assert_eq!(c.resolve().unwrap().instrs.iter().filter(|i| matches!(i, Instr::Feedback { .. })).count(), 0);
+        }
+        assert!(Circuit::parse("M 0 1\nCY rec[-1] rec[-2]").is_err());
+    }
+
+    #[test]
+    fn spacing_is_read_as_stim_reads_it() {
+        // A product's '*' may have spaces around it; it must sit between two targets.
+        for text in ["MPP X0 * Y1", "MPP X0 *Y1", "MPP X0* Y1"] {
+            assert_eq!(Circuit::parse(text).unwrap().to_stim().trim_end(), "MPP X0*Y1", "{text}");
+        }
+        assert_eq!(Circuit::parse("SPP X0 * Y1 Z2").unwrap().to_stim().trim_end(), "SPP X0*Y1 Z2");
+        for text in ["MPP X0 * * Y1", "MPP *X0", "MPP X0 *", "MPP X0*"] {
+            assert!(Circuit::parse(text).is_err(), "{text}");
+        }
+        // A correlated error reads a product as its factors.
+        let product = Circuit::parse("E(0.25) X0*Y1\nM 0 1\nDETECTOR rec[-1]").unwrap();
+        let listed = Circuit::parse("E(0.25) X0 Y1\nM 0 1\nDETECTOR rec[-1]").unwrap();
+        assert_eq!(product.resolve().unwrap().instrs, listed.resolve().unwrap().instrs);
+        // Arguments follow the name directly, and a space follows them.
+        for text in ["X_ERROR (0.1) 0", "X_ERROR[a] (0.1) 0", "X_ERROR(0.1)0", "M(0.1)0", "M(0.1)!0", "X_ERROR[a](0.1)0"] {
+            assert!(Circuit::parse(text).is_err(), "{text}");
+        }
+        assert!(Circuit::parse("X_ERROR(0.1)\t0").is_ok());
+        assert!(Circuit::parse("DETECTOR(1, 2)").is_ok());
     }
 
     #[test]
