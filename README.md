@@ -197,6 +197,15 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   blocks, reset, syndrome rounds, logical measurements, grow, shrink, merge, split, conditional
   Paulis) interpreted to circuits gate for gate as Loom writes them, with Loom's validator on
   this package's tableau simulator and exporters to Stim, OpenQASM 3, PennyLane and CUDA-Q.
+- **The other estimators, to the bit**: Qualtran's surface-code cost models
+  (`stabilizer_qec.estimate`: Gidney–Fowler's and Beverland et al.'s schemes, the CCZ-to-2T
+  and 15-to-1 factories with Litinski's density-matrix error model, Litinski's data blocks,
+  rotation cost models, the grid search) and Azure's Resource Estimator (`azure_estimate`: the
+  QDK's six qubit presets or custom qubits, surface and Floquet schemes or custom formulas,
+  its error-budget split, its exhaustive search over distillation rounds and code distances
+  for the T factory, its constraints, its Pareto frontier), each returning the number its
+  original returns — Qualtran's pinned values and the QDK's results on 55 configurations,
+  physical qubits to runtime to the factory's output error rate.
 - **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
   with amplitude and phase damping and T1/T2 relaxation, process matrices (Choi, Pauli transfer,
   χ), and QuantumClifford.jl's perturbative expansion run on detection events: a decoder's

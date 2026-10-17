@@ -237,6 +237,29 @@ or numpy. Loom is Copyright 2024 Entropica Labs Pte Ltd and licensed under the A
 Version 2.0; the licence is in `python/stabilizer_qec/loom/LICENSE`. `tests/loom_port/
 fixtures.json` records outputs of el-loom 0.4.0 the tests compare against.
 
+## Qualtran
+
+`python/stabilizer_qec/estimate/qualtran.py` is a port of Qualtran's `qualtran.surface_code`
+package and the `GateCounts` of `qualtran.resource_counting` (quantumlib/Qualtran 0.7.0,
+https://github.com/quantumlib/Qualtran), rewritten on dataclasses, plain numbers and numpy
+without attrs, sympy or Cirq. Qualtran is Copyright 2023 Google LLC and licensed under the
+Apache License, Version 2.0; the licence is in `python/stabilizer_qec/estimate/LICENSE`.
+
+## Azure Quantum Resource Estimator
+
+`python/stabilizer_qec/estimate/azure.py` is a port of the QDK's resource estimator
+(microsoft/qdk, `source/resource_estimator/src`, the `estimates` and `system` modules:
+physical qubits, fault-tolerance protocols, logical counts, the error budget, distillation
+units, round-based factories, the exhaustive T-factory search and the physical estimation;
+https://github.com/microsoft/qdk), rewritten in Python with a restricted `ast` evaluator for
+its formulas. It is Copyright (c) Microsoft Corporation and licensed under the MIT License;
+the licence is in `python/stabilizer_qec/estimate/LICENSE-qdk`. The binomial quantile and
+mass function in it follow the `probability` crate 0.20 (Ivan Ukhov and contributors,
+https://github.com/stainless-steel/probability) and its incomplete beta function the `special`
+crate (https://github.com/stainless-steel/special), both Apache-2.0 OR MIT.
+`tests/estimate_port/qdk_estimates.json` records outputs of qdk 1.33.1 the tests compare
+against.
+
 ## Fusion Blossom
 
 Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/fusion/LICENSE`, and

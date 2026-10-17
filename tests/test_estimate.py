@@ -1,0 +1,348 @@
+"""The estimator ports (`stabilizer_qec.estimate`): Qualtran's surface-code models against the
+numbers Qualtran's own tests pin (and against Qualtran where it is installed), and Azure's
+Resource Estimator model against the QDK's results recorded in tests/estimate_port/."""
+
+from __future__ import annotations
+
+import json
+import math
+import pathlib
+
+import numpy as np
+import pytest
+
+from stabilizer_qec import estimate as est
+from stabilizer_qec.estimate import azure as az
+from stabilizer_qec.estimate import (
+    AlgorithmSummary,
+    AzureEstimator,
+    Constraints,
+    DistillationUnitTemplate,
+    ErrorBudget,
+    GateBasedQubit,
+    LogicalCounts,
+    MajoranaQubit,
+    azure_estimate,
+    azure_estimator,
+    find_nondominated_tfactories,
+    physical_qubit,
+    qec_scheme,
+)
+from stabilizer_qec.estimate import (
+    BeverlandEtAlRotationCost,
+    CCZ2TFactory,
+    FastDataBlock,
+    FifteenToOne,
+    GateCounts,
+    LogicalErrorModel,
+    MultiFactory,
+    QECScheme,
+    RotationLogarithmicModel,
+    ConstantWithOverheadRotationCost,
+    get_ccz2t_costs_from_error_budget,
+    get_ccz2t_costs_from_grid_search,
+    iter_ccz2t_factories,
+)
+
+try:
+    import qualtran.surface_code as their_sc
+    from qualtran.resource_counting import GateCounts as TheirGateCounts
+except ImportError:  # pragma: no cover
+    their_sc = None
+
+needs_qualtran = pytest.mark.skipif(their_sc is None, reason="qualtran is not installed")
+
+
+# ---------------------------------------------------------------------------------------------
+# Qualtran's own pinned values
+# ---------------------------------------------------------------------------------------------
+
+
+def test_qec_scheme():
+    assert QECScheme.make_beverland_et_al().logical_error_rate(3, 1e-3) == pytest.approx(3e-4)
+    assert QECScheme.make_beverland_et_al().physical_qubits(11) == 242
+    scheme = QECScheme.make_gidney_fowler()
+    for budget in np.logspace(-1, -18):
+        d = scheme.code_distance_from_budget(physical_error=1e-3, budget=budget)
+        assert d % 2 == 1 and scheme.logical_error_rate(d, 1e-3) <= budget
+        if d > 3:
+            assert scheme.logical_error_rate(d - 2, 1e-3) > budget
+    assert LogicalErrorModel(qec_scheme=QECScheme.make_beverland_et_al(), physical_error=1e-3)(3) == pytest.approx(3e-4)
+
+
+@pytest.mark.parametrize("logical_qubits,tiles,data_error", [(100, 230, 0.69), (1318, 2740, 8.22), (12581, 25481, 76.443)])
+def test_fast_data_block(logical_qubits, tiles, data_error):
+    assert FastDataBlock.get_n_tiles(logical_qubits) == tiles
+    model = LogicalErrorModel(qec_scheme=QECScheme.make_gidney_fowler(), physical_error=1e-3)
+    assert FastDataBlock(3).data_error(n_algo_qubits=logical_qubits, n_cycles=3, logical_error_model=model) == pytest.approx(data_error)
+
+
+def test_ccz2t_factory_orders():
+    factory, worse = CCZ2TFactory(), CCZ2TFactory(distillation_l1_d=7, distillation_l2_d=15)
+    gates = GateCounts(t=10**8, toffoli=10**8)
+    model = LogicalErrorModel(qec_scheme=QECScheme.make_gidney_fowler(), physical_error=1e-3)
+    assert worse.factory_error(gates, model) > factory.factory_error(gates, model)
+    assert worse.n_cycles(gates, model) < factory.n_cycles(gates, model)
+    assert worse.n_physical_qubits() < factory.n_physical_qubits()
+
+
+@pytest.mark.parametrize("d_X,d_Z,d_m,phys_err,p_out,footprint,cycles", [(7, 3, 3, 1e-4, "4.4e-08", 810, 18.1), (9, 3, 3, 1e-4, "9.3e-10", 1150, 18.1), (11, 5, 5, 1e-4, "1.9e-11", 2070, 30), (17, 7, 7, 1e-3, "4.5e-08", 4620, 42.6)])
+def test_fifteen_to_one_matches_litinskis_paper(d_X, d_Z, d_m, phys_err, p_out, footprint, cycles):
+    factory = FifteenToOne(d_X=d_X, d_Z=d_Z, d_m=d_m)
+    model = LogicalErrorModel(qec_scheme=QECScheme.make_gidney_fowler(), physical_error=phys_err)
+    assert f"{factory.factory_error(GateCounts(t=1), model):.1e}" == p_out
+    assert round(factory.n_physical_qubits(), -1) == footprint
+    assert factory.n_cycles(GateCounts(t=1), model) == math.ceil(cycles + 1e-9)
+    for bad in ((1, 1, -1), (1, -1, 1), (-1, 1, 1), (5, 1, 1)):
+        with pytest.raises(AssertionError):
+            FifteenToOne(*bad)
+
+
+def test_gidney_fowler_spreadsheet():
+    cost = get_ccz2t_costs_from_error_budget(n_logical_gates=GateCounts(t=10**8, toffoli=10**8), n_algo_qubits=100, error_budget=0.01, phys_err=1e-3, cycle_time_us=1)
+    np.testing.assert_allclose(cost.failure_prob, 0.0084, rtol=1e-3)
+    np.testing.assert_allclose(cost.footprint, 4.00e5, rtol=1e-3)
+    np.testing.assert_allclose(cost.duration_hr, 7.53, rtol=1e-3)
+
+
+def test_grid_search():
+    cost, factory, block = get_ccz2t_costs_from_grid_search(n_logical_gates=GateCounts(t=10**8, toffoli=10**8), n_algo_qubits=100, phys_err=1e-3, error_budget=0.1, cycle_time_us=1)
+    assert isinstance(factory, CCZ2TFactory) and (factory.distillation_l1_d, factory.distillation_l2_d) == (15, 23) and block.data_d == 25
+    # Lee et al.'s THC numbers (PRX Quantum 2, 2021, section IV.C), as Qualtran reproduces them.
+    best, factory, block = get_ccz2t_costs_from_grid_search(n_logical_gates=GateCounts(toffoli=6665400000), n_algo_qubits=696, error_budget=1e-2, phys_err=1e-3, factory_iter=iter_ccz2t_factories(n_factories=4), cost_function=lambda pc: pc.duration_hr)
+    assert best.failure_prob == 0.007725395132201774 and best.footprint == 2933032 and best.duration_hr == 89.1034375
+    assert isinstance(factory, MultiFactory) and (factory.base_factory.distillation_l1_d, factory.base_factory.distillation_l2_d) == (17, 29) and block.data_d == 33
+
+
+BEVERLAND = [
+    (AlgorithmSummary(n_algo_qubits=100, n_logical_gates=GateCounts(rotation=30_100, measurement=int(1.4e6)), n_rotation_layers=501), 1e-3, 1.5e6, 1.5e5, 9, 602000),
+    (AlgorithmSummary(n_algo_qubits=1318, n_logical_gates=GateCounts(t=int(5.53e7), rotation=int(2.06e8), toffoli=int(1.35e11), measurement=int(1.37e9)), n_rotation_layers=int(2.05e8)), 1e-2, 4.1e11, 4.1e11, 17, 5.44e11),
+    (AlgorithmSummary(n_algo_qubits=12581, n_logical_gates=GateCounts(t=12, rotation=12, toffoli=int(3.73e9), measurement=int(1.08e9)), n_rotation_layers=12), 1 / 3, 1.23e10, 1.23e10, 13, 1.49e10),
+]
+
+
+@pytest.mark.parametrize("alg,budget,c_min,time_steps,distance,n_t", BEVERLAND)
+def test_beverland_et_al(alg, budget, c_min, time_steps, distance, n_t):
+    assert est.minimum_time_steps(error_budget=budget, alg=alg, rotation_model=BeverlandEtAlRotationCost) == pytest.approx(c_min, rel=0.1)
+    assert est.code_distance(error_budget=budget, time_steps=time_steps, alg=alg, qec_scheme=QECScheme.make_beverland_et_al(), physical_error=1e-4) == distance
+    assert est.t_states(error_budget=budget, alg=alg, rotation_model=BeverlandEtAlRotationCost) == pytest.approx(n_t, rel=0.1)
+
+
+def test_rotation_cost_models():
+    assert BeverlandEtAlRotationCost.rotation_cost(2**-3) == GateCounts(t=7)
+    model = ConstantWithOverheadRotationCost(bitsize=13, overhead_rotation_cost=RotationLogarithmicModel(1, 1))
+    assert model.rotation_cost(2**-3) == GateCounts(toffoli=11)
+    assert BeverlandEtAlRotationCost.preparation_overhead(2**-3) == GateCounts()
+    assert model.preparation_overhead(2**-3) == GateCounts(t=104)
+
+
+def test_physical_cost_model_factories():
+    gf = est.PhysicalCostModel.make_gidney_fowler(data_d=25)
+    alg = AlgorithmSummary(n_algo_qubits=100, n_logical_gates=GateCounts(t=10**8, toffoli=10**8))
+    assert gf.n_phys_qubits(alg) == 150 * 2 * 25**2 + CCZ2TFactory().n_physical_qubits()
+    assert gf.duration_hr(alg) == pytest.approx(gf.n_cycles(alg) / 3.6e9)
+    bev = est.PhysicalCostModel.make_beverland_et_al(data_d=9, data_block_name="fast")
+    assert isinstance(bev.data_block, FastDataBlock) and isinstance(bev.factory, FifteenToOne)
+    with pytest.raises(ValueError):
+        est.PhysicalCostModel.make_beverland_et_al(data_d=9, data_block_name="odd")
+
+
+# ---------------------------------------------------------------------------------------------
+# Against Qualtran installed
+# ---------------------------------------------------------------------------------------------
+
+
+@needs_qualtran
+@pytest.mark.parametrize("d_X,d_Z,d_m,phys_err", [(7, 3, 3, 1e-4), (11, 5, 5, 1e-4), (17, 7, 7, 1e-3), (9, 5, 3, 1e-3)])
+def test_fifteen_to_one_against_qualtran(d_X, d_Z, d_m, phys_err):
+    ours = FifteenToOne(d_X=d_X, d_Z=d_Z, d_m=d_m)
+    theirs = their_sc.FifteenToOne(d_X=d_X, d_Z=d_Z, d_m=d_m)
+    model = LogicalErrorModel(qec_scheme=QECScheme.make_gidney_fowler(), physical_error=phys_err)
+    their_model = their_sc.LogicalErrorModel(qec_scheme=their_sc.QECScheme.make_gidney_fowler(), physical_error=phys_err)
+    assert ours.p_fail(model) == pytest.approx(theirs.p_fail(their_model), rel=1e-9)
+    assert ours.p_out(model) == pytest.approx(theirs.p_out(their_model), rel=1e-9)
+    assert ours.n_cycles(GateCounts(t=1000), model) == theirs.n_cycles(TheirGateCounts(t=1000), their_model)
+
+
+@needs_qualtran
+def test_grid_search_against_qualtran():
+    ours = get_ccz2t_costs_from_grid_search(n_logical_gates=GateCounts(t=10**7, toffoli=10**7, rotation=1000), n_algo_qubits=256, error_budget=0.05)
+    theirs = their_sc.get_ccz2t_costs_from_grid_search(n_logical_gates=TheirGateCounts(t=10**7, toffoli=10**7, rotation=1000), n_algo_qubits=256, error_budget=0.05)
+    assert (ours[0].failure_prob, ours[0].footprint, ours[0].duration_hr) == (theirs[0].failure_prob, theirs[0].footprint, theirs[0].duration_hr)
+    assert (ours[1].distillation_l1_d, ours[1].distillation_l2_d, ours[2].data_d) == (theirs[1].distillation_l1_d, theirs[1].distillation_l2_d, theirs[2].data_d)
+
+
+# ---------------------------------------------------------------------------------------------
+# Azure's Resource Estimator: the QDK's recorded results (qdk 1.33.1, tests/estimate_port/) and the QDK itself
+# ---------------------------------------------------------------------------------------------
+
+QDK_CASES = json.loads((pathlib.Path(__file__).parent / "estimate_port" / "qdk_estimates.json").read_text())
+
+try:
+    from qdk.estimator import LogicalCounts as QdkLogicalCounts
+except ImportError:  # pragma: no cover
+    QdkLogicalCounts = None
+
+needs_qdk = pytest.mark.skipif(QdkLogicalCounts is None, reason="qdk is not installed")
+SECTIONS = ("physicalCounts", "logicalQubit", "tfactory", "errorBudget", "logicalCounts")
+
+
+def _ours(job_params: dict, counts: dict) -> dict:
+    return azure_estimate(counts, job_params.get("qubitParams"), job_params.get("qecScheme"), job_params.get("errorBudget", 1e-3), job_params.get("constraints"), job_params.get("distillationUnitSpecifications"), job_params.get("estimateType", "singlePoint"))
+
+
+@pytest.mark.parametrize("key", sorted(QDK_CASES))
+def test_azure_against_qdk_recorded(key):
+    """Every number the QDK reports (physical qubits, runtime, rqops, the breakdown with its error rates, the
+    logical qubit, the factory's rounds, units, distances, qubits, durations and output error, the budget split)
+    equals ours exactly, on the 6 qubit presets × 3 schemes × 3 count sets, 26 constrained or custom cases and
+    5 frontier estimates (every entry of the frontier, in the QDK's order)."""
+    case = QDK_CASES[key]
+    if case["status"] != "success":
+        with pytest.raises(ValueError):
+            _ours(case["jobParams"], case["logicalCounts"])
+        return
+    ours = _ours(case["jobParams"], case["logicalCounts"])
+    if "frontierEntries" in case:
+        assert len(ours["frontierEntries"]) == len(case["frontierEntries"])
+        for a, b in zip(ours["frontierEntries"], case["frontierEntries"]):
+            assert a == b
+        return
+    for section in SECTIONS:
+        assert ours.get(section) == case.get(section), section
+
+
+@needs_qdk
+@pytest.mark.parametrize("counts,params", [
+    ({"numQubits": 37, "tCount": 1234, "rotationCount": 77, "rotationDepth": 20, "cczCount": 50, "measurementCount": 999}, {"qubitParams": {"name": "qubit_gate_ns_e4"}, "constraints": {"maxTFactories": 2}}),
+    ({"numQubits": 400, "tCount": 10**6, "cczCount": 10**5}, {"qubitParams": {"name": "qubit_maj_ns_e4"}, "qecScheme": {"name": "floquet_code"}, "errorBudget": 0.01}),
+    ({"numQubits": 12, "tCount": 5000, "measurementCount": 100}, {"qubitParams": {"instructionSet": "GateBased", "oneQubitMeasurementTime": "1 µs", "oneQubitGateTime": "200 ns", "twoQubitGateTime": "300 ns", "oneQubitGateErrorRate": 1e-4, "twoQubitGateErrorRate": 5e-4, "oneQubitMeasurementErrorRate": 1e-3, "tGateErrorRate": 1e-3}, "constraints": {"maxPhysicalQubits": 50000}}),
+])
+def test_azure_against_qdk_live(counts, params):
+    theirs = json.loads(QdkLogicalCounts(counts).estimate(params).json)
+    theirs = theirs[0] if isinstance(theirs, list) else theirs
+    ours = _ours(params, counts)
+    for section in SECTIONS:
+        assert ours.get(section) == theirs.get(section), section
+
+
+def test_azure_entry_points_agree():
+    counts = LogicalCounts(num_qubits=100, t_count=100_000, ccz_count=10_000, measurement_count=10_000)
+    a = azure_estimate(counts)
+    b = azure_estimate(counts.asdict(), "qubit_gate_ns_e3", "surface_code", 1e-3)
+    est = azure_estimator(counts)
+    c = est.estimate(ErrorBudget.partition(1e-3, counts)).asdict()
+    assert a == b == c
+    assert isinstance(est, AzureEstimator) and a["physicalCounts"]["physicalQubits"] == 400060 and a["physicalCounts"]["runtime"] == 1064000000
+    assert a["tfactory"]["numUnitsPerRound"] == [18, 1] and a["tfactory"]["codeDistancePerRound"] == [5, 15] and a["logicalQubit"]["codeDistance"] == 19
+
+
+def test_azure_binomial_quantile_is_the_exact_one_below_a_thousand_units():
+    """The `probability` crate sums the mass function below 1000 trials: its quantile is the smallest k with
+    CDF(k) ≥ p. Above, its normal expansion lands within a couple of units of the exact quantile."""
+
+    def exact(n, q, p):
+        cdf, k = 0.0, 0
+        while True:
+            cdf += math.exp(math.lgamma(n + 1) - math.lgamma(k + 1) - math.lgamma(n - k + 1) + k * math.log(1 - q) + (n - k) * math.log(q))
+            if cdf >= p:
+                return k
+            k += 1
+
+    for n, q in ((18, 0.3), (23, 0.05), (303, 0.6), (999, 0.001), (640, 0.9)):
+        for p in (0.005, 0.0033, 0.5, 0.99):
+            assert az._Binomial(n, q).inverse(p) == exact(n, q, p), (n, q, p)
+    assert abs(az._Binomial(2000, 0.99).inverse(0.005) - exact(2000, 0.99, 0.005)) <= 2  # Newton branch (n·p·q ≤ 80)
+    assert abs(az._Binomial(20137, 0.7856).inverse(0.0025) - exact(20137, 0.7856, 0.0025)) <= 2  # normal branch
+    assert az._Binomial(50, 0.2).inverse(0.0) == 0 and az._Binomial(50, 0.2).inverse(1.0) == 50
+
+
+def test_azure_powi_matches_the_qdk_last_bit():
+    assert az._powi(0.1, 10) == 1.0000000000000011e-10 != 0.1**10 and 0.03 * az._powi(0.1, 10) == 3.000000000000003e-12
+    assert az._powi(2.0, -3) == 0.125 and az._powi(7.0, 0) == 1.0
+
+
+def test_azure_expressions_and_times():
+    assert az.evaluate_expression("2 * codeDistance ^ 2 + 1", {"codeDistance": 3}) == 19.0
+    assert az.evaluate_expression("(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance", {"twoQubitGateTime": 50, "oneQubitMeasurementTime": 100, "codeDistance": 5}) == 2000.0
+    with pytest.raises(ValueError):
+        az.evaluate_expression("2 * d", {"codeDistance": 3})
+    with pytest.raises(ValueError):
+        az.evaluate_expression("__import__('os').getcwd()", {})
+    assert az.parse_time("1 µs") == 1000 and az.parse_time("2.5 ms") == 2_500_000 and az.parse_time("1 s") == 10**9 and az.parse_time(100) == 100 and az.parse_time("50ns") == 50
+    with pytest.raises(ValueError):
+        az.parse_time("fast")
+
+
+def test_azure_qubit_normalisation():
+    q = physical_qubit({"instructionSet": "GateBased", "oneQubitMeasurementTime": "80 ns", "oneQubitGateTime": 30, "oneQubitGateErrorRate": 2e-4, "oneQubitMeasurementErrorRate": 5e-4, "tGateErrorRate": 3e-4})
+    assert isinstance(q, GateBasedQubit) and (q.two_qubit_gate_time, q.t_gate_time, q.two_qubit_gate_error_rate, q.idle_error_rate) == (30, 30, 2e-4, 5e-4)
+    assert q.clifford_error_rate() == 5e-4 and q.readout_error_rate() == 5e-4
+    m = physical_qubit({"name": "qubit_maj_ns_e4", "oneQubitMeasurementErrorRate": {"process": 2e-4, "readout": 1e-4}, "twoQubitJointMeasurementErrorRate": 1.5e-4})
+    assert isinstance(m, MajoranaQubit) and m.one_qubit_measurement_error_rate == (2e-4, 1e-4) and m.two_qubit_joint_measurement_error_rate == (1.5e-4, 1.5e-4)
+    assert m.clifford_error_rate() == 2e-4 and m.readout_error_rate() == 1.5e-4 and m.t_gate_error_rate == 0.05 and m.t_gate_time == 100
+    assert physical_qubit("qubit_gate_us_e3").t_gate_error_rate == 1e-6 and physical_qubit().name == "qubit_gate_ns_e3"
+    assert set(az.QUBIT_NAMES) == {"qubit_gate_ns_e3", "qubit_gate_ns_e4", "qubit_gate_us_e3", "qubit_gate_us_e4", "qubit_maj_ns_e4", "qubit_maj_ns_e6"}
+    with pytest.raises(ValueError):
+        physical_qubit("qubit_gate_ps_e9")
+    with pytest.raises(ValueError):
+        physical_qubit({"instructionSet": "GateBased", "oneQubitGateTime": 30})
+
+
+def test_azure_scheme_validation():
+    gate, maj = physical_qubit("qubit_gate_ns_e3"), physical_qubit("qubit_maj_ns_e6")
+    assert qec_scheme("surface_code", gate).error_correction_threshold == 0.01 and qec_scheme("surface_code", maj).error_correction_threshold == 0.0015
+    assert qec_scheme("floquet_code", maj).physical_qubits(5) == 132 and qec_scheme("floquet_code", maj).cycle_time(maj, 5) == 1500
+    with pytest.raises(ValueError):
+        qec_scheme("floquet_code", gate)
+    with pytest.raises(ValueError):
+        qec_scheme({"name": "surface_code", "crossingPrefactor": 0.6}, gate)
+    with pytest.raises(ValueError):
+        qec_scheme({"name": "surface_code", "errorCorrectionThreshold": 1e-3}, gate)
+    scheme = qec_scheme("surface_code", gate)
+    assert scheme.logical_error_rate(gate, 19) == 3.000000000000003e-12 and scheme.compute_code_distance(gate, 1.5527950310559005e-11) == 19
+    with pytest.raises(ValueError):
+        scheme.compute_code_distance(gate, 1e-40)
+
+
+def test_azure_error_budget_partition():
+    small = LogicalCounts(num_qubits=10, t_count=5)
+    assert ErrorBudget.partition(0.3, small) == ErrorBudget(0.15, 0.15, 0.0)
+    assert ErrorBudget.partition(0.3, LogicalCounts(num_qubits=10, t_count=5, rotation_count=1)) == ErrorBudget(0.3 / 3.0, 0.3 / 3.0, 0.3 / 3.0)
+    assert ErrorBudget.partition(0.3, LogicalCounts(num_qubits=10, measurement_count=5)) == ErrorBudget(0.3, 0.0, 0.0)
+    assert ErrorBudget.partition({"logical": 0.1, "tStates": 0.05, "rotations": 0.0}, small) == ErrorBudget(0.1, 0.05, 0.0)
+    for bad in (0.0, 1.0, {"logical": 0.1, "tStates": 0.0, "rotations": 0.0}):
+        with pytest.raises(ValueError):
+            ErrorBudget.partition(bad, small)
+
+
+def test_azure_factory_frontier():
+    gate = physical_qubit("qubit_gate_ns_e3")
+    scheme = qec_scheme("surface_code", gate)
+    frontier = find_nondominated_tfactories(scheme, gate, DistillationUnitTemplate.defaults(), 3.5714285714285715e-09, 19)
+    points = [(f.normalized_qubits(), f.duration()) for f in frontier]
+    assert points == sorted(points, reverse=True) and len(frontier) >= 2
+    for a in points:
+        for b in points:
+            assert not ((a[0] < b[0] and a[1] <= b[1]) or (a[0] <= b[0] and a[1] < b[1]))
+    assert all(f.output_error_rate() <= 3.5714285714285715e-09 for f in frontier)
+    chosen = min(frontier, key=lambda f: f.normalized_volume())
+    assert chosen.asdict()["numUnitsPerRound"] == [18, 1] and chosen.physical_qubits() == 18000 and chosen.duration() == 92000
+    trivial = find_nondominated_tfactories(scheme, physical_qubit("qubit_gate_ns_e4"), DistillationUnitTemplate.defaults(), 2.5e-4, 3)
+    assert len(trivial) == 1 and trivial[0].unit_names() == ["trivial 1-to-1"] and trivial[0].code_distance_per_round() == [3]
+
+
+def test_azure_constraints():
+    counts = LogicalCounts(num_qubits=100, t_count=100_000, ccz_count=10_000, measurement_count=10_000)
+    with pytest.raises(ValueError):
+        azure_estimate(counts, constraints={"maxDuration": "3 s", "maxPhysicalQubits": 10**6})
+    with pytest.raises(ValueError):
+        azure_estimate(counts, constraints={"logicalDepthFactor": 0.5})
+    with pytest.raises(ValueError):
+        azure_estimate(counts, constraints={"maxPhysicalQubits": 1000})
+    assert Constraints.fromspec({"maxDuration": "2 ms"}).max_duration == 2_000_000 and Constraints.fromspec(None).max_distillation_rounds == 3
+    r = azure_estimate(counts, constraints={"maxTFactories": 3})
+    assert r["physicalCounts"]["breakdown"]["numTfactories"] <= 3 and r["jobParams"]["constraints"]["maxTFactories"] == 3
+    assert azure_estimate(LogicalCounts(num_qubits=50, measurement_count=1000))["physicalCounts"]["breakdown"]["numTstates"] == 0
+    with pytest.raises(ValueError):
+        azure_estimate(LogicalCounts(num_qubits=50))

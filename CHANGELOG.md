@@ -729,6 +729,39 @@ noise on every gate. In progress on `feature/2.0`.
   and gives Loom's verdicts. Not ported: the auxiliary CNOT, transversal Hadamard, move,
   rotate, Y-wall phase gate and state injection applicators, base and logical operations,
   if-else circuits, error models, and the Mimiq and Guppy exporters.
+- **`stabilizer_qec.estimate`: Qualtran's and Azure's resource estimators, to the bit.**
+  `estimate.qualtran` is `qualtran.surface_code` (Qualtran 0.7.0, Apache 2.0) on dataclasses
+  and numpy: `GateCounts`, `AlgorithmSummary`, `QECScheme` (Gidney–Fowler, Beverland et al.),
+  `LogicalErrorModel`, `PhysicalParameters`, the simple, compact, intermediate and fast data
+  blocks, `CCZ2TFactory`, `FifteenToOne` with Litinski's density-matrix error model,
+  `MultiFactory`, the rotation cost models, `PhysicalCostModel` with its `make_gidney_fowler`
+  and `make_beverland_et_al`, `get_ccz2t_costs`, `get_ccz2t_costs_from_error_budget`,
+  `get_ccz2t_costs_from_grid_search`, `iter_ccz2t_factories`, `iter_simple_data_blocks`, and
+  Beverland et al.'s `minimum_time_steps`, `code_distance` and `t_states`; every number
+  Qualtran's tests pin (Litinski's 15-to-1 table, the Gidney–Fowler spreadsheet, Lee et al.'s
+  THC grid search, Beverland's three algorithms) and, with Qualtran installed, its outputs,
+  equal. `estimate.azure` is the QDK's resource estimator (microsoft/qdk `resource_estimator`,
+  MIT): `azure_estimate(counts, qubit_params, qec_scheme, error_budget, constraints,
+  distillation_unit_specifications)` takes the QDK's parameters — the six qubit presets or a
+  custom gate-based or Majorana qubit with the QDK's defaulting, `surface_code` and
+  `floquet_code` or a custom scheme's threshold, prefactor, cycle-time and qubit formulas, a
+  total error budget or its three parts, the 15-to-1 RM-prep and space-efficient units or
+  custom units with their formulas, `logicalDepthFactor`, `maxTFactories`, `maxDuration`,
+  `maxPhysicalQubits`, `maxDistillationRounds` — and returns the QDK's result dict
+  (`physicalCounts` with its breakdown, `logicalQubit`, `tfactory`, `errorBudget`,
+  `logicalCounts`), or with `estimate_type="frontier"` the QDK's `frontierEntries` along the
+  qubits–runtime Pareto frontier. Inside are the PSSPC layout, the code-distance inverse, the
+  round-based factory with the `probability` crate's binomial quantile (its mass-function
+  sums, Newton steps and Cornish–Fisher expansion), the exhaustive search over unit sequences
+  and non-decreasing code distances with the QDK's bisection, its iteration order and its
+  Pareto population, the three estimates (unrestricted, under a duration cap, under a qubit
+  cap) and the frontier. On 55 configurations — the presets by scheme by three count sets, the
+  constraints, custom qubits, schemes, units and budgets, the no-T and one-T algorithms, two
+  refusals, five frontiers — every reported number equals the QDK's
+  (`tests/estimate_port/qdk_estimates.json`, qdk 1.33.1): physical qubits, runtime, rqops,
+  the required error rates, the factory's rounds, units, distances, qubits, durations and
+  output error, every frontier entry in order; and live against the installed QDK. Not
+  ported: the report text and the profiling.
 
 ### Fixed
 
