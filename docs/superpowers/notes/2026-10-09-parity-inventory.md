@@ -107,7 +107,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 
 | ID | Feature | Status |
 |---|---|---|
-| S70 | Crumble-equivalent editor: edit a circuit in 2D and propagate Pauli markers live (`#!pragma MARK_X0`), view and edit detectors and observables, import from and export to Stim text and URLs | gap (site has viewers only) |
+| S70 | Crumble-equivalent editor: edit a circuit in 2D and propagate Pauli markers live (`#!pragma MARK_X0`), view and edit detectors and observables, import from and export to Stim text and URLs | done (2.0 W12: site section 17, `js/editor.js` + `js/crumble-format.js` + `js/sections/editor.js` — grid and timeline views, the gate palette, markers propagated by Clifford conjugation to the measurements, detectors and observables they flip, detectors/observables placed on measurements, Stim text and Crumble URLs both ways; the URL equals `to_crumble_url`'s on every example and every marker's flips equal the engine's on ~700 (qubit, layer, Pauli) cases, `tools/site-tests.mjs` in CI. Not Crumble's: polygons, the `#!pragma` text form, undo) |
 | S71 | Quirk export | done (2.0 W2: `to_quirk_url`) |
 
 ## P — PyMatching 2.4

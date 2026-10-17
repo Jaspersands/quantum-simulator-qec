@@ -41,6 +41,7 @@
     <li><a class="toc__link" href="#surgery"><span class="toc__num">14</span><span>Lattice surgery</span></a></li>
     <li><a class="toc__link" href="#estimator"><span class="toc__num">15</span><span>What it would take</span></a></li>
     <li><a class="toc__link" href="#coherent"><span class="toc__num">16</span><span>Beyond Pauli noise</span></a></li>
+    <li><a class="toc__link" href="#editor"><span class="toc__num">17</span><span>The editor</span></a></li>
   </ol>
 
   <div class="rail__foot">
@@ -2259,6 +2260,94 @@
     </div>
   </figure>
 
+</section>
+
+<section class="section" id="editor">
+  <div class="section__head">
+    <span class="section__num">17</span>
+    <h2 class="section__title">The editor</h2>
+  </div>
+
+  <div class="prose">
+    <p>
+      Every circuit above was written by the engine. This section edits one by hand, the way Stim's
+      <a href="https://algassert.com/crumble" target="_blank" rel="noopener">Crumble</a> does: qubits on a grid,
+      gates placed layer by layer, and <strong>Pauli markers</strong> &mdash; an X, Y or Z error dropped before a
+      layer &mdash; that move forward through the gates as they would in the Heisenberg picture (H swaps X and Z,
+      S turns X into Y, CX copies X down and Z up), flip the measurements they anticommute with, and so flip the
+      detectors and observables built from those measurements. That is what a detector <em>detects</em>, drawn.
+    </p>
+    <p>
+      The Stim text below rewrites itself on every edit and loads back with the button; so does the Crumble URL,
+      the same one <code>Circuit.to_crumble_url</code> writes, which opens the circuit in Crumble itself. The
+      format and the markers are checked in CI: the page writes the package's URL byte for byte for every example
+      and reads it back to the same text, and every marker on every qubit of every layer flips the detectors the
+      engine's own sampler flips when the same error is put there (<code>tools/site-tests.mjs</code>).
+    </p>
+  </div>
+
+  <figure class="figure" data-editor>
+    <figcaption class="figure__cap">
+      <span class="figure__num">Figure 30</span>
+      <span class="figure__title">a circuit, its layers, and what a marker flips</span>
+      <span class="figure__meta">live, in the page</span>
+    </figcaption>
+    <div class="figure__body">
+      <div class="controls ed-controls">
+        <label>Example <select data-ed-examples class="select"></select></label>
+        <button class="btn btn--small" type="button" data-ed-prev>&larr; layer</button>
+        <span class="note" data-ed-layer></span>
+        <button class="btn btn--small" type="button" data-ed-next>layer &rarr;</button>
+        <button class="btn btn--small" type="button" data-ed-add-layer>+ layer after</button>
+        <button class="btn btn--small" type="button" data-ed-del-layer>&minus; layer</button>
+        <button class="btn btn--small" type="button" data-ed-add-qubit>+ qubit</button>
+      </div>
+      <div class="controls ed-controls" data-ed-palette></div>
+      <div class="controls ed-controls">
+        <span class="note">marker</span>
+        <button class="btn btn--small" type="button" data-ed-mark="0">0</button>
+        <button class="btn btn--small" type="button" data-ed-mark="1">1</button>
+        <button class="btn btn--small" type="button" data-ed-mark="2">2</button>
+        <button class="btn btn--small" type="button" data-ed-mark="3">3</button>
+        <button class="btn btn--small" type="button" data-ed-clear-marks>clear markers</button>
+        <span class="note" data-ed-status></span>
+      </div>
+      <div class="ed-views">
+        <div class="ed-grid" data-ed-grid></div>
+        <div class="ed-timeline" data-ed-timeline></div>
+      </div>
+      <div class="table-wrap">
+        <table class="xcheck hw">
+          <caption class="visually-hidden">What each marker flips</caption>
+          <thead>
+            <tr><th scope="col">marker</th><th scope="col">measurements flipped</th><th scope="col">detectors</th><th scope="col">observables</th></tr>
+          </thead>
+          <tbody data-ed-flips></tbody>
+        </table>
+      </div>
+      <div class="ed-text">
+        <label class="note">Stim text
+          <textarea data-ed-text class="ed-textarea" rows="10" spellcheck="false"></textarea>
+        </label>
+        <div class="controls ed-controls">
+          <button class="btn btn--small btn--primary" type="button" data-ed-load>Load the text</button>
+          <button class="btn btn--small" type="button" data-ed-open>Open in Crumble</button>
+        </div>
+        <label class="note">Crumble URL
+          <input data-ed-url class="ed-url" type="text" spellcheck="false" />
+        </label>
+        <div class="controls ed-controls">
+          <button class="btn btn--small" type="button" data-ed-load-url>Load the URL</button>
+        </div>
+      </div>
+      <p class="note">Click a qubit to place the chosen gate in the current layer (a two-qubit gate takes two
+        clicks, control first); "erase" removes what a qubit has in the layer. DETECTOR and OBSERVABLE take the
+        qubit's newest measurement in the layer. The grid shows one layer; the timeline shows them all, a column
+        each, with each marker's Pauli shaded along the qubits it has reached. Noise instructions and anything else
+        the editor does not draw pass through the text untouched.</p>
+    </div>
+  </figure>
+
   <footer class="foot">
     <span>Built with Rust, WebAssembly, and no dependencies.</span>
     <a href="report/report.html">Technical report</a>
@@ -2270,6 +2359,6 @@
 </main>
 </div>
 
-<script type="module" src="js/main.js?v=2026-10-09b"></script>
+<script type="module" src="js/main.js?v=2026-10-17a"></script>
 </body>
 </html>

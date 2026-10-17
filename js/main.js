@@ -28,6 +28,7 @@ import { initGross } from './sections/gross.js';
 import { initSurgery } from './sections/surgery.js';
 import { initEstimator } from './sections/estimator.js';
 import { initCoherent } from './sections/coherent.js';
+import { initEditor } from './sections/editor.js';
 
 /**
  * Show a boot failure. Each caller supplies its own diagnosis — the two failure
@@ -84,6 +85,7 @@ async function boot() {
   initEstimator($('#estimator'));
   // So does the coherent section.
   initCoherent($('#coherent'));
+  initEditor($('#editor'));
 
   let instance;
   try {

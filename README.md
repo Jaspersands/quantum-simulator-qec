@@ -167,6 +167,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   a million-round stream that keeps up on 4 cores at d = 5. Decoding as a service: `decode_async`
   on every decoder, a `DecoderQueue` with CUDA-Q QEC's `enqueue_syndromes`/`get_corrections` and
   latency statistics, and `stabilizer-qec serve` over TCP or pipes with its `DecoderClient`.
+- **A circuit editor in the page** (section 17, Crumble's job): qubits on a grid, gates placed
+  layer by layer, Pauli markers that propagate live to the detectors and observables they flip,
+  Stim text and Crumble URLs in and out; the URL is the package's byte for byte and every
+  marker's detecting region equals the engine's, checked in CI.
 - **Sampling and BP on the GPU**: `device="gpu"` runs the sampler's program on Metal, Vulkan or
   DX12 through wgpu (in every wheel) and min-sum BP in single precision, each bit for bit equal
   to its CPU reference (`device="cpu-lanes"`, `"cpu-f32"`), with cuStabilizer's 150× yardstick
@@ -2463,8 +2467,12 @@ js/realtime-format.js names and formats for section 12
 js/bb-geometry.js     the gross code's torus, for section 13's drawing
 js/surgery-geometry.js lattice surgery's layout, for section 14's drawing
 js/estimator.js       the resource estimate's model and its inputs, for section 15
+js/editor.js          section 17's model: layers, Pauli markers propagated to the detectors they flip
+js/crumble-format.js  Stim text and Crumble URLs in and out, the package's format byte for byte
+js/editor-examples.js the editor's example circuits, written by tools/editor_fixtures.py
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
+tools/editor_fixtures.py the editor's examples and the fixture its tests check the page against
 tools/matcher_bench.py  the matcher's speed against PyMatching, and a fingerprint of its decisions
 tools/sweep.mjs         repeated threshold sweeps in Node, for the figures quoted here
 tools/independent_toric.mjs  an independent toric-code simulator in plain JS, sharing no engine code

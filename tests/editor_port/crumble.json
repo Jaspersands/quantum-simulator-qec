@@ -1,0 +1,6362 @@
+[
+ {
+  "name": "Bell pair",
+  "stim": "QUBIT_COORDS(0, 0) 0\nQUBIT_COORDS(1, 0) 1\nR 0 1\nTICK\nH 0\nTICK\nCX 0 1\nTICK\nCX 0 1\nTICK\nH 0\nTICK\nM 0 1\nDETECTOR(0, 0, 0) rec[-2]\nDETECTOR(1, 0, 0) rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+  "url": "https://algassert.com/crumble#circuit=Q(0,0)0;Q(1,0)1;R_0_1;TICK;H_0;TICK;CX_0_1;TICK;CX_0_1;TICK;H_0;TICK;M_0_1;DT(0,0,0)rec[-2];DT(1,0,0)rec[-1];OI(0)rec[-1]_",
+  "num_detectors": 2,
+  "num_observables": 1,
+  "cases": [
+   {
+    "layer": 0,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   }
+  ]
+ },
+ {
+  "name": "Repetition code, d = 3, 2 rounds",
+  "stim": "R 0 1 2 3 4\nTICK\nCX 0 1 2 3\nTICK\nCX 2 1 4 3\nTICK\nMR 1 3\nDETECTOR(1, 0) rec[-2]\nDETECTOR(3, 0) rec[-1]\nTICK\nCX 0 1 2 3\nTICK\nCX 2 1 4 3\nTICK\nMR 1 3\nDETECTOR(1, 1) rec[-2] rec[-4]\nDETECTOR(3, 1) rec[-1] rec[-3]\nM 0 2 4\nDETECTOR(1, 2) rec[-2] rec[-3] rec[-5]\nDETECTOR(3, 2) rec[-1] rec[-2] rec[-4]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+  "url": "https://algassert.com/crumble#circuit=R_0_1_2_3_4;TICK;CX_0_1_2_3;TICK;CX_2_1_4_3;TICK;MR_1_3;DT(1,0)rec[-2];DT(3,0)rec[-1];TICK;CX_0_1_2_3;TICK;CX_2_1_4_3;TICK;MR_1_3;DT(1,1)rec[-2]_rec[-4];DT(3,1)rec[-1]_rec[-3];M_0_2_4;DT(1,2)rec[-2]_rec[-3]_rec[-5];DT(3,2)rec[-1]_rec[-2]_rec[-4];OI(0)rec[-1]_",
+  "num_detectors": 6,
+  "num_observables": 1,
+  "cases": [
+   {
+    "layer": 0,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     1,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     1,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     1,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   }
+  ]
+ },
+ {
+  "name": "Surface code, d = 3, one round",
+  "stim": "QUBIT_COORDS(1, 1) 1\nQUBIT_COORDS(2, 0) 2\nQUBIT_COORDS(3, 1) 3\nQUBIT_COORDS(5, 1) 5\nQUBIT_COORDS(1, 3) 8\nQUBIT_COORDS(2, 2) 9\nQUBIT_COORDS(3, 3) 10\nQUBIT_COORDS(4, 2) 11\nQUBIT_COORDS(5, 3) 12\nQUBIT_COORDS(6, 2) 13\nQUBIT_COORDS(0, 4) 14\nQUBIT_COORDS(1, 5) 15\nQUBIT_COORDS(2, 4) 16\nQUBIT_COORDS(3, 5) 17\nQUBIT_COORDS(4, 4) 18\nQUBIT_COORDS(5, 5) 19\nQUBIT_COORDS(4, 6) 25\nR 1 3 5 8 10 12 15 17 19 2 9 11 13 14 16 18 25\nTICK\nH 2 11 16 25\nTICK\nCX 2 3 16 17 11 12 15 14 10 9 19 18\nTICK\nCX 2 1 16 15 11 10 8 14 3 9 12 18\nTICK\nCX 16 10 11 5 25 19 8 9 17 18 12 13\nTICK\nCX 16 8 11 3 25 17 1 9 10 18 5 13\nTICK\nH 2 11 16 25\nTICK\nMR 2 9 11 13 14 16 18 25\nDETECTOR(0, 4, 0) rec[-4]\nDETECTOR(2, 2, 0) rec[-7]\nDETECTOR(4, 4, 0) rec[-2]\nDETECTOR(6, 2, 0) rec[-5]\nM 1 3 5 8 10 12 15 17 19\nDETECTOR(0, 4, 1) rec[-3] rec[-6] rec[-13]\nDETECTOR(2, 2, 1) rec[-5] rec[-6] rec[-8] rec[-9] rec[-16]\nDETECTOR(4, 4, 1) rec[-1] rec[-2] rec[-4] rec[-5] rec[-11]\nDETECTOR(6, 2, 1) rec[-4] rec[-7] rec[-14]\nOBSERVABLE_INCLUDE(0) rec[-7] rec[-8] rec[-9]",
+  "url": "https://algassert.com/crumble#circuit=Q(1,1)1;Q(2,0)2;Q(3,1)3;Q(5,1)5;Q(1,3)8;Q(2,2)9;Q(3,3)10;Q(4,2)11;Q(5,3)12;Q(6,2)13;Q(0,4)14;Q(1,5)15;Q(2,4)16;Q(3,5)17;Q(4,4)18;Q(5,5)19;Q(4,6)25;R_1_3_5_8_10_12_15_17_19_2_9_11_13_14_16_18_25;TICK;H_2_11_16_25;TICK;CX_2_3_16_17_11_12_15_14_10_9_19_18;TICK;CX_2_1_16_15_11_10_8_14_3_9_12_18;TICK;CX_16_10_11_5_25_19_8_9_17_18_12_13;TICK;CX_16_8_11_3_25_17_1_9_10_18_5_13;TICK;H_2_11_16_25;TICK;MR_2_9_11_13_14_16_18_25;DT(0,4,0)rec[-4];DT(2,2,0)rec[-7];DT(4,4,0)rec[-2];DT(6,2,0)rec[-5];M_1_3_5_8_10_12_15_17_19;DT(0,4,1)rec[-3]_rec[-6]_rec[-13];DT(2,2,1)rec[-5]_rec[-6]_rec[-8]_rec[-9]_rec[-16];DT(4,4,1)rec[-1]_rec[-2]_rec[-4]_rec[-5]_rec[-11];DT(6,2,1)rec[-4]_rec[-7]_rec[-14];OI(0)rec[-7]_rec[-8]_rec[-9]_",
+  "num_detectors": 8,
+  "num_observables": 1,
+  "cases": [
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     3,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     6,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     7
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     5,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     6,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     7
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     1,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 10,
+    "pauli": "X",
+    "detectors": [
+     5,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 10,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 11,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 11,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 12,
+    "pauli": "X",
+    "detectors": [
+     6,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 12,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 13,
+    "pauli": "X",
+    "detectors": [
+     3,
+     7
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 13,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 14,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 14,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 15,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 15,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 16,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 16,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 17,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 17,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 18,
+    "pauli": "X",
+    "detectors": [
+     2,
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 18,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 19,
+    "pauli": "X",
+    "detectors": [
+     6
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 19,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 25,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 25,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   }
+  ]
+ },
+ {
+  "name": "Colour code, d = 3, 2 rounds",
+  "stim": "QUBIT_COORDS(0, 0) 0\nQUBIT_COORDS(1, 0) 1\nQUBIT_COORDS(2, 0) 2\nQUBIT_COORDS(3, 0) 3\nQUBIT_COORDS(0.5, 1) 4\nQUBIT_COORDS(1.5, 1) 5\nQUBIT_COORDS(2.5, 1) 6\nQUBIT_COORDS(1, 2) 7\nQUBIT_COORDS(2, 2) 8\nQUBIT_COORDS(1.5, 3) 9\nR 0 1 2 3 4 5 6 7 8 9\nTICK\nC_XYZ 0 1 3 5 6 7 9\nTICK\nCX 5 4 3 2\nTICK\nCX 7 4 6 2\nTICK\nCX 1 4 6 8\nTICK\nCX 1 2 7 8\nTICK\nCX 5 2 9 8\nTICK\nCX 0 4 5 8\nTICK\nMR 2 4 8\nTICK\nC_XYZ 0 1 3 5 6 7 9\nTICK\nCX 5 4 3 2\nTICK\nCX 7 4 6 2\nTICK\nCX 1 4 6 8\nTICK\nCX 1 2 7 8\nTICK\nCX 5 2 9 8\nTICK\nCX 0 4 5 8\nTICK\nMR 2 4 8\nDETECTOR(2, 0, 0) rec[-3] rec[-6]\nDETECTOR(0.5, 1, 0) rec[-2] rec[-5]\nDETECTOR(2, 2, 0) rec[-1] rec[-4]\nMY 0 1 3 5 6 7 9\nDETECTOR(2, 0, 1) rec[-3] rec[-4] rec[-5] rec[-6] rec[-10] rec[-13]\nDETECTOR(0.5, 1, 1) rec[-2] rec[-4] rec[-6] rec[-7] rec[-9] rec[-12]\nDETECTOR(2, 2, 1) rec[-1] rec[-2] rec[-3] rec[-4] rec[-8] rec[-11]\nOBSERVABLE_INCLUDE(0) rec[-5] rec[-6] rec[-7]",
+  "url": "https://algassert.com/crumble#circuit=Q(0,0)0;Q(1,0)1;Q(2,0)2;Q(3,0)3;Q(0.5,1)4;Q(1.5,1)5;Q(2.5,1)6;Q(1,2)7;Q(2,2)8;Q(1.5,3)9;R_0_1_2_3_4_5_6_7_8_9;TICK;C_XYZ_0_1_3_5_6_7_9;TICK;CX_5_4_3_2;TICK;CX_7_4_6_2;TICK;CX_1_4_6_8;TICK;CX_1_2_7_8;TICK;CX_5_2_9_8;TICK;CX_0_4_5_8;TICK;MR_2_4_8;TICK;C_XYZ_0_1_3_5_6_7_9;TICK;CX_5_4_3_2;TICK;CX_7_4_6_2;TICK;CX_1_4_6_8;TICK;CX_1_2_7_8;TICK;CX_5_2_9_8;TICK;CX_0_4_5_8;TICK;MR_2_4_8;DT(2,0,0)rec[-3]_rec[-6];DT(0.5,1,0)rec[-2]_rec[-5];DT(2,2,0)rec[-1]_rec[-4];MY_0_1_3_5_6_7_9;DT(2,0,1)rec[-3]_rec[-4]_rec[-5]_rec[-6]_rec[-10]_rec[-13];DT(0.5,1,1)rec[-2]_rec[-4]_rec[-6]_rec[-7]_rec[-9]_rec[-12];DT(2,2,1)rec[-1]_rec[-2]_rec[-3]_rec[-4]_rec[-8]_rec[-11];OI(0)rec[-5]_rec[-6]_rec[-7]_",
+  "num_detectors": 6,
+  "num_observables": 1,
+  "cases": [
+   {
+    "layer": 0,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 0,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 1,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 1,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 2,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 2,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 3,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 3,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 4,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 4,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 5,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 5,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 6,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 6,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 7,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 7,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 8,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 8,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 8,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 8,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 9,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 9,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 9,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 9,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 10,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 10,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 10,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 10,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     0
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 10,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 10,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 10,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 11,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     1,
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 11,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 12,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 12,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     0,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 13,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 13,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 14,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     0,
+     2,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     2
+    ],
+    "observables": []
+   },
+   {
+    "layer": 14,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     1
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 15,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     2,
+     3,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 15,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 0,
+    "pauli": "X",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 16,
+    "qubit": 0,
+    "pauli": "Z",
+    "detectors": [
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 16,
+    "qubit": 1,
+    "pauli": "X",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 16,
+    "qubit": 1,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 16,
+    "qubit": 2,
+    "pauli": "X",
+    "detectors": [
+     0,
+     3
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 2,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 3,
+    "pauli": "X",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 16,
+    "qubit": 3,
+    "pauli": "Z",
+    "detectors": [
+     3
+    ],
+    "observables": [
+     0
+    ]
+   },
+   {
+    "layer": 16,
+    "qubit": 4,
+    "pauli": "X",
+    "detectors": [
+     1,
+     4
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 4,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 5,
+    "pauli": "X",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 5,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 6,
+    "pauli": "X",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 6,
+    "pauli": "Z",
+    "detectors": [
+     3,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 7,
+    "pauli": "X",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 7,
+    "pauli": "Z",
+    "detectors": [
+     4,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 8,
+    "pauli": "X",
+    "detectors": [
+     2,
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 8,
+    "pauli": "Z",
+    "detectors": [],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 9,
+    "pauli": "X",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   },
+   {
+    "layer": 16,
+    "qubit": 9,
+    "pauli": "Z",
+    "detectors": [
+     5
+    ],
+    "observables": []
+   }
+  ]
+ },
+ {
+  "name": "Surface code with noise, d = 3, 2 rounds",
+  "stim": "QUBIT_COORDS(1, 1) 0\nQUBIT_COORDS(3, 1) 1\nQUBIT_COORDS(5, 1) 2\nQUBIT_COORDS(1, 3) 3\nQUBIT_COORDS(3, 3) 4\nQUBIT_COORDS(5, 3) 5\nQUBIT_COORDS(1, 5) 6\nQUBIT_COORDS(3, 5) 7\nQUBIT_COORDS(5, 5) 8\nQUBIT_COORDS(0, 2) 9\nQUBIT_COORDS(4, 2) 10\nQUBIT_COORDS(2, 4) 11\nQUBIT_COORDS(6, 4) 12\nQUBIT_COORDS(4, 0) 13\nQUBIT_COORDS(2, 2) 14\nQUBIT_COORDS(4, 4) 15\nQUBIT_COORDS(2, 6) 16\nTICK\nR 9 10 11 12 13 14 15 16\nX_ERROR(0.01) 9 10 11 12 13 14 15 16\nR 0 1 2 3 4 5 6 7 8\nX_ERROR(0.01) 0 1 2 3 4 5 6 7 8\nTICK\nH 9 10 11 12\nDEPOLARIZE1(0.01) 9 10 11 12 0 1 2 3 4 5 6 7 8 13 14 15 16\nTICK\nCX 10 1 11 3 12 5 0 14 4 15 6 16\nDEPOLARIZE2(0.01) 10 1 11 3 12 5 0 14 4 15 6 16\nDEPOLARIZE1(0.01) 2 7 8 9 13\nTICK\nCX 10 4 11 6 12 8 1 14 5 15 7 16\nDEPOLARIZE2(0.01) 10 4 11 6 12 8 1 14 5 15 7 16\nDEPOLARIZE1(0.01) 0 2 3 9 13\nTICK\nCX 9 0 10 2 11 4 1 13 3 14 7 15\nDEPOLARIZE2(0.01) 9 0 10 2 11 4 1 13 3 14 7 15\nDEPOLARIZE1(0.01) 5 6 8 12 16\nTICK\nCX 9 3 10 5 11 7 2 13 4 14 8 15\nDEPOLARIZE2(0.01) 9 3 10 5 11 7 2 13 4 14 8 15\nDEPOLARIZE1(0.01) 0 1 6 12 16\nTICK\nH 9 10 11 12\nDEPOLARIZE1(0.01) 9 10 11 12 0 1 2 3 4 5 6 7 8 13 14 15 16\nTICK\nX_ERROR(0.01) 9 10 11 12 13 14 15 16\nM 9 10 11 12 13 14 15 16\nDEPOLARIZE1(0.01) 0 1 2 3 4 5 6 7 8\nDETECTOR(4, 0, 1) rec[-4]\nDETECTOR(2, 2, 1) rec[-3]\nDETECTOR(4, 4, 1) rec[-2]\nDETECTOR(2, 6, 1) rec[-1]\nTICK\nR 9 10 11 12 13 14 15 16\nX_ERROR(0.01) 9 10 11 12 13 14 15 16\nDEPOLARIZE1(0.01) 0 1 2 3 4 5 6 7 8\nTICK\nH 9 10 11 12\nDEPOLARIZE1(0.01) 9 10 11 12 0 1 2 3 4 5 6 7 8 13 14 15 16\nTICK\nCX 10 1 11 3 12 5 0 14 4 15 6 16\nDEPOLARIZE2(0.01) 10 1 11 3 12 5 0 14 4 15 6 16\nDEPOLARIZE1(0.01) 2 7 8 9 13\nTICK\nCX 10 4 11 6 12 8 1 14 5 15 7 16\nDEPOLARIZE2(0.01) 10 4 11 6 12 8 1 14 5 15 7 16\nDEPOLARIZE1(0.01) 0 2 3 9 13\nTICK\nCX 9 0 10 2 11 4 1 13 3 14 7 15\nDEPOLARIZE2(0.01) 9 0 10 2 11 4 1 13 3 14 7 15\nDEPOLARIZE1(0.01) 5 6 8 12 16\nTICK\nCX 9 3 10 5 11 7 2 13 4 14 8 15\nDEPOLARIZE2(0.01) 9 3 10 5 11 7 2 13 4 14 8 15\nDEPOLARIZE1(0.01) 0 1 6 12 16\nTICK\nH 9 10 11 12\nDEPOLARIZE1(0.01) 9 10 11 12 0 1 2 3 4 5 6 7 8 13 14 15 16\nTICK\nX_ERROR(0.01) 9 10 11 12 13 14 15 16\nM 9 10 11 12 13 14 15 16\nDEPOLARIZE1(0.01) 0 1 2 3 4 5 6 7 8\nDETECTOR(0, 2, 2) rec[-8] rec[-16]\nDETECTOR(4, 2, 2) rec[-7] rec[-15]\nDETECTOR(2, 4, 2) rec[-6] rec[-14]\nDETECTOR(6, 4, 2) rec[-5] rec[-13]\nDETECTOR(4, 0, 2) rec[-4] rec[-12]\nDETECTOR(2, 2, 2) rec[-3] rec[-11]\nDETECTOR(4, 4, 2) rec[-2] rec[-10]\nDETECTOR(2, 6, 2) rec[-1] rec[-9]\nTICK\nX_ERROR(0.01) 0 1 2 3 4 5 6 7 8\nM 0 1 2 3 4 5 6 7 8\nDETECTOR(4, 0, 3) rec[-8] rec[-7] rec[-13]\nDETECTOR(2, 2, 3) rec[-9] rec[-6] rec[-8] rec[-5] rec[-12]\nDETECTOR(4, 4, 3) rec[-5] rec[-2] rec[-4] rec[-1] rec[-11]\nDETECTOR(2, 6, 3) rec[-3] rec[-2] rec[-10]\nOBSERVABLE_INCLUDE(0) rec[-9] rec[-6] rec[-3]",
+  "url": "https://algassert.com/crumble#circuit=Q(1,1)0;Q(3,1)1;Q(5,1)2;Q(1,3)3;Q(3,3)4;Q(5,3)5;Q(1,5)6;Q(3,5)7;Q(5,5)8;Q(0,2)9;Q(4,2)10;Q(2,4)11;Q(6,4)12;Q(4,0)13;Q(2,2)14;Q(4,4)15;Q(2,6)16;TICK;R_9_10_11_12_13_14_15_16;X_ERROR(0.01)9_10_11_12_13_14_15_16;R_0_1_2_3_4_5_6_7_8;X_ERROR(0.01)0_1_2_3_4_5_6_7_8;TICK;H_9_10_11_12;DEPOLARIZE1(0.01)9_10_11_12_0_1_2_3_4_5_6_7_8_13_14_15_16;TICK;CX_10_1_11_3_12_5_0_14_4_15_6_16;DEPOLARIZE2(0.01)10_1_11_3_12_5_0_14_4_15_6_16;DEPOLARIZE1(0.01)2_7_8_9_13;TICK;CX_10_4_11_6_12_8_1_14_5_15_7_16;DEPOLARIZE2(0.01)10_4_11_6_12_8_1_14_5_15_7_16;DEPOLARIZE1(0.01)0_2_3_9_13;TICK;CX_9_0_10_2_11_4_1_13_3_14_7_15;DEPOLARIZE2(0.01)9_0_10_2_11_4_1_13_3_14_7_15;DEPOLARIZE1(0.01)5_6_8_12_16;TICK;CX_9_3_10_5_11_7_2_13_4_14_8_15;DEPOLARIZE2(0.01)9_3_10_5_11_7_2_13_4_14_8_15;DEPOLARIZE1(0.01)0_1_6_12_16;TICK;H_9_10_11_12;DEPOLARIZE1(0.01)9_10_11_12_0_1_2_3_4_5_6_7_8_13_14_15_16;TICK;X_ERROR(0.01)9_10_11_12_13_14_15_16;M_9_10_11_12_13_14_15_16;DEPOLARIZE1(0.01)0_1_2_3_4_5_6_7_8;DT(4,0,1)rec[-4];DT(2,2,1)rec[-3];DT(4,4,1)rec[-2];DT(2,6,1)rec[-1];TICK;R_9_10_11_12_13_14_15_16;X_ERROR(0.01)9_10_11_12_13_14_15_16;DEPOLARIZE1(0.01)0_1_2_3_4_5_6_7_8;TICK;H_9_10_11_12;DEPOLARIZE1(0.01)9_10_11_12_0_1_2_3_4_5_6_7_8_13_14_15_16;TICK;CX_10_1_11_3_12_5_0_14_4_15_6_16;DEPOLARIZE2(0.01)10_1_11_3_12_5_0_14_4_15_6_16;DEPOLARIZE1(0.01)2_7_8_9_13;TICK;CX_10_4_11_6_12_8_1_14_5_15_7_16;DEPOLARIZE2(0.01)10_4_11_6_12_8_1_14_5_15_7_16;DEPOLARIZE1(0.01)0_2_3_9_13;TICK;CX_9_0_10_2_11_4_1_13_3_14_7_15;DEPOLARIZE2(0.01)9_0_10_2_11_4_1_13_3_14_7_15;DEPOLARIZE1(0.01)5_6_8_12_16;TICK;CX_9_3_10_5_11_7_2_13_4_14_8_15;DEPOLARIZE2(0.01)9_3_10_5_11_7_2_13_4_14_8_15;DEPOLARIZE1(0.01)0_1_6_12_16;TICK;H_9_10_11_12;DEPOLARIZE1(0.01)9_10_11_12_0_1_2_3_4_5_6_7_8_13_14_15_16;TICK;X_ERROR(0.01)9_10_11_12_13_14_15_16;M_9_10_11_12_13_14_15_16;DEPOLARIZE1(0.01)0_1_2_3_4_5_6_7_8;DT(0,2,2)rec[-8]_rec[-16];DT(4,2,2)rec[-7]_rec[-15];DT(2,4,2)rec[-6]_rec[-14];DT(6,4,2)rec[-5]_rec[-13];DT(4,0,2)rec[-4]_rec[-12];DT(2,2,2)rec[-3]_rec[-11];DT(4,4,2)rec[-2]_rec[-10];DT(2,6,2)rec[-1]_rec[-9];TICK;X_ERROR(0.01)0_1_2_3_4_5_6_7_8;M_0_1_2_3_4_5_6_7_8;DT(4,0,3)rec[-8]_rec[-7]_rec[-13];DT(2,2,3)rec[-9]_rec[-6]_rec[-8]_rec[-5]_rec[-12];DT(4,4,3)rec[-5]_rec[-2]_rec[-4]_rec[-1]_rec[-11];DT(2,6,3)rec[-3]_rec[-2]_rec[-10];OI(0)rec[-9]_rec[-6]_rec[-3]_",
+  "num_detectors": 16,
+  "num_observables": 1,
+  "cases": []
+ }
+]

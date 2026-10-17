@@ -847,3 +847,16 @@ td.num { font-family: var(--font-mono); text-align: right; white-space: nowrap; 
 .est-bar__swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; }
 /* Its answers are sentences as much as numbers: they wrap. */
 .est-out td.num, .est-out td { white-space: normal; }
+
+/* -- Section 17: the editor ------------------------------------------------------------ */
+.ed-controls { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin-bottom: var(--s2); }
+.btn--small { padding: 2px 8px; font-size: var(--t-micro); }
+.ed-views { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s3); margin: var(--s3) 0; }
+@media (max-width: 720px) { .ed-views { grid-template-columns: 1fr; } }
+.ed-grid, .ed-timeline { background: var(--surface); border: 1px solid var(--rule-soft); border-radius: 6px; padding: var(--s2); overflow: auto; }
+.ed-qubit { cursor: pointer; }
+.ed-qubit:hover circle:first-child, .ed-qubit:focus circle:first-child { stroke-width: 3; }
+.ed-layer { cursor: pointer; }
+.ed-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+.ed-text label { display: block; margin-top: var(--s3); }
+.ed-textarea, .ed-url { display: block; width: 100%; box-sizing: border-box; font-family: var(--mono, ui-monospace, monospace); font-size: var(--t-micro); margin-top: 4px; padding: 6px; border: 1px solid var(--rule-soft); border-radius: 4px; background: var(--surface); color: var(--ink); }

@@ -815,6 +815,21 @@ noise on every gate. In progress on `feature/2.0`.
   decoder (`device="cpu"`, every schedule, product-sum too) is unchanged. `tools/gpu_bench.py`
   records shots per second of each sampler and decoder in `data/gpu/bench.json`.
 
+- **The site edits circuits** (section 17, Figure 30; Crumble's job in the page): qubits on a
+  grid at their coordinates and a timeline of layers, a palette of gates placed by clicking
+  (two-qubit gates control first), layers added and removed, Pauli markers dropped before a
+  layer and propagated live by Clifford conjugation through H, S, √X, CX, CZ, SWAP and the rest
+  to the measurements they flip and so to the detectors and observables, which the table names
+  per marker; DETECTOR and OBSERVABLE placed on a qubit's newest measurement; the Stim text
+  rewritten on every edit and loaded back; the Crumble URL (`Circuit.to_crumble_url`'s format,
+  markers between TICKs as Stim writes them) written and read, and opened in Crumble. Checked in
+  CI by `tools/site-tests.mjs` against `tests/editor_port/crumble.json`, which
+  `tools/editor_fixtures.py` writes from the package: the page's URL equals the package's for
+  every example (a Bell pair, repetition, surface and colour code memories, a noisy memory) and
+  reads back to the same text, and every marker on every qubit of every layer flips exactly the
+  detectors and observables the engine's sampler flips with the same error inserted (about
+  700 cases). Noise and anything the editor does not draw pass through the text untouched.
+
 ### Fixed
 
 - `Circuit.num_non_clifford_gates()`, `tcount()` and `is_clifford` count through REPEAT blocks

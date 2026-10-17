@@ -13,6 +13,8 @@ import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardwar
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { surgeryLayout, cnotLayout } from '../js/surgery-geometry.js';
 import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom, epsilonUniform, BLOCKS, tileQubits, factoryFor, latencyAt, estimateFull } from '../js/estimator.js';
+import { parseStim, toStim, toCrumbleUrl, parseCrumbleUrl, formatArg } from '../js/crumble-format.js';
+import { EditorModel, layersOf, propagate, annotationsOf } from '../js/editor.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -472,6 +474,90 @@ test('estimator: the model reproduces what it is given, and moves the right way'
     { d: 5, mode: 'parallel', matcher: 'correlated', by_workers: byWorkers(99) },
     { d: 5, mode: 'sliding', matcher: 'correlated', by_workers: byWorkers(1) },
   ] }), { 3: 2 });
+});
+
+// -- The editor: Stim text and Crumble URLs against the package's, markers against the engine --
+
+const EDITOR_FIXTURES = JSON.parse(readFileSync(new URL('../tests/editor_port/crumble.json', import.meta.url), 'utf8'));
+
+test('crumble format: numbers as Stim prints them', () => {
+  assert.equal(formatArg(3), '3');
+  assert.equal(formatArg(0.5), '0.5');
+  assert.equal(formatArg(0.001), '0.001');
+  assert.equal(formatArg(1e-7), '1e-07');
+  assert.equal(formatArg(2.5e6), '2500000'); // an integral value prints bare, as the package's writer does
+  assert.equal(formatArg(1 / 3), '0.333333');
+});
+
+test('crumble format: the editor writes the package\'s URL for every example and reads it back', () => {
+  for (const f of EDITOR_FIXTURES) {
+    const circuit = parseStim(f.stim);
+    assert.equal(toCrumbleUrl(circuit), f.url, f.name);
+    assert.equal(toStim(circuit), f.stim, `${f.name}: Stim text round trip`);
+    const back = parseCrumbleUrl(f.url);
+    assert.equal(toStim(back.circuit), f.stim, `${f.name}: URL back to Stim text`);
+    assert.deepEqual(back.markers, []);
+    const model = EditorModel.fromStim(f.stim);
+    assert.equal(model.toStim(), f.stim, `${f.name}: through the model`);
+    assert.equal(model.toCrumbleUrl(), f.url, `${f.name}: the model's URL`);
+    const { detectors, observables } = annotationsOf(model.layers);
+    assert.equal(detectors.length, f.num_detectors, `${f.name}: detectors`);
+    assert.equal(new Set(observables.map((o) => o.index)).size, f.num_observables, `${f.name}: observables`);
+  }
+});
+
+test('crumble format: markers round-trip through the URL between TICKs, as Stim writes them', () => {
+  const model = EditorModel.fromStim(EDITOR_FIXTURES[0].stim);
+  model.toggleMarker(0, 'X', 0, 1);
+  model.toggleMarker(1, 'Z', 1, 2);
+  const url = model.toCrumbleUrl();
+  assert.ok(url.includes(';TICK;MARKX(0)0;TICK;H_0;') && url.includes(';TICK;MARKZ(1)1;TICK;CX_0_1;'), url);
+  const back = EditorModel.fromCrumbleUrl(url);
+  assert.equal(back.toStim(), model.toStim());
+  assert.deepEqual(back.markers, model.markers);
+});
+
+test('editor: markers propagate as the engine\'s errors do, on every qubit, layer and Pauli', () => {
+  let checked = 0;
+  for (const f of EDITOR_FIXTURES) {
+    if (!f.cases.length) continue;
+    const model = EditorModel.fromStim(f.stim);
+    for (const c of f.cases) {
+      model.markers = [{ k: 0, pauli: c.pauli, qubit: c.qubit, layer: c.layer }];
+      const a = model.analysis();
+      assert.deepEqual([...a.detFlips[0]].sort((x, y) => x - y), c.detectors, `${f.name}: ${c.pauli}${c.qubit} before layer ${c.layer}: detectors`);
+      assert.deepEqual([...a.obsFlips[0]].sort((x, y) => x - y), c.observables, `${f.name}: ${c.pauli}${c.qubit} before layer ${c.layer}: observables`);
+      checked++;
+    }
+  }
+  assert.ok(checked > 600, `${checked} cases`);
+});
+
+test('editor: placing, removing and layering gates keeps the text well formed', () => {
+  const m = new EditorModel();
+  m.setCoords(0, 0, 0);
+  m.setCoords(1, 1, 0);
+  m.place(0, 'R', [0, 1]);
+  m.place(1, 'H', [0]);
+  m.place(2, 'CX', [0, 1]);
+  m.place(3, 'CX', [0, 1]);
+  m.place(4, 'H', [0]);
+  m.place(5, 'M', [0, 1]);
+  m.addDetector(5, [2], [0, 0, 0]);
+  m.addDetector(5, [1], [1, 0, 0]);
+  m.addDetector(5, [1], [], 0);
+  assert.equal(m.toStim(), EDITOR_FIXTURES[0].stim);
+  m.place(1, 'S', [0]); // replaces the H
+  assert.equal(m.layers[1].length, 1);
+  assert.equal(m.layers[1][0].name, 'S');
+  m.removeOn(2, 1); // a two-qubit gate goes whole
+  assert.equal(m.layers[2].length, 0);
+  m.addLayer(0);
+  assert.equal(m.layers.length, 7);
+  m.deleteLayer(1);
+  assert.equal(m.layers.length, 6);
+  assert.deepEqual(m.qubits(), [0, 1]);
+  assert.deepEqual(m.recordsIn(5).map((r) => [r.qubit, r.lookback]), [[0, 2], [1, 1]]);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);
