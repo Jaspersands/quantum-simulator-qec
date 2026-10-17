@@ -128,6 +128,8 @@ pub mod nonpauli;
 #[doc(hidden)]
 pub mod statevec;
 #[doc(hidden)]
+pub mod stabrank;
+#[doc(hidden)]
 pub mod density;
 #[doc(hidden)]
 pub mod perturb;

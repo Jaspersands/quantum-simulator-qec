@@ -439,7 +439,14 @@ pub fn inverse(c: &ir::Circuit, allow_weak_inverse: bool) -> Result<ir::Circuit,
             targets.extend(op.targets.iter().rev());
         }
         let name = gate_inverse_candidate(op.gate.name);
-        let new = inst(name, args, targets, &op.tag);
+        // A tagged identity's operation (`I[T]`, `I[R_Z(theta=…)]`) inverts with its tag.
+        let mut tag = op.tag.to_string();
+        if matches!(op.gate.name, "I" | "II" | "I_ERROR" | "II_ERROR") && !tag.is_empty() {
+            if let Some(t) = crate::nonpauli::inverse_tag(&tag)? {
+                tag = t;
+            }
+        }
+        let new = inst(name, args, targets, &tag);
         // Stim's safe_append_reversed_targets: fuse with the previous instruction if possible.
         if let Some(Item::Op(last)) = items.last_mut() {
             if last.can_fuse(&new) {

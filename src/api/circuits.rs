@@ -395,6 +395,14 @@ impl Circuit {
         Ok(ExactSampler { program: crate::statevec::Program::new(&self.inner)?, seed, next: 0 })
     }
 
+    /// The stabilizer-rank sampler: Clifford+T circuits (`I[T]`, `I[R_Z(theta=…)]`,
+    /// `I[U3(…)]`, any Pauli rotation written as a gate) at any qubit count, exactly, its cost
+    /// growing with the number of non-Clifford gates rather than of qubits. Pauli noise runs
+    /// as the frame sampler's; damping and leakage are refused.
+    pub fn stabilizer_rank_sampler(&self, seed: u64) -> Result<StabilizerRankSampler> {
+        Ok(StabilizerRankSampler { program: crate::stabrank::Program::new(&self.inner)?, seed, next: 0, peak: 0 })
+    }
+
     /// The circuit with each coherent rotation exp(−iθP) replaced by its Pauli twirl, P with
     /// probability sin²θ: the model Stim and every decoder assume. With `merge`, rotations that
     /// are the same fault in different places become one with their angles added (the
@@ -1188,6 +1196,73 @@ impl ExactSampler {
             detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
             observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
         }
+    }
+}
+
+/// Shots of a Clifford+T circuit from the stabilizer-rank sampler. Made by
+/// [`Circuit::stabilizer_rank_sampler`].
+pub struct StabilizerRankSampler {
+    program: crate::stabrank::Program,
+    seed: u64,
+    next: u64,
+    peak: usize,
+}
+
+impl StabilizerRankSampler {
+    /// Detectors per shot.
+    pub fn num_detectors(&self) -> usize {
+        self.program.num_detectors()
+    }
+
+    /// Observables per shot.
+    pub fn num_observables(&self) -> usize {
+        self.program.num_observables()
+    }
+
+    /// Measurements per shot.
+    pub fn num_measurements(&self) -> usize {
+        self.program.num_measurements()
+    }
+
+    /// The circuit's qubits.
+    pub fn num_qubits(&self) -> usize {
+        self.program.num_qubits()
+    }
+
+    /// How many of the circuit's gates split the state: its non-Clifford gates.
+    pub fn num_non_clifford(&self) -> usize {
+        self.program.num_non_clifford()
+    }
+
+    /// The most terms any shot so far has held at once (the rank the sampler reached).
+    pub fn peak_terms(&self) -> usize {
+        self.peak
+    }
+
+    /// `shots` more shots' detection events and observable flips, each from its own stream;
+    /// `threads = 0` uses every core and never changes them.
+    pub fn sample(&mut self, shots: usize, threads: usize) -> Samples {
+        let (d, o, peak) = crate::stabrank::sample_seeded(&self.program, self.seed, self.next, shots, threads);
+        self.next += shots as u64;
+        self.peak = self.peak.max(peak);
+        Samples {
+            detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
+        }
+    }
+
+    /// `shots` more shots' measurement records, from the same stream of shots as `sample`.
+    pub fn sample_measurements(&mut self, shots: usize, threads: usize) -> BitTable {
+        let (m, peak) = crate::stabrank::measurements_seeded(&self.program, self.seed, self.next, shots, threads);
+        self.next += shots as u64;
+        self.peak = self.peak.max(peak);
+        BitTable::from_packed(shots, self.num_measurements(), m).expect("the sampler writes whole rows")
+    }
+
+    /// The probability of a measurement record: exact for a circuit without noise channels or
+    /// measurement flips; with them, an average over `samples` draws of the noise.
+    pub fn probability_of(&self, record: &[bool], samples: usize) -> Result<f64> {
+        Ok(self.program.probability_of(record, samples, self.seed)?)
     }
 }
 

@@ -1,5 +1,7 @@
-"""Tagged non-Pauli instructions (`I_ERROR[R_Z(theta=0.1)] 0`): Stim-readable, inert in every
-Clifford engine, and an error when a known tag is malformed."""
+"""Tagged non-Pauli instructions (`I_ERROR[R_Z(theta=0.1)] 0`): Stim-readable; the errors
+(coherent rotations, leakage, damping) inert in every Clifford engine, the gates (`I[T]`,
+`I[U3(…)]`) run by the samplers (the stabilizer-rank sampler); an error when a known tag is
+malformed."""
 
 from __future__ import annotations
 
@@ -47,19 +49,39 @@ def test_tags_round_trip(pair):
     assert str(sq.Circuit(text)) == text
 
 
-def test_clifford_engines_ignore_the_tags(pair):
+def test_clifford_engines_ignore_the_error_tags(pair):
     tagged, bare = pair
+    # The error model and the converter read every tag as Stim does: as nothing.
     assert str(tagged.detector_error_model(decompose_errors=True)) == str(bare.detector_error_model(decompose_errors=True))
-    a = tagged.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
-    b = bare.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
-    assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
     m = bare.compile_sampler(seed=3).sample(500)
-    assert np.array_equal(tagged.compile_sampler(seed=3).sample(500), m)
     assert np.array_equal(
         tagged.compile_m2d_converter().convert(measurements=m, separate_observables=True)[0],
         bare.compile_m2d_converter().convert(measurements=m, separate_observables=True)[0],
     )
     assert tagged.num_detectors == bare.num_detectors and tagged.num_measurements == bare.num_measurements
+    # The frame samplers ignore the errors (coherent, leakage, damping, someone else's tag).
+    errors = sq.Circuit(str(bare).replace("TICK", "TICK\n" + "\n".join(t for t in TAGS if not t.startswith("I["))))
+    assert errors.num_non_clifford_gates() == 0
+    a = errors.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
+    b = bare.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
+    assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
+    assert np.array_equal(errors.compile_sampler(seed=3).sample(500), m)
+
+
+def test_gate_tags_go_to_the_stabilizer_rank_sampler(pair):
+    tagged, bare = pair
+    # The gates (T, T_DAG, U3) are run: the samplers of a circuit with them are the
+    # stabilizer-rank sampler's, which refuses the leakage the full set also carries.
+    # Per TICK run (the loop's counted each pass): T, T_DAG and U3's three rotations.
+    assert tagged.num_non_clifford_gates() == 5 * str(tagged.flattened()).count("TICK")
+    with pytest.raises(ValueError, match="leakage sampler"):
+        tagged.compile_detector_sampler(seed=5)
+    gates = sq.Circuit(str(bare).replace("TICK", "TICK\n" + "\n".join(t for t in TAGS if t.startswith("I["))))
+    s = gates.compile_detector_sampler(seed=5)
+    assert isinstance(s, sq.StabilizerRankSampler)
+    d = s.sample(200, separate_observables=True)
+    assert d[0].shape == (200, gates.num_detectors) and s.peak_terms > 1
+    assert gates.compile_sampler(seed=3).sample(50).shape == (50, gates.num_measurements)
 
 
 def test_stim_reads_the_tags(pair):

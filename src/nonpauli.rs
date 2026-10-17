@@ -12,8 +12,11 @@ use crate::circuit::Pauli;
 /// One operation a tag asks for, on its qubits.
 #[derive(Clone, Debug, PartialEq)]
 pub enum NonPauli {
-    /// exp(−iθP) for the Pauli product `pauli` (qubit, Pauli code: X 1, Z 2, Y 3).
-    Rotation { pauli: Vec<(u32, Pauli)>, theta: f64 },
+    /// exp(−iθP) for the Pauli product `pauli` (qubit, Pauli code: X 1, Z 2, Y 3). `noise` is
+    /// whether it was written as an error (`I_ERROR`, `II_ERROR`: a coherent error, which the
+    /// coherent sampler draws as its twirl and reweights) rather than a gate (`I`, `II`: run
+    /// exactly, as the Clifford+T sampler runs it).
+    Rotation { pauli: Vec<(u32, Pauli)>, theta: f64, noise: bool },
     /// The T gate, diag(1, e^{iπ/4}), or its inverse.
     T { qubit: u32, dagger: bool },
     /// OpenQASM's U3(θ, φ, λ).
@@ -75,10 +78,10 @@ impl NonPauli {
     pub fn line(&self) -> String {
         let f = |v: f64| format!("{v:?}");
         match self {
-            NonPauli::Rotation { pauli, theta } => {
+            NonPauli::Rotation { pauli, theta, noise } => {
                 let letters: String = pauli.iter().map(|&(_, p)| ['I', 'X', 'Z', 'Y'][p as usize]).collect();
                 let qs: Vec<String> = pauli.iter().map(|&(q, _)| q.to_string()).collect();
-                format!("I_ERROR[R_PAULI(theta={}, pauli={letters})] {}", f(*theta), qs.join(" "))
+                format!("{}[R_PAULI(theta={}, pauli={letters})] {}", if *noise { "I_ERROR" } else { "I" }, f(*theta), qs.join(" "))
             }
             NonPauli::T { qubit, dagger } => format!("I[{}] {qubit}", if *dagger { "T_DAG" } else { "T" }),
             NonPauli::U3 { qubit, theta, phi, lambda } => format!("I[U3(theta={}, phi={}, lambda={})] {qubit}", f(*theta), f(*phi), f(*lambda)),
@@ -152,6 +155,7 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
         Ok(v)
     };
     let pair_gate = gate.starts_with("II");
+    let noise = gate.ends_with("_ERROR");
     let single = |what: &str| -> Result<(), String> {
         if pair_gate {
             Err(format!("{here}: {what} acts on single qubits; write it on I or I_ERROR"))
@@ -184,13 +188,13 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
             single(&name)?;
             let theta = number("theta")?;
             let p = code(name.chars().last().unwrap()).unwrap();
-            targets.iter().map(|&q| NonPauli::Rotation { pauli: vec![(q, p)], theta }).collect()
+            targets.iter().map(|&q| NonPauli::Rotation { pauli: vec![(q, p)], theta, noise }).collect()
         }
         "R_XX" | "R_YY" | "R_ZZ" => {
             pairs(&name)?;
             let theta = number("theta")?;
             let p = code(name.chars().last().unwrap()).unwrap();
-            targets.chunks(2).map(|c| NonPauli::Rotation { pauli: vec![(c[0], p), (c[1], p)], theta }).collect()
+            targets.chunks(2).map(|c| NonPauli::Rotation { pauli: vec![(c[0], p), (c[1], p)], theta, noise }).collect()
         }
         "R_PAULI" => {
             let theta = number("theta")?;
@@ -207,7 +211,7 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
                 }
                 pauli.push((q, code(c).ok_or_else(|| format!("{here}: '{c}' is not a Pauli"))?));
             }
-            vec![NonPauli::Rotation { pauli, theta }]
+            vec![NonPauli::Rotation { pauli, theta, noise }]
         }
         "T" | "T_DAG" => {
             single(&name)?;
@@ -272,18 +276,69 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
     Ok(Some(ops))
 }
 
+/// The tag of the inverse of a tagged `I`/`II` gate: T ↔ T_DAG, a rotation's angle negated
+/// (an `R_PAULI`'s letters reversed, as the inverse writes the targets in reverse),
+/// U3(θ, φ, λ)⁻¹ = U3(−θ, −λ, −φ). `None` for a tag that is not one of this module's
+/// operations (inert, its own inverse); an error for an operation with no inverse (damping,
+/// leakage).
+pub fn inverse_tag(tag: &str) -> Result<Option<String>, String> {
+    let Ok((name, args)) = split(tag) else {
+        return Ok(None);
+    };
+    if !KNOWN.contains(&name.as_str()) {
+        return Ok(None);
+    }
+    let neg = |v: &str| -> Result<String, String> {
+        let x: f64 = v.parse().map_err(|_| format!("{tag}: '{v}' is not a number"))?;
+        Ok(format!("{:?}", -x))
+    };
+    let joined = |args: &[(String, String)]| format!("{name}({})", args.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(", "));
+    Ok(Some(match name.as_str() {
+        "T" => "T_DAG".to_string(),
+        "T_DAG" => "T".to_string(),
+        "R_X" | "R_Y" | "R_Z" | "R_XX" | "R_YY" | "R_ZZ" | "R_PAULI" => {
+            let mut a = args;
+            for (k, v) in a.iter_mut() {
+                if k == "theta" {
+                    *v = neg(v)?;
+                } else if k == "pauli" {
+                    *v = v.chars().rev().collect();
+                }
+            }
+            joined(&a)
+        }
+        "U3" => {
+            let get = |key: &str| args.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).ok_or_else(|| format!("{tag}: missing argument '{key}'"));
+            let (t, p, l) = (get("theta")?, get("phi")?, get("lambda")?);
+            format!("U3(theta={}, phi={}, lambda={})", neg(&t)?, neg(&l)?, neg(&p)?)
+        }
+        _ => return Err(format!("The circuit has no well-defined inverse because it contains '{tag}', which is not unitary.")),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn inverse_tags() {
+        assert_eq!(inverse_tag("T").unwrap().unwrap(), "T_DAG");
+        assert_eq!(inverse_tag("T_DAG").unwrap().unwrap(), "T");
+        assert_eq!(inverse_tag("R_Z(theta=0.25)").unwrap().unwrap(), "R_Z(theta=-0.25)");
+        assert_eq!(inverse_tag("R_PAULI(theta=-0.5, pauli=XZY)").unwrap().unwrap(), "R_PAULI(theta=0.5, pauli=YZX)");
+        assert_eq!(inverse_tag("U3(theta=1.0, phi=2.0, lambda=3.0)").unwrap().unwrap(), "U3(theta=-1.0, phi=-3.0, lambda=-2.0)");
+        assert_eq!(inverse_tag("mine").unwrap(), None);
+        assert!(inverse_tag("LEAK(p=0.1)").unwrap_err().contains("not unitary"));
+    }
+
+    #[test]
     fn rotations_parse() {
         let ops = parse("I_ERROR", "R_Z(theta=0.1)", &[0, 1]).unwrap().unwrap();
-        assert_eq!(ops, vec![NonPauli::Rotation { pauli: vec![(0, 2)], theta: 0.1 }, NonPauli::Rotation { pauli: vec![(1, 2)], theta: 0.1 }]);
+        assert_eq!(ops, vec![NonPauli::Rotation { pauli: vec![(0, 2)], theta: 0.1, noise: true }, NonPauli::Rotation { pauli: vec![(1, 2)], theta: 0.1, noise: true }]);
         let ops = parse("II_ERROR", "R_ZZ(theta=-0.25)", &[3, 4]).unwrap().unwrap();
-        assert_eq!(ops, vec![NonPauli::Rotation { pauli: vec![(3, 2), (4, 2)], theta: -0.25 }]);
-        let ops = parse("I_ERROR", "R_PAULI(theta=0.5, pauli=XIY)", &[0, 1, 2]).unwrap().unwrap();
-        assert_eq!(ops, vec![NonPauli::Rotation { pauli: vec![(0, 1), (2, 3)], theta: 0.5 }]);
+        assert_eq!(ops, vec![NonPauli::Rotation { pauli: vec![(3, 2), (4, 2)], theta: -0.25, noise: true }]);
+        let ops = parse("I", "R_PAULI(theta=0.5, pauli=XIY)", &[0, 1, 2]).unwrap().unwrap();
+        assert_eq!(ops, vec![NonPauli::Rotation { pauli: vec![(0, 1), (2, 3)], theta: 0.5, noise: false }]);
         let ops = parse("I", "T_DAG", &[5]).unwrap().unwrap();
         assert_eq!(ops, vec![NonPauli::T { qubit: 5, dagger: true }]);
         let ops = parse("I", "U3(theta=1, phi=2, lambda=3)", &[0]).unwrap().unwrap();

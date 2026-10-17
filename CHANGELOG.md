@@ -626,6 +626,37 @@ noise on every gate. In progress on `feature/2.0`.
 - In Rust: `clifford::{PauliString, Tableau, TableauSimulator}`, Stim's conversions
   (`clifford::convert`: stabilizers, state vectors, unitaries, circuits, graph states, random
   Cliffords) and its instruction-level circuit (`clifford::ir`).
+- **The stabilizer-rank sampler** (`Circuit.compile_stabilizer_rank_sampler`, Rust
+  `StabilizerRankSampler`): Clifford+T circuits at any qubit count, exactly, the cost growing
+  with the number of non-Clifford gates (`I[T]`, `I[T_DAG]`, rotations and `U3` written as
+  gates) rather than of qubits, as Tsim samples them. The state is a sum of Clifford branches,
+  one per coset of the reference run's stabilizer group the non-Clifford gates reach (at most
+  2^(T count); seven T gates on the Steane code's |0⟩ are eight terms, fifteen on the
+  [[15,1,3]] code's thirty-two), on a reference tableau that is the same in every shot;
+  Pauli noise, measurement flips, heralds and feedback run as the frame sampler's.
+  `sample` (detection events), `sample_measurements`, `probability_of` (a record's exact
+  probability), `peak_terms`; `exact_distribution(method="stabilizer_rank")`. Equal to the
+  state vector's distribution bit for bit on random Clifford+T circuits with noise,
+  measurements in every basis, resets and feedback (`tests/test_stabrank.py`). **A circuit's
+  samplers run its gates**: `compile_sampler` and `compile_detector_sampler` on a circuit with
+  non-Clifford gates now give this sampler's shots (1.9's ran Stim's reading, the identity;
+  `without_tags()` keeps it). Coherent errors (`I_ERROR[R_Z(…)]`) are still not gates:
+  `compile_coherent_sampler` is theirs. `Circuit.num_non_clifford_gates()` counts the gates.
+- **Tsim's circuit surface**: `Circuit.tcount()` (Tsim's count: every non-Clifford phase),
+  `Circuit.is_clifford`, `Circuit.to_matrix(endian="big")` and `to_tensor()` (the unitary of a
+  circuit of gates, Clifford or not, up to 10 qubits, by the state vector), `Circuit.inverse()`
+  of tagged gates (`I[T]` ↔ `I[T_DAG]`, angles negated, `U3(θ, φ, λ)⁻¹ = U3(−θ, −λ, −φ)`),
+  `Circuit.detector_error_model(allow_non_deterministic_observables=True)` (Tsim's
+  conversion of an observable a non-Clifford gate leaves random, ported in
+  `stabilizer_qec.tsim.get_detector_error_model`), and `stabilizer_qec.tsim.Circuit(text)`,
+  which reads Tsim's shorthand (`T 0`, `TPP X0*Z1`, `R_Z(0.25) 0`, `CCZ 0 1 2`) or tagged text
+  as a circuit of this package. Every gate matrix Tsim tests its gates against (its
+  `gate_matrices.py`, in `tests/tsim_port/`) is `to_matrix`'s up to a global phase, T's and the
+  rotations' exactly; Tsim's `test_dem.py` and the `test_circuit.py` cases of these methods are
+  ported (`tests/test_tsim_surface.py`). Against Tsim itself where it is installed
+  (`tests/test_tsim_differential.py`, `tools/clifford_t.py check`): its demo circuits' records
+  within the error bars of our exact probabilities, `tcount`, `is_clifford`, `to_matrix` and
+  `inverse` agreeing on random shorthand circuits.
 
 ### Fixed
 

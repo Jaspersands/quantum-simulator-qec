@@ -218,8 +218,10 @@ class Circuit:
         return call(_core.circuit_to_deltakit, str(self))
 
     def inverse(self) -> "Circuit":
-        """The unitary inverse: operations inverted and in reverse. Noise, measurements and
-        resets have no inverse and raise ``ValueError``."""
+        """The unitary inverse: operations inverted and in reverse, the tagged gates too
+        (``I[T]`` ↔ ``I[T_DAG]``, a rotation's angle negated, ``U3(θ, φ, λ)``⁻¹ =
+        ``U3(−θ, −λ, −φ)``). Noise, measurements and resets have no inverse and raise
+        ``ValueError``."""
         return self._transformed("inverse")
 
     def with_inlined_feedback(self) -> "Circuit":
@@ -298,6 +300,41 @@ class Circuit:
     def to_tableau(self, *, ignore_noise: bool = False, ignore_measurement: bool = False, ignore_reset: bool = False) -> "_stim.Tableau":
         """The tableau of the circuit's unitary part."""
         return _stim.Tableau.from_circuit(self, ignore_noise=ignore_noise, ignore_measurement=ignore_measurement, ignore_reset=ignore_reset)
+
+    def to_matrix(self, *, endian: str = "big") -> np.ndarray:
+        """The unitary the circuit applies, Clifford or not (``I[T]``, rotations, ``U3``), as a
+        2^n × 2^n complex128 array, n one more than the largest qubit named (at most 10); as
+        Tsim's ``to_matrix``, with qubit 0 the most significant bit of a basis index
+        (``endian="little"`` makes it the least). Global phase as the gates give it (T is
+        diag(1, e^{iπ/4})). A circuit with a measurement, reset or noise channel has no matrix
+        (``ValueError``)."""
+        if endian not in ("big", "little"):
+            raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
+        n, data = call(self._c.unitary_matrix, endian == "little")
+        return np.frombuffer(data, dtype="<c16").reshape(1 << n, 1 << n).copy()
+
+    def to_tensor(self, *, endian: str = "big") -> np.ndarray:
+        """``to_matrix`` as a tensor of shape (2,) * 2n: n output indices then n input indices,
+        in the order of ``endian``."""
+        m = self.to_matrix(endian=endian)
+        n = m.shape[0].bit_length() - 1
+        return m.reshape((2,) * (2 * n))
+
+    def tcount(self) -> int:
+        """The circuit's T-count as Tsim (pyzx) counts it: its non-Clifford phases, one for
+        each ``I[T]`` and ``I[T_DAG]`` gate and each rotation (a gate or a coherent error, each
+        of a ``U3``'s three) by an angle that is not a multiple of π/2 in half-turns (of π/4 in
+        this package's ``exp(−iθP)``), whatever the angle: ``I[R_Z(theta=0.1)] 0`` counts 1,
+        ``I[R_Z(theta=0.7853981633974483)] 0`` (S) counts 0."""
+        return call(self._c.t_count)
+
+    @property
+    def is_clifford(self) -> bool:
+        """Whether every gate and coherent error of the circuit is Clifford, as Tsim's
+        ``is_clifford``: no T gate, every rotation (a ``U3``'s three among them) by a multiple
+        of π/2 in half-turns, of π/4 in this package's ``exp(−iθP)``. Noise channels, damping
+        and leakage are not gates and do not count."""
+        return call(self._c.is_clifford)
 
     def to_file(self, file: Any) -> None:
         """Write the circuit's text to a path or an open text file."""
@@ -513,6 +550,7 @@ class Circuit:
         allow_gauge_detectors: bool = False,
         ignore_decomposition_failures: bool = False,
         block_decomposition_from_introducing_remnant_edges: bool = False,
+        allow_non_deterministic_observables: bool = False,
     ) -> "DetectorErrorModel":
         """The circuit's detector error model, built by walking it backwards, as Stim's error
         analyzer does. ``decompose_errors`` splits each fault into graph-like pieces (at most
@@ -534,7 +572,24 @@ class Circuit:
         ``allow_gauge_detectors`` (Stim's): a detector a reset or measurement makes random
         becomes a 50% error on it instead of an error; observables must still be deterministic.
         ``block_decomposition_from_introducing_remnant_edges`` (Stim's): split faults only into
-        pieces other faults already make."""
+        pieces other faults already make.
+
+        ``allow_non_deterministic_observables`` (Tsim's): an observable a non-Clifford gate
+        leaves random is allowed: the observables become detectors, the model is built with
+        ``allow_gauge_detectors``, and they become observables again (a gauge error on
+        observables alone is dropped). Not with ``decompose_errors``."""
+        if allow_non_deterministic_observables:
+            from .tsim.noise.dem import get_detector_error_model
+
+            return get_detector_error_model(
+                self,
+                decompose_errors=decompose_errors,
+                approximate_disjoint_errors=approximate_disjoint_errors,
+                flatten_loops=flatten_loops,
+                allow_gauge_detectors=allow_gauge_detectors,
+                ignore_decomposition_failures=ignore_decomposition_failures,
+                block_decomposition_from_introducing_remnant_edges=block_decomposition_from_introducing_remnant_edges,
+            )
         if isinstance(approximate_disjoint_errors, bool):
             threshold = 1.0 if approximate_disjoint_errors else None
         else:
@@ -746,8 +801,42 @@ class Circuit:
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
-        shots on any machine and any number of threads; ``None`` draws a seed."""
+        shots on any machine and any number of threads; ``None`` draws a seed. A circuit with
+        non-Clifford gates (``I[T]``, ``I[R_Z(theta=…)]``, ``I[U3(…)]``) gets the
+        stabilizer-rank sampler, which runs them (``without_tags()`` for Stim's reading, the
+        identity)."""
+        if self.num_non_clifford_gates():
+            return StabilizerRankSampler(self, seed)
         return DetectorSampler(self, seed)
+
+    def compile_stabilizer_rank_sampler(self, *, seed: Union[int, None] = None) -> "StabilizerRankSampler":
+        """A sampler for Clifford+T circuits at any qubit count, exact, its cost growing with the
+        number of non-Clifford gates (``I[T] 0``, ``I[T_DAG] 0``, ``I[R_Z(theta=0.3)] 0``,
+        ``II[R_XX(theta=0.3)] 0 1``, ``I[R_PAULI(theta=0.3, pauli=XYZ)] 0 1 2``,
+        ``I[U3(theta=…, phi=…, lambda=…)] 0``) rather than of qubits: the state is a sum of
+        Clifford branches, one per coset of the reference run's stabilizer group that the
+        non-Clifford gates reach, at most 2^(T count) of them and far fewer on code states
+        (seven T gates on the Steane code's |0⟩ are eight terms). Pauli noise, measurement
+        flips, heralds and feedback run as the frame sampler's; amplitude damping and leakage
+        are refused (the state vector, the density matrix and the leakage sampler run them).
+        Its ``sample`` has the detector sampler's signature; ``sample_measurements`` gives
+        records, ``probability_of`` a record's exact probability.
+
+        >>> import stabilizer_qec as sq
+        >>> c = sq.Circuit("R 0\nH 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]")
+        >>> p = c.exact_distribution(method="stabilizer_rank")[((True,), ())]
+        >>> round(p, 6)  # sin²(π/8)
+        0.146447
+        """
+        return StabilizerRankSampler(self, seed)
+
+    def num_non_clifford_gates(self) -> int:
+        """How many of the circuit's gates are not Clifford: its ``I[T]``/``I[T_DAG]`` gates,
+        and its tagged rotations and ``U3`` half-angle rotations written as gates (on ``I``,
+        ``II``) at angles that are not multiples of π/4 (``I[R_Z(theta=0.7853981633974483)]``
+        is S, and counts 0). Coherent errors (``I_ERROR``, ``II_ERROR``) are not gates and do
+        not count."""
+        return call(self._c.num_non_clifford_gates)
 
     def compile_exact_sampler(self, *, seed: Union[int, None] = None) -> "ExactSampler":
         """An exact sampler: the full state vector (up to 24 qubits in use), running every
@@ -780,11 +869,14 @@ class Circuit:
         probability}``, each a tuple of bools. ``method="state_vector"`` (up to 24 qubits)
         follows every measurement outcome and noise branch; ``"density_matrix"`` (up to 12)
         applies each noise channel whole and branches only on what measurements record, far
-        fewer branches on a noisy circuit. For small circuits; more than ``max_branches``
-        branches is an error."""
-        if method not in ("state_vector", "density_matrix"):
-            raise ValueError(f"method must be 'state_vector' or 'density_matrix', got {method!r}")
-        run = self._c.exact_distribution if method == "state_vector" else self._c.density_distribution
+        fewer branches on a noisy circuit; ``"stabilizer_rank"`` (any number of qubits, the
+        cost growing with the non-Clifford gates) follows the branches as the state vector does
+        with the stabilizer-rank sampler's engine. For small circuits; more than
+        ``max_branches`` branches is an error."""
+        runs = {"state_vector": self._c.exact_distribution, "density_matrix": self._c.density_distribution, "stabilizer_rank": self._c.stabilizer_rank_distribution}
+        if method not in runs:
+            raise ValueError(f"method must be 'state_vector', 'density_matrix' or 'stabilizer_rank', got {method!r}")
+        run = runs[method]
         rows = call(run, count(max_branches, "max_branches"))
         no = self.num_observables
         return {(tuple(d), tuple(bool(o >> k & 1) for k in range(no))): p for d, o, p in rows}
@@ -1607,7 +1699,11 @@ class MeasurementSampler:
                 raise ValueError(f"reference_sample must have {n} bits (or {(n + 7) // 8} bit-packed bytes), not shape {np.asarray(reference_sample).shape}")
             self._reference = r.astype(bool)
             skip_reference_sample = True
-        self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample))
+        if circuit.num_non_clifford_gates():
+            # A circuit with non-Clifford gates: its records from the stabilizer-rank sampler.
+            self._s = _ExactRecords(call(circuit._c.stabilizer_rank_sampler, seed_of(seed)), circuit.reference_sample() if skip_reference_sample else None)
+        else:
+            self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample))
 
     def __reduce__(self) -> tuple:
         raise TypeError("a MeasurementSampler is a position in a stream of shots, which a copy would restart; send the circuit and a seed instead")
@@ -1723,6 +1819,28 @@ class DemSampler:
             write_shot_data_file(data=o, path=obs_out_file, format=obs_out_format, num_observables=self.num_observables)
         if err_out_file is not None:
             write_shot_data_file(data=e, path=err_out_file, format=err_out_format, num_measurements=ne)
+
+
+class _ExactRecords:
+    """The stabilizer-rank sampler's records behind a ``MeasurementSampler``: flips relative to
+    the reference run when one is given (``skip_reference_sample``)."""
+
+    __slots__ = ("_s", "_reference")
+
+    def __init__(self, s: Any, reference: Union[np.ndarray, None]) -> None:
+        self._s = s
+        self._reference = reference
+
+    @property
+    def num_measurements(self) -> int:
+        return self._s.num_measurements
+
+    def sample(self, shots: int, threads: int) -> bytes:
+        raw = call(self._s.sample_measurements, shots, threads)
+        if self._reference is None:
+            return raw
+        rows = b8_to_rows(raw, shots, self.num_measurements, False) ^ self._reference[None, :]
+        return pack_rows(rows, True).tobytes()
 
 
 class DetectorSampler:
@@ -1853,6 +1971,65 @@ class ExactSampler(DetectorSampler):
     def num_qubits(self) -> int:
         """The qubits in use, which the state vector holds."""
         return self._s.num_qubits
+
+
+class StabilizerRankSampler(DetectorSampler):
+    """Shots of a Clifford+T circuit from the stabilizer-rank sampler, at any qubit count. Made
+    by ``Circuit.compile_stabilizer_rank_sampler`` (and by ``compile_detector_sampler`` on a
+    circuit with non-Clifford gates); ``sample`` is the detector sampler's. Each shot has its
+    own random stream, so threads never change the shots and calls continue shot by shot."""
+
+    __slots__ = ()
+
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None) -> None:
+        if not isinstance(circuit, Circuit):
+            circuit = Circuit(circuit)
+        self._circuit = circuit
+        self._s = call(circuit._c.stabilizer_rank_sampler, seed_of(seed))
+
+    def __repr__(self) -> str:
+        return f"stabilizer_qec.StabilizerRankSampler({self._circuit!r})"
+
+    @property
+    def num_measurements(self) -> int:
+        return self._s.num_measurements
+
+    @property
+    def num_qubits(self) -> int:
+        return self._s.num_qubits
+
+    @property
+    def num_non_clifford(self) -> int:
+        """How many of the circuit's gates split the state: its non-Clifford gates (rotations
+        at a Clifford angle are not among them)."""
+        return self._s.num_non_clifford
+
+    @property
+    def peak_terms(self) -> int:
+        """The most terms (Clifford branches) any shot sampled so far held at once: the rank
+        the sampler reached. 0 before any shot."""
+        return self._s.peak_terms
+
+    def sample_measurements(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> np.ndarray:
+        """``shots`` measurement records, (shots, measurements) bool or bit-packed uint8 rows,
+        from the same stream of shots as ``sample``."""
+        shots = count(shots, "shots")
+        return b8_to_rows(call(self._s.sample_measurements, shots, count(threads, "threads")), shots, self.num_measurements, bit_packed)
+
+    def probability_of(self, records: Any, *, samples: int = 1000, seed: Union[int, None] = None) -> np.ndarray:
+        """The probability of each measurement record in ``records`` (a bool array of shape
+        (measurements,) or (shots, measurements)): exact when the circuit has no noise channel
+        or measurement flip; with noise, an average over ``samples`` draws of it (from the
+        stream ``seed``, so the same seed gives the same estimate)."""
+        r = np.asarray(records)
+        if r.dtype != bool:
+            r = r != 0
+        one = r.ndim == 1
+        rows = r.reshape(-1, r.shape[-1]) if r.ndim else r.reshape(1, 0)
+        if rows.shape[1] != self.num_measurements:
+            raise ValueError(f"records must have {self.num_measurements} bits each, not {rows.shape[1]}")
+        out = np.asarray(call(self._s.probability_of, [list(map(bool, row)) for row in rows], count(samples, "samples", 1), seed_of(seed)))
+        return out[0] if one else out
 
 
 class LeakageSampler:

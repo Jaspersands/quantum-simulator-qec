@@ -1,4 +1,13 @@
 {
+ "clifford_t/detect/seed0/t0": "a398d9ac2fba64218fcb659f1fe8b5d95bd50b7d71928a4109abd58d1f3a200a",
+ "clifford_t/detect/seed0/t1": "a398d9ac2fba64218fcb659f1fe8b5d95bd50b7d71928a4109abd58d1f3a200a",
+ "clifford_t/detect/seed1/t0": "e5ceb64e61c1a90f9d930804fa71540f8b8548bb54e716a63080e48943529289",
+ "clifford_t/detect/seed1/t1": "e5ceb64e61c1a90f9d930804fa71540f8b8548bb54e716a63080e48943529289",
+ "clifford_t/detect/seed9223372036854775813/t0": "c8b1b1e4279f6550b90f56812ecdd4a6d2cae4a33b104812fd6a48b690243c28",
+ "clifford_t/detect/seed9223372036854775813/t1": "c8b1b1e4279f6550b90f56812ecdd4a6d2cae4a33b104812fd6a48b690243c28",
+ "clifford_t/measure/seed0": "b3604eb8b1f33ff84235c8ecdd0dcf2560a4de370b621f9672f1610dff540c50",
+ "clifford_t/measure/seed1": "b9ba231ee3d69a0d9888173a53dd29f2389e2629ae1edc035ae35d300b50098e",
+ "clifford_t/measure/seed9223372036854775813": "30e7f218529fcdef0c26b890926cec89df588e1f85ea163256712f5ad2a2d605",
  "colour/annotated": "ade223599c3fea0e82ee4f15ceac8c4d2105cc8dab7f183a29aba7bcb1907d7d",
  "colour/decode/color_matching/t0": "ab0d6f5bc0d107cb97eee1919b80eca3e0151cc814158865857045ccc6829061",
  "colour/decode/color_matching/t1": "ab0d6f5bc0d107cb97eee1919b80eca3e0151cc814158865857045ccc6829061",

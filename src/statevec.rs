@@ -417,7 +417,7 @@ impl Program {
                             continue;
                         }
                         steps.push(match op {
-                            NonPauli::Rotation { pauli, theta } => Step::Rotation { paulis: pauli.iter().map(|(q, c)| (ix(q), *c)).collect(), theta: *theta },
+                            NonPauli::Rotation { pauli, theta, .. } => Step::Rotation { paulis: pauli.iter().map(|(q, c)| (ix(q), *c)).collect(), theta: *theta },
                             NonPauli::T { qubit, dagger } => {
                                 let phi = if *dagger { -std::f64::consts::FRAC_PI_4 } else { std::f64::consts::FRAC_PI_4 };
                                 Step::Unitary(ix(qubit), [[C::ONE, C::ZERO], [C::ZERO, C::phase(phi)]])
@@ -812,6 +812,43 @@ fn run_step(step: &Step, sv: &mut StateVector, rec: &mut Vec<bool>, ctx: &mut Ct
             sv.renormalise(n2);
         }
     }
+}
+
+/// The most qubits a circuit's matrix is built for (a 1024 × 1024 complex matrix).
+pub const MAX_MATRIX_QUBITS: usize = 10;
+
+/// The unitary a circuit of gates applies, as a 2^n × 2^n matrix in row-major order (entry
+/// (row, col) is ⟨row|U|col⟩) with basis-index bit q being qubit q (`little_endian`) or qubit
+/// n − 1 − q, n one more than the largest qubit named (at most `MAX_MATRIX_QUBITS`). Global
+/// phase as the gates give it (T is diag(1, e^{iπ/4})). A circuit with a measurement, reset or
+/// noise channel has no matrix.
+pub fn unitary_matrix(circuit: &Circuit, little_endian: bool) -> Result<(usize, Vec<C>), String> {
+    let program = Program::with_layout_for(circuit, true, MAX_QUBITS, Outcomes::StateOnly)?;
+    let n = program.num_qubits();
+    if n > MAX_MATRIX_QUBITS {
+        return Err(format!("the circuit uses {n} qubits; a matrix is built for at most {MAX_MATRIX_QUBITS}"));
+    }
+    for step in &program.steps {
+        if !matches!(step, Step::H(_) | Step::S(_) | Step::Paulis(_) | Step::Cx(..) | Step::Cz(..) | Step::Rotation { .. } | Step::Unitary(..)) {
+            return Err("the circuit has no matrix: it has a measurement, reset or noise channel (a unitary circuit has none)".into());
+        }
+    }
+    let dim = 1usize << n;
+    let rev = |i: usize| (0..n).fold(0usize, |acc, q| acc | ((i >> q) & 1) << (n - 1 - q));
+    let mut m = vec![C::ZERO; dim * dim];
+    for col in 0..dim {
+        let mut sv = StateVector::new(n);
+        sv.pauli(&(0..n).filter(|q| col >> q & 1 == 1).map(|q| (q, 1u8)).collect::<Vec<_>>());
+        let (mut rec, mut ctx) = (Vec::new(), program.ctx());
+        for step in &program.steps {
+            run_step(step, &mut sv, &mut rec, &mut ctx, &mut |_| 0);
+        }
+        for (row, &a) in sv.amplitudes().iter().enumerate() {
+            let (r, c) = if little_endian { (row, col) } else { (rev(row), rev(col)) };
+            m[r * dim + c] = a;
+        }
+    }
+    Ok((n, m))
 }
 
 /// Exact samples, `shots` of them: detection events and observable flips as b8 rows, the

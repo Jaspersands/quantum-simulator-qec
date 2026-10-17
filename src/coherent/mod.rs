@@ -179,7 +179,7 @@ impl Program {
                 Instr::NonPauli(ops) => {
                     for op in ops {
                         match op {
-                            NonPauli::Rotation { pauli, theta } => {
+                            NonPauli::Rotation { pauli, theta, .. } => {
                                 if pauli.is_empty() {
                                     continue;
                                 }
@@ -842,7 +842,7 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
                         let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
                         for op in ops {
                             match op {
-                                NonPauli::Rotation { pauli, theta } => out.push(f(pauli, theta.sin().powi(2))),
+                                NonPauli::Rotation { pauli, theta, .. } => out.push(f(pauli, theta.sin().powi(2))),
                                 _ => out.push(ins.clone()),
                             }
                         }

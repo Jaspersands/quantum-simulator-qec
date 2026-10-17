@@ -1,0 +1,149 @@
+# Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5, test/helpers/gate_matrices.py; Apache License 2.0;
+# see python/stabilizer_qec/tsim/LICENSE), unchanged: the gate matrices Tsim tests its gates against.
+import numpy as np
+
+SINGLE_QUBIT_GATE_MATRICES = {
+    "I": np.array([[1, 0], [0, 1]]),
+    "X": np.array([[0, 1], [1, 0]]),
+    "Y": np.array([[0, -1j], [1j, 0]]),
+    "Z": np.array([[1, 0], [0, -1]]),
+    "T": np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]]),
+    "T_DAG": np.array([[1, 0], [0, np.exp(-1j * np.pi / 4)]]),
+    "C_NXYZ": np.array([[1, -1j], [-1, -1j]]) / np.sqrt(2),
+    "C_NZYX": np.array([[1, -1], [-1j, -1j]]) / np.sqrt(2),
+    "C_XNYZ": np.array([[1, 1j], [1, -1j]]) / np.sqrt(2),
+    "C_XYNZ": np.array([[1, 1j], [-1, 1j]]) / np.sqrt(2),
+    "C_XYZ": np.array([[1 - 1j, -1 - 1j], [1 - 1j, 1 + 1j]]) / 2,
+    "C_ZNYX": np.array([[1, 1], [-1j, 1j]]) / np.sqrt(2),
+    "C_ZYNX": np.array([[1, -1], [1j, 1j]]) / np.sqrt(2),
+    "C_ZYX": np.array([[1 + 1j, 1 + 1j], [-1 + 1j, 1 - 1j]]) / 2,
+    "H": np.array([[1, 1], [1, -1]]) / np.sqrt(2),
+    "H_NXY": np.array([[0, 1], [-1j, 0]]),
+    "H_NXZ": np.array([[1, -1], [-1, -1]]) / np.sqrt(2),
+    "H_NYZ": np.array([[1, 1j], [-1j, -1]]) / np.sqrt(2),
+    "H_XY": np.array([[0, 1 - 1j], [1 + 1j, 0]]) / np.sqrt(2),
+    "H_YZ": np.array([[1, -1j], [1j, -1]]) / np.sqrt(2),
+    "S": np.array([[1, 0], [0, 1j]]),
+    "SQRT_X": np.array([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]]) / 2,
+    "SQRT_X_DAG": np.array([[1 - 1j, 1 + 1j], [1 + 1j, 1 - 1j]]) / 2,
+    "SQRT_Y": np.array([[1 + 1j, -1 - 1j], [1 + 1j, 1 + 1j]]) / 2,
+    "SQRT_Y_DAG": np.array([[1 - 1j, 1 - 1j], [-1 + 1j, 1 - 1j]]) / 2,
+    "S_DAG": np.array([[1, 0], [0, -1j]]),
+}
+
+TWO_QUBIT_GATE_MATRICES = {
+    "CNOT": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]]),
+    "CXSWAP": np.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 1, 0]]),
+    "CZSWAP": np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, -1]]),
+    "CY": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, -1j], [0, 0, 1j, 0]]),
+    "CZ": np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]]),
+    "ISWAP": np.array([[1, 0, 0, 0], [0, 0, 1j, 0], [0, 1j, 0, 0], [0, 0, 0, 1]]),
+    "ISWAP_DAG": np.array([[1, 0, 0, 0], [0, 0, -1j, 0], [0, -1j, 0, 0], [0, 0, 0, 1]]),
+    "SQRT_XX": np.array(
+        [
+            [1 + 1j, 0, 0, 1 - 1j],
+            [0, 1 + 1j, 1 - 1j, 0],
+            [0, 1 - 1j, 1 + 1j, 0],
+            [1 - 1j, 0, 0, 1 + 1j],
+        ]
+    )
+    / 2,
+    "SQRT_XX_DAG": np.array(
+        [
+            [1 - 1j, 0, 0, 1 + 1j],
+            [0, 1 - 1j, 1 + 1j, 0],
+            [0, 1 + 1j, 1 - 1j, 0],
+            [1 + 1j, 0, 0, 1 - 1j],
+        ]
+    )
+    / 2,
+    "SQRT_YY": np.array(
+        [
+            [1 + 1j, 0, 0, -1 + 1j],
+            [0, 1 + 1j, 1 - 1j, 0],
+            [0, 1 - 1j, 1 + 1j, 0],
+            [-1 + 1j, 0, 0, 1 + 1j],
+        ]
+    )
+    / 2,
+    "SQRT_YY_DAG": np.array(
+        [
+            [1 - 1j, 0, 0, -1 - 1j],
+            [0, 1 - 1j, 1 + 1j, 0],
+            [0, 1 + 1j, 1 - 1j, 0],
+            [-1 - 1j, 0, 0, 1 - 1j],
+        ]
+    )
+    / 2,
+    "SQRT_ZZ": np.array([[1, 0, 0, 0], [0, 1j, 0, 0], [0, 0, 1j, 0], [0, 0, 0, 1]]),
+    "SQRT_ZZ_DAG": np.array(
+        [[1, 0, 0, 0], [0, -1j, 0, 0], [0, 0, -1j, 0], [0, 0, 0, 1]]
+    ),
+    "SWAP": np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]]),
+    "SWAPCX": np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [0, 1, 0, 0]]),
+    "SWAPCZ": np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, -1]]),
+    "XCX": np.array([[1, 1, 1, -1], [1, 1, -1, 1], [1, -1, 1, 1], [-1, 1, 1, 1]]) / 2,
+    "XCY": np.array(
+        [[1, -1j, 1, 1j], [1j, 1, -1j, 1], [1, 1j, 1, -1j], [-1j, 1, 1j, 1]]
+    )
+    / 2,
+    "XCZ": np.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0]]),
+    "YCX": np.array(
+        [[1, 1, -1j, 1j], [1, 1, 1j, -1j], [1j, -1j, 1, 1], [-1j, 1j, 1, 1]]
+    )
+    / 2,
+    "YCY": np.array(
+        [[1, -1j, -1j, 1], [1j, 1, -1, -1j], [1j, -1, 1, -1j], [1, 1j, 1j, 1]]
+    )
+    / 2,
+    "YCZ": np.array([[1, 0, 0, 0], [0, 0, 0, -1j], [0, 0, 1, 0], [0, 1j, 0, 0]]),
+}
+
+# Rotation gate matrices (parametrized by fraction of pi)
+ROT_GATE_MATRICES = {
+    "R_X": lambda frac: np.array(
+        [
+            [np.cos(frac * np.pi / 2), -1j * np.sin(frac * np.pi / 2)],
+            [-1j * np.sin(frac * np.pi / 2), np.cos(frac * np.pi / 2)],
+        ]
+    ),
+    "R_Y": lambda frac: np.array(
+        [
+            [np.cos(frac * np.pi / 2), -np.sin(frac * np.pi / 2)],
+            [np.sin(frac * np.pi / 2), np.cos(frac * np.pi / 2)],
+        ]
+    ),
+    "R_Z": lambda frac: np.array(
+        [[np.exp(-1j * np.pi / 2 * frac), 0], [0, np.exp(1j * np.pi / 2 * frac)]]
+    ),
+    # Two-qubit Pauli rotations: exp(-i frac pi/2 PP) = cos(frac pi/2) I - i sin(frac pi/2) PP
+    "R_XX": lambda frac: np.cos(frac * np.pi / 2) * np.eye(4)
+    - 1j
+    * np.sin(frac * np.pi / 2)
+    * np.kron(SINGLE_QUBIT_GATE_MATRICES["X"], SINGLE_QUBIT_GATE_MATRICES["X"]),
+    "R_YY": lambda frac: np.cos(frac * np.pi / 2) * np.eye(4)
+    - 1j
+    * np.sin(frac * np.pi / 2)
+    * np.kron(SINGLE_QUBIT_GATE_MATRICES["Y"], SINGLE_QUBIT_GATE_MATRICES["Y"]),
+    "R_ZZ": lambda frac: np.cos(frac * np.pi / 2) * np.eye(4)
+    - 1j
+    * np.sin(frac * np.pi / 2)
+    * np.kron(SINGLE_QUBIT_GATE_MATRICES["Z"], SINGLE_QUBIT_GATE_MATRICES["Z"]),
+    # General Pauli-product rotation: exp(-i frac pi/2 P) for a Pauli product matrix P
+    "R_PAULI": lambda frac, pauli_product: np.cos(frac * np.pi / 2)
+    * np.eye(pauli_product.shape[0])
+    - 1j * np.sin(frac * np.pi / 2) * pauli_product,
+    "U3": lambda frac_theta, frac_phi, frac_lambda: np.array(
+        [
+            [
+                np.cos(frac_theta * np.pi / 2),
+                -np.exp(1j * frac_lambda * np.pi) * np.sin(frac_theta * np.pi / 2),
+            ],
+            [
+                np.exp(1j * frac_phi * np.pi) * np.sin(frac_theta * np.pi / 2),
+                np.exp(1j * (frac_phi + frac_lambda) * np.pi)
+                * np.cos(frac_theta * np.pi / 2),
+            ],
+        ]
+    ),
+}

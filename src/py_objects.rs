@@ -291,6 +291,43 @@ impl PyCircuit {
         Ok(PyExactSampler { program: crate::statevec::Program::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
     }
 
+    /// The stabilizer-rank sampler: Clifford+T circuits at any qubit count.
+    fn stabilizer_rank_sampler(&self, py: Python<'_>, seed: u64) -> PyResult<PyStabilizerRankSampler> {
+        let inner = &self.circuit.inner;
+        let program = py.detach(|| crate::stabrank::Program::new(inner)).map_err(err)?;
+        Ok(PyStabilizerRankSampler { program, seed, next: 0.into(), peak: 0.into() })
+    }
+
+    /// `exact_distribution` by the stabilizer-rank engine.
+    fn stabilizer_rank_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let program = crate::stabrank::Program::new(&self.circuit.inner).map_err(err)?;
+        let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
+        Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
+
+    /// How many non-Clifford gates the circuit has (T, and rotations written as gates at angles
+    /// that are not Clifford); coherent errors are not counted.
+    fn num_non_clifford_gates(&self) -> PyResult<usize> {
+        crate::stabrank::non_clifford_gates(&self.circuit.inner).map_err(err)
+    }
+
+    /// Tsim's T-count.
+    fn t_count(&self) -> PyResult<usize> {
+        crate::stabrank::t_count(&self.circuit.inner).map_err(err)
+    }
+
+    /// Whether every gate and coherent error is Clifford.
+    fn is_clifford(&self) -> PyResult<bool> {
+        crate::stabrank::is_clifford(&self.circuit.inner).map_err(err)
+    }
+
+    /// The circuit's unitary: (n, 2^n × 2^n complex128 entries, row-major).
+    fn unitary_matrix<'py>(&self, py: Python<'py>, little_endian: bool) -> PyResult<(usize, Bound<'py, PyBytes>)> {
+        let inner = &self.circuit.inner;
+        let (n, m) = py.detach(|| crate::statevec::unitary_matrix(inner, little_endian)).map_err(err)?;
+        Ok((n, PyBytes::new(py, &le_f64(m.iter().flat_map(|c| [c.re, c.im])))))
+    }
+
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
     #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
     fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyCoherentSampler> {
@@ -497,6 +534,76 @@ impl PyExactSampler {
         let (program, seed) = (&self.program, self.seed);
         let (d, o) = py.detach(|| crate::statevec::sample_seeded(program, seed, first, shots, threads));
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
+}
+
+#[pyclass(name = "StabilizerRankSampler", module = "stabilizer_qec._core")]
+pub struct PyStabilizerRankSampler {
+    program: crate::stabrank::Program,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+    peak: std::sync::atomic::AtomicUsize,
+}
+
+#[pymethods]
+impl PyStabilizerRankSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.program.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.program.num_observables()
+    }
+
+    #[getter]
+    fn num_measurements(&self) -> usize {
+        self.program.num_measurements()
+    }
+
+    #[getter]
+    fn num_qubits(&self) -> usize {
+        self.program.num_qubits()
+    }
+
+    #[getter]
+    fn num_non_clifford(&self) -> usize {
+        self.program.num_non_clifford()
+    }
+
+    #[getter]
+    fn peak_terms(&self) -> usize {
+        self.peak.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    #[getter]
+    fn is_noisy(&self) -> bool {
+        self.program.is_noisy()
+    }
+
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (program, seed) = (&self.program, self.seed);
+        let (d, o, peak) = py.detach(|| crate::stabrank::sample_seeded(program, seed, first, shots, threads));
+        self.peak.fetch_max(peak, std::sync::atomic::Ordering::Relaxed);
+        (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
+
+    /// `shots` measurement records as b8 rows, from the same stream of shots.
+    fn sample_measurements<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> Bound<'py, PyBytes> {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (program, seed) = (&self.program, self.seed);
+        let (m, peak) = py.detach(|| crate::stabrank::measurements_seeded(program, seed, first, shots, threads));
+        self.peak.fetch_max(peak, std::sync::atomic::Ordering::Relaxed);
+        PyBytes::new(py, &m)
+    }
+
+    /// The probability of each record (rows of bools), exact without noise, else averaged over
+    /// `samples` draws of the noise from the stream `seed`.
+    fn probability_of(&self, py: Python<'_>, records: Vec<Vec<bool>>, samples: usize, seed: u64) -> PyResult<Vec<f64>> {
+        let program = &self.program;
+        py.detach(|| records.iter().map(|r| program.probability_of(r, samples, seed)).collect::<Result<Vec<f64>, String>>()).map_err(err)
     }
 }
 

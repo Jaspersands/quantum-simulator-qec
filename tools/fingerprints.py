@@ -83,6 +83,17 @@ def colour():
     return sq.Circuit.generated("color_code:memory_xyz", distance=5, rounds=5, after_clifford_depolarization=0.001)
 
 
+def clifford_t():
+    """The Steane code's |0⟩ with a T gate and a rotation on every qubit (eight terms at most),
+    depolarizing noise, measured in the X basis."""
+    return sq.Circuit(
+        "R 0 1 2 3 4 5 6\nH 4 5 6\nCX 4 0 4 1 4 2\nCX 5 0 5 1 5 3\nCX 6 0 6 2 6 3\nDEPOLARIZE1(0.01) 0 1 2 3 4 5 6\n"
+        "I[T] 0 1 2 3 4 5 6\nI[R_X(theta=0.3)] 0 1 2 3 4 5 6\nX_ERROR(0.02) 0 1 2 3 4 5 6\nMX 0 1 2 3 4 5 6\n"
+        "DETECTOR rec[-7] rec[-6] rec[-5] rec[-3]\nDETECTOR rec[-7] rec[-6] rec[-4] rec[-2]\nDETECTOR rec[-7] rec[-5] rec[-4] rec[-1]\n"
+        "OBSERVABLE_INCLUDE(0) rec[-7] rec[-6] rec[-5] rec[-4] rec[-3] rec[-2] rec[-1]"
+    )
+
+
 def cases() -> Dict[str, Callable[[], str]]:
     """Name -> a function computing that result's fingerprint."""
     out: Dict[str, Callable[[], str]] = {}
@@ -133,6 +144,15 @@ def cases() -> Dict[str, Callable[[], str]]:
     for threads in (1, 0):
         out[f"colour/decode/color_matching/t{threads}"] = lambda t=threads: digest(*sq.ColorMatching(cc.detector_error_model()).decode_batch(cdets, return_weights=True, threads=t))
     out["colour/annotated"] = lambda: digest(str(sq.Circuit.generated("color_code:memory_xyz", distance=5, rounds=4, after_clifford_depolarization=0.001, annotate_colors=True)), str(cc))
+
+    # Clifford+T: the Steane code's |0⟩, a T and a small rotation on every qubit, noise, X
+    # measurements; its shots from the stabilizer-rank sampler (which compile_detector_sampler
+    # and compile_sampler run on a circuit with non-Clifford gates).
+    ct = clifford_t()
+    for seed in SEEDS:
+        for threads in (1, 0):
+            out[f"clifford_t/detect/seed{seed}/t{threads}"] = lambda s=seed, t=threads: digest(*ct.compile_detector_sampler(seed=s).sample(1000, separate_observables=True, threads=t))
+        out[f"clifford_t/measure/seed{seed}"] = lambda s=seed: digest(ct.compile_sampler(seed=s).sample(1000, threads=0))
 
     search = dict(dont_explore_detection_event_sets_with_size_above=6, dont_explore_edges_with_degree_above=6, dont_explore_edges_increasing_symptom_degree=False)
     small = lambda: sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.004)  # noqa: E731

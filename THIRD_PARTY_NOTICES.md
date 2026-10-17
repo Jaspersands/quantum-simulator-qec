@@ -183,8 +183,10 @@ Python) with their import pointed at this package.
 Copyright 2026 QuEra Computing Inc. Licensed under the Apache License, Version 2.0
 (`python/stabilizer_qec/tsim/LICENSE`). Source: https://github.com/QuEraComputing/tsim
 
-`python/stabilizer_qec/tsim/` holds bloqade-tsim 0.1.5's encoders and program-text utilities on
-this package's `Circuit`, and `tests/tsim_port/` its program-text tests.
+`python/stabilizer_qec/tsim/` holds bloqade-tsim 0.1.5's encoders, program-text utilities and
+its detector error model with non-deterministic observables (`noise/dem.py`) on this package's
+`Circuit`, and `tests/tsim_port/` its program-text tests and the gate matrices its tests check
+gates against.
 
 ## qecsim
 

@@ -224,12 +224,12 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 
 | ID | Feature | Status |
 |---|---|---|
-| T1 | Clifford+T sampling by stabilizer rank (ZX), cost exponential in non-Clifford count, 80+ qubits | gap (state vector ≤ 24 qubits) |
-| T2 | Gates T, T_DAG, R_X/Y/Z, U3, R_PAULI, TPP, R_XX/YY/ZZ (plain gates, not only tags) | part (tags; W7's `tsim_to_native` reads Tsim's half-turn tags as ours, the conventions to reconcile in W9) |
-| T3 | CCZ, CCX | gap |
-| T4 | `CompiledStateProbs.probability_of` (exact output probabilities) | part (exact_distribution ≤ 24) |
-| T5 | `to_matrix`, `to_tensor`, `tcount`, `is_clifford`, `cast_to_stim`, `inverse` with non-Clifford gates | gap |
-| T6 | DEM of a non-Clifford circuit (Clifford part, non-deterministic observables allowed) | part |
+| T1 | Clifford+T sampling by stabilizer rank (ZX), cost exponential in non-Clifford count, 80+ qubits | done (2.0 W9: `Circuit.compile_stabilizer_rank_sampler`, Rust `StabilizerRankSampler`; Pauli-coset terms on a shot-independent reference tableau, exact; `compile_sampler`/`compile_detector_sampler` run it on a circuit with non-Clifford gates; equal to the state vector bit for bit, within error bars of Tsim on its demos) |
+| T2 | Gates T, T_DAG, R_X/Y/Z, U3, R_PAULI, TPP, R_XX/YY/ZZ (plain gates, not only tags) | done (2.0 W9: Tsim's shorthand and tagged text through `stabilizer_qec.tsim.Circuit`, every gate's matrix Tsim's up to a global phase) |
+| T3 | CCZ, CCX | done (2.0 W9: Tsim's Clifford+T decomposition through the shorthand, 7 T gates and 8 terms in the sampler) |
+| T4 | `CompiledStateProbs.probability_of` (exact output probabilities) | done (2.0 W9: `StabilizerRankSampler.probability_of`, exact without noise, an average over drawn noise with it, as Tsim's) |
+| T5 | `to_matrix`, `to_tensor`, `tcount`, `is_clifford`, `cast_to_stim`, `inverse` with non-Clifford gates | done (2.0 W9: on `Circuit`; `cast_to_stim` is `str(circuit)`, Stim's text) |
+| T6 | DEM of a non-Clifford circuit (Clifford part, non-deterministic observables allowed) | done (2.0 W9: `detector_error_model(allow_non_deterministic_observables=True)`, Tsim's conversion ported) |
 | T7 | Encoders: TransversalEncoder, Steane encoder, colour-code encoder | done (2.0 W7: `stabilizer_qec.tsim`, on `Circuit`, verified by `Tableau`) |
 | T8 | GPU (JAX, CUDA) | gap |
 
