@@ -20,6 +20,12 @@ class TestLogging:
     def setup_class(self):
         """Redirect logging to a temporary file"""
 
+        # Deltakit's own package, when the differential tests import it, puts its handlers on the
+        # same logger and file: set aside here, as Windows cannot rotate a file another holds open.
+        ours = (Logging.file_handler, Logging.stream_handler)
+        self.others = [h for h in Logging.logger.handlers if h not in ours]
+        for h in self.others:
+            Logging.logger.removeHandler(h)
         self.logfile = NamedTemporaryFile("w+")  # noqa: SIM115
         handler = logging.StreamHandler(self.logfile)
         handler.setFormatter(
@@ -33,6 +39,8 @@ class TestLogging:
     def teardown_class(self):
         self.logfile.close()
         del self.logfile
+        for h in self.others:
+            Logging.logger.addHandler(h)
 
     def test_info_and_generate_uid_logs(self):
         uid = Logging.info_and_generate_uid({"a": 1, "b": 2})

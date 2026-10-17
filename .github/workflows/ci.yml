@@ -138,6 +138,8 @@ jobs:
     name: Tests (Python ${{ matrix.python }}, ${{ matrix.os }})
     needs: wheel
     runs-on: ${{ matrix.os }}
+    # The suite takes about half an hour; a failure's report printing for hours stops here.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
