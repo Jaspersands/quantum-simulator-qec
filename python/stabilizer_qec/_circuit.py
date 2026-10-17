@@ -851,7 +851,16 @@ class Circuit:
         Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
         back the interference the twirl leaves out. Weighted, the shots are distributed as the
         coherent circuit's: estimate a rate as ``(w * hit).sum() / w.sum()``. ``order`` is how
-        many of the circuit's local interference generators a shot's sum multiplies together."""
+        many of the circuit's local interference generators a shot's sum multiplies together.
+
+        A circuit with non-Clifford *gates* too (``I[T] 0``, ``I[R_Z(theta=…)] 0``,
+        ``I[U3(…)] 0``: Clifford+T circuits, magic-state injection, a cultivation check) gets
+        the joint sampler: the gates run exactly, as the stabilizer-rank sampler runs them,
+        the errors are drawn as their twirl, and each shot's weight is the coherent probability
+        of its class over the twirl's, every member of the class a re-run of the exact engine
+        with the member's errors inserted and the shot's outcomes forced. Neither the coherent
+        sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
+        exponential in the errors) covers this."""
         return CoherentSampler(self, order, seed)
 
     def compile_leakage_sampler(self, *, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> "LeakageSampler":
@@ -871,11 +880,13 @@ class Circuit:
         applies each noise channel whole and branches only on what measurements record, far
         fewer branches on a noisy circuit; ``"stabilizer_rank"`` (any number of qubits, the
         cost growing with the non-Clifford gates) follows the branches as the state vector does
-        with the stabilizer-rank sampler's engine. For small circuits; more than
+        with the stabilizer-rank sampler's engine; ``"coherent"`` sums the joint coherent
+        sampler's weighted twirl over every branch with the whole interference kernel (the
+        proof of its identity: it equals the state vector's). For small circuits; more than
         ``max_branches`` branches is an error."""
-        runs = {"state_vector": self._c.exact_distribution, "density_matrix": self._c.density_distribution, "stabilizer_rank": self._c.stabilizer_rank_distribution}
+        runs = {"state_vector": self._c.exact_distribution, "density_matrix": self._c.density_distribution, "stabilizer_rank": self._c.stabilizer_rank_distribution, "coherent": self._c.joint_distribution}
         if method not in runs:
-            raise ValueError(f"method must be 'state_vector', 'density_matrix' or 'stabilizer_rank', got {method!r}")
+            raise ValueError(f"method must be 'state_vector', 'density_matrix', 'stabilizer_rank' or 'coherent', got {method!r}")
         run = runs[method]
         rows = call(run, count(max_branches, "max_branches"))
         no = self.num_observables
@@ -2099,10 +2110,18 @@ class CoherentSampler:
     def __init__(self, circuit: Circuit, order: int = 3, seed: Union[int, None] = None) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
-        self._s = call(circuit._c.coherent_sampler, seed_of(seed), count(order, "order"))
+        # Non-Clifford gates: the joint sampler, the gates exact and the errors twirled.
+        make = circuit._c.joint_sampler if circuit.num_non_clifford_gates() else circuit._c.coherent_sampler
+        self._s = call(make, seed_of(seed), count(order, "order"))
 
     def __reduce__(self) -> tuple:
         raise TypeError("a CoherentSampler is a position in a stream of shots; send the circuit and a seed")
+
+    @property
+    def num_exact(self) -> int:
+        """The non-Clifford gates the sampler runs exactly (0 for the coherent sampler of a
+        Clifford circuit's errors)."""
+        return getattr(self._s, "num_exact", 0)
 
     @property
     def num_detectors(self) -> int:

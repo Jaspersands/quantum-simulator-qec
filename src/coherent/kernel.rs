@@ -17,7 +17,7 @@
 //! products of up to `order` of the cluster's generators, times each untouched generator's
 //! factor on its own. The estimate is self-normalised.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::{Element, GaugeSolver, Program, Shot, Slot};
 use crate::statevec::C;
@@ -520,6 +520,123 @@ impl Kernel {
             w *= sum.norm2() / norm;
         }
         w
+    }
+}
+
+impl Kernel {
+    /// The generators (of `generators`, indexed by `by_location`) holding a fired location,
+    /// with `hops` steps of neighbours sharing a location; sorted. For the joint sampler, whose
+    /// generator list carries each group's pairs itself.
+    pub(crate) fn touched(&self, generators: &[Element], by_location: &[Vec<usize>], fired: &[bool], hops: usize) -> Vec<usize> {
+        let mut touched: Vec<usize> = fired.iter().enumerate().filter(|(_, &f)| f).flat_map(|(l, _)| by_location[l].iter().copied()).collect();
+        touched.sort_unstable();
+        touched.dedup();
+        for _ in 0..hops {
+            let neighbours: Vec<usize> = touched.iter().flat_map(|&g| generators[g].members.iter().flat_map(|&l| by_location[l].iter().copied())).collect();
+            touched.extend(neighbours);
+            touched.sort_unstable();
+            touched.dedup();
+        }
+        touched
+    }
+
+    /// The touched generators in clusters: joined when they share a location.
+    pub(crate) fn clusters(&self, generators: &[Element], touched: &[usize]) -> Vec<Vec<usize>> {
+        let n = touched.len();
+        let mut parent: Vec<usize> = (0..n).collect();
+        fn find(parent: &mut [usize], mut i: usize) -> usize {
+            while parent[i] != i {
+                parent[i] = parent[parent[i]];
+                i = parent[i];
+            }
+            i
+        }
+        let mut owner: HashMap<usize, usize> = HashMap::new();
+        for (i, &g) in touched.iter().enumerate() {
+            for &l in &generators[g].members {
+                if let Some(&j) = owner.get(&l) {
+                    let (a, b) = (find(&mut parent, i), find(&mut parent, j));
+                    parent[a] = b;
+                } else {
+                    owner.insert(l, i);
+                }
+            }
+        }
+        let mut clusters: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for i in 0..n {
+            let root = find(&mut parent, i);
+            clusters.entry(root).or_default().push(touched[i]);
+        }
+        clusters.into_values().collect()
+    }
+
+    /// A cluster's elements: every connected set of up to `order` of its generators (each
+    /// sharing a location with another; pairs at most past `max_cluster` generators), by
+    /// Wernicke's enumeration, each resulting location set once, as `element_of` makes it.
+    pub(crate) fn products(&self, generators: &[Element], gens: &[usize], options: &CoherentOptions, cache: &mut HashMap<u64, Option<Element>>, element_of: &mut dyn FnMut(&[usize]) -> Option<Element>) -> Vec<Element> {
+        let order = if gens.len() > options.max_cluster { options.order.min(2) } else { options.order };
+        let n = gens.len();
+        let mut at: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (i, &g) in gens.iter().enumerate() {
+            for &l in &generators[g].members {
+                at.entry(l).or_default().push(i);
+            }
+        }
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for list in at.values() {
+            for &a in list {
+                for &b in list {
+                    if a != b {
+                        adj[a].push(b);
+                    }
+                }
+            }
+        }
+        for a in adj.iter_mut() {
+            a.sort_unstable();
+            a.dedup();
+        }
+        let mut out = Vec::new();
+        let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
+        let mut visit = |subset: &[usize], seen: &mut std::collections::HashSet<u64>, out: &mut Vec<Element>| {
+            let mut members: Vec<usize> = Vec::new();
+            for &i in subset {
+                members = symmetric_difference(&members, &generators[gens[i]].members);
+            }
+            if members.is_empty() {
+                return;
+            }
+            let key = members.iter().fold(0u64, |h, &l| h ^ self.zobrist[l]);
+            if !seen.insert(key) {
+                return;
+            }
+            let e = if subset.len() == 1 { Some(generators[gens[subset[0]]].clone()) } else { cache.entry(key).or_insert_with(|| element_of(&members)).clone() };
+            if let Some(e) = e {
+                out.push(e);
+            }
+        };
+        for v in 0..n {
+            let ext: Vec<usize> = adj[v].iter().copied().filter(|&u| u > v).collect();
+            let mut stack: Vec<(Vec<usize>, Vec<usize>)> = vec![(vec![v], ext)];
+            while let Some((sub, mut ext)) = stack.pop() {
+                visit(&sub, &mut seen, &mut out);
+                if sub.len() == order {
+                    continue;
+                }
+                while let Some(w) = ext.pop() {
+                    let mut next = ext.clone();
+                    for &u in &adj[w] {
+                        if u > v && !sub.contains(&u) && !next.contains(&u) && !sub.iter().any(|&s| adj[s].binary_search(&u).is_ok()) {
+                            next.push(u);
+                        }
+                    }
+                    let mut sub2 = sub.clone();
+                    sub2.push(w);
+                    stack.push((sub2, next));
+                }
+            }
+        }
+        out
     }
 }
 

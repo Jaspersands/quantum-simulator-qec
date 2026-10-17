@@ -337,6 +337,23 @@ impl PyCircuit {
         Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
     }
 
+    /// The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
+    fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyJointSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops };
+        let inner = &self.circuit.inner;
+        let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options)).map_err(err)?;
+        Ok(PyJointSampler { sampler, seed, next: 0.into() })
+    }
+
+    /// The joint sampler's exact distribution with the whole kernel, for small circuits:
+    /// (detection events, observable flips, probability).
+    fn joint_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let inner = &self.circuit.inner;
+        let d = py.detach(|| crate::coherent::joint::JointSampler::with_whole_kernel(inner).and_then(|s| s.exact_distribution(max_branches))).map_err(err)?;
+        Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
+    }
+
     /// `exact_distribution` with the leaked-measurement rule chosen.
     fn exact_distribution_leaky(&self, py: Python<'_>, max_branches: usize, reads_one: bool) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
         let mut program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
@@ -534,6 +551,48 @@ impl PyExactSampler {
         let (program, seed) = (&self.program, self.seed);
         let (d, o) = py.detach(|| crate::statevec::sample_seeded(program, seed, first, shots, threads));
         (PyBytes::new(py, &d), PyBytes::new(py, &o))
+    }
+}
+
+#[pyclass(name = "JointSampler", module = "stabilizer_qec._core")]
+pub struct PyJointSampler {
+    sampler: crate::coherent::joint::JointSampler,
+    seed: u64,
+    next: std::sync::atomic::AtomicU64,
+}
+
+#[pymethods]
+impl PyJointSampler {
+    #[getter]
+    fn num_detectors(&self) -> usize {
+        self.sampler.num_detectors()
+    }
+
+    #[getter]
+    fn num_observables(&self) -> usize {
+        self.sampler.num_observables()
+    }
+
+    #[getter]
+    fn num_locations(&self) -> usize {
+        self.sampler.num_locations()
+    }
+
+    #[getter]
+    fn num_exact(&self) -> usize {
+        self.sampler.num_exact()
+    }
+
+    #[getter]
+    fn num_generators(&self) -> usize {
+        self.sampler.num_generators()
+    }
+
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {
+        let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
+        let (sampler, seed) = (&self.sampler, self.seed);
+        let b = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
+        (PyBytes::new(py, &b.detectors), PyBytes::new(py, &b.observables), b.weights)
     }
 }
 

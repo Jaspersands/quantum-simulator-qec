@@ -22,6 +22,7 @@
 //! coherent circuit's. `exact` checks that identity exhaustively on small circuits.
 
 pub mod exact;
+pub mod joint;
 pub mod kernel;
 pub mod sampler;
 mod shot;
@@ -86,6 +87,9 @@ pub struct Program {
     pub(crate) slots: Vec<Slot>,
     pub(crate) num_records: usize,
     pub locations: Vec<Location>,
+    /// Per location, whether it is a non-Clifford *gate* (`I[T]`, a rotation written on `I`),
+    /// run exactly by the joint sampler, rather than a coherent error drawn as its twirl.
+    pub exact: Vec<bool>,
     /// With merging on, each location's place in its group: the groups' members are drawn as
     /// one, the parity at the group's last location (see `set_merge`).
     pub(crate) merge: Vec<Option<Merge>>,
@@ -122,6 +126,7 @@ impl Program {
         let mut steps = Vec::new();
         let mut slots = Vec::new();
         let mut locations = Vec::new();
+        let mut exact = Vec::new();
         let mut records = 0usize;
         let mut record = |slots: &mut Vec<Slot>| {
             slots.push(Slot::Record(records));
@@ -178,13 +183,28 @@ impl Program {
                 }
                 Instr::NonPauli(ops) => {
                     for op in ops {
+                        // A non-Clifford gate is a location too (the kernel's search sees the
+                        // interference through it), marked exact for the joint sampler.
+                        let mut push = |paulis: Vec<(usize, Code)>, theta: f64, gate: bool| {
+                            steps.push(Step::Coherent(locations.len()));
+                            locations.push(Location { paulis, theta });
+                            exact.push(gate);
+                        };
                         match op {
-                            NonPauli::Rotation { pauli, theta, .. } => {
+                            NonPauli::Rotation { pauli, theta, noise } => {
                                 if pauli.is_empty() {
                                     continue;
                                 }
-                                steps.push(Step::Coherent(locations.len()));
-                                locations.push(Location { paulis: pauli.iter().map(|&(q, c)| (q as usize, c)).collect(), theta: *theta });
+                                push(pauli.iter().map(|&(q, c)| (q as usize, c)).collect(), *theta, !*noise);
+                            }
+                            NonPauli::T { qubit, dagger } => push(vec![(*qubit as usize, 2)], if *dagger { -std::f64::consts::FRAC_PI_8 } else { std::f64::consts::FRAC_PI_8 }, true),
+                            // U3(θ, φ, λ) = e^{i(φ+λ)/2} R_Z(φ) R_Y(θ) R_Z(λ), R_P(α) = exp(−iαP/2).
+                            NonPauli::U3 { qubit, theta, phi, lambda } => {
+                                for (code, angle) in [(2, lambda / 2.0), (3, theta / 2.0), (2, phi / 2.0)] {
+                                    if angle != 0.0 {
+                                        push(vec![(*qubit as usize, code)], angle, true);
+                                    }
+                                }
                             }
                             other => return Err(format!("the coherent sampler takes rotations only, not '{}'; the state vector runs it", other.line())),
                         }
@@ -209,6 +229,7 @@ impl Program {
             slots,
             num_records: records,
             locations,
+            exact,
             detectors: res.detectors,
             observables: res.observables,
             gauges: Vec::new(),
@@ -842,7 +863,7 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
                         let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
                         for op in ops {
                             match op {
-                                NonPauli::Rotation { pauli, theta, .. } => out.push(f(pauli, theta.sin().powi(2))),
+                                NonPauli::Rotation { pauli, theta, noise: true } => out.push(f(pauli, theta.sin().powi(2))),
                                 _ => out.push(ins.clone()),
                             }
                         }
@@ -874,14 +895,24 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
         match ins {
             Instr::NonPauli(ops) => {
                 for op in ops {
-                    if let NonPauli::Rotation { pauli, .. } = op {
-                        if pauli.is_empty() {
-                            continue;
+                    match op {
+                        NonPauli::Rotation { pauli, .. } if pauli.is_empty() => {}
+                        NonPauli::Rotation { pauli, noise: true, .. } => {
+                            if let Some(p) = prob[loc] {
+                                out.push(pauli_error(pauli, p));
+                            }
+                            loc += 1;
                         }
-                        if let Some(p) = prob[loc] {
-                            out.push(pauli_error(pauli, p));
+                        // A gate stays a gate (its locations are the kernel's, not the twirl's).
+                        NonPauli::Rotation { .. } | NonPauli::T { .. } => {
+                            out.push(Instr::NonPauli(vec![op.clone()]));
+                            loc += 1;
                         }
-                        loc += 1;
+                        NonPauli::U3 { theta, phi, lambda, .. } => {
+                            out.push(Instr::NonPauli(vec![op.clone()]));
+                            loc += [lambda, theta, phi].iter().filter(|a| ***a != 0.0).count();
+                        }
+                        _ => out.push(Instr::NonPauli(vec![op.clone()])),
                     }
                 }
             }

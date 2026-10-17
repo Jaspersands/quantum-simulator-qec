@@ -23,9 +23,10 @@
 //! the squared norm of what remains. Pauli noise, feedback and reset corrections live in a
 //! per-shot Pauli frame outside the terms, with the frame sampler's rules: an outcome flips
 //! where the frame anticommutes with the measured Pauli, and a gate U becomes G U G, each of
-//! its Pauli terms signed by whether it anticommutes with the frame.
+//! its Pauli terms signed by whether it anticommutes with the frame. The frame carries its
+//! phase, so two shots' states compare exactly (the joint coherent sampler's overlaps).
 //!
-//! Global phases are not kept (no probability depends on them).
+//! Global phases of the circuit's gates are not kept (no probability depends on them).
 
 use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::{FRAC_PI_4, FRAC_PI_8};
@@ -69,12 +70,12 @@ pub struct Pauli {
 }
 
 impl Pauli {
-    fn identity(w: usize) -> Pauli {
+    pub fn identity(w: usize) -> Pauli {
         Pauli { x: vec![0; w], z: vec![0; w], k: 0 }
     }
 
     /// The Hermitian Pauli product with code 1 X, 2 Z, 3 Y on each listed qubit.
-    fn from_codes(w: usize, paulis: &[(usize, u8)]) -> Pauli {
+    pub fn from_codes(w: usize, paulis: &[(usize, u8)]) -> Pauli {
         let mut p = Pauli::identity(w);
         for &(q, c) in paulis {
             if c & 1 != 0 {
@@ -90,17 +91,16 @@ impl Pauli {
         p
     }
 
-    fn is_identity(&self) -> bool {
+    pub fn is_identity(&self) -> bool {
         self.x.iter().all(|&w| w == 0) && self.z.iter().all(|&w| w == 0)
     }
 
-    #[cfg(test)]
-    fn anticommutes(&self, o: &Pauli) -> bool {
+    pub fn anticommutes(&self, o: &Pauli) -> bool {
         parity_and(&self.x, &o.z) ^ parity_and(&self.z, &o.x)
     }
 
     /// self · o: Z^{z} X^{x'} = (−1)^{|z ∧ x'|} X^{x'} Z^{z}.
-    fn mul_assign(&mut self, o: &Pauli) {
+    pub fn mul_assign(&mut self, o: &Pauli) {
         let swaps = self.z.iter().zip(&o.x).fold(0u32, |acc, (a, b)| acc + (a & b).count_ones());
         self.k = (self.k as u32 + o.k as u32 + 2 * swaps).rem_euclid(4) as u8;
         for (a, b) in self.x.iter_mut().zip(&o.x) {
@@ -111,10 +111,73 @@ impl Pauli {
         }
     }
 
+    /// self becomes p · self.
+    pub fn left_mul(&mut self, p: &Pauli) {
+        let mut q = p.clone();
+        q.mul_assign(self);
+        *self = q;
+    }
+
     /// The adjoint: (i^k X^x Z^z)† = i^{−k} Z^z X^x = i^{−k} (−1)^{|x ∧ z|} X^x Z^z.
-    fn dagger(&self) -> Pauli {
+    pub fn dagger(&self) -> Pauli {
         let yy = self.x.iter().zip(&self.z).fold(0u32, |acc, (a, b)| acc + (a & b).count_ones());
         Pauli { x: self.x.clone(), z: self.z.clone(), k: (4 - self.k as u32 + 2 * yy).rem_euclid(4) as u8 }
+    }
+
+    // Conjugation by the Clifford gates, as the tableau's rows are conjugated.
+
+    fn h(&mut self, q: usize) {
+        let (xq, zq) = (bit(&self.x, q), bit(&self.z, q));
+        if xq && zq {
+            self.k = (self.k + 2) % 4;
+        }
+        set_bit(&mut self.x, q, zq);
+        set_bit(&mut self.z, q, xq);
+    }
+
+    fn s(&mut self, q: usize) {
+        if bit(&self.x, q) {
+            self.k = (self.k + 1) % 4;
+            flip_bit(&mut self.z, q);
+        }
+    }
+
+    fn cx(&mut self, c: usize, t: usize) {
+        if bit(&self.x, c) {
+            flip_bit(&mut self.x, t);
+        }
+        if bit(&self.z, t) {
+            flip_bit(&mut self.z, c);
+        }
+    }
+
+    fn cz(&mut self, a: usize, b: usize) {
+        let (xa, xb) = (bit(&self.x, a), bit(&self.x, b));
+        if xa && xb {
+            self.k = (self.k + 2) % 4;
+        }
+        if xb {
+            flip_bit(&mut self.z, a);
+        }
+        if xa {
+            flip_bit(&mut self.z, b);
+        }
+    }
+
+    /// Conjugation by the Pauli `p`: a sign where they anticommute.
+    fn conjugate_by_pauli(&mut self, p: &Pauli) {
+        if self.anticommutes(p) {
+            self.k = (self.k + 2) % 4;
+        }
+    }
+
+    /// Conjugation by exp(−iπ/4 P) (by exp(+iπ/4 P) with `inverse`): Q anticommuting with P
+    /// becomes i Q P (−i Q P).
+    fn conjugate_by_rotation(&mut self, p: &Pauli, inverse: bool) {
+        if self.anticommutes(p) {
+            self.mul_assign(p);
+            self.k = (self.k + if inverse { 3 } else { 1 }) % 4;
+        }
     }
 }
 
@@ -338,6 +401,9 @@ enum Step {
     CliffordRotation { pauli: Pauli, inverse: bool },
     /// A non-Clifford gate as a sum of Paulis: Σ amplitude · Pauli (the identity among them).
     Branch(Vec<(C, Pauli)>),
+    /// A coherent error drawn as its Pauli twirl: location `twirl[i]` fires (its Pauli into
+    /// the frame) with probability sin²θ.
+    Twirl(usize),
     Measure { q: usize, basis: Basis, reset: bool, flip: f64 },
     Reset { q: usize, basis: Basis },
     /// One Pauli product from `branches` (probability, product), or none with the rest.
@@ -361,6 +427,10 @@ pub struct Program {
     reference: Vec<bool>,
     /// Whether any step draws at random besides measurements (a noise channel, a flip).
     noisy: bool,
+    /// The twirled coherent errors (`with_twirl`): each one's Pauli and angle.
+    twirl: Vec<(Pauli, f64)>,
+    /// The reference tableau at the end of the circuit, the same in every shot.
+    final_tab: Tableau,
 }
 
 const CODE: [u8; 4] = [0, 1, 3, 2]; // Stim's letter order I, X, Y, Z as the engine's codes.
@@ -384,8 +454,44 @@ fn rotation_steps(w: usize, pauli: &Pauli, theta: f64) -> Vec<Step> {
     vec![Step::Branch(vec![(C::new(theta.cos(), 0.0), Pauli::identity(w)), (C::new(0.0, -theta.sin()), pauli.clone())])]
 }
 
+/// The reference tableau after every step: Clifford gates applied, random measurements
+/// collapsed to 0.
+fn end_tableau(steps: &[Step], n: usize, w: usize) -> Tableau {
+    let mut tab = Tableau::new(n);
+    for step in steps {
+        match step {
+            Step::H(q) => tab.h(*q),
+            Step::S(q) => tab.s(*q),
+            Step::Cx(c, t) => tab.cx(*c, *t),
+            Step::Cz(a, b) => tab.cz(*a, *b),
+            Step::PauliGate(p) => tab.conjugate_by(p),
+            Step::CliffordRotation { pauli, inverse } => tab.clifford_rotation(pauli, *inverse),
+            Step::Measure { q, basis, .. } | Step::Reset { q, basis } => {
+                let m = Pauli::from_codes(w, &[(*q, if *basis == Basis::Z { 2 } else { 1 })]);
+                if let Some(p) = tab.pivot(&m) {
+                    tab.collapse(&m, p);
+                }
+            }
+            _ => {}
+        }
+    }
+    tab
+}
+
 impl Program {
+    /// The circuit with every operation exact, coherent errors included.
     pub fn new(circuit: &Circuit) -> Result<Program, String> {
+        Program::build(circuit, false)
+    }
+
+    /// The circuit with its coherent errors (`I_ERROR[R_Z(theta=…)]`, rotations written as
+    /// errors) drawn as their Pauli twirl, for the joint coherent sampler; the non-Clifford
+    /// gates stay exact.
+    pub fn with_twirl(circuit: &Circuit) -> Result<Program, String> {
+        Program::build(circuit, true)
+    }
+
+    fn build(circuit: &Circuit, twirl_errors: bool) -> Result<Program, String> {
         circuit.check_runnable()?;
         let res = circuit.resolve()?;
         let mut n = res.num_qubits;
@@ -400,6 +506,7 @@ impl Program {
         let w = n.div_ceil(64).max(1);
         let ix = |q: &u32| *q as usize;
         let mut steps = Vec::new();
+        let mut twirl = Vec::new();
         let mut m = 0usize;
         let mut noisy = false;
         for ins in &res.instrs {
@@ -470,9 +577,14 @@ impl Program {
                 Instr::NonPauli(ops) => {
                     for op in ops {
                         match op {
-                            NonPauli::Rotation { pauli, theta, .. } => {
+                            NonPauli::Rotation { pauli, theta, noise } => {
                                 let p = Pauli::from_codes(w, &pauli.iter().map(|&(q, c)| (q as usize, c)).collect::<Vec<_>>());
-                                steps.extend(rotation_steps(w, &p, *theta));
+                                if twirl_errors && *noise && !p.is_identity() {
+                                    steps.push(Step::Twirl(twirl.len()));
+                                    twirl.push((p, *theta));
+                                } else {
+                                    steps.extend(rotation_steps(w, &p, *theta));
+                                }
                             }
                             NonPauli::T { qubit, dagger } => {
                                 let z = Pauli::from_codes(w, &[(*qubit as usize, 2)]);
@@ -506,7 +618,8 @@ impl Program {
             let parity = |recs: &Vec<usize>| recs.iter().fold(false, |a, &r| a ^ rec[r]);
             res.detectors.iter().chain(&res.observables).map(parity).collect()
         };
-        Ok(Program { steps, num_qubits: n, w, num_measurements: m, detectors: res.detectors, observables: res.observables, reference, noisy })
+        let final_tab = end_tableau(&steps, n, w);
+        Ok(Program { steps, num_qubits: n, w, num_measurements: m, detectors: res.detectors, observables: res.observables, reference, noisy, twirl, final_tab })
     }
 
     pub fn num_qubits(&self) -> usize {
@@ -523,6 +636,11 @@ impl Program {
 
     pub fn num_observables(&self) -> usize {
         self.observables.len()
+    }
+
+    /// The twirled coherent errors.
+    pub fn num_twirl(&self) -> usize {
+        self.twirl.len()
     }
 
     /// Whether anything besides measurement outcomes is drawn at random.
@@ -547,16 +665,18 @@ impl Program {
 }
 
 /// Where a shot's random choices come from.
-pub(crate) trait Source {
+pub trait Source {
     /// The branch taken among `probs` (which sum to 1).
     fn choose(&mut self, probs: &[f64]) -> usize;
     /// A measurement whose outcome is 1 with probability `p1` and whose record is flipped with
     /// probability `flip`: (outcome, record).
     fn outcome(&mut self, p1: f64, flip: f64) -> (bool, bool);
+    /// Whether twirled location `loc` fires (with probability `p`, the twirl's).
+    fn fire(&mut self, loc: usize, p: f64) -> bool;
 }
 
 /// A random stream.
-pub(crate) struct Stream<'a>(pub &'a mut Xorshift);
+pub struct Stream<'a>(pub &'a mut Xorshift);
 
 impl Source for Stream<'_> {
     fn choose(&mut self, probs: &[f64]) -> usize {
@@ -575,6 +695,85 @@ impl Source for Stream<'_> {
         let k = self.choose(&[(1.0 - p1) * (1.0 - flip), (1.0 - p1) * flip, p1 * (1.0 - flip), p1 * flip]);
         (k >= 2, (k >= 2) ^ (k % 2 == 1))
     }
+
+    fn fire(&mut self, _loc: usize, p: f64) -> bool {
+        self.0.next_f64() < p
+    }
+}
+
+/// A shot's draws, kept so that the shot can be run again with other errors inserted: every
+/// branch chosen and every measurement's (outcome, record).
+#[derive(Clone, Debug, Default)]
+pub struct Trace {
+    pub choices: Vec<usize>,
+    pub outcomes: Vec<(bool, bool)>,
+}
+
+/// A source whose draws are recorded.
+pub struct Recording<'a> {
+    inner: &'a mut dyn Source,
+    pub trace: Trace,
+    pub fired: Vec<bool>,
+}
+
+impl<'a> Recording<'a> {
+    pub fn new(inner: &'a mut dyn Source, num_twirl: usize) -> Recording<'a> {
+        Recording { inner, trace: Trace::default(), fired: vec![false; num_twirl] }
+    }
+
+    pub fn into_trace(self) -> Trace {
+        self.trace
+    }
+}
+
+impl Source for Recording<'_> {
+    fn choose(&mut self, probs: &[f64]) -> usize {
+        let k = self.inner.choose(probs);
+        self.trace.choices.push(k);
+        k
+    }
+
+    fn outcome(&mut self, p1: f64, flip: f64) -> (bool, bool) {
+        let o = self.inner.outcome(p1, flip);
+        self.trace.outcomes.push(o);
+        o
+    }
+
+    fn fire(&mut self, loc: usize, p: f64) -> bool {
+        let f = self.inner.fire(loc, p);
+        self.fired[loc] = f;
+        f
+    }
+}
+
+/// A recorded shot run again, with a given set of errors fired.
+pub struct Replay<'a> {
+    trace: &'a Trace,
+    fired: &'a [bool],
+    ci: usize,
+    oi: usize,
+}
+
+impl<'a> Replay<'a> {
+    pub fn new(trace: &'a Trace, fired: &'a [bool]) -> Replay<'a> {
+        Replay { trace, fired, ci: 0, oi: 0 }
+    }
+}
+
+impl Source for Replay<'_> {
+    fn choose(&mut self, _probs: &[f64]) -> usize {
+        self.ci += 1;
+        self.trace.choices[self.ci - 1]
+    }
+
+    fn outcome(&mut self, _p1: f64, _flip: f64) -> (bool, bool) {
+        self.oi += 1;
+        self.trace.outcomes[self.oi - 1]
+    }
+
+    fn fire(&mut self, loc: usize, _p: f64) -> bool {
+        self.fired[loc]
+    }
 }
 
 /// Memoised phases: for a branch step's Pauli applied to a key, and for a term re-expressed
@@ -587,40 +786,33 @@ pub struct Memo {
 
 const PHASES: [C; 4] = [C::ONE, C::I, C { re: -1.0, im: 0.0 }, C { re: 0.0, im: -1.0 }];
 
-/// A shot's state: its terms, its Pauli frame, its records.
-struct Shot {
-    terms: HashMap<Key, C>,
-    fx: Vec<u64>,
-    fz: Vec<u64>,
-    rec: Vec<bool>,
+/// A shot run through the circuit: its records, which twirled errors fired, its final terms
+/// (keys to amplitudes, normalised) and Pauli frame — the state is frame · Σ_k c_k D(k)|ref⟩ —
+/// the probability of its trajectory's measurement and reset outcomes, and its draws.
+#[derive(Clone, Debug)]
+pub struct Run {
+    pub records: Vec<bool>,
+    pub fired: Vec<bool>,
+    pub terms: HashMap<Key, C>,
+    pub frame: Pauli,
+    pub prob: f64,
+    /// Whether a forced outcome was impossible: the state is zero.
+    pub dead: bool,
+    /// The most terms held at once.
+    pub peak: usize,
+    pub trace: Trace,
     chain: bool,
-    peak: usize,
 }
 
-impl Shot {
-    fn frame_anticommutes(&self, p: &Pauli) -> bool {
-        parity_and(&self.fx, &p.z) ^ parity_and(&self.fz, &p.x)
-    }
-
-    fn frame_mul(&mut self, p: &Pauli) {
-        for (a, b) in self.fx.iter_mut().zip(&p.x) {
-            *a ^= b;
-        }
-        for (a, b) in self.fz.iter_mut().zip(&p.z) {
-            *a ^= b;
-        }
-    }
-
-    fn frame_code(&mut self, q: usize, c: u8) {
-        if c & 1 != 0 {
-            flip_bit(&mut self.fx, q);
-        }
-        if c & 2 != 0 {
-            flip_bit(&mut self.fz, q);
-        }
-    }
-
+impl Run {
     fn renormalise(&mut self, norm2: f64) {
+        if norm2 <= 1e-300 || self.terms.is_empty() {
+            self.dead = true;
+            self.prob = 0.0;
+            self.terms.clear();
+            return;
+        }
+        self.prob *= norm2;
         let s = 1.0 / norm2.sqrt();
         for c in self.terms.values_mut() {
             *c = c.scale(s);
@@ -646,55 +838,62 @@ fn norm2(map: &HashMap<Key, C>) -> f64 {
 }
 
 impl Program {
-    /// One shot: its records, and the most terms it held at once.
-    pub(crate) fn run_shot(&self, src: &mut dyn Source, memo: &mut Memo) -> (Vec<bool>, usize) {
+    /// One shot, in full.
+    pub fn run_full(&self, src: &mut dyn Source, memo: &mut Memo) -> Run {
         let (n, w) = (self.num_qubits, self.w);
         let mut tab = Tableau::new(n);
-        let mut shot = Shot { terms: HashMap::from([(vec![0u64; w], C::ONE)]), fx: vec![0; w], fz: vec![0; w], rec: Vec::with_capacity(self.num_measurements), chain: false, peak: 1 };
+        let mut shot = Run {
+            records: Vec::with_capacity(self.num_measurements),
+            fired: vec![false; self.twirl.len()],
+            terms: HashMap::from([(vec![0u64; w], C::ONE)]),
+            frame: Pauli::identity(w),
+            prob: 1.0,
+            dead: false,
+            peak: 1,
+            trace: Trace::default(),
+            chain: false,
+        };
         for (i, step) in self.steps.iter().enumerate() {
+            if shot.dead {
+                break;
+            }
             match step {
                 Step::H(q) => {
                     tab.h(*q);
-                    let (a, b) = (bit(&shot.fx, *q), bit(&shot.fz, *q));
-                    set_bit(&mut shot.fx, *q, b);
-                    set_bit(&mut shot.fz, *q, a);
+                    shot.frame.h(*q);
                 }
                 Step::S(q) => {
                     tab.s(*q);
-                    if bit(&shot.fx, *q) {
-                        flip_bit(&mut shot.fz, *q);
-                    }
+                    shot.frame.s(*q);
                 }
                 Step::Cx(c, t) => {
                     tab.cx(*c, *t);
-                    if bit(&shot.fx, *c) {
-                        flip_bit(&mut shot.fx, *t);
-                    }
-                    if bit(&shot.fz, *t) {
-                        flip_bit(&mut shot.fz, *c);
-                    }
+                    shot.frame.cx(*c, *t);
                 }
                 Step::Cz(a, b) => {
                     tab.cz(*a, *b);
-                    let (xa, xb) = (bit(&shot.fx, *a), bit(&shot.fx, *b));
-                    if xb {
-                        flip_bit(&mut shot.fz, *a);
-                    }
-                    if xa {
-                        flip_bit(&mut shot.fz, *b);
-                    }
+                    shot.frame.cz(*a, *b);
                 }
-                Step::PauliGate(p) => tab.conjugate_by(p),
+                Step::PauliGate(p) => {
+                    tab.conjugate_by(p);
+                    shot.frame.conjugate_by_pauli(p);
+                }
                 Step::CliffordRotation { pauli, inverse } => {
                     tab.clifford_rotation(pauli, *inverse);
-                    if shot.frame_anticommutes(pauli) {
-                        shot.frame_mul(pauli);
-                    }
+                    shot.frame.conjugate_by_rotation(pauli, *inverse);
                 }
                 Step::Branch(terms) => self.branch(i, &tab, &mut shot, terms, memo),
+                Step::Twirl(loc) => {
+                    let (p, theta) = &self.twirl[*loc];
+                    let f = src.fire(*loc, theta.sin().powi(2));
+                    shot.fired[*loc] = f;
+                    if f {
+                        shot.frame.left_mul(p);
+                    }
+                }
                 Step::Measure { q, basis, reset, flip } => {
                     let r = self.measure(i, &mut tab, &mut shot, *q, *basis, *reset, Some(*flip), src, memo);
-                    shot.rec.push(r);
+                    shot.records.push(r);
                 }
                 Step::Reset { q, basis } => {
                     self.measure(i, &mut tab, &mut shot, *q, *basis, true, None, src, memo);
@@ -704,48 +903,77 @@ impl Program {
                     probs.push(1.0 - probs.iter().sum::<f64>());
                     let k = src.choose(&probs);
                     if k < branches.len() {
-                        for &(q, c) in &branches[k].1 {
-                            shot.frame_code(q, c);
-                        }
+                        shot.frame.left_mul(&Pauli::from_codes(w, &branches[k].1));
                     }
                 }
                 Step::Correlated { p, paulis, chained } => {
                     let fires = if *chained && shot.chain { false } else { src.choose(&[*p, 1.0 - p]) == 0 };
                     shot.chain = if *chained { shot.chain || fires } else { fires };
                     if fires {
-                        for &(q, c) in paulis {
-                            shot.frame_code(q, c);
-                        }
+                        shot.frame.left_mul(&Pauli::from_codes(w, paulis));
                     }
                 }
                 Step::Pad { flip, value } => {
                     let k = src.choose(&[1.0 - flip, *flip]);
-                    shot.rec.push(*value ^ (k == 1));
+                    shot.records.push(*value ^ (k == 1));
                 }
                 Step::Herald { q, probs } => {
                     let mut v = probs.to_vec();
                     v.push(1.0 - probs.iter().sum::<f64>());
                     let k = src.choose(&v);
-                    shot.rec.push(k < 4);
+                    shot.records.push(k < 4);
                     if (1..4).contains(&k) {
-                        shot.frame_code(*q, [0, 1, 3, 2][k]);
+                        shot.frame.left_mul(&Pauli::from_codes(w, &[(*q, [0, 1, 3, 2][k])]));
                     }
                 }
                 Step::Feedback { pauli, rec, q } => {
-                    if shot.rec[*rec] {
-                        shot.frame_code(*q, *pauli);
+                    if shot.records[*rec] {
+                        shot.frame.left_mul(&Pauli::from_codes(w, &[(*q, *pauli)]));
                     }
                 }
             }
         }
-        (shot.rec, shot.peak)
+        shot
+    }
+
+    /// One shot: its records, and the most terms it held at once.
+    pub(crate) fn run_shot(&self, src: &mut dyn Source, memo: &mut Memo) -> (Vec<bool>, usize) {
+        let run = self.run_full(src, memo);
+        (run.records, run.peak)
+    }
+
+    /// A run's final terms with its state brought to the frame `frame` — the state is
+    /// frame · Σ c′_k D(k)|ref⟩ — and the trajectory's probability in their norm, so that two
+    /// runs' overlap is the dot product of their terms. Empty for a dead run.
+    pub fn in_frame(&self, run: &Run, frame: &Pauli) -> HashMap<Key, C> {
+        if run.dead {
+            return HashMap::new();
+        }
+        let scale = C::new(run.prob.sqrt(), 0.0);
+        let mut q = frame.dagger();
+        q.mul_assign(&run.frame);
+        let mut out: HashMap<Key, C> = HashMap::with_capacity(run.terms.len());
+        if q.is_identity() {
+            let phase = PHASES[q.k as usize] * scale;
+            for (k, c) in &run.terms {
+                out.insert(k.clone(), *c * phase);
+            }
+            return out;
+        }
+        for (k, c) in &run.terms {
+            let mut p = q.clone();
+            p.mul_assign(&self.final_tab.representative(k));
+            let (k2, m) = self.final_tab.express(&p);
+            add_term(&mut out, k2, *c * PHASES[m as usize] * scale);
+        }
+        out
     }
 
     /// A non-Clifford gate on the terms: U = Σ a_j P_j, conjugated by the frame (a_j signed by
     /// whether P_j anticommutes with it), each Pauli taking a term to its coset.
-    fn branch(&self, step: usize, tab: &Tableau, shot: &mut Shot, terms: &[(C, Pauli)], memo: &mut Memo) {
+    fn branch(&self, step: usize, tab: &Tableau, shot: &mut Run, terms: &[(C, Pauli)], memo: &mut Memo) {
         let mut out: HashMap<Key, C> = HashMap::with_capacity(shot.terms.len() * 2);
-        let signs: Vec<bool> = terms.iter().map(|(_, p)| shot.frame_anticommutes(p)).collect();
+        let signs: Vec<bool> = terms.iter().map(|(_, p)| shot.frame.anticommutes(p)).collect();
         for (key, c) in &shot.terms {
             for (j, ((a, p), &flip)) in terms.iter().zip(&signs).enumerate() {
                 let amp = if flip { C::ZERO - *a } else { *a } * *c;
@@ -806,14 +1034,14 @@ impl Program {
     /// (`reset`, and nothing recorded) of qubit `q` in `basis`: the record (or the unread
     /// outcome).
     #[allow(clippy::too_many_arguments)]
-    fn measure(&self, step: usize, tab: &mut Tableau, shot: &mut Shot, q: usize, basis: Basis, reset: bool, flip: Option<f64>, src: &mut dyn Source, memo: &mut Memo) -> bool {
+    fn measure(&self, step: usize, tab: &mut Tableau, shot: &mut Run, q: usize, basis: Basis, reset: bool, flip: Option<f64>, src: &mut dyn Source, memo: &mut Memo) -> bool {
         let code = match basis {
             Basis::Z => 2,
             Basis::X => 1,
         };
         let m = Pauli::from_codes(self.w, &[(q, code)]);
         // Whether the frame flips this outcome.
-        let f = shot.frame_anticommutes(&m);
+        let f = shot.frame.anticommutes(&m);
         let delta = tab.dkey_of(&m);
         let draw = |src: &mut dyn Source, p1_rep: f64| -> (bool, bool) {
             // The real outcome is the represented one flipped by the frame.
@@ -826,7 +1054,7 @@ impl Program {
                 }
             }
         };
-        let (v, record) = match tab.pivot(&m) {
+        let (outcome, record) = match tab.pivot(&m) {
             None => {
                 let r = tab.deterministic_outcome(&m);
                 let p1_rep: f64 = shot.terms.iter().filter(|(k, _)| Self::term_outcome(k, &delta, r)).map(|(_, c)| c.norm2()).sum();
@@ -834,7 +1062,7 @@ impl Program {
                 let v = outcome ^ f;
                 shot.terms.retain(|k, _| Self::term_outcome(k, &delta, r) == v);
                 shot.renormalise(if v { p1_rep } else { 1.0 - p1_rep });
-                (v, record)
+                (outcome, record)
             }
             Some(p) => {
                 let old = tab.clone();
@@ -847,16 +1075,12 @@ impl Program {
                 let (map, prob) = if v { (self.rebase(step, &shot.terms, true, &delta, &old, &g, tab, memo), 1.0 - p0) } else { (zero, p0) };
                 shot.terms = map;
                 shot.renormalise(prob);
-                (v, record)
+                (outcome, record)
             }
         };
-        // After a reset the real state is |0⟩ (|+⟩): the frame takes up the represented
-        // state's eigenvalue.
-        if reset {
-            match basis {
-                Basis::Z => set_bit(&mut shot.fx, q, v),
-                Basis::X => set_bit(&mut shot.fz, q, v),
-            }
+        // After a reset the real state is |0⟩ (|+⟩): the frame takes up the outcome's flip.
+        if reset && outcome {
+            shot.frame.left_mul(&Pauli::from_codes(self.w, &[(q, if basis == Basis::Z { 1 } else { 2 })]));
         }
         record
     }
@@ -884,8 +1108,10 @@ impl Program {
         for s in 0..runs {
             let mut rng = Xorshift::new(crate::batch_sampler::batch_seed(seed, s as u64));
             let mut src = Forced { record, next: 0, prob: 1.0, rng: &mut rng };
-            self.run_shot(&mut src, &mut memo);
-            total += src.prob;
+            let run = self.run_full(&mut src, &mut memo);
+            if !run.dead {
+                total += src.prob;
+            }
         }
         Ok(total / runs as f64)
     }
@@ -894,49 +1120,37 @@ impl Program {
     /// measurement outcome and flip, each reset's unread outcome. At most `max_branches`.
     pub fn distribution(&self, max_branches: usize) -> Result<BTreeMap<(Vec<bool>, u64), f64>, String> {
         let mut out = BTreeMap::new();
-        let mut memo = Memo::default();
-        let mut odo = Odometer { choices: Vec::new(), probs: Vec::new(), pos: 0, p: 1.0 };
-        let mut branches = 0usize;
-        loop {
-            odo.pos = 0;
-            odo.p = 1.0;
-            let (rec, _) = self.run_shot(&mut odo, &mut memo);
-            if odo.p > 1e-15 {
-                *out.entry(self.outcome(&rec)).or_insert(0.0) += odo.p;
-            }
-            branches += 1;
-            if branches > max_branches {
-                return Err(format!("more than {max_branches} branches"));
-            }
-            if !odo.advance() {
-                break;
-            }
-        }
+        self.each_branch(max_branches, &mut |rec, p| *out.entry(self.outcome(rec)).or_insert(0.0) += p)?;
         Ok(out)
     }
 
     /// The same for measurement records: {record: probability}.
     pub fn record_distribution(&self, max_branches: usize) -> Result<BTreeMap<Vec<bool>, f64>, String> {
         let mut out = BTreeMap::new();
+        self.each_branch(max_branches, &mut |rec, p| *out.entry(rec.to_vec()).or_insert(0.0) += p)?;
+        Ok(out)
+    }
+
+    /// Every branch of the circuit (noise draws, outcomes, flips, twirled errors firing), with
+    /// its probability, to `visit(records, probability)`.
+    pub fn each_branch(&self, max_branches: usize, visit: &mut dyn FnMut(&[bool], f64)) -> Result<(), String> {
         let mut memo = Memo::default();
-        let mut odo = Odometer { choices: Vec::new(), probs: Vec::new(), pos: 0, p: 1.0 };
+        let mut odo = Odometer::default();
         let mut branches = 0usize;
         loop {
-            odo.pos = 0;
-            odo.p = 1.0;
+            odo.restart();
             let (rec, _) = self.run_shot(&mut odo, &mut memo);
             if odo.p > 1e-15 {
-                *out.entry(rec).or_insert(0.0) += odo.p;
+                visit(&rec, odo.p);
             }
             branches += 1;
             if branches > max_branches {
                 return Err(format!("more than {max_branches} branches"));
             }
             if !odo.advance() {
-                break;
+                return Ok(());
             }
         }
-        Ok(out)
     }
 }
 
@@ -951,9 +1165,6 @@ struct Forced<'a> {
 
 impl Source for Forced<'_> {
     fn choose(&mut self, probs: &[f64]) -> usize {
-        // Pads and heralds record too: a record step that is a pad or herald comes through
-        // here with its probabilities; a forced record picks the matching branch where one
-        // exists. Noise channels have no record and are drawn.
         Stream(self.rng).choose(probs)
     }
 
@@ -965,17 +1176,29 @@ impl Source for Forced<'_> {
         self.prob *= if outcome { p1 } else { 1.0 - p1 };
         (outcome, want)
     }
+
+    fn fire(&mut self, _loc: usize, p: f64) -> bool {
+        self.rng.next_f64() < p
+    }
 }
 
 /// Every branch of a shot, by replaying it with its choices counted like an odometer.
-struct Odometer {
+#[derive(Default)]
+pub struct Odometer {
     choices: Vec<usize>,
     probs: Vec<Vec<f64>>,
     pos: usize,
-    p: f64,
+    /// The branch's probability so far.
+    pub p: f64,
 }
 
 impl Odometer {
+    /// At the start of a branch.
+    pub fn restart(&mut self) {
+        self.pos = 0;
+        self.p = 1.0;
+    }
+
     fn pick(&mut self, probs: Vec<f64>) -> usize {
         if self.pos == self.choices.len() {
             let k = probs.iter().position(|&p| p > 0.0).unwrap_or(0);
@@ -989,7 +1212,7 @@ impl Odometer {
     }
 
     /// The next branch; false when every one has run.
-    fn advance(&mut self) -> bool {
+    pub fn advance(&mut self) -> bool {
         while let Some(&k) = self.choices.last() {
             let probs = self.probs.last().unwrap();
             if let Some(next) = (k + 1..probs.len()).find(|&j| probs[j] > 0.0) {
@@ -1011,6 +1234,10 @@ impl Source for Odometer {
     fn outcome(&mut self, p1: f64, flip: f64) -> (bool, bool) {
         let k = self.pick(vec![(1.0 - p1) * (1.0 - flip), (1.0 - p1) * flip, p1 * (1.0 - flip), p1 * flip]);
         (k >= 2, (k >= 2) ^ (k % 2 == 1))
+    }
+
+    fn fire(&mut self, _loc: usize, p: f64) -> bool {
+        self.pick(vec![1.0 - p, p]) == 1
     }
 }
 
@@ -1131,15 +1358,79 @@ pub fn is_clifford(circuit: &Circuit) -> Result<bool, String> {
     Ok(true)
 }
 
+/// The circuit with every tagged gate at a Clifford angle written as the Clifford gate it is
+/// (`I[R_Z(theta=π/4)] 0` is `S 0`, `I[R_PAULI(theta=π/4, pauli=XZ)] 0 1` is `SPP X0*Z1`, a
+/// multiple of π/2 a Pauli gate), and every `U3` as its three rotations, each so written when
+/// Clifford; the other gates and the coherent errors as they are. Loops are kept.
+pub fn expand_clifford_rotations(circuit: &Circuit) -> Result<Circuit, String> {
+    fn lines_of(pauli: &[(u32, u8)], theta: f64, out: &mut Vec<String>) {
+        if pauli.is_empty() {
+            return;
+        }
+        let letters = |c: u8| ['I', 'X', 'Z', 'Y'][c as usize];
+        if !is_clifford_angle(theta) {
+            let qs: Vec<String> = pauli.iter().map(|&(q, _)| q.to_string()).collect();
+            let ls: String = pauli.iter().map(|&(_, c)| letters(c)).collect();
+            out.push(format!("I[R_PAULI(theta={theta:?}, pauli={ls})] {}", qs.join(" ")));
+            return;
+        }
+        let k = (theta / FRAC_PI_4).round() as i64;
+        match k.rem_euclid(8) {
+            0 | 4 => {}
+            2 | 6 => {
+                for &(q, c) in pauli {
+                    out.push(format!("{} {q}", letters(c)));
+                }
+            }
+            odd => {
+                let product: Vec<String> = pauli.iter().map(|&(q, c)| format!("{}{q}", letters(c))).collect();
+                out.push(format!("{} {}", if odd == 1 || odd == 5 { "SPP" } else { "SPP_DAG" }, product.join("*")));
+            }
+        }
+    }
+    fn walk(instrs: &[Instr]) -> Result<Vec<Instr>, String> {
+        let mut out = Vec::new();
+        for ins in instrs {
+            match ins {
+                Instr::Repeat { count, body, tag } => out.push(Instr::Repeat { count: *count, body: walk(body)?, tag: tag.clone() }),
+                Instr::Gate { body, .. } if matches!(body.as_slice(), [Instr::NonPauli(_)]) => {
+                    let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
+                    let gate = ops.iter().all(|op| matches!(op, NonPauli::Rotation { noise: false, .. } | NonPauli::U3 { .. }));
+                    if !gate {
+                        out.push(ins.clone());
+                        continue;
+                    }
+                    let mut lines = Vec::new();
+                    for op in ops {
+                        match op {
+                            NonPauli::Rotation { pauli, theta, .. } => lines_of(pauli, *theta, &mut lines),
+                            NonPauli::U3 { qubit, theta, phi, lambda } => {
+                                lines_of(&[(*qubit, 2)], lambda / 2.0, &mut lines);
+                                lines_of(&[(*qubit, 3)], theta / 2.0, &mut lines);
+                                lines_of(&[(*qubit, 2)], phi / 2.0, &mut lines);
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    out.extend(Circuit::parse(&lines.join("\n"))?.instrs);
+                }
+                other => out.push(other.clone()),
+            }
+        }
+        Ok(out)
+    }
+    Ok(Circuit { instrs: walk(&circuit.instrs)? })
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn dist(text: &str) -> BTreeMap<(Vec<bool>, u64), f64> {
         Program::new(&Circuit::parse(text).unwrap()).unwrap().distribution(1 << 20).unwrap()
     }
 
-    fn close(a: &BTreeMap<(Vec<bool>, u64), f64>, b: &BTreeMap<(Vec<bool>, u64), f64>, text: &str) {
+    pub(crate) fn close(a: &BTreeMap<(Vec<bool>, u64), f64>, b: &BTreeMap<(Vec<bool>, u64), f64>, text: &str) {
         let keys: std::collections::BTreeSet<_> = a.keys().chain(b.keys()).collect();
         for k in keys {
             let (x, y) = (a.get(k).copied().unwrap_or(0.0), b.get(k).copied().unwrap_or(0.0));
@@ -1169,6 +1460,21 @@ mod tests {
         assert!(yy.is_identity() && yy.k == 0);
         assert_eq!(y.dagger(), y);
         assert!(x.anticommutes(&z) && !x.anticommutes(&x));
+        // Conjugations: S X S† = Y; H Y H = −Y; CX takes X⊗I to X⊗X; CZ takes X⊗X to Y⊗Y.
+        let mut p = x.clone();
+        p.s(0);
+        assert_eq!(p, y);
+        let mut p = y.clone();
+        p.h(0);
+        let mut my = y.clone();
+        my.k = (my.k + 2) % 4;
+        assert_eq!(p, my);
+        let mut p = Pauli::from_codes(1, &[(0, 1)]);
+        p.cx(0, 1);
+        assert_eq!(p, Pauli::from_codes(1, &[(0, 1), (1, 1)]));
+        let mut p = Pauli::from_codes(1, &[(0, 1), (1, 1)]);
+        p.cz(0, 1);
+        assert_eq!(p, Pauli::from_codes(1, &[(0, 3), (1, 3)]));
     }
 
     #[test]
@@ -1186,26 +1492,30 @@ mod tests {
 
     #[test]
     fn clifford_angles_split_nothing() {
-        let p = Program::new(&Circuit::parse("R 0 1\nI[R_X(theta=0.7853981633974483)] 0\nII[R_ZZ(theta=1.5707963267948966)] 0 1\nI[R_Y(theta=-2.356194490192345)] 1\nM 0 1").unwrap()).unwrap();
+        let text = "R 0 1\nI[R_X(theta=0.7853981633974483)] 0\nII[R_ZZ(theta=1.5707963267948966)] 0 1\nI[R_Y(theta=-2.356194490192345)] 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]";
+        let p = Program::new(&Circuit::parse(text).unwrap()).unwrap();
         assert_eq!(p.num_non_clifford(), 0);
-        let sv = crate::statevec::Program::new(&Circuit::parse("R 0 1\nI[R_X(theta=0.7853981633974483)] 0\nII[R_ZZ(theta=1.5707963267948966)] 0 1\nI[R_Y(theta=-2.356194490192345)] 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]").unwrap()).unwrap().distribution(1 << 10).unwrap();
-        let ours = dist("R 0 1\nI[R_X(theta=0.7853981633974483)] 0\nII[R_ZZ(theta=1.5707963267948966)] 0 1\nI[R_Y(theta=-2.356194490192345)] 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]");
-        close(&ours, &sv, "clifford angles");
+        let sv = crate::statevec::Program::new(&Circuit::parse(text).unwrap()).unwrap().distribution(1 << 10).unwrap();
+        close(&dist(text), &sv, "clifford angles");
+        // Expanded, the same circuit is written in Stim's gates.
+        let e = expand_clifford_rotations(&Circuit::parse(text).unwrap()).unwrap();
+        assert_eq!(non_clifford_gates(&e).unwrap(), 0);
+        assert!(!format!("{e:?}").contains("NonPauli"));
+        close(&Program::new(&e).unwrap().distribution(1 << 10).unwrap(), &sv, "expanded");
     }
 
     #[test]
     fn noise_and_frame_rules() {
         let d = dist("R 0\nX_ERROR(0.1) 0\nM(0.05) 0\nDETECTOR rec[-1]");
         assert!((d[&(vec![true], 0)] - (0.1 * 0.95 + 0.9 * 0.05)).abs() < 1e-12);
-        // An X error before a T flips the rotation's sense: H, X-error, T, H on |0⟩ reads
-        // X T|+⟩ = T†-ish: P(1) = sin²(π/8) either way, but with a Z error it is cos².
+        // A Z error before a T on |+⟩: the rotation's sense flips, P(1) = cos².
         let d = dist("R 0\nH 0\nZ_ERROR(1) 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]");
         assert!((d[&(vec![true], 0)] - FRAC_PI_8.cos().powi(2)).abs() < 1e-12, "{d:?}");
     }
 
     /// A random circuit of Clifford gates, T gates, rotations, U3, noise, measurements in both
-    /// bases, resets and feedback.
-    fn random_circuit(rng: &mut Xorshift, n: usize, len: usize) -> String {
+    /// bases, resets and feedback; with `errors`, coherent errors too.
+    pub(crate) fn random_circuit(rng: &mut Xorshift, n: usize, len: usize, errors: bool) -> String {
         let mut lines = vec![format!("R {}", (0..n).map(|q| q.to_string()).collect::<Vec<_>>().join(" "))];
         let mut nm = 0usize;
         let q = |rng: &mut Xorshift| rng.next_u64() as usize % n;
@@ -1236,7 +1546,7 @@ mod tests {
                     _ => format!("I[T] {a}"),
                 }
             } else if u < 0.78 {
-                match rng.next_u64() % 4 {
+                match rng.next_u64() % 5 {
                     0 => format!("DEPOLARIZE1(0.2) {a}"),
                     1 => format!("X_ERROR(0.15) {a}"),
                     2 if n > 1 => {
@@ -1246,6 +1556,7 @@ mod tests {
                         }
                         format!("DEPOLARIZE2(0.1) {a} {b}")
                     }
+                    3 if errors => format!("I_ERROR[R_{}(theta={:?})] {a}", ['X', 'Y', 'Z'][rng.next_u64() as usize % 3], rng.next_f64() * 0.8 - 0.4),
                     _ => format!("PAULI_CHANNEL_1(0.1, 0.05, 0.02) {a}"),
                 }
             } else if u < 0.92 {
@@ -1282,11 +1593,14 @@ mod tests {
         let mut rng = Xorshift::new(2026);
         for case in 0..120 {
             let n = 1 + case % 3;
-            let text = random_circuit(&mut rng, n, 6 + case % 7);
+            let text = random_circuit(&mut rng, n, 6 + case % 7, case % 2 == 1);
             let c = Circuit::parse(&text).unwrap();
             let sv = crate::statevec::Program::new(&c).unwrap().distribution(1 << 22).unwrap();
             let ours = Program::new(&c).unwrap().distribution(1 << 22).unwrap();
             close(&ours, &sv, &text);
+            // Expanded, the same distribution.
+            let e = expand_clifford_rotations(&c).unwrap();
+            close(&Program::new(&e).unwrap().distribution(1 << 22).unwrap(), &sv, &text);
         }
     }
 
@@ -1341,5 +1655,34 @@ mod tests {
         let (rec, peak) = prog.sample_record(&mut Xorshift::new(5), &mut memo);
         assert_eq!(rec.len(), n);
         assert!(peak <= 16);
+    }
+
+    #[test]
+    fn twirled_errors_and_frames_compare() {
+        // With the error twirled and the firing summed with the twirl's probabilities, the
+        // records are the twirled circuit's.
+        let text = "R 0\nH 0\nI_ERROR[R_Z(theta=0.4)] 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]";
+        let c = Circuit::parse(text).unwrap();
+        let p = Program::with_twirl(&c).unwrap();
+        assert_eq!(p.num_twirl(), 1);
+        let twirl = crate::statevec::Program::new(&crate::coherent::twirled(&c, false).unwrap()).unwrap().distribution(1 << 10).unwrap();
+        close(&p.distribution(1 << 10).unwrap(), &twirl, text);
+        // Two runs (the error fired or not), outcome 0 forced, brought to one frame: their
+        // overlap is the states' overlap, ⟨0|H T H|+⟩* ⟨0|H T Z H|+⟩ in modulus.
+        let mut memo = Memo::default();
+        // The reset's unread outcome is the first draw, then the measurement's.
+        let trace = Trace { choices: vec![0], outcomes: vec![(false, false)] };
+        let a = p.run_full(&mut Replay::new(&trace, &[false]), &mut memo);
+        let b = p.run_full(&mut Replay::new(&trace, &[true]), &mut memo);
+        let (ta, tb) = (p.in_frame(&a, &a.frame), p.in_frame(&b, &a.frame));
+        let dot: C = ta.iter().fold(C::ZERO, |acc, (k, c)| acc + c.conj() * tb.get(k).copied().unwrap_or(C::ZERO));
+        let amp = |z: bool| {
+            let t = Circuit::parse(&format!("H 0\n{}I[T] 0\nH 0", if z { "Z 0\n" } else { "" })).unwrap();
+            let (_, m) = crate::statevec::unitary_matrix(&t, true).unwrap();
+            m[0]
+        };
+        let expect = amp(false).conj() * amp(true);
+        assert!((dot.norm2().sqrt() - expect.norm2().sqrt()).abs() < 1e-12, "{dot:?} vs {expect:?}");
+        assert!((a.prob - amp(false).norm2()).abs() < 1e-12 && (b.prob - amp(true).norm2()).abs() < 1e-12);
     }
 }

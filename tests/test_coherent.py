@@ -72,10 +72,14 @@ def test_threads_do_not_change_the_shots():
 
 
 def test_unsupported_operations_are_refused():
+    # A T gate goes to the joint sampler now; leakage and feedback are refused.
+    assert sq.Circuit("R 0\nI[T] 0\nM 0").compile_coherent_sampler().num_exact == 1
     with pytest.raises(ValueError, match="rotations only"):
-        sq.Circuit("R 0\nI[T] 0\nM 0").compile_coherent_sampler()
+        sq.Circuit("R 0\nI_ERROR[LEAK(p=0.1)] 0\nM 0").compile_coherent_sampler()
     with pytest.raises(ValueError, match="feedback"):
         sq.Circuit("R 0 1\nM 0\nCX rec[-1] 1\nI_ERROR[R_X(theta=0.1)] 1\nM 1").compile_coherent_sampler()
+    with pytest.raises(ValueError, match="feedback"):
+        sq.Circuit("R 0 1\nM 0\nCX rec[-1] 1\nI_ERROR[R_X(theta=0.1)] 1\nI[T] 1\nM 1").compile_coherent_sampler()
 
 
 def test_twirled_circuits():
@@ -100,3 +104,58 @@ def test_weighted_helpers():
     rate, err = sq.weighted_logical_error_rate(dec, d, o, w)
     assert 0 <= rate < 0.5 and err > 0
     assert 0 < sq.effective_sample_size(w) <= len(w)
+
+
+# The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
+JOINT_CASES = [
+    "R 0\nH 0\nI_ERROR[R_X(theta=0.3)] 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]",
+    "R 0 1\nH 0\nI_ERROR[R_Y(theta=0.25)] 0\nCX 0 1\nI[T] 1\nII_ERROR[R_ZZ(theta=0.2)] 0 1\nI[T_DAG] 0\nH 0 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+    "R 0 1\nH 0\nI_ERROR[R_X(theta=0.3)] 0\nDEPOLARIZE1(0.1) 1\nCX 0 1\nI[T] 0\nMR 1\nI_ERROR[R_Z(theta=0.2)] 1\nCX 0 1\nI[U3(theta=0.5, phi=0.2, lambda=1.1)] 1\nH 0\nM(0.05) 0 1\nDETECTOR rec[-1] rec[-3]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+]
+
+
+@pytest.mark.parametrize("text", JOINT_CASES)
+def test_joint_sampler_is_exact_with_the_whole_kernel(text):
+    c = sq.Circuit(text)
+    assert c.num_non_clifford_gates() > 0
+    a, b = c.exact_distribution(method="coherent"), c.exact_distribution()
+    for key in set(a) | set(b):
+        assert abs(a.get(key, 0) - b.get(key, 0)) < 1e-9, (text, key)
+
+
+@pytest.mark.parametrize("text", JOINT_CASES)
+def test_joint_weighted_marginals_equal_the_exact(text):
+    c = sq.Circuit(text)
+    s = c.compile_coherent_sampler(seed=3)
+    assert isinstance(s, sq.CoherentSampler) and s.num_exact > 0 and s.num_locations > 0
+    shots = 20000
+    d, o, w = s.sample(shots, threads=0)
+    exact = exact_marginals(c)
+    for k in range(c.num_detectors):
+        rate = (w * d[:, k]).sum() / w.sum()
+        ess = w.sum() ** 2 / (w**2).sum()
+        sigma = np.sqrt(exact[k] * (1 - exact[k]) / ess) + 1e-9
+        assert abs(rate - exact[k]) < 5 * sigma, (text, k, rate, exact[k], ess)
+
+
+def test_joint_sampler_differs_from_the_twirl_and_runs_at_size():
+    # A T gate between two over-rotations: the twirl misses their interference.
+    text = "R 0\nH 0\nI_ERROR[R_Z(theta=0.3)] 0\nI[T] 0\nI_ERROR[R_Z(theta=0.3)] 0\nH 0\nM 0\nDETECTOR rec[-1]"
+    c = sq.Circuit(text)
+    exact = c.exact_distribution()[((True,), ())]
+    twirl = c.twirled().exact_distribution(method="stabilizer_rank")[((True,), ())]
+    assert abs(exact - twirl) > 0.02
+    d, _, w = c.compile_coherent_sampler(seed=1).sample(20000)
+    assert abs((w * d[:, 0]).sum() / w.sum() - exact) < 0.01, ((w * d[:, 0]).sum() / w.sum(), exact, twirl)
+    # The twirled circuit keeps its T gate and twirls the errors alone.
+    assert c.twirled().num_non_clifford_gates() == 1 and "Z_ERROR" in str(c.twirled())
+    # Seven T gates on a Steane code state with an over-rotation after every gate: it runs.
+    big = sq.Circuit(
+        "R 0 1 2 3 4 5 6\nH 4 5 6\nI_ERROR[R_Z(theta=0.02)] 4 5 6\nCX 4 0 4 1 4 2\nII_ERROR[R_ZZ(theta=0.02)] 4 0 4 1 4 2\nCX 5 0 5 1 5 3\nII_ERROR[R_ZZ(theta=0.02)] 5 0 5 1 5 3\n"
+        "CX 6 0 6 2 6 3\nII_ERROR[R_ZZ(theta=0.02)] 6 0 6 2 6 3\nI[T] 0 1 2 3 4 5 6\nI_ERROR[R_X(theta=0.02)] 0 1 2 3 4 5 6\nMX 0 1 2 3 4 5 6\n"
+        "DETECTOR rec[-7] rec[-6] rec[-5] rec[-3]\nDETECTOR rec[-7] rec[-6] rec[-4] rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]"
+    )
+    s = big.compile_coherent_sampler(seed=2)
+    d, o, w = s.sample(200, threads=0)
+    assert d.shape == (200, 2) and np.all(w >= 0) and np.isfinite(w).all()
+    assert sq.effective_sample_size(w) > 20

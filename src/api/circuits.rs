@@ -395,6 +395,15 @@ impl Circuit {
         Ok(ExactSampler { program: crate::statevec::Program::new(&self.inner)?, seed, next: 0 })
     }
 
+    /// The joint sampler for Clifford+T circuits with coherent errors: the non-Clifford
+    /// gates exact (as [`Circuit::stabilizer_rank_sampler`] runs them), the errors drawn as
+    /// their twirl and each shot reweighted by the coherent probability of its class, as
+    /// [`Circuit::coherent_sampler`] reweights a Clifford circuit's.
+    pub fn joint_sampler(&self, seed: u64, options: CoherentOptions) -> Result<JointSampler> {
+        let inner = crate::coherent::joint::JointSampler::new(&self.inner, options.inner)?;
+        Ok(JointSampler { inner, seed, next: 0 })
+    }
+
     /// The stabilizer-rank sampler: Clifford+T circuits (`I[T]`, `I[R_Z(theta=…)]`,
     /// `I[U3(…)]`, any Pauli rotation written as a gate) at any qubit count, exactly, its cost
     /// growing with the number of non-Clifford gates rather than of qubits. Pauli noise runs
@@ -1195,6 +1204,48 @@ impl ExactSampler {
         Samples {
             detectors: BitTable::from_packed(shots, self.num_detectors(), d).expect("the sampler writes whole rows"),
             observables: BitTable::from_packed(shots, self.num_observables(), o).expect("the sampler writes whole rows"),
+        }
+    }
+}
+
+/// Weighted shots of a Clifford+T circuit with coherent errors. Made by
+/// [`Circuit::joint_sampler`].
+pub struct JointSampler {
+    inner: crate::coherent::joint::JointSampler,
+    seed: u64,
+    next: u64,
+}
+
+impl JointSampler {
+    /// Detectors per shot.
+    pub fn num_detectors(&self) -> usize {
+        self.inner.num_detectors()
+    }
+
+    /// Observables per shot.
+    pub fn num_observables(&self) -> usize {
+        self.inner.num_observables()
+    }
+
+    /// The coherent errors, drawn as their twirl.
+    pub fn num_locations(&self) -> usize {
+        self.inner.num_locations()
+    }
+
+    /// The non-Clifford gates, run exactly.
+    pub fn num_exact(&self) -> usize {
+        self.inner.num_exact()
+    }
+
+    /// `shots` more weighted shots, each from its own stream; `threads = 0` uses every core
+    /// and never changes them.
+    pub fn sample(&mut self, shots: usize, threads: usize) -> WeightedSamples {
+        let b = self.inner.sample_seeded(self.seed, self.next, shots, threads);
+        self.next += shots as u64;
+        WeightedSamples {
+            detectors: BitTable::from_packed(shots, self.num_detectors(), b.detectors).expect("the sampler writes whole rows"),
+            observables: BitTable::from_packed(shots, self.num_observables(), b.observables).expect("the sampler writes whole rows"),
+            weights: b.weights,
         }
     }
 }

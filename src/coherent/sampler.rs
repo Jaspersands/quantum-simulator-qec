@@ -26,6 +26,9 @@ pub struct CoherentBatch {
 impl CoherentSampler {
     pub fn new(circuit: &Circuit, options: CoherentOptions) -> Result<CoherentSampler, String> {
         let mut program = Program::new(circuit)?;
+        if program.exact.iter().any(|&e| e) {
+            return Err("the circuit has non-Clifford gates (I[T], a rotation written on I); the joint sampler (coherent::joint) runs them exactly".into());
+        }
         let solver = GaugeSolver::new(&program);
         let kernel = Kernel::new(&program, &solver, options);
         program.set_merge(&kernel.merge_groups());

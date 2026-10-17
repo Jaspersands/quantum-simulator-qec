@@ -657,6 +657,28 @@ noise on every gate. In progress on `feature/2.0`.
   (`tests/test_tsim_differential.py`, `tools/clifford_t.py check`): its demo circuits' records
   within the error bars of our exact probabilities, `tcount`, `is_clifford`, `to_matrix` and
   `inverse` agreeing on random shorthand circuits.
+- **Clifford+T circuits with coherent noise on every gate** — the 2.0 headline. The joint
+  sampler (`compile_coherent_sampler` on a circuit with non-Clifford gates; Rust
+  `JointSampler`) runs the non-Clifford *gates* (`I[T]`, `I[R_Z(theta=…)]`, `I[U3(…)]`)
+  exactly, as the stabilizer-rank sampler does, draws the coherent *errors*
+  (`I_ERROR[R_Z(…)]`, `II_ERROR[R_ZZ(…)]`) as their Pauli twirl, and weights each shot by the
+  interference the twirl drops: 1 + Σ_G ρ_G ⟨Ψ_{S⊕G}|Ψ_S⟩/‖Ψ_S‖² over the error sets G the
+  spacetime kernel relates to the shot's, every non-Clifford gate a location in the kernel's
+  search so that the interference running through the T gates is found, each member's state a
+  re-run of the exact engine with its errors inserted and the shot's outcomes forced, the
+  overlaps dot products of the two runs' terms in one Pauli frame (the frame carries its
+  phase). Neither Tsim (cost exponential in every rotation) nor 1.9's coherent sampler (a
+  Clifford reference circuit) covers such circuits. The identity is proved as 1.9's was: with
+  the whole kernel, the weighted twirl summed over every branch equals the state vector's
+  distribution on random circuits of T gates, U3, rotations, coherent errors, Pauli noise,
+  resets and mid-circuit measurements (`coherent::joint::tests`, and
+  `exact_distribution(method="coherent")` from Python); the truncation (the kernel's local
+  generators, products of up to `order` touched ones per cluster, products within each group
+  of equal-flip locations) is 1.9's, as a pairwise sum rather than 1.9's product over
+  clusters, since members of different clusters overlap through a T gate. The samplers'
+  reading of the tags: a rotation written on `I`/`II` is a gate (exact), on `I_ERROR`/`II_ERROR`
+  an error (twirled and reweighted); `twirled()` now twirls the errors alone and keeps the
+  gates; 1.9 treated `I[R_Z(…)]` as an error too.
 
 ### Fixed
 
