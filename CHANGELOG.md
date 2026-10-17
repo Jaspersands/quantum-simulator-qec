@@ -4,11 +4,17 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## 2.0.0 — unreleased
+## 2.0.0 — 2026-10-17
 
-Everything every other QEC tool has (the inventory in
-`docs/superpowers/notes/2026-10-09-parity-inventory.md`), and Clifford+T circuits with coherent
-noise on every gate. In progress on `feature/2.0`.
+Every feature of every other QEC tool — twenty-five of them, inventoried in
+`docs/superpowers/notes/2026-10-09-parity-inventory.md` — under the names those tools use, each
+port checked against its original; and one thing none of them has: Clifford+T circuits with a
+coherent error on every gate, sampled at sizes no state vector reaches. Thirteen workstreams:
+Stim's objects and PyMatching's graph API, sinter and analysis, ldpc whole and twelve more
+decoders, codes and code tools, noise and hardware models, the stabilizer-rank and joint
+samplers, tqec and Loom and the two resource estimators, real time and the GPU, the editor in
+the site, and these notes. Breaking changes are under **Changed**; `str(circuit)` and the
+decoders' defaults are now Stim's and ldpc's.
 
 ### Changed
 

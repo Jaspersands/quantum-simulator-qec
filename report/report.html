@@ -14,10 +14,10 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 1.9.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 2.0.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 9 October 2026 · commit <code>f5ac555</code></p>
+  <p class="byline">Jasper Sands · 17 October 2026 · commit <code>d8947a0</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -60,6 +60,7 @@
 <li><a href="#circuit-distance"><span class="toc-section-number">4.9</span> Circuit distance</a></li>
 <li><a href="#beyond-pauli-noise"><span class="toc-section-number">4.10</span> Beyond Pauli noise</a></li>
 <li><a href="#what-it-would-take"><span class="toc-section-number">4.11</span> What it would take</a></li>
+<li><a href="#release-2.0-every-other-tools-features-and-coherent-noise-on-every-gate"><span class="toc-section-number">4.12</span> Release 2.0: every other tool’s features, and coherent noise on every gate</a></li>
 </ul></li>
 <li><a href="#limits-and-next-steps"><span class="toc-section-number">5</span> Limits and next steps</a></li>
 <li><a href="#reproducing-everything"><span class="toc-section-number">6</span> Reproducing everything</a></li>
@@ -2708,6 +2709,18 @@
 </tbody>
 </table>
 <p>At Willow’s measured Λ, a thousand logical qubits running a billion operations would need d = 101, 41 million physical qubits and 31 h. At Λ = 4 the same run needs d = 51 and 10 million.</p>
+<h2 data-number="4.12" id="release-2.0-every-other-tools-features-and-coherent-noise-on-every-gate"><span class="header-section-number">4.12</span> Release 2.0: every other tool’s features, and coherent noise on every gate</h2>
+<p>Release 2.0 set out to hold every feature of every other quantum error-correction tool — twenty-five of them were inventoried, Stim and PyMatching to CUDA-Q QEC, tqec and Loom — under the names those tools use, each port checked against its original, and to add one thing none of them has. Thirteen workstreams did it, on top of the engine this report describes:</p>
+<ul>
+<li><strong>Stim’s object model and PyMatching’s graph API</strong> member for member, <code>sinter</code>‘s collection, <code>ldpc</code> whole (codes, GF(2) tools, every decoder) with corrections equal but for its platform ties; qsample’s subset sampling; the decoders of twelve more packages (BP+LSD, Relay-BP, colour-code matching, Tesseract’s search, local and collision clustering, ambiguity clustering, MWPF, tensor-network and lookup-table decoders, an NVIDIA-style pre-decoder trained here), each equal to its authors’ package shot for shot or fault for fault.</li>
+<li><strong>Codes and code tools</strong>: bivariate bicycle codes from their polynomials, hypergraph products, colour codes, MQT QECC’s code switching and surgery routing, QUITS’ windowed decoding.</li>
+<li><strong>Noise and hardware</strong>: a density-matrix simulator equal to Quantumsim’s, process matrices, QuantumClifford’s perturbative expansion on detection events, Deltakit’s leakage model with heralds and a leakage-aware decoder.</li>
+<li><strong>Clifford+T circuits</strong> by a stabilizer-rank sampler at any qubit count (Tsim’s demos sample the same distributions), and the headline: magic-state injection and distillation with a coherent over-rotation after every gate, sampled by a joint sampler that runs the gates exactly and the errors twirled and reweighted. The twirl misjudges the encoded state’s infidelity by two to three times and turns a working 5-qubit distillation into a broken one; in the [[17,1,5]] colour code (85 qubits, 801 rotations) the joint sampler is the only instrument that reaches.</li>
+<li><strong>Fault-tolerant compilation</strong>: tqec’s block graphs (every gallery graph equal to tqec’s, correlation surfaces included) compiled on the lattice-surgery engine; Loom’s Eka model interpreted to circuits that equal Loom’s gate for gate; Qualtran’s surface-code cost models and Azure’s Resource Estimator reproduced to the bit on 55 QDK configurations; the surgery CNOT’s threshold under leakage, 0.49% falling to 0.23% at 30% leakage.</li>
+<li><strong>Real time and the GPU</strong>: decodes in the background, a decoder queue with latency statistics, a decoder server over TCP or pipes; frame sampling and min-sum BP on any GPU wgpu drives, each bit for bit equal to its CPU reference (the GPU on this machine runs 2–3 times one CPU thread, not cuStabilizer’s 150).</li>
+<li><strong>The site edits circuits</strong>: a Crumble-equivalent editor whose Pauli markers flip exactly the detectors the engine’s sampler flips, checked on about 700 cases.</li>
+</ul>
+<p>The CHANGELOG lists each item with what it was checked against; the inventory in <code>docs/superpowers/notes/2026-10-09-parity-inventory.md</code> lists every feature of every tool with its status. Four tutorials cover the release (<code>tutorials/06</code> to <code>09</code>).</p>
 <h1 data-number="5" id="limits-and-next-steps"><span class="header-section-number">5</span> Limits and next steps</h1>
 <ul>
 <li><strong>The matcher.</strong> It is exact, and single-threaded it runs at 0.89 to 0.99 times PyMatching’s time plain and 0.75 to 0.94 times correlated. Correlated matching closes most of the gap to Google’s correlated matcher, but Google’s Harmony and Libra decoders do better still.</li>

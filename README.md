@@ -67,10 +67,15 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   every noise scale, with its error and bounds, from one run
   (`analysis.subset_sampling.SubsetSampler`), and `stabilizer_qec.qsample` is qsample's
   protocol-level dynamical subset sampling.
-- **Tutorials.** Three notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
+- **Tutorials.** Nine notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
   (a circuit to a threshold plot), [decoders and real-time decoding](tutorials/02_decoders.ipynb),
-  and [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb). Each is
-  built from a plain Python file by `tools/notebooks.py`, and CI runs them all.
+  [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb),
+  [more decoders](tutorials/04_more_decoders.ipynb), [beyond Pauli noise](tutorials/05_beyond_pauli.ipynb),
+  [the other tools' APIs](tutorials/06_the_other_tools_apis.ipynb),
+  [Clifford+T and coherent noise](tutorials/07_clifford_t_and_coherent_noise.ipynb),
+  [compilation and estimation](tutorials/08_compilation_and_estimation.ipynb) and
+  [real time and the GPU](tutorials/09_real_time_and_the_gpu.ipynb). Each is built from a plain
+  Python file by `tools/notebooks.py`, and CI runs them all.
 - **Benchmarks.** Against Stim and PyMatching on the same machine, one thread:
   [qcompiler.jaspersands.com/benchmarks](https://qcompiler.jaspersands.com/benchmarks/).
   `tools/bench.py` runs them; CI fails a push whose ratio to the reference doubles.
@@ -89,7 +94,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **From source:** `pip install maturin && maturin build --out dist && pip install dist/*.whl`.
 
 **From Rust**, the same engine is the crate [`stabilizer_qec`](https://crates.io/crates/stabilizer_qec)
-(1.9, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
+(2.0, its API documented on [docs.rs](https://docs.rs/stabilizer_qec)):
 
 ```rust
 use stabilizer_qec::{memory_circuit, Basis, DemOptions, Matching, Noise, SurfaceCode};

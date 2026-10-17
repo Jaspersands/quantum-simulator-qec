@@ -732,6 +732,46 @@ At Willow's measured Λ, a thousand logical qubits running a billion operations 
 d = {{est.medium.d}}, {{est.medium.qubits}} physical qubits and {{est.medium.time}}. At Λ = 4 the
 same run needs d = {{est.lever.d}} and {{est.lever.qubits}}.
 
+## Release 2.0: every other tool's features, and coherent noise on every gate
+
+Release 2.0 set out to hold every feature of every other quantum error-correction tool —
+twenty-five of them were inventoried, Stim and PyMatching to CUDA-Q QEC, tqec and Loom — under
+the names those tools use, each port checked against its original, and to add one thing none of
+them has. Thirteen workstreams did it, on top of the engine this report describes:
+
+- **Stim's object model and PyMatching's graph API** member for member, `sinter`'s collection,
+  `ldpc` whole (codes, GF(2) tools, every decoder) with corrections equal but for its platform
+  ties; qsample's subset sampling; the decoders of twelve more packages (BP+LSD, Relay-BP,
+  colour-code matching, Tesseract's search, local and collision clustering, ambiguity clustering,
+  MWPF, tensor-network and lookup-table decoders, an NVIDIA-style pre-decoder trained here), each
+  equal to its authors' package shot for shot or fault for fault.
+- **Codes and code tools**: bivariate bicycle codes from their polynomials, hypergraph
+  products, colour codes, MQT QECC's code switching and surgery routing, QUITS' windowed decoding.
+- **Noise and hardware**: a density-matrix simulator equal to Quantumsim's, process matrices,
+  QuantumClifford's perturbative expansion on detection events, Deltakit's leakage model with
+  heralds and a leakage-aware decoder.
+- **Clifford+T circuits** by a stabilizer-rank sampler at any qubit count (Tsim's demos sample
+  the same distributions), and the headline: magic-state injection and distillation with a
+  coherent over-rotation after every gate, sampled by a joint sampler that runs the gates exactly
+  and the errors twirled and reweighted. The twirl misjudges the encoded state's infidelity by two
+  to three times and turns a working 5-qubit distillation into a broken one; in the [[17,1,5]]
+  colour code (85 qubits, 801 rotations) the joint sampler is the only instrument that reaches.
+- **Fault-tolerant compilation**: tqec's block graphs (every gallery graph equal to tqec's,
+  correlation surfaces included) compiled on the lattice-surgery engine; Loom's Eka model
+  interpreted to circuits that equal Loom's gate for gate; Qualtran's surface-code cost models and
+  Azure's Resource Estimator reproduced to the bit on 55 QDK configurations; the surgery CNOT's
+  threshold under leakage, 0.49% falling to 0.23% at 30% leakage.
+- **Real time and the GPU**: decodes in the background, a decoder queue with latency statistics,
+  a decoder server over TCP or pipes; frame sampling and min-sum BP on any GPU wgpu drives, each
+  bit for bit equal to its CPU reference (the GPU on this machine runs 2–3 times one CPU thread,
+  not cuStabilizer's 150).
+- **The site edits circuits**: a Crumble-equivalent editor whose Pauli markers flip exactly the
+  detectors the engine's sampler flips, checked on about 700 cases.
+
+The CHANGELOG lists each item with what it was checked against; the inventory in
+`docs/superpowers/notes/2026-10-09-parity-inventory.md` lists every feature of every tool with
+its status. Four tutorials cover the release (`tutorials/06` to `09`).
+
 # Limits and next steps
 
 - **The matcher.** It is exact, and single-threaded it runs at {{xc.plain_ratio}} times

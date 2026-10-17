@@ -31,58 +31,10 @@
 
             <h2>API Documentation</h2>
                 <ul class="memberlist">
-            <li>
-                    <a class="variable" href="#KINDS">KINDS</a>
-            </li>
-            <li>
-                    <a class="class" href="#Decoder">Decoder</a>
-                            <ul class="memberlist">
-                        <li>
-                                <a class="function" href="#Decoder.__init__">Decoder</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#Decoder.kind">kind</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#Decoder.options">options</a>
-                        </li>
-                        <li>
-                                <a class="function" href="#Decoder.compile_decoder_for_dem">compile_decoder_for_dem</a>
-                        </li>
-                </ul>
-
-            </li>
-            <li>
-                    <a class="class" href="#Sampler">Sampler</a>
-                            <ul class="memberlist">
-                        <li>
-                                <a class="function" href="#Sampler.__init__">Sampler</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#Sampler.kind">kind</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#Sampler.options">options</a>
-                        </li>
-                        <li>
-                                <a class="function" href="#Sampler.compiled_sampler_for_task">compiled_sampler_for_task</a>
-                        </li>
-                </ul>
-
-            </li>
-            <li>
-                    <a class="function" href="#decoders">decoders</a>
-            </li>
-            <li>
-                    <a class="function" href="#samplers">samplers</a>
-            </li>
-            <li>
-                    <a class="function" href="#sinter_decoders">sinter_decoders</a>
-            </li>
     </ul>
 
 
-            <footer>stabilizer-qec 1.9.0</footer>
+            <footer>stabilizer-qec 2.0.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -96,255 +48,30 @@
                     <h1 class="modulename">
 <a href="./../stabilizer_qec.html">stabilizer_qec</a><wbr>.sinter    </h1>
 
-                        <div class="docstring"><p>This package's decoders, and its whole engine, inside sinter's Monte Carlo sweeps.</p>
+                        <div class="docstring"><p>sinter (Stim's tool for Monte Carlo sweeps of decoding experiments), whole, on this package.</p>
 
-<p>sinter (Stim's companion for threshold and logical-error-rate sweeps) samples a task's circuit
-with Stim and decodes the shots with a decoder it names. <code><a href="#decoders">decoders()</a></code> gives it this
-package's decoders under names of their own; <code><a href="#samplers">samplers()</a></code> gives it samplers that run the
-whole pipeline here, sampling included::</p>
+<p>Everything sinter 1.16 has, by sinter's names: <code>Task</code>, <code>collect</code> / <code>iter_collect</code> with
+worker processes, resuming from a CSV file and post-selection, <code>TaskStats</code> and its CSV
+format, the fits, the plots, <code>predict_*</code>, and the command line (<code>python -m
+<a href="">stabilizer_qec.sinter</a> collect|combine|plot|predict</code>, or <code>stabilizer-qec sinter ...</code>). It
+needs no Stim, PyMatching or scipy (matplotlib only to plot). The built-in decoders are
+sinter's (<code>pymatching</code> is this package's PyMatching) and this package's (<code>KINDS</code>)::</p>
 
-<pre><code>import sinter
-from stabilizer_qec import sinter as sq_sinter
+<pre><code>from stabilizer_qec import sinter
 
-stats = sinter.collect(
-    tasks=tasks,
-    decoders=["sq_matching", "sq_belief_matching", "pymatching"],
-    custom_decoders={**sq_sinter.decoders(), **sq_sinter.samplers()},
-    num_workers=8,
-    max_shots=100_000,
-)
+stats = sinter.collect(tasks=tasks, decoders=["pymatching", "bposd"], num_workers=8, max_shots=100_000)
 </code></pre>
 
-<p>or <code>sinter collect --custom_decoders_module_function "<a href="">stabilizer_qec.sinter</a>:sinter_decoders"</code>
-from the command line. <code>Decoder(kind, **options)</code> and <code>Sampler(kind, **options)</code> make
-others: the options are the decoder class's (<code>Decoder("bposd", osd_order=10)</code>).</p>
-
-<p>The decoder kinds are <code>"matching"</code> (<code>Matching</code>), <code>"correlated_matching"</code> (<code>Matching</code>
-with <code>enable_correlations</code>), <code>"belief_matching"</code> (<code>BeliefMatching</code>), <code>"union_find"</code>
-(<code>UnionFind</code>, the standard baseline), and for codes whose faults flip three or more
-detectors, such as the bivariate bicycle codes, <code>"bposd"</code> (<code>BpOsd</code>), <code>"bplsd"</code>
-(<code>BpLsd</code>), <code>"relay_bp"</code> (<code>RelayBp</code>) and <code>"search"</code> (<code>SearchDecoder</code>), and for colour
-codes with Chromobius's annotations, <code>"color_matching"</code> (<code>ColorMatching</code>). Requires
-sinter.</p>
+<p>As in 1.x, <code>Decoder(kind, **options)</code> and <code>Sampler(kind, **options)</code> make one of this
+package's decoders with options (<code>Decoder("bposd", osd_order=10)</code>), and <code>decoders()</code>,
+<code>samplers()</code> and <code>sinter_decoders()</code> name them all, for this sinter or for sinter itself
+(<code>sinter collect --custom_decoders_module_function "<a href="">stabilizer_qec.sinter</a>:sinter_decoders"</code>).</p>
 </div>
 
                 
                 
                 
             </section>
-                <section id="KINDS">
-                    <div class="attr variable">
-            <span class="name">KINDS</span>        =
-<input id="KINDS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="KINDS-view-value"></label><span class="default_value">(&#39;matching&#39;, &#39;correlated_matching&#39;, &#39;belief_matching&#39;, &#39;bposd&#39;, &#39;union_find&#39;, &#39;bplsd&#39;, &#39;relay_bp&#39;, &#39;color_matching&#39;, &#39;search&#39;)</span>
-
-        
-    </div>
-    <a class="headerlink" href="#KINDS"></a>
-    
-    
-
-                </section>
-                <section id="Decoder">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">Decoder</span><wbr>(<span class="base">sinter._decoding._decoding_decoder_class.Decoder</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#Decoder"></a>
-    
-            <div class="docstring"><p>A sinter decoder: shots Stim sampled, decoded by one of this package's decoders on the
-task's detector error model. <code><a href="#Decoder.options">options</a></code> go to the decoder's class.</p>
-</div>
-
-
-                            <div id="Decoder.__init__" class="classattr">
-                                <div class="attr function">
-            
-        <span class="name">Decoder</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'matching'</span>, </span><span class="param"><span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
-
-        
-    </div>
-    <a class="headerlink" href="#Decoder.__init__"></a>
-    
-    
-
-                            </div>
-                            <div id="Decoder.kind" class="classattr">
-                                <div class="attr variable">
-            <span class="name">kind</span>
-
-        
-    </div>
-    <a class="headerlink" href="#Decoder.kind"></a>
-    
-    
-
-                            </div>
-                            <div id="Decoder.options" class="classattr">
-                                <div class="attr variable">
-            <span class="name">options</span>
-
-        
-    </div>
-    <a class="headerlink" href="#Decoder.options"></a>
-    
-    
-
-                            </div>
-                            <div id="Decoder.compile_decoder_for_dem" class="classattr">
-                                <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">compile_decoder_for_dem</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">dem</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">stabilizer_qec</span><span class="o">.</span><span class="n">sinter</span><span class="o">.</span><span class="n">_CompiledDecoder</span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#Decoder.compile_decoder_for_dem"></a>
-    
-            <div class="docstring"><p>Creates a decoder preconfigured for the given detector error model.</p>
-
-<p>This method is optional to implement. By default, it will raise a
-NotImplementedError. When sampling, sinter will attempt to use this
-method first and otherwise fallback to using <code><a href="#Decoder.decode_via_files">decode_via_files</a></code>.</p>
-
-<p>The idea is that the preconfigured decoder amortizes the cost of
-configuration over more calls. This makes smaller batch sizes efficient,
-reducing the amount of memory used for storing each batch, improving
-overall efficiency.</p>
-
-<p>Args:
-    dem: A detector error model for the samples that will need to be
-        decoded. What to configure the decoder to decode.</p>
-
-<p>Returns:
-    An instance of <code>sinter.CompiledDecoder</code> that can be used to invoke
-    the preconfigured decoder.</p>
-
-<p>Raises:
-    NotImplementedError: This <code>sinter.Decoder</code> doesn't support compiling
-        for a dem.</p>
-</div>
-
-
-                            </div>
-                </section>
-                <section id="Sampler">
-                    <div class="attr class">
-            
-    <span class="def">class</span>
-    <span class="name">Sampler</span><wbr>(<span class="base">sinter._decoding._sampler.Sampler</span>):
-
-        
-    </div>
-    <a class="headerlink" href="#Sampler"></a>
-    
-            <div class="docstring"><p>A sinter sampler running the whole pipeline in this package: the task's circuit read,
-sampled, its error model built, and decoded. Postselection masks are honoured as sinter
-honours them. <code><a href="#Sampler.options">options</a></code> go to the decoder's class.</p>
-</div>
-
-
-                            <div id="Sampler.__init__" class="classattr">
-                                <div class="attr function">
-            
-        <span class="name">Sampler</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'matching'</span>, </span><span class="param"><span class="o">**</span><span class="n">options</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
-
-        
-    </div>
-    <a class="headerlink" href="#Sampler.__init__"></a>
-    
-    
-
-                            </div>
-                            <div id="Sampler.kind" class="classattr">
-                                <div class="attr variable">
-            <span class="name">kind</span>
-
-        
-    </div>
-    <a class="headerlink" href="#Sampler.kind"></a>
-    
-    
-
-                            </div>
-                            <div id="Sampler.options" class="classattr">
-                                <div class="attr variable">
-            <span class="name">options</span>
-
-        
-    </div>
-    <a class="headerlink" href="#Sampler.options"></a>
-    
-    
-
-                            </div>
-                            <div id="Sampler.compiled_sampler_for_task" class="classattr">
-                                <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">compiled_sampler_for_task</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">task</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">stabilizer_qec</span><span class="o">.</span><span class="n">sinter</span><span class="o">.</span><span class="n">_CompiledSampler</span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#Sampler.compiled_sampler_for_task"></a>
-    
-            <div class="docstring"><p>Creates, configures, and returns an object for sampling the task.</p>
-</div>
-
-
-                            </div>
-                </section>
-                <section id="decoders">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">decoders</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#decoders"></a>
-    
-            <div class="docstring"><p><code>{"sq_matching": Decoder("matching"), "sq_correlated_matching": ..., ...}</code>: every
-kind, decoding the shots Stim samples.</p>
-</div>
-
-
-                </section>
-                <section id="samplers">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">samplers</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#samplers"></a>
-    
-            <div class="docstring"><p><code>{"sq_sim_matching": Sampler("matching"), ...}</code>: every kind, with the sampling done
-here too.</p>
-</div>
-
-
-                </section>
-                <section id="sinter_decoders">
-                    <div class="attr function">
-            
-        <span class="def">def</span>
-        <span class="name">sinter_decoders</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
-
-        
-    </div>
-    <a class="headerlink" href="#sinter_decoders"></a>
-    
-            <div class="docstring"><p>Both, for <code>sinter collect --custom_decoders_module_function
-"<a href="">stabilizer_qec.sinter</a>:sinter_decoders"</code>.</p>
-</div>
-
-
-                </section>
     </main>
 <script>
     function escapeHTML(html) {
