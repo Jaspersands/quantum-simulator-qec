@@ -213,6 +213,12 @@ from ._shots import read_shot_data_file, write_shot_data_file
 from ._clifford_string import CliffordString
 
 
+def gpu_device() -> "str | None":
+    """The GPU the samplers run on with ``device="gpu"`` (its name and backend), or ``None``
+    when this build has no ``gpu`` feature or no device answers."""
+    return _core.gpu_device()
+
+
 def main(*, command_line_args: list) -> int:
     """Runs the ``stabilizer-qec`` command line on these arguments (as ``stim.main``), reading
     stdin and writing stdout unless ``--in`` / ``--out`` say otherwise. Returns the exit code."""
@@ -433,6 +439,7 @@ __all__ = [
     "TableauIterator",
     "TableauSimulator",
     "gate_data",
+    "gpu_device",
     "target_combined_paulis",
     "target_combiner",
     "target_inv",

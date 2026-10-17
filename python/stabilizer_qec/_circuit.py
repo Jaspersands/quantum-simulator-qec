@@ -791,23 +791,32 @@ class Circuit:
         n = self.num_measurements
         return b8_to_rows(call(self._c.reference_sample), 1, n, bit_packed)[0]
 
-    def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None, reference_sample: Any = None) -> "MeasurementSampler":
+    def compile_sampler(self, *, skip_reference_sample: bool = False, seed: Union[int, None] = None, reference_sample: Any = None, device: str = "cpu") -> "MeasurementSampler":
         """A sampler of raw measurement records, as Stim's: a noiseless reference run with each
         shot's flips (with ``skip_reference_sample``, the flips alone; with
         ``reference_sample``, a bool or bit-packed array, the flips on top of that record). The
         same seed gives the same shots on any machine and number of threads; ``None`` draws a
-        seed."""
-        return MeasurementSampler(self, seed, skip_reference_sample, reference_sample)
+        seed. ``device`` as ``compile_detector_sampler``'s."""
+        return MeasurementSampler(self, seed, skip_reference_sample, reference_sample, device=device)
 
-    def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "DetectorSampler":
+    def compile_detector_sampler(self, *, seed: Union[int, None] = None, device: str = "cpu") -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
         shots on any machine and any number of threads; ``None`` draws a seed. A circuit with
         non-Clifford gates (``I[T]``, ``I[R_Z(theta=…)]``, ``I[U3(…)]``) gets the
         stabilizer-rank sampler, which runs them (``without_tags()`` for Stim's reading, the
-        identity)."""
+        identity).
+
+        ``device``: ``"cpu"`` (the default: 64 shots a machine word, noise by geometric
+        skipping), ``"cpu-lanes"`` (32 shots a word, every random number an integer compare:
+        the program a GPU runs, on the CPU — the same seed gives the same bytes on either) or
+        ``"gpu"`` (the same program on a GPU through wgpu, in a build with the ``gpu``
+        feature). The devices sample the same distribution; ``"cpu"`` and the lane devices draw
+        different shots from the same seed."""
         if self.num_non_clifford_gates():
+            if device != "cpu":
+                raise ValueError(f"a circuit with non-Clifford gates samples on the stabilizer-rank sampler, device 'cpu' only (not {device!r})")
             return StabilizerRankSampler(self, seed)
-        return DetectorSampler(self, seed)
+        return DetectorSampler(self, seed, device=device)
 
     def compile_stabilizer_rank_sampler(self, *, seed: Union[int, None] = None) -> "StabilizerRankSampler":
         """A sampler for Clifford+T circuits at any qubit count, exact, its cost growing with the
@@ -1694,7 +1703,7 @@ class MeasurementSampler:
     """Raw measurement records, as ``stim.CompiledMeasurementSampler``. Made by
     ``Circuit.compile_sampler``."""
 
-    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, skip_reference_sample: bool = False, reference_sample: Any = None) -> None:
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, skip_reference_sample: bool = False, reference_sample: Any = None, *, device: str = "cpu") -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._circuit = circuit
@@ -1712,9 +1721,16 @@ class MeasurementSampler:
             skip_reference_sample = True
         if circuit.num_non_clifford_gates():
             # A circuit with non-Clifford gates: its records from the stabilizer-rank sampler.
+            if device != "cpu":
+                raise ValueError(f"a circuit with non-Clifford gates samples on the stabilizer-rank sampler, device 'cpu' only (not {device!r})")
             self._s = _ExactRecords(call(circuit._c.stabilizer_rank_sampler, seed_of(seed)), circuit.reference_sample() if skip_reference_sample else None)
         else:
-            self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample))
+            self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample), str(device))
+
+    @property
+    def device(self) -> str:
+        """``"cpu"``, ``"cpu-lanes"`` or ``"gpu"``."""
+        return getattr(self._s, "device", "cpu")
 
     def __reduce__(self) -> tuple:
         raise TypeError("a MeasurementSampler is a position in a stream of shots, which a copy would restart; send the circuit and a seed instead")
@@ -1860,11 +1876,16 @@ class DetectorSampler:
 
     __slots__ = ("_s", "_circuit")
 
-    def __init__(self, circuit: Circuit, seed: Union[int, None] = None) -> None:
+    def __init__(self, circuit: Circuit, seed: Union[int, None] = None, *, device: str = "cpu") -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._circuit = circuit
-        self._s = call(circuit._c.sampler, seed_of(seed))
+        self._s = call(circuit._c.sampler, seed_of(seed), str(device))
+
+    @property
+    def device(self) -> str:
+        """``"cpu"``, ``"cpu-lanes"`` or ``"gpu"``."""
+        return self._s.device
 
     def __reduce__(self) -> tuple:
         raise TypeError(

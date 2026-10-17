@@ -260,6 +260,14 @@ crate (https://github.com/stainless-steel/special), both Apache-2.0 OR MIT.
 `tests/estimate_port/qdk_estimates.json` records outputs of qdk 1.33.1 the tests compare
 against.
 
+## wgpu
+
+The `gpu` feature of the crate (and the Python wheels built with it) compiles `wgpu`
+(https://github.com/gfx-rs/wgpu, the gfx-rs developers; dual-licensed under the MIT License and
+the Apache License, Version 2.0) and `pollster` (Joshua Barretto; MIT or Apache-2.0) to run the
+lane sampler's and the min-sum decoder's WGSL kernels (`src/gpu/`) on Metal, Vulkan and DX12.
+The kernels are this package's own.
+
 ## Fusion Blossom
 
 Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/fusion/LICENSE`, and

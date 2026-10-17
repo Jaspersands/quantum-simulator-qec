@@ -437,6 +437,20 @@ fn decode_b8_belief<'py>(
 
 /// One of Stim's generated memory experiments as Stim's text: (task, distance, rounds, and the
 /// four noise strengths in Stim's order).
+/// The GPU the lane samplers run on with `device="gpu"` (its name and backend), or None when
+/// the build has no `gpu` feature or no device answers.
+#[pyfunction]
+fn gpu_device() -> Option<String> {
+    #[cfg(feature = "gpu")]
+    {
+        crate::gpu::device_name().ok()
+    }
+    #[cfg(not(feature = "gpu"))]
+    {
+        None
+    }
+}
+
 #[pyfunction]
 #[pyo3(signature = (task, distance, rounds, clifford, round_data, measure, reset, annotate_colors=false, reset_leakage=0.0, clifford_leakage=0.0))]
 #[allow(clippy::too_many_arguments)]
@@ -841,6 +855,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bp_decode, m)?)?;
     m.add_function(wrap_pyfunction!(decode_b8_belief, m)?)?;
     m.add_function(wrap_pyfunction!(generated_circuit, m)?)?;
+    m.add_function(wrap_pyfunction!(gpu_device, m)?)?;
     m.add_function(wrap_pyfunction!(generated_header, m)?)?;
     m.add_function(wrap_pyfunction!(css_code, m)?)?;
     m.add_function(wrap_pyfunction!(css_memory_circuit, m)?)?;

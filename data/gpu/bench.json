@@ -1,0 +1,66 @@
+{
+ "machine": "macOS-27.2-arm64-arm-64bit-Mach-O",
+ "processor": "arm",
+ "cores": 10,
+ "gpu": "Apple M2 Pro (Metal)",
+ "version": "1.9.0",
+ "sampling": [
+  {
+   "distance": 5,
+   "qubits": 64,
+   "detectors": 120,
+   "shots": 1000000,
+   "cpu_1_thread_per_s": 3793780.2285698303,
+   "cpu_all_threads_per_s": 12371963.171024151,
+   "cpu_lanes_per_s": 3130930.42253348,
+   "gpu_per_s": 9927787.753812484,
+   "gpu_equals_lanes": true
+  },
+  {
+   "distance": 11,
+   "qubits": 274,
+   "detectors": 1320,
+   "shots": 1000000,
+   "cpu_1_thread_per_s": 353106.90300020325,
+   "cpu_all_threads_per_s": 892744.2872224329,
+   "cpu_lanes_per_s": 274301.61745989276,
+   "gpu_per_s": 653662.6474870268,
+   "gpu_equals_lanes": true
+  },
+  {
+   "distance": 17,
+   "qubits": 628,
+   "detectors": 4896,
+   "shots": 1000000,
+   "cpu_1_thread_per_s": 87567.42861009215,
+   "cpu_all_threads_per_s": 186019.5950251264,
+   "cpu_lanes_per_s": 60749.37021128052,
+   "gpu_per_s": 143367.6939966751,
+   "gpu_equals_lanes": true
+  }
+ ],
+ "bp": [
+  {
+   "problem": "surface d=11 memory",
+   "checks": 1320,
+   "variables": 24483,
+   "shots": 20000,
+   "max_iter": 20,
+   "cpu_f64_per_s": 153.38753779212328,
+   "cpu_f32_per_s": 1476.6203425283009,
+   "gpu_per_s": 20.9476614838237,
+   "gpu_equals_f32": true
+  },
+  {
+   "problem": "gross [[144,12,12]] code capacity 0.3%",
+   "checks": 72,
+   "variables": 144,
+   "shots": 20000,
+   "max_iter": 20,
+   "cpu_f64_per_s": 112050.80778161439,
+   "cpu_f32_per_s": 2250657.783400353,
+   "gpu_per_s": 869596.7496620178,
+   "gpu_equals_f32": true
+  }
+ ]
+}

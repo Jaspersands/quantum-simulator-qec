@@ -20,6 +20,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 rand = { version = "0.8", optional = true }
+# The GPU sampler (`gpu` feature): wgpu over Metal, Vulkan and DX12, WGSL shaders only.
+wgpu = { version = "30", optional = true, default-features = false, features = ["wgsl", "metal", "vulkan", "dx12"] }
+pollster = { version = "1", optional = true }
 
 [build-dependencies]
 # compiles HiGHS for the `highs` feature (build.rs)
@@ -38,6 +41,8 @@ python = ["dep:pyo3", "dep:rand"]
 # MWPF's linear programs by HiGHS (C++, src/highs/), as MWPF's own wheels solve them; without it, by
 # this crate's simplex
 highs = ["dep:cc"]
+# Frame sampling on a GPU through wgpu (`src/gpu`), the lane program's second executor
+gpu = ["dep:wgpu", "dep:pollster"]
 
 [profile.release]
 opt-level = 3

@@ -25,7 +25,7 @@ use crate::surface_code::Xorshift;
 /// A probability, with what geometric skipping needs precomputed.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Noise {
-    p: f64,
+    pub(crate) p: f64,
     log1mp: f64,
 }
 
@@ -71,7 +71,7 @@ pub(crate) fn bernoulli(rng: &mut Xorshift, n: Noise) -> u64 {
 }
 
 #[derive(Debug)]
-enum Op {
+pub(crate) enum Op {
     Reset { basis: Basis, qubits: Vec<u32> },
     H(Vec<u32>),
     Cx(Vec<(u32, u32)>),
@@ -104,7 +104,7 @@ enum Op {
     Heralded { any: Noise, cumulative: [f64; 4], qubits: Vec<u32> },
 }
 
-fn compile(instrs: &[Instr]) -> Vec<Op> {
+pub(crate) fn compile(instrs: &[Instr]) -> Vec<Op> {
     let mut out = Vec::new();
     for ins in instrs {
         out.push(match ins {
@@ -322,12 +322,12 @@ fn shape(ops: &[Op], s: &mut Shape) -> Result<(), String> {
 }
 
 pub struct BatchSampler {
-    ops: Vec<Op>,
+    pub(crate) ops: Vec<Op>,
     pub num_qubits: usize,
     pub num_measurements: usize,
     pub num_detectors: usize,
     pub num_observables: usize,
-    ring_mask: usize,
+    pub(crate) ring_mask: usize,
 }
 
 /// One batch of 64 shots: word d holds detector d for every shot, bit k being shot k.

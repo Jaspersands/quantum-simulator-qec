@@ -1295,22 +1295,28 @@ pub fn is_clifford_angle(theta: f64) -> bool {
 /// How many non-Clifford gates a circuit has: its T gates, and the rotations and U3 half-angle
 /// rotations written as gates (on `I`, `II`) at angles that are not Clifford. Coherent errors
 /// (`I_ERROR`, `II_ERROR`) are not gates and are not counted.
-pub fn non_clifford_gates(circuit: &Circuit) -> Result<usize, String> {
-    let res = circuit.resolve()?;
-    let mut n = 0;
-    for ins in &res.instrs {
-        if let Instr::NonPauli(ops) = ins {
-            for op in ops {
-                n += match op {
-                    NonPauli::T { .. } => 1,
-                    NonPauli::Rotation { pauli, theta, noise: false } if !pauli.is_empty() && !is_clifford_angle(*theta) => 1,
-                    NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().filter(|a| !is_clifford_angle(**a / 2.0)).count(),
-                    _ => 0,
-                };
-            }
+/// `f` summed over every non-Pauli op of the circuit, through its loops without unrolling them
+/// (a REPEAT body counts once per repetition; a million-round memory is not expanded).
+fn sum_non_pauli(instrs: &[Instr], f: &dyn Fn(&NonPauli) -> usize) -> usize {
+    let mut n = 0usize;
+    for ins in instrs {
+        match ins {
+            Instr::NonPauli(ops) => n = n.saturating_add(ops.iter().map(f).sum()),
+            Instr::Repeat { count, body, .. } => n = n.saturating_add(sum_non_pauli(body, f).saturating_mul(*count as usize)),
+            Instr::Gate { body, .. } => n = n.saturating_add(sum_non_pauli(body, f)),
+            _ => {}
         }
     }
-    Ok(n)
+    n
+}
+
+pub fn non_clifford_gates(circuit: &Circuit) -> Result<usize, String> {
+    Ok(sum_non_pauli(&circuit.instrs, &|op| match op {
+        NonPauli::T { .. } => 1,
+        NonPauli::Rotation { pauli, theta, noise: false } if !pauli.is_empty() && !is_clifford_angle(*theta) => 1,
+        NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().filter(|a| !is_clifford_angle(**a / 2.0)).count(),
+        _ => 0,
+    }))
 }
 
 /// The circuit's T-count as Tsim (pyzx) counts it: its non-Clifford phases, one for each T
@@ -1318,44 +1324,24 @@ pub fn non_clifford_gates(circuit: &Circuit) -> Result<usize, String> {
 /// angle that is not a multiple of π/2 in half-turns (of π/4 in exp(−iθP)), whatever the
 /// angle.
 pub fn t_count(circuit: &Circuit) -> Result<usize, String> {
-    let res = circuit.resolve()?;
-    let mut n = 0;
-    for ins in &res.instrs {
-        if let Instr::NonPauli(ops) = ins {
-            for op in ops {
-                n += match op {
-                    NonPauli::T { .. } => 1,
-                    NonPauli::Rotation { pauli, theta, .. } if !pauli.is_empty() && !is_clifford_angle(*theta) => 1,
-                    NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().filter(|a| !is_clifford_angle(**a / 2.0)).count(),
-                    _ => 0,
-                };
-            }
-        }
-    }
-    Ok(n)
+    Ok(sum_non_pauli(&circuit.instrs, &|op| match op {
+        NonPauli::T { .. } => 1,
+        NonPauli::Rotation { pauli, theta, .. } if !pauli.is_empty() && !is_clifford_angle(*theta) => 1,
+        NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().filter(|a| !is_clifford_angle(**a / 2.0)).count(),
+        _ => 0,
+    }))
 }
 
 /// Whether every gate and coherent error of the circuit is Clifford: no T gate, and every
 /// rotation (a `U3`'s three among them) by a multiple of π/2 in half-turns, of π/4 in
 /// exp(−iθP). Noise channels, damping and leakage are not gates and do not count.
 pub fn is_clifford(circuit: &Circuit) -> Result<bool, String> {
-    let res = circuit.resolve()?;
-    for ins in &res.instrs {
-        if let Instr::NonPauli(ops) = ins {
-            for op in ops {
-                let clifford = match op {
-                    NonPauli::T { .. } => false,
-                    NonPauli::Rotation { pauli, theta, .. } => pauli.is_empty() || is_clifford_angle(*theta),
-                    NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().all(|a| is_clifford_angle(**a / 2.0)),
-                    _ => true,
-                };
-                if !clifford {
-                    return Ok(false);
-                }
-            }
-        }
-    }
-    Ok(true)
+    Ok(sum_non_pauli(&circuit.instrs, &|op| match op {
+        NonPauli::T { .. } => 1,
+        NonPauli::Rotation { pauli, theta, .. } => usize::from(!(pauli.is_empty() || is_clifford_angle(*theta))),
+        NonPauli::U3 { theta, phi, lambda, .. } => usize::from(![lambda, theta, phi].iter().all(|a| is_clifford_angle(**a / 2.0))),
+        _ => 0,
+    }) == 0)
 }
 
 /// The circuit with every tagged gate at a Clifford angle written as the Clifford gate it is
@@ -1684,5 +1670,19 @@ pub(crate) mod tests {
         let expect = amp(false).conj() * amp(true);
         assert!((dot.norm2().sqrt() - expect.norm2().sqrt()).abs() < 1e-12, "{dot:?} vs {expect:?}");
         assert!((a.prob - amp(false).norm2()).abs() < 1e-12 && (b.prob - amp(true).norm2()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn gate_counts_walk_loops_without_unrolling() {
+        // A million rounds: counted by multiplication, not by expanding the loop (which the
+        // engine refuses past 2^24 instructions). The Clifford angle is not a gate to count; the
+        // coherent error is a rotation for the T-count's purposes and not a gate for the other.
+        let c = Circuit::parse("R 0\nREPEAT 1000000 {\n    H 0\n    REPEAT 40 {\n        I[T] 0\n        I[R_Z(theta=0.3)] 0\n        I[R_Z(theta=0.7853981633974483)] 0\n        I_ERROR[R_Z(theta=0.1)] 0\n    }\n    M 0\n}").unwrap();
+        assert_eq!(non_clifford_gates(&c).unwrap(), 2 * 40 * 1_000_000);
+        assert_eq!(t_count(&c).unwrap(), 3 * 40 * 1_000_000);
+        assert!(!is_clifford(&c).unwrap());
+        let clifford = Circuit::parse("R 0\nREPEAT 1000000 {\n    REPEAT 40 {\n        I[R_Z(theta=0.7853981633974483)] 0\n        X_ERROR(0.1) 0\n    }\n    M 0\n}").unwrap();
+        assert_eq!(non_clifford_gates(&clifford).unwrap(), 0);
+        assert!(is_clifford(&clifford).unwrap());
     }
 }

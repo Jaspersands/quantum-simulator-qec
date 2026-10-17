@@ -164,7 +164,13 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   Google's Sycamore and Willow data, where it makes Sycamore's d = 5 beat d = 3 as Google's does.
 - **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
   against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
-  a million-round stream that keeps up on 4 cores at d = 5.
+  a million-round stream that keeps up on 4 cores at d = 5. Decoding as a service: `decode_async`
+  on every decoder, a `DecoderQueue` with CUDA-Q QEC's `enqueue_syndromes`/`get_corrections` and
+  latency statistics, and `stabilizer-qec serve` over TCP or pipes with its `DecoderClient`.
+- **Sampling and BP on the GPU**: `device="gpu"` runs the sampler's program on Metal, Vulkan or
+  DX12 through wgpu (in every wheel) and min-sum BP in single precision, each bit for bit equal
+  to its CPU reference (`device="cpu-lanes"`, `"cpu-f32"`), with cuStabilizer's 150× yardstick
+  beside the measured throughput.
 - **IBM's gross code**: the bivariate bicycle codes [[144, 12, 12]] and [[72, 12, 6]] with Bravyi et
   al.'s depth-8 syndrome cycle, decoded by BP+OSD whose corrections equal `ldpc`'s but for ties. On
   it, every automorphism's logical action computed exactly, and the gauging measurement of a logical
@@ -1021,6 +1027,56 @@ It is checked four ways:
 
 Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
 `node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
+
+**Decoding as a service** (`stabilizer_qec.realtime`, CUDA-Q QEC's real-time API). Every
+decoder has `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the
+engine and comes back as an `AsyncResult`. A `DecoderQueue` takes `enqueue_syndromes` and hands
+back `get_corrections` in order, with `DecoderStats` — latency from enqueue to result (mean,
+median, 99th percentile), the decode's own time, shots per second, how deep the queue got — so a
+queue fed faster than it decodes shows it. `stabilizer-qec serve --dem model.dem --decoder
+matching --tcp host:port` (or `--stdio`) serves a decoder over a 20-byte-header framed protocol,
+and `DecoderClient` decodes through it from another process or machine; the predictions equal the
+local decoder's shot for shot, over TCP and over a subprocess's pipes.
+
+**Sampling and BP on the GPU** (`device="gpu"`; wgpu on Metal, Vulkan and DX12, in every wheel;
+`stabilizer_qec.gpu_device()` names the device). cuStabilizer samples frames on NVIDIA GPUs at
+up to 150× one CPU thread. Here the batch sampler's program is flattened into a stream of 32-bit
+words — 32 shots a word, every random number an integer compared with a threshold — and run two
+ways: on the CPU (`device="cpu-lanes"`) and, the very same stream, on the GPU, one invocation per
+word. The two give the same bytes for every seed, shot count and batching, on memories, the
+colour and repetition codes, the surgery CNOT and a circuit with every channel, feedback,
+heralds and nested loops. Min-sum BP runs the same way: `BpDecoder(device="cpu-f32")` in single
+precision on the CPU, `device="gpu"` on the GPU, bit for bit the same decisions. Shots per second
+(`tools/gpu_bench.py`, `data/gpu/bench.json`; Stim's generated memories at p = 0.1%, d rounds, a million
+shots; this machine's CPU and GPU are named in the file):
+
+| memory | qubits | CPU, 1 thread | CPU, all cores | CPU lanes, all cores | GPU | GPU ÷ 1 thread | GPU = lanes |
+|---|---|---|---|---|---|---|---|
+| d = 5 | 64 | 3.79M/s | 12.37M/s | 3.13M/s | 9.93M/s | 3× | yes |
+| d = 11 | 274 | 353k/s | 893k/s | 274k/s | 654k/s | 2× | yes |
+| d = 17 | 628 | 88k/s | 186k/s | 61k/s | 143k/s | 2× | yes |
+
+| BP, min-sum, 20 iterations | checks × variables | f64, shot by shot | f32, all cores | GPU | GPU ÷ f64 | GPU = f32 |
+|---|---|---|---|---|---|---|
+| surface d=11 memory | 1320 × 24483 | 153/s | 1k/s | 21/s | 0.1× | yes |
+| gross [[144,12,12]] code capacity 0.3% | 72 × 144 | 112k/s | 2.25M/s | 870k/s | 7.8× | yes |
+
+- **The GPU equals the CPU's bytes on every row**, a million shots and twenty thousand
+  syndromes at a time; that is the claim this port makes, and the one cuStabilizer cannot be held
+  to from outside.
+- **It is not 150× here.** On this machine's integrated GPU (named in the file) the sampler runs
+  2 to 3 times one CPU thread of the word sampler and behind all of its cores. The word sampler's
+  geometric skipping costs about one random number per noise location for 64 shots; the lane
+  program draws one per shot, 64 times the work, which the GPU does in parallel and the CPU does
+  not — so the lane sampler is the slow way to run on a CPU and the honest reference for the GPU,
+  and the comparison that matters is the GPU against the word sampler on one thread,
+  cuStabilizer's own yardstick. A discrete GPU and a kernel compiled per circuit rather than
+  interpreted would move this; neither is here.
+- **BP on the GPU pays off on small graphs only.** One invocation walks a whole shot's Tanner
+  graph, so on the gross code (144 variables) the GPU decodes 7.8 times faster than the f64
+  decoder shot by shot and a third as fast as the f32 decoder on every core; on a d = 11 memory's
+  24,483-variable graph it is slower than either. The f32 decoder itself is the find: ten times
+  the f64 decoder's throughput on the CPU, the same decision on over 98% of syndromes.
 
 ## Beyond the surface code: IBM's gross code
 

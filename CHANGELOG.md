@@ -791,9 +791,36 @@ noise on every gate. In progress on `feature/2.0`.
   `decode_batch`, `decode`, `stats` and `reset`. Over TCP and over the pipes the predictions
   equal the local decoder's shot for shot (Relay-BP's per batch: it seeds a shot's memory
   strengths from its place in its batch).
+- **Sampling on the GPU, bit for bit the CPU's** (cuStabilizer's place; `device="gpu"`).
+  `compile_detector_sampler(device=...)` and `compile_sampler(device=...)` take `"cpu"` (the
+  word sampler as before), `"cpu-lanes"` or `"gpu"`. The lane sampler (`src/lanes.rs`) is the
+  batch sampler's program flattened into a stream of 32-bit words — 32 shots a word, every
+  random number an integer compared with a threshold, a per-word xorshift32 seeded from the
+  sampler's seed and the word — and the GPU (`src/gpu/sample.wgsl`, through wgpu on Metal,
+  Vulkan or DX12; Cargo feature `gpu`) interprets the very same stream, one invocation per
+  word, REPEAT blocks on a loop stack, so its bytes equal the CPU lane sampler's for every seed,
+  shot count and batching (checked on memories, the colour code, the repetition code, the
+  surgery CNOT and a circuit with every channel, feedback, heralds and nested loops). The lane
+  devices draw different shots from the same seed than `"cpu"` does (the same distribution;
+  every detector's rate and the decoded logical error rate agree within sampling error).
+  `stabilizer_qec.gpu_device()` names the device or returns None (no `gpu` feature in the
+  build, or no adapter); `device="gpu"` then raises. Leakage and the non-Clifford samplers stay
+  on the CPU.
+- **Min-sum BP on the GPU.** `BpDecoder(..., device="cpu-f32")` runs the parallel min-sum
+  schedule in single precision (`src/bp32.rs`: ldpc's operation order, the adaptive scale
+  tabulated per iteration), `device="gpu"` the same on the GPU (`src/gpu/bp.wgsl`), equal bit
+  for bit — hard decisions, convergence and iteration counts — over thousands of syndromes at
+  every scale; `BpDecoder.decode_batch(syndromes)` decodes rows at once on any device. The f32
+  decoder gives the f64 decoder's decision on over 98% of a d = 5 memory's syndromes; the f64
+  decoder (`device="cpu"`, every schedule, product-sum too) is unchanged. `tools/gpu_bench.py`
+  records shots per second of each sampler and decoder in `data/gpu/bench.json`.
 
 ### Fixed
 
+- `Circuit.num_non_clifford_gates()`, `tcount()` and `is_clifford` count through REPEAT blocks
+  by multiplication instead of unrolling the circuit, so `compile_detector_sampler` (which asks
+  first) no longer refuses a memory too long to unroll (a 10,000-round d = 11 memory: 28 million
+  instructions, past the engine's 2²⁴).
 - A circuit takes an anti-Hermitian Pauli product (`MPP X0*Z0`), prints it and counts its record,
   and refuses to simulate or analyse it, as Stim does; building it was the error.
 - A model of a circuit with a non-deterministic detector or observable is refused with Stim's

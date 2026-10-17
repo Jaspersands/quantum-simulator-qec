@@ -360,6 +360,11 @@ impl Bp {
         &self.prior_llr
     }
 
+    /// The Tanner graph's arrays: (var_start, edge_check, edge_var, chk_start, chk_edges).
+    pub fn graph(&self) -> (&[u32], &[u32], &[u32], &[u32], &[u32]) {
+        (&self.var_start, &self.edge_check, &self.edge_var, &self.chk_start, &self.chk_edges)
+    }
+
     /// Run BP on `syndrome` (one byte per check, nonzero where it fired) for
     /// at most `max_iter` iterations. A zero syndrome converges at once to the
     /// empty correction, as `ldpc` does, without iterating.

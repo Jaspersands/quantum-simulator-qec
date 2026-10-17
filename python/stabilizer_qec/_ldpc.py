@@ -357,18 +357,27 @@ class BpDecoder(BpDecoderBase):
         serial_schedule_order: Optional[List[int]] = _Default(None),
         input_vector_type: str = "auto",
         random_serial_schedule: bool = _Default(False),
+        device: str = "cpu",
         **kwargs: Any,
     ) -> None:
         for key in kwargs:
             if key not in ("channel_probs",):
                 raise ValueError(f"Unknown parameter '{key}' passed to the BpDecoder constructor.")
-        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type, random_serial_schedule=random_serial_schedule, **kwargs))
+        if device not in ("cpu", "cpu-f32", "gpu"):
+            raise ValueError(f"device must be 'cpu', 'cpu-f32' or 'gpu', not {device!r}")
+        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type, random_serial_schedule=random_serial_schedule, device=device, **kwargs))
         self._input = "syndrome"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, random_serial_schedule, kwargs.get("channel_probs", [None]), ())
         self.input_vector_type = input_vector_type
+        self.device = device
+        if device != "cpu":  # the single-precision executors are min-sum, parallel schedule only
+            if self.bp_method != "minimum_sum" or self.schedule != "parallel":
+                raise ValueError(f"device {device!r} runs minimum_sum with the parallel schedule only, not {self.bp_method} / {self.schedule}")
 
     def decode(self, input_vector: np.ndarray) -> np.ndarray:
-        """The hard decision: for a syndrome, the error; for a received vector, the codeword."""
+        """The hard decision: for a syndrome, the error; for a received vector, the codeword.
+        On a single-precision device (``"cpu-f32"``, ``"gpu"``) the shot goes through
+        ``decode_batch``; the posteriors are not kept."""
         input_vector = np.asarray(input_vector)
         self._check_length(input_vector)
         dtype = input_vector.dtype
@@ -378,13 +387,37 @@ class BpDecoder(BpDecoderBase):
             return np.zeros(self.n, dtype=dtype)
         if received:
             vector = (input_vector != 0).astype(np.uint8)
-            hard, llr, converged, iterations = call(self._x.decode, self._syndrome_of(vector))
+            hard, llr, converged, iterations = self._decode_one(self._syndrome_of(vector))
             self._decoding = np.asarray(hard, dtype=np.uint8) ^ vector
         else:
-            hard, llr, converged, iterations = call(self._x.decode, [int(x != 0) for x in input_vector])
+            hard, llr, converged, iterations = self._decode_one([int(x != 0) for x in input_vector])
             self._decoding = np.asarray(hard, dtype=np.uint8)
         self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
         return self._decoding.astype(dtype)
+
+    def _decode_one(self, syndrome: Any) -> tuple:
+        if self.device == "cpu":
+            return call(self._x.decode, syndrome)
+        hard, converged, iterations = self.decode_batch(np.asarray(syndrome, dtype=np.uint8).reshape(1, -1), _details=True)
+        return hard[0], np.full(self.n, np.nan), bool(converged[0]), int(iterations[0])
+
+    def decode_batch(self, syndromes: Any, *, threads: int = 0, _details: bool = False) -> np.ndarray:
+        """Many syndromes at once (one row each): the hard decisions as rows of 0/1. On
+        ``device="cpu"`` each row is ``decode``; on ``"cpu-f32"`` the single-precision min-sum
+        of the GPU, ``threads`` wide; on ``"gpu"`` the same on the GPU, bit for bit."""
+        rows = np.asarray(syndromes)
+        if rows.ndim != 2 or rows.shape[1] != self.m:
+            raise ValueError(f"syndromes are rows of {self.m} bits, not shape {rows.shape}")
+        if self.device == "cpu":
+            out = np.stack([self.decode(r) for r in rows]) if len(rows) else np.zeros((0, self.n), dtype=np.uint8)
+            return (out, None, None) if _details else out
+        packed = (rows != 0).astype(np.uint8).tobytes()
+        hard, converged, iterations = call(self._x.decode_batch32, packed, int(rows.shape[0]), self.device, int(threads))
+        stride = (self.n + 7) // 8
+        bits = np.unpackbits(np.frombuffer(hard, dtype=np.uint8).reshape(len(rows), stride), axis=1, bitorder="little")[:, : self.n]
+        if _details:
+            return bits, np.frombuffer(converged, dtype=np.uint8), np.asarray(iterations)
+        return bits
 
     @property
     def decoding(self) -> np.ndarray:

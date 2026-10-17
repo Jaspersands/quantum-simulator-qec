@@ -231,7 +231,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | T5 | `to_matrix`, `to_tensor`, `tcount`, `is_clifford`, `cast_to_stim`, `inverse` with non-Clifford gates | done (2.0 W9: on `Circuit`; `cast_to_stim` is `str(circuit)`, Stim's text) |
 | T6 | DEM of a non-Clifford circuit (Clifford part, non-deterministic observables allowed) | done (2.0 W9: `detector_error_model(allow_non_deterministic_observables=True)`, Tsim's conversion ported) |
 | T7 | Encoders: TransversalEncoder, Steane encoder, colour-code encoder | done (2.0 W7: `stabilizer_qec.tsim`, on `Circuit`, verified by `Tableau`) |
-| T8 | GPU (JAX, CUDA) | gap |
+| T8 | GPU (JAX, CUDA) | done (2.0 W11: frame sampling and min-sum BP on any GPU wgpu drives — Metal, Vulkan, DX12 — through `device="gpu"`, see C10; no CUDA or JAX dependency) |
 
 ## C — CUDA-Q QEC 0.8, cuStabilizer
 
@@ -246,7 +246,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | C7 | Decoder server (real-time, RPC) | done (2.0 W11: `stabilizer-qec serve --dem/--circuit --decoder NAME --tcp host:port | --stdio [--workers N]`, a framed protocol (`realtime.Protocol`), `DecoderClient.connect`/`spawn` with `decode_batch`, `decode`, `stats`, `reset`; over TCP and over a subprocess's pipes the predictions equal the local decoder's) |
 | C8 | PCM utilities: `get_pcm_for_rounds`, `pcm_extend_to_n_rounds`, sorting/simplifying/shuffling columns, `generate_random_pcm`, timelike sparse detector matrix | done (2.0 W6: `stabilizer_qec.cudaq_qec`) |
 | C9 | `sample_code_capacity`, `sample_memory_circuit` (x/z), `dem_from_memory_circuit` (x/z), `dem_sampling` | done (2.0 W6: `stabilizer_qec.cudaq_qec`) |
-| C10 | GPU frame sampling (cuStabilizer: X/Z/leakage tables, up to 150× one CPU thread) and GPU decoders | gap |
+| C10 | GPU frame sampling (cuStabilizer: X/Z/leakage tables, up to 150× one CPU thread) and GPU decoders | done (2.0 W11: `compile_detector_sampler(device="gpu")` and `compile_sampler(device="gpu")` run the lane program (`src/lanes.rs`: 32 shots a word, integer draws) on wgpu (`src/gpu/sample.wgsl`; Metal, Vulkan, DX12; Cargo feature `gpu`), bit for bit the CPU lane sampler's bytes (`device="cpu-lanes"`); `BpDecoder(device="gpu")` runs f32 min-sum BP (`src/gpu/bp.wgsl`) equal to `device="cpu-f32"` (`src/bp32.rs`) bit for bit; `stabilizer_qec.gpu_device()` names the device; `tools/gpu_bench.py` → `data/gpu/bench.json`. Leakage runs on the CPU samplers only) |
 | C11 | Surface-code orientations XV, XH, ZV, ZH | done (2.0 W7: `cudaq_qec.surface_code`/`stabilizer_grid` as CUDA-Q's, `memory_circuit(orientation=)`) |
 
 ## M — MQT QECC 2.0

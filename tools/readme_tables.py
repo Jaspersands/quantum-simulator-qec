@@ -188,6 +188,37 @@ def surgery_leakage():
     return rows
 
 
+def rate(x):
+    """Shots per second as k, M."""
+    if x >= 1e6:
+        return f"{x / 1e6:.2f}M/s"
+    if x >= 1e3:
+        return f"{x / 1e3:.0f}k/s"
+    return f"{x:.0f}/s"
+
+
+def gpu_sampling():
+    B = load("data/gpu/bench.json")
+    rows = []
+    for r in B["sampling"]:
+        gpu = rate(r["gpu_per_s"]) if "gpu_per_s" in r else "no device"
+        ratio = f"{r['gpu_per_s'] / r['cpu_1_thread_per_s']:.0f}×" if "gpu_per_s" in r else "—"
+        same = ("yes" if r.get("gpu_equals_lanes") else "NO") if "gpu_per_s" in r else "—"
+        rows.append(f"| d = {r['distance']} | {r['qubits']} | {rate(r['cpu_1_thread_per_s'])} | {rate(r['cpu_all_threads_per_s'])} | {rate(r['cpu_lanes_per_s'])} | {gpu} | {ratio} | {same} |")
+    return rows
+
+
+def gpu_bp():
+    B = load("data/gpu/bench.json")
+    rows = []
+    for r in B["bp"]:
+        gpu = rate(r["gpu_per_s"]) if "gpu_per_s" in r else "no device"
+        ratio = f"{r['gpu_per_s'] / r['cpu_f64_per_s']:.1f}×" if "gpu_per_s" in r else "—"
+        same = ("yes" if r.get("gpu_equals_f32") else "NO") if "gpu_per_s" in r else "—"
+        rows.append(f"| {r['problem']} | {r['checks']} × {r['variables']} | {rate(r['cpu_f64_per_s'])} | {rate(r['cpu_f32_per_s'])} | {gpu} | {ratio} | {same} |")
+    return rows
+
+
 def per_merge(points):
     """The failure each merge adds: a least-squares line through ln(1 - P) against k."""
     xs = [q["k"] for q in points]; ys = [math.log(1 - q["rate_any"]) for q in points]
@@ -440,6 +471,8 @@ TABLES = [
     ("surgery CNOT", r"\| d \| p \| Z inputs \| X inputs \| Z inputs, plain \| three patches idle as long \| CNOT ÷ idle \|", surgery_cnot),
     ("surgery sequences", r"\| d \| k = 1 \| k = 2 \| k = 4 \| k = 8 \| per merge \|", surgery_sequences),
     ("surgery leakage", r"\| leakage per CX \| threshold, decoder blind to leakage \| threshold, heralds used \| d = 7 at p = 0.3%: blind / heralded \|", surgery_leakage),
+    ("gpu sampling", r"\| memory \| qubits \| CPU, 1 thread \| CPU, all cores \| CPU lanes, all cores \| GPU \| GPU ÷ 1 thread \| GPU = lanes \|", gpu_sampling),
+    ("gpu bp", r"\| BP, min-sum, 20 iterations \| checks × variables \| f64, shot by shot \| f32, all cores \| GPU \| GPU ÷ f64 \| GPU = f32 \|", gpu_bp),
     ("gross gauging", r"\| operator \| system \| ancilla qubits \(edges \+ Gauss \+ flux\) \| heaviest flux check \| ticks per merged cycle \| worst cut \(edges out / vertices\) \| distance, X \| distance, Z \|", gross_gauging),
     ("gross logical", r"\| operator \| system \| basis \| T \| shots \| anything wrong \| outcome wrong \| memory, same length \|", gross_logical),
     ("decoder checks", r"\| decoder \| against \| cases \| shots \| equal \| ties \| otherwise \| time \(× theirs\) \|", decoder_checks),

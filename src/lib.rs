@@ -50,6 +50,10 @@ pub mod dem_program;
 pub mod user_graph;
 pub mod cpp_random;
 pub mod flip;
+pub mod lanes;
+pub mod bp32;
+#[cfg(feature = "gpu")]
+pub mod gpu;
 /// `ldpc`'s union-find decoder on any check matrix.
 pub mod ldpc_uf;
 /// Lookup-table decoders, as CUDA-Q QEC's `single_error_lut` and `multi_error_lut`.

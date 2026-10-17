@@ -253,21 +253,28 @@ impl PyCircuit {
         Ok(PyBytes::new(py, &row))
     }
 
-    /// A sampler of raw measurement records (`skip_reference`: flips from all zeros).
-    fn measurement_sampler(&self, py: Python<'_>, seed: u64, skip_reference: bool) -> PyResult<PyMeasurementSampler> {
+    /// A sampler of raw measurement records (`skip_reference`: flips from all zeros), on a
+    /// `device`: "cpu" (64 shots a word), "cpu-lanes" (32 shots a word, integer draws: the
+    /// GPU's reference) or "gpu".
+    #[pyo3(signature = (seed, skip_reference, device="cpu"))]
+    fn measurement_sampler(&self, py: Python<'_>, seed: u64, skip_reference: bool, device: &str) -> PyResult<PyMeasurementSampler> {
         let inner = &self.circuit.inner;
         let sampler = BatchSampler::new(inner).map_err(err)?;
+        let lanes = lanes_for(device, &sampler)?;
         let reference = if skip_reference {
             Vec::new()
         } else {
             let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
             py.detach(|| crate::m2d::reference(inner, qubits))
         };
-        Ok(PyMeasurementSampler { sampler, reference, seed, next: 0.into() })
+        Ok(PyMeasurementSampler { sampler, lanes, device: device.to_string(), reference, seed, next: 0.into() })
     }
 
-    fn sampler(&self, seed: u64) -> PyResult<PySampler> {
-        Ok(PySampler { sampler: BatchSampler::new(&self.circuit.inner).map_err(err)?, seed, next: 0.into() })
+    #[pyo3(signature = (seed, device="cpu"))]
+    fn sampler(&self, seed: u64, device: &str) -> PyResult<PySampler> {
+        let sampler = BatchSampler::new(&self.circuit.inner).map_err(err)?;
+        let lanes = lanes_for(device, &sampler)?;
+        Ok(PySampler { sampler, lanes, device: device.to_string(), seed, next: 0.into() })
     }
 
     fn m2d(&self) -> PyResult<PyM2d> {
@@ -770,10 +777,35 @@ impl PyDem {
 #[pyclass(name = "Sampler", module = "stabilizer_qec._core")]
 pub struct PySampler {
     sampler: BatchSampler,
+    /// The lane program, on "cpu-lanes" and "gpu".
+    lanes: Option<crate::lanes::LaneProgram>,
+    device: String,
     seed: u64,
-    /// The next batch's index: the shots drawn so far, in batches of 64. Each call reserves
-    /// its batches before it samples, so threads sharing the sampler draw disjoint batches.
+    /// The next batch's index: the shots drawn so far, in batches of 64 (32 on the lane
+    /// devices). Each call reserves its batches before it samples, so threads sharing the
+    /// sampler draw disjoint batches.
     next: std::sync::atomic::AtomicU64,
+}
+
+/// The lane program a device needs: none for "cpu", the program for "cpu-lanes" and "gpu" (the
+/// latter only when the `gpu` feature is built and a device answers).
+fn lanes_for(device: &str, sampler: &BatchSampler) -> PyResult<Option<crate::lanes::LaneProgram>> {
+    match device {
+        "cpu" => Ok(None),
+        "cpu-lanes" => Ok(Some(crate::lanes::LaneProgram::from_sampler(sampler).map_err(err)?)),
+        "gpu" => {
+            #[cfg(feature = "gpu")]
+            {
+                crate::gpu::device_ready().map_err(err)?;
+                Ok(Some(crate::lanes::LaneProgram::from_sampler(sampler).map_err(err)?))
+            }
+            #[cfg(not(feature = "gpu"))]
+            {
+                Err(err("device 'gpu' needs the package built with its gpu feature (pip install stabilizer-qec[gpu])".to_string()))
+            }
+        }
+        other => Err(err(format!("device must be 'cpu', 'cpu-lanes' or 'gpu', not {other:?}"))),
+    }
 }
 
 #[pymethods]
@@ -788,13 +820,24 @@ impl PySampler {
         self.sampler.num_observables
     }
 
+    #[getter]
+    fn device(&self) -> &str {
+        &self.device
+    }
+
     /// `shots` shots as b8 rows of detectors and of observables. A call that ends mid-batch
     /// discards the batch's other lanes; the next call starts a new batch.
-    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>) {
-        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+        let per_batch = if self.lanes.is_some() { crate::lanes::LANES } else { 64 };
+        let first = self.next.fetch_add(shots.div_ceil(per_batch) as u64, std::sync::atomic::Ordering::Relaxed);
         let (sampler, seed) = (&self.sampler, self.seed);
-        let (d, o) = py.detach(|| sampler.sample_seeded(seed, first, shots, threads));
-        (PyBytes::new(py, &d), PyBytes::new(py, &o))
+        let (d, o) = match (&self.lanes, self.device.as_str()) {
+            (None, _) => py.detach(|| sampler.sample_seeded(seed, first, shots, threads)),
+            #[cfg(feature = "gpu")]
+            (Some(lanes), "gpu") => py.detach(|| crate::gpu::sample_seeded(lanes, seed, first, shots)).map_err(err)?,
+            (Some(lanes), _) => py.detach(|| lanes.sample_seeded(seed, first, shots, threads)),
+        };
+        Ok((PyBytes::new(py, &d), PyBytes::new(py, &o)))
     }
 }
 
@@ -802,6 +845,8 @@ impl PySampler {
 #[pyclass(name = "MeasurementSampler", module = "stabilizer_qec._core")]
 pub struct PyMeasurementSampler {
     sampler: BatchSampler,
+    lanes: Option<crate::lanes::LaneProgram>,
+    device: String,
     reference: Vec<bool>,
     seed: u64,
     next: std::sync::atomic::AtomicU64,
@@ -814,12 +859,23 @@ impl PyMeasurementSampler {
         self.sampler.num_measurements
     }
 
+    #[getter]
+    fn device(&self) -> &str {
+        &self.device
+    }
+
     /// `shots` measurement records as b8 rows.
-    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> Bound<'py, PyBytes> {
-        let first = self.next.fetch_add(shots.div_ceil(64) as u64, std::sync::atomic::Ordering::Relaxed);
+    fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> PyResult<Bound<'py, PyBytes>> {
+        let per_batch = if self.lanes.is_some() { crate::lanes::LANES } else { 64 };
+        let first = self.next.fetch_add(shots.div_ceil(per_batch) as u64, std::sync::atomic::Ordering::Relaxed);
         let (sampler, seed, reference) = (&self.sampler, self.seed, &self.reference);
-        let rows = py.detach(|| sampler.sample_measurements_seeded(seed, first, shots, threads, reference));
-        PyBytes::new(py, &rows)
+        let rows = match (&self.lanes, self.device.as_str()) {
+            (None, _) => py.detach(|| sampler.sample_measurements_seeded(seed, first, shots, threads, reference)),
+            #[cfg(feature = "gpu")]
+            (Some(lanes), "gpu") => py.detach(|| crate::gpu::sample_measurements_seeded(lanes, seed, first, shots, reference)).map_err(err)?,
+            (Some(lanes), _) => py.detach(|| lanes.sample_measurements_seeded(seed, first, shots, threads, reference)),
+        };
+        Ok(PyBytes::new(py, &rows))
     }
 }
 
@@ -1912,6 +1968,39 @@ impl PyBp {
         checked_syndrome(&syndrome, self.num_checks)?;
         let out = self.bp.decode_scheduled(&syndrome, self.method, self.max_iter, self.schedule, &mut self.serial, &mut self.work);
         Ok((bits(&self.work.hard), self.work.llr.clone(), out.converged, out.iterations))
+    }
+
+    /// Min-sum in single precision, the parallel schedule, a batch at once: `syndromes` one
+    /// byte per check per shot, back to back; on "cpu-f32" (`threads` wide) or "gpu". Returns
+    /// (hard decisions as b8 rows, one byte per shot set where BP converged, iterations).
+    fn decode_batch32<'py>(&self, py: Python<'py>, syndromes: &[u8], shots: usize, device: &str, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<u32>)> {
+        if syndromes.len() != shots * self.num_checks {
+            return Err(err(format!("{} syndrome bytes for {shots} shots of {} checks", syndromes.len(), self.num_checks)));
+        }
+        let scale = match self.method {
+            crate::bp::Method::MinSum { scale } => scale as f32,
+            crate::bp::Method::ProductSum => return Err(err("single-precision BP is min-sum only; set bp_method to minimum_sum".to_string())),
+        };
+        if self.schedule != crate::bp::Schedule::Parallel {
+            return Err(err("single-precision BP runs the parallel schedule only".to_string()));
+        }
+        let bp32 = crate::bp32::Bp32::from_bp(&self.bp);
+        let max_iter = self.max_iter;
+        let out = match device {
+            "cpu-f32" => py.detach(|| bp32.decode_batch(syndromes, shots, scale, max_iter, threads)),
+            "gpu" => {
+                #[cfg(feature = "gpu")]
+                {
+                    py.detach(|| crate::gpu::bp_decode_batch(&bp32, syndromes, shots, scale, max_iter)).map_err(err)?
+                }
+                #[cfg(not(feature = "gpu"))]
+                {
+                    return Err(err("device 'gpu' needs the package built with its gpu feature (pip install stabilizer-qec[gpu])".to_string()));
+                }
+            }
+            other => return Err(err(format!("device must be 'cpu-f32' or 'gpu', not {other:?}"))),
+        };
+        Ok((PyBytes::new(py, &out.hard), PyBytes::new(py, &out.converged), out.iterations))
     }
 
     /// Soft-information serial min-sum: (hard decision, posteriors, converged, iterations, the

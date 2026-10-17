@@ -101,7 +101,9 @@ Homepage = "https://qcompiler.jaspersands.com"
 Repository = "https://github.com/Jaspersands/quantum-simulator-qec"
 
 [tool.maturin]
-features = ["python", "highs"]
+# Every wheel carries the GPU samplers and decoder (wgpu: Metal, Vulkan, DX12); without a device
+# `device="gpu"` raises and `gpu_device()` is None.
+features = ["python", "highs", "gpu"]
 profile = "python"
 module-name = "stabilizer_qec._core"
 python-source = "python"
