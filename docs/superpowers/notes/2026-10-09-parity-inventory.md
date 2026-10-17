@@ -286,9 +286,9 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 
 | ID | Feature | Status |
 |---|---|---|
-| F1 | tqec block graphs: cubes, pipes, ports; compile to Stim circuits with detectors (fixed bulk and fixed boundary conventions); correlation surfaces (ZX) → observables | part (surgery programs) |
-| F2 | tqec gallery: memory, stability, CNOT, CZ, move/rotation, three CNOTs, Steane encoding | part (CNOT, merges) |
-| F3 | tqec `.dae` (Collada) import/export, 3D visualisation, SketchUp interop | gap |
+| F1 | tqec block graphs: cubes, pipes, ports; compile to Stim circuits with detectors (fixed bulk and fixed boundary conventions); correlation surfaces (ZX) → observables | done (2.0 W10: `stabilizer_qec.tqec`, tqec's `computation` package ported without networkx or PyZX — `BlockGraph`, kinds, validation, `fill_ports`, `fill_ports_for_minimal_simulation`, `compose`, `rotate`, `fix_shadowed_faces`, correlation surfaces on its own ZX graph, equal to tqec's on every gallery graph; `BlockGraph.compile` through the surgery engine for graphs of one patch orientation with time and single-direction spatial pipes (memory, CNOT), the correlation surfaces its observables; graphs with Hadamard pipes, spatial cubes or Y cubes are refused with tqec named — tqec's plaquette templates and detector search are not ported) |
+| F2 | tqec gallery: memory, stability, CNOT, CZ, move/rotation, three CNOTs, Steane encoding | done (2.0 W10: `stabilizer_qec.tqec.gallery`, the seven builders, Steane encoding from tqec's Collada file packaged; memory and CNOT compile here, the others through tqec) |
+| F3 | tqec `.dae` (Collada) import/export, 3D visualisation, SketchUp interop | done (2.0 W10: `to_dae_file`/`from_dae_file` and `to_json`/`from_json` with the standard library, tqec's node names, scales, colours and correlation-surface rectangles; each reads the other's files; no 3D viewer) |
 | F4 | Loom code operations: grow, shrink, merge, split, move block, rotate block, move corners, Y-wall (phase), state injection, transversal Hadamard, auxiliary CNOT | part (merge/split) |
 | F5 | Loom validator (stabilizer, logical and syndrome-measurement checks), exporters to QASM, PennyLane, CUDA-Q, Mimiq | gap |
 | F6 | Qualtran surface-code costs: Gidney–Fowler model, CCZ2T and 15-to-1 factories, data blocks (simple, compact, intermediate, fast), rotation cost models, Beverland et al. model, multi-factory | part (our estimator) |

@@ -689,6 +689,24 @@ noise on every gate. In progress on `feature/2.0`.
   orders of magnitude (a cancellation-dominated quantity the truncation does not reach), and in
   the protocol encoded in the colour code (85 qubits, 801 rotations) it is the only estimate
   there is, at about a second per shot.
+- **`stabilizer_qec.tqec`: tqec's block graphs** (tqec/tqec 0.2.0's `computation` package, its
+  gallery and its Collada and JSON files, ported on the standard library without networkx, PyZX,
+  pycollada or numpy; Apache 2.0): `BlockGraph` with cubes, pipes and ports, the ZX kinds,
+  `validate`, `fill_ports`, `fill_ports_for_minimal_simulation`, `compose`, `shift_by`,
+  `rotate`, `fix_shadowed_faces`, `to_zx_graph` on a ZX graph of this package's own and
+  `find_correlation_surfaces` (tqec's search, generating set for generating set — the PyZX
+  adjacency order it depends on is reproduced), `to_json`/`from_json`, `to_dae_file`/
+  `from_dae_file` (tqec's node names, scales, colours and correlation-surface rectangles),
+  the seven gallery builders (the Steane encoding from tqec's Collada file, packaged). On every
+  gallery graph, open and filled, the cubes, pipes, ports, volumes, correlation surfaces,
+  stabilizers, JSON text and Collada files (read both ways) equal tqec's. `BlockGraph.compile`
+  (and `compile_block_graph`, with the program) runs a graph on this package's surgery engine
+  through the new `_core.surgery_program`: each cube lifetime a patch prepared and read in its
+  temporal bases, each spatial pipe a merge and split, each correlation surface an observable
+  from the final logicals, merge outcomes and seam readouts it touches; memory and the CNOT
+  compile (the CNOT's decoded logical error rate equals the engine's own CNOT's), and graphs
+  with Hadamard pipes, spatial cubes, Y half cubes or open ports are refused with tqec named.
+  tqec's plaquette templates and detector search are not ported.
 
 ### Fixed
 

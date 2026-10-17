@@ -269,6 +269,13 @@ def surgery_repeated(d: int, k: int, merged: int, p: float) -> str:
     ``merged`` rounds and followed by one round apart: observables each
     outcome (L0 .. L{k-1}), then Z1 and Z2."""
 
+def surgery_program(d: int, p: float, tiles: list[tuple[int, int]], steps: list[tuple], observables: list[list[tuple]]) -> str:
+    """A general surgery program as Stim text: patches on ``tiles`` (column, row); ``steps`` as
+    ``("prepare", patches, basis)``, ``("rounds", k)``, ``("merge", patches)``, ``("split",)``,
+    ``("measure", patches, basis)``; each observable a list of ``("logical", patch, basis, line)``,
+    ``("outcome", merge, seam)`` and ``("seam", merge, patch, line)`` terms."""
+    ...
+
 def surgery_line(d: int, n: int, merged: int, p: float) -> str:
     """``n`` patches in a row, all in |0>, merged at once: each neighbouring
     pair's Z⊗Z measured together. The merged patch holds one logical qubit,

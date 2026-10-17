@@ -214,6 +214,16 @@ Copyright (c) 2023 - 2026 Chair for Design Automation, TUM. Licensed under the M
 `tests/mqt_qecc_port/` its tests, with mqt.qecc at stabilizer_qec.mqt_qecc and its Stim, sinter,
 ldpc, PyMatching, qecsim and bposd this package's.
 
+## tqec
+
+`python/stabilizer_qec/tqec/` is a port of tqec's `computation` package (block graphs, cubes,
+pipes, correlation surfaces, port filling), its `utils` (positions, enums, rotations), its
+gallery and its Collada and JSON readers and writers (tqec/tqec 0.2.0,
+https://github.com/tqec/tqec), rewritten on the standard library without networkx, PyZX,
+pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data. tqec is the
+TQEC community's, licensed under the Apache License, Version 2.0; the licence is in
+`python/stabilizer_qec/tqec/LICENSE`.
+
 ## Fusion Blossom
 
 Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/fusion/LICENSE`, and

@@ -769,6 +769,47 @@ fn surgery_line(d: usize, n: usize, merged: usize, p: f64) -> PyResult<String> {
     Ok(crate::surgery::line_circuit(d, n, merged, p).map_err(err)?.to_stim())
 }
 
+/// A general surgery program (see `surgery::Program`): patches on `tiles`
+/// (column, row), `steps` as tuples ("prepare", patches, basis),
+/// ("rounds", k), ("merge", patches), ("split",), ("measure", patches,
+/// basis), and `observables` as lists of terms ("logical", patch, basis,
+/// line), ("outcome", merge, seam), ("seam", merge, patch, line). The
+/// circuit's text, with its detectors and observables.
+#[pyfunction]
+fn surgery_program(d: usize, p: f64, tiles: Vec<(i32, i32)>, steps: Vec<Bound<'_, pyo3::types::PyTuple>>, observables: Vec<Vec<Bound<'_, pyo3::types::PyTuple>>>) -> PyResult<String> {
+    use crate::surgery::{Step, Term};
+    let mut program_steps = Vec::with_capacity(steps.len());
+    for step in &steps {
+        let name: String = step.get_item(0)?.extract()?;
+        program_steps.push(match name.as_str() {
+            "prepare" => Step::Prepare { patches: step.get_item(1)?.extract()?, basis: basis_of(&step.get_item(2)?.extract::<String>()?)? },
+            "rounds" => Step::Rounds(step.get_item(1)?.extract()?),
+            "merge" => Step::Merge { patches: step.get_item(1)?.extract()? },
+            "split" => Step::Split,
+            "measure" => Step::Measure { patches: step.get_item(1)?.extract()?, basis: basis_of(&step.get_item(2)?.extract::<String>()?)? },
+            other => return Err(PyValueError::new_err(format!("unknown surgery step {other:?}"))),
+        });
+    }
+    let mut program_observables = Vec::with_capacity(observables.len());
+    for terms in &observables {
+        let mut out = Vec::with_capacity(terms.len());
+        for term in terms {
+            let name: String = term.get_item(0)?.extract()?;
+            out.push(match name.as_str() {
+                "logical" => Term::Logical { patch: term.get_item(1)?.extract()?, basis: basis_of(&term.get_item(2)?.extract::<String>()?)?, line: term.get_item(3)?.extract()? },
+                "outcome" => Term::Outcome { merge: term.get_item(1)?.extract()?, seam: term.get_item(2)?.extract()? },
+                "seam" => Term::Seam { merge: term.get_item(1)?.extract()?, patch: term.get_item(2)?.extract()?, line: term.get_item(3)?.extract()? },
+                other => return Err(PyValueError::new_err(format!("unknown surgery term {other:?}"))),
+            });
+        }
+        program_observables.push(out);
+    }
+    let rounds = program_steps.iter().fold(0usize, |n, s| n.saturating_add(if let Step::Rounds(k) = s { *k } else { 1 }));
+    crate::surgery::check_size(d, tiles.len(), rounds).map_err(err)?;
+    let program = crate::surgery::Program { d, p, tiles, steps: program_steps, observables: program_observables };
+    Ok(program.circuit().map_err(err)?.to_stim())
+}
+
 /// The X⊗X mirror of `surgery_circuit` (see `surgery::vertical`): "x", the
 /// outcome and each patch's X; "z", Z1Z2 with its seam qubit.
 #[pyfunction]
@@ -816,6 +857,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(surgery_cnot, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_repeated, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_line, m)?)?;
+    m.add_function(wrap_pyfunction!(surgery_program, m)?)?;
     m.add_function(wrap_pyfunction!(surgery_vertical, m)?)?;
     Ok(())
 }
