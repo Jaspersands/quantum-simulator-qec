@@ -125,6 +125,7 @@ def test_samplers_dispatch_to_the_engine_on_non_clifford_gates():
     t = sq.Circuit("R 0\nH 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]")
     assert t.num_non_clifford_gates() == 1
     assert isinstance(t.compile_detector_sampler(seed=1), sq.StabilizerRankSampler)
+    assert t.compile_detector_sampler(seed=1).device == t.compile_exact_sampler(seed=1).device == "cpu"
     d = t.compile_detector_sampler(seed=1).sample(20000)
     assert abs(d.mean() - np.sin(np.pi / 8) ** 2) < 0.01
     m = t.compile_sampler(seed=1).sample(20000)

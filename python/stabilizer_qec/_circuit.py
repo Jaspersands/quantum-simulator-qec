@@ -2061,6 +2061,11 @@ class ExactSampler(DetectorSampler):
         return f"stabilizer_qec.ExactSampler({self._circuit!r})"
 
     @property
+    def device(self) -> str:
+        """``"cpu"``: the state vector runs on the CPU."""
+        return "cpu"
+
+    @property
     def num_qubits(self) -> int:
         """The qubits in use, which the state vector holds."""
         return self._s.num_qubits
@@ -2082,6 +2087,11 @@ class StabilizerRankSampler(DetectorSampler):
 
     def __repr__(self) -> str:
         return f"stabilizer_qec.StabilizerRankSampler({self._circuit!r})"
+
+    @property
+    def device(self) -> str:
+        """``"cpu"``: the stabilizer-rank engine runs on the CPU."""
+        return "cpu"
 
     @property
     def num_measurements(self) -> int:
