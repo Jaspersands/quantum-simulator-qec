@@ -642,7 +642,19 @@ class DecoderClient:
         self._reader, self._writer, self._process, self._sock = reader, writer, process, sock
         self._lock = threading.Lock()
         try:
-            kind, _, _, payload = _with_timeout(lambda: Protocol.read(reader, 1 << 20), timeout, "the decoder server's HELLO")
+            if sock is not None and timeout is not None:
+                # The socket's own timeout: a helper thread blocked in a read cannot be unblocked
+                # on every platform (Windows lets it sit until the peer speaks), a timed-out
+                # socket read returns at once everywhere.
+                sock.settimeout(timeout)
+                try:
+                    kind, _, _, payload = Protocol.read(reader, 1 << 20)
+                except (socket.timeout, TimeoutError):
+                    raise TimeoutError(f"the decoder server's HELLO did not arrive within {timeout} s") from None
+                finally:
+                    sock.settimeout(None)
+            else:
+                kind, _, _, payload = _with_timeout(lambda: Protocol.read(reader, 1 << 20), timeout, "the decoder server's HELLO")
             if kind != Protocol.HELLO:
                 raise ValueError(f"expected HELLO, got {Protocol.NAMES.get(kind, kind)}")
             hello = json.loads(payload.decode())
