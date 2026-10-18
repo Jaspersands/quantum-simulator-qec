@@ -490,6 +490,36 @@ def test_text_shot_files_may_end_lines_with_crlf(tmp_path, fmt, text):
 
 
 @pytest.mark.parametrize("seed", range(40))
+def test_observable_targets_stay_as_written(seed):
+    # Stim prints an observable's records and Paulis in the order written, interleaved.
+    rng = random.Random(seed)
+    lines = [f"M {' '.join(map(str, range(4)))}"]
+    for _ in range(rng.randint(1, 4)):
+        targets = [rng.choice([f"rec[-{rng.randint(1, 4)}]", f"{rng.choice(['', '!'])}{rng.choice('XYZ')}{rng.randrange(5)}"]) for _ in range(rng.randint(1, 5))]
+        lines.append(f"OBSERVABLE_INCLUDE({rng.randrange(3)}) {' '.join(targets)}")
+    text = "\n".join(lines)
+    if rng.random() < 0.5:
+        text = f"REPEAT 2 {{\n{text}\n}}"
+    a, b = stim.Circuit(text), sq.Circuit(text)
+    assert str(b) == str(a)
+    assert str(b.flattened()) == str(a.flattened())
+    assert sq.Circuit(str(a)) == b
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_explained_errors_under_a_filter_as_stim(seed):
+    # With a filter, Stim lists the explanations sorted by their model terms.
+    rng = random.Random(seed)
+    s = stim.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.01)
+    dem = s.detector_error_model(decompose_errors=True)
+    chosen = stim.DetectorErrorModel("\n".join(str(i) for i in rng.sample(list(dem.flattened()), rng.randint(1, 5))))
+    for one in (True, False):
+        want = s.explain_detector_error_model_errors(dem_filter=chosen, reduce_to_one_representative_error=one)
+        got = sq.Circuit(str(s)).explain_detector_error_model_errors(dem_filter=sq.DetectorErrorModel(str(chosen)), reduce_to_one_representative_error=one)
+        assert [str(e) for e in got] == [str(e) for e in want]
+
+
+@pytest.mark.parametrize("seed", range(40))
 def test_model_targets_stay_as_written(seed):
     # Stim keeps an error's targets in the order written, repeats included, in its text and
     # when flattening; a repeated target cancels only in the error's meaning.

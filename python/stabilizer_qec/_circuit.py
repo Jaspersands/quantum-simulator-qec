@@ -777,7 +777,12 @@ class Circuit:
 
         f = None if dem_filter is None else (dem_filter if isinstance(dem_filter, DetectorErrorModel) else DetectorErrorModel(dem_filter))
         raw = call(self._c.explain, None if f is None else f._d, bool(reduce_to_one_representative_error))
-        return _explain.build(raw)
+        out = _explain.build(raw)
+        if f is not None:
+            # As Stim: the filter's errors in order of their symptoms (detectors before
+            # observables, each by index), not the filter's order.
+            out.sort(key=lambda e: [(t.dem_target.is_logical_observable_id(), t.dem_target.val) for t in e.dem_error_terms])
+        return out
 
     def shortest_graphlike_error(self, *, ignore_ungraphlike_errors: bool = True, canonicalize_circuit_errors: bool = False) -> list:
         """The circuit's graph-like distance, as Stim's method of the same name finds it: the

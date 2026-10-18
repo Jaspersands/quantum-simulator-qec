@@ -48,7 +48,10 @@ pub enum Instr {
     /// `recs` as for a detector; `paulis` are Pauli targets (`X3`, `!Z0`): the observable
     /// takes in that Pauli's value at this point of the circuit, which errors before it that
     /// anticommute with it flip. `true` marks an inverted target.
-    Observable { index: u32, recs: Vec<u32>, paulis: Vec<(u32, Pauli, bool)> },
+    /// `order`, when the text interleaved them (a Pauli before a record), says for each target
+    /// in written order whether it is a record (true) or a Pauli; it is kept only to print the
+    /// targets as written, as Stim does.
+    Observable { index: u32, recs: Vec<u32>, paulis: Vec<(u32, Pauli, bool)>, order: Option<Vec<bool>> },
     QubitCoords { coords: Vec<f64>, qubits: Vec<u32> },
     ShiftCoords(Vec<f64>),
     Tick,
@@ -780,11 +783,14 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
             }
             let mut recs = Vec::new();
             let mut paulis = Vec::new();
+            let mut order = Vec::new();
             for tok in &t {
                 if tok.starts_with("rec[") {
                     recs.extend(rec_targets(&[tok], &name)?);
+                    order.push(true);
                     continue;
                 }
+                order.push(false);
                 let (body, inverted) = match tok.strip_prefix('!') {
                     Some(b) => (b, true),
                     None => (*tok, false),
@@ -795,7 +801,9 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
                 };
                 paulis.push((qubit(q, &name)?, code, inverted));
             }
-            Instr::Observable { index: i as u32, recs, paulis }
+            // Records first, as written, needs no order.
+            let order = if order.windows(2).any(|w| !w[0] && w[1]) { Some(order) } else { None };
+            Instr::Observable { index: i as u32, recs, paulis, order }
         }
         "QUBIT_COORDS" => Instr::QubitCoords { coords: args.clone(), qubits: qubit_targets(&t, &name)? },
         "SHIFT_COORDS" => {
@@ -1334,12 +1342,23 @@ fn emit(instrs: &[Instr], indent: &str, s: &mut String) {
                 format!("{} {}", with_args("PAULI_CHANNEL_1", &[*px, *py, *pz]), join_q(qubits))
             }
             Instr::Detector { coords, recs } => format!("{} {}", with_args("DETECTOR", coords), join_recs(recs)),
-            Instr::Observable { index, recs, paulis } => {
-                let mut targets = join_recs(recs);
-                for &(q, p, inverted) in paulis {
-                    let _ = write!(targets, " {}{}{q}", if inverted { "!" } else { "" }, ["I", "X", "Z", "Y"][p as usize]);
-                }
-                format!("OBSERVABLE_INCLUDE({index}) {}", targets.trim_start())
+            Instr::Observable { index, recs, paulis, order } => {
+                let pauli = |&(q, p, inverted): &(u32, Pauli, bool)| format!("{}{}{q}", if inverted { "!" } else { "" }, ["I", "X", "Z", "Y"][p as usize]);
+                let targets = match order {
+                    Some(order) => {
+                        let (mut r, mut p) = (recs.iter(), paulis.iter());
+                        let parts: Vec<String> = order.iter().filter_map(|&is_rec| if is_rec { r.next().map(|&k| join_recs(&[k]).trim().to_string()) } else { p.next().map(pauli) }).collect();
+                        parts.join(" ")
+                    }
+                    None => {
+                        let mut targets = join_recs(recs);
+                        for t in paulis {
+                            let _ = write!(targets, " {}", pauli(t));
+                        }
+                        targets.trim_start().to_string()
+                    }
+                };
+                format!("OBSERVABLE_INCLUDE({index}) {targets}")
             }
             Instr::QubitCoords { coords, qubits } => {
                 format!("{} {}", with_args("QUBIT_COORDS", coords), join_q(qubits))

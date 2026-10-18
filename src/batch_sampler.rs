@@ -129,7 +129,7 @@ pub(crate) fn compile(instrs: &[Instr]) -> Vec<Op> {
                 Op::Detector(recs.clone(), coords.last().map(|&t| (coords.len() - 1, t)))
             }
             Instr::ShiftCoords(shift) => Op::ShiftCoords(shift.clone()),
-            Instr::Observable { index, recs, paulis } => {
+            Instr::Observable { index, recs, paulis, .. } => {
                 Op::Observable(*index, recs.clone(), paulis.iter().map(|&(q, p, _)| (q, p)).collect())
             }
             Instr::Repeat { count, body, .. } => Op::Repeat(*count, compile(body)),

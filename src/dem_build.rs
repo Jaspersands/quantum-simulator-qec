@@ -724,7 +724,7 @@ impl Analyzer {
             }
             // A Pauli target: errors before it that anticommute with it flip the observable,
             // a Z component an X target and an X component a Z target.
-            Instr::Observable { index, recs, paulis } => {
+            Instr::Observable { index, recs, paulis, .. } => {
                 let target = OBS | u64::from(*index);
                 for &k in recs {
                     self.t.feed(k, &[target])?;

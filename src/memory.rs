@@ -355,7 +355,7 @@ fn final_readout(patch: &Patch, c: &mut Vec<Instr>, m: &mut usize, last: &[usize
         c.push(Instr::Detector { coords: vec![x as f64, y as f64, t], recs });
     }
     let recs = patch.observable.iter().map(|&q| lookback(*m, at[q as usize])).collect();
-    c.push(Instr::Observable { index: 0, recs, paulis: Vec::new() });
+    c.push(Instr::Observable { index: 0, recs, paulis: Vec::new(), order: None });
 }
 
 /* -- Current: the engine's own model, gate for gate ------------------------ */
