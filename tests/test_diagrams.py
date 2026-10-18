@@ -82,6 +82,18 @@ def test_matchgraph_has_an_edge_per_graphlike_fault():
     assert sum("p=" not in t for t in titles) == dem.num_detectors
 
 
+def test_matchgraph_draws_undecomposed_hyperedges():
+    # A fault on three detectors that the model leaves whole: dotted spokes from a hollow
+    # centre, titled with its detectors; its graph-like neighbours stay edges.
+    dem = sq.DetectorErrorModel("error(0.1) D0 D1 D2\nerror(0.2) D0 D1\nerror(0.05) D2 L0\ndetector(0, 0) D0\ndetector(2, 0) D1\ndetector(1, 2) D2")
+    root = ET.fromstring(str(dem.diagram("matchgraph-svg")))
+    ns = "{http://www.w3.org/2000/svg}"
+    titles = [t.text for t in root.iter(f"{ns}title")]
+    assert any(t.startswith("D0 D1 D2 p=1.000e-1") for t in titles), titles
+    assert len([e for e in root.iter(f"{ns}line") if e.get("stroke-dasharray") == "1 2"]) == 3  # boundary stubs dash "3 2"
+    assert [c for c in root.iter(f"{ns}circle") if c.get("fill") == "none"]
+
+
 def test_saving_and_bad_types(tmp_path):
     d = sq.Circuit(BELL).diagram("timeline-svg")
     d.save(tmp_path / "t.svg")

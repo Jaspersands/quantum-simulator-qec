@@ -306,6 +306,7 @@ impl Builder {
                 index,
                 recs,
                 paulis,
+                ..
             } => {
                 let refs: Vec<u64> = recs.iter().filter_map(|&k| self.lookback(k)).collect();
                 let mut terms: Vec<String> = refs.iter().map(|r| format!("rec[{r}]")).collect();
@@ -992,11 +993,40 @@ fn convex_hull(points: &[(f64, f64)]) -> Vec<(f64, f64)> {
 
 /* -- Matching graph ---------------------------------------------------------- */
 
-/// A decomposed model's matching graph as an SVG picture: each detector where its coordinates
-/// put it (space, with time drawn as a slant), each graph-like fault an edge, edges to the
-/// boundary as stubs, and edges that flip an observable drawn heavier.
+/// The faults a matching-graph picture draws: the matcher's merged edges (boundary as
+/// `num_detectors`) when the model has them; otherwise (a fault on more than two detectors that
+/// nobody decomposed, or a probability matching cannot weigh) each fault's graph-like pieces as
+/// edges, one by one, and its undecomposed hyperedges apart.
+#[allow(clippy::type_complexity)]
+fn drawn_faults(dem: &crate::dem::Dem) -> (Vec<(u32, u32, f64, u64)>, Vec<(Vec<u32>, f64, u64)>) {
+    if let Ok((edges, _)) = crate::dem_decoder::merged_edges(dem) {
+        return (edges, Vec::new());
+    }
+    let boundary = dem.num_detectors as u32;
+    let (mut edges, mut hyper) = (Vec::new(), Vec::new());
+    let mut add = |dets: &[u32], p: f64, obs: u64| match dets {
+        [] => {}
+        [a] => edges.push((*a, boundary, p, obs)),
+        [a, b] => edges.push((*a.min(b), *a.max(b), p, obs)),
+        more => hyper.push((more.to_vec(), p, obs)),
+    };
+    for m in dem.mechanisms.iter().filter(|m| m.p != 0.0) {
+        if m.pieces.is_empty() {
+            add(&m.detectors, m.p, m.observables);
+        }
+        for piece in &m.pieces {
+            add(&piece.detectors, m.p, piece.observables);
+        }
+    }
+    (edges, hyper)
+}
+
+/// A model's matching graph as an SVG picture: each detector where its coordinates put it
+/// (space, with time drawn as a slant), each graph-like fault an edge, edges to the boundary as
+/// stubs, edges that flip an observable drawn heavier, and a fault on more than two detectors
+/// that the model does not decompose as dotted spokes from a hollow point at their centre.
 pub fn matchgraph_svg(dem: &crate::dem::Dem) -> Result<String, String> {
-    let (edges, _) = crate::dem_decoder::merged_edges(dem)?;
+    let (edges, hyper) = drawn_faults(dem);
     let nd = dem.num_detectors;
     // Space as a floor seen from above at a slant, time stacking the floors downward: each
     // round's layer its own band, and the edges between rounds short verticals between bands.
@@ -1061,6 +1091,20 @@ pub fn matchgraph_svg(dem: &crate::dem::Dem) -> Result<String, String> {
             b.1,
             if stub { "boundary".to_string() } else { format!("D{v}") }
         );
+    }
+    for (dets, p, obs) in &hyper {
+        let ends: Vec<(f64, f64)> = dets.iter().filter(|&&d| (d as usize) < nd).map(|&d| px(pts[d as usize])).collect();
+        if ends.is_empty() {
+            continue;
+        }
+        let k = ends.len() as f64;
+        let c = (ends.iter().map(|e| e.0).sum::<f64>() / k, ends.iter().map(|e| e.1).sum::<f64>() / k);
+        let colour = if *obs != 0 { " stroke=\"#c0392b\"" } else { " class=\"edge\"" };
+        let names: Vec<String> = dets.iter().map(|d| format!("D{d}")).collect();
+        for e in &ends {
+            let _ = write!(s, "<line x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\"{colour} stroke-width=\"1\" stroke-dasharray=\"1 2\"/>", c.0, c.1, e.0, e.1);
+        }
+        let _ = write!(s, "<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"2.5\" fill=\"none\"{colour}><title>{} p={p:.3e}</title></circle>", c.0, c.1, names.join(" "));
     }
     for (d, &p) in pts.iter().enumerate() {
         let (x, y) = px(p);
