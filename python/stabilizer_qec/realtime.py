@@ -194,8 +194,26 @@ class DecoderQueue:
         holder: Dict[str, Any] = {}
 
         def run() -> Any:
+            # The statistics are written here, before the future's value is set: a waiter on
+            # the result then sees them (a done callback can still be running when the waiter
+            # wakes).
             holder["started"] = time.perf_counter()
-            return self._decode(shots, **kwargs)
+            try:
+                value = self._decode(shots, **kwargs)
+            except BaseException:
+                with self._lock:
+                    self._in_flight -= 1
+                raise
+            finished = time.perf_counter()
+            holder["finished"] = finished
+            with self._lock:
+                self._in_flight -= 1
+                if epoch == self._epoch:
+                    self._latencies.append(finished - submitted)
+                    self._services.append(finished - holder["started"])
+                    self._decoded += n
+                    self._last_finish = finished
+            return value
 
         future = self._pool.submit(run)
         result = AsyncResult(future, ticket, submitted, n)
@@ -204,16 +222,11 @@ class DecoderQueue:
             self._uncollected.append(ticket)
 
         def done(f: "concurrent.futures.Future") -> None:
-            finished = time.perf_counter()
             result._started = holder.get("started", submitted)
-            result._finished = finished
-            with self._lock:
-                self._in_flight -= 1
-                if epoch == self._epoch and not f.cancelled() and f.exception() is None:
-                    self._latencies.append(finished - submitted)
-                    self._services.append(finished - result._started)
-                    self._decoded += n
-                    self._last_finish = finished
+            result._finished = holder.get("finished", time.perf_counter())
+            if f.cancelled():  # never ran: nothing above counted it out
+                with self._lock:
+                    self._in_flight -= 1
 
         future.add_done_callback(done)
         return ticket
