@@ -157,3 +157,14 @@ def test_stability_is_the_clouds_in_both():
     for codes, gates in ((dk_codes, dk_gates), (our_codes, our_gates)):
         with pytest.raises(NotImplementedError, match="client"):
             codes.css_code_stability_circuit(codes.RotatedPlanarCode(3, 3), 2, gates.PauliBasis.Z)
+
+
+def test_decode_names_are_deltakits():
+    # deltakit's `deltakit.decode` is deltakit_decode's names plus Explorer's six cloud decoders.
+    deltakit_decode = pytest.importorskip("deltakit.decode")
+    from stabilizer_qec.deltakit import decode as ours
+    from stabilizer_qec.deltakit.explorer import _cloud_decoders
+
+    assert sorted(ours.__all__) == sorted(deltakit_decode.__all__)
+    for name in ("ACDecoder", "BPOSDecoder", "BeliefMatchingDecoder", "CCDecoder", "LCDecoder", "MWPMDecoder"):
+        assert getattr(ours, name) is getattr(_cloud_decoders, name) and name in dir(ours)

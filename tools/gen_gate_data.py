@@ -12,7 +12,7 @@ Stim's own gate definitions (``src/stim/gates/gate_data_*.cc`` of the matching s
 at ``STIM_SRC``.
 
 These are facts about the language, read from Stim (Apache-2.0) and checked against it by
-tests/test_gate_data.py; the help text built from them is our own.
+tests/test_gate_data.py. The command line's help pages are Stim's own (tools/stim_help.py).
 """
 
 from __future__ import annotations

@@ -26,4 +26,14 @@ def Circuit(text: str = ""):  # noqa: N802 — Tsim's name
     return _Circuit(tsim_to_native(shorthand_to_stim(text)))
 
 
+def _from_stim_program(stim_circuit):
+    """Tsim's ``Circuit.from_stim_program``: the circuit of a ``stim.Circuit``, of this
+    package's, or of their text, in Tsim's tagged form (``S[T]``, half-turn rotations) or this
+    package's."""
+    return Circuit(str(stim_circuit))
+
+
+Circuit.from_stim_program = _from_stim_program
+
+
 __all__ = ["Circuit", "ColorEncoder5", "SteaneEncoder", "TransversalEncoder", "get_detector_error_model", "shorthand_to_stim", "stim_to_shorthand", "tsim_to_native"]

@@ -247,3 +247,22 @@ def test_tsim_circuit_reads_both_forms():
     b = tsim.Circuit("R 0\nS[T] 0\nI[R_X(theta=0.25*pi)] 0\nM 0")
     assert a == b and a.tcount() == 2
     assert str(a) == "R 0\nI[T] 0\nI[R_X(theta=0.39269908169872414)] 0\nM 0"
+
+
+def test_tsim_conveniences():
+    # Tsim's from_stim_program, cast_to_stim, stim_circuit and without_annotations.
+    c = tsim.Circuit.from_stim_program(("H 0\nS[T] 0\nI[R_Z(theta=0.5*pi)] 1\nM 0 1\nDETECTOR rec[-1]\nREPEAT 2 {\n    M 0\n    DETECTOR rec[-1]\n}\nOBSERVABLE_INCLUDE(0) rec[-2]"))
+    assert c.tcount() == 1 and str(c).count("I[T]") == 1
+    assert c.cast_to_stim() is c
+    expanded = c.stim_circuit
+    assert "R_Z" not in str(expanded) and "I[T]" in str(expanded) and equal_up_to_phase(expanded[:3].to_matrix(), c[:3].to_matrix())
+    bare = c.without_annotations()
+    assert bare.num_detectors == 0 and bare.num_observables == 0 and bare.num_measurements == c.num_measurements
+    assert "REPEAT 2" in str(bare) and str(c.without_annotations().without_annotations()) == str(bare)
+    stim = pytest.importorskip("stim")
+    t = pytest.importorskip("tsim")
+    ref = t.Circuit("H 0\nT 0\nR_Z(0.5) 1\nM 0 1\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-2]")
+    ours = tsim.Circuit.from_stim_program(ref._stim_circ)
+    assert ours.num_detectors == ref.num_detectors and ours.tcount() == ref.tcount()
+    assert str(ours.without_annotations().without_noise()) == str(tsim.Circuit(str(ref.without_annotations()._stim_circ)))
+    assert isinstance(stim.Circuit(str(ours.stim_circuit)), stim.Circuit)

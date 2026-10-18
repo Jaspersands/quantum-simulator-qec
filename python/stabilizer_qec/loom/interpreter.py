@@ -2,8 +2,8 @@
 # syndrome,detector,logical_observable}.py, src/loom/interpreter/applicator/*.py and
 # src/loom_rotated_surface_code/applicator/{grow,shrink,merge,split}.py; Copyright 2024 Entropica Labs Pte Ltd,
 # Apache License 2.0; see LICENSE in this directory), modified for stabilizer_qec: plain classes in place of
-# pydantic, no plugin discovery, and the rotated surface code's other applicators (auxiliary CNOT, transversal
-# Hadamard, move, rotate, Y-wall phase gate, state injection) refused with Loom named.
+# pydantic and no plugin discovery. The rotated surface code's other applicators (auxiliary CNOT, transversal
+# Hadamard, state injection, move, rotate, Y-wall phase gate) are ported in this directory's _*.py modules.
 """Loom's interpreter: operations on blocks become a circuit (in Loom's IR) with syndromes,
 detectors and logical observables, bookkept through the blocks' evolution (which stabilizer
 grew or shrank into which, which measurements correct a logical operator after a merge or
@@ -1046,9 +1046,13 @@ CODE_APPLICATORS: dict[str, Applicator] = {
     "ConditionalLogicalZ": conditional_logical_pauli,
 }
 
-ROTATED_SURFACE_CODE_APPLICATORS: dict[str, Applicator] = {**CODE_APPLICATORS, "Grow": grow, "Shrink": shrink, "Merge": merge, "Split": split}
+# These modules build on the applicators above (the auxiliary CNOT on grow, split, merge and
+# shrink), so they are imported once those exist.
+from ._auxcnot import auxcnot  # noqa: E402
+from ._state_injection import state_injection  # noqa: E402
+from ._transversal_hadamard import transversalhadamard  # noqa: E402
 
-_NOT_PORTED = {"AuxCNOT", "TransversalHadamard", "MoveBlock", "LogicalPhaseViaYwall", "StateInjection", "RotateBlock"}
+ROTATED_SURFACE_CODE_APPLICATORS: dict[str, Applicator] = {**CODE_APPLICATORS, "Grow": grow, "Shrink": shrink, "Merge": merge, "Split": split, "AuxCNOT": auxcnot, "TransversalHadamard": transversalhadamard, "StateInjection": state_injection}
 
 
 def interpret_operation(eka: Eka, step: InterpretationStep, op: Operation, same_timeslice: bool, debug_mode: bool) -> InterpretationStep:
@@ -1059,8 +1063,6 @@ def interpret_operation(eka: Eka, step: InterpretationStep, op: Operation, same_
     if len(classes) > 1:
         raise NotImplementedError(f"Operations including blocks of different classes are not supported at the moment. Block classes: {[c.__name__ for c in classes]}")
     klass = classes.pop()
-    if name in _NOT_PORTED:
-        raise NotImplementedError(f"Operation {name} is not ported; Loom (pip install el-loom) interprets it.")
     table = ROTATED_SURFACE_CODE_APPLICATORS if issubclass(klass, RotatedSurfaceCode) else CODE_APPLICATORS
     applicator = table.get(name)
     if applicator is None:
@@ -1097,3 +1099,12 @@ def interpret_eka(eka: Eka, debug_mode: bool = True) -> InterpretationStep:
     step = cleanup_final_step(step)
     step.is_frozen = True
     return step
+
+
+# The rotated surface code's move, Y-wall phase gate and rotate applicators, ported in their
+# own modules (they build on the functions above, so they are imported last).
+from ._logical_phase import logical_phase_via_ywall  # noqa: E402
+from ._move_block import move_block  # noqa: E402
+from ._rotate_block import rotate_block  # noqa: E402
+
+ROTATED_SURFACE_CODE_APPLICATORS.update({"MoveBlock": move_block, "LogicalPhaseViaYwall": logical_phase_via_ywall, "RotateBlock": rotate_block})

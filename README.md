@@ -452,7 +452,7 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 
 | Stim | Here | Checked |
 |---|---|---|
-| `Circuit` (text, list interface, transformations, flows, exports, diagrams, searches) | the same; text, QASM, Quirk and Crumble URLs, glTF and detector-slice diagrams byte for byte | examples, random circuits |
+| `Circuit` (text, list interface, transformations, flows, exports, diagrams, searches) | the same; text, QASM, Quirk and Crumble URLs, glTF and the text diagrams (timeline and detector slices) byte for byte; the SVG diagrams are this package's own drawings | examples, random circuits |
 | `DetectorErrorModel`, `DemInstruction`, `DemRepeatBlock`, `DemTarget` | the same; any number of observables | examples, generated codes |
 | `PauliString`, `Tableau`, `TableauSimulator`, `CliffordString`, `Flow`, `GateData`, `GateTarget` | the same, with Stim's conversions and RNG-free results identical | examples, random Cliffords |
 | `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off | examples, random circuits, noise statistics |

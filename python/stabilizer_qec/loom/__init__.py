@@ -2,9 +2,10 @@
 <https://github.com/entropicalabs/el-loom>`_ 0.4.0, ported; Apache License 2.0, see ``LICENSE``
 in this directory): blocks of stabilizers on a lattice, lattice-surgery operations on them
 (reset, syndrome rounds, logical measurements and Paulis, grow, shrink, merge, split and their
-conditionals), an interpreter that turns an experiment into a circuit with syndromes,
+conditionals; on the rotated surface code also the auxiliary CNOT, transversal Hadamard, T and S
+state injection, move, rotate and the Y-wall phase gate), an interpreter that turns an experiment into a circuit with syndromes,
 detectors and logical observables (gate for gate Loom's own Stim output, except where Loom's
-order follows a Python set of strings), a validator that checks a circuit against its input
+order follows a Python set: there, under the same ``PYTHONHASHSEED``), a validator that checks a circuit against its input
 and output codes on this package's tableau simulator, and exporters to Stim (this package's
 ``Circuit``, with the noise of Loom's circuit error models), OpenQASM 3, PennyLane, CUDA-Q,
 Mimiq and Guppy.
@@ -22,9 +23,8 @@ Mimiq and Guppy.
 >>> circuit.num_detectors, circuit.num_observables
 (76, 1)
 
-What is not ported: Loom's auxiliary CNOT, transversal Hadamard, move, rotate, Y-wall phase
-gate and state injection applicators, its base and logical operations, if-else circuits and
-the executor's ``Executor`` factory, run-outcome parsers and legacy cliffordsim export.
+What is not ported: Loom's base and logical operations, if-else circuits, and the executor's
+``Executor`` factory, run-outcome parsers and legacy cliffordsim export.
 """
 
 from .circuit import Channel, ChannelType, Circuit, SyndromeCircuit, default_circuit

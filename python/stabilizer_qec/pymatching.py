@@ -8,6 +8,9 @@ from __future__ import annotations
 from . import _matching as matching
 from ._matching import Matching, rand_float, randomize, set_seed
 
+# The PyMatching release whose API this is.
+__version__ = "2.4.0"
+
 __all__ = ["Matching", "cli", "matching", "rand_float", "randomize", "set_seed"]
 
 

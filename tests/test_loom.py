@@ -190,7 +190,7 @@ def test_eka_dict_round_trips_looms_json():
 
 
 def test_refusals():
-    eka = Eka(LATTICE, [rsc("a"), rsc("b", (4, 0))], [loom.AuxCNOT(("a", "b"))])
+    eka = Eka(LATTICE, [rsc("a"), rsc("b", (4, 0))], [loom.CNOT("a", "b")])
     with pytest.raises(NotImplementedError, match="Loom"):
         loom.interpret_eka(eka)
     with pytest.raises(ValueError, match="Y basis"):

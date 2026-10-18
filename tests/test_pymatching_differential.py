@@ -251,6 +251,9 @@ def test_command_line(tmp_path, enable_correlations):
         ["predict", "--dem", "c.dem", "--in", "d.b8", "--in_format", "b8", "--out_format", "b8", "--out", "OUT"],
         ["count_mistakes", "--dem", "c.dem", "--in", "d.b8", "--in_format", "b8", "--obs_in", "o.01", "--out", "OUT"],
         ["count_mistakes", "--dem", "c.dem", "--in", "da.01", "--in_includes_appended_observables", "--out", "OUT"],
+        # predict reads b8 unless told otherwise, as PyMatching's does; count_mistakes reads 01.
+        ["predict", "--dem", "c.dem", "--in", "d.b8", "--out", "OUT"],
+        ["predict", "--dem", "c.dem", "--in", "da.01", "--in_format", "01", "--in_includes_appended_observables", "--out", "OUT"],
     ]
     for run in runs:
         outs = []
@@ -260,9 +263,8 @@ def test_command_line(tmp_path, enable_correlations):
             cli(command_line_args=args)
             outs.append((tmp_path / name).read_bytes())
         assert outs[0] == outs[1], run
-    # PyMatching 2.4's predict fails on appended observables ("Hit index from data is too
-    # large"); here they are stripped, and the predictions are those of the bare events.
-    ours.cli(command_line_args=["predict", "--dem", str(tmp_path / "c.dem"), "--in", str(tmp_path / "da.01"), "--in_includes_appended_observables", "--out", str(tmp_path / "appended")] + extra)
+    # Appended observables are stripped: the predictions are those of the bare events.
+    ours.cli(command_line_args=["predict", "--dem", str(tmp_path / "c.dem"), "--in", str(tmp_path / "da.01"), "--in_format", "01", "--in_includes_appended_observables", "--out", str(tmp_path / "appended")] + extra)
     ours.cli(command_line_args=["predict", "--dem", str(tmp_path / "c.dem"), "--in", str(tmp_path / "d.b8"), "--in_format", "b8", "--out", str(tmp_path / "bare")] + extra)
     assert (tmp_path / "appended").read_bytes() == (tmp_path / "bare").read_bytes()
     with pytest.raises(ValueError, match="Unrecognized command"):
@@ -277,6 +279,7 @@ def test_api_surface():
     from stabilizer_qec import pymatching as ours
 
     assert [n for n in dir(pymatching) if not n.startswith("_") and not hasattr(ours, n)] == []
+    assert ours.__version__ == "2.4.0"
     for name in dir(pymatching.Matching):
         if name.startswith("_") and name not in ("__init__", "__repr__", "__reduce__"):
             continue

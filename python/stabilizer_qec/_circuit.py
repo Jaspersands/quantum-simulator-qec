@@ -340,6 +340,34 @@ class Circuit:
         and leakage are not gates and do not count."""
         return call(self._c.is_clifford)
 
+    @property
+    def stim_circuit(self) -> "Circuit":
+        """The circuit with its tagged gates at Clifford angles written as the Clifford gates
+        they are (``I[R_Z(theta=0.7853981633974483)] 0`` as ``S 0``; a ``U3`` only when all
+        three of its rotations are Clifford), ``REPEAT`` blocks kept; as Tsim's
+        ``stim_circuit``, the form Stim itself runs correctly."""
+        return self._transformed("expand_clifford_rotations")
+
+    def cast_to_stim(self) -> "Circuit":
+        """The circuit itself, as Tsim's ``cast_to_stim`` (a cast for code that wants a
+        ``stim.Circuit``; this package's circuits are Stim's)."""
+        return self
+
+    def without_annotations(self) -> "Circuit":
+        """A copy without its ``DETECTOR`` and ``OBSERVABLE_INCLUDE`` instructions, loops kept,
+        as Tsim's ``without_annotations``."""
+
+        def strip(circuit: "Circuit") -> "Circuit":
+            out = type(self)()
+            for item in circuit:
+                if isinstance(item, _stim.CircuitRepeatBlock):
+                    out.append(_stim.CircuitRepeatBlock(item.repeat_count, strip(item.body_copy()), tag=item.tag))
+                elif item.name not in ("DETECTOR", "OBSERVABLE_INCLUDE"):
+                    out.append(item)
+            return out
+
+        return strip(self)
+
     def to_file(self, file: Any) -> None:
         """Write the circuit's text to a path or an open text file."""
         text = str(self) + "\n"

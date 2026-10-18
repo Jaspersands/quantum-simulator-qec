@@ -885,8 +885,7 @@ class ConditionalLogicalZ(CodeOperation):
     logical_qubit: int = 0
 
 
-# The rotated surface code's own operations (loom_rotated_surface_code.operations); the
-# interpreter here refuses them with Loom named.
+# The rotated surface code's own operations (loom_rotated_surface_code.operations).
 @dataclass(frozen=True)
 class AuxCNOT(CodeOperation):
     input_blocks_name: tuple[str, str]
@@ -918,6 +917,10 @@ class LogicalPhaseViaYwall(CodeOperation):
 @dataclass(frozen=True)
 class RotateBlock(CodeOperation):
     input_block_name: str
+    grow_direction: Direction
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "grow_direction", Direction(self.grow_direction))
 
 
 @dataclass(frozen=True)
