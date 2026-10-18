@@ -37,7 +37,7 @@ from stabilizer_qec.loom import (
 )
 
 FIXTURES = json.loads((pathlib.Path(__file__).parent / "loom_port" / "fixtures_ops_b.json").read_text())
-PORTED = ("move",)
+PORTED = ("move", "phase")
 EXPERIMENTS = {name: ref for name, ref in FIXTURES["experiments"].items() if name.startswith(PORTED)}
 REFUSALS = {name: ref for name, ref in FIXTURES["refusals"].items() if name.startswith(PORTED)}
 

@@ -1099,8 +1099,9 @@ def interpret_eka(eka: Eka, debug_mode: bool = True) -> InterpretationStep:
     return step
 
 
-# The rotated surface code's move applicator, ported in its own module (it builds on the
-# functions above, so it is imported last).
+# The rotated surface code's move and Y-wall phase gate applicators, ported in their own
+# modules (they build on the functions above, so they are imported last).
+from ._logical_phase import logical_phase_via_ywall  # noqa: E402
 from ._move_block import move_block  # noqa: E402
 
-ROTATED_SURFACE_CODE_APPLICATORS.update({"MoveBlock": move_block})
+ROTATED_SURFACE_CODE_APPLICATORS.update({"MoveBlock": move_block, "LogicalPhaseViaYwall": logical_phase_via_ywall})
