@@ -28,7 +28,9 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --out dist
-          manylinux: ${{ matrix.libc }}
+          # The manylinux2014 aarch64 cross image's g++ dies without a word on one HiGHS file
+          # (2.0.0's first build); the 2_28 image builds it, as the free-threaded job shows.
+          manylinux: ${{ matrix.libc == 'auto' && matrix.target == 'aarch64' && '2_28' || matrix.libc }}
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.target }}-${{ matrix.libc }}
