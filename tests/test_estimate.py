@@ -4,9 +4,11 @@ Resource Estimator model against the QDK's results recorded in tests/estimate_po
 
 from __future__ import annotations
 
+import gzip
 import json
 import math
 import pathlib
+import sys
 import time
 
 import numpy as np
@@ -20,12 +22,15 @@ from stabilizer_qec.estimate import (
     Constraints,
     DistillationUnitTemplate,
     ErrorBudget,
+    EstimatorResult,
     GateBasedQubit,
     LogicalCounts,
     MajoranaQubit,
     azure_estimate,
     azure_estimator,
     find_nondominated_tfactories,
+    format_duration,
+    format_metric_prefix,
     physical_qubit,
     qec_scheme,
 )
@@ -37,12 +42,16 @@ from stabilizer_qec.estimate import (
     GateCounts,
     LogicalErrorModel,
     MultiFactory,
+    NoisyPauliRotation,
+    PauliFlipChannel,
     QECScheme,
     RotationLogarithmicModel,
     ConstantWithOverheadRotationCost,
+    TComplexity,
     get_ccz2t_costs_from_error_budget,
     get_ccz2t_costs_from_grid_search,
     iter_ccz2t_factories,
+    storage_error,
 )
 
 try:
@@ -207,7 +216,7 @@ def test_azure_against_qdk_recorded(key):
     if "frontierEntries" in case:
         assert len(ours["frontierEntries"]) == len(case["frontierEntries"])
         for a, b in zip(ours["frontierEntries"], case["frontierEntries"]):
-            assert a == b
+            assert {k: v for k, v in a.items() if k != "physicalCountsFormatted"} == b  # the counts in words: test_azure_whole_result_against_qdk_recorded
         return
     for section in SECTIONS:
         assert ours.get(section) == case.get(section), section
@@ -246,6 +255,140 @@ def test_azure_against_qdk_live(counts, params):
     ours = _ours(params, counts)
     for section in SECTIONS:
         assert ours.get(section) == theirs.get(section), section
+    assert json.dumps(ours) == json.dumps(theirs)  # the whole result: the job parameters, the formatted counts, the report
+
+
+QDK_REPORTS = json.loads(gzip.decompress((pathlib.Path(__file__).parent / "estimate_port" / "qdk_reports.json.gz").read_bytes()))
+RECORDED = {"qdk_estimates": QDK_CASES, "qdk_review2": QDK_REVIEW2}
+
+
+@pytest.mark.parametrize("fixture,key", [(f, k) for f in sorted(QDK_REPORTS) for k in sorted(QDK_REPORTS[f])])
+def test_azure_whole_result_against_qdk_recorded(fixture, key):
+    """The QDK's whole result (qdk 1.33.1, recorded in tests/estimate_port/qdk_reports.json.gz) for every case of
+    both fixtures it solves: the status, the job parameters it echoes, the counts, the counts in words
+    (`physicalCountsFormatted`) and the report (`reportData`: the groups' labels, descriptions and explanations
+    with their numbers written in, and the assumptions), and a frontier's entries with their counts in words.
+    Ours is equal as data and as JSON text, the key order included."""
+    case = RECORDED[fixture][key]
+    theirs = QDK_REPORTS[fixture][key]
+    ours = _ours(case["jobParams"], case["logicalCounts"])
+    for section in theirs:
+        assert ours[section] == theirs[section], section
+    assert json.dumps(ours) == json.dumps(theirs)
+
+
+def test_azure_report_fixture_covers_every_solved_case():
+    for fixture, cases in RECORDED.items():
+        assert sorted(QDK_REPORTS[fixture]) == sorted(key for key, case in cases.items() if case["status"] == "success")
+    assert sum(len(cases) for cases in QDK_REPORTS.values()) == 97
+
+
+def test_azure_report_of_the_qdks_own_test():
+    """The QDK's own report test (resource_estimator/src/system/tests.rs, `test_report`, against test_report.json):
+    100 qubits, 112,110 rotations in 2,001 layers, the default parameters. Its counts in words and its first entry."""
+    r = azure_estimate({"numQubits": 100, "rotationCount": 112110, "rotationDepth": 2001})
+    f = r["physicalCountsFormatted"]
+    assert {k: f[k] for k in ("runtime", "rqops", "physicalQubits", "algorithmicLogicalQubits", "logicalDepth", "numTstates", "numTfactories", "physicalQubitsForTfactoriesPercentage", "requiredLogicalQubitErrorRate", "clockFrequency", "tfactoryRuntime", "numTsPerRotation", "logicalCycleTime", "errorBudget")} == {
+        "runtime": "1 secs", "rqops": "30.26M", "physicalQubits": "7.93M", "algorithmicLogicalQubits": "230", "logicalDepth": "152.13k", "numTstates": "2.24M", "numTfactories": "233", "physicalQubitsForTfactoriesPercentage": "97.91 %",
+        "requiredLogicalQubitErrorRate": "9.53e-12", "clockFrequency": "131.58k", "tfactoryRuntime": "120 microsecs", "numTsPerRotation": "20", "logicalCycleTime": "8 microsecs", "errorBudget": "1.00e-3"}
+    assert len(f) == 43 and list(r) == ["status", "jobParams", "physicalCounts", "physicalCountsFormatted", "logicalQubit", "tfactory", "errorBudget", "logicalCounts", "reportData"]
+    groups = r["reportData"]["groups"]
+    assert [g["title"] for g in groups] == ["Physical resource estimates", "Resource estimates breakdown", "Logical qubit parameters", "T factory parameters", "Pre-layout logical resources", "Assumed error budget", "Physical qubit parameters", "Constraints"]
+    assert groups[0]["alwaysVisible"] and len(r["reportData"]["assumptions"]) == 7
+    assert groups[0]["entries"][0] == {"path": "physicalCountsFormatted/runtime", "label": "Runtime", "description": "Total runtime", "explanation": "This is a runtime estimate for the execution time of the algorithm.  In general, the execution time corresponds to the duration of one logical cycle (7,600 nanosecs) multiplied by the 152,130 logical cycles to run the algorithm.  If however the duration of a single T factory (here: 120,000 nanosecs) is larger than the algorithm runtime, we extend the number of logical cycles artificially in order to exceed the runtime of a single T factory."}
+    frontier = azure_estimate({"numQubits": 100, "rotationCount": 112110, "rotationDepth": 2001}, estimate_type="frontier")
+    assert list(frontier) == ["status", "jobParams", "logicalCounts", "reportData", "frontierEntries"] and all(list(e)[-1] == "physicalCountsFormatted" for e in frontier["frontierEntries"])
+    assert frontier["reportData"]["groups"][0]["entries"][0]["explanation"] == groups[0]["entries"][0]["explanation"]  # the report of the first (shortest) entry, here the single-point estimate
+
+
+def test_azure_number_and_duration_formats():
+    """The QDK's formatting (system/data/report.rs). A duration is in the largest unit it reaches, rounded half
+    up by the remainder in the unit below; under a microsecond the QDK's rounding test (``rem >= 1 / 2``) always
+    passes, so the nanoseconds read one high, as here. Past years it does not round. A count is bare below 1000,
+    else to two decimals with a metric prefix (a u64 stops at E). Floats print as Rust prints them: ``{}`` with
+    the shortest digits and no exponent, ``{:.2e}`` with a bare exponent, ``{:.2}``; NaN as ``NaN``."""
+    durations = [0, 1, 499, 500, 999, 1000, 1499, 1500, 3300, 999_499, 999_500, 59_499_999_999, 59_500_000_000, 1_064_000_000, 86_400 * 10**9 * 365 * 3, 2**64 - 1]
+    assert [format_duration(n) for n in durations] == ["1 nanosecs", "2 nanosecs", "500 nanosecs", "501 nanosecs", "1000 nanosecs", "1 microsecs", "1 microsecs", "2 microsecs", "3 microsecs", "999 microsecs", "1000 microsecs", "59 secs", "60 secs", "1 secs", "3 years", "584 years"]
+    assert [format_metric_prefix(n) for n in (0, 999, 1000, 400_060, 999_994, 999_995, 38_330_000, 2**64 - 1)] == ["0", "999", "1.00k", "400.06k", "999.99k", "1000.00k", "38.33M", "18.45E"]
+    assert [az._display(x) for x in (1.0, 1e-10, 0.1 + 0.2, 1e21, 12345.678, -0.0, float("nan"), float("inf"))] == ["1", "0.0000000001", "0.30000000000000004", "1000000000000000000000", "12345.678", "-0", "NaN", "inf"]
+    assert [az._exp2(x) for x in (1.55e-11, 0.0, 2e5, 9.999e-3, float("nan"))] == ["1.55e-11", "0.00e0", "2.00e5", "1.00e-2", "NaN"]
+    assert [az._fixed2(x) for x in (0.125, 0.135, 12.0, float("nan"))] == ["0.12", "0.14", "12.00", "NaN"]
+    assert (az._thousands(1234567), az._thousands(123), az._thousands(1000), az._thousands_f64(1234567.891)) == ("1,234,567", "123", "1,000", "1,234,567.89")
+
+
+def test_azure_estimator_result():
+    """The QDK's `LogicalCounts.estimate` and `EstimatorResult` as data: one estimate is its result dict, a
+    frontier's missing keys come from its first entry, a batch is indexed by item with a failed item holding its
+    message and error, and the summary is the report's groups as a text table."""
+    counts = LogicalCounts(num_qubits=10, t_count=100, rotation_count=5, rotation_depth=3)
+    one = counts.estimate({"qubitParams": {"name": "qubit_gate_ns_e4"}})
+    assert isinstance(one, EstimatorResult) and dict(one) == one.data() == azure_estimate(counts, "qubit_gate_ns_e4") and json.loads(one.json) == one.data()
+    assert one.error is None and one.logical_counts == LogicalCounts.fromdict(one["logicalCounts"]) and counts.estimate() == azure_estimate(counts)
+    lines = one.summary.splitlines()
+    assert lines[0] == "Physical resource estimates" and lines[1].split()[:3] == ["Runtime", one["physicalCountsFormatted"]["runtime"].split()[0], one["physicalCountsFormatted"]["runtime"].split()[1]]
+    assert sum(len(g["entries"]) for g in one["reportData"]["groups"]) + len(one["reportData"]["groups"]) == len(lines)
+    with pytest.raises(ValueError, match="slice"):
+        _ = one[0:1]
+    with pytest.raises(ValueError, match="idx"):
+        one.data(0)
+    with pytest.raises(ValueError, match="maxDuration"):
+        counts.estimate({"constraints": {"maxDuration": "1 ns"}})
+    frontier = counts.estimate({"estimateType": "frontier"})
+    assert "physicalCounts" not in dict(frontier) and frontier["physicalCounts"] == frontier["frontierEntries"][0]["physicalCounts"] and frontier["logicalQubit"] == frontier["frontierEntries"][0]["logicalQubit"]
+    assert frontier.summary.splitlines()[1].split()[1:3] == frontier["frontierEntries"][0]["physicalCountsFormatted"]["runtime"].split()
+    with pytest.raises(KeyError):
+        _ = one["frontierEntries"]
+    batch = counts.estimate([{"qubitParams": {"name": "qubit_gate_ns_e3"}}, {"constraints": {"maxDuration": "1 ns"}}, {"qubitParams": {"name": "qubit_maj_ns_e4"}, "qecScheme": {"name": "floquet_code"}, "unknownKey": 1}, {"estimateType": "frontier"}])
+    assert list(batch) == [0, 1, 2, 3] and batch.data(0) == azure_estimate(counts, "qubit_gate_ns_e3") and batch.data(2) == azure_estimate(counts, "qubit_maj_ns_e4", "floquet_code")
+    assert batch[1].data() == {"message": batch[1].error.args[0]} and isinstance(batch[1].error, ValueError) and batch[0].error is None
+    assert json.loads(batch.json) == [batch.data(i) for i in range(4)] and batch.logical_counts == one.logical_counts
+    table = batch.summary.splitlines()
+    assert table[0].split() == ["Item", "0", "1", "2", "3"] and table[1] == "Physical resource estimates" and table[2].split()[:2] == ["Runtime", batch[0]["physicalCountsFormatted"]["runtime"].split()[0]] and "N/A" in table[2]
+    assert batch[0:2].splitlines()[0].split() == ["Item", "0", "1"] and batch[:] == batch.summary
+    big = counts.estimate([{}] * 7)
+    assert big.summary.startswith("(the first 5 of 7 items") and big[:].splitlines()[0].split() == ["Item"] + [str(i) for i in range(7)]
+    assert counts.estimate([{"constraints": {"maxDuration": "1 ns"}}] * 2).summary == "None of the jobs succeeded"
+    with pytest.raises(ValueError, match="a dict"):
+        counts.estimate(["qubit_gate_ns_e3"])
+
+
+def test_azure_estimator_result_data_frame():
+    pytest.importorskip("pandas")
+    counts = LogicalCounts(num_qubits=10, t_count=100, rotation_count=5, rotation_depth=3)
+    batch = counts.estimate([{"qubitParams": {"name": "qubit_gate_ns_e3"}}, {"constraints": {"maxDuration": "1 ns"}}, {"estimateType": "frontier"}])
+    frame = batch.summary_data_frame(labels=["a", "b"])
+    assert list(frame.index) == ["a", "b", 2] and list(frame.columns) == ["Logical qubits", "Logical depth", "T states", "Code distance", "T factories", "T factory fraction", "Physical qubits", "rQOPS", "Physical runtime"]
+    f = batch[0]["physicalCountsFormatted"]
+    assert list(frame.loc["a"]) == [f["algorithmicLogicalQubits"], f["logicalDepth"], f["numTstates"], batch[0]["logicalQubit"]["codeDistance"], f["numTfactories"], f["physicalQubitsForTfactoriesPercentage"], f["physicalQubits"], f["rqops"], f["runtime"]]
+    assert list(frame.loc["b"]) == ["No solution found"] * 9 and frame.loc[2, "Physical runtime"] == batch[2]["frontierEntries"][0]["physicalCountsFormatted"]["runtime"]
+
+
+@needs_qdk
+def test_azure_estimator_result_against_qdk_live():
+    from qdk.estimator import EstimatorParams
+
+    counts = {"numQubits": 10, "tCount": 100, "rotationCount": 5, "rotationDepth": 3}
+    batch = [{"qubitParams": {"name": "qubit_gate_ns_e3"}}, {"constraints": {"maxDuration": "1 ns"}}, {"qubitParams": {"name": "qubit_maj_ns_e4"}, "qecScheme": {"name": "floquet_code"}}]
+    theirs, ours = QdkLogicalCounts(counts).estimate(batch), LogicalCounts.fromdict(counts).estimate(batch)
+    assert list(theirs) == list(ours) and theirs.data(0) == ours.data(0) and theirs.data(2) == ours.data(2) and theirs[1].error is not None and ours[1].error is not None
+    single = {"qubitParams": {"name": "qubit_gate_ns_e4"}, "estimateType": "frontier"}
+    assert QdkLogicalCounts(counts).estimate(single).json == LogicalCounts.fromdict(counts).estimate(single).json
+    assert QdkLogicalCounts(counts).estimate(single)["logicalQubit"] == LogicalCounts.fromdict(counts).estimate(single)["logicalQubit"]
+    params = EstimatorParams(num_items=2)
+    params.items[0].qubit_params.name = "qubit_gate_ns_e4"
+    params.items[1].qubit_params.name = "qubit_maj_ns_e6"
+    params.items[1].qec_scheme.name = "floquet_code"
+    a, b = QdkLogicalCounts(counts).estimate(params), LogicalCounts.fromdict(counts).estimate(params)
+    assert a.json == b.json
+    params = EstimatorParams()
+    params.error_budget = 0.01
+    params.constraints.max_t_factories = 3
+    assert QdkLogicalCounts(counts).estimate(params).json == LogicalCounts.fromdict(counts).estimate(params).json
+    try:
+        import pandas  # noqa: F401
+    except ImportError:  # pragma: no cover
+        return
+    assert theirs.summary_data_frame(labels=["a"]).equals(ours.summary_data_frame(labels=["a"]))
 
 
 def test_azure_entry_points_agree():
@@ -549,3 +692,123 @@ def test_qualtran_density_refuses_probabilities_past_one():
         d.noisy_rotation("ZZ", 1.5, 0.0, 0.0)
     with pytest.raises(ValueError, match="between 0 and 1"):
         d.storage_error("Z", [0.1, -0.2])
+
+
+def test_qualtran_noisy_pauli_rotation():
+    """Qualtran's own case (surface_code/t_factory_utils_test.py): the Kraus operators √p (cos θ + i sin θ P) of
+    ZIZZ for θ = π/8 × (1, 5, −1, 3) with probabilities 0.4, 0.1, 0.2, 0.3; the channel is their sum."""
+    probabilities = [0.4, 0.1, 0.2, 0.3]
+    angles = [t * np.pi / 8 for t in (1, 5, -1, 3)]
+    i, y, z = np.eye(2), np.array([[0, -1j], [1j, 0]]), np.diag([1.0, -1.0])
+    u = np.kron(np.kron(np.kron(z, i), z), z)
+    desired = [np.sqrt(p) * (np.cos(t) * np.eye(16) + 1j * np.sin(t) * u) for t, p in zip(angles, probabilities)]
+    channel = NoisyPauliRotation("ZIZZ", *probabilities[1:])
+    np.testing.assert_allclose(channel.kraus(), desired)
+    assert channel.num_qubits() == 4 and [p for p, _ in channel.mixture()] == pytest.approx(probabilities)
+    rng = np.random.default_rng(5)
+    a = rng.normal(size=(16, 16)) + 1j * rng.normal(size=(16, 16))
+    rho = a @ a.conj().T
+    rho /= np.trace(rho)
+    np.testing.assert_allclose(channel.apply(rho), sum(k @ rho @ k.conj().T for k in desired), atol=1e-15)
+    np.testing.assert_allclose(NoisyPauliRotation("XY", 0, 0, 0).kraus()[0], np.cos(np.pi / 8) * np.eye(4) + 1j * np.sin(np.pi / 8) * np.kron(np.array([[0, 1], [1, 0]]), y))
+    for bad in (("ZZ", 0.5, 0.4, 0.2), ("ZQ", 0.1, 0.1, 0.1), ("", 0.0, 0.0, 0.0), ("Z", -0.1, 0.0, 0.0)):
+        with pytest.raises(ValueError):
+            NoisyPauliRotation(*bad)
+
+
+def test_qualtran_storage_error():
+    """Qualtran's own cases (surface_code/t_factory_utils_test.py): a Z or X flip on each qubit with its
+    probability, and Y refused."""
+    assert storage_error("Z", [0.1, 0.3]) == [PauliFlipChannel("Z", 0.1, 0), PauliFlipChannel("Z", 0.3, 1)]
+    assert storage_error("X", [0.2, 0.7], qubits=[3, 5]) == [PauliFlipChannel("X", 0.2, 3), PauliFlipChannel("X", 0.7, 5)]
+    with pytest.raises(ValueError, match="Z or X"):
+        storage_error("Y", [0.1, 0.3])
+    with pytest.raises(ValueError):
+        storage_error("Z", [0.1, 0.3], qubits=[0])
+    (p0, k0), (p1, k1) = PauliFlipChannel("Z", 0.1, 0).mixture()
+    assert (p0, p1) == pytest.approx((0.9, 0.1)) and np.array_equal(k0, np.eye(2)) and np.array_equal(k1, np.diag([1, -1]))
+    rho = np.full((4, 4), 0.25, dtype=complex)  # |++⟩
+    e = np.kron(np.eye(2), np.diag([1, -1]))
+    np.testing.assert_allclose(PauliFlipChannel("Z", 0.25, 1).apply(rho), 0.75 * rho + 0.25 * e @ rho @ e)
+
+
+@needs_qualtran
+def test_qualtran_channels_against_cirq():
+    import cirq
+    from qualtran.surface_code.t_factory_utils import NoisyPauliRotation as TheirRotation, storage_error as their_storage_error
+
+    rotation, their_rotation = NoisyPauliRotation("ZIZZ", 0.1, 0.2, 0.3), TheirRotation("ZIZZ", 0.1, 0.2, 0.3)
+    assert all(np.array_equal(a, b) for a, b in zip(rotation.kraus(), cirq.kraus(their_rotation)))
+    assert all(p == q and np.array_equal(a, b) for (p, a), (q, b) in zip(rotation.mixture(), cirq.mixture(their_rotation)))
+    rng = np.random.default_rng(7)
+    a = rng.normal(size=(4, 4)) + 1j * rng.normal(size=(4, 4))
+    rho = a @ a.conj().T / np.trace(a @ a.conj().T)
+    for kind in ("Z", "X"):
+        mine = rho
+        for channel in storage_error(kind, [0.2, 0.7]):
+            mine = channel.apply(mine)
+        theirs = rho
+        for qubit, op in enumerate(their_storage_error(kind, [0.2, 0.7], cirq.LineQubit.range(2))):
+            ks = [np.kron(k, np.eye(2)) if qubit == 0 else np.kron(np.eye(2), k) for k in cirq.kraus(op)]
+            theirs = sum(k @ theirs @ k.conj().T for k in ks)
+        np.testing.assert_allclose(mine, theirs, atol=1e-15)
+
+
+def test_qualtran_legacy_t_complexity():
+    """`GateCounts.to_legacy_t_complexity`: a Toffoli and an And are 4 T gates, a CSWAP 7, an And also 9 Cliffords
+    (Qualtran's t_complexity of `And()`), a CSWAP 10, and measurements count as Cliffords."""
+    g = GateCounts(t=5, toffoli=3, cswap=2, and_bloq=7, clifford=11, rotation=13, measurement=17)
+    assert g.to_legacy_t_complexity() == TComplexity(t=59, clifford=111, rotations=13) and g.to_legacy_t_complexity().asdict() == {"t": 59, "rotations": 13, "clifford": 111}
+    assert GateCounts(and_bloq=1).to_legacy_t_complexity() == TComplexity(t=4, clifford=9)
+    assert g.to_legacy_t_complexity(ts_per_toffoli=1, ts_per_cswap=1, ts_per_and_bloq=1, cliffords_per_and_bloq=0, cliffords_per_cswap=0) == TComplexity(t=17, clifford=28, rotations=13)
+    assert TComplexity.rotation_cost(1e-5) == 29 and TComplexity(t=3, rotations=7).t_incl_rotations() == 367 and TComplexity(rotations=1).t_incl_rotations(eps=1e-5) == 29
+    assert TComplexity(1, 2, 3) + TComplexity(10, 20, 30) == TComplexity(11, 22, 33) and 2 * TComplexity(1, 2, 3) == TComplexity(1, 2, 3) * 2 == TComplexity(2, 4, 6)
+    assert str(TComplexity(t=10**8, clifford=5)) == "T-count:   1e+08\nRotations: 0\nCliffords: 5\n"
+
+
+@needs_qualtran
+def test_qualtran_legacy_t_complexity_against_qualtran():
+    from qualtran.cirq_interop.t_complexity_protocol import TComplexity as TheirTComplexity
+
+    for kwargs in ({"t": 5, "toffoli": 3, "cswap": 2, "and_bloq": 7, "clifford": 11, "rotation": 13, "measurement": 17}, {"and_bloq": 1}, {}):
+        theirs = TheirGateCounts(**kwargs).to_legacy_t_complexity()
+        assert GateCounts(**kwargs).to_legacy_t_complexity().asdict() == {"t": theirs.t, "rotations": theirs.rotations, "clifford": theirs.clifford}
+    for eps in (1e-3, 1e-5, 1e-11, 1e-20):
+        assert TComplexity.rotation_cost(eps) == TheirTComplexity.rotation_cost(eps)
+        assert TComplexity(t=3, clifford=4, rotations=7).t_incl_rotations(eps) == TheirTComplexity(t=3, clifford=4, rotations=7).t_incl_rotations(eps)
+    for t, c, r in ((10**8, 5, 0), (0, 0, 0), (123456789, 7, 3)):
+        assert str(TComplexity(t=t, clifford=c, rotations=r)) == str(TheirTComplexity(t=t, clifford=c, rotations=r))
+
+
+@needs_qualtran
+def test_qualtran_summary_from_bloq():
+    """Qualtran's own cases (surface_code/algorithm_summary_test.py), counted by Qualtran's resource counting."""
+    from qualtran.bloqs import basic_gates, mcmt, rotations
+
+    cases = [
+        (basic_gates.TGate(is_adjoint=False), 1, GateCounts(t=1)),
+        (basic_gates.Toffoli(), 3, GateCounts(toffoli=1)),
+        (basic_gates.TwoBitCSwap(), 3, GateCounts(cswap=1)),
+        (mcmt.And(), 3, GateCounts(and_bloq=1)),
+        (basic_gates.ZPowGate(exponent=0.1, eps=1e-11), 1, GateCounts(rotation=1)),
+        (rotations.phase_gradient.PhaseGradientUnitary(bitsize=10, exponent=1, is_controlled=False, eps=1e-10), 10, GateCounts(clifford=2, t=1, rotation=7)),
+        (mcmt.MultiControlX(cvs=(1, 1, 1)), 6, GateCounts(and_bloq=2, measurement=2, clifford=3)),
+    ]
+    for bloq, qubits, gates in cases:
+        ours = AlgorithmSummary.from_bloq(bloq)
+        assert ours == AlgorithmSummary(n_algo_qubits=qubits, n_logical_gates=gates)
+        theirs = their_sc.AlgorithmSummary.from_bloq(bloq)
+        assert (theirs.n_algo_qubits, theirs.n_logical_gates.asdict()) == (ours.n_algo_qubits, ours.n_logical_gates.asdict())
+
+
+def test_qualtran_summary_from_bloq_needs_qualtran(monkeypatch):
+    from stabilizer_qec.estimate import qualtran as qt
+
+    monkeypatch.setitem(sys.modules, "qualtran.resource_counting", None)
+    with pytest.raises(ImportError, match="pip install qualtran"):
+        AlgorithmSummary.from_bloq(object())
+    assert qt._plain_count("t", np.int64(3)) == 3
+    with pytest.raises(ValueError, match="symbolic"):
+        qt._plain_count("t", object())
+    with pytest.raises(ValueError, match="not an integer"):
+        qt._plain_count("t", 2.5)
