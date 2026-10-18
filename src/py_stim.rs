@@ -652,6 +652,7 @@ fn circuit_transform(text: &str, which: &str) -> PyResult<String> {
         "weak_inverse" => t::inverse(&c, true).map_err(err)?,
         "with_inlined_feedback" => t::with_inlined_feedback(&c).map_err(err)?,
         "without_leakage" => crate::leakage::without_leakage(&c).map_err(err)?,
+        "expand_clifford_rotations" => crate::stabrank::expand_clifford_rotations_text(&c).map_err(err)?,
         _ => return Err(err(format!("unknown transformation {which}"))),
     };
     Ok(out.exact_text())

@@ -1389,32 +1389,84 @@ pub fn clifford_angle_errors(circuit: &Circuit) -> usize {
 /// multiple of π/2 a Pauli gate), and every `U3` as its three rotations, each so written when
 /// Clifford; the other gates and the coherent errors as they are (an error at a Clifford angle
 /// stays an error: the reference run must not see it). Loops are kept.
-pub fn expand_clifford_rotations(circuit: &Circuit) -> Result<Circuit, String> {
-    fn lines_of(pauli: &[(u32, u8)], theta: f64, out: &mut Vec<String>) {
-        if pauli.is_empty() {
-            return;
-        }
-        let letters = |c: u8| ['I', 'X', 'Z', 'Y'][c as usize];
-        if !is_clifford_angle(theta) {
-            let qs: Vec<String> = pauli.iter().map(|&(q, _)| q.to_string()).collect();
-            let ls: String = pauli.iter().map(|&(_, c)| letters(c)).collect();
-            out.push(format!("I[R_PAULI(theta={theta:?}, pauli={ls})] {}", qs.join(" ")));
-            return;
-        }
-        let k = (theta / FRAC_PI_4).round() as i64;
-        match k.rem_euclid(8) {
-            0 | 4 => {}
-            2 | 6 => {
-                for &(q, c) in pauli {
-                    out.push(format!("{} {q}", letters(c)));
-                }
+fn lines_of(pauli: &[(u32, u8)], theta: f64, out: &mut Vec<String>) {
+    if pauli.is_empty() {
+        return;
+    }
+    let letters = |c: u8| ['I', 'X', 'Z', 'Y'][c as usize];
+    if !is_clifford_angle(theta) {
+        let qs: Vec<String> = pauli.iter().map(|&(q, _)| q.to_string()).collect();
+        let ls: String = pauli.iter().map(|&(_, c)| letters(c)).collect();
+        out.push(format!("I[R_PAULI(theta={theta:?}, pauli={ls})] {}", qs.join(" ")));
+        return;
+    }
+    let k = (theta / FRAC_PI_4).round() as i64;
+    match k.rem_euclid(8) {
+        0 | 4 => {}
+        2 | 6 => {
+            for &(q, c) in pauli {
+                out.push(format!("{} {q}", letters(c)));
             }
-            odd => {
-                let product: Vec<String> = pauli.iter().map(|&(q, c)| format!("{}{q}", letters(c))).collect();
-                out.push(format!("{} {}", if odd == 1 || odd == 5 { "SPP" } else { "SPP_DAG" }, product.join("*")));
+        }
+        odd => {
+            let product: Vec<String> = pauli.iter().map(|&(q, c)| format!("{}{q}", letters(c))).collect();
+            out.push(format!("{} {}", if odd == 1 || odd == 5 { "SPP" } else { "SPP_DAG" }, product.join("*")));
+        }
+    }
+}
+
+/// The Clifford gates, as Stim text lines, that a tagged gate's operations are when every one is
+/// a rotation at a Clifford angle (a `U3` only when all three of its rotations are): `None` when
+/// any is not (a T gate, a coherent error, a non-Clifford angle).
+fn clifford_lines(ops: &[NonPauli]) -> Option<Vec<String>> {
+    // A Clifford piece of a non-Clifford U3 written as a gate would run in the frame engines
+    // while the rest did not: neither Stim's reading nor the gate.
+    let gate = ops.iter().all(|op| match op {
+        NonPauli::Rotation { noise: false, .. } => true,
+        NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().all(|a| is_clifford_angle(**a / 2.0)),
+        _ => false,
+    });
+    if !gate || ops.iter().any(|op| matches!(op, NonPauli::Rotation { theta, .. } if !is_clifford_angle(*theta))) {
+        return None;
+    }
+    let mut lines = Vec::new();
+    for op in ops {
+        match op {
+            NonPauli::Rotation { pauli, theta, .. } => lines_of(pauli, *theta, &mut lines),
+            NonPauli::U3 { qubit, theta, phi, lambda } => {
+                lines_of(&[(*qubit, 2)], lambda / 2.0, &mut lines);
+                lines_of(&[(*qubit, 3)], theta / 2.0, &mut lines);
+                lines_of(&[(*qubit, 2)], phi / 2.0, &mut lines);
+            }
+            _ => unreachable!(),
+        }
+    }
+    Some(lines)
+}
+
+/// `expand_clifford_rotations` on Stim's instructions (`Circuit.stim_circuit`): each tagged gate
+/// whose rotations are all at Clifford angles replaced by those Clifford gates, everything else
+/// (other tags, coordinates, blocks) kept as it is.
+pub fn expand_clifford_rotations_text(circuit: &crate::clifford::ir::Circuit) -> Result<crate::clifford::ir::Circuit, String> {
+    use crate::clifford::ir::{Circuit as Stim, Item};
+    let mut out = Stim::new();
+    for item in &circuit.items {
+        match item {
+            Item::Repeat { count, body, tag } => out.items.push(Item::Repeat { count: *count, body: expand_clifford_rotations_text(body)?, tag: tag.clone() }),
+            Item::Op(ins) => {
+                let qubits: Vec<u32> = ins.targets.iter().filter(|t| t.is_qubit()).map(|t| t.value()).collect();
+                let lines = if ins.tag.is_empty() || qubits.len() != ins.targets.len() { None } else { crate::nonpauli::parse(ins.gate.name, &ins.tag, &qubits)?.and_then(|ops| clifford_lines(&ops)) };
+                match lines {
+                    Some(lines) => out.items.extend(Stim::parse(&lines.join("\n"))?.items),
+                    None => out.items.push(item.clone()),
+                }
             }
         }
     }
+    Ok(out)
+}
+
+pub fn expand_clifford_rotations(circuit: &Circuit) -> Result<Circuit, String> {
     fn walk(instrs: &[Instr]) -> Result<Vec<Instr>, String> {
         let mut out = Vec::new();
         for ins in instrs {
