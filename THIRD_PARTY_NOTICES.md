@@ -23,7 +23,10 @@ modified to fit this crate. That covers:
 - the flip simulator's update rules (`src/clifford/flip_sim.rs`);
 - the detector-slice text diagram and the 3D (glTF) diagrams (`src/clifford/detslice.rs`,
   `src/clifford/gltf.rs`), including Stim's gate texture image
-  (`src/clifford/gltf_texture.b64`), reproduced unmodified.
+  (`src/clifford/gltf_texture.b64`), reproduced unmodified;
+- the command line's help pages (`python/stabilizer_qec/_stim_help.json.gz`: what `stim help`
+  prints for each instruction, result format and command, taken by `tools/stim_help.py`),
+  reproduced unmodified but for `stim <command>` reading `stabilizer-qec <command>`.
 
 Stim's own docstring examples are run as a conformance suite (`tests/stim_doctests.py`); they
 are read from an installed copy of Stim at test time, not distributed.

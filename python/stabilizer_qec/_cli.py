@@ -13,8 +13,11 @@ Also ``python -m stabilizer_qec``. ``stabilizer-qec help <command>`` describes e
 from __future__ import annotations
 
 import argparse
+import functools
 import os
+import re
 import sys
+from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
@@ -468,111 +471,34 @@ def cmd_count_mistakes(a) -> None:
         _write(None, f"Total decoding time: {micros:.0f}us\nDecoding time per shot: {per:.3g}us\n")
 
 
-FORMAT_HELP = {
-    "01": "The default format. Each shot is a line of '0' and '1' characters, one per bit, ending with a newline.",
-    "b8": "Binary. Each shot is a whole number of bytes, the bits packed eight to a byte, least significant first.",
-    "r8": "Binary, for sparse data. Each shot is a run of bytes, each the number of 0s before the next 1 (a byte of 255 adds 255 and continues the run), ending with the run before an imagined 1 past the end.",
-    "ptb64": "Binary, partially transposed. Shots in groups of 64: for each bit, a little-endian 64-bit word whose bit k is that bit of the group's shot k. The number of shots must be a multiple of 64.",
-    "hits": "Text. Each shot is a line listing the indices of its 1 bits, comma-separated.",
-    "dets": "Text. Each shot is a line starting 'shot', then the 1 bits named by kind and index: M for measurements, D for detectors, L for observables (e.g. 'shot D0 D5 L1').",
-}
+@functools.lru_cache(maxsize=None)
+def _stim_help() -> dict:
+    """Stim's help pages (Stim 1.16, Apache-2.0; tools/stim_help.py)."""
+    import gzip
+    import json
+
+    return json.loads(gzip.decompress((Path(__file__).parent / "_stim_help.json.gz").read_bytes()))
 
 
-def _gate_help(name: str) -> str:
-    """A gate's help, from the gate table (our own text)."""
-    from . import _stim
-
-    g = _stim.GateData(name)
-    d = g._d
-    out = [f"### The '{g.name}' Instruction", ""]
-    others = [a for a in g.aliases if a != g.name]
-    if others:
-        out += ["Alternative names:", ""] + [f"    {a}" for a in others] + [""]
-    out.append(f"Category: {d['category'][2:]}")
-    lo, hi = d["args"]
-    if hi <= 1:
-        out.append("Parens arguments: none")
-    elif lo + 1 == hi:
-        out.append(f"Parens arguments: exactly {lo}")
-    else:
-        out.append(f"Parens arguments: {lo} or more" if hi > 64 else f"Parens arguments: {lo} to {hi - 1}")
-    if d["takes_pauli_targets"]:
-        targets = "Pauli products (e.g. X0*Y1)" if d["flags"] & (1 << 12) else "Pauli targets (e.g. X0)"
-    elif d["is_two_qubit_gate"]:
-        targets = "qubit pairs"
-    elif d["flags"] & (1 << 10):
-        targets = "none"
-    elif d["flags"] & (1 << 8):
-        targets = "measurement records (rec[-k])"
-    else:
-        targets = "qubits"
-    if d["takes_measurement_record_targets"] and d["is_two_qubit_gate"]:
-        targets += "; a measurement record or sweep bit may be a control"
-    out.append(f"Targets: {targets}")
-    kinds = [k for k, f in (("unitary", "is_unitary"), ("noisy", "is_noisy_gate"), ("a reset", "is_reset"), ("a measurement", "produces_measurements")) if d[f]]
-    if kinds:
-        out.append("It is " + ", ".join(kinds) + ".")
-    if d["tableau"]:
-        out += ["", "Stabilizer generators (how it conjugates each Pauli):", ""]
-        n = len(d["tableau"]) // 2
-        for k in range(n):
-            out.append(f"    X{k} -> {d['tableau'][2 * k]}")
-            out.append(f"    Z{k} -> {d['tableau'][2 * k + 1]}")
-    if d["flows"]:
-        out += ["", "Flows:", ""] + [f"    {f}" for f in d["flows"]]
-    if d["unitary"]:
-        dim = int(round(len(d["unitary"]) ** 0.5))
-        out += ["", "Unitary matrix (little-endian):", ""]
-
-        def c(re_im: tuple) -> str:
-            re, im = re_im
-            if abs(im) < 1e-9:
-                return f"{re:+.3f}"
-            if abs(re) < 1e-9:
-                return f"{im:+.3f}i"
-            return f"{re:+.3f}{im:+.3f}i"
-
-        for r in range(dim):
-            out.append("    [" + ", ".join(c(d["unitary"][r * dim + col]) for col in range(dim)) + "]")
-    if d["decomposition"]:
-        out += ["", "Decomposition (into H, S, CX, M, R):", ""] + [f"    {line}" for line in d["decomposition"].splitlines()]
-    if d["inverse"]:
-        out += ["", f"Inverse: {d['inverse']}"]
-    return "\n".join(out) + "\n"
+def _as_ours(page: str) -> str:
+    """A Stim help page with its `stim <command>` invocations as this command line's."""
+    names = "|".join(sorted(_stim_help()["commands"], key=len, reverse=True))
+    return re.sub(rf"\bstim (?=(?:{names})\b)", "stabilizer-qec ", page)
 
 
-def _gates_index(markdown: bool) -> str:
-    from . import _stim
-
-    _stim._load_gates()
-    categories: dict = {}
-    for d in _stim._GATES.values():
-        categories.setdefault(d["category"], set()).update(d["aliases"])
-    if not markdown:
-        lines = ["Gates supported by stabilizer-qec", "================================="]
-        for cat in sorted(categories):
-            lines.append(cat[2:] + ":")
-            lines += [f"    {n}" for n in sorted(categories[cat])]
-        return "\n".join(lines) + "\n"
-    lines = ["# Gates supported by stabilizer-qec", ""]
-    for cat in sorted(categories):
-        lines.append("- " + cat[2:])
-        lines += [f"    - [{n}](#{n})" for n in sorted(categories[cat])]
-    lines.append("")
-    for cat in sorted(categories):
-        lines += [f"## {cat[2:]}", ""]
-        for n in sorted(categories[cat]):
-            if _stim.GateData(n).name == n:
-                lines.append(_gate_help(n))
-    return "\n".join(lines) + "\n"
+def _commands_markdown(program: str, pages: dict) -> str:
+    """The command line reference in Stim's layout: an index, then each command's page."""
+    out = [f"# {'Stim' if program == 'stim' else program} command line reference\n\n## Index\n\n"]
+    out += [f"- [{program} {c}](#{c})\n" for c in pages]
+    out.append("## Commands\n\n")
+    out += [f'<a name="{c}"></a>\n### {program} {c}\n\n```\n{page}```\n\n' for c, page in pages.items()]
+    return "".join(out)
 
 
-def _formats_index(markdown: bool) -> str:
-    if markdown:
-        return "# Result formats\n\n" + "".join(f"## {k}\n\n{v}\n\n" for k, v in FORMAT_HELP.items())
-    lines = ["Result formats supported by stabilizer-qec", "==========================================="]
-    lines += [f"    {k:<6} {v.split('. ')[0]}." for k, v in FORMAT_HELP.items()]
-    return "\n".join(lines) + "\n"
+def _command_help(command: str) -> str:
+    """A command's help: Stim's page for Stim's commands, the flags for this package's own."""
+    pages = _stim_help()["commands"]
+    return _as_ours(pages[command]) if command in pages else _parser(command).format_help()
 
 
 def _commands_index() -> str:
@@ -583,11 +509,13 @@ def _commands_index() -> str:
 
 def help_for(topic: str) -> str:
     """The help on a topic: '' (an overview), commands, gates, formats, a command, a gate or a
-    format; the *_markdown topics as Markdown. Empty for an unknown topic."""
+    format; the *_markdown topics as Markdown. Stim's pages for its gates, formats and commands
+    (`stim <command>` reading `stabilizer-qec <command>`). Empty for an unknown topic."""
     from . import _stim
 
     key = topic.strip()
-    upper = key.upper()
+    lower = key.lower()
+    data = _stim_help()
     if key == "":
         return _commands_index() + """
 Use `stabilizer-qec help [topic]` for help on specific topics. Available topics include:
@@ -599,26 +527,21 @@ Use `stabilizer-qec help [topic]` for help on specific topics. Available topics 
     stabilizer-qec help [gate]    # Print information about a gate, e.g. "CNOT".
     stabilizer-qec help [format]  # Print information about a result format, e.g. "01".
 """
-    if upper == "COMMANDS":
+    if lower == "commands":
         return _commands_index()
-    if upper == "COMMANDS_MARKDOWN":
-        return "# stabilizer-qec command line reference\n\n" + "".join(f"## {c}\n\n```\n{_parser(c).format_help()}```\n\n" for c in COMMANDS)
-    if upper == "GATES":
-        return _gates_index(False)
-    if upper == "GATES_MARKDOWN":
-        return _gates_index(True)
-    if upper == "FORMATS":
-        return _formats_index(False)
-    if upper == "FORMATS_MARKDOWN":
-        return _formats_index(True)
-    if key.lower() in COMMANDS:
-        return _parser(key.lower()).format_help()
-    if key.lower() in FORMAT_HELP:
-        return f"Result format '{key.lower()}'\n\n{FORMAT_HELP[key.lower()]}\n"
+    if lower == "commands_markdown":
+        return _commands_markdown("stabilizer-qec", {c: _command_help(c) for c in COMMANDS})
+    if lower in data["indexes"]:
+        return data["indexes"][lower]
+    if lower in COMMANDS:
+        return _command_help(lower)
+    if lower in data["formats"]:
+        return data["formats"][lower]
     try:
-        return _gate_help(key)
+        name = _stim.GateData(key).name
     except (IndexError, KeyError, ValueError):
         return ""
+    return data["gates"].get(name, "")
 
 
 def cmd_help(a) -> None:

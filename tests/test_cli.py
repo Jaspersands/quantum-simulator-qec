@@ -158,15 +158,57 @@ def test_legacy_modes_and_deprecated_flags(files):
 
 
 def test_help_topics():
-    gates = ours("help", "gates").decode()
-    assert "CNOT" in gates and "ZCX" in gates and "MPP" in gates
-    assert "X0 -> +XX" in ours("help", "CX").decode() and "### The 'CX' Instruction" in ours("help", "cnot").decode()
-    assert b"ptb64" in ours("help", "formats") and b"multiple of 64" in ours("help", "ptb64")
-    assert ours("help", "sample") == ours("sample", "--help")
+    import gzip
+    import json
+    import re
+
+    from stabilizer_qec import _cli
+
+    data = json.loads(gzip.decompress((pathlib.Path(_cli.__file__).parent / "_stim_help.json.gz").read_bytes()))
+    # Stim's pages, as Stim prints them: every instruction (by any name, in any case), format and index.
+    names = {g: g for g in data["gates"]} | data["aliases"]
+    for name, canonical in names.items():
+        assert _cli.help_for(name) == _cli.help_for(name.lower()) == data["gates"][canonical], name
+    assert set(names) == {a for g in sq.gate_data().values() for a in g.aliases}
+    for f, page in data["formats"].items():
+        assert _cli.help_for(f) == page
+    for topic, page in data["indexes"].items():
+        if topic != "commands_markdown":
+            assert _cli.help_for(topic) == page
+    # Stim's command pages, its `stim <command>` reading ours; the reference in Stim's layout.
+    for c, page in data["commands"].items():
+        assert _cli.help_for(c) == re.sub(r"\bstim (?=(?:" + "|".join(data["commands"]) + r")\b)", "stabilizer-qec ", page), c
+        assert "stim " + c not in _cli.help_for(c)
+        # Every flag Stim documents for the command, this command line takes.
+        flags = set(re.findall(r"\[?(--\w+)", page.split("DESCRIPTION")[0]))
+        assert flags <= set(_cli._parser(c)._option_string_actions), (c, flags - set(_cli._parser(c)._option_string_actions))
+    assert _cli._commands_markdown("stim", data["commands"]) == data["indexes"]["commands_markdown"]
+    md = _cli.help_for("commands_markdown")
+    assert all(f'<a name="{c}"></a>' in md for c in _cli.COMMANDS) and "stim sample" not in md
+    assert "--decoder" in _cli.help_for("decode")  # this package's own commands: their flags
+    assert ours("help", "sample") == ours("sample", "--help") == _cli.help_for("sample").encode()
     assert ours("--help") == ours("help")
-    assert b"# Gates supported" in ours("help", "gates_markdown")
+    assert b"### The 'CX' Gate" in ours("help", "cnot") and b"multiple of 64" in ours("help", "ptb64")
     r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "help", "frobnicate"], capture_output=True)
     assert r.returncode == 1 and b"Unrecognized help topic 'frobnicate'" in r.stderr
+
+
+@pytest.mark.skipif(not __import__("importlib").util.find_spec("stim"), reason="stim is not installed")
+def test_help_pages_are_stims():
+    """The shipped pages are what Stim prints (tools/stim_help.py --check), for the Stim they were
+    taken from."""
+    import gzip
+    import json
+
+    import stim
+
+    if not stim.__version__.startswith("1.16."):
+        pytest.skip(f"the pages are Stim 1.16's; stim {stim.__version__} is installed")
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tools"))
+    import stim_help
+
+    stims = [sys.executable, "-c", "import stim, sys; sys.exit(stim.main(command_line_args=sys.argv[1:]))"]
+    assert json.loads(gzip.decompress(stim_help.build(stims))) == json.loads(gzip.decompress(stim_help.OUT.read_bytes()))
 
 
 def test_main_returns_exit_codes(tmp_path, capsys):
