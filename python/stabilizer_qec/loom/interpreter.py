@@ -1048,7 +1048,7 @@ CODE_APPLICATORS: dict[str, Applicator] = {
 
 ROTATED_SURFACE_CODE_APPLICATORS: dict[str, Applicator] = {**CODE_APPLICATORS, "Grow": grow, "Shrink": shrink, "Merge": merge, "Split": split}
 
-_NOT_PORTED = {"AuxCNOT", "TransversalHadamard", "MoveBlock", "LogicalPhaseViaYwall", "StateInjection", "RotateBlock"}
+_NOT_PORTED = {"AuxCNOT", "TransversalHadamard", "StateInjection"}
 
 
 def interpret_operation(eka: Eka, step: InterpretationStep, op: Operation, same_timeslice: bool, debug_mode: bool) -> InterpretationStep:
@@ -1097,3 +1097,10 @@ def interpret_eka(eka: Eka, debug_mode: bool = True) -> InterpretationStep:
     step = cleanup_final_step(step)
     step.is_frozen = True
     return step
+
+
+# The rotated surface code's move applicator, ported in its own module (it builds on the
+# functions above, so it is imported last).
+from ._move_block import move_block  # noqa: E402
+
+ROTATED_SURFACE_CODE_APPLICATORS.update({"MoveBlock": move_block})

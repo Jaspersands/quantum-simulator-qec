@@ -21,9 +21,9 @@ and output codes on this package's tableau simulator, and exporters to Stim (thi
 >>> circuit.num_detectors, circuit.num_observables
 (76, 1)
 
-What is not ported: Loom's auxiliary CNOT, transversal Hadamard, move, rotate, Y-wall phase
-gate and state injection applicators, its base and logical operations, if-else circuits and
-error models, and the Mimiq and Guppy exporters.
+What is not ported: Loom's auxiliary CNOT, transversal Hadamard, rotate, Y-wall phase gate and
+state injection applicators, its base and logical operations, if-else circuits and error
+models, and the Mimiq and Guppy exporters.
 """
 
 from .circuit import Channel, ChannelType, Circuit, SyndromeCircuit, default_circuit
