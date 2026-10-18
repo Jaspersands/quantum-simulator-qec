@@ -918,6 +918,10 @@ class LogicalPhaseViaYwall(CodeOperation):
 @dataclass(frozen=True)
 class RotateBlock(CodeOperation):
     input_block_name: str
+    grow_direction: Direction
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "grow_direction", Direction(self.grow_direction))
 
 
 @dataclass(frozen=True)

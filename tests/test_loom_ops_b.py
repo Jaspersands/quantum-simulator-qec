@@ -37,9 +37,8 @@ from stabilizer_qec.loom import (
 )
 
 FIXTURES = json.loads((pathlib.Path(__file__).parent / "loom_port" / "fixtures_ops_b.json").read_text())
-PORTED = ("move", "phase")
-EXPERIMENTS = {name: ref for name, ref in FIXTURES["experiments"].items() if name.startswith(PORTED)}
-REFUSALS = {name: ref for name, ref in FIXTURES["refusals"].items() if name.startswith(PORTED)}
+EXPERIMENTS = FIXTURES["experiments"]
+REFUSALS = FIXTURES["refusals"]
 
 
 def build(spec: dict) -> Eka:
@@ -162,7 +161,7 @@ def test_circuits_are_deterministic_and_keep_the_logical(name):
     assert [int(v) for v in obs_signs] == expected
 
 
-@pytest.mark.parametrize("name", ["move_d3_twice"])
+@pytest.mark.parametrize("name", ["move_d3_twice", "phase_d3_h_right_z", "rotate_d3_h_right"])
 def test_noisy_circuit_decodes(name):
     lines = []
     for line in str(sq.Circuit(stim_text(name))).splitlines():
@@ -189,3 +188,4 @@ def test_refusals_are_looms(name):
 def test_operation_fields_are_looms():
     assert MoveBlock("q", "right").direction == Direction.RIGHT
     assert LogicalPhaseViaYwall("q", "top").growth_direction == Direction.TOP
+    assert RotateBlock("q", "left").grow_direction == Direction.LEFT
