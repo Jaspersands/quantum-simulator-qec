@@ -18,7 +18,7 @@ and rotation, the Steane encoding), Y half cubes, open ports, and two patches on
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from ._errors import TQECError
 from .cube import ZXCube
@@ -60,19 +60,32 @@ def _basis_name(basis: Basis) -> str:
     return basis.value.lower()
 
 
-def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables: Optional[Sequence["CorrelationSurface"]] = None) -> CompiledBlockGraph:
+def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto") -> CompiledBlockGraph:
     """The graph as a lattice-surgery circuit at ``distance`` under SD6 noise ``p`` (the engine's
     noise model), ``rounds`` rounds per time slice (default ``distance``) and ``merged`` rounds
-    per merge (default ``rounds``); ``observables`` the correlation surfaces to include (default
-    all the graph has, as ``find_correlation_surfaces`` orders them; each must be a surface of
-    this graph). A surface that runs one patch's logical along two of its lines (it passes two
-    seams of that patch) is refused: the surgery engine's observables take one line, and the
-    difference of two lines is a band of checks whose signs are random."""
+    per merge (default ``rounds``); ``observables`` the correlation surfaces to include, as in
+    tqec: ``"auto"`` (the default) all the graph has, as ``find_correlation_surfaces`` orders
+    them, ``None`` none, or a list (each must be a surface of this graph). The graph's shadowed
+    faces are fixed first (``fix_shadowed_faces``), as tqec does, so a pass-through drawn as a
+    spatial cube compiles as the patch it is. A surface that runs one patch's logical along two
+    of its lines (it passes two seams of that patch) is refused: the surgery engine's
+    observables take one line, and the difference of two lines is a band of checks whose signs
+    are random."""
     from .correlation import ZXGraph
 
-    graph.validate()
     if graph.is_open:
         raise TQECError("the graph has open ports; fill them (fill_ports) before compiling")
+    graph.validate()
+    # As tqec: the faces two pipes in one direction hide take the bases of the pipes in their
+    # plane, so a cube drawn spatial but only passed through is the patch it stands for.
+    graph = graph.fix_shadowed_faces()
+    given = not isinstance(observables, str) and observables is not None
+    if isinstance(observables, str):
+        if observables != "auto":
+            raise TQECError(f"observables must be 'auto', None or a list of correlation surfaces, not {observables!r}")
+        observables = graph.find_correlation_surfaces()
+    elif observables is None:
+        observables = []
     if distance < 3 or distance % 2 == 0:
         raise TQECError(f"lattice surgery needs an odd distance of at least 3, not {distance}")
     rounds = distance if rounds is None else rounds
@@ -88,7 +101,9 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
         if not isinstance(cube.kind, ZXCube):
             raise TQECError(f"the cube at {cube.position} is a {cube.kind}; the surgery engine has no Y half cubes ({_REFUSED})")
         if cube.kind.is_spatial:
-            raise TQECError(f"the cube at {cube.position} ({cube.kind}) is spatial, a junction or pass-through of two spatial directions; the surgery engine merges one direction at a time ({_REFUSED})")
+            directions = {pipe.direction for pipe in graph.pipes_at(cube.position) if pipe.direction != Direction3D.Z}
+            what = "a junction of two spatial directions" if len(directions) == 2 else "its spatial boundaries all of one basis"
+            raise TQECError(f"the cube at {cube.position} ({cube.kind}) is spatial ({what}); the surgery engine's patches have an X and a Z boundary and merge one direction at a time ({_REFUSED})")
 
     # Orientation: the axis whose walls are X-type becomes the engine's column axis.
     x_walls = {cube.kind.get_basis_along(Direction3D.X) for cube in cubes}
@@ -190,8 +205,8 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
     # Observables: each correlation surface's records.
     zx = ZXGraph.from_block_graph(graph)
     positions = zx.positions
-    surfaces = list(graph.find_correlation_surfaces() if observables is None else observables)
-    if observables is not None:
+    surfaces = list(observables)
+    if given:
         # A surface of another graph (or a made-up one) would compile into a random observable.
         for k, surface in enumerate(surfaces):
             for edge in surface.span:

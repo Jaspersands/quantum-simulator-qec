@@ -345,3 +345,65 @@ def test_explicit_observables_must_be_surfaces_of_the_graph():
     g.add_pipe(Position3D(1, 0, 1), Position3D(1, 0, 2))
     with pytest.raises(TQECError, match="has no pipe"):
         g.compile(3)
+
+
+# ---------------------------------------------------------------------------------------------
+# 2.1: what the tqec audit found (tqec 0.2.0's numbers recorded where tqec takes minutes)
+# ---------------------------------------------------------------------------------------------
+
+
+def _passthrough(graph_class, position, middle: str):
+    """Two ZXZ patches three slices tall, joined at the middle slice through a routing cube."""
+    g = graph_class("passthrough")
+    for x in (0, 2):
+        for z in range(3):
+            g.add_cube(position(x, 0, z), "ZXZ")
+            if z:
+                g.add_pipe(position(x, 0, z - 1), position(x, 0, z))
+    g.add_cube(position(1, 0, 1), middle)
+    g.add_pipe(position(0, 0, 1), position(1, 0, 1))
+    g.add_pipe(position(1, 0, 1), position(2, 0, 1))
+    return g
+
+
+def test_compile_fixes_shadowed_faces_first():
+    # The routing cube drawn XXZ has its x faces hidden by the two pipes: tqec's compile runs
+    # fix_shadowed_faces, which makes it ZXZ, and compiles (81 qubits, 184 detectors, one
+    # observable, graphlike distance 3 at k = 1 in tqec 0.2.0).
+    drawn = tqec.compile_block_graph(_passthrough(BlockGraph, Position3D, "XXZ"), 3, p=0.001)
+    fixed = tqec.compile_block_graph(_passthrough(BlockGraph, Position3D, "ZXZ"), 3, p=0.001)
+    assert str(drawn.circuit) == str(fixed.circuit) and drawn.stabilizers == ["ZZZZ"]
+    c = drawn.circuit
+    assert (c.num_qubits, c.num_detectors, c.num_observables) == (81, 184, 1)
+    assert len(c.shortest_graphlike_error()) == 3
+    # A cube that really is spatial is still refused, and the message says which kind it is.
+    with pytest.raises(TQECError, match=r"spatial \(its spatial boundaries all of one basis\)"):
+        gallery.stability(Basis.Z).compile(3)
+    with pytest.raises(TQECError, match=r"spatial \(a junction of two spatial directions\)"):
+        gallery.three_cnots(Basis.Z).compile(3)
+
+
+def test_observables_take_tqecs_values():
+    # tqec: "auto" (the default) is every correlation surface, None is none.
+    g = gallery.cnot(Basis.Z)
+    assert tqec.compile_block_graph(g, 3).circuit.num_observables == 2
+    assert tqec.compile_block_graph(g, 3, observables="auto").circuit.num_observables == 2
+    assert tqec.compile_block_graph(g, 3, observables=None).circuit.num_observables == 0
+    assert tqec.compile_block_graph(g, 3, observables=[]).circuit.num_observables == 0
+    assert g.compile(3, observables=None).num_observables == 0 and g.compile(3).num_observables == 2
+    with pytest.raises(TQECError, match="'auto', None or a list"):
+        tqec.compile_block_graph(g, 3, observables="all")
+
+
+@needs_tqec
+def test_shadowed_faces_and_observables_against_tqec():
+    t = theirs.compile_block_graph(_passthrough(theirs.BlockGraph, theirs_position(), "XXZ"))
+    assert len(t._observables) == 1
+    assert theirs.compile_block_graph(_passthrough(theirs.BlockGraph, theirs_position(), "XXZ"), observables=None)._observables == []
+    assert structure(_passthrough(BlockGraph, Position3D, "XXZ").fix_shadowed_faces()) == structure(_passthrough(theirs.BlockGraph, theirs_position(), "XXZ").fix_shadowed_faces())
+
+
+def theirs_position():
+    from tqec.utils.position import Position3D as TheirPosition
+
+    return TheirPosition

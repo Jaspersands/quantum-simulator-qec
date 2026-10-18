@@ -297,11 +297,12 @@ class BlockGraph:
                 self._edges[pos][other.position] = new_pipe
             self._ports.pop(label)
 
-    def compile(self, distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables=None):
+    def compile(self, distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables="auto"):
         """The graph as a lattice-surgery circuit on this package's engine (``compile_block_graph``
         has the program too): patches for the cubes' lifetimes, merges and splits for the spatial
-        pipes, the correlation surfaces as observables. Graphs the engine cannot express
-        (Hadamard pipes, spatial cubes, Y cubes, open ports) are refused with tqec named."""
+        pipes, the correlation surfaces as observables (``"auto"`` all of them, ``None`` none, or
+        a list, as tqec takes them). Graphs the engine cannot express (Hadamard pipes, spatial
+        cubes, Y cubes, open ports) are refused with tqec named."""
         from .compile import compile_block_graph
 
         return compile_block_graph(self, distance, p=p, rounds=rounds, merged=merged, observables=observables).circuit
