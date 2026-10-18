@@ -1046,9 +1046,15 @@ CODE_APPLICATORS: dict[str, Applicator] = {
     "ConditionalLogicalZ": conditional_logical_pauli,
 }
 
-ROTATED_SURFACE_CODE_APPLICATORS: dict[str, Applicator] = {**CODE_APPLICATORS, "Grow": grow, "Shrink": shrink, "Merge": merge, "Split": split}
+# These modules build on the applicators above (the auxiliary CNOT on grow, split, merge and
+# shrink), so they are imported once those exist.
+from ._auxcnot import auxcnot  # noqa: E402
+from ._state_injection import state_injection  # noqa: E402
+from ._transversal_hadamard import transversalhadamard  # noqa: E402
 
-_NOT_PORTED = {"AuxCNOT", "TransversalHadamard", "MoveBlock", "LogicalPhaseViaYwall", "StateInjection", "RotateBlock"}
+ROTATED_SURFACE_CODE_APPLICATORS: dict[str, Applicator] = {**CODE_APPLICATORS, "Grow": grow, "Shrink": shrink, "Merge": merge, "Split": split, "AuxCNOT": auxcnot, "TransversalHadamard": transversalhadamard, "StateInjection": state_injection}
+
+_NOT_PORTED = {"MoveBlock", "LogicalPhaseViaYwall", "RotateBlock"}
 
 
 def interpret_operation(eka: Eka, step: InterpretationStep, op: Operation, same_timeslice: bool, debug_mode: bool) -> InterpretationStep:
