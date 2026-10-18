@@ -452,8 +452,15 @@ class BpDecoder(BpDecoderBase):
                     converged[i], iterations[i] = bool(conv), int(iters)
             else:
                 # A GPU shot is one thread walking the whole graph: a small batch runs faster
-                # on the CPU's threads, with the same bits.
-                device = "cpu-f32" if self.device == "gpu" and len(live) < _GPU_BATCH_MIN else self.device
+                # on the CPU's threads, with the same bits (the device is still asked for, once,
+                # so a machine without one hears so on the first decode).
+                device = self.device
+                if self.device == "gpu" and len(live) < _GPU_BATCH_MIN:
+                    if not getattr(self, "_gpu_seen", False):
+                        if call(_core.gpu_device) is None:
+                            raise ValueError("device 'gpu': no GPU adapter is available to wgpu on this machine; use device='cpu-f32' (the same bits)")
+                        self._gpu_seen = True
+                    device = "cpu-f32"
                 out[live], converged[live], iterations[live] = self._decode_rows32(rows[live], device, threads)
         return (out, converged, iterations) if _details else out
 
