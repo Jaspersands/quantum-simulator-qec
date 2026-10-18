@@ -185,6 +185,12 @@ def test_diagram_flags_and_replayed_shot_counts(files):
     both("diagram", "--in", str(c), "--type", "detslice-text", "--tick", "1:3")
     both("diagram", "--in", str(c), "--type", "timeline-text", "--tick", "1:3")
     assert ours("diagram", "--in", str(c), "--type", "detslice-with-ops-svg").startswith(b"<svg")
+    s = files / "surface.stim"
+    s.write_text(str(sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.001)))
+    for f in ("2,2:4,2", "D5", "L0", "D2:4,4"):
+        both("diagram", "--in", str(s), "--type", "detslice-text", "--tick", "4", "--filter_coords", f)
+    assert len(ours("diagram", "--in", str(s), "--type", "detslice-svg", "--tick", "4", "--filter_coords", "D5")) < len(ours("diagram", "--in", str(s), "--type", "detslice-svg", "--tick", "4"))
+    assert sq.main(command_line_args=["diagram", "--in", str(s), "--type", "detslice-text", "--filter_coords", "x,1"]) == 1
     dem, replay = files / "r.dem", files / "r.01"
     dem.write_text("error(1) D0 L0\nerror(0) D1\ndetector D2\n")
     replay.write_text("01\n10\n")

@@ -281,9 +281,21 @@ def cmd_explain_errors(a) -> None:
 def cmd_diagram(a) -> None:
     from ._circuit import DetectorErrorModel
 
+    filters = None
     if a.filter_coords is not None:
-        raise UsageError("--filter_coords is not supported")
-    kind = {"detector-slice-svg": "detslice-svg", "detector-slice-text": "detslice-text", "match-graph-svg": "matchgraph-svg"}.get(a.type, a.type)
+        # Stim's form: filters separated by ':', each a detector or observable (D5, L0) or a
+        # coordinate prefix of numbers separated by ','.
+        filters = []
+        for part in a.filter_coords.split(":"):
+            part = part.strip()
+            if part[:1] in ("D", "L") and part[1:].isdigit():
+                filters.append(part)
+                continue
+            try:
+                filters.append([float(c) for c in part.split(",")])
+            except ValueError:
+                raise UsageError(f"--filter_coords: {part!r} is not a detector (D5), an observable (L0) or coordinates (2,3)") from None
+    kind ={"detector-slice-svg": "detslice-svg", "detector-slice-text": "detslice-text", "match-graph-svg": "matchgraph-svg"}.get(a.type, a.type)
     text = _read_text(a.input)
     if kind == "matchgraph-svg":
         try:
@@ -301,7 +313,7 @@ def cmd_diagram(a) -> None:
             # a text slice is drawn at one tick, a range's first, as Stim's command line draws it.
             start, sep, stop = a.tick.partition(":")
             tick = range(int(start), int(stop)) if sep and kind != "detslice-text" else int(start)
-        d = c.diagram(kind, tick=tick)
+        d = c.diagram(kind, tick=tick, filter_coords=filters)
     out = str(d)
     _write(a.out, out if out.endswith("\n") else out + "\n")
 

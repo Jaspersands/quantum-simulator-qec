@@ -15,5 +15,22 @@ __version__ = "0.9.2"
 # Prevent import of `importlib` (and any other non-public objects) from this module.
 del importlib
 
+# deltakit's own `deltakit.decode` adds its cloud decoders to deltakit_decode's names; here they
+# load on first use, since the explorer they come from imports this package.
+_CLOUD_DECODERS = ("ACDecoder", "BPOSDecoder", "BeliefMatchingDecoder", "CCDecoder", "LCDecoder", "MWPMDecoder")
+
+
+def __getattr__(name):
+    if name in _CLOUD_DECODERS:
+        from stabilizer_qec.deltakit.explorer import _cloud_decoders
+
+        return getattr(_cloud_decoders, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | set(_CLOUD_DECODERS))
+
+
 # List only public members in `__all__`.
-__all__ = [s for s in dir() if not s.startswith("_")]
+__all__ = [s for s in dir() if not s.startswith("_")] + list(_CLOUD_DECODERS)
