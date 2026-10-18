@@ -2,11 +2,14 @@
 # and `system` modules; Copyright (c) Microsoft Corporation, MIT License; see LICENSE-qdk in this directory),
 # modified for stabilizer_qec: Python dataclasses in place of the Rust structs and traits, fasteval 0.2.4's
 # parser, constant folding and evaluator written out in place of the compiled expressions, the binomial quantile
-# of the `probability` crate (0.20) written out, the frontier estimate type and the profiling output left out.
-# The numbers are the QDK's bit for bit on its own test cases (tests/estimate_port/qdk_estimates.json).
+# of the `probability` crate (0.20) written out, the profiling output left out; with the QDK's Python
+# `LogicalCounts.estimate` and `EstimatorResult` (qdk/estimator/_estimator.py) as data, their HTML left out.
+# The numbers are the QDK's bit for bit on its own test cases (tests/estimate_port/qdk_estimates.json), and the
+# whole result, the report's text included, on each of them (tests/estimate_port/qdk_reports.json.gz).
 """Azure's Resource Estimator: from logical counts (qubits, T, rotations, CCZ, measurements) to physical
 qubits and runtime on a chosen qubit model and QEC scheme, with the T factories found by the QDK's exhaustive
-search over distillation rounds and code distances.
+search over distillation rounds and code distances, and the QDK's report: the counts formatted as it formats
+them and its groups of labelled, explained entries.
 
 Two differences from the QDK are accepted. The QDK's counts are u64 and wrap silently when a product
 overflows (a runtime past 1.8e19 ns, a count past 2^64), where the integers here keep growing. And a float
@@ -19,11 +22,18 @@ reaches the QDK through its JSON round trip, which keeps 15 significant digits e
 (400060, 1064000000, 19)
 >>> r["tfactory"]["numUnitsPerRound"], r["tfactory"]["codeDistancePerRound"]
 ([18, 1], [5, 15])
+>>> r["physicalCountsFormatted"]["runtime"], r["physicalCountsFormatted"]["physicalQubits"]
+('1 secs', '400.06k')
+>>> res = LogicalCounts(num_qubits=100, t_count=100_000).estimate({"qubitParams": {"name": "qubit_gate_ns_e4"}})
+>>> res["reportData"]["groups"][0]["title"], res.summary.splitlines()[1].split()
+('Physical resource estimates', ['Runtime', '360', 'millisecs', 'Total', 'runtime'])
 """
 
 from __future__ import annotations
 
+import decimal
 import functools
+import json
 import math
 import re
 from dataclasses import dataclass, field, replace
@@ -1276,6 +1286,30 @@ class LogicalCounts:
     def has_rotations(self) -> bool:
         return self.rotation_count > 0
 
+    def estimate(self, params: Union[dict, Sequence[dict], Any, None] = None) -> "EstimatorResult":
+        """The QDK's `LogicalCounts.estimate`: the estimate for a dict of job parameters (``qubitParams``,
+        ``qecScheme``, ``errorBudget``, ``constraints``, ``distillationUnitSpecifications``, ``estimateType``), or
+        a batch for a list of them (an item that fails holds its message; a single estimate that fails raises
+        ValueError). The QDK's own `EstimatorParams` is taken too, through its ``as_dict``."""
+        if params is None:
+            items = [{}]
+        elif isinstance(params, dict):
+            items = [params]
+        elif hasattr(params, "as_dict"):
+            d = params.as_dict()
+            items = d["items"] if "items" in d else [d]
+        else:
+            items = list(params)
+        if len(items) == 1:
+            return EstimatorResult(_estimate_item(self, items[0]))
+        results = []
+        for item in items:
+            try:
+                results.append(EstimatorResult(_estimate_item(self, item)))
+            except ValueError as ex:
+                results.append(EstimatorResult({"message": str(ex)}, error=ex))
+        return EstimatorResult(results)
+
 
 @dataclass
 class ErrorBudget:
@@ -1428,6 +1462,23 @@ class DistillationUnitTemplate:
         else:
             unit_type = "Logical"
         return DistillationUnitTemplate(spec["displayName"], num_input_ts, num_output_ts, _formula(spec["failureProbabilityFormula"]), _formula(spec["outputErrorRateFormula"]), unit_type, physical, logical, override)
+
+
+def _unit_specification_echo(spec: Union[str, dict, DistillationUnitTemplate]) -> dict:
+    """A distillation unit specification (one `DistillationUnitTemplate.fromspec` took) as the QDK echoes it in
+    ``jobParams``, its reading written back: a named unit as its name, a custom unit's fields in the QDK's order
+    without unknown keys or absent specifications. A template object is echoed by its name."""
+    if isinstance(spec, str):
+        return {"name": spec}
+    if isinstance(spec, DistillationUnitTemplate):
+        return {"name": spec.name}
+    if isinstance(spec.get("name"), str):
+        return {"name": spec["name"]}
+    out = {key: spec[key] for key in ("displayName", "numInputTs", "numOutputTs", "failureProbabilityFormula", "outputErrorRateFormula")}
+    for key in ("physicalQubitSpecification", "logicalQubitSpecification", "logicalQubitSpecificationFirstRoundOverride"):
+        if spec.get(key) is not None:
+            out[key] = {"numUnitQubits": spec[key]["numUnitQubits"], "durationInQubitCycleTime": spec[key]["durationInQubitCycleTime"]}
+    return out
 
 
 @dataclass(frozen=True)
@@ -1973,10 +2024,276 @@ class FactoryPart:
         return self.factory.physical_qubits() * self.copies
 
 
+# ---------------------------------------------------------------------------------------------
+# The formatted counts and the report (system/data/report.rs, result.rs)
+# ---------------------------------------------------------------------------------------------
+
+
+def _nonfinite(x: float) -> Optional[str]:
+    """How Rust writes a NaN or an infinity in any float format; None for a finite value."""
+    if x != x:
+        return "NaN"
+    if math.isinf(x):
+        return "inf" if x > 0 else "-inf"
+    return None
+
+
+def _display(x: float) -> str:
+    """Rust's `{}` for an f64: the shortest digits that read back as the value, never in exponent form
+    (``1e-10`` is ``0.0000000001``, ``1.0`` is ``1``)."""
+    return _nonfinite(x) or format(decimal.Decimal(repr(float(x))).normalize(), "f")
+
+
+def _exp2(x: float) -> str:
+    """Rust's `{:.2e}`: three significant digits, the exponent bare (``1.55e-11``, ``2.00e5``, ``0.00e0``)."""
+    special = _nonfinite(x)
+    if special:
+        return special
+    mantissa, exponent = f"{x:.2e}".split("e")
+    return f"{mantissa}e{int(exponent)}"
+
+
+def _fixed2(x: float) -> str:
+    """Rust's `{:.2}`."""
+    return _nonfinite(x) or f"{x:.2f}"
+
+
+def _thousands(value) -> str:
+    """The QDK's `format_thousand_sep`: the digits in groups of three from the right, joined by commas."""
+    s = str(value)
+    head = len(s) % 3 or 3
+    return ",".join([s[:head]] + [s[i:i + 3] for i in range(head, len(s), 3)])
+
+
+def _thousands_f64(value: float) -> str:
+    integer, fraction = f"{value:.2f}".split(".")
+    return f"{_thousands(integer)}.{fraction}"
+
+
+def format_metric_prefix(value: int) -> str:
+    """The QDK's count with a metric prefix: as it is below 1000, else to two decimals with k, M, G, T, P, E, Z,
+    Y, R or Q (``400.06k``, ``38.33M``)."""
+    if value < 1000:
+        return str(value)
+    prefixes = "kMGTPEZYRQ"
+    index, v = 0, float(value) / 1e3
+    while True:
+        following = v / 1e3
+        if following < 1.0:
+            break
+        index += 1
+        v = following
+    return f"{v:.2f}{prefixes[index] if index < len(prefixes) else '?'}"
+
+
+_DURATION_UNITS = (("nanosecs", 1), ("microsecs", 1000), ("millisecs", 1000), ("secs", 1000), ("mins", 60), ("hours", 60), ("days", 24), ("years", 365))
+
+
+def format_duration(nanos: int) -> str:
+    """The QDK's duration in words: the largest unit the value reaches, rounded half up by the remainder in the
+    unit below (``1500`` ns is ``2 microsecs``, ``1064000000`` is ``1 secs``). As the QDK's, a value below a
+    microsecond reads one nanosecond high (``500`` is ``501 nanosecs``)."""
+    runtime, rem = int(nanos), 0
+    for idx in range(1, len(_DURATION_UNITS)):
+        if runtime // _DURATION_UNITS[idx][1] == 0:
+            if rem >= _DURATION_UNITS[idx - 1][1] // 2:
+                runtime += 1
+            return f"{runtime} {_DURATION_UNITS[idx - 1][0]}"
+        runtime, rem = runtime // _DURATION_UNITS[idx][1], runtime % _DURATION_UNITS[idx][1]
+    return f"{runtime} {_DURATION_UNITS[-1][0]}"
+
+
+def _budget_echo(spec) -> Union[float, dict]:
+    """The error budget (one `ErrorBudget.partition` took) as the QDK echoes it in ``jobParams``: the total, or
+    the parts as ``logical``, ``tStates``, ``rotations``."""
+    if spec is None:
+        return 1e-3
+    if isinstance(spec, ErrorBudget):
+        return {"logical": spec.logical, "tStates": spec.tstates, "rotations": spec.rotations}
+    if isinstance(spec, dict):
+        return {"logical": float(spec["logical"]), "tStates": float(spec["tStates"] if "tStates" in spec else spec["tstates"]), "rotations": float(spec["rotations"])}
+    return float(spec)
+
+
+def _budget_total(spec) -> float:
+    """The QDK's `ErrorBudgetSpecification::total`: the total, or the parts' sum."""
+    echo = _budget_echo(spec)
+    return echo["logical"] + echo["tStates"] + echo["rotations"] if isinstance(echo, dict) else echo
+
+
+def _formatted_counts(result: "EstimationResult") -> dict:
+    est, counts, budget, patch, part = result.estimator, result.counts, result.error_budget, result.logical_patch, result.factory_part
+    factory = part.factory if part else None
+    no_tstates, unset = "No T states in algorithm", "constraint not set"
+    M = format_metric_prefix
+    c = est.constraints
+    num_ts_per_rotation = counts.num_ts_per_rotation(budget.rotations)
+    return {
+        "runtime": format_duration(result.runtime()),
+        "rqops": M(result.rqops()),
+        "physicalQubits": M(result.physical_qubits()),
+        "algorithmicLogicalQubits": M(counts.logical_qubits()),
+        "algorithmicLogicalDepth": M(counts.logical_depth(budget)),
+        "logicalDepth": M(result.num_cycles),
+        "numTstates": M(counts.num_magic_states(budget)),
+        "numTfactories": M(part.copies if part else 0),
+        "numTfactoryRuns": M(part.runs if part else 0),
+        "physicalQubitsForAlgorithm": M(result.physical_qubits_for_algorithm()),
+        "physicalQubitsForTfactories": M(result.physical_qubits_for_factories()),
+        "physicalQubitsForTfactoriesPercentage": _fixed2(_div(float(result.physical_qubits_for_factories() * 100), float(result.physical_qubits()))) + " %",
+        "requiredLogicalQubitErrorRate": _exp2(result.required_logical_error_rate),
+        "requiredLogicalTstateErrorRate": _exp2(part.required_output_error_rate) if part else no_tstates,
+        "physicalQubitsPerLogicalQubit": M(patch.physical_qubits),
+        "logicalCycleTime": format_duration(patch.logical_cycle_time),
+        "clockFrequency": M(_as_u64(_round_half_away(patch.logical_cycles_per_second()))),
+        "logicalErrorRate": _exp2(patch.logical_error_rate),
+        "tfactoryPhysicalQubits": M(factory.physical_qubits()) if factory else no_tstates,
+        "tfactoryRuntime": format_duration(factory.duration()) if factory else no_tstates,
+        "numInputTstates": M(factory.num_input_states()) if factory else no_tstates,
+        "numUnitsPerRound": ", ".join(str(n) for n in factory.num_units_per_round()) if factory else no_tstates,
+        "unitNamePerRound": ", ".join(factory.unit_names()) if factory else no_tstates,
+        "codeDistancePerRound": ", ".join(str(d) for d in factory.code_distance_per_round()) if factory else no_tstates,
+        "physicalQubitsPerRound": ", ".join(M(q) for q in factory.physical_qubits_per_round()) if factory else no_tstates,
+        "tfactoryRuntimePerRound": ", ".join(format_duration(t) for t in factory.duration_per_round()) if factory else no_tstates,
+        "tstateLogicalErrorRate": _exp2(factory.output_error_rate()) if factory else no_tstates,
+        "logicalCountsNumQubits": M(counts.num_qubits),
+        "logicalCountsTCount": M(counts.t_count),
+        "logicalCountsRotationCount": M(counts.rotation_count),
+        "logicalCountsRotationDepth": M(counts.rotation_depth),
+        "logicalCountsCczCount": M(counts.ccz_count),
+        "logicalCountsCcixCount": M(counts.ccix_count),
+        "logicalCountsMeasurementCount": M(counts.measurement_count),
+        "errorBudget": _exp2(_budget_total(est.error_budget_spec)),
+        "errorBudgetLogical": _exp2(budget.logical),
+        "errorBudgetTstates": _exp2(budget.tstates),
+        "errorBudgetRotations": _exp2(budget.rotations),
+        "numTsPerRotation": M(num_ts_per_rotation) if num_ts_per_rotation is not None else "No rotations in algorithm",
+        "logicalDepthFactor": _display(c.logical_depth_factor) if c.logical_depth_factor is not None else unset,
+        "maxTFactories": str(c.max_t_factories) if c.max_t_factories is not None else unset,
+        "maxDuration": str(c.max_duration) if c.max_duration is not None else unset,
+        "maxPhysicalQubits": str(c.max_physical_qubits) if c.max_physical_qubits is not None else unset,
+    }
+
+
+_REPORT_ASSUMPTIONS = (
+    "_More details on the following lists of assumptions can be found in the paper [Accessing requirements for scaling quantum computers and their applications](https://aka.ms/AQ/RE/Paper)._",
+    "**Uniform independent physical noise.** We assume that the noise on physical qubits and physical qubit operations is the standard circuit noise model. In particular we assume error events at different space-time locations are independent and that error rates are uniform across the system in time and space.",
+    "**Efficient classical computation.** We assume that classical overhead (compilation, control, feedback, readout, decoding, etc.) does not dominate the overall cost of implementing the full quantum algorithm.",
+    "**Extraction circuits for planar quantum ISA.** We assume that stabilizer extraction circuits with similar depth and error correction performance to those for standard surface and Hastings-Haah code patches can be constructed to implement all operations of the planar quantum ISA (instruction set architecture).",
+    "**Uniform independent logical noise.** We assume that the error rate of a logical operation is approximately equal to its space-time volume (the number of tiles multiplied by the number of logical time steps) multiplied by the error rate of a logical qubit in a standard one-tile patch in one logical time step.",
+    "**Negligible Clifford costs for synthesis.** We assume that the space overhead for synthesis and space and time overhead for transport of magic states within magic state factories and to synthesis qubits are all negligible.",
+    "**Smooth magic state consumption rate.** We assume that the rate of T state consumption throughout the compiled algorithm is almost constant, or can be made almost constant without significantly increasing the number of logical time steps for the algorithm.",
+)
+
+
+def _entry(path: str, label: str, description: str, explanation: str) -> dict:
+    return {"path": path, "label": label, "description": description, "explanation": explanation}
+
+
+def _report_data(result: "EstimationResult", fc: dict) -> dict:
+    """The QDK's ``reportData``: its groups of entries (a path into the result, a label, a description, an
+    explanation with this estimate's numbers in it), transcribed from report.rs (which the QDK generates from its
+    docs/output_data.md), and its assumptions."""
+    est, counts, budget, patch, part = result.estimator, result.counts, result.error_budget, result.logical_patch, result.factory_part
+    factory = part.factory if part else None
+    scheme, qubit = est.scheme, est.qubit
+    majorana = isinstance(qubit, MajoranaQubit)
+    logical_qubits, algorithmic_depth, num_tstates = counts.logical_qubits(), counts.logical_depth(budget), counts.num_magic_states(budget)
+    T, D = _thousands, _display
+    groups = []
+    entries = []
+    entries.append(_entry("physicalCountsFormatted/runtime", "Runtime", "Total runtime", "This is a runtime estimate for the execution time of the algorithm.  In general, the execution time corresponds to the duration of one logical cycle ({} nanosecs) multiplied by the {} logical cycles to run the algorithm.  If however the duration of a single T factory (here: {} nanosecs) is larger than the algorithm runtime, we extend the number of logical cycles artificially in order to exceed the runtime of a single T factory.".format(T(patch.logical_cycle_time), T(algorithmic_depth), T(factory.duration() if factory else 0))))
+    entries.append(_entry("physicalCountsFormatted/rqops", "rQOPS", "Reliable quantum operations per second", "The value is computed as the number of logical qubits after layout ({}) (with a logical error rate of {}) multiplied by the clock frequency ({}), which is the number of logical cycles per second.".format(T(logical_qubits), fc["requiredLogicalQubitErrorRate"], _thousands_f64(patch.logical_cycles_per_second()))))
+    entries.append(_entry("physicalCountsFormatted/physicalQubits", "Physical qubits", "Number of physical qubits", "This value represents the total number of physical qubits, which is the sum of {} physical qubits to implement the algorithm logic, and {} physical qubits to execute the T factories that are responsible to produce the T states that are consumed by the algorithm.".format(T(result.physical_qubits_for_algorithm()), T(result.physical_qubits_for_factories()))))
+    groups.append({"title": "Physical resource estimates", "alwaysVisible": True, "entries": entries})
+    entries = []
+    entries.append(_entry("physicalCountsFormatted/algorithmicLogicalQubits", "Logical algorithmic qubits", "Number of logical qubits for the algorithm after layout", r"Laying out the logical qubits in the presence of nearest-neighbor constraints requires additional logical qubits.  In particular, to layout the $Q_{{\rm alg}} = {}$ logical qubits in the input algorithm, we require in total $2 \cdot Q_{{\rm alg}} + \lceil \sqrt{{8 \cdot Q_{{\rm alg}}}}\rceil + 1 = {}$ logical qubits.".format(T(counts.num_qubits), T(logical_qubits))))
+    entries.append(_entry("physicalCountsFormatted/algorithmicLogicalDepth", "Algorithmic depth", "Number of logical cycles for the algorithm", "To execute the algorithm using _Parallel Synthesis Sequential Pauli Computation_ (PSSPC), operations are scheduled in terms of multi-qubit Pauli measurements, for which assume an execution time of one logical cycle.  Based on the input algorithm, we require one multi-qubit measurement for the {} single-qubit measurements, the {} arbitrary single-qubit rotations, and the {} T gates, three multi-qubit measurements for each of the {} CCZ and {} CCiX gates in the input program, as well as {} multi-qubit measurements for each of the {} non-Clifford layers in which there is at least one single-qubit rotation with an arbitrary angle rotation.".format(T(counts.measurement_count), T(counts.rotation_count), T(counts.t_count), T(counts.ccz_count), T(counts.ccix_count), fc["numTsPerRotation"], T(counts.rotation_depth))))
+    entries.append(_entry("physicalCountsFormatted/logicalDepth", "Logical depth", "Number of logical cycles performed", "This number is usually equal to the logical depth of the algorithm, which is {}.  However, in the case in which a single T factory is slower than the execution time of the algorithm, we adjust the logical cycle depth to exceed the T factory's execution time.".format(T(algorithmic_depth))))
+    entries.append(_entry("physicalCountsFormatted/clockFrequency", "Clock frequency", "Number of logical cycles per second", "This is the number of logical cycles that can be performed within one second.  The logical cycle time is {}.".format(fc["logicalCycleTime"])))
+    entries.append(_entry("physicalCountsFormatted/numTstates", "Number of T states", "Number of T states consumed by the algorithm", "To execute the algorithm, we require one T state for each of the {} T gates, four T states for each of the {} CCZ and {} CCiX gates, as well as {} for each of the {} single-qubit rotation gates with arbitrary angle rotation.".format(T(counts.t_count), T(counts.ccz_count), T(counts.ccix_count), fc["numTsPerRotation"], T(counts.rotation_count))))
+    entries.append(_entry("physicalCountsFormatted/numTfactories", "Number of T factories", "Number of T factories capable of producing the demanded {} T states during the algorithm's runtime".format(T(num_tstates)), r"The total number of T factories {} that are executed in parallel is computed as $\left\lceil\dfrac{{\text{{T states}}\cdot\text{{T factory duration}}}}{{\text{{T states per T factory}}\cdot\text{{algorithm runtime}}}}\right\rceil = \left\lceil\dfrac{{{} \cdot {}\;\text{{ns}}}}{{{} \cdot {}\;\text{{ns}}}}\right\rceil$".format(T(part.copies if part else 0), T(num_tstates), T(factory.duration() if factory else 0), T(factory.num_output_states() if factory else 0), T(result.runtime()))))
+    entries.append(_entry("physicalCountsFormatted/numTfactoryRuns", "Number of T factory invocations", "Number of times all T factories are invoked", "In order to prepare the {} T states, the {} copies of the T factory are repeatedly invoked {} times.".format(T(num_tstates), T(part.copies if part else 0), T(part.runs if part else 0))))
+    entries.append(_entry("physicalCountsFormatted/physicalQubitsForAlgorithm", "Physical algorithmic qubits", "Number of physical qubits for the algorithm after layout", "The {} are the product of the {} logical qubits after layout and the {} physical qubits that encode a single logical qubit.".format(T(result.physical_qubits_for_algorithm()), T(logical_qubits), T(patch.physical_qubits))))
+    entries.append(_entry("physicalCountsFormatted/physicalQubitsForTfactories", "Physical T factory qubits", "Number of physical qubits for the T factories", r"Each T factory requires {} physical qubits and we run {} in parallel, therefore we need ${} = {} \cdot {}$ qubits.".format(T(factory.physical_qubits() if factory else 0), T(part.copies if part else 0), T(result.physical_qubits_for_factories()), T(factory.physical_qubits() if factory else 0), T(part.copies if part else 0))))
+    entries.append(_entry("physicalCountsFormatted/requiredLogicalQubitErrorRate", "Required logical qubit error rate", "The minimum logical qubit error rate required to run the algorithm within the error budget", "The minimum logical qubit error rate is obtained by dividing the logical error probability {} by the product of {} logical qubits and the total cycle count {}.".format(fc["errorBudgetLogical"], T(logical_qubits), T(result.num_cycles))))
+    entries.append(_entry("physicalCountsFormatted/requiredLogicalTstateErrorRate", "Required logical T state error rate", "The minimum T state error rate required for distilled T states", "The minimum T state error rate is obtained by dividing the T distillation error probability {} by the total number of T states {}.".format(fc["errorBudgetTstates"], T(num_tstates))))
+    entries.append(_entry("physicalCountsFormatted/numTsPerRotation", "Number of T states per rotation", "Number of T states to implement a rotation with an arbitrary angle", r"The number of T states to implement a rotation with an arbitrary angle is $\lceil 0.53 \log_2({} / {}) + 4.86\rceil$ [[arXiv:2203.10064](https://arxiv.org/abs/2203.10064)].  For simplicity, we use this formula for all single-qubit arbitrary angle rotations, and do not distinguish between best, worst, and average cases.".format(T(counts.rotation_count), D(budget.rotations))))
+    groups.append({"title": "Resource estimates breakdown", "alwaysVisible": False, "entries": entries})
+    entries = []
+    entries.append(_entry("jobParams/qecScheme/name", "QEC scheme", "Name of QEC scheme", "You can load pre-defined QEC schemes by using the name `surface_code` or `floquet_code`. The latter only works with Majorana qubits."))
+    entries.append(_entry("logicalQubit/codeDistance", "Code distance", "Required code distance for error correction", r"The code distance is the smallest odd integer greater or equal to $\dfrac{{2\log({} / {})}}{{\log({}/{})}} - 1$".format(D(scheme.crossing_prefactor), D(result.required_logical_error_rate), D(scheme.error_correction_threshold), D(patch.qubit.clifford_error_rate()))))
+    entries.append(_entry("physicalCountsFormatted/physicalQubitsPerLogicalQubit", "Physical qubits", "Number of physical qubits per logical qubit", "The number of physical qubits per logical qubit are evaluated using the formula {} that can be user-specified.".format(scheme.physical_qubits_per_logical_qubit)))
+    entries.append(_entry("physicalCountsFormatted/logicalCycleTime", "Logical cycle time", "Duration of a logical cycle in nanoseconds", "The runtime of one logical cycle in nanoseconds is evaluated using the formula {} that can be user-specified.".format(scheme.logical_cycle_time)))
+    entries.append(_entry("physicalCountsFormatted/logicalErrorRate", "Logical qubit error rate", "Logical qubit error rate", r"The logical qubit error rate is computed as ${} \cdot \left(\dfrac{{{}}}{{{}}}\right)^\frac{{{} + 1}}{{2}}$".format(D(scheme.crossing_prefactor), D(patch.qubit.clifford_error_rate()), D(scheme.error_correction_threshold), patch.code_distance)))
+    entries.append(_entry("jobParams/qecScheme/crossingPrefactor", "Crossing prefactor", "Crossing prefactor used in QEC scheme", "The crossing prefactor is usually extracted numerically from simulations when fitting an exponential curve to model the relationship between logical and physical error rate."))
+    entries.append(_entry("jobParams/qecScheme/errorCorrectionThreshold", "Error correction threshold", "Error correction threshold used in QEC scheme", "The error correction threshold is the physical error rate below which the error rate of the logical qubit is less than the error rate of the physical qubit that constitute it.  This value is usually extracted numerically from simulations of the logical error rate."))
+    entries.append(_entry("jobParams/qecScheme/logicalCycleTime", "Logical cycle time formula", "QEC scheme formula used to compute logical cycle time", "This is the formula that is used to compute the logical cycle time {} ns.".format(T(patch.logical_cycle_time))))
+    entries.append(_entry("jobParams/qecScheme/physicalQubitsPerLogicalQubit", "Physical qubits formula", "QEC scheme formula used to compute number of physical qubits per logical qubit", "This is the formula that is used to compute the number of physical qubits per logical qubits {}.".format(T(patch.physical_qubits))))
+    groups.append({"title": "Logical qubit parameters", "alwaysVisible": False, "entries": entries})
+    if part is not None:
+        entries = []
+        entries.append(_entry("physicalCountsFormatted/tfactoryPhysicalQubits", "Physical qubits", "Number of physical qubits for a single T factory", "This corresponds to the maximum number of physical qubits over all rounds of T distillation units in a T factory.  A round of distillation contains of multiple copies of distillation units to achieve the required success probability of producing a T state with the expected logical T state error rate."))
+        entries.append(_entry("physicalCountsFormatted/tfactoryRuntime", "Runtime", "Runtime of a single T factory", "The runtime of a single T factory is the accumulated runtime of executing each round in a T factory."))
+        entries.append(_entry("tfactory/numTstates", "Number of output T states per run", "Number of output T states produced in a single run of T factory", "The T factory takes as input {} noisy physical T states with an error rate of {} and produces {} T states with an error rate of {}.".format(T(factory.num_input_states()), D(qubit.t_gate_error_rate), T(factory.num_output_states()), fc["tstateLogicalErrorRate"])))
+        entries.append(_entry("physicalCountsFormatted/numInputTstates", "Number of input T states per run", "Number of physical input T states consumed in a single run of a T factory", "This value includes the physical input T states of all copies of the distillation unit in the first round."))
+        entries.append(_entry("tfactory/numRounds", "Distillation rounds", "The number of distillation rounds", "This is the number of distillation rounds.  In each round one or multiple copies of some distillation unit is executed."))
+        entries.append(_entry("physicalCountsFormatted/numUnitsPerRound", "Distillation units per round", "The number of units in each round of distillation", "This is the number of copies for the distillation units per round."))
+        entries.append(_entry("physicalCountsFormatted/unitNamePerRound", "Distillation units", "The types of distillation units", "These are the types of distillation units that are executed in each round.  The units can be either physical or logical, depending on what type of qubit they are operating.  Space-efficient units require fewer qubits for the cost of longer runtime compared to Reed-Muller preparation units."))
+        entries.append(_entry("physicalCountsFormatted/codeDistancePerRound", "Distillation code distances", "The code distance in each round of distillation", "This is the code distance used for the units in each round.  If the code distance is 1, then the distillation unit operates on physical qubits instead of error-corrected logical qubits."))
+        entries.append(_entry("physicalCountsFormatted/physicalQubitsPerRound", "Number of physical qubits per round", "The number of physical qubits used in each round of distillation", "The maximum number of physical qubits over all rounds is the number of physical qubits for the T factory, since qubits are reused by different rounds."))
+        entries.append(_entry("physicalCountsFormatted/tfactoryRuntimePerRound", "Runtime per round", "The runtime of each distillation round", "The runtime of the T factory is the sum of the runtimes in all rounds."))
+        entries.append(_entry("physicalCountsFormatted/tstateLogicalErrorRate", "Logical T state error rate", "Logical T state error rate", "This is the logical T state error rate achieved by the T factory which is equal or smaller than the required error rate {}.".format(fc["requiredLogicalTstateErrorRate"])))
+        groups.append({"title": "T factory parameters", "alwaysVisible": False, "entries": entries})
+    entries = []
+    entries.append(_entry("physicalCountsFormatted/logicalCountsNumQubits", "Logical qubits (pre-layout)", "Number of logical qubits in the input quantum program", "We determine {} algorithmic logical qubits from this number by assuming to align them in a 2D grid.  Auxiliary qubits are added to allow for sufficient space to execute multi-qubit Pauli measurements on all or a subset of the logical qubits.".format(T(logical_qubits))))
+    entries.append(_entry("physicalCountsFormatted/logicalCountsTCount", "T gates", "Number of T gates in the input quantum program", "This includes all T gates and adjoint T gates, but not T gates used to implement rotation gates with arbitrary angle, CCZ gates, or CCiX gates."))
+    entries.append(_entry("physicalCountsFormatted/logicalCountsRotationCount", "Rotation gates", "Number of rotation gates in the input quantum program", "This is the number of all rotation gates. If an angle corresponds to a Pauli, Clifford, or T gate, it is not accounted for in this number."))
+    entries.append(_entry("physicalCountsFormatted/logicalCountsRotationDepth", "Rotation depth", "Depth of rotation gates in the input quantum program", "This is the number of all non-Clifford layers that include at least one single-qubit rotation gate with an arbitrary angle."))
+    entries.append(_entry("physicalCountsFormatted/logicalCountsCczCount", "CCZ gates", "Number of CCZ-gates in the input quantum program", "This is the number of CCZ gates."))
+    entries.append(_entry("physicalCountsFormatted/logicalCountsCcixCount", "CCiX gates", "Number of CCiX-gates in the input quantum program", "This is the number of CCiX gates, which applies $-iX$ controlled on two control qubits [[1212.5069](https://arxiv.org/abs/1212.5069)]."))
+    entries.append(_entry("physicalCountsFormatted/logicalCountsMeasurementCount", "Measurement operations", "Number of single qubit measurements in the input quantum program", "This is the number of single qubit measurements in Pauli basis that are used in the input program.  Note that all measurements are counted, however, the measurement result is is determined randomly (with a fixed seed) to be 0 or 1 with a probability of 50%."))
+    groups.append({"title": "Pre-layout logical resources", "alwaysVisible": False, "entries": entries})
+    entries = []
+    entries.append(_entry("physicalCountsFormatted/errorBudget", "Total error budget", "Total error budget for the algorithm", r"The total error budget sets the overall allowed error for the algorithm, i.e., the number of times it is allowed to fail.  Its value must be between 0 and 1 and the default value is 0.001, which corresponds to 0.1%, and means that the algorithm is allowed to fail once in 1000 executions.  This parameter is highly application specific. For example, if one is running Shor's algorithm for factoring integers, a large value for the error budget may be tolerated as one can check that the output are indeed the prime factors of the input.  On the other hand, a much smaller error budget may be needed for an algorithm solving a problem with a solution which cannot be efficiently verified.  This budget $\epsilon = \epsilon_{\log} + \epsilon_{\rm dis} + \epsilon_{\rm syn}$ is uniformly distributed and applies to errors $\epsilon_{\log}$ to implement logical qubits, an error budget $\epsilon_{\rm dis}$ to produce T states through distillation, and an error budget $\epsilon_{\rm syn}$ to synthesize rotation gates with arbitrary angles.  Note that for distillation and rotation synthesis, the respective error budgets $\epsilon_{\rm dis}$ and $\epsilon_{\rm syn}$ are uniformly distributed among all T states and all rotation gates, respectively. If there are no rotation gates in the input algorithm, the error budget is uniformly distributed to logical errors and T state errors."))
+    entries.append(_entry("physicalCountsFormatted/errorBudgetLogical", "Logical error probability", "Probability of at least one logical error", "This is one third of the total error budget {} if the input algorithm contains rotation with gates with arbitrary angles, or one half of it, otherwise.".format(fc["errorBudget"])))
+    entries.append(_entry("physicalCountsFormatted/errorBudgetTstates", "T distillation error probability", "Probability of at least one faulty T distillation", "This is one third of the total error budget {} if the input algorithm contains rotation with gates with arbitrary angles, or one half of it, otherwise.".format(fc["errorBudget"])))
+    entries.append(_entry("physicalCountsFormatted/errorBudgetRotations", "Rotation synthesis error probability", "Probability of at least one failed rotation synthesis", "This is one third of the total error budget {}.".format(fc["errorBudget"])))
+    groups.append({"title": "Assumed error budget", "alwaysVisible": False, "entries": entries})
+    entries = []
+    entries.append(_entry("jobParams/qubitParams/name", "Qubit name", "Some descriptive name for the qubit model", "You can load pre-defined qubit parameters by using the names `qubit_gate_ns_e3`, `qubit_gate_ns_e4`, `qubit_gate_us_e3`, `qubit_gate_us_e4`, `qubit_maj_ns_e4`, or `qubit_maj_ns_e6`.  The names of these pre-defined qubit parameters indicate the instruction set (gate-based or Majorana), the operation speed (ns or µs regime), as well as the fidelity (e.g., e3 for $10^{-3}$ gate error rates)."))
+    entries.append(_entry("jobParams/qubitParams/instructionSet", "Instruction set", "Underlying qubit technology (gate-based or Majorana)", "When modeling the physical qubit abstractions, we distinguish between two different physical instruction sets that are used to operate the qubits.  The physical instruction set can be either *gate-based* or *Majorana*.  A gate-based instruction set provides single-qubit measurement, single-qubit gates (incl. T gates), and two-qubit gates.  A Majorana instruction set provides a physical T gate, single-qubit measurement and two-qubit joint measurement operations."))
+    entries.append(_entry("jobParams/qubitParams/oneQubitMeasurementTime", "Single-qubit measurement time", "Operation time for single-qubit measurement (t_meas) in ns", "This is the operation time in nanoseconds to perform a single-qubit measurement in the Pauli basis."))
+    if majorana:
+        entries.append(_entry("jobParams/qubitParams/twoQubitJointMeasurementTime", "Two-qubit measurement time", "Operation time for two-qubit measurement in ns", "This is the operation time in nanoseconds to perform a non-destructive two-qubit joint Pauli measurement."))
+    if not majorana:
+        entries.append(_entry("jobParams/qubitParams/oneQubitGateTime", "Single-qubit gate time", "Operation time for single-qubit gate (t_gate) in ns", "This is the operation time in nanoseconds to perform a single-qubit Clifford operation, e.g., Hadamard or Phase gates."))
+    if not majorana:
+        entries.append(_entry("jobParams/qubitParams/twoQubitGateTime", "Two-qubit gate time", "Operation time for two-qubit gate in ns", "This is the operation time in nanoseconds to perform a two-qubit Clifford operation, e.g., a CNOT or CZ gate."))
+    entries.append(_entry("jobParams/qubitParams/tGateTime", "T gate time", "Operation time for a T gate", "This is the operation time in nanoseconds to execute a T gate."))
+    entries.append(_entry("jobParams/qubitParams/oneQubitMeasurementErrorRate", "Single-qubit measurement error rate", "Error rate for single-qubit measurement", "This is the probability in which a single-qubit measurement in the Pauli basis may fail."))
+    if majorana:
+        entries.append(_entry("jobParams/qubitParams/twoQubitJointMeasurementErrorRate", "Two-qubit measurement error rate", "Error rate for two-qubit measurement", "This is the probability in which a non-destructive two-qubit joint Pauli measurement may fail."))
+    if not majorana:
+        entries.append(_entry("jobParams/qubitParams/oneQubitGateErrorRate", "Single-qubit error rate", "Error rate for single-qubit Clifford gate (p)", "This is the probability in which a single-qubit Clifford operation, e.g., Hadamard or Phase gates, may fail."))
+    if not majorana:
+        entries.append(_entry("jobParams/qubitParams/twoQubitGateErrorRate", "Two-qubit error rate", "Error rate for two-qubit Clifford gate", "This is the probability in which a two-qubit Clifford operation, e.g., CNOT or CZ gates, may fail."))
+    entries.append(_entry("jobParams/qubitParams/tGateErrorRate", "T gate error rate", "Error rate to prepare single-qubit T state or apply a T gate (p_T)", "This is the probability in which executing a single T gate may fail."))
+    groups.append({"title": "Physical qubit parameters", "alwaysVisible": False, "entries": entries})
+    entries = []
+    entries.append(_entry("physicalCountsFormatted/logicalDepthFactor", "Logical depth factor", "Factor the initial number of logical cycles is multiplied by", "This is the factor takes into account a potential overhead to the initial number of logical cycles."))
+    entries.append(_entry("physicalCountsFormatted/maxTFactories", "Maximum number of T factories", "The maximum number of T factories can be utilized during the algorithm's runtime", "This is the maximum number of T factories used for producing the demanded T states, which can be created and executed by the algorithm in parallel."))
+    entries.append(_entry("physicalCountsFormatted/maxDuration", "Maximum runtime duration", "The maximum runtime duration allowed for the algorithm runtime", "This is the maximum time allowed to the algorithm. If specified, the estimator targets to minimize the number of physical qubits consumed by the algorithm for runtimes under the maximum allowed."))
+    entries.append(_entry("physicalCountsFormatted/maxPhysicalQubits", "Maximum number of physical qubits", "The maximum number of physical qubits allowed for utilization to the algorithm", "This is the maximum number of physical qubits available to the algorithm. If specified, the estimator targets to minimize the runtime of the algorithm with number of physical qubits consumed not exceeding this maximum."))
+    groups.append({"title": "Constraints", "alwaysVisible": False, "entries": entries})
+    return {"groups": groups, "assumptions": list(_REPORT_ASSUMPTIONS)}
+
+
 @dataclass
 class EstimationResult:
-    """What the QDK reports for one estimate; `asdict` gives its JSON shape (``physicalCounts``,
-    ``logicalQubit``, ``tfactory``, ``errorBudget``, ``logicalCounts``, ``jobParams``)."""
+    """What the QDK reports for one estimate; `asdict` gives its JSON shape (``status``, ``jobParams``,
+    ``physicalCounts``, ``physicalCountsFormatted``, ``logicalQubit``, ``tfactory``, ``errorBudget``,
+    ``logicalCounts``, ``reportData``)."""
 
     estimator: "AzureEstimator"
     logical_patch: LogicalPatch
@@ -2009,13 +2326,25 @@ class EstimationResult:
         breakdown = {"algorithmicLogicalQubits": counts.logical_qubits(), "algorithmicLogicalDepth": counts.logical_depth(budget), "logicalDepth": self.num_cycles, "numTstates": counts.num_magic_states(budget), "clockFrequency": self.logical_patch.logical_cycles_per_second(), "numTfactories": part.copies if part else 0, "numTfactoryRuns": part.runs if part else 0, "physicalQubitsForTfactories": self.physical_qubits_for_factories(), "physicalQubitsForAlgorithm": self.physical_qubits_for_algorithm(), "requiredLogicalQubitErrorRate": self.required_logical_error_rate, "requiredLogicalTstateErrorRate": part.required_output_error_rate if part else None, "numTsPerRotation": counts.num_ts_per_rotation(budget.rotations), "cliffordErrorRate": self.logical_patch.qubit.clifford_error_rate()}
         return {"physicalQubits": self.physical_qubits(), "runtime": self.runtime(), "rqops": self.rqops(), "breakdown": breakdown}
 
+    def formatted_counts(self) -> dict:
+        """The QDK's ``physicalCountsFormatted``: the counts as its report shows them, as strings (``1 secs``,
+        ``400.06k``, ``1.55e-11``, ``18, 1``, ``No T states in algorithm``)."""
+        return _formatted_counts(self)
+
+    def report_data(self, formatted: Optional[dict] = None) -> dict:
+        """The QDK's ``reportData``: ``groups`` (a ``title``, ``alwaysVisible``, ``entries`` of ``path``,
+        ``label``, ``description`` and ``explanation``) and ``assumptions``."""
+        return _report_data(self, self.formatted_counts() if formatted is None else formatted)
+
     def asdict(self) -> dict:
         part = self.factory_part
-        out = {"status": "success", "jobParams": self.estimator.job_params(), "physicalCounts": self.physical_counts(), "logicalQubit": self.logical_patch.asdict()}
+        formatted = self.formatted_counts()
+        out = {"status": "success", "jobParams": self.estimator.job_params(), "physicalCounts": self.physical_counts(), "physicalCountsFormatted": formatted, "logicalQubit": self.logical_patch.asdict()}
         if part is not None:
             out["tfactory"] = part.factory.asdict()
         out["errorBudget"] = self.error_budget.asdict()
         out["logicalCounts"] = self.counts.asdict()
+        out["reportData"] = self.report_data(formatted)
         return out
 
     def frontier_entry(self) -> dict:
@@ -2023,7 +2352,7 @@ class EstimationResult:
         part ``magic_states``)."""
         part = self.factory_part
         budget = {"logical": self.error_budget.logical, "magic_states": self.error_budget.tstates, "rotations": self.error_budget.rotations}
-        return {"logicalQubit": self.logical_patch.asdict(), "tfactory": part.factory.asdict() if part else None, "errorBudget": budget, "physicalCounts": self.physical_counts()}
+        return {"logicalQubit": self.logical_patch.asdict(), "tfactory": part.factory.asdict() if part else None, "errorBudget": budget, "physicalCounts": self.physical_counts(), "physicalCountsFormatted": self.formatted_counts()}
 
 
 class _NoFactory(Exception):
@@ -2039,7 +2368,7 @@ class AzureEstimator:
     """The QDK's `PhysicalResourceEstimation` for one algorithm: a qubit model, a QEC scheme, the distillation
     units, the logical counts and the constraints. `estimate(budget)` runs the single-point estimate."""
 
-    def __init__(self, counts: LogicalCounts, qubit: PhysicalQubit, scheme: QECScheme, templates: Sequence[DistillationUnitTemplate], constraints: Constraints, error_budget_spec=None, estimate_type: str = "singlePoint"):
+    def __init__(self, counts: LogicalCounts, qubit: PhysicalQubit, scheme: QECScheme, templates: Sequence[DistillationUnitTemplate], constraints: Constraints, error_budget_spec=None, estimate_type: str = "singlePoint", unit_specifications: Optional[Sequence[dict]] = None):
         self.counts = counts
         self.qubit = qubit
         self.scheme = scheme
@@ -2049,14 +2378,21 @@ class AzureEstimator:
         if estimate_type not in ("singlePoint", "frontier"):
             raise ValueError(f"estimateType must be 'singlePoint' or 'frontier', not {estimate_type!r}")
         self.estimate_type = estimate_type
+        self.unit_specifications = list(unit_specifications or ())  # the QDK's echo of distillationUnitSpecifications
 
     def job_params(self) -> dict:
-        return {"qecScheme": self.scheme.asdict(), "errorBudget": self.error_budget_spec, "qubitParams": self.qubit.asdict(), "constraints": self.constraints.asdict(), "estimateType": self.estimate_type}
+        out = {"qecScheme": self.scheme.asdict(), "errorBudget": _budget_echo(self.error_budget_spec), "qubitParams": self.qubit.asdict(), "constraints": self.constraints.asdict()}
+        if self.unit_specifications:
+            out["distillationUnitSpecifications"] = self.unit_specifications
+        out["estimateType"] = self.estimate_type
+        return out
 
     def result_dict(self, budget: ErrorBudget) -> dict:
-        """The QDK's JSON: the single point's sections, or ``frontierEntries`` for the frontier estimate."""
+        """The QDK's JSON: the single point's sections, or ``frontierEntries`` (and the report of the first, the
+        shortest) for the frontier estimate."""
         if self.estimate_type == "frontier":
-            return {"status": "success", "jobParams": self.job_params(), "logicalCounts": self.counts.asdict(), "frontierEntries": [r.frontier_entry() for r in self.build_frontier(budget)]}
+            frontier = self.build_frontier(budget)
+            return {"status": "success", "jobParams": self.job_params(), "logicalCounts": self.counts.asdict(), "reportData": frontier[0].report_data(), "frontierEntries": [r.frontier_entry() for r in frontier]}
         return self.estimate(budget).asdict()
 
     # -- pieces --
@@ -2348,14 +2684,17 @@ def azure_estimator(counts: Union[LogicalCounts, dict], qubit_params=None, qec_s
     if distillation_unit_specifications is not None and not isinstance(distillation_unit_specifications, (list, tuple)):
         raise ValueError(f"distillationUnitSpecifications is a list of unit specifications, not {distillation_unit_specifications!r}")
     templates = DistillationUnitTemplate.defaults() if not distillation_unit_specifications else [DistillationUnitTemplate.fromspec(s) for s in distillation_unit_specifications]
-    return AzureEstimator(counts, qubit, scheme, templates, Constraints.fromspec(constraints), error_budget, estimate_type)
+    echo = [_unit_specification_echo(s) for s in distillation_unit_specifications or ()]
+    return AzureEstimator(counts, qubit, scheme, templates, Constraints.fromspec(constraints), error_budget, estimate_type, echo)
 
 
 def azure_estimate(counts: Union[LogicalCounts, dict], qubit_params: Union[str, dict, GateBasedQubit, MajoranaQubit, None] = None, qec_scheme: Union[str, dict, QECScheme, None] = None, error_budget: Union[float, dict, ErrorBudget] = 1e-3, constraints: Union[dict, Constraints, None] = None, distillation_unit_specifications: Optional[Sequence[Union[str, dict, DistillationUnitTemplate]]] = None, estimate_type: str = "singlePoint") -> dict:
-    """The QDK's physical resource estimate from logical counts, as its result dict: ``physicalCounts``
-    (``physicalQubits``, ``runtime`` in ns, ``rqops``, a ``breakdown``), ``logicalQubit``, ``tfactory``,
-    ``errorBudget``, ``logicalCounts``, ``jobParams``; with ``estimate_type="frontier"``, ``frontierEntries``
-    (each with those sections) along the qubits–runtime Pareto frontier instead. Parameters are the QDK's: a
+    """The QDK's physical resource estimate from logical counts, as its result dict: ``status``, ``jobParams``,
+    ``physicalCounts`` (``physicalQubits``, ``runtime`` in ns, ``rqops``, a ``breakdown``),
+    ``physicalCountsFormatted`` (the same as the report's strings), ``logicalQubit``, ``tfactory``,
+    ``errorBudget``, ``logicalCounts`` and ``reportData`` (the report's groups of labelled, explained entries);
+    with ``estimate_type="frontier"``, ``frontierEntries`` (each with those sections) along the qubits–runtime
+    Pareto frontier instead, and the report of the first. Parameters are the QDK's: a
     qubit preset name (``qubit_gate_ns_e3``, ``qubit_gate_ns_e4``, ``qubit_gate_us_e3``, ``qubit_gate_us_e4``,
     ``qubit_maj_ns_e4``, ``qubit_maj_ns_e6``) or ``qubitParams`` dict; ``surface_code`` or ``floquet_code`` or a
     ``qecScheme`` dict; a total error budget or ``{logical, tStates, rotations}``; ``constraints``
@@ -2364,3 +2703,156 @@ def azure_estimate(counts: Union[LogicalCounts, dict], qubit_params: Union[str, 
     estimator = azure_estimator(counts, qubit_params, qec_scheme, constraints, distillation_unit_specifications, error_budget, estimate_type)
     budget = ErrorBudget.partition(error_budget, estimator.counts)
     return estimator.result_dict(budget)
+
+
+# ---------------------------------------------------------------------------------------------
+# The QDK's Python entry point and result (qdk/estimator/_estimator.py: LogicalCounts.estimate, EstimatorResult)
+# ---------------------------------------------------------------------------------------------
+
+
+def _estimate_item(counts: LogicalCounts, params: dict) -> dict:
+    """One item of the QDK's job parameters (``qubitParams``, ``qecScheme``, ``errorBudget``, ``constraints``,
+    ``distillationUnitSpecifications``, ``estimateType``; other keys ignored, as the QDK's serde ignores them)."""
+    if not isinstance(params, dict):
+        raise ValueError(f"estimator parameters are a dict, not {params!r}")
+    return azure_estimate(counts, params.get("qubitParams"), params.get("qecScheme"), params.get("errorBudget", 1e-3), params.get("constraints"), params.get("distillationUnitSpecifications"), params.get("estimateType", "singlePoint"))
+
+
+def _lookup(result: dict, path: str):
+    """A report entry's value: its path's keys followed into the result (into a frontier's first entry where the
+    top level lacks one, as the QDK's tables do); ``N/A`` where the path ends."""
+    value = result
+    for key in path.split("/"):
+        if isinstance(value, dict) and key not in value and "frontierEntries" in value:
+            value = value["frontierEntries"][0]
+        if not isinstance(value, dict) or key not in value:
+            return "N/A"
+        value = value[key]
+    return value
+
+
+def _text_table(header: Optional[List[str]], sections: List[Tuple[str, List[List[str]]]]) -> str:
+    """Columns padded to their widest cell, each section under its title."""
+    rows = [r for _, rs in sections for r in rs] + ([header] if header else [])
+    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+
+    def line(r):
+        return ("  " + "  ".join(c.ljust(w) for c, w in zip(r, widths))).rstrip()
+
+    out = [line(header)] if header else []
+    for title, rs in sections:
+        out.append(title)
+        out.extend(line(r) for r in rs)
+    return "\n".join(out)
+
+
+class EstimatorResult(dict):
+    """The QDK's `EstimatorResult`, its data: one estimate's result dict (as `azure_estimate` gives it), or a
+    batch's, indexed 0, 1, … by the items' results (a failed item holds its ``message``, and the error in
+    `error`). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
+    is. `summary` is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
+    ``_repr_html_``, the diagrams and the plot are not ported."""
+
+    MAX_DEFAULT_ITEMS_IN_TABLE = 5
+
+    def __init__(self, data: Union[dict, List[Union[dict, "EstimatorResult"]]], error: Optional[BaseException] = None):
+        self._error = error
+        if isinstance(data, list) and len(data) == 1 and not isinstance(data[0], EstimatorResult):
+            data = data[0]
+        if isinstance(data, dict):
+            self._data = data
+            self._is_simple = True
+            super().__init__(data)
+        else:
+            items = [d if isinstance(d, EstimatorResult) else EstimatorResult(d) for d in data]
+            self._data = [item.data() for item in items]
+            self._is_simple = False
+            super().__init__(enumerate(items))
+
+    @staticmethod
+    def _is_succeeded(data: dict) -> bool:
+        return data.get("status") == "success"
+
+    def data(self, idx: Optional[int] = None):
+        """The raw result (a dict, or a batch's list of them); with `idx`, a batch's item."""
+        if idx is None:
+            return self._data
+        if self._is_simple:
+            raise ValueError("Cannot pass parameter 'idx' to 'data' for non-batching job")
+        return self._data[idx]
+
+    @property
+    def error(self) -> Optional[BaseException]:
+        return self._error
+
+    @property
+    def logical_counts(self) -> LogicalCounts:
+        return LogicalCounts.fromdict(self.data()["logicalCounts"] if self._is_simple else self.data(0)["logicalCounts"])
+
+    @property
+    def json(self) -> str:
+        return json.dumps(self._data)
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            if self._is_simple:
+                raise ValueError("Cannot pass slice to '__getitem__' for non-batching job")
+            return self._batch_table(range(len(self))[key])
+        if super().__contains__(key):
+            return super().__getitem__(key)
+        if super().__contains__("frontierEntries"):
+            return super().__getitem__("frontierEntries")[0][key]
+        raise KeyError(key)
+
+    @property
+    def summary(self) -> str:
+        """The summary table as text: each report group's entries as label, value and description; for a batch,
+        the items side by side (the first five; slice the result, ``result[:]``, for all)."""
+        if not self._is_simple:
+            n = min(len(self), self.MAX_DEFAULT_ITEMS_IN_TABLE)
+            note = f"(the first {n} of {len(self)} items; result[:] shows them all)\n" if len(self) > n else ""
+            return note + self._batch_table(range(n))
+        if self._error is not None:
+            raise self._error
+        groups = self["reportData"]["groups"]
+        return _text_table(None, [(g["title"], [[e["label"], str(_lookup(self, e["path"])), e["description"]] for e in g["entries"]]) for g in groups])
+
+    def _batch_table(self, indices) -> str:
+        """The QDK's side-by-side table: the rows of the first succeeded item's groups, each label once, with
+        every item's value (``N/A`` for a failed item or a path it lacks)."""
+        items = {i: dict.__getitem__(self, i) for i in indices}
+        succeeded = [i for i, item in items.items() if self._is_succeeded(item)]
+        if not succeeded:
+            return "None of the jobs succeeded"
+        sections = []
+        for group_index, group in enumerate(items[succeeded[0]]["reportData"]["groups"]):
+            rows, seen = [], set()
+            for i in succeeded:
+                for entry in items[i]["reportData"]["groups"][group_index]["entries"]:
+                    if entry["label"] in seen:
+                        continue
+                    seen.add(entry["label"])
+                    rows.append([entry["label"]] + [str(_lookup(item, entry["path"])) if j in succeeded else "N/A" for j, item in items.items()])
+            sections.append((group["title"], rows))
+        return _text_table(["Item"] + [str(i) for i in items], sections)
+
+    def summary_data_frame(self, labels: Optional[List] = None):
+        """The QDK's batch overview as a pandas DataFrame (pandas needed), a row per item: logical qubits,
+        logical depth, T states, code distance, T factories, T factory fraction, physical qubits, rQOPS and
+        runtime, as the report writes them (a frontier item's first entry; a failed one "No solution found")."""
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("Missing optional 'pandas' dependency. To install run: pip install pandas") from None
+        items = [self] if self._is_simple else [dict.__getitem__(self, i) for i in range(len(self))]
+        labels = list(labels or [])
+        labels = (labels + list(range(len(labels), len(items))))[: len(items)]
+
+        def row(result):
+            if not self._is_succeeded(result):
+                return ["No solution found"] * 9
+            formatted = result["physicalCountsFormatted"]
+            return [formatted["algorithmicLogicalQubits"], formatted["logicalDepth"], formatted["numTstates"], result["logicalQubit"]["codeDistance"], formatted["numTfactories"], formatted["physicalQubitsForTfactoriesPercentage"], formatted["physicalQubits"], formatted["rqops"], formatted["runtime"]]
+
+        columns = ["Logical qubits", "Logical depth", "T states", "Code distance", "T factories", "T factory fraction", "Physical qubits", "rQOPS", "Physical runtime"]
+        return pd.DataFrame([row(r) for r in items], columns=columns, index=labels)

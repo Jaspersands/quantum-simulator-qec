@@ -1,14 +1,15 @@
-# Ported from Qualtran (quantumlib/Qualtran 0.7.0, qualtran/surface_code/*.py and the GateCounts of
-# qualtran/resource_counting/_bloq_counts.py; Copyright 2023 Google LLC, Apache License 2.0; see LICENSE in this
-# directory), modified for stabilizer_qec: dataclasses in place of attrs, plain ints and floats in place of sympy,
-# a numpy density matrix in place of Cirq for the 15-to-1 factory, the Bloq-based `AlgorithmSummary.from_bloq`
-# left out.
+# Ported from Qualtran (quantumlib/Qualtran 0.7.0, qualtran/surface_code/*.py, the GateCounts of
+# qualtran/resource_counting/_bloq_counts.py and the TComplexity of qualtran/cirq_interop/t_complexity_protocol.py;
+# Copyright 2023 Google LLC, Apache License 2.0; see LICENSE in this directory), modified for stabilizer_qec:
+# dataclasses in place of attrs, plain ints and floats in place of sympy, numpy matrices and a numpy density matrix
+# in place of Cirq's channels and simulator for the 15-to-1 factory; `AlgorithmSummary.from_bloq` counts a Bloq
+# with Qualtran's own resource counting, so it needs Qualtran installed.
 """Qualtran's surface-code cost models: a QEC scheme (logical error rate from distance), physical
 parameters, data blocks (Gidney–Fowler's simple block; Litinski's compact, intermediate and fast
 blocks), magic-state factories (Gidney–Fowler's catalyzed CCZ-to-2T factory, Litinski's 15-to-1
-with its density-matrix error model, several factories at once), rotation cost models, the
-`PhysicalCostModel` that combines them, and the Gidney–Fowler spreadsheet's and Beverland et
-al.'s estimates."""
+with its density-matrix error model and its channels, several factories at once), rotation cost
+models, the `PhysicalCostModel` that combines them, and the Gidney–Fowler spreadsheet's and
+Beverland et al.'s estimates."""
 
 from __future__ import annotations
 
@@ -68,11 +69,61 @@ class GateCounts:
             raise ValueError(f"{self} contains rotations.")
         return self.toffoli + self.cswap + self.and_bloq
 
+    def to_legacy_t_complexity(self, ts_per_toffoli: int = 4, ts_per_cswap: int = 7, ts_per_and_bloq: int = 4, cliffords_per_and_bloq: int = 9, cliffords_per_cswap: int = 10) -> "TComplexity":
+        """The counts coalesced into a legacy `TComplexity` of T gates, rotations and Cliffords (measurements
+        among the Cliffords). As Qualtran's, a CSWAP costs 7 T gates here but 4 in `total_t_count`."""
+        return TComplexity(t=self.t + ts_per_toffoli * self.toffoli + ts_per_cswap * self.cswap + ts_per_and_bloq * self.and_bloq, rotations=self.rotation, clifford=self.clifford + self.measurement + cliffords_per_and_bloq * self.and_bloq + cliffords_per_cswap * self.cswap)
+
     def total_beverland_count(self) -> dict:
         """Beverland et al.'s M_meas, M_R, M_T, M_Tof and D_R (the rotation layers, taken as the
         rotations)."""
         toffoli = self.toffoli + self.and_bloq + self.cswap
         return {"meas": self.measurement, "R": self.rotation, "T": self.t, "Tof": toffoli, "D_R": self.rotation}
+
+
+@dataclass(frozen=True)
+class TComplexity:
+    """Qualtran's legacy count of T gates, Clifford gates and single-qubit rotations."""
+
+    t: int = 0
+    clifford: int = 0
+    rotations: int = 0
+
+    @staticmethod
+    def rotation_cost(eps: float) -> int:
+        """T gates per rotation synthesised to within ``eps``: ``⌈1.149 log₂(1/ε) + 9.2⌉``."""
+        return int(np.ceil(1.149 * math.log2(1.0 / eps) + 9.2))
+
+    def t_incl_rotations(self, eps: float = 1e-11) -> int:
+        """The T gates with every rotation synthesised to within ``eps``."""
+        return int(np.ceil(self.t + self.rotation_cost(eps) * self.rotations))
+
+    def __add__(self, other: "TComplexity") -> "TComplexity":
+        return TComplexity(self.t + other.t, self.clifford + other.clifford, self.rotations + other.rotations)
+
+    def __mul__(self, other: int) -> "TComplexity":
+        return TComplexity(self.t * other, self.clifford * other, self.rotations * other)
+
+    __rmul__ = __mul__
+
+    def asdict(self) -> dict:
+        return {"t": self.t, "rotations": self.rotations, "clifford": self.clifford}
+
+    def __str__(self) -> str:
+        return f"T-count:   {self.t:g}\nRotations: {self.rotations:g}\nCliffords: {self.clifford:g}\n"
+
+
+def _plain_count(name: str, value) -> int:
+    """A count Qualtran's resource counting returned (an int or a sympy number) as an int."""
+    if isinstance(value, (int, np.integer)):
+        return int(value)
+    try:
+        as_int = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"the {name} count {value} is symbolic; this port counts in plain integers") from None
+    if as_int != value:
+        raise ValueError(f"the {name} count {value} is not an integer")
+    return as_int
 
 
 @dataclass(frozen=True)
@@ -83,6 +134,20 @@ class AlgorithmSummary:
     n_algo_qubits: int
     n_logical_gates: GateCounts
     n_rotation_layers: Optional[int] = None
+
+    @staticmethod
+    def from_bloq(bloq) -> "AlgorithmSummary":
+        """The summary of a Qualtran Bloq: its qubits (Qualtran's `QubitCount`) and its gate counts (its
+        `QECGatesCost`), counted by Qualtran's resource counting, so Qualtran must be installed. The counts must
+        come out as numbers; a symbolic one raises ValueError."""
+        try:
+            from qualtran.resource_counting import QECGatesCost, QubitCount, get_cost_value
+        except ImportError as ex:
+            raise ImportError("AlgorithmSummary.from_bloq counts the Bloq with Qualtran's resource counting, which needs Qualtran: pip install qualtran") from ex
+        counts = get_cost_value(bloq, QECGatesCost())
+        qubits = int(get_cost_value(bloq, QubitCount()))
+        gates = GateCounts(**{name: _plain_count(name, getattr(counts, name)) for name in ("t", "toffoli", "cswap", "and_bloq", "clifford", "rotation", "measurement")})
+        return AlgorithmSummary(n_algo_qubits=qubits, n_logical_gates=gates)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -319,7 +384,7 @@ class CCZ2TFactory(MagicStateFactory):
         return math.ceil((n_ccz_states * 5.5 + catalyzations) * distillation_d)
 
 
-_PAULI = {"I": np.eye(2, dtype=complex), "X": np.array([[0, 1], [1, 0]], dtype=complex), "Z": np.array([[1, 0], [0, -1]], dtype=complex)}
+_PAULI = {"I": np.eye(2, dtype=complex), "X": np.array([[0, 1], [1, 0]], dtype=complex), "Y": np.array([[0, -1j], [1j, 0]], dtype=complex), "Z": np.array([[1, 0], [0, -1]], dtype=complex)}
 
 
 def _pauli_matrix(pauli_string: str) -> np.ndarray:
@@ -331,8 +396,89 @@ def _rotation_unitary(pauli_string: str, theta: float) -> np.ndarray:
     return math.cos(theta) * np.eye(1 << len(pauli_string)) + 1j * math.sin(theta) * _pauli_matrix(pauli_string)
 
 
+class NoisyPauliRotation:
+    """Qualtran's channel (``t_factory_utils.NoisyPauliRotation``, a Cirq gate there) as matrices: the π/8
+    rotation ``exp(i π/8 P)`` about a Pauli string (its first letter the most significant qubit, as Cirq orders
+    them) that overshoots to 5π/8, −π/8 or 3π/8 with probabilities p1, p2, p3 (each in [0, 1], their sum at
+    most 1). `mixture` is Cirq's ``_mixture_``, `kraus` its Kraus operators, `apply` the channel on a density
+    matrix."""
+
+    def __init__(self, pauli_string: str, p1: float, p2: float, p3: float):
+        for p in (p1, p2, p3):
+            if not 0.0 <= p <= 1.0:
+                raise ValueError(f"a channel probability must be between 0 and 1, got {p!r}")
+        if p1 + p2 + p3 > 1.0 + 1e-12:
+            raise ValueError(f"channel probabilities {p1!r}, {p2!r}, {p3!r} sum past 1")
+        if not pauli_string or set(pauli_string) - set(_PAULI):
+            raise ValueError(f"a Pauli string is of I, X, Y and Z, not {pauli_string!r}")
+        self.pauli_string = pauli_string
+        self._probabilities = [1 - p1 - p2 - p3, p1, p2, p3]
+        self._unitaries = [_rotation_unitary(pauli_string, t * math.pi / 8) for t in (1, 5, -1, 3)]
+
+    def num_qubits(self) -> int:
+        return len(self.pauli_string)
+
+    def mixture(self) -> tuple:
+        """The (probability, unitary) pairs: the rotation by π/8, 5π/8, −π/8 and 3π/8."""
+        return tuple(zip(self._probabilities, self._unitaries))
+
+    def kraus(self) -> tuple:
+        return tuple(math.sqrt(max(p, 0.0)) * u for p, u in self.mixture())
+
+    def apply(self, rho: np.ndarray) -> np.ndarray:
+        out = np.zeros_like(rho)
+        for p, u in self.mixture():
+            out += p * (u @ rho @ u.conj().T)
+        return out
+
+
+@dataclass(frozen=True)
+class PauliFlipChannel:
+    """One of `storage_error`'s channels (Cirq's ``AsymmetricDepolarizingChannel`` with only ``p_x`` or
+    ``p_z`` there): an X or Z flip with probability ``p`` on qubit ``qubit``, ``ρ → (1 − p) ρ + p E ρ E†``."""
+
+    kind: str
+    p: float
+    qubit: int
+
+    def __post_init__(self) -> None:
+        if self.kind not in ("Z", "X"):
+            raise ValueError(f"kind must be Z or X not {self.kind}")
+        if not 0.0 <= self.p <= 1.0:
+            raise ValueError(f"a flip probability must be between 0 and 1, got {self.p!r}")
+
+    def mixture(self) -> tuple:
+        """The single-qubit (probability, unitary) pairs: nothing, or the flip."""
+        return ((1 - self.p, _PAULI["I"]), (self.p, _PAULI[self.kind]))
+
+    def kraus(self) -> tuple:
+        return tuple(math.sqrt(p) * u for p, u in self.mixture())
+
+    def apply(self, rho: np.ndarray) -> np.ndarray:
+        """The flip on qubit `qubit` of an n-qubit density matrix (qubit 0 the most significant)."""
+        if self.p == 0:
+            return rho
+        n = int(rho.shape[0]).bit_length() - 1
+        letters = ["I"] * n
+        letters[self.qubit] = self.kind
+        e = _pauli_matrix("".join(letters))
+        return (1 - self.p) * rho + self.p * (e @ rho @ e.conj().T)
+
+
+def storage_error(kind: str, probabilities, qubits=None) -> list:
+    """Qualtran's storage errors (``t_factory_utils.storage_error``): a `PauliFlipChannel` of the kind (Z or X)
+    on each qubit with its probability, the qubits 0, 1, … unless given (as many as the probabilities)."""
+    if kind not in ("Z", "X"):
+        raise ValueError(f"kind must be Z or X not {kind}")
+    probabilities = list(probabilities)
+    qubits = list(range(len(probabilities))) if qubits is None else list(qubits)
+    if len(qubits) != len(probabilities):
+        raise ValueError(f"{len(probabilities)} probabilities for {len(qubits)} qubits")
+    return [PauliFlipChannel(kind, p, q) for p, q in zip(probabilities, qubits)]
+
+
 class _Density:
-    """A density matrix of n qubits with the two channels the 15-to-1 model uses."""
+    """A density matrix of n qubits, |+⟩ on each, under the two channels the 15-to-1 model uses."""
 
     def __init__(self, n: int) -> None:
         self.n = n
@@ -341,33 +487,11 @@ class _Density:
         self.rho = np.outer(state, state.conj())
 
     def noisy_rotation(self, pauli_string: str, p1: float, p2: float, p3: float) -> None:
-        """A π/8 rotation about the Pauli that overshoots to 5π/8, −π/8 or 3π/8 with
-        probabilities p1, p2, p3."""
-        for p in (p1, p2, p3):
-            if not 0.0 <= p <= 1.0:
-                raise ValueError(f"a channel probability must be between 0 and 1, got {p!r}")
-        if p1 + p2 + p3 > 1.0 + 1e-12:
-            raise ValueError(f"channel probabilities {p1!r}, {p2!r}, {p3!r} sum past 1")
-        probabilities = [1 - p1 - p2 - p3, p1, p2, p3]
-        out = np.zeros_like(self.rho)
-        for p, k in zip(probabilities, (1, 5, -1, 3)):
-            u = _rotation_unitary(pauli_string, k * math.pi / 8)
-            out += p * (u @ self.rho @ u.conj().T)
-        self.rho = out
+        self.rho = NoisyPauliRotation(pauli_string, p1, p2, p3).apply(self.rho)
 
     def storage_error(self, kind: str, probabilities) -> None:
-        """An X or Z flip on each qubit with its probability."""
-        if kind not in ("Z", "X"):
-            raise ValueError(f"kind must be Z or X not {kind}")
-        for q, p in enumerate(probabilities):
-            if not 0.0 <= p <= 1.0:
-                raise ValueError(f"a flip probability must be between 0 and 1, got {p!r}")
-            if p == 0:
-                continue
-            letters = ["I"] * self.n
-            letters[q] = kind
-            e = _pauli_matrix("".join(letters))
-            self.rho = (1 - p) * self.rho + p * (e @ self.rho @ e.conj().T)
+        for channel in storage_error(kind, probabilities):
+            self.rho = channel.apply(self.rho)
 
 
 @dataclass(frozen=True)

@@ -2,7 +2,7 @@
 surface-code cost models (`quantumlib/Qualtran <https://github.com/quantumlib/Qualtran>`_ 0.7.0,
 ``qualtran.surface_code``; Apache 2.0, see ``LICENSE`` in this directory) and Azure's Resource
 Estimator (`microsoft/qdk <https://github.com/microsoft/qdk>`_'s ``resource_estimator``: the
-physical estimate from logical counts with its exhaustive T-factory search; MIT, see
+physical estimate from logical counts with its exhaustive T-factory search, and its report; MIT, see
 ``LICENSE-qdk``).
 
 >>> from stabilizer_qec.estimate import GateCounts, get_ccz2t_costs_from_error_budget
@@ -23,6 +23,7 @@ from .azure import (
     DistillationUnitTemplate,
     ErrorBudget,
     EstimationResult,
+    EstimatorResult,
     FactoryBuildError,
     GateBasedQubit,
     LogicalCounts,
@@ -33,6 +34,8 @@ from .azure import (
     azure_estimate,
     azure_estimator,
     find_nondominated_tfactories,
+    format_duration,
+    format_metric_prefix,
     physical_qubit,
     qec_scheme,
 )
@@ -50,6 +53,8 @@ from .qualtran import (
     LogicalErrorModel,
     MagicStateFactory,
     MultiFactory,
+    NoisyPauliRotation,
+    PauliFlipChannel,
     PhysicalCostModel,
     PhysicalCostsSummary,
     PhysicalParameters,
@@ -58,6 +63,7 @@ from .qualtran import (
     RotationLogarithmicModel,
     SevenDigitsOfPrecisionConstantCost,
     SimpleDataBlock,
+    TComplexity,
     code_distance,
     get_ccz2t_costs,
     get_ccz2t_costs_from_error_budget,
@@ -66,6 +72,7 @@ from .qualtran import (
     iter_simple_data_blocks,
     minimum_time_steps,
     n_discrete_logical_gates,
+    storage_error,
     t_states,
 )
 
