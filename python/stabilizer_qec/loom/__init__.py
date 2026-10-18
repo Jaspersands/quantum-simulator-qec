@@ -6,7 +6,8 @@ conditionals), an interpreter that turns an experiment into a circuit with syndr
 detectors and logical observables (gate for gate Loom's own Stim output, except where Loom's
 order follows a Python set of strings), a validator that checks a circuit against its input
 and output codes on this package's tableau simulator, and exporters to Stim (this package's
-``Circuit``), OpenQASM 3, PennyLane and CUDA-Q.
+``Circuit``, with the noise of Loom's circuit error models), OpenQASM 3, PennyLane, CUDA-Q,
+Mimiq and Guppy.
 
 >>> from stabilizer_qec import loom
 >>> lattice = loom.Lattice.square_2d((15, 15))
@@ -23,7 +24,7 @@ and output codes on this package's tableau simulator, and exporters to Stim (thi
 
 What is not ported: Loom's auxiliary CNOT, transversal Hadamard, move, rotate, Y-wall phase
 gate and state injection applicators, its base and logical operations, if-else circuits and
-error models, and the Mimiq and Guppy exporters.
+the executor's ``Executor`` factory, run-outcome parsers and legacy cliffordsim export.
 """
 
 from .circuit import Channel, ChannelType, Circuit, SyndromeCircuit, default_circuit
@@ -79,7 +80,8 @@ from .eka import (
     Y,
     Z,
 )
-from .executor import EkaToCudaqConverter, EkaToPennylaneConverter, EkaToQasmConverter, EkaToStimConverter, StimProgram, eka_to_circuit
+from .error_model import ApplicationMode, AsymmetricDepolarizeCEM, CircuitErrorModel, ErrorProbProtocol, ErrorType, HomogeneousTimeDependentCEM, HomogeneousTimeIndependentCEM, noise_annotated_stim_circuit
+from .executor import EkaToCudaqConverter, EkaToGuppylangConverter, EkaToMimiqConverter, EkaToPennylaneConverter, EkaToQasmConverter, EkaToStimConverter, StimProgram, eka_to_circuit
 from .interpreter import Detector, InterpretationStep, LogicalObservable, Syndrome, SyndromeMissingError, cleanup_final_step, interpret_eka
 from .rotated_surface_code import RotatedSurfaceCode
 from .validator import (
