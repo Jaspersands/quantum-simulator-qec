@@ -164,7 +164,8 @@ def _parser(command: str) -> _Parser:
     if command in ("predict", "count_mistakes"):
         add("--dem", required=True)
         add("--in", dest="input")
-        add("--in_format", choices=FORMATS, default="01")
+        # PyMatching's defaults: predict reads b8, count_mistakes 01.
+        add("--in_format", choices=FORMATS, default="b8" if command == "predict" else "01")
         add("--in_includes_appended_observables", action="store_true")
         add("--enable_correlations", action="store_true")
     if command == "predict":
