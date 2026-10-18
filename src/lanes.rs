@@ -203,6 +203,22 @@ fn basis_code(b: Basis) -> u32 {
     }
 }
 
+/// What a GPU learned about pacing a program's dispatches, kept with the program so that a
+/// later call starts where the last one left off: the dispatch size that worked, and one
+/// unit's own latency (f64 bits; 0 while unknown).
+#[derive(Debug, Default)]
+pub struct PaceHint {
+    pub next: std::sync::atomic::AtomicUsize,
+    pub latency_bits: std::sync::atomic::AtomicU64,
+}
+
+impl Clone for PaceHint {
+    fn clone(&self) -> PaceHint {
+        use std::sync::atomic::Ordering::Relaxed;
+        PaceHint { next: self.next.load(Relaxed).into(), latency_bits: self.latency_bits.load(Relaxed).into() }
+    }
+}
+
 /// A circuit as a lane program.
 #[derive(Clone, Debug)]
 pub struct LaneProgram {
@@ -213,6 +229,8 @@ pub struct LaneProgram {
     pub num_observables: usize,
     /// The ring of records: a power of two minus one.
     pub ring_mask: u32,
+    /// The GPU's pacing, learned across calls.
+    pub pace: PaceHint,
 }
 
 /// 32 shots' results: one word per detector, per observable and (when kept) per measurement.
@@ -633,6 +651,7 @@ impl LaneProgram {
         }
         Ok(LaneProgram {
             code,
+            pace: PaceHint::default(),
             num_qubits: sampler.num_qubits,
             num_measurements: sampler.num_measurements,
             num_detectors: sampler.num_detectors,
@@ -646,7 +665,7 @@ impl LaneProgram {
         let ops = compile(instrs);
         let mut code = Vec::new();
         emit(&ops, &mut code);
-        LaneProgram { code, num_qubits: 0, num_measurements: 0, num_detectors: 0, num_observables: 0, ring_mask }
+        LaneProgram { code, num_qubits: 0, num_measurements: 0, num_detectors: 0, num_observables: 0, ring_mask, pace: PaceHint::default() }
     }
 
     /// 32 shots from a word's stream.

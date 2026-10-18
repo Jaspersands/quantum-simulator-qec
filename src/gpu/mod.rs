@@ -111,8 +111,19 @@ fn open() -> Result<Gpu, String> {
     Ok(Gpu { device, queue, pipeline, layout, bp_pipeline, bp_layout, name: format!("{} ({:?})", info.name, info.backend), max_buffer })
 }
 
+static OPENED_IN: OnceLock<u32> = OnceLock::new();
+
 fn gpu() -> Result<&'static Mutex<Gpu>, String> {
-    GPU.get_or_init(|| open().map(Mutex::new)).as_ref().map_err(Clone::clone)
+    let device = GPU.get_or_init(|| {
+        let _ = OPENED_IN.set(std::process::id());
+        open().map(Mutex::new)
+    });
+    // A forked child inherits the parent's device handle, which is not usable there (Metal
+    // and Vulkan both crash on it): say so rather than let it crash.
+    if OPENED_IN.get().is_some_and(|&pid| pid != std::process::id()) {
+        return Err("the GPU device was opened in another process (this one was forked from it): start workers with the spawn start method, or open the device in the child first".to_string());
+    }
+    device.as_ref().map_err(Clone::clone)
 }
 
 /// Opens the device if it is not open; an error names why there is none.
@@ -147,6 +158,11 @@ struct Pacer {
     next: usize,
     /// How long a dispatch may run before the next one shrinks.
     target: f64,
+    /// One unit's own latency, from the first dispatch: a dispatch of any size costs at least
+    /// this, so the limit a dispatch is held to is the larger of the target and four latencies
+    /// (held to the target alone, a program whose single word outruns it would shrink to one
+    /// word a dispatch and stay there, hundreds of times slower than the CPU).
+    latency: Option<f64>,
 }
 
 /// How long a sampling dispatch may run. A word's own latency is what it is (a d = 17 memory's
@@ -166,13 +182,36 @@ impl Pacer {
     /// while the GPU is not full) and shrink in proportion once one takes longer, so no dispatch
     /// runs long before its cost is known.
     fn new(max: usize) -> Pacer {
-        Pacer { max: max.max(1), next: 1, target: TARGET_SECONDS }
+        Pacer { max: max.max(1), next: 1, target: TARGET_SECONDS, latency: None }
     }
 
     /// A first dispatch of `first` (from a known cost per unit) rather than one, and its own
     /// time target.
     fn with_first(max: usize, first: usize, target: f64) -> Pacer {
-        Pacer { max: max.max(1), next: first.clamp(1, max.max(1)), target }
+        Pacer { max: max.max(1), next: first.clamp(1, max.max(1)), target, latency: None }
+    }
+
+    /// Where an earlier call on the same program left off, when it learned anything.
+    fn resume(mut self, hint: &crate::lanes::PaceHint) -> Pacer {
+        use std::sync::atomic::Ordering::Relaxed;
+        let (next, bits) = (hint.next.load(Relaxed), hint.latency_bits.load(Relaxed));
+        if next > 0 && bits != 0 {
+            self.next = next.clamp(1, self.max);
+            self.latency = Some(f64::from_bits(bits));
+        }
+        self
+    }
+
+    fn remember(&self, hint: &crate::lanes::PaceHint) {
+        use std::sync::atomic::Ordering::Relaxed;
+        if let Some(l) = self.latency {
+            hint.next.store(self.next, Relaxed);
+            hint.latency_bits.store(l.to_bits(), Relaxed);
+        }
+    }
+
+    fn limit(&self) -> f64 {
+        self.target.max(4.0 * self.latency.unwrap_or(0.0))
     }
 
     fn take(&self, remaining: usize) -> usize {
@@ -187,7 +226,12 @@ impl Pacer {
 
     fn observe(&mut self, n: usize, seconds: f64) {
         let n = n.max(1);
-        let grow = if seconds < self.target { 4 * n } else { (n as f64 * self.target / seconds) as usize };
+        if self.latency.is_none() {
+            // The first dispatch: a small one, so its time is close to one unit's latency.
+            self.latency = Some(seconds / (n as f64).sqrt());
+        }
+        let limit = self.limit();
+        let grow = if seconds < limit { 4 * n } else { (n as f64 * limit / seconds) as usize };
         self.next = grow.clamp(1, self.max);
     }
 }
@@ -326,10 +370,12 @@ impl Gpu {
 pub fn sample_seeded(prog: &LaneProgram, seed: u64, first: u64, shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
     let g = gpu()?.lock().unwrap_or_else(|e| e.into_inner());
     let (ds, os) = (prog.num_detectors.div_ceil(8), prog.num_observables.div_ceil(8));
-    let mut dets = Vec::with_capacity(shots * ds);
-    let mut obs = Vec::with_capacity(shots * os);
+    let mut dets = Vec::new();
+    let mut obs = Vec::new();
+    dets.try_reserve(shots * ds).map_err(|_| format!("{shots} shots of {ds} bytes of detection events do not fit in memory"))?;
+    obs.try_reserve(shots * os).map_err(|_| format!("{shots} shots of {os} bytes of observable flips do not fit in memory"))?;
     let words = shots.div_ceil(LANES);
-    let mut pacer = Pacer::new(g.words_per_dispatch(prog, false)?);
+    let mut pacer = Pacer::new(g.words_per_dispatch(prog, false)?).resume(&prog.pace);
     let code = g.upload("program", &prog.code, wgpu::BufferUsages::STORAGE);
     let mut done = 0usize;
     while done < words {
@@ -353,6 +399,7 @@ pub fn sample_seeded(prog: &LaneProgram, seed: u64, first: u64, shots: usize) ->
         }
         done += n;
     }
+    pacer.remember(&prog.pace);
     Ok((dets, obs))
 }
 
@@ -367,9 +414,10 @@ pub fn sample_measurements_seeded(prog: &LaneProgram, seed: u64, first: u64, sho
             base[k / 8] |= 1 << (k % 8);
         }
     }
-    let mut rows = Vec::with_capacity(shots * stride);
+    let mut rows = Vec::new();
+    rows.try_reserve(shots * stride).map_err(|_| format!("{shots} shots of {stride} bytes of records do not fit in memory"))?;
     let words = shots.div_ceil(LANES);
-    let mut pacer = Pacer::new(g.words_per_dispatch(prog, true)?);
+    let mut pacer = Pacer::new(g.words_per_dispatch(prog, true)?).resume(&prog.pace);
     let code = g.upload("program", &prog.code, wgpu::BufferUsages::STORAGE);
     let mut done = 0usize;
     while done < words {
@@ -398,12 +446,13 @@ pub fn sample_measurements_seeded(prog: &LaneProgram, seed: u64, first: u64, sho
         }
         done += n;
     }
+    pacer.remember(&prog.pace);
     Ok(rows)
 }
 
 /// Min-sum BP in f32 on the GPU: `syndromes` one byte per check per shot, back to back; the
 /// outcome as `Bp32::decode_batch` gives it and bit for bit the same.
-pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, scale: f32, max_iter: usize) -> Result<crate::bp32::Bp32Outcome, String> {
+pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, scale: f32, max_iter: usize, pace: &crate::lanes::PaceHint) -> Result<crate::bp32::Bp32Outcome, String> {
     use crate::bp32::{scales, Bp32Outcome};
     let g = gpu()?.lock().unwrap_or_else(|e| e.into_inner());
     let (nc, nv, ne) = (bp.num_checks, bp.num_vars, bp.num_edges());
@@ -411,7 +460,8 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
         return Err(format!("{} syndrome bytes for {shots} shots of {nc} checks", syndromes.len()));
     }
     let stride = nv.div_ceil(8);
-    let mut out = Bp32Outcome { hard: Vec::with_capacity(shots * stride), converged: Vec::with_capacity(shots), iterations: Vec::with_capacity(shots) };
+    let mut out = Bp32Outcome { hard: Vec::new(), converged: Vec::new(), iterations: Vec::new() };
+    out.hard.try_reserve(shots * stride).map_err(|_| format!("{shots} decoded shots of {stride} bytes do not fit in memory"))?;
     if shots == 0 {
         return Ok(out);
     }
@@ -439,7 +489,7 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
     let most = (BUDGET / per_shot.max(1)).min(g.max_buffer / largest).min((65_535 * WORKGROUP) as usize);
     // The first dispatch from the work a shot is: about 10^9 edge updates.
     let first = (1e9 / (2.0 * ne.max(1) as f64 * max_iter.max(1) as f64)) as usize;
-    let mut pacer = Pacer::with_first(most, first, BP_TARGET_SECONDS);
+    let mut pacer = Pacer::with_first(most, first, BP_TARGET_SECONDS).resume(pace);
     let mut done = 0usize;
     while done < shots {
         let n = pacer.take(shots - done);
@@ -499,6 +549,7 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
         }
         done += n;
     }
+    pacer.remember(pace);
     Ok(out)
 }
 
@@ -517,8 +568,8 @@ mod tests {
         p.observe(3, 10.0);
         assert_eq!(p.next, 1);
         let mut p = Pacer::new(1 << 20);
-        p.observe(512, 0.1);
-        assert_eq!(p.next, 2048); // within the target: fourfold, whatever the rate
+        p.observe(1, 0.1);
+        assert_eq!(p.next, 4); // within the target: fourfold, whatever the rate
         p.observe(1024, 100.0);
         assert_eq!(p.next, 10); // past it: in proportion
         p.observe(2, 1e-6);
@@ -526,6 +577,21 @@ mod tests {
         p.shrink(8);
         assert_eq!((p.max, p.next), (4, 4));
         assert_eq!(Pacer::new(0).take(5), 1);
+        // A slow word: the limit is four latencies, so the dispatch grows past the target
+        // instead of shrinking to one word for good.
+        let mut p = Pacer::new(1 << 20);
+        p.observe(1, 3.0);
+        assert_eq!(p.next, 4);
+        p.observe(4, 3.1);
+        assert_eq!(p.next, 16);
+        p.observe(16, 3.2);
+        assert_eq!(p.next, 64);
+        p.observe(64, 24.0); // saturated: twice the limit of 12 s
+        assert_eq!(p.next, 32);
+        let hint = crate::lanes::PaceHint::default();
+        p.remember(&hint);
+        let q = Pacer::new(1 << 20).resume(&hint);
+        assert_eq!((q.next, q.latency), (32, Some(3.0)));
     }
 
     #[test]
@@ -567,7 +633,7 @@ mod tests {
         let synd: Vec<u8> = (0..3000).flat_map(|s| (0..m).map(move |c| (dets[s * stride + c / 8] >> (c % 8)) & 1)).collect();
         for (scale, iters) in [(0.0f32, 20usize), (0.625, 30), (1.0, 5)] {
             let cpu = bp32.decode_batch(&synd, 3000, scale, iters, 4);
-            let gpu = bp_decode_batch(&bp32, &synd, 3000, scale, iters).unwrap();
+            let gpu = bp_decode_batch(&bp32, &synd, 3000, scale, iters, &crate::lanes::PaceHint::default()).unwrap();
             assert_eq!(cpu.hard, gpu.hard, "scale {scale}");
             assert_eq!(cpu.converged, gpu.converged, "scale {scale}");
             assert_eq!(cpu.iterations, gpu.iterations, "scale {scale}");

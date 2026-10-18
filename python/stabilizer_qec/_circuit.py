@@ -820,7 +820,8 @@ class Circuit:
         the program a GPU runs, on the CPU — the same seed gives the same bytes on either) or
         ``"gpu"`` (the same program on a GPU through wgpu, in a build with the ``gpu``
         feature). The devices sample the same distribution; ``"cpu"`` and the lane devices draw
-        different shots from the same seed."""
+        different shots from the same seed. The GPU device is opened once per process and is
+        not inherited by a forked child (use ``multiprocessing``'s spawn start method)."""
         if self.num_non_clifford_gates():
             if device != "cpu":
                 raise ValueError(f"a circuit with non-Clifford gates samples on the stabilizer-rank sampler, device 'cpu' only (not {device!r})")
@@ -880,7 +881,7 @@ class Circuit:
         sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
         exponential in the errors) covers this. ``pairs`` has the joint sampler sum the
         products of every two of its generators besides (quadratic in their number: a check
-        on small circuits). A coherent error at a Clifford angle
+        on small circuits; the coherent sampler of a Clifford circuit ignores it). A coherent error at a Clifford angle
         (``I_ERROR[R_Z(theta=0.7853981633974483)] 0``, a fixed S) is run as the gate it is, not
         drawn as a twirl: such a circuit gets the joint sampler too."""
         return CoherentSampler(self, order, seed, pairs=pairs)
@@ -1715,7 +1716,7 @@ def _gf2_rank(rows: list) -> int:
 def _warn_if_coherent_errors(circuit: "Circuit") -> None:
     """The frame engines read coherent errors as Stim does, as nothing: say so once per sampler
     (``twirled()`` and ``compile_coherent_sampler`` are the models that run them)."""
-    if circuit.num_non_clifford_gates() == 0 and circuit.tcount() > 0:
+    if circuit.num_non_clifford_gates() == 0 and (circuit.tcount() > 0 or call(circuit._c.num_clifford_angle_errors) > 0):
         warnings.warn(
             "the frame sampler reads the circuit's coherent errors (I_ERROR[R_Z(theta=...)] and the rest) as Stim does, as nothing: "
             "sample circuit.twirled() for the Pauli-twirled model, circuit.compile_coherent_sampler() for the coherent one, "

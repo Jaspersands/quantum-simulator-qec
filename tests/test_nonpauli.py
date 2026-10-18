@@ -59,13 +59,16 @@ def test_clifford_engines_ignore_the_error_tags(pair):
         bare.compile_m2d_converter().convert(measurements=m, separate_observables=True)[0],
     )
     assert tagged.num_detectors == bare.num_detectors and tagged.num_measurements == bare.num_measurements
-    # The frame samplers ignore the errors (coherent, leakage, damping, someone else's tag).
+    # The frame samplers ignore the errors (coherent, leakage, damping, someone else's tag),
+    # and say so for the coherent ones.
     errors = sq.Circuit(str(bare).replace("TICK", "TICK\n" + "\n".join(t for t in TAGS if not t.startswith("I["))))
     assert errors.num_non_clifford_gates() == 0
-    a = errors.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
+    with pytest.warns(UserWarning, match="coherent errors"):
+        a = errors.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
     b = bare.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
     assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
-    assert np.array_equal(errors.compile_sampler(seed=3).sample(500), m)
+    with pytest.warns(UserWarning, match="coherent errors"):
+        assert np.array_equal(errors.compile_sampler(seed=3).sample(500), m)
 
 
 def test_gate_tags_go_to_the_stabilizer_rank_sampler(pair):

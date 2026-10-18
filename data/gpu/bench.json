@@ -10,10 +10,10 @@
    "qubits": 64,
    "detectors": 120,
    "shots": 1000000,
-   "cpu_1_thread_per_s": 4117657.9584906646,
-   "cpu_all_threads_per_s": 12247497.477160275,
-   "cpu_lanes_per_s": 3900751.8597977404,
-   "gpu_per_s": 8268246.728648085,
+   "cpu_1_thread_per_s": 4170539.620721699,
+   "cpu_all_threads_per_s": 11759287.480550425,
+   "cpu_lanes_per_s": 3577395.693039455,
+   "gpu_per_s": 8212492.798200254,
    "gpu_equals_lanes": true
   },
   {
@@ -21,10 +21,10 @@
    "qubits": 274,
    "detectors": 1320,
    "shots": 1000000,
-   "cpu_1_thread_per_s": 378462.4823366517,
-   "cpu_all_threads_per_s": 1087931.4218161365,
-   "cpu_lanes_per_s": 352604.13880764786,
-   "gpu_per_s": 713257.7102116732,
+   "cpu_1_thread_per_s": 330478.9999800979,
+   "cpu_all_threads_per_s": 950980.2942562029,
+   "cpu_lanes_per_s": 320740.898646606,
+   "gpu_per_s": 710386.874655344,
    "gpu_equals_lanes": true
   },
   {
@@ -32,10 +32,10 @@
    "qubits": 628,
    "detectors": 4896,
    "shots": 1000000,
-   "cpu_1_thread_per_s": 93475.17203721368,
-   "cpu_all_threads_per_s": 221914.52949185803,
-   "cpu_lanes_per_s": 83485.49201523096,
-   "gpu_per_s": 147411.20133510014,
+   "cpu_1_thread_per_s": 88692.1208225944,
+   "cpu_all_threads_per_s": 180614.6370392254,
+   "cpu_lanes_per_s": 72557.75867413581,
+   "gpu_per_s": 143975.89469180506,
    "gpu_equals_lanes": true
   }
  ],
@@ -46,9 +46,9 @@
    "variables": 24483,
    "shots": 20000,
    "max_iter": 20,
-   "cpu_f64_per_s": 165.9302013695352,
-   "cpu_f32_per_s": 1372.0009309536076,
-   "gpu_per_s": 38.68133960716412,
+   "cpu_f64_per_s": 161.07008224501502,
+   "cpu_f32_per_s": 1421.9512678294402,
+   "gpu_per_s": 38.60567707218617,
    "gpu_equals_f32": true
   },
   {
@@ -57,9 +57,9 @@
    "variables": 144,
    "shots": 20000,
    "max_iter": 20,
-   "cpu_f64_per_s": 150574.86621469443,
-   "cpu_f32_per_s": 5374418.26375124,
-   "gpu_per_s": 2169432.693450626,
+   "cpu_f64_per_s": 149285.20379022026,
+   "cpu_f32_per_s": 5429188.198166467,
+   "gpu_per_s": 2101401.4476200608,
    "gpu_equals_f32": true
   }
  ]

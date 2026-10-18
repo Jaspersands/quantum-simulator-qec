@@ -387,8 +387,8 @@ impl Circuit {
 }
 
 /// The deepest REPEAT nesting the parser reads (Stim's circuits nest a few deep; past this the
-/// recursion would run out of stack).
-const MAX_PARSE_DEPTH: usize = 1000;
+/// recursion would run out of stack: a thousand overflowed a 512 KiB thread stack).
+const MAX_PARSE_DEPTH: usize = 100;
 
 fn parse_block(lines: &[&str], pos: &mut usize, depth: usize) -> Result<Vec<Instr>, String> {
     let nested = depth > 0;

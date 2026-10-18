@@ -222,6 +222,9 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
         }
         "U3" => {
             single(&name)?;
+            if noise {
+                return Err(format!("{here}: U3 is a gate, written I[U3(...)]; a coherent error is a rotation (I_ERROR[R_Z(theta=...)] and the rest)"));
+            }
             let (theta, phi, lambda) = (number("theta")?, number("phi")?, number("lambda")?);
             targets.iter().map(|&q| NonPauli::U3 { qubit: q, theta, phi, lambda }).collect()
         }

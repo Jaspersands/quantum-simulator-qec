@@ -142,10 +142,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching,
   a greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector
-  error model by sparse blossom: plain, at 0.89 to 0.99 times PyMatching's single-threaded time, and
-  correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot for shot but for ties),
-  at 0.75 to 0.94 times (on Apple silicon; on Linux x86_64 about 1.2, see
-  [Speed](#speed-against-stim-and-pymatching)).
+  error model by sparse blossom: plain, at about PyMatching's single-threaded time (0.98 in the
+  recorded Apple-silicon run), and correlated (PyMatching 2.4's two-pass reweighting, agreeing
+  with it shot for shot but for ties), at about the same (1.01; on Linux x86_64 both about 1.2,
+  see [Speed](#speed-against-stim-and-pymatching)).
 - **Throughput**: a bit-parallel sampler (64 shots a word, `REPEAT` without flattening) at 15–20×
   the reference sampler's speed, and a pool of workers that puts every core on the page to work.
 - **A general circuit path**: circuits and detector error models in Stim's text formats, a
@@ -1040,9 +1040,10 @@ Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
 `node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
 
 **Decoding as a service** (`stabilizer_qec.realtime`, CUDA-Q QEC's real-time API). Every
-decoder of a detector error model (`Matching`, correlated matching, and the union-find, BP,
-BP+OSD/LSD, Relay-BP, belief-matching, colour-code, fusion-blossom, MWPF, Tesseract and search
-decoders behind `decoders`) has `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the
+decoder of a detector error model (`Matching` plain and correlated, union-find, BP+OSD and
+BP+LSD, Relay-BP, belief-matching, colour-code matching, the three clustering decoders and the
+search decoder — every name in `realtime.DECODERS` — and `WindowMatching` and
+`LeakageAwareDecoder`) has `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the
 engine and comes back as an `AsyncResult`. A `DecoderQueue` takes `enqueue_syndromes` and hands
 back `get_corrections` in order, with `DecoderStats` — latency from enqueue to result (mean,
 median, 99th percentile), the decode's own time, shots per second, how deep the queue got — so a
@@ -1065,14 +1066,14 @@ shots; this machine's CPU and GPU are named in the file):
 
 | memory | qubits | CPU, 1 thread | CPU, all cores | CPU lanes, all cores | GPU | GPU ÷ 1 thread | GPU = lanes |
 |---|---|---|---|---|---|---|---|
-| d = 5 | 64 | 4.12M/s | 12.25M/s | 3.90M/s | 8.27M/s | 2× | yes |
-| d = 11 | 274 | 378k/s | 1.09M/s | 353k/s | 713k/s | 2× | yes |
-| d = 17 | 628 | 93k/s | 222k/s | 83k/s | 147k/s | 2× | yes |
+| d = 5 | 64 | 4.17M/s | 11.76M/s | 3.58M/s | 8.21M/s | 2.0× | yes |
+| d = 11 | 274 | 330k/s | 951k/s | 321k/s | 710k/s | 2.1× | yes |
+| d = 17 | 628 | 89k/s | 181k/s | 73k/s | 144k/s | 1.6× | yes |
 
 | BP, min-sum, 20 iterations | checks × variables | f64, shot by shot | f32, all cores | GPU | GPU ÷ f64 | GPU = f32 |
 |---|---|---|---|---|---|---|
-| surface d=11 memory | 1320 × 24483 | 166/s | 1.4k/s | 39/s | 0.2× | yes |
-| gross [[144,12,12]] code capacity 0.3% | 72 × 144 | 151k/s | 5.37M/s | 2.17M/s | 14.4× | yes |
+| surface d=11 memory | 1320 × 24483 | 161/s | 1.4k/s | 39/s | 0.2× | yes |
+| gross [[144,12,12]] code capacity 0.3% | 72 × 144 | 149k/s | 5.43M/s | 2.10M/s | 14.1× | yes |
 
 - **The GPU equals the CPU's bytes on every row**, a million shots and twenty thousand
   syndromes at a time; that is the claim this port makes, and the one cuStabilizer cannot be held
@@ -1083,13 +1084,17 @@ shots; this machine's CPU and GPU are named in the file):
   program draws one per shot, 64 times the work, which the GPU does in parallel and the CPU does
   not — so the lane sampler is the slow way to run on a CPU and the honest reference for the GPU,
   and the comparison that matters is the GPU against the word sampler on one thread,
-  cuStabilizer's own yardstick. A discrete GPU and a kernel compiled per circuit rather than
-  interpreted would move this; neither is here.
+  cuStabilizer's own yardstick. A circuit whose single word runs for seconds (hundreds of
+  rounds at d = 17) is paced to a few hundred words in flight and falls further behind the
+  CPU's cores; the device is one per process and is not inherited by a forked child (start
+  workers with `multiprocessing`'s spawn method). A discrete GPU and a kernel compiled per
+  circuit rather than interpreted would move this; neither is here.
 - **BP on the GPU pays off on small graphs only.** One invocation walks a whole shot's Tanner
   graph, so on the gross code (144 variables) the GPU decodes 14 times faster than the f64
   decoder shot by shot and two fifths as fast as the f32 decoder on every core; on a d = 11 memory's
-  24,483-variable graph it is slower than either. The f32 decoder itself is the find: ten times
-  the f64 decoder's throughput on the CPU, the same decision on over 98% of syndromes with the
+  24,483-variable graph it is slower than either. The f32 decoder itself is the find: on every core, eight
+  to thirty-six times the f64 decoder decoding shot by shot on one thread (per thread, about
+  1.6× on the d = 11 graph and 20× on the gross code), the same decision on over 98% of syndromes with the
   damped min-sum (`ms_scaling_factor=0.625`); undamped (1.0) or adaptive (0) min-sum grows its
   messages past single precision on the shots that do not converge, where the two decoders
   part while their logical error rates agree.
@@ -1479,7 +1484,8 @@ Coherent over twirled logical error, by distance:
 - The coherent sampler takes Pauli rotations as its errors. A circuit with T gates (or any
   non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
   go to the state vector.
-- Leakage-aware decoding is not here; deltakit-stim's Local Clustering Decoder does it.
+- Leakage-aware decoding here is herald-driven reweighting (`LeakageAwareDecoder`, see the
+  lattice-surgery leakage results); deltakit-stim's Local Clustering Decoder is not ported.
 
 Tutorial 05 runs all of it.
 
@@ -1497,7 +1503,7 @@ its Pauli's anticommutation with the stabilizer generators, Clifford gates cost 
 term, a non-Clifford gate splits each term as a sum of Paulis, and terms that land on one coset
 add — the interference — so seven T gates on the Steane code's |0⟩ are eight terms, not 128.
 Its `exact_distribution(method="stabilizer_rank")` follows every branch and equals the state
-vector's distribution to 10⁻¹⁰ on random circuits of T gates, rotations, U3, noise, measurements
+vector's distribution to 10⁻⁹ on random circuits of T gates, rotations, U3, noise, measurements
 in every basis, resets and feedback. Against Tsim itself on Tsim's own demonstration circuits
 (`tools/clifford_t.py check`, Tsim installed):
 
@@ -1553,7 +1559,9 @@ The twirl under-reads the infidelity of the encoded magic state by two to three 
 ε = 0.02 on the Steane code and ε = 0.05 on the colour code up (on the Steane code, 0.0015
 against the true 0.0043 at ε = 0.02; 0.040 against 0.094 at ε = 0.1); at ε = 0.01 the twirl and
 the truth agree within the run's sampling error. The joint sampler reads the infidelity within
-sampling error at every angle.
+sampling error at every angle; its two parts, ⟨X_L⟩ and ⟨Y_L⟩, each drift from the truth by up
+to 0.08 at ε = 0.1 in opposite directions and cancel in the sum (a second-order term of the
+truncation, see Limits).
 
 *Magic-state distillation.* Tsim's 5-qubit distillation protocol (Rodriguez et al. 2025, Tsim's
 own demonstration), which accepts on a syndrome and leaves a better |T⟩ on its first qubit —
@@ -1751,14 +1759,14 @@ to it, or leakage-aware: the sampler's heralds raise the priors of the faults a 
 
 - **Leakage lowers the threshold in proportion to its share.** Three per cent of the error
   rate as leakage takes the CNOT's threshold from 0.49% to 0.45%; a tenth, to 0.37%; three
-  tenths, to 0.23%. At half the error rate (leakage 0.5p; a 3,000-shot run, not in the table,
-  too small to place a crossing) the distance-5 CNOT was no better than the distance-3 one at
+  tenths, to 0.23%. At half the error rate (leakage 0.5p; an unrecorded 3,000-shot run, not in the
+  table or the data, too small to place a crossing) the distance-5 CNOT was no better than the distance-3 one at
   any p measured. The reason is in
   the model: a leaked data qubit is never corrected, only waited out, and while it is leaked it
   feeds a random Pauli to four stabilizer measurements a round.
 - **Heralds buy a little, not a threshold.** Knowing which measurements read a leaked qubit
-  cuts the logical error by one to five per cent at every leakage rate and moves the
-  threshold by less than its interval. The heralded faults are the partner qubits'; the leaked
+  cuts the logical error by up to a tenth (two to five per cent at d = 7, p = 0.3%) and moves
+  the threshold by less than its interval. The heralded faults are the partner qubits'; the leaked
   qubit's own, out of the code until it returns, are what the decoder cannot repair.
 
 ## Circuit distance
@@ -2455,6 +2463,20 @@ src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and glo
 src/wasm_bb.rs        WASM exports for Figure 15: the [[72, 12, 6]] memory decoded by BP+OSD
 src/wasm_ls.rs        WASM exports for Figure 22: lattice-surgery programs sampled and matched
 src/lib.rs            PyO3 module and the WASM C-ABI interface
+src/statevec.rs       the state vector, to 24 qubits, with leakage
+src/density.rs        the density matrix and process matrices (amplitude and phase damping)
+src/nonpauli.rs       the tagged operations beyond Clifford gates and Pauli noise
+src/leakage.rs        leakage in the per-shot frame sampler, with heralds
+src/coherent/         the coherent sampler (kernel, gauges, classes) and the joint sampler
+src/stabrank.rs       the stabilizer-rank sampler for Clifford+T circuits
+src/clifford/         QuantumClifford's canonical forms, entropies, graph states, enumeration
+src/user_graph.rs     PyMatching's graph API over the matcher
+src/fusion/           Fusion Blossom, ported
+src/mwpf/             MWPF (hypergraph matching), ported
+src/highs/            HiGHS behind the ILP distance (feature highs)
+src/lanes.rs          the lane program: 32 shots a word, integer draws, the GPU's reference
+src/gpu/              wgpu: the lane sampler and min-sum BP as compute shaders (feature gpu)
+src/bp32.rs           min-sum BP in single precision, the GPU kernel's arithmetic
 examples/matcher_profile.rs  the sparse matcher run natively, for a profiler or a timing table
 
 index.html            the explainer (structure only)
@@ -2510,6 +2532,15 @@ tools/estimate_noise.py the surface code's error per round under uniform noise, 
 tools/distill.py        the 15-to-1 distillation law, measured
 tools/estimate.mjs      the resource estimate from the committed data
 tools/readme_tables.py  the README's tables, generated from the data (--check in CI)
+tools/coherent.py       the coherent sampler against the state vector and the twirl
+tools/clifford_t.py     the Clifford+T check against Tsim, magic-state injection and distillation
+tools/gpu_bench.py      sampling and BP on the GPU against the CPU
+tools/surgery_leakage.py the lattice-surgery CNOT's threshold under leakage
+tools/distances.py      circuit distances by ILP
+tools/gen_gate_data.py  Stim's gate data as the package's table
+tools/predecoder.py     training the CNN pre-decoder
+tools/fingerprints.py   per-platform fingerprints of the recorded results
+tools/verify_certificates.py  the distance certificates checked independently
 data/xcheck/            Stim's circuits and models, the recorded reference, and the run's report
 data/matcher/           the matcher's timings and fingerprints
 data/sweeps/            the SD6 threshold sweeps
@@ -2521,6 +2552,12 @@ data/estimate/          the estimate's noise fit, distillation law and sources
 data/realtime/          latency, accuracy and million-round results
 data/google-results/    per-experiment checks and failure counts, and the fits (lambda.txt)
 data/willow-extract/    2,000 raw shots at each of d = 3, 5, 7, for Figure 10 (CC BY 4.0, Google)
+data/coherent/          the coherent sampler's results against the state vector
+data/clifford_t/        the Tsim check, magic-state injection and distillation under coherent noise
+data/gpu/               sampling and BP on the GPU against the CPU
+data/predecoder/        the CNN pre-decoder's training record
+data/bench/             the decoder benchmarks, every recorded run
+data/distances.json     the circuit distance of every memory the package builds
 
 tools/smoke.py          an installed wheel checked end to end against Stim and PyMatching
 tools/wasm-smoke.mjs    the WASM engine driven in Node through the page's wrappers
@@ -2530,6 +2567,9 @@ tools/report.py         the technical report: values, tables and figures from da
 report/                 the report's source, template, figures, and the built HTML and PDF
 tools/notebooks.py      the tutorials: each .py run and built into its notebook, or checked
 tutorials/              nine notebooks, each built from the Python file beside it
+paper/                  the JOSS paper
+LICENSES/, THIRD_PARTY_NOTICES.md  the licences of the ported parts, and what each part is
+CITATION.cff, CONTRIBUTING.md, SECURITY.md  how to cite, contribute, and report
 tools/bench.py          the benchmarks against Stim and PyMatching, recorded and checked
 benchmarks/             the benchmarks page; data/bench/runs.json the recorded runs
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
@@ -2601,6 +2641,7 @@ in a script's own directory first, so for the two benchmark scripts it would sha
 ## License
 
 MIT for the code written here. The parts ported from other projects keep their own licences
-(Apache-2.0 for Stim, sinter, deltakit, qsample and PECOS among others; MIT and BSD for the
-rest) and are listed, with their copyright notices, in
+(Apache-2.0 for Stim, sinter, deltakit, qsample and PECOS among others; MIT, BSD and zlib for
+the rest; Apache-2.0 with LLVM exceptions for the standard-library algorithms reproduced) and
+are listed, with their copyright notices, in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

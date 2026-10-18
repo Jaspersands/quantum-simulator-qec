@@ -179,6 +179,8 @@ class DecoderQueue:
         """Queues a batch; returns its ticket."""
         if self._closed:
             raise RuntimeError("the queue is closed")
+        if isinstance(shots, np.ndarray) and shots.ndim == 1:
+            shots = shots.reshape(1, -1)  # one syndrome, as decode_async takes it
         n = _shot_count(shots)
         submitted = time.perf_counter()
         with self._lock:
@@ -231,13 +233,18 @@ class DecoderQueue:
             if ticket is None:
                 if not self._uncollected:
                     raise LookupError("no batch is waiting to be collected")
-                ticket = self._uncollected.pop(0)
-            elif ticket in self._uncollected:
-                self._uncollected.remove(ticket)
-            result = self._results.pop(ticket, None)
+                ticket = self._uncollected[0]
+            result = self._results.get(ticket)
         if result is None:
             raise LookupError(f"ticket {ticket} is unknown, collected already, or dropped by reset")
-        return result.get(timeout)
+        # Wait first: a batch whose wait timed out is still there for the next call.
+        out = result.get(timeout)
+        with self._lock:
+            if self._results.get(ticket) is result:
+                del self._results[ticket]
+                if ticket in self._uncollected:
+                    self._uncollected.remove(ticket)
+        return out
 
     def pending(self) -> int:
         """Batches enqueued and not yet collected."""
@@ -266,7 +273,7 @@ class DecoderQueue:
             lat = sorted(self._latencies)
             n = len(lat)
             span = (self._last_finish - self._first_enqueue) if (self._first_enqueue is not None and self._last_finish is not None) else 0.0
-            pct = lambda q: lat[min(n - 1, max(0, int(round(q * (n - 1)))))] if n else 0.0  # noqa: E731
+            pct = lambda q: float(np.percentile(lat, 100.0 * q)) if n else 0.0  # noqa: E731  (numpy's linear interpolation: the median is the median)
             return DecoderStats(self._decoded, n, (sum(lat) / n) if n else 0.0, pct(0.5), pct(0.99), lat[-1] if n else 0.0, (sum(self._services) / n) if n else 0.0, (self._decoded / span) if span > 0 else 0.0, self._depth_max, len(self._uncollected))
 
     @property
@@ -312,18 +319,16 @@ def shared_queue(decoder: Any, workers: Optional[int] = None) -> DecoderQueue:
         # and is closed when the decoder goes (a decoder without weak references is held for
         # the process's life).
         try:
-            method = weakref.WeakMethod(decoder.decode_batch)
             ref = weakref.ref(decoder, lambda _r: forget())
         except TypeError:
             strong = decoder
-            method = lambda: strong.decode_batch  # noqa: E731
             ref = lambda: strong  # noqa: E731
 
         def decode(shots, **kwargs):
-            bound = method()
-            if bound is None:
+            target = ref()
+            if target is None:
                 raise RuntimeError("the decoder behind this queue was garbage-collected")
-            return bound(shots, **kwargs)
+            return target.decode_batch(shots, **kwargs)
 
         q = DecoderQueue(decode=decode, workers=workers or max(1, os.cpu_count() or 1), name=type(decoder).__name__)
         _shared[key] = (ref, q)
@@ -492,7 +497,7 @@ class _Session:
         self.queue, self.nd, self.no, self.threads, self.max_shots = queue, num_detectors, num_observables, threads, max_shots
 
     def hello(self) -> bytes:
-        return Protocol.pack(Protocol.HELLO, json.dumps({"num_detectors": self.nd, "num_observables": self.no, "decoder": self.queue.name, "workers": self.queue.workers}).encode())
+        return Protocol.pack(Protocol.HELLO, json.dumps({"num_detectors": self.nd, "num_observables": self.no, "decoder": self.queue.name, "workers": self.queue.workers, "max_shots": self.max_shots}).encode())
 
     def handle(self, kind: int, flags: int, shots: int, payload: bytes) -> "Optional[bytes]":
         """The reply frame, or None for BYE."""
@@ -504,11 +509,19 @@ class _Session:
                 if shots == 0:
                     return Protocol.pack(Protocol.CORRECTIONS, b"", 0)
                 rows = np.frombuffer(payload, dtype=np.uint8).reshape(shots, stride)
-                kwargs = {"bit_packed_shots": True}
-                if self.threads and "threads" in _params(self.queue._decode):
+                takes = _params(self.queue._decode)
+                kwargs: Dict[str, Any] = {}
+                if "bit_packed_shots" in takes or "**" in takes:
+                    kwargs["bit_packed_shots"] = True
+                else:  # a decoder of plain rows (CUDA-Q QEC's, say)
+                    rows = np.unpackbits(rows, axis=1, bitorder="little")[:, : self.nd]
+                if self.threads and ("threads" in takes or "**" in takes):
                     kwargs["threads"] = self.threads
                 ticket = self.queue.enqueue_syndromes(rows, **kwargs)
-                out = np.asarray(self.queue.get_corrections(ticket))
+                out = self.queue.get_corrections(ticket)
+                if hasattr(out, "predictions"):  # a result object rather than an array
+                    out = out.predictions
+                out = np.asarray(out)
                 if out.ndim != 2 or out.shape[0] != shots:
                     raise ValueError(f"the decoder returned shape {out.shape} for {shots} shots")
                 # One bit per observable, or already b8-packed rows.
@@ -558,15 +571,23 @@ class _Session:
 
 
 def _params(fn: Callable[..., Any]) -> set:
+    """The parameter names a callable takes; a ``**kwargs`` is every name (the set holds "**")."""
     try:
-        return set(inspect.signature(fn).parameters)
+        params = inspect.signature(fn).parameters
     except (TypeError, ValueError):
         return set()
+    names = set(params)
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        names.add("**")
+    return names
 
 
 class _Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
+    # Clients connecting at once queue here until accepted (socketserver's default of 5 reset
+    # most of a burst of 16).
+    request_queue_size = max(128, int(getattr(socket, "SOMAXCONN", 128)))
 
 
 def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, workers: int = 1, threads: int = 0, num_detectors: Optional[int] = None, num_observables: Optional[int] = None, ready: Optional[Callable[[Any], None]] = None, timeout: Optional[float] = 300.0, max_shots: int = 1 << 20) -> None:
@@ -632,8 +653,24 @@ class DecoderClient:
         self.num_observables = int(hello["num_observables"])
         self.decoder_name = str(hello.get("decoder", ""))
         self.workers = int(hello.get("workers", 1))
+        #: The most shots the server takes in one DECODE; ``decode_batch`` sends larger batches in pieces.
+        self.max_shots = int(hello.get("max_shots", 1 << 20))
 
     def _abandon(self) -> None:
+        # The peer first: a reader thread may still be blocked in a read holding the buffer's
+        # lock, and closing the file would wait for it; shutting the socket (or killing the
+        # child) ends that read.
+        if self._sock is not None:
+            try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        if self._process is not None and self._process.poll() is None:
+            self._process.kill()
+            try:
+                self._process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
         for f in (getattr(self, "_writer", None), getattr(self, "_reader", None)):
             try:
                 if f is not None:
@@ -642,12 +679,6 @@ class DecoderClient:
                 pass
         if self._sock is not None:
             self._sock.close()
-        if self._process is not None and self._process.poll() is None:
-            self._process.kill()
-            try:
-                self._process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                pass
 
     @classmethod
     def connect(cls, host: str, port: int, timeout: Optional[float] = 30.0) -> "DecoderClient":
@@ -685,10 +716,23 @@ class DecoderClient:
         from ._util import rows_to_b8, b8_to_rows
 
         packed, n = rows_to_b8(shots, self.num_detectors, bit_packed_shots, "shots")
-        kind, m, body = self._ask(Protocol.DECODE, packed, n)
-        if kind != Protocol.CORRECTIONS or m != n:
-            raise ValueError(f"expected CORRECTIONS for {n} shots, got {Protocol.NAMES.get(kind, kind)} for {m}")
-        return b8_to_rows(body, n, self.num_observables, bit_packed_predictions)
+        stride = _b8_stride(self.num_detectors)
+        limit = max(1, self.max_shots)
+        if n <= limit:
+            kind, m, body = self._ask(Protocol.DECODE, packed, n)
+            if kind != Protocol.CORRECTIONS or m != n:
+                raise ValueError(f"expected CORRECTIONS for {n} shots, got {Protocol.NAMES.get(kind, kind)} for {m}")
+            return b8_to_rows(body, n, self.num_observables, bit_packed_predictions)
+        # More than the server takes at once: in pieces (the server would refuse the frame and
+        # close the connection while the payload is still on its way).
+        pieces = []
+        for start in range(0, n, limit):
+            count = min(limit, n - start)
+            kind, m, body = self._ask(Protocol.DECODE, packed[start * stride:(start + count) * stride], count)
+            if kind != Protocol.CORRECTIONS or m != count:
+                raise ValueError(f"expected CORRECTIONS for {count} shots, got {Protocol.NAMES.get(kind, kind)} for {m}")
+            pieces.append(body)
+        return b8_to_rows(b"".join(pieces), n, self.num_observables, bit_packed_predictions)
 
     def decode(self, syndrome: Any) -> np.ndarray:
         s = np.asarray(syndrome)

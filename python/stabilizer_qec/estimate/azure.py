@@ -1,12 +1,17 @@
 # Ported from the Azure Quantum Resource Estimator (microsoft/qdk, source/resource_estimator/src, the `estimates`
 # and `system` modules; Copyright (c) Microsoft Corporation, MIT License; see LICENSE-qdk in this directory),
-# modified for stabilizer_qec: Python dataclasses in place of the Rust structs and traits, a restricted `ast`
-# evaluator in place of the compiled expressions, the binomial quantile of the `probability` crate (0.20) written
-# out, the frontier estimate type and the profiling output left out. The numbers are the QDK's bit for bit on
-# its own test cases (tests/estimate_port/qdk_estimates.json).
+# modified for stabilizer_qec: Python dataclasses in place of the Rust structs and traits, fasteval 0.2.4's
+# parser, constant folding and evaluator written out in place of the compiled expressions, the binomial quantile
+# of the `probability` crate (0.20) written out, the frontier estimate type and the profiling output left out.
+# The numbers are the QDK's bit for bit on its own test cases (tests/estimate_port/qdk_estimates.json).
 """Azure's Resource Estimator: from logical counts (qubits, T, rotations, CCZ, measurements) to physical
 qubits and runtime on a chosen qubit model and QEC scheme, with the T factories found by the QDK's exhaustive
 search over distillation rounds and code distances.
+
+Two differences from the QDK are accepted. The QDK's counts are u64 and wrap silently when a product
+overflows (a runtime past 1.8e19 ns, a count past 2^64), where the integers here keep growing. And a float
+reaches the QDK through its JSON round trip, which keeps 15 significant digits exactly, so an input written with
+16 or 17 may land one ulp away from the value used here.
 
 >>> from stabilizer_qec.estimate import LogicalCounts, azure_estimate
 >>> r = azure_estimate(LogicalCounts(num_qubits=100, t_count=100_000, ccz_count=10_000, measurement_count=10_000))
@@ -18,12 +23,11 @@ search over distillation rounds and code distances.
 
 from __future__ import annotations
 
-import ast
+import functools
 import math
-import operator
 import re
 from dataclasses import dataclass, field, replace
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 MAX_CODE_DISTANCE = 50
 MAX_DISTILLATION_ROUNDS = 3
@@ -53,83 +57,551 @@ def _powi(a: float, b: int) -> float:
     return 1.0 / r if recip else r
 
 
-def _round_half_away(x: float) -> int:
-    """`f64::round`."""
-    return int(math.floor(x + 0.5)) if x >= 0 else -int(math.floor(-x + 0.5))
+def _round_half_away(x: float) -> float:
+    """`f64::round`: half away from zero, exact (not `floor(x + 0.5)`, which rounds 0.49999999999999994 up); a
+    non-finite value is returned as it is."""
+    if not math.isfinite(x):
+        return x
+    a = abs(x)
+    r = math.floor(a)
+    if a - r >= 0.5:
+        r += 1
+    return math.copysign(float(r), x)
+
+
+def _as_u64(x: float) -> int:
+    """`x as u64` (and `as usize`): saturating, NaN to 0, the fraction dropped."""
+    if x != x or x <= 0.0:
+        return 0
+    if x >= 18446744073709551616.0:
+        return 2**64 - 1
+    return int(x)
 
 
 def _ceil_div(a: int, b: int) -> int:
     return -(-a // b)
 
 
-_BINOPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: lambda a, b: _fasteval_div(a, b), ast.Mod: lambda a, b: math.fmod(a, b) if b != 0.0 else math.nan, ast.Pow: lambda a, b: _fasteval_pow(a, b)}
-_UNOPS = {ast.USub: operator.neg, ast.UAdd: operator.pos}
+# ---------------------------------------------------------------------------------------------
+# Formulas: fasteval 0.2.4 as the QDK drives it (`Parser::new`, `Slab::new`, `compile`, `eval` on a
+# `BTreeMap<String, f64>`), its grammar, its constant folding and its f64 arithmetic written out
+# ---------------------------------------------------------------------------------------------
+
+_EXPR_LEN_LIMIT, _EXPR_DEPTH_LIMIT, _SLAB_CAPACITY = 4096, 32, 64
+_EPS8 = 8.0 * 2.220446049250313e-16
+_PRECEDENCE = {"||": 1, "&&": 2, "!=": 3, "==": 4, ">=": 5, "<=": 6, ">": 7, "<": 8, "+": 9, "-": 10, "*": 11, "/": 12, "%": 13, "^": 14}
+_COMPARISONS = ("==", "!=", "<", ">", "<=", ">=")
+_SUFFIXES = {"k": 3, "K": 3, "M": 6, "G": 9, "T": 12, "m": -3, "u": -6, "µ": -6, "n": -9, "p": -12}
+_ARITY = {"int": (1, 1), "ceil": (1, 1), "floor": (1, 1), "abs": (1, 1), "sign": (1, 1), "log": (1, 2), "round": (1, 2), "min": (1, 10**9), "max": (1, 10**9), "e": (0, 0), "pi": (0, 0), "sin": (1, 1), "cos": (1, 1), "tan": (1, 1), "asin": (1, 1), "acos": (1, 1), "atan": (1, 1), "sinh": (1, 1), "cosh": (1, 1), "tanh": (1, 1), "asinh": (1, 1), "acosh": (1, 1), "atanh": (1, 1)}
 
 
-_PYTHON_ONLY = re.compile(r"\*\*|\d_\d|\b0[xXoObB][0-9a-fA-F]")
+def _eq(a: float, b: float) -> bool:
+    """fasteval's `f64_eq!`: within 8 ε (so two infinities are not equal, their difference being NaN)."""
+    return abs(a - b) <= _EPS8
 
 
-def _fasteval_div(a: float, b: float) -> float:
+def _ne(a: float, b: float) -> bool:
+    return abs(a - b) > _EPS8
+
+
+def _div(a: float, b: float) -> float:
+    """f64 division: by zero, ±infinity by the signs, NaN for 0/0."""
     if b == 0.0:
-        return math.nan if a == 0.0 or math.isnan(a) else math.copysign(math.inf, a) * math.copysign(1.0, b)
+        return math.nan if a == 0.0 or a != a else math.copysign(math.inf, a) * math.copysign(1.0, b)
     return a / b
 
 
-def _fasteval_pow(a: float, b: float) -> float:
+def _fmod(a: float, b: float) -> float:
+    """f64 `%`: the sign of the dividend; NaN for an infinite dividend or a zero divisor."""
+    try:
+        return math.fmod(a, b)
+    except ValueError:
+        return math.nan
+
+
+def _powf(a: float, b: float) -> float:
+    """`f64::powf` (C `pow`): a negative base to a fractional power is NaN, zero to a negative power infinite
+    with the sign of the zero for an odd integer power, an overflow infinite with the sign of the result."""
     try:
         out = a**b
     except ZeroDivisionError:
-        return math.inf
+        odd = math.isfinite(b) and b == math.floor(b) and math.fmod(b, 2.0) != 0.0
+        return math.copysign(math.inf, a) if odd else math.inf
     except OverflowError:
-        return math.inf
-    return out if isinstance(out, float) else math.nan  # a negative base to a fractional power is NaN, not complex
+        odd = math.isfinite(b) and b == math.floor(b) and math.fmod(b, 2.0) != 0.0
+        return -math.inf if a < 0.0 and odd else math.inf
+    return out if isinstance(out, float) else math.nan
+
+
+def _ln(x: float, fn=math.log) -> float:
+    if x != x or x < 0.0:
+        return math.nan
+    if x == 0.0:
+        return -math.inf
+    return x if x == math.inf else fn(x)
+
+
+def _log(base: float, x: float) -> float:
+    """fasteval's `log`: base 2 and base 10 (within 8 ε) by the dedicated functions, else `ln x / ln base`."""
+    if _eq(base, 2.0):
+        return _ln(x, math.log2)
+    if _eq(base, 10.0):
+        return _ln(x, math.log10)
+    return _div(_ln(x), _ln(base))
+
+
+def _guarded(fn, overflow=None):
+    """A `math` function with f64 semantics: NaN outside its domain, ±infinity (by `overflow`) when it overflows."""
+
+    def f(x):
+        try:
+            return fn(x)
+        except ValueError:
+            return math.nan
+        except OverflowError:
+            return overflow(x) if overflow else math.inf
+
+    return f
+
+
+def _atanh(x: float) -> float:
+    return math.copysign(math.inf, x) if abs(x) == 1.0 else _guarded(math.atanh)(x)
+
+
+_UNARY_FUNCTIONS = {
+    "int": lambda x: x if not math.isfinite(x) else math.copysign(float(math.trunc(x)), x),
+    "ceil": lambda x: x if not math.isfinite(x) else math.copysign(float(math.ceil(x)), x),
+    "floor": lambda x: x if not math.isfinite(x) else math.copysign(float(math.floor(x)), x),
+    "abs": abs,
+    "sign": lambda x: x if x != x else math.copysign(1.0, x),
+    "sin": _guarded(math.sin), "cos": _guarded(math.cos), "tan": _guarded(math.tan), "asin": _guarded(math.asin), "acos": _guarded(math.acos), "atan": math.atan,
+    "sinh": _guarded(math.sinh, lambda x: math.copysign(math.inf, x)), "cosh": _guarded(math.cosh), "tanh": math.tanh, "asinh": math.asinh, "acosh": _guarded(math.acosh), "atanh": _atanh,
+}
+
+
+def _compare(op: str, l: float, r: float) -> float:
+    if op == "==":
+        return 1.0 if _eq(l, r) else 0.0
+    if op == "!=":
+        return 1.0 if _ne(l, r) else 0.0
+    return 1.0 if {"<": l < r, ">": l > r, "<=": l <= r, ">=": l >= r}[op] else 0.0
+
+
+class _Formula:
+    """fasteval's parser (parser.rs): `Expression: Value (BinaryOp Value)*`; a value is a constant (a sign may
+    be part of it, so `-2^2` is 4), a unary `+ - !`, a bracketed expression, a variable or a function call; a
+    constant may carry one of the SI suffixes `p n u µ m k K M G T` or an exponent, and `inf`/`NaN` are
+    constants. Errors are fasteval's: TooLong (over 4096 bytes), TooDeep (nesting over 32), SlabOverflow (over
+    64 sub-expressions or unary values), InvalidValue, UnparsedTokensRemaining, ParseF64, Expected, WrongArgs."""
+
+    __slots__ = ("text", "pos", "exprs", "vals")
+
+    def __init__(self, text: str):
+        self.text, self.pos, self.exprs, self.vals = text, 0, 0, 0
+
+    def fail(self, what: str):
+        raise ValueError(f"cannot evaluate expression {self.text!r}: {what}")
+
+    def peek(self, k: int = 0):
+        i = self.pos + k
+        return self.text[i] if i < len(self.text) else None
+
+    def spaces(self) -> None:
+        while self.peek() in (" ", "\t", "\n", "\r"):
+            self.pos += 1
+
+    def expression(self, depth: int, expect_eof: bool):
+        if depth > _EXPR_DEPTH_LIMIT:
+            self.fail("TooDeep")
+        first = self.value(depth)
+        pairs = []
+        while True:
+            op = self.binary_op()
+            if op is None:
+                break
+            pairs.append((op, self.value(depth)))
+        self.spaces()
+        if expect_eof and self.pos < len(self.text):
+            self.fail(f"UnparsedTokensRemaining({self.text[self.pos:]!r})")
+        self.exprs += 1
+        if self.exprs > _SLAB_CAPACITY:
+            self.fail("SlabOverflow")
+        return first, pairs
+
+    def value(self, depth: int):
+        if depth > _EXPR_DEPTH_LIMIT:
+            self.fail("TooDeep")
+        c = self.constant()
+        if c is not None:
+            return ("const", c)
+        for read in (self.unary, self.callable):
+            v = read(depth)
+            if v is not None:
+                return v
+        self.fail("EofWhileParsing(value)" if self.pos >= len(self.text) else "InvalidValue")
+
+    def constant(self):
+        self.spaces()
+        n, sign_ok, specials_ok, suffix_ok, saw_val = 0, True, True, True, False
+        while True:
+            b = self.peek(n)
+            if b is None:
+                break
+            if "0" <= b <= "9" or b == ".":
+                saw_val, sign_ok, specials_ok, n = True, False, False, n + 1
+            elif sign_ok and b in ("+", "-"):
+                sign_ok, n = False, n + 1
+            elif saw_val and b in ("e", "E"):
+                suffix_ok, sign_ok, n = False, True, n + 1
+            elif specials_ok and self.text[self.pos + n : self.pos + n + 3] in ("NaN", "inf"):
+                saw_val, suffix_ok, n = True, False, n + 3
+                break
+            else:
+                break
+        if not saw_val:
+            return None
+        token = self.text[self.pos : self.pos + n]
+        if suffix_ok and self.peek(n) in _SUFFIXES:
+            token, n = token + "e" + str(_SUFFIXES[self.peek(n)]), n + 1
+        try:
+            value = float(token)
+        except ValueError:
+            self.fail(f"ParseF64({token!r})")
+        self.pos += n
+        return value
+
+    def unary(self, depth: int):
+        self.spaces()
+        b = self.peek()
+        if b in ("+", "-", "!"):
+            self.pos += 1
+            v = self.value(depth + 1)
+            self.vals += 1
+            if self.vals > _SLAB_CAPACITY:
+                self.fail("SlabOverflow")
+            return ({"+": "pos", "-": "neg", "!": "not"}[b], v)
+        if b in ("(", "["):
+            self.pos += 1
+            e = self.expression(depth + 1, False)
+            self.spaces()
+            close = ")" if b == "(" else "]"
+            if self.peek() is None:
+                self.fail("EofWhileParsing(parentheses)")
+            if self.peek() != close:
+                self.fail(f"Expected({close!r})")
+            self.pos += 1
+            return ("paren", e)
+        return None
+
+    def binary_op(self):
+        self.spaces()
+        b, b1 = self.peek(), self.peek(1)
+        if b in ("+", "-", "*", "/", "%", "^"):
+            self.pos += 1
+            return b
+        if b in ("<", ">"):
+            self.pos += 2 if b1 == "=" else 1
+            return b + "=" if b1 == "=" else b
+        two = {("=", "="): "==", ("!", "="): "!=", ("o", "r"): "||", ("|", "|"): "||", ("&", "&"): "&&"}.get((b, b1))
+        if two is not None:
+            self.pos += 2
+            return two
+        if (b, b1, self.peek(2)) == ("a", "n", "d"):
+            self.pos += 3
+            return "&&"
+        return None
+
+    def callable(self, depth: int):
+        self.spaces()
+        n = 0
+        while True:
+            b = self.peek(n)
+            if b is None or not (b == "_" or "a" <= b <= "z" or "A" <= b <= "Z" or (n > 0 and "0" <= b <= "9")):
+                break
+            n += 1
+        if n == 0:
+            return None
+        name = self.text[self.pos : self.pos + n]
+        self.pos += n
+        self.spaces()
+        opener = self.peek()
+        if opener not in ("(", "["):
+            return ("var", name)
+        self.pos += 1
+        if name == "print":
+            self.fail("print() is not supported")
+        close, args = ")" if opener == "(" else "]", []
+        while True:
+            self.spaces()
+            b = self.peek()
+            if b is None:
+                self.fail(f"EofWhileParsing({name})")
+            if b == close:
+                self.pos += 1
+                break
+            if args:
+                self.pos += 1
+                if b not in (",", ";"):
+                    self.fail("Expected(',' or ';')")
+            args.append(self.expression(depth + 1, False))
+        if name in _ARITY and not _ARITY[name][0] <= len(args) <= _ARITY[name][1]:
+            self.fail(f"WrongArgs({name})")
+        return ("func", name, args)
+
+
+def _split(first, pairs, ops):
+    slices, used = [(first, [])], []
+    for op, val in pairs:
+        if op in ops:
+            slices.append((val, []))
+            used.append(op)
+        else:
+            slices[-1][1].append((op, val))
+    return slices, used
+
+
+def _neg(instr):
+    return ("C", -instr[1]) if instr[0] == "C" else instr[1] if instr[0] == "neg" else ("neg", instr)
+
+
+def _inv(instr):
+    return ("C", _div(1.0, instr[1])) if instr[0] == "C" else instr[1] if instr[0] == "inv" else ("inv", instr)
+
+
+def _not(instr):
+    return ("C", 1.0 if _eq(instr[1], 0.0) else 0.0) if instr[0] == "C" else instr[1] if instr[0] == "not" else ("not", instr)
+
+
+def _leaves(node, out) -> None:
+    """compiler.rs's `push_add_leaves`/`push_mul_leaves`: a nested chain flattened, right operand first."""
+    tag, items, const = node
+    if const is not None:
+        out.append(("C", const))
+    for item in list(reversed(items[1:])) + [items[0]]:
+        if item[0] == tag:
+            _leaves(item, out)
+        else:
+            out.append(item)
+
+
+def _fold(tag, instrs):
+    """`compile_add`/`compile_mul`: the constants summed (multiplied) in order into one, dropped when within
+    8 ε of the identity (so a NaN constant vanishes and `0/0` is 1), the rest chained left to right."""
+    items, total = [], 0.0 if tag == "add" else 1.0
+    for instr in instrs:
+        if instr[0] == "C":
+            total = total + instr[1] if tag == "add" else total * instr[1]
+        else:
+            items.append(instr)
+    if _ne(total, 0.0 if tag == "add" else 1.0):
+        return (tag, items, total) if items else ("C", total)
+    if not items:
+        return ("C", 0.0 if tag == "add" else 1.0)
+    return items[0] if len(items) == 1 else (tag, items, None)
+
+
+def _chain(tag, out, instr):
+    return (tag, out[1] + [instr]) if out[0] == tag else (tag, [out, instr])
+
+
+def _compile_slice(first, pairs):
+    """compiler.rs: the lowest-precedence operator of the chain splits it; constants fold at each level."""
+    if not pairs:
+        return _compile_value(first)
+    lowest = min(_PRECEDENCE[op] for op, _ in pairs)
+    if 3 <= lowest <= 8:
+        slices, ops = _split(first, pairs, _COMPARISONS)
+        out = _compile_slice(*slices[0])
+        for op, s in zip(ops, slices[1:]):
+            instr = _compile_slice(*s)
+            if out[0] == "C" and instr[0] == "C":
+                out = ("C", _compare(op, out[1], instr[1]))
+            elif out[0] == "cmp":
+                out = ("cmp", out[1], out[2] + [(op, instr)])
+            else:
+                out = ("cmp", out, [(op, instr)])
+        return out
+    op = {1: "||", 2: "&&", 9: "+", 10: "-", 11: "*", 12: "/", 13: "%", 14: "^"}[lowest]
+    slices = _split(first, pairs, (op,))[0]
+    if op == "||":
+        out, out_set = ("C", 0.0), False
+        for s in slices:
+            instr = _compile_slice(*s)
+            if out_set:
+                out = _chain("or", out, instr)
+            elif instr[0] == "C":
+                if _ne(instr[1], 0.0):
+                    return instr
+            else:
+                out, out_set = instr, True
+        return out
+    if op == "&&":
+        out, out_set = ("C", 1.0), False
+        for s in slices:
+            instr = _compile_slice(*s)
+            if instr[0] == "C" and _eq(instr[1], 0.0):
+                return instr
+            if out_set:
+                out = instr if out[0] == "C" else _chain("and", out, instr)
+            else:
+                out, out_set = instr, True
+        return out
+    if op in ("+", "*"):
+        tag, instrs = "add" if op == "+" else "mul", []
+        for s in slices:
+            instr = _compile_slice(*s)
+            if instr[0] == tag:
+                _leaves(instr, instrs)
+            else:
+                instrs.append(instr)
+        return _fold(tag, instrs)
+    if op in ("-", "/"):
+        wrap = _neg if op == "-" else _inv
+        return _fold("add" if op == "-" else "mul", [_compile_slice(*slices[0])] + [wrap(_compile_slice(*s)) for s in slices[1:]])
+    if op == "%":
+        out = None
+        for s in slices:
+            instr = _compile_slice(*s)
+            out = instr if out is None else ("C", _fmod(out[1], instr[1])) if out[0] == "C" == instr[0] else ("mod", out, instr)
+        return out
+    out = None
+    for s in reversed(slices):  # `^` is right-associative
+        instr = _compile_slice(*s)
+        out = instr if out is None else ("C", _powf(instr[1], out[1])) if out[0] == "C" == instr[0] else ("exp", instr, out)
+    return out
+
+
+def _compile_value(v):
+    tag = v[0]
+    if tag == "const":
+        return ("C", v[1])
+    if tag == "var":
+        return v
+    if tag == "pos":
+        return _compile_value(v[1])
+    if tag in ("neg", "not"):
+        return (_neg if tag == "neg" else _not)(_compile_value(v[1]))
+    if tag == "paren":
+        return _compile_slice(*v[1])
+    name, args = v[1], [_compile_slice(*a) for a in v[2]]
+    if name in _UNARY_FUNCTIONS:
+        return ("C", _UNARY_FUNCTIONS[name](args[0][1])) if args[0][0] == "C" else ("fn", name, args[0])
+    if name in ("log", "round"):
+        default, x = (("C", 10.0) if name == "log" else ("C", 1.0)), args[-1]
+        base = args[0] if len(args) == 2 else default
+        if base[0] == "C" == x[0]:
+            return ("C", _log(base[1], x[1]) if name == "log" else _round_half_away(_div(x[1], base[1])) * base[1])
+        return (name, base, x)
+    if name in ("min", "max"):
+        better = (lambda a, b: a < b) if name == "min" else (lambda a, b: a > b)
+        out, best = (None, args[0][1]) if args[0][0] == "C" else (args[0], None)
+        for instr in args[1:]:
+            if instr[0] == "C":
+                best = instr[1] if best is None or better(instr[1], best) else best
+            else:
+                out = instr if out is None else (name, out, instr)
+        if best is not None:
+            out = ("C", best) if out is None else (name, out, ("C", best))
+        return out
+    if name in ("e", "pi"):
+        return ("C", math.e if name == "e" else math.pi)
+    return ("call", name, args)
+
+
+def _eval(node, ctx: Dict[str, float]) -> float:
+    """evaler.rs on the compiled form; the chains iterate so a long formula needs no deep recursion."""
+    tag = node[0]
+    if tag == "C":
+        return node[1]
+    if tag in ("var", "call"):
+        if node[1] in ctx and (tag == "var" or not node[2]):
+            return float(ctx[node[1]])
+        raise ValueError(f"unknown variable {node[1]!r}")
+    if tag in ("add", "mul"):
+        acc = _eval(node[1][0], ctx)
+        for item in node[1][1:]:
+            acc = acc + _eval(item, ctx) if tag == "add" else acc * _eval(item, ctx)
+        if node[2] is not None:
+            acc = acc + node[2] if tag == "add" else acc * node[2]
+        return acc
+    if tag == "neg":
+        return -_eval(node[1], ctx)
+    if tag == "inv":
+        return _div(1.0, _eval(node[1], ctx))
+    if tag == "not":
+        return 1.0 if _eq(_eval(node[1], ctx), 0.0) else 0.0
+    if tag in ("mod", "exp"):
+        outer = []
+        while node[0] == tag:
+            outer.append(node[2] if tag == "mod" else node[1])
+            node = node[1] if tag == "mod" else node[2]
+        acc = _eval(node, ctx)
+        for other in reversed(outer):
+            acc = _fmod(acc, _eval(other, ctx)) if tag == "mod" else _powf(_eval(other, ctx), acc)
+        return acc
+    if tag == "cmp":
+        acc = _eval(node[1], ctx)
+        for op, x in node[2]:
+            acc = _compare(op, acc, _eval(x, ctx))
+        return acc
+    if tag in ("or", "and"):
+        for item in node[1]:
+            v = _eval(item, ctx)
+            if (_ne if tag == "or" else _eq)(v, 0.0):
+                return v
+        return v
+    if tag == "fn":
+        return _UNARY_FUNCTIONS[node[1]](_eval(node[2], ctx))
+    if tag == "log":
+        return _log(_eval(node[1], ctx), _eval(node[2], ctx))
+    if tag == "round":
+        m = _eval(node[1], ctx)
+        return _round_half_away(_div(_eval(node[2], ctx), m)) * m
+    l, r = _eval(node[1], ctx), _eval(node[2], ctx)  # min, max
+    if l != l or r != r:
+        return math.nan
+    return l if (l < r if tag == "min" else l > r) else r
+
+
+@functools.lru_cache(maxsize=256)
+def _compile_expression(expression: str):
+    if not isinstance(expression, str):
+        raise ValueError(f"a formula is a string, not {expression!r}")
+    if len(expression.encode("utf-8")) > _EXPR_LEN_LIMIT:
+        raise ValueError(f"cannot evaluate expression {expression[:40]!r}...: TooLong")
+    return _compile_slice(*_Formula(expression).expression(0, True))
 
 
 def evaluate_expression(expression: str, context: Dict[str, float]) -> float:
-    """A QEC scheme's or distillation unit's formula evaluated as the QDK's `fasteval` evaluates it: `+ - * / % ^`,
-    numbers, the named variables, parentheses; unary minus binds tighter than `^` (`-2^2` is 4); a division by
-    zero is infinite, a negative base to a fractional power NaN. Python's own spellings (`**`, `1_000`, `0x10`)
-    are refused, as the QDK refuses them."""
-    if _PYTHON_ONLY.search(expression):
-        raise ValueError(f"unsupported syntax in {expression!r} (the QDK's formulas use ^ for powers and plain decimal numbers)")
-    tree = ast.parse(expression.replace("^", "**"), mode="eval")
-
-    def ev(node):
-        if isinstance(node, ast.Expression):
-            return ev(node.body)
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
-            return float(node.value)
-        if isinstance(node, ast.Name):
-            if node.id in context:
-                return float(context[node.id])
-            raise ValueError(f"unknown variable {node.id!r} in {expression!r}")
-        if isinstance(node, ast.BinOp) and type(node.op) in _BINOPS:
-            return _BINOPS[type(node.op)](ev(node.left), ev(node.right))
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub) and isinstance(node.operand, ast.BinOp) and isinstance(node.operand.op, ast.Pow):
-            # fasteval: -b^e is (-b)^e (Python parses it as -(b^e)); the sign goes to the innermost base.
-            return _fasteval_pow(ev(ast.UnaryOp(op=ast.USub(), operand=node.operand.left)), ev(node.operand.right))
-        if isinstance(node, ast.UnaryOp) and type(node.op) in _UNOPS:
-            return _UNOPS[type(node.op)](ev(node.operand))
-        raise ValueError(f"unsupported syntax in {expression!r}")
-
-    return ev(tree)
+    """A QEC scheme's or distillation unit's formula evaluated as the QDK's `fasteval` evaluates it. The grammar
+    is fasteval 0.2.4's: `+ - * / % ^`, each its own precedence level from lowest to highest and `^`
+    right-associative (so `7 * 3 % 2` is 7 and `2^3^2` is 512); unary minus binds tighter than every binary
+    operator (`-2^2` is 4, `-(codeDistance^2)` at distance 3 is −9); comparisons, `and`/`&&`, `or`/`||`, `!`;
+    the functions min, max, abs, log, int, ceil, floor, round, sign, the trigonometric and hyperbolic ones,
+    pi(), e(); `inf` and `NaN`. Constants fold at compile time as fasteval folds them (every constant of a
+    `+`/`*` chain is combined first, so `codeDistance + 0.1 + 0.2` is 3.3 and a NaN constant vanishes).
+    Division by zero is infinite, a negative base to a fractional power NaN. Formulas over 4096 bytes or nested
+    over 32 deep are refused, as are Python's own spellings (`**`, `1_000`, `0x10`)."""
+    try:
+        return _eval(_compile_expression(expression), context)
+    except ValueError as e:
+        raise ValueError(f"{e} in {expression!r}") if str(e).startswith("unknown variable") else e
 
 
-_TIME_RE = re.compile(r"^(\+?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s*(s|ms|μs|µs|us|ns)$")
+_TIME_RE = re.compile(r"^(\+?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)[ \t\n\r\f\v]*(s|ms|μs|µs|us|ns)$")
 
 
-def parse_time(value: Union[int, float, str, None]) -> Optional[int]:
+def parse_time(value: Union[int, float, str]) -> int:
     """A duration in nanoseconds: a string such as ``"100 ns"``, ``"1 µs"``, ``"2 ms"``, ``"1 s"`` (the QDK's
-    form), or, beyond the QDK, a number of nanoseconds."""
-    if value is None or isinstance(value, bool):
-        return None if value is None else int(value)
-    if isinstance(value, (int, float)):
-        return int(value)
-    m = _TIME_RE.match(value.strip())
+    form, no surrounding spaces, the value rounded and saturated to u64 as the QDK's), or, beyond the QDK, a
+    number of nanoseconds."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return _as_u64(_round_half_away(float(value)))
+    m = _TIME_RE.match(value) if isinstance(value, str) else None
     if m is None:
         raise ValueError(f"cannot parse time {value!r}")
     multiplier = {"s": 1e9, "ms": 1e6, "μs": 1e3, "µs": 1e3, "us": 1e3, "ns": 1.0}[m.group(3)]
-    return _round_half_away(float(m.group(1)) * multiplier)
+    return _as_u64(_round_half_away(float(m.group(1)) * multiplier))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -266,14 +738,17 @@ class _Binomial:
         if x == self.n:
             return math.exp(n * math.log(self.p))
         xf = float(x)
-        n_m_x = n - xf
-        ln_c = _stirlerr(n) - _stirlerr(xf) - _stirlerr(n_m_x) - _ln_d0(xf, self.np) - _ln_d0(n_m_x, self.nq)
-        return math.exp(ln_c) * math.sqrt(n / (2.0 * math.pi * xf * n_m_x))
+        n_m_x = float((self.n - x) % 2**64)  # the crate's `n - x` in usize, which wraps past n (and the QDK asks past n)
+        try:
+            ln_c = _stirlerr(n) - _stirlerr(xf) - _stirlerr(n_m_x) - _ln_d0(xf, self.np) - _ln_d0(n_m_x, self.nq)
+            return math.exp(ln_c) * math.sqrt(n / (2.0 * math.pi * xf * n_m_x))
+        except (ValueError, OverflowError, ZeroDivisionError):  # not reached for 0 < x; f64 would give NaN or an infinity
+            return math.nan
 
     def distribution(self, x: float) -> float:
         if x < 0.0:
             return 0.0
-        x = int(x)
+        x = _as_u64(x)  # `x as usize`: saturating, NaN to 0
         if x == 0:
             return _powi(self.q, self.n)
         if x >= self.n:
@@ -318,17 +793,23 @@ class _Binomial:
             return n - k + 1
         if self.npq > 80.0:
             return int(math.floor(_inverse_normal(self.p, self.np, self.npq, p)))
+        # The crate's damped Newton iteration from the mode, with its casts: `q as usize` saturates (so a step past
+        # n reads the CDF as 1 and the mass with a wrapped n − x, and a step below 0 reads them at 0), and the
+        # loop has no cap. It converges in a few steps even with the failure probability near 1 (q falls to 0); it
+        # never returns once q is NaN or infinite (the mass is 0 there, so every step is infinite), which is where
+        # the QDK hangs: that, or an unreasonable number of steps, is an error here.
         q = float(self.modes()[0])
         alpha = 1.0
-        for _ in range(10_000):
-            if not 0.0 <= q <= n:
-                break
-            delta = alpha * (p - self.distribution(q)) / self.mass(int(q))
+        for _ in range(1_000_000):
+            numerator = alpha * (p - self.distribution(q))
+            mass = self.mass(_as_u64(q))
+            delta = _div(numerator, mass)
             if abs(delta) < 0.5:
-                return int(q)
+                return _as_u64(q)
             q += delta
             alpha *= 0.999
-        # The `probability` crate's loop leaves [0, n] here and never returns (the QDK hangs).
+            if not math.isfinite(q):
+                break
         raise ValueError(f"the QDK's binomial quantile does not converge for n={n}, failure probability {self.q!r}, p={p!r}")
 
 
@@ -516,11 +997,19 @@ def _error_rate(key: str, value: Any) -> float:
     return float(value)
 
 
-def _count(key: str, value: Any) -> int:
-    """A count as the QDK's `u64` takes it: a non-negative integer (not a bool, not a float)."""
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise ValueError(f"{key}: expected a non-negative integer, got {value!r}")
+def _count(key: str, value: Any, bits: int = 64) -> int:
+    """A count as the QDK's `u64` (or `u32`) takes it: a non-negative integer below 2^bits (not a bool, not a
+    float)."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**bits:
+        raise ValueError(f"{key}: expected a non-negative integer below 2^{bits}, got {value!r}")
     return value
+
+
+def _float_field(key: str, value: Any) -> float:
+    """A number as the QDK's `f64` takes it: an int or a float, not a bool, not a string."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key}: expected a number, got {value!r}")
+    return float(value)
 
 
 def physical_qubit(spec: Union[str, dict, GateBasedQubit, MajoranaQubit, None] = None) -> PhysicalQubit:
@@ -536,6 +1025,8 @@ def physical_qubit(spec: Union[str, dict, GateBasedQubit, MajoranaQubit, None] =
     spec = dict(spec)
     instruction_set = spec.pop("instructionSet", None)
     name = spec.pop("name", "")
+    if not isinstance(name, str):
+        raise ValueError(f"the qubit's name is a string, not {name!r}")
     if instruction_set is None:
         if name in _GATE_BASED_PRESETS:
             instruction_set = "GateBased"
@@ -550,9 +1041,9 @@ def physical_qubit(spec: Union[str, dict, GateBasedQubit, MajoranaQubit, None] =
         if key.endswith("Time"):
             value = parse_time(value)
         elif isinstance(value, dict):
-            # The QDK's Majorana measurement error: both parts, each a rate.
-            if set(value) != {"process", "readout"}:
-                raise ValueError(f"{key} as a dict takes exactly the keys 'process' and 'readout', not {sorted(value)}")
+            # The QDK's Majorana measurement error: both parts, each a rate (other keys are ignored, as serde ignores them).
+            if not {"process", "readout"} <= set(value):
+                raise ValueError(f"{key} as a dict takes the keys 'process' and 'readout', not {sorted(value)}")
             value = (_error_rate(key + ".process", value["process"]), _error_rate(key + ".readout", value["readout"]))
         else:
             value = _error_rate(key, value)
@@ -599,22 +1090,26 @@ class QECScheme:
         return max(qubit.clifford_error_rate(), qubit.readout_error_rate())
 
     def physical_qubits(self, code_distance: int) -> int:
+        """The formula's value `as u64`, as the QDK casts it: a NaN passes its non-positive check and becomes 0,
+        an infinity 2^64 − 1."""
         value = evaluate_expression(self.physical_qubits_per_logical_qubit, {"codeDistance": code_distance})
         if value <= 0.0:
             raise ValueError(f"non-positive number of physical qubits per logical qubit at code distance {code_distance}")
-        return int(value)
+        return _as_u64(value)
 
     def cycle_time(self, qubit: PhysicalQubit, code_distance: int) -> int:
         value = evaluate_expression(self.logical_cycle_time, qubit.expression_context(code_distance))
         if value <= 0.0:
             raise ValueError(f"non-positive logical cycle time at code distance {code_distance}")
-        return _round_half_away(value)
+        return _as_u64(_round_half_away(value))
 
     def logical_error_rate(self, qubit: PhysicalQubit, code_distance: int) -> float:
+        """The QDK raises the distance to the coefficient power in u64 arithmetic, which wraps (50^12 already
+        overflows); `pow(d, k, 2^64)` is that wrap, and cheap for any `k < 2^32`."""
         p = self.physical_error_rate(qubit)
         if p > self.error_correction_threshold:
             raise ValueError(f"invalid value for 'physical_error_rate', expected value between 0 and {self.error_correction_threshold}")
-        return self.crossing_prefactor * float(code_distance**self.distance_coefficient_power) * _powi(p / self.error_correction_threshold, (code_distance + 1) // 2)
+        return self.crossing_prefactor * float(pow(code_distance, self.distance_coefficient_power, 2**64)) * _powi(p / self.error_correction_threshold, (code_distance + 1) // 2)
 
     def code_distance_range(self, lower: Optional[int] = None) -> range:
         return range(lower if lower is not None else 1, self.max_code_distance + 1, 2)
@@ -639,6 +1134,9 @@ class QECScheme:
         return {"name": self.name, "errorCorrectionThreshold": self.error_correction_threshold, "crossingPrefactor": self.crossing_prefactor, "distanceCoefficientPower": self.distance_coefficient_power, "logicalCycleTime": self.logical_cycle_time, "physicalQubitsPerLogicalQubit": self.physical_qubits_per_logical_qubit, "maxCodeDistance": self.max_code_distance}
 
 
+_OPTIONAL_SCHEME_FIELDS = ("errorCorrectionThreshold", "crossingPrefactor", "distanceCoefficientPower", "logicalCycleTime", "physicalQubitsPerLogicalQubit")
+
+
 def qec_scheme(spec: Union[str, dict, QECScheme, None], qubit: PhysicalQubit) -> QECScheme:
     """A scheme from a name (``surface_code``, ``floquet_code``; the surface code picks its gate-based or
     measurement-based variant from the qubit), a QDK ``qecScheme`` dict (a name with overrides, or a full custom
@@ -650,8 +1148,20 @@ def qec_scheme(spec: Union[str, dict, QECScheme, None], qubit: PhysicalQubit) ->
     if isinstance(spec, QECScheme):
         scheme = replace(spec)
     else:
-        spec = dict(spec)
+        spec = {k: v for k, v in dict(spec).items() if not (v is None and k in _OPTIONAL_SCHEME_FIELDS)}  # null is absent for the QDK's `Option` fields (not for maxCodeDistance or name)
         name = spec.pop("name", "surface_code")
+        if not isinstance(name, str):
+            raise ValueError(f"the QEC scheme's name is a string, not {name!r}")
+        for key in ("errorCorrectionThreshold", "crossingPrefactor"):
+            if key in spec:
+                spec[key] = _float_field(key, spec[key])
+        for key in ("logicalCycleTime", "physicalQubitsPerLogicalQubit"):
+            if key in spec and not isinstance(spec[key], str):
+                raise ValueError(f"{key}: expected a formula string, got {spec[key]!r}")
+        if "distanceCoefficientPower" in spec:
+            spec["distanceCoefficientPower"] = _count("distanceCoefficientPower", spec["distanceCoefficientPower"], 32)
+        if "maxCodeDistance" in spec:
+            spec["maxCodeDistance"] = _count("maxCodeDistance", spec["maxCodeDistance"])
         majorana = isinstance(qubit, MajoranaQubit)
         if name in ("surface_code", "surfaceCode", "surface-code"):
             scheme = QECScheme.surface_code_measurement_based() if majorana else QECScheme.surface_code_gate_based()
@@ -667,10 +1177,6 @@ def qec_scheme(spec: Union[str, dict, QECScheme, None], qubit: PhysicalQubit) ->
             scheme = QECScheme(name, spec["errorCorrectionThreshold"], spec["crossingPrefactor"], spec.get("distanceCoefficientPower", 0), spec["logicalCycleTime"], spec["physicalQubitsPerLogicalQubit"], spec.get("maxCodeDistance", MAX_CODE_DISTANCE))
         if scheme is None:
             raise ValueError("the Floquet code needs a Majorana (measurement-based) qubit")
-        if "distanceCoefficientPower" in spec:
-            _count("distanceCoefficientPower", spec["distanceCoefficientPower"])
-        if "maxCodeDistance" in spec:
-            _count("maxCodeDistance", spec["maxCodeDistance"])
         for key, attr in (("errorCorrectionThreshold", "error_correction_threshold"), ("crossingPrefactor", "crossing_prefactor"), ("distanceCoefficientPower", "distance_coefficient_power"), ("logicalCycleTime", "logical_cycle_time"), ("physicalQubitsPerLogicalQubit", "physical_qubits_per_logical_qubit"), ("maxCodeDistance", "max_code_distance")):
             if key in spec:
                 setattr(scheme, attr, spec[key])
@@ -678,7 +1184,7 @@ def qec_scheme(spec: Union[str, dict, QECScheme, None], qubit: PhysicalQubit) ->
         raise ValueError("invalid value for crossingPrefactor, expected value between 0 and 0.5")
     if qubit.clifford_error_rate() >= scheme.error_correction_threshold:
         raise ValueError(f"the qubit's Clifford error rate {qubit.clifford_error_rate()} is not below the scheme's threshold {scheme.error_correction_threshold}")
-    for d in scheme.code_distance_range(3):
+    for d in range(3, scheme.max_code_distance + 1):  # the QDK's `(1..=max).skip(2)`: even distances too
         scheme.cycle_time(qubit, d)
         scheme.physical_qubits(d)
     return scheme
@@ -725,22 +1231,30 @@ class LogicalCounts:
     ccz_count: int = 0
     ccix_count: int = 0
     measurement_count: int = 0
+    # Counts the QDK takes and echoes back in `logicalCounts` but does not use in the estimate.
+    num_compute_qubits: Optional[int] = None
+    read_from_memory_count: Optional[int] = None
+    write_to_memory_count: Optional[int] = None
 
     @staticmethod
     def fromdict(d: dict) -> "LogicalCounts":
-        keys = {"numQubits": "num_qubits", "tCount": "t_count", "rotationCount": "rotation_count", "rotationDepth": "rotation_depth", "cczCount": "ccz_count", "ccixCount": "ccix_count", "measurementCount": "measurement_count"}
+        keys = {"numQubits": "num_qubits", "tCount": "t_count", "rotationCount": "rotation_count", "rotationDepth": "rotation_depth", "cczCount": "ccz_count", "ccixCount": "ccix_count", "measurementCount": "measurement_count", "numComputeQubits": "num_compute_qubits", "readFromMemoryCount": "read_from_memory_count", "writeToMemoryCount": "write_to_memory_count"}
         out = {}
         for k, v in d.items():
             if k in keys:
                 out[keys[k]] = _count(k, v)
             elif k in keys.values():
                 out[k] = _count(k, v)
-            elif k not in ("numComputeQubits", "readFromMemoryCount", "writeToMemoryCount"):
+            else:
                 raise ValueError(f"unknown logical count {k!r}")
         return LogicalCounts(**out)
 
     def asdict(self) -> dict:
-        return {"numQubits": self.num_qubits, "tCount": self.t_count, "rotationCount": self.rotation_count, "rotationDepth": self.rotation_depth, "cczCount": self.ccz_count, "ccixCount": self.ccix_count, "measurementCount": self.measurement_count}
+        d = {"numQubits": self.num_qubits, "tCount": self.t_count, "rotationCount": self.rotation_count, "rotationDepth": self.rotation_depth, "cczCount": self.ccz_count, "ccixCount": self.ccix_count, "measurementCount": self.measurement_count}
+        for key, value in (("numComputeQubits", self.num_compute_qubits), ("readFromMemoryCount", self.read_from_memory_count), ("writeToMemoryCount", self.write_to_memory_count)):
+            if value is not None:
+                d[key] = value
+        return d
 
     def logical_qubits(self) -> int:
         return 2 * self.num_qubits + math.ceil(math.sqrt(8 * self.num_qubits)) + 1
@@ -783,11 +1297,11 @@ class ErrorBudget:
             missing = [k for k in ("logical", "tStates", "rotations") if k not in spec]
             if missing:
                 raise ValueError(f"an error budget dict names logical, tStates and rotations; missing {missing}")
-            logical, tstates, rotations = float(spec["logical"]), float(spec["tStates"]), float(spec["rotations"])
+            logical, tstates, rotations = (_float_field(k, spec[k]) for k in ("logical", "tStates", "rotations"))
             if logical + tstates + rotations >= 1.0 or logical <= 0.0 or tstates < 0.0 or (counts.has_tgates() and tstates == 0.0) or rotations < 0.0 or (counts.has_rotations() and rotations == 0.0):
                 raise ValueError(f"invalid error budget {spec!r}")
             return ErrorBudget(logical, tstates, rotations)
-        total = float(spec)
+        total = _float_field("errorBudget", spec)
         if total <= 0.0 or total >= 1.0:
             raise ValueError(f"invalid error budget {total}: expected a value strictly between 0 and 1")
         if counts.has_tgates() and counts.has_rotations():
@@ -808,6 +1322,8 @@ Formula = Callable[[float, float, float], float]
 
 
 def _formula(expression: str) -> Formula:
+    _compile_expression(expression)  # refused now, as the QDK refuses it when it reads the specification
+
     def f(input_error_rate: float, clifford_error_rate: float, readout_error_rate: float) -> float:
         return evaluate_expression(expression, {"inputErrorRate": input_error_rate, "cliffordErrorRate": clifford_error_rate, "readoutErrorRate": readout_error_rate, "z": input_error_rate, "c": clifford_error_rate, "r": readout_error_rate})
 
@@ -872,22 +1388,33 @@ class DistillationUnitTemplate:
             return spec
         if isinstance(spec, str):
             return DistillationUnitTemplate.from_name(spec)
-        if "name" in spec:
+        if not isinstance(spec, dict):
+            raise ValueError(f"a distillation unit specification is a name or a dict, not {spec!r}")
+        if isinstance(spec.get("name"), str):
             # The QDK's spec is an untagged union whose first arm is the named unit: a dict with
-            # a name is that unit, whatever else it carries.
+            # a name is that unit, whatever else it carries (a name that is not a string is ignored).
             return DistillationUnitTemplate.from_name(spec["name"])
-        if spec.get("numInputTs", 0) == 0:
+        for key in ("displayName", "numInputTs", "numOutputTs", "failureProbabilityFormula", "outputErrorRateFormula"):
+            if key not in spec:
+                raise ValueError(f"missing field `{key}` of the distillation unit")
+        if not isinstance(spec["displayName"], str):
+            raise ValueError(f"displayName: expected a string, got {spec['displayName']!r}")
+        num_input_ts, num_output_ts = _count("numInputTs", spec["numInputTs"]), _count("numOutputTs", spec["numOutputTs"])
+        if num_input_ts == 0:
             raise ValueError("The number of input t states must be greater than 0.")
-        if spec.get("numOutputTs", 0) == 0:
+        if num_output_ts == 0:
             raise ValueError("The number of output t states must be greater than 0.")
 
         def resources(key):
             r = spec.get(key)
             if r is None:
                 return None
-            if r["numUnitQubits"] == 0:
+            if not isinstance(r, dict) or not {"numUnitQubits", "durationInQubitCycleTime"} <= set(r):
+                raise ValueError(f"{key} takes numUnitQubits and durationInQubitCycleTime, got {r!r}")
+            num_unit_qubits, duration = _count(key + ".numUnitQubits", r["numUnitQubits"]), _count(key + ".durationInQubitCycleTime", r["durationInQubitCycleTime"])
+            if num_unit_qubits == 0:
                 raise ValueError("The number of unit qubits must be greater than 0.")
-            return (int(r["numUnitQubits"]), int(r["durationInQubitCycleTime"]))
+            return (num_unit_qubits, duration)
 
         physical, logical, override = resources("physicalQubitSpecification"), resources("logicalQubitSpecification"), resources("logicalQubitSpecificationFirstRoundOverride")
         if physical is None and logical is None:
@@ -900,7 +1427,7 @@ class DistillationUnitTemplate:
             unit_type = "Physical"
         else:
             unit_type = "Logical"
-        return DistillationUnitTemplate(spec["displayName"], int(spec["numInputTs"]), int(spec["numOutputTs"]), _formula(spec["failureProbabilityFormula"]), _formula(spec["outputErrorRateFormula"]), unit_type, physical, logical, override)
+        return DistillationUnitTemplate(spec["displayName"], num_input_ts, num_output_ts, _formula(spec["failureProbabilityFormula"]), _formula(spec["outputErrorRateFormula"]), unit_type, physical, logical, override)
 
 
 @dataclass(frozen=True)
@@ -1404,13 +1931,17 @@ class Constraints:
             return Constraints()
         if isinstance(spec, Constraints):
             return replace(spec)
+        if not isinstance(spec, dict):
+            raise ValueError(f"constraints are a dict, not {spec!r}")
         keys = {"logicalDepthFactor": "logical_depth_factor", "maxTFactories": "max_t_factories", "maxDuration": "max_duration", "maxPhysicalQubits": "max_physical_qubits", "maxDistillationRounds": "max_distillation_rounds"}
         out = {}
         for k, v in spec.items():
             attr = keys.get(k, k if k in keys.values() else None)
             if attr is None:
                 raise ValueError(f"unknown constraint {k!r}")
-            out[attr] = parse_time(v) if attr == "max_duration" else v
+            if v is None and attr in ("logical_depth_factor", "max_t_factories", "max_physical_qubits"):
+                continue  # the QDK's optional fields: null is absent (maxDuration and maxDistillationRounds refuse null)
+            out[attr] = parse_time(v) if attr == "max_duration" else _float_field(k, v) if attr == "logical_depth_factor" else _count(k, v)
         return Constraints(**out)
 
     def asdict(self) -> dict:
@@ -1543,7 +2074,8 @@ class AzureEstimator:
         if factor is not None:
             if factor < 1.0:
                 raise ValueError(f"logical depth scaling factor {factor} must be at least 1")
-            num_cycles = math.ceil(num_cycles * factor)
+            scaled = num_cycles * factor
+            num_cycles = 2**64 - 1 if not math.isfinite(scaled) else min(math.ceil(scaled), 2**64 - 1)  # the QDK's `.ceil() as u64` saturates
         return num_cycles
 
     def compute_num_cycles(self, budget: ErrorBudget) -> int:
@@ -1638,16 +2170,37 @@ class AzureEstimator:
             try:
                 part, num_cycles_required = self._factory_part(patch, num_cycles, max_allowed, budget, num_magic_states)
             except _NoFactory as none:
-                # More cycles raise the code distance; with no factory at all at this distance,
-                # the same distance again is the same search again, and the QDK loops here
-                # forever (every first distillation round fails, or its cycle count saturates).
-                if none.any_factory:
-                    last_distance_without_factories = None
-                elif last_distance_without_factories == code_distance or code_distance >= self.scheme.max_code_distance:
-                    raise ValueError(f"no T factory reaches a T-state error rate of {budget.tstates / num_magic_states:.3g} at code distance {code_distance}: the estimate has no solution") from None
-                else:
-                    last_distance_without_factories = code_distance
-                num_cycles = max(max_allowed + 1, num_cycles + 1)
+                if none.any_factory or last_distance_without_factories != code_distance:
+                    last_distance_without_factories = None if none.any_factory else code_distance
+                    num_cycles = max(max_allowed + 1, num_cycles + 1)
+                    continue
+                # No factory at all at this distance, twice: the QDK adds one cycle at a time until the distance
+                # moves (past 1e14 cycles the +1 no longer changes the required rate by an ulp, and it takes many
+                # steps), then searches again. The cycle count where the distance moves is found directly here
+                # (the distance is monotone in it: doubling, then bisection); when none below 2^64 moves it, or the
+                # next distance is past the scheme's maximum, the QDK never returns and this is an error.
+                no_solution = ValueError(f"no T factory reaches a T-state error rate of {budget.tstates / num_magic_states:.3g} at code distance {code_distance}: the estimate has no solution")
+
+                def distance_at(n: int) -> int:
+                    try:
+                        return self.scheme.compute_code_distance(self.qubit, self.required_logical_error_rate(budget.logical, n))
+                    except ValueError:
+                        return self.scheme.max_code_distance + 2
+
+                lo = hi = num_cycles
+                while distance_at(hi) == code_distance:
+                    lo, hi = hi, hi * 2
+                    if hi >= 2**64:
+                        raise no_solution from None
+                while lo + 1 < hi:
+                    mid = (lo + hi) // 2
+                    if distance_at(mid) == code_distance:
+                        lo = mid
+                    else:
+                        hi = mid
+                if distance_at(hi) > self.scheme.max_code_distance:
+                    raise no_solution from None
+                num_cycles = hi
                 continue
             return EstimationResult(self, patch, num_cycles_required, part, required, budget)
 
@@ -1792,6 +2345,8 @@ def azure_estimator(counts: Union[LogicalCounts, dict], qubit_params=None, qec_s
         counts = LogicalCounts.fromdict(counts)
     qubit = physical_qubit(qubit_params)
     scheme = qec_scheme(qec_scheme_spec, qubit)
+    if distillation_unit_specifications is not None and not isinstance(distillation_unit_specifications, (list, tuple)):
+        raise ValueError(f"distillationUnitSpecifications is a list of unit specifications, not {distillation_unit_specifications!r}")
     templates = DistillationUnitTemplate.defaults() if not distillation_unit_specifications else [DistillationUnitTemplate.fromspec(s) for s in distillation_unit_specifications]
     return AzureEstimator(counts, qubit, scheme, templates, Constraints.fromspec(constraints), error_budget, estimate_type)
 

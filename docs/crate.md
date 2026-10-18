@@ -30,6 +30,12 @@ assert!(failures < 1_000);
 - **Decoders** on an error model: [`Matching`] (exact, sparse blossom; plain or correlated, as
   fast as PyMatching), [`BeliefMatching`], [`BpOsd`], [`WindowMatching`]. On a check matrix:
   [`BpDecoder`] and [`BpOsdDecoder`], equal to `ldpc`'s. All `Send + Sync`.
+- **Beyond Clifford, and beyond the CPU** (2.0): [`Circuit::stabilizer_rank_sampler`] runs
+  Clifford+T circuits (`I[T]`, tagged rotations) exactly, [`Circuit::coherent_sampler`] and the
+  joint sampler reweight the Pauli twirl of coherent errors (`I_ERROR[R_Z(theta=…)]`) by the
+  interference it leaves out, with the exact gates kept exact; the `gpu` feature runs the frame
+  sampler and min-sum BP as wgpu compute shaders, bit for bit the CPU lane sampler's and the
+  f32 decoder's results; the `highs` feature adds the ILP circuit distance.
 - **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`stream_memory`] and
   [`stream_circuit`] (a million rounds of a memory, or of any circuit with a loop,
   window-decoded as they stream), [`BivariateBicycleCode`] (the gross code, its

@@ -204,7 +204,7 @@ def gpu_sampling():
     rows = []
     for r in B["sampling"]:
         gpu = rate(r["gpu_per_s"]) if "gpu_per_s" in r else "no device"
-        ratio = f"{r['gpu_per_s'] / r['cpu_1_thread_per_s']:.0f}×" if "gpu_per_s" in r else "—"
+        ratio = f"{r['gpu_per_s'] / r['cpu_1_thread_per_s']:.1f}×" if "gpu_per_s" in r else "—"
         same = ("yes" if r.get("gpu_equals_lanes") else "NO") if "gpu_per_s" in r else "—"
         rows.append(f"| d = {r['distance']} | {r['qubits']} | {rate(r['cpu_1_thread_per_s'])} | {rate(r['cpu_all_threads_per_s'])} | {rate(r['cpu_lanes_per_s'])} | {gpu} | {ratio} | {same} |")
     return rows

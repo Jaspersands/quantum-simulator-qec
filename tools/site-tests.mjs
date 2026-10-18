@@ -658,5 +658,43 @@ test('editor: placing and removing measurements keeps every lookback on its reco
   assert.equal(n.toStim(), 'X_ERROR(0.1) 0\nX_ERROR 1');
 });
 
+
+test('editor: the second review — marks mid-layer, pairs, %g ties, lowercase Paulis, MPAD bits', () => {
+  // A mark Stim writes right before a mid-layer instruction splits the layer there, so the
+  // marker sits before that instruction and not before the layer's earlier gates.
+  const c = EditorModel.fromCrumbleUrl('R_0;TICK;H_0;TICK;MARKZ(0)0;TICK;H_0;TICK;M_0;DT_rec[-1]');
+  assert.deepEqual([...c.analysis().detFlips[0]], [0]);
+  const mid = EditorModel.fromCrumbleUrl('R_0_1;TICK;H_0;TICK;TICK;MARKX(0)1;TICK;X_1;TICK;M_0_1;DT_rec[-1]'); // Stim's writing: the mark between its own TICKs before X 1
+  assert.equal(mid.layers.length, 4); // R | H | X | M
+  assert.deepEqual(mid.layers[2].map((op) => op.name), ['X']);
+  assert.deepEqual([...mid.analysis().detFlips[0]], [0]);
+  // Pair-target gates lose the pair that holds the qubit, not one target.
+  const m = EditorModel.fromStim('CX 0 1 2 3\nDEPOLARIZE2(0.01) 0 1 2 3\nMZZ 0 1 2 3\nDETECTOR rec[-1]\nDETECTOR rec[-2]');
+  m.removeOn(0, 0);
+  assert.equal(m.toStim(), 'CX 2 3\nDEPOLARIZE2(0.01) 2 3\nMZZ 2 3\nDETECTOR rec[-1]');
+  // %g as the package prints it: half to even on the exact value, big integers exact.
+  assert.equal(formatArg(123456.5), '123456');
+  assert.equal(formatArg(12345.25), '12345.2');
+  assert.equal(formatArg(9378.125), '9378.12');
+  assert.equal(formatArg(38331414763291928), '38331414763291928');
+  assert.equal(formatArg(9200000000000000000), '9200000000000000000');
+  assert.equal(formatArg(0.1), '0.1');
+  assert.equal(formatArg(2.5e-5), '2.5e-05');
+  // Lowercase Pauli targets read as Stim reads them.
+  assert.deepEqual(parseStim('MPP x0*z1 !y2').ops[0].targets, ['X0', '*', 'Z1', '!Y2']);
+  // MPAD's targets are bits: not qubits, not erasable as one.
+  const pad = EditorModel.fromStim('M 2\nMPAD 0 1\nDETECTOR rec[-1]');
+  assert.deepEqual(pad.qubits(), [2]);
+  pad.removeOn(0, 0);
+  assert.equal(pad.toStim(), 'M 2\nMPAD 0 1\nDETECTOR rec[-1]');
+  assert.equal(pad.recordsIn(0).filter((r) => r.qubit === null).length, 2);
+  // Strictness the package has.
+  assert.throws(() => parseStim('REPEAT 2 {\nH 0\n} H 1'), /closing brace/);
+  assert.throws(() => parseStim('DETECTOR rec[-0]'), /not a target/);
+  assert.throws(() => parseStim('QUBIT_COORDS(0x10) 0'), /not a number/);
+  assert.throws(() => parseStim('X_ERROR(Infinity) 0'), /not a number/);
+  assert.throws(() => parseStim(Array(1200).fill('REPEAT 2 {').join('\n') + '\nH 0\n' + Array(1200).fill('}').join('\n')), /nested more than/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

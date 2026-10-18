@@ -1,0 +1,3680 @@
+{
+ "constraints|null_optional_fields": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "constraints": {
+    "logicalDepthFactor": null,
+    "maxPhysicalQubits": null,
+    "maxTFactories": null
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4400,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 242
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 227272.72727272726,
+    "logicalDepth": 100,
+    "numTfactories": 12,
+    "numTfactoryRuns": 9,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7260,
+    "physicalQubitsForTfactories": 77760,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 85020,
+   "rqops": 6818182,
+   "runtime": 440000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 6480,
+   "physicalQubitsPerRound": [
+    6480
+   ],
+   "runtime": 46800,
+   "runtimePerRound": [
+    46800
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "echo|memory_counts": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {},
+  "logicalCounts": {
+   "numComputeQubits": 7,
+   "numQubits": 10,
+   "readFromMemoryCount": 3,
+   "tCount": 100,
+   "writeToMemoryCount": 4
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4400,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 242
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 227272.72727272726,
+    "logicalDepth": 100,
+    "numTfactories": 12,
+    "numTfactoryRuns": 9,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7260,
+    "physicalQubitsForTfactories": 77760,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 85020,
+   "rqops": 6818182,
+   "runtime": 440000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numComputeQubits": 7,
+   "numQubits": 10,
+   "readFromMemoryCount": 3,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100,
+   "writeToMemoryCount": 4
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 6480,
+   "physicalQubitsPerRound": [
+    6480
+   ],
+   "runtime": 46800,
+   "runtimePerRound": [
+    46800
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "formula|even_distance_rejected": {
+  "jobParams": {
+   "qecScheme": {
+    "logicalCycleTime": "codeDistance % 2 * 100",
+    "name": "surface_code"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "message": "EstimatorError: Error estimating resources (Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed): The logical cycle time cannot be computed: logicalCycleTime formula yields non-positive value for code distance = 4",
+  "status": "error"
+ },
+ "formula|folded_chain": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "logicalCycleTime": "-(codeDistance ^ 2) + 400 * codeDistance + 7 * 3 % 2 * 0",
+    "name": "surface_code",
+    "physicalQubitsPerLogicalQubit": "codeDistance * codeDistance * 1e16 * 2 / 1e16 + 0.1 + 0.2 - 0.3"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4279,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 242
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 233699.46249123628,
+    "logicalDepth": 100,
+    "numTfactories": 12,
+    "numTfactoryRuns": 9,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7260,
+    "physicalQubitsForTfactories": 77760,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 85020,
+   "rqops": 7010984,
+   "runtime": 427900
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 6480,
+   "physicalQubitsPerRound": [
+    6480
+   ],
+   "runtime": 45747,
+   "runtimePerRound": [
+    45747
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "formula|functions": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "logicalCycleTime": "round(2.5) * 100 * codeDistance + log(100)",
+    "name": "surface_code",
+    "physicalQubitsPerLogicalQubit": "max(abs(-2) * codeDistance ^ 2, 10) + min(codeDistance, 4)"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 3302,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 246
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 302846.75953967293,
+    "logicalDepth": 100,
+    "numTfactories": 12,
+    "numTfactoryRuns": 9,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7380,
+    "physicalQubitsForTfactories": 79680,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 87060,
+   "rqops": 9085403,
+   "runtime": 330200
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 6640,
+   "physicalQubitsPerRound": [
+    6640
+   ],
+   "runtime": 35126,
+   "runtimePerRound": [
+    35126
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "formula|nan_is_zero_qubits": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "name": "surface_code",
+    "physicalQubitsPerLogicalQubit": "(codeDistance - codeDistance) / (codeDistance - codeDistance) + 100 * codeDistance"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4400,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 0
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 227272.72727272726,
+    "logicalDepth": 100,
+    "numTfactories": 10,
+    "numTfactoryRuns": 10,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 0,
+    "physicalQubitsForTfactories": 0,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 0,
+   "rqops": 6818182,
+   "runtime": 440000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 0,
+   "physicalQubitsPerRound": [
+    0
+   ],
+   "runtime": 39600,
+   "runtimePerRound": [
+    39600
+   ],
+   "unitNamePerRound": [
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "formula|zero_over_zero_folds_to_one": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "logicalCycleTime": "0 / 0 * 400 * codeDistance",
+    "name": "surface_code"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4400,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 242
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 227272.72727272726,
+    "logicalDepth": 100,
+    "numTfactories": 12,
+    "numTfactoryRuns": 9,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7260,
+    "physicalQubitsForTfactories": 77760,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 85020,
+   "rqops": 6818182,
+   "runtime": 440000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 6480,
+   "physicalQubitsPerRound": [
+    6480
+   ],
+   "runtime": 46800,
+   "runtimePerRound": [
+    46800
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "knife_edge|logical=0.085|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.085,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.085,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1000000000000000,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.8333333333333337e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13200000000000000000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.085|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.085,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.085,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1000000000000000,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.8333333333333337e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13200000000000000000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.085|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.085,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.085,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1000000000000000,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.8333333333333337e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13200000000000000000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.0905|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.0905,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.0905,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1005555555555563,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.999999999999978e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13273333333333431600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.0905|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.0905,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.0905,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1005555555555563,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.999999999999978e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13273333333333431600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.0905|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.0905,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.0905,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1005555555555563,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.999999999999978e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13273333333333431600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.091|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.091,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.091,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1011111111111119,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.9999999999999767e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13346666666666770800
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.091|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.091,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.091,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1011111111111119,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.9999999999999767e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13346666666666770800
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.091|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.091,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.091,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1011111111111119,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.9999999999999767e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13346666666666770800
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.095|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.095,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.095,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1055555555555564,
+    "numTfactories": 15,
+    "numTfactoryRuns": 66666666666667,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1234200,
+    "requiredLogicalQubitErrorRate": 2.999999999999976e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1299540,
+   "rqops": 2272728,
+   "runtime": 13933333333333444800
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.095|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.095,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.095,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1055555555555564,
+    "numTfactories": 15,
+    "numTfactoryRuns": 66666666666667,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1234200,
+    "requiredLogicalQubitErrorRate": 2.999999999999976e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1299540,
+   "rqops": 2272728,
+   "runtime": 13933333333333444800
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.095|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.095,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.095,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1055555555555564,
+    "numTfactories": 15,
+    "numTfactoryRuns": 66666666666667,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1234200,
+    "requiredLogicalQubitErrorRate": 2.999999999999976e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1299540,
+   "rqops": 2272728,
+   "runtime": 13933333333333444800
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.09|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.09,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.09,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1000000000000008,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.999999999999976e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13200000000000105600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.09|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.09,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.09,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1000000000000008,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.999999999999976e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13200000000000105600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.09|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.09,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.09,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1000000000000008,
+    "numTfactories": 16,
+    "numTfactoryRuns": 62500000000000,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1316480,
+    "requiredLogicalQubitErrorRate": 2.999999999999976e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1381820,
+   "rqops": 2272728,
+   "runtime": 13200000000000105600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.12|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.12,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.12,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1333333333333343,
+    "numTfactories": 12,
+    "numTfactoryRuns": 83333333333334,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 987360,
+    "requiredLogicalQubitErrorRate": 2.9999999999999783e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1052700,
+   "rqops": 2272728,
+   "runtime": 17600000000000127600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.12|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.12,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.12,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1333333333333343,
+    "numTfactories": 12,
+    "numTfactoryRuns": 83333333333334,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 987360,
+    "requiredLogicalQubitErrorRate": 2.9999999999999783e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1052700,
+   "rqops": 2272728,
+   "runtime": 17600000000000127600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.12|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.12,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.12,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1333333333333343,
+    "numTfactories": 12,
+    "numTfactoryRuns": 83333333333334,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 987360,
+    "requiredLogicalQubitErrorRate": 2.9999999999999783e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1052700,
+   "rqops": 2272728,
+   "runtime": 17600000000000127600
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.1|tstates=0.003": {
+  "errorBudget": {
+   "logical": 0.1,
+   "rotations": 0.0,
+   "tstates": 0.003
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.1,
+    "rotations": 0.0,
+    "tStates": 0.003
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1111111111111120,
+    "numTfactories": 14,
+    "numTfactoryRuns": 71428571428572,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1151920,
+    "requiredLogicalQubitErrorRate": 2.9999999999999763e-18,
+    "requiredLogicalTstateErrorRate": 3.0000000000000002e-18
+   },
+   "physicalQubits": 1217260,
+   "rqops": 2272728,
+   "runtime": 14666666666666784000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.1|tstates=0.005": {
+  "errorBudget": {
+   "logical": 0.1,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.1,
+    "rotations": 0.0,
+    "tStates": 0.005
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1111111111111120,
+    "numTfactories": 14,
+    "numTfactoryRuns": 71428571428572,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1151920,
+    "requiredLogicalQubitErrorRate": 2.9999999999999763e-18,
+    "requiredLogicalTstateErrorRate": 5e-18
+   },
+   "physicalQubits": 1217260,
+   "rqops": 2272728,
+   "runtime": 14666666666666784000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "knife_edge|logical=0.1|tstates=0.008": {
+  "errorBudget": {
+   "logical": 0.1,
+   "rotations": 0.0,
+   "tstates": 0.008
+  },
+  "jobParams": {
+   "errorBudget": {
+    "logical": 0.1,
+    "rotations": 0.0,
+    "tStates": 0.008
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 1000000000000000
+  },
+  "logicalQubit": {
+   "codeDistance": 33,
+   "logicalCycleTime": 13200,
+   "logicalErrorRate": 3.000000000000005e-19,
+   "physicalQubits": 2178
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000000000000,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 75757.57575757576,
+    "logicalDepth": 1111111111111120,
+    "numTfactories": 14,
+    "numTfactoryRuns": 71428571428572,
+    "numTsPerRotation": null,
+    "numTstates": 1000000000000000,
+    "physicalQubitsForAlgorithm": 65340,
+    "physicalQubitsForTfactories": 1151920,
+    "requiredLogicalQubitErrorRate": 2.9999999999999763e-18,
+    "requiredLogicalTstateErrorRate": 8e-18
+   },
+   "physicalQubits": 1217260,
+   "rqops": 2272728,
+   "runtime": 14666666666666784000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000000000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    11,
+    33
+   ],
+   "logicalErrorRate": 2.6638547200000045e-18,
+   "numInputTstates": 255,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    17,
+    1
+   ],
+   "physicalQubits": 82280,
+   "physicalQubitsPerRound": [
+    82280,
+    67518
+   ],
+   "runtime": 202400,
+   "runtimePerRound": [
+    57200,
+    145200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.066": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": 0.01,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.066,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 3,
+   "logicalCycleTime": 1200,
+   "logicalErrorRate": 2.9999999999999995e-10,
+   "physicalQubits": 18
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 833333.3333333334,
+    "logicalDepth": 100,
+    "numTfactories": 15,
+    "numTfactoryRuns": 7,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 540,
+    "physicalQubitsForTfactories": 1205640,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 1206180,
+   "rqops": 25000000,
+   "runtime": 120000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    3
+   ],
+   "logicalErrorRate": 3.5736537655487756e-05,
+   "numInputTstates": 100470,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    6698,
+    3
+   ],
+   "physicalQubits": 80376,
+   "physicalQubitsPerRound": [
+    80376,
+    1674
+   ],
+   "runtime": 15450,
+   "runtimePerRound": [
+    2250,
+    13200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.0665": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": 0.01,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.0665,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 3,
+   "logicalCycleTime": 1200,
+   "logicalErrorRate": 2.9999999999999995e-10,
+   "physicalQubits": 18
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 833333.3333333334,
+    "logicalDepth": 100,
+    "numTfactories": 15,
+    "numTfactoryRuns": 7,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 540,
+    "physicalQubitsForTfactories": 5429340,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 5429880,
+   "rqops": 25000000,
+   "runtime": 120000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    3
+   ],
+   "logicalErrorRate": 3.8246314863558965e-05,
+   "numInputTstates": 452445,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    30163,
+    3
+   ],
+   "physicalQubits": 361956,
+   "physicalQubitsPerRound": [
+    361956,
+    1674
+   ],
+   "runtime": 15450,
+   "runtimePerRound": [
+    2250,
+    13200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.06655": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": 0.01,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.06655,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 3,
+   "logicalCycleTime": 1200,
+   "logicalErrorRate": 2.9999999999999995e-10,
+   "physicalQubits": 18
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 833333.3333333334,
+    "logicalDepth": 100,
+    "numTfactories": 15,
+    "numTfactoryRuns": 7,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 540,
+    "physicalQubitsForTfactories": 8351280,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 8351820,
+   "rqops": 25000000,
+   "runtime": 120000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    3
+   ],
+   "logicalErrorRate": 3.850571046246181e-05,
+   "numInputTstates": 695940,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    46396,
+    3
+   ],
+   "physicalQubits": 556752,
+   "physicalQubitsPerRound": [
+    556752,
+    1674
+   ],
+   "runtime": 15450,
+   "runtimePerRound": [
+    2250,
+    13200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.0666": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": 0.01,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.0666,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 3,
+   "logicalCycleTime": 1200,
+   "logicalErrorRate": 2.9999999999999995e-10,
+   "physicalQubits": 18
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 833333.3333333334,
+    "logicalDepth": 100,
+    "numTfactories": 15,
+    "numTfactoryRuns": 7,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 540,
+    "physicalQubitsForTfactories": 18079380,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 18079920,
+   "rqops": 25000000,
+   "runtime": 120000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    3
+   ],
+   "logicalErrorRate": 3.8766669048769526e-05,
+   "numInputTstates": 1506615,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    100441,
+    3
+   ],
+   "physicalQubits": 1205292,
+   "physicalQubitsPerRound": [
+    1205292,
+    1674
+   ],
+   "runtime": 15450,
+   "runtimePerRound": [
+    2250,
+    13200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.06664": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": 0.01,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.06664,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 3,
+   "logicalCycleTime": 1200,
+   "logicalErrorRate": 2.9999999999999995e-10,
+   "physicalQubits": 18
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 833333.3333333334,
+    "logicalDepth": 100,
+    "numTfactories": 15,
+    "numTfactoryRuns": 7,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 540,
+    "physicalQubitsForTfactories": 264639240,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 264639780,
+   "rqops": 25000000,
+   "runtime": 120000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    3
+   ],
+   "logicalErrorRate": 3.8976566801805585e-05,
+   "numInputTstates": 22053270,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    1470218,
+    3
+   ],
+   "physicalQubits": 17642616,
+   "physicalQubitsPerRound": [
+    17642616,
+    1674
+   ],
+   "runtime": 15450,
+   "runtimePerRound": [
+    2250,
+    13200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.06666": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "errorBudget": 0.01,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.06666,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 3,
+   "logicalCycleTime": 1200,
+   "logicalErrorRate": 2.9999999999999995e-10,
+   "physicalQubits": 18
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 833333.3333333334,
+    "logicalDepth": 100,
+    "numTfactories": 25,
+    "numTfactoryRuns": 4,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 540,
+    "physicalQubitsForTfactories": 5828238000,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 5828238540,
+   "rqops": 25000000,
+   "runtime": 120000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    3,
+    3
+   ],
+   "logicalErrorRate": 3.90017368520604e-05,
+   "numInputTstates": 9713730,
+   "numRounds": 2,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    647582,
+    3
+   ],
+   "physicalQubits": 233129520,
+   "physicalQubitsPerRound": [
+    233129520,
+    1674
+   ],
+   "runtime": 28800,
+   "runtimePerRound": [
+    15600,
+    13200
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|t_error=0.0666|big": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "errorBudget": 0.001,
+   "qubitParams": {
+    "idleErrorRate": 1e-06,
+    "instructionSet": "GateBased",
+    "oneQubitGateErrorRate": 1e-06,
+    "oneQubitGateTime": "50 ns",
+    "oneQubitMeasurementErrorRate": 1e-06,
+    "oneQubitMeasurementTime": "100 ns",
+    "tGateErrorRate": 0.0666,
+    "tGateTime": "50 ns",
+    "twoQubitGateErrorRate": 1e-06,
+    "twoQubitGateTime": "50 ns"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 100,
+   "tCount": 1000000
+  },
+  "logicalQubit": {
+   "codeDistance": 5,
+   "logicalCycleTime": 2000,
+   "logicalErrorRate": 2.999999999999999e-14,
+   "physicalQubits": 50
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 1000000,
+    "algorithmicLogicalQubits": 230,
+    "cliffordErrorRate": 1e-06,
+    "clockFrequency": 500000.0,
+    "logicalDepth": 1000000,
+    "numTfactories": 15,
+    "numTfactoryRuns": 66667,
+    "numTsPerRotation": null,
+    "numTstates": 1000000,
+    "physicalQubitsForAlgorithm": 11500,
+    "physicalQubitsForTfactories": 115264980,
+    "requiredLogicalQubitErrorRate": 2.173913043478261e-12,
+    "requiredLogicalTstateErrorRate": 5e-10
+   },
+   "physicalQubits": 115276480,
+   "rqops": 115000000,
+   "runtime": 2000000000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 100,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 1000000
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    1,
+    5
+   ],
+   "logicalErrorRate": 7.797422011163253e-12,
+   "numInputTstates": 9605415,
+   "numRounds": 3,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    640361,
+    24,
+    1
+   ],
+   "physicalQubits": 7684332,
+   "physicalQubitsPerRound": [
+    7684332,
+    1488,
+    1550
+   ],
+   "runtime": 28650,
+   "runtimePerRound": [
+    2250,
+    4400,
+    22000
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 RM prep",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "newton|unit_failure=0.99": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "distillationUnitSpecifications": [
+    {
+     "displayName": "flaky",
+     "failureProbabilityFormula": "0.99",
+     "logicalQubitSpecification": {
+      "durationInQubitCycleTime": 11,
+      "numUnitQubits": 31
+     },
+     "numInputTs": 15,
+     "numOutputTs": 1,
+     "outputErrorRateFormula": "35 * z^3 + 7.1 * c",
+     "physicalQubitSpecification": {
+      "durationInQubitCycleTime": 24,
+      "numUnitQubits": 31
+     }
+    }
+   ],
+   "errorBudget": 0.01
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 9,
+   "logicalCycleTime": 3600,
+   "logicalErrorRate": 3.0000000000000015e-07,
+   "physicalQubits": 162
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 277777.77777777775,
+    "logicalDepth": 100,
+    "numTfactories": 10,
+    "numTfactoryRuns": 10,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 4860,
+    "physicalQubitsForTfactories": 13944420,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 13949280,
+   "rqops": 8333334,
+   "runtime": 360000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    7
+   ],
+   "logicalErrorRate": 2.133500000000001e-05,
+   "numInputTstates": 6885,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    459
+   ],
+   "physicalQubits": 1394442,
+   "physicalQubitsPerRound": [
+    1394442
+   ],
+   "runtime": 30800,
+   "runtimePerRound": [
+    30800
+   ],
+   "unitNamePerRound": [
+    "flaky"
+   ]
+  }
+ },
+ "newton|unit_failure=0.999": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "distillationUnitSpecifications": [
+    {
+     "displayName": "flaky",
+     "failureProbabilityFormula": "0.999",
+     "logicalQubitSpecification": {
+      "durationInQubitCycleTime": 11,
+      "numUnitQubits": 31
+     },
+     "numInputTs": 15,
+     "numOutputTs": 1,
+     "outputErrorRateFormula": "35 * z^3 + 7.1 * c",
+     "physicalQubitSpecification": {
+      "durationInQubitCycleTime": 24,
+      "numUnitQubits": 31
+     }
+    }
+   ],
+   "errorBudget": 0.01
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 9,
+   "logicalCycleTime": 3600,
+   "logicalErrorRate": 3.0000000000000015e-07,
+   "physicalQubits": 162
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 277777.77777777775,
+    "logicalDepth": 100,
+    "numTfactories": 10,
+    "numTfactoryRuns": 10,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 4860,
+    "physicalQubitsForTfactories": 158370940,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 158375800,
+   "rqops": 8333334,
+   "runtime": 360000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    7
+   ],
+   "logicalErrorRate": 2.133500000000001e-05,
+   "numInputTstates": 78195,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    5213
+   ],
+   "physicalQubits": 15837094,
+   "physicalQubitsPerRound": [
+    15837094
+   ],
+   "runtime": 30800,
+   "runtimePerRound": [
+    30800
+   ],
+   "unitNamePerRound": [
+    "flaky"
+   ]
+  }
+ },
+ "newton|unit_failure=0.9999": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "distillationUnitSpecifications": [
+    {
+     "displayName": "flaky",
+     "failureProbabilityFormula": "0.9999",
+     "logicalQubitSpecification": {
+      "durationInQubitCycleTime": 11,
+      "numUnitQubits": 31
+     },
+     "numInputTs": 15,
+     "numOutputTs": 1,
+     "outputErrorRateFormula": "35 * z^3 + 7.1 * c",
+     "physicalQubitSpecification": {
+      "durationInQubitCycleTime": 24,
+      "numUnitQubits": 31
+     }
+    }
+   ],
+   "errorBudget": 0.01
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 9,
+   "logicalCycleTime": 3600,
+   "logicalErrorRate": 3.0000000000000015e-07,
+   "physicalQubits": 162
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 277777.77777777775,
+    "logicalDepth": 100,
+    "numTfactories": 10,
+    "numTfactoryRuns": 10,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 4860,
+    "physicalQubitsForTfactories": 1584165100,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 1584169960,
+   "rqops": 8333334,
+   "runtime": 360000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    7
+   ],
+   "logicalErrorRate": 2.133500000000001e-05,
+   "numInputTstates": 782175,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    52145
+   ],
+   "physicalQubits": 158416510,
+   "physicalQubitsPerRound": [
+    158416510
+   ],
+   "runtime": 30800,
+   "runtimePerRound": [
+    30800
+   ],
+   "unitNamePerRound": [
+    "flaky"
+   ]
+  }
+ },
+ "newton|unit_failure=0.9999999": {
+  "errorBudget": {
+   "logical": 0.005,
+   "rotations": 0.0,
+   "tstates": 0.005
+  },
+  "jobParams": {
+   "distillationUnitSpecifications": [
+    {
+     "displayName": "flaky",
+     "failureProbabilityFormula": "0.9999999",
+     "logicalQubitSpecification": {
+      "durationInQubitCycleTime": 11,
+      "numUnitQubits": 31
+     },
+     "numInputTs": 15,
+     "numOutputTs": 1,
+     "outputErrorRateFormula": "35 * z^3 + 7.1 * c",
+     "physicalQubitSpecification": {
+      "durationInQubitCycleTime": 24,
+      "numUnitQubits": 31
+     }
+    }
+   ],
+   "errorBudget": 0.01
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 9,
+   "logicalCycleTime": 3600,
+   "logicalErrorRate": 3.0000000000000015e-07,
+   "physicalQubits": 162
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 277777.77777777775,
+    "logicalDepth": 100,
+    "numTfactories": 10,
+    "numTfactoryRuns": 10,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 4860,
+    "physicalQubitsForTfactories": 1584107499520,
+    "requiredLogicalQubitErrorRate": 1.6666666666666667e-06,
+    "requiredLogicalTstateErrorRate": 5e-05
+   },
+   "physicalQubits": 1584107504380,
+   "rqops": 8333334,
+   "runtime": 360000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    7
+   ],
+   "logicalErrorRate": 2.133500000000001e-05,
+   "numInputTstates": 782146560,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    52143104
+   ],
+   "physicalQubits": 158410749952,
+   "physicalQubitsPerRound": [
+    158410749952
+   ],
+   "runtime": 30800,
+   "runtimePerRound": [
+    30800
+   ],
+   "unitNamePerRound": [
+    "flaky"
+   ]
+  }
+ },
+ "power|100": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "distanceCoefficientPower": 100,
+    "name": "surface_code"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 49,
+   "logicalCycleTime": 19600,
+   "logicalErrorRate": 4.378897676742408e-09,
+   "physicalQubits": 4802
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 51020.4081632653,
+    "logicalDepth": 100,
+    "numTfactories": 13,
+    "numTfactoryRuns": 8,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 144060,
+    "physicalQubitsForTfactories": 2297360,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 2441420,
+   "rqops": 1530613,
+   "runtime": 1960000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    47
+   ],
+   "logicalErrorRate": 3.4556101329728545e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 176720,
+   "physicalQubitsPerRound": [
+    176720
+   ],
+   "runtime": 244400,
+   "runtimePerRound": [
+    244400
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "power|12_wraps_u64": {
+  "errorBudget": {
+   "logical": 0.15,
+   "rotations": 0.0,
+   "tstates": 0.15
+  },
+  "jobParams": {
+   "errorBudget": 0.3,
+   "qecScheme": {
+    "distanceCoefficientPower": 12,
+    "name": "surface_code"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 43,
+   "logicalCycleTime": 17200,
+   "logicalErrorRate": 9.19842794953044e-06,
+   "physicalQubits": 3698
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 58139.53488372093,
+    "logicalDepth": 100,
+    "numTfactories": 1,
+    "numTfactoryRuns": 100,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 110940,
+    "physicalQubitsForTfactories": 3698,
+    "requiredLogicalQubitErrorRate": 4.9999999999999996e-05,
+    "requiredLogicalTstateErrorRate": 0.0015
+   },
+   "physicalQubits": 114638,
+   "rqops": 1744187,
+   "runtime": 1720000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    43
+   ],
+   "logicalErrorRate": 0.001,
+   "numInputTstates": 1,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    1
+   ],
+   "physicalQubits": 3698,
+   "physicalQubitsPerRound": [
+    3698
+   ],
+   "runtime": 17200,
+   "runtimePerRound": [
+    17200
+   ],
+   "unitNamePerRound": [
+    "trivial 1-to-1"
+   ]
+  }
+ },
+ "power|u32_max": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "distanceCoefficientPower": 4294967295,
+    "name": "surface_code"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 49,
+   "logicalCycleTime": 19600,
+   "logicalErrorRate": 4.249277729959888e-08,
+   "physicalQubits": 4802
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 51020.4081632653,
+    "logicalDepth": 100,
+    "numTfactories": 13,
+    "numTfactoryRuns": 8,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 144060,
+    "physicalQubitsForTfactories": 1922960,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 2067020,
+   "rqops": 1530613,
+   "runtime": 1960000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    43
+   ],
+   "logicalErrorRate": 1.705485887334476e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 147920,
+   "physicalQubitsPerRound": [
+    147920
+   ],
+   "runtime": 223600,
+   "runtimePerRound": [
+    223600
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "qubit|majorana_rate_extra_key": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qubitParams": {
+    "name": "qubit_maj_ns_e4",
+    "oneQubitMeasurementErrorRate": {
+     "foo": 1,
+     "process": 0.0001,
+     "readout": 0.0001
+    }
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 9,
+   "logicalCycleTime": 18000,
+   "logicalErrorRate": 1.0534979423868313e-07,
+   "physicalQubits": 162
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.0001,
+    "clockFrequency": 55555.555555555555,
+    "logicalDepth": 100,
+    "numTfactories": 20,
+    "numTfactoryRuns": 5,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 4860,
+    "physicalQubitsForTfactories": 420000,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 424860,
+   "rqops": 1666667,
+   "runtime": 1800000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    1,
+    5,
+    9
+   ],
+   "logicalErrorRate": 7.481644395795144e-07,
+   "numInputTstates": 25080,
+   "numRounds": 3,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    1672,
+    21,
+    1
+   ],
+   "physicalQubits": 21000,
+   "physicalQubitsPerRound": [
+    20064,
+    21000,
+    5022
+   ],
+   "runtime": 332500,
+   "runtimePerRound": [
+    4500,
+    130000,
+    198000
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient",
+    "15-to-1 space efficient",
+    "15-to-1 RM prep"
+   ]
+  }
+ },
+ "scheme|null_fields_are_absent": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "qecScheme": {
+    "crossingPrefactor": null,
+    "distanceCoefficientPower": null,
+    "errorCorrectionThreshold": null,
+    "name": "surface_code"
+   }
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4400,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 242
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 227272.72727272726,
+    "logicalDepth": 100,
+    "numTfactories": 12,
+    "numTfactoryRuns": 9,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7260,
+    "physicalQubitsForTfactories": 77760,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 85020,
+   "rqops": 6818182,
+   "runtime": 440000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 6480,
+   "physicalQubitsPerRound": [
+    6480
+   ],
+   "runtime": 46800,
+   "runtimePerRound": [
+    46800
+   ],
+   "unitNamePerRound": [
+    "15-to-1 space efficient"
+   ]
+  }
+ },
+ "unit|name_not_a_string_is_custom": {
+  "errorBudget": {
+   "logical": 0.0005,
+   "rotations": 0.0,
+   "tstates": 0.0005
+  },
+  "jobParams": {
+   "distillationUnitSpecifications": [
+    {
+     "displayName": "custom 15-1",
+     "failureProbabilityFormula": "15 * z + 356 * c",
+     "logicalQubitSpecification": {
+      "durationInQubitCycleTime": 11,
+      "numUnitQubits": 31
+     },
+     "name": 5,
+     "numInputTs": 15,
+     "numOutputTs": 1,
+     "outputErrorRateFormula": "35 * z^3 + 7.1 * c",
+     "physicalQubitSpecification": {
+      "durationInQubitCycleTime": 24,
+      "numUnitQubits": 31
+     }
+    }
+   ]
+  },
+  "logicalCounts": {
+   "numQubits": 10,
+   "tCount": 100
+  },
+  "logicalQubit": {
+   "codeDistance": 11,
+   "logicalCycleTime": 4400,
+   "logicalErrorRate": 3.000000000000002e-08,
+   "physicalQubits": 242
+  },
+  "physicalCounts": {
+   "breakdown": {
+    "algorithmicLogicalDepth": 100,
+    "algorithmicLogicalQubits": 30,
+    "cliffordErrorRate": 0.001,
+    "clockFrequency": 227272.72727272726,
+    "logicalDepth": 100,
+    "numTfactories": 10,
+    "numTfactoryRuns": 10,
+    "numTsPerRotation": null,
+    "numTstates": 100,
+    "physicalQubitsForAlgorithm": 7260,
+    "physicalQubitsForTfactories": 100440,
+    "requiredLogicalQubitErrorRate": 1.6666666666666668e-07,
+    "requiredLogicalTstateErrorRate": 5e-06
+   },
+   "physicalQubits": 107700,
+   "rqops": 6818182,
+   "runtime": 440000
+  },
+  "qdkLogicalCounts": {
+   "ccixCount": 0,
+   "cczCount": 0,
+   "measurementCount": 0,
+   "numQubits": 10,
+   "rotationCount": 0,
+   "rotationDepth": 0,
+   "tCount": 100
+  },
+  "status": "success",
+  "tfactory": {
+   "codeDistancePerRound": [
+    9
+   ],
+   "logicalErrorRate": 2.165000000000001e-06,
+   "numInputTstates": 30,
+   "numRounds": 1,
+   "numTstates": 1,
+   "numUnitsPerRound": [
+    2
+   ],
+   "physicalQubits": 10044,
+   "physicalQubitsPerRound": [
+    10044
+   ],
+   "runtime": 39600,
+   "runtimePerRound": [
+    39600
+   ],
+   "unitNamePerRound": [
+    "custom 15-1"
+   ]
+  }
+ }
+}

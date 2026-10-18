@@ -99,7 +99,9 @@ pub struct Program {
     pub(crate) gauges: Vec<Gauge>,
     /// Per step, the gauge right after its measurement and the one right after its reset.
     pub(crate) gauge_at: Vec<[Option<usize>; 2]>,
-    /// A noiseless reference run's value of every slot (the last `num_qubits` are the end).
+    /// The noiseless reference run's value of every slot (the last `num_qubits` are the end):
+    /// Stim's reference sample on the records (see `reference_run`), which the shots' records
+    /// and so the detection events are flips from.
     pub(crate) reference: Vec<bool>,
 }
 
@@ -258,9 +260,21 @@ impl Program {
         self.slots.len() - self.num_qubits + q
     }
 
-    /// A noiseless run's value of every slot.
+    /// A noiseless run's value of every slot: Stim's reference sample (`m2d::reference`, the
+    /// run every other engine's detection events are flips from), with every random outcome 0,
+    /// carried on through the unread slots so the whole trajectory is one consistent branch.
+    ///
+    /// The record slots must be that run and no other: a shot's `records` are flips from this
+    /// reference and `outcome` reads detection events off them, so a detector on a random
+    /// measurement reads the reference's value XOR the shot's. Drawn from a seeded simulator
+    /// instead (as before 2.0), the reference took 1 on such a measurement whenever the seed
+    /// said so, which depended on how many random outcomes came before it in the circuit, and
+    /// every such detector came out complemented against the state vector and the joint
+    /// sampler, both of which flip from `m2d::reference`. The weights never see the difference
+    /// (either run is a valid noiseless branch and the exhaustive checks compare raw parities),
+    /// which is why `exact` passed while the sampler's events were wrong.
     fn reference_run(&self) -> Vec<bool> {
-        let mut sim = StabilizerSimulator::with_seed(self.num_qubits.max(1), 0x5eed_c0e7);
+        let mut sim = StabilizerSimulator::zero_biased(self.num_qubits.max(1));
         let mut out = vec![false; self.slots.len()];
         let measure = |sim: &mut StabilizerSimulator, q: usize, basis: Basis| match basis {
             Basis::Z => sim.measure_z(q) == 1,
@@ -946,6 +960,25 @@ mod tests {
         let f = p.flips();
         assert_eq!(f[0], vec![2, 3, p.end_slot(0), p.end_slot(1)]);
         assert_eq!(f[1], Vec::<usize>::new());
+    }
+
+    /// The reference the records are flips from is Stim's reference sample, as every other
+    /// engine's (`m2d::reference`): a random measurement reads 0 in it, however many random
+    /// outcomes come before it. A seeded run instead complemented detectors on random outcomes.
+    #[test]
+    fn reference_is_the_converters() {
+        for text in [
+            "R 0 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMX 1 2\nMX 0\nDETECTOR rec[-1]",
+            "R 0 1 2 3\nI_ERROR[R_X(theta=0.15)] 0 2\nCX 0 1 2 1\nM 1\nI_ERROR[R_Y(theta=0.2)] 3\nMX 0 2\nMX 3\nDETECTOR rec[-1]",
+            "RX 0 1 2 3\nI_ERROR[R_Z(theta=0.3)] 0\nMRX 1\nH 2\nM 2\nMY 0\nX 3\nM 3\nMX 1\nDETECTOR rec[-1]",
+            "R 0 1\nH 0\nCX 0 1\nM 0 1\nX 1\nM 1\nDETECTOR rec[-1] rec[-2]\nDETECTOR rec[-3]",
+        ] {
+            let c = Circuit::parse(text).unwrap();
+            let p = prog(text);
+            let records: Vec<bool> = p.slots.iter().zip(&p.reference).filter(|(s, _)| matches!(s, Slot::Record(_))).map(|(_, &v)| v).collect();
+            let theirs = crate::m2d::reference(&c, crate::batch_sampler::Counts::of(&c.instrs).unwrap().qubits);
+            assert_eq!(records, theirs, "{text}");
+        }
     }
 
     #[test]

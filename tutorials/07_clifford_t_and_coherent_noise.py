@@ -34,7 +34,7 @@ print(f"sampled: {dets.mean():.4f}")
 # transversal S and so a logical S† — leave Z_L and the three Z checks exactly where they
 # were. The sampler follows every branch the T gates open and lands on the empty detection
 # pattern every shot: the Clifford gates cost nothing per term, and terms that land on one
-# coset add, so seven T gates on a code state are eight terms rather than 128.
+# coset add, so fourteen T gates on a code state are eight terms at the peak rather than 16,384.
 
 # %%
 steane = [
@@ -49,7 +49,9 @@ steane = [
 ]
 cs = sq.Circuit("\n".join(steane))
 print("non-Clifford gates:", cs.num_non_clifford_gates())
-dets7, obs7 = cs.compile_stabilizer_rank_sampler(seed=2).sample(5_000, separate_observables=True)
+rank = cs.compile_stabilizer_rank_sampler(seed=2)
+dets7, obs7 = rank.sample(5_000, separate_observables=True)
+print("terms at the peak:", rank.peak_terms)
 print(f"detection events: {int(dets7.sum())}, logical flips: {int(obs7.sum())} in 5,000 shots")
 
 # %% [markdown]
@@ -77,5 +79,5 @@ for eps in (0.02, 0.05, 0.1):
 # %% [markdown]
 # The twirl under-reads the error (the two rotations about Z between the Hadamards add as
 # amplitudes, 4ε² against 2ε²); the exact answer is what the hardware would show. At the scale
-# of a 15-to-1 distillation in the [[17,1,5]] colour code (85 qubits, 801 rotations) no state
+# of Tsim's 5-qubit distillation protocol encoded in the [[17,1,5]] colour code (85 qubits, 801 rotations) no state
 # vector reaches, the README's tables carry the same comparison by the joint sampler.

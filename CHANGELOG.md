@@ -65,7 +65,7 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   from 2.0's development builds** (the cpu device's are unchanged). A REPEAT nested deeper than
   the GPU's 16-level loop stack, or counting past 2³² − 1, is refused rather than skipped; a
   program too long for the GPU's buffers is refused. The parser refuses REPEAT blocks nested
-  more than 1,000 deep rather than overflowing its stack.
+  more than 100 deep rather than overflowing its stack (a thousand overflowed a small thread's).
 - *`BpDecoder` on a device.* `decode_batch` means the same on every device: rows are syndromes,
   a zero row is the zero error, the decoder's per-shot state is left alone, and `_details`
   returns the flags on the cpu device too; a single shot on the gpu device runs on the cpu-f32
@@ -76,13 +76,48 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   non-negative integers, both parts of a Majorana measurement error, all three parts of an error
   budget, `distanceCoefficientPower` a non-negative integer; a distillation-unit spec with a
   `name` is the named unit whatever else it carries, as the QDK's untagged union reads it;
-  formulas read as fasteval reads them (`-2^2` is 4, `%`, `x/0` infinite, Python's `**` refused);
-  the binomial quantile's Newton branch and the no-factory loop raise where the QDK hangs; an
-  empty frontier is an error where the QDK panics. Qualtran's `_Density` refuses probabilities
-  outside [0, 1].
+  formulas read as fasteval 0.2.4 reads them (its parser, its constant-folding compile pass and
+  its function table, ported: unary minus binds tightest, each operator its own level with `^`
+  right-associative, `codeDistance + 0.1 + 0.2` is 3.3, `min`/`max`/`log`/trig, `inf` and
+  `NaN`, its length and depth limits; Python's `**` refused); the binomial quantile's Newton
+  branch is the `probability` crate's loop verbatim (saturating casts and all) and raises only
+  on the iterate the crate never leaves, the no-factory loop jumps to the cycle count that moves
+  the code distance where the QDK's `+1` stalls and raises only when none does, the QDK's
+  wrapping `u64::pow` in the distance coefficient is wrapped the same way, and an empty frontier
+  is an error where the QDK panics; `Constraints` and every count, time and rate are validated
+  as the QDK's parser validates them (45 more recorded QDK cases in
+  `tests/estimate_port/qdk_review2.json`). Qualtran's `_Density` refuses probabilities outside
+  [0, 1].
 - *Real time.* The protocol caps a frame at 256 MiB and a decode at 2²⁰ shots, drops a stalled
   connection after `timeout`, and a reset forgets in-flight results; shared queues hold their
   decoder weakly; `connect` and `spawn` fail fast with the server's error.
+- *A second pass*, after those fixes: the editor reads marks where Stim and Crumble write them
+  (mid-layer, splitting the layer there; after a layer's gates), takes pair-target gates and
+  channels out by the pair, prints numbers as the package does (half to even, big integers
+  exact), reads lowercase Pauli targets, keeps `MPAD`'s bits out of the qubits, and is strict
+  about braces, `rec[-0]` and non-decimal numbers; tqec's compile checks explicit
+  `observables=` against the graph's pipes and spider rules (another graph's surfaces compiled
+  into random observables) and names a lone cube; the realtime client shuts the peer down
+  before closing its files (a silent server hung `connect`/`spawn` past their timeout), the
+  server's listen backlog is the system's (five reset most of a burst), a timed-out
+  `get_corrections` keeps the batch, batches past the server's `max_shots` (now in HELLO) go in
+  pieces, a shared queue holds its decoder by a plain weak reference, decoders of plain rows
+  and `**kwargs` signatures are served, the median is a median, one syndrome enqueues as one
+  shot, and the CLI checks its port; the joint sampler sums every product of its generators on
+  small kernels (twelve or fewer: the whole projected span, the same set from every shot) and
+  `pairs=True` takes every pair, touched or not, so the second-order terms cancel as they
+  should; a `U3` written as a gate expands for the frame engines only when all three of its
+  rotations are Clifford; `I_ERROR[U3(...)]` is refused; the frame sampler's warning covers
+  coherent errors at Clifford angles. **The 1.9 coherent sampler's detection events on
+  nondeterministic measurements were complemented** whenever its own seeded reference run had
+  drawn a 1 there (its weights were exact; the exhaustive tests compared raw parities): its
+  reference is now the converter's, every random outcome 0, as every other engine's, and the
+  exhaustive tests compare detection events. The GPU pacer holds a dispatch to the larger of
+  its target and four unit latencies (held to the target alone, a word slower than a second
+  shrank every dispatch to one word for good), keeps what it learned on the program or decoder
+  for the next call, refuses to run in a child forked after the device opened (Metal crashes
+  there) and returns an error for a shot count that does not fit in memory; a `BpDecoder` on
+  the gpu device runs batches under 256 shots on the cpu-f32 path (the same bits, faster).
 - *The text.* The README's benchmark table is re-recorded with every reference installed; the
   leakage, herald, twirl and f32 claims are bounded to what the runs show; third-party notices
   for PECOS, PanQEC, QUITS and the whole of Deltakit; the licence statement names the licences
@@ -763,8 +798,9 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   0.0043; ε = 0.1: 0.040 against 0.094) and the joint sampler reads it within sampling error;
   on Tsim's 5-qubit distillation protocol the twirl turns a working protocol into a broken one
   (ε = 0.01: acceptance 11.6% and output infidelity 2 × 10⁻² against the exact 16.8% and
-  2 × 10⁻⁵), the joint sampler puts the acceptance back (16.6%) and the infidelity within one to two
-  orders of magnitude (a cancellation-dominated quantity the truncation does not reach), and in
+  2 × 10⁻⁵), the joint sampler puts the acceptance back (16.6%) and the infidelity within a
+  factor of 25 at ε ≤ 0.02 and three orders of magnitude at ε = 0.05 (a cancellation-dominated
+  quantity the truncation does not reach), and in
   the protocol encoded in the colour code (85 qubits, 801 rotations) it is the only estimate
   there is, at 130 ms per shot.
 - **`stabilizer_qec.tqec`: tqec's block graphs** (tqec/tqec 0.2.0's `computation` package, its
@@ -846,10 +882,10 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   20,000 shots a point, decoded by matching blind to the leakage and leakage-aware with the
   sampler's heralds; the threshold by the crossing of the two largest distances and by
   qec-util's Wang–Harrington–Preskill fit with a bootstrap interval. Leakage at 3%, 10% and
-  30% of the error rate takes the threshold from 0.49% to 0.45%, 0.37% and 0.23%; at 50% a
-  3,000-shot run found the distance-5 CNOT no better than the distance-3 one at any p (too few
-  shots to place a crossing); heralds cut the logical error by one to five per cent and move
-  the threshold by less than its interval.
+  30% of the error rate takes the threshold from 0.49% to 0.45%, 0.37% and 0.23%; at 50% an
+  unrecorded 3,000-shot run found the distance-5 CNOT no better than the distance-3 one at any
+  p (too few shots to place a crossing); heralds cut the logical error by up to a tenth (two to
+  five per cent at d = 7, p = 0.3%) and move the threshold by less than its interval.
 - **`stabilizer_qec.realtime`: decoding in the background, a decoder queue with statistics,
   and a decoder server** (CUDA-Q QEC's `decode_async`, `enqueue_syndromes`, `get_corrections`,
   `reset_decoder` and decoder statistics; its real-time host API). Every detector-error-model

@@ -327,3 +327,21 @@ def test_hadamard_direction_adjustment_is_an_involution():
     for a, b in pairs.items():
         assert str(adjust_hadamards_direction(block_kind_from_str(a))) == b
         assert str(adjust_hadamards_direction(block_kind_from_str(b))) == a  # the inverse pairs were missing
+
+
+def test_explicit_observables_must_be_surfaces_of_the_graph():
+    # Another graph's surfaces (the X-basis CNOT's on the Z-basis CNOT: the same pipes, the
+    # other port fills) would compile into random observables.
+    with pytest.raises(TQECError, match="not a correlation surface of this graph"):
+        tqec.compile_block_graph(gallery.cnot(Basis.Z), 3, observables=gallery.cnot(Basis.X).find_correlation_surfaces())
+    for b in (Basis.Z, Basis.X):
+        own = gallery.cnot(b).find_correlation_surfaces()
+        assert len(tqec.compile_block_graph(gallery.cnot(b), 3, observables=own).observables) == 2
+    # A lone cube beside another component: tqec's search needs a leaf in every component.
+    g = BlockGraph("g")
+    g.add_cube(Position3D(0, 0, 1), "XZX")
+    g.add_cube(Position3D(1, 0, 1), "XZZ")
+    g.add_cube(Position3D(1, 0, 2), "XZZ")
+    g.add_pipe(Position3D(1, 0, 1), Position3D(1, 0, 2))
+    with pytest.raises(TQECError, match="has no pipe"):
+        g.compile(3)

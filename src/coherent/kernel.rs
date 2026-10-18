@@ -698,6 +698,43 @@ mod tests {
         keys.iter().map(|k| (ours.get(k).copied().unwrap_or(0.0) / total - theirs.get(k).copied().unwrap_or(0.0)).abs()).fold(0.0, f64::max)
     }
 
+    /// The sampler as built (`CoherentSampler::new`: Clifford-angle gates expanded, groups
+    /// merged, the local kernel's weight), its detection events summed exactly over every
+    /// branch, against the state vector's events: the largest difference in any outcome's
+    /// probability. Events, not raw parities: a detector on a random outcome is a flip from
+    /// the reference run, which must be the state vector's.
+    fn events_bias(text: &str) -> f64 {
+        let c = Circuit::parse(text).unwrap();
+        let s = super::super::sampler::CoherentSampler::new(&c, CoherentOptions::default()).unwrap();
+        let solver = GaugeSolver::new(&s.program);
+        let mut cache = HashMap::new();
+        let ours = s.program.exact_distribution_by(&mut |shot| s.kernel.weight(&s.program, shot, &solver, &mut cache), false, 1 << 22).unwrap();
+        let total: f64 = ours.values().sum();
+        let theirs = crate::statevec::Program::new(&c).unwrap().distribution(1 << 22).unwrap();
+        let keys: BTreeSet<_> = ours.keys().chain(theirs.keys()).cloned().collect();
+        keys.iter().map(|k| (ours.get(k).copied().unwrap_or(0.0) / total - theirs.get(k).copied().unwrap_or(0.0)).abs()).fold(0.0, f64::max)
+    }
+
+    /// The adversarial review's circuits: a detector on a random outcome after random outcomes
+    /// on other qubits, which the 1.9 sampler reported complemented (its reference run was a
+    /// seeded one, not the converter's). Through the sampler's own construction.
+    #[test]
+    fn detectors_on_random_outcomes_are_the_state_vectors() {
+        for text in [
+            "R 0 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMX 1 2\nMX 0\nDETECTOR rec[-1]",
+            "R 0 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMX 1\nMX 0\nDETECTOR rec[-1]",
+            "R 0 1 2 3 4\nI_ERROR[R_Y(theta=0.24)] 0\nMX 1 2 3 4\nMX 0\nDETECTOR rec[-1]",
+            "R 0 1 2 3\nI_ERROR[R_X(theta=0.15)] 0 2\nCX 0 1 2 1\nM 1\nI_ERROR[R_Y(theta=0.2)] 3\nMX 0 2\nMX 3\nDETECTOR rec[-1]",
+            "RX 0 1\nI_ERROR[R_Z(theta=0.3)] 0\nMX 1\nMY 0\nDETECTOR rec[-1]",
+            "RX 0 1 2 3\nI_ERROR[R_Z(theta=0.3)] 0\nMX 1 2 3\nMY 0\nDETECTOR rec[-1]",
+            "R 0 1 2\nRX 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMX 0\nDETECTOR rec[-1]",
+            "R 0 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMRX 1 2\nMX 0\nDETECTOR rec[-1]\nDETECTOR rec[-2] rec[-3]\nOBSERVABLE_INCLUDE(0) rec[-1] rec[-2]",
+        ] {
+            let b = events_bias(text);
+            assert!(b < 1e-10, "{text}\nbias {b:.3e}");
+        }
+    }
+
     #[test]
     fn local_generators_are_found() {
         // Z before and after a CZ on its control is one fault in two places.

@@ -40,6 +40,10 @@ use crate::stabrank::{Key, Memo, Odometer, Program, Recording, Replay, Run, Sour
 use crate::statevec::C;
 use crate::surface_code::Xorshift;
 
+/// With this many generators or fewer, a shot sums every product of them (the whole projected
+/// kernel, 2^12 members at most): exact, and the same set from every shot.
+const SMALL_KERNEL: usize = 12;
+
 pub struct JointSampler {
     /// The term engine, the coherent errors as twirled locations.
     pub program: Program,
@@ -57,8 +61,8 @@ pub struct JointSampler {
     group_gens: Vec<Vec<usize>>,
     by_location: Vec<Vec<usize>>,
     options: CoherentOptions,
-    /// Whether to sum over the products of every two untouched generators too (quadratic in
-    /// their number: for small circuits).
+    /// Whether to sum over the products of every two generators too (quadratic in their
+    /// number: a check on small circuits).
     pairs: bool,
     /// With the whole kernel (small circuits): every element.
     whole: Option<Vec<Element>>,
@@ -238,6 +242,29 @@ impl JointSampler {
             add(all.clone(), &mut out);
             return out;
         }
+        // A small kernel: every product of its generators, the same set from every shot (a
+        // truncation that sums G from S but not from S ⊕ G is biased at second order; with
+        // this many generators the whole span is cheap).
+        if self.generators.len() <= SMALL_KERNEL {
+            let n = self.generators.len();
+            let element_of = |members: &[usize]| self.kernel_program.element(members, &self.solver);
+            for mask in 1u32..(1u32 << n) {
+                let mut members: Vec<usize> = Vec::new();
+                for (g, e) in self.generators.iter().enumerate() {
+                    if mask >> g & 1 == 1 {
+                        members = super::kernel::symmetric_difference(&members, &e.members);
+                    }
+                }
+                if members.is_empty() {
+                    continue;
+                }
+                let key = members.iter().fold(0u64, |h, &l| h ^ self.kernel.zobrist(l));
+                if let Some(e) = cache.entry(key).or_insert_with(|| element_of(&members)).clone() {
+                    add(vec![e], &mut out);
+                }
+            }
+            return out;
+        }
         let mut fired_locs: Vec<bool> = vec![false; self.kernel_program.locations.len()];
         for (t, &f) in fired.iter().enumerate() {
             if f {
@@ -257,8 +284,11 @@ impl JointSampler {
         }
         let mut element_of = |members: &[usize]| self.kernel_program.element(members, &self.solver);
         if self.pairs {
-            for (i, &a) in untouched.iter().enumerate() {
-                for &b in &untouched[i + 1..] {
+            // Every pair of generators, touched or not: the sum of G from S and from S ⊕ G must
+            // agree on which pairs are in, or the second-order terms stop cancelling.
+            let all: Vec<usize> = (0..self.generators.len()).collect();
+            for (i, &a) in all.iter().enumerate() {
+                for &b in &all[i + 1..] {
                     let members = super::kernel::symmetric_difference(&self.generators[a].members, &self.generators[b].members);
                     if members.is_empty() {
                         continue;

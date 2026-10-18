@@ -297,3 +297,78 @@ def test_shared_queue_is_released_with_its_decoder(memory):
     del m
     gc.collect()
     assert all(entry[1] is not q for entry in realtime._shared.values())
+
+
+# ---------------------------------------------------------------------------------------------
+# The second review's regressions
+# ---------------------------------------------------------------------------------------------
+
+
+def test_a_timed_out_collection_keeps_the_batch():
+    import time as _time
+
+    def slow(shots, **kwargs):
+        _time.sleep(0.3)
+        return np.zeros((len(shots), 1), dtype=np.uint8)
+
+    with sq.realtime.DecoderQueue(decode=slow, workers=1) as q:
+        t = q.enqueue_syndromes(np.zeros((4, 3), dtype=np.uint8))
+        with pytest.raises(TimeoutError):
+            q.get_corrections(t, timeout=0.02)
+        assert q.pending() == 1
+        assert q.get_corrections(t).shape == (4, 1)  # still there
+        assert q.pending() == 0
+        t2 = q.enqueue_syndromes(np.zeros(3, dtype=np.uint8))  # one syndrome, as decode_async takes it
+        assert q.get_corrections().shape == (1, 1) and t2 == t + 1
+        s = q.stats()
+        assert s.batches == 2 and s.p50_latency_s <= s.p99_latency_s <= s.max_latency_s
+
+
+def test_the_client_splits_a_batch_past_the_servers_cap(tmp_path):
+    dem = sq.memory_circuit(distance=3, rounds=2, p=0.01).detector_error_model(decompose_errors=True)
+    path = tmp_path / "m.dem"
+    path.write_text(str(dem))
+    matching = sq.Matching.from_detector_error_model(dem)
+    shots = sq.memory_circuit(distance=3, rounds=2, p=0.01).compile_detector_sampler(seed=4).sample(50)
+    got = {}
+
+    def serve_small(ready):
+        sq.realtime.serve(matching, tcp="127.0.0.1:0", ready=ready, max_shots=8, timeout=10.0)
+
+    import threading
+
+    port = []
+    event = threading.Event()
+
+    def ready(server):
+        port.append(server.server_address[1])
+        event.set()
+        got["server"] = server
+
+    th = threading.Thread(target=serve_small, args=(ready,), daemon=True)
+    th.start()
+    assert event.wait(10)
+    client = sq.realtime.DecoderClient.connect("127.0.0.1", port[0])
+    try:
+        assert client.max_shots == 8
+        assert np.array_equal(client.decode_batch(shots), matching.decode_batch(shots))  # 50 shots in pieces of 8
+    finally:
+        client.close()
+        got["server"].shutdown()
+
+
+def test_a_silent_peer_does_not_hang_connect(tmp_path):
+    import socket
+    import threading
+    import time as _time
+
+    silent = socket.socket()
+    silent.bind(("127.0.0.1", 0))
+    silent.listen(1)
+    accepted = []
+    threading.Thread(target=lambda: accepted.append(silent.accept()), daemon=True).start()
+    t0 = _time.perf_counter()
+    with pytest.raises(TimeoutError):
+        sq.realtime.DecoderClient.connect("127.0.0.1", silent.getsockname()[1], timeout=0.5)
+    assert _time.perf_counter() - t0 < 5
+    silent.close()

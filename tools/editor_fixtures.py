@@ -87,6 +87,8 @@ def clifford_tables() -> str:
     pair_measure = {"MXX": "X", "MYY": "Y", "MZZ": "Z"}
     heralds = sorted(n for n, g in gd.items() if g.produces_measurements and n.startswith("HERALDED"))
     rec_controlled = {"CX": "X", "CY": "Y", "CZ": "Z", "XCZ": "X", "YCZ": "Y"}
+    # Every gate whose targets come in pairs (two-qubit Cliffords, pair measurements, two-qubit noise).
+    pairs = sorted(set(n for n, g in gd.items() if g.is_two_qubit_gate) | {"DEPOLARIZE2", "PAULI_CHANNEL_2", "II_ERROR", "MXX", "MYY", "MZZ"})
     def table(name: str, entries: dict) -> str:
         rows = "".join(f"  {json.dumps(k)}: {json.dumps(v)},\n" for k, v in entries.items())
         return f"export const {name} = {{\n{rows}}};"
@@ -102,6 +104,7 @@ def clifford_tables() -> str:
         f"export const HERALDS = {json.dumps(heralds)};",
         f"export const RESETS = {json.dumps(resets)};",
         f"export const REC_CONTROLLED = {json.dumps(rec_controlled)};",
+        f"export const PAIRS = {json.dumps(pairs)};",
     ]
     return "\n".join(lines) + "\n"
 

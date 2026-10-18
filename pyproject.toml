@@ -6,14 +6,14 @@ build-backend = "maturin"
 name = "stabilizer-qec"
 # The Python package is versioned on its own; the Rust crate has its own version (Cargo.toml).
 version = "2.0.0"
-description = "A quantum error-correction simulator and decoder in Rust: circuits and error models in Stim's formats, exact sparse-blossom, correlated and belief matching, BP+OSD for IBM's gross code, lattice surgery, and window decoders for real time."
+description = "A quantum error-correction simulator and decoder in Rust: circuits and error models in Stim's formats, exact sparse-blossom, correlated and belief matching, BP+OSD for IBM's gross code, lattice surgery, window decoders for real time, the APIs of twenty-five other QEC tools, Clifford+T circuits with coherent noise, fault-tolerant compilation and resource estimates, and sampling and BP on the GPU."
 readme = "python/README.md"
 license = "MIT AND Apache-2.0"
 license-files = ["LICENSE", "LICENSES/Apache-2.0.txt", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.21"]
 authors = [{ name = "Jasper Sands" }]
-keywords = ["quantum error correction", "surface code", "decoder", "matching", "stim", "bp-osd", "qldpc", "lattice surgery"]
+keywords = ["quantum error correction", "surface code", "decoder", "matching", "stim", "bp-osd", "qldpc", "lattice surgery", "clifford+t", "coherent noise", "resource estimation", "gpu"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",

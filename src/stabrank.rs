@@ -1356,7 +1356,7 @@ pub fn is_clifford(circuit: &Circuit) -> Result<bool, String> {
 pub fn has_clifford_tagged_gates(circuit: &Circuit) -> bool {
     sum_non_pauli(&circuit.instrs, &|op| match op {
         NonPauli::Rotation { pauli, theta, noise: false } => usize::from(!pauli.is_empty() && is_clifford_angle(*theta)),
-        NonPauli::U3 { theta, phi, lambda, .. } => usize::from([lambda, theta, phi].iter().any(|a| is_clifford_angle(**a / 2.0))),
+        NonPauli::U3 { theta, phi, lambda, .. } => usize::from([lambda, theta, phi].iter().all(|a| is_clifford_angle(**a / 2.0))),
         _ => 0,
     }) > 0
 }
@@ -1422,7 +1422,14 @@ pub fn expand_clifford_rotations(circuit: &Circuit) -> Result<Circuit, String> {
                 Instr::Repeat { count, body, tag } => out.push(Instr::Repeat { count: *count, body: walk(body)?, tag: tag.clone() }),
                 Instr::Gate { body, .. } if matches!(body.as_slice(), [Instr::NonPauli(_)]) => {
                     let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
-                    let gate = ops.iter().all(|op| matches!(op, NonPauli::Rotation { noise: false, .. } | NonPauli::U3 { .. }));
+                    // A gate at a Clifford angle; a U3 only when all three of its rotations are
+                    // (a Clifford piece of a non-Clifford U3 written as a gate would run in the
+                    // frame engines while the rest did not: neither Stim's reading nor the gate).
+                    let gate = ops.iter().all(|op| match op {
+                        NonPauli::Rotation { noise: false, .. } => true,
+                        NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().all(|a| is_clifford_angle(**a / 2.0)),
+                        _ => false,
+                    });
                     if !gate {
                         out.push(ins.clone());
                         continue;

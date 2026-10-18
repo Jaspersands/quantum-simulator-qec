@@ -14,7 +14,7 @@
  */
 
 import { parseStim, toStim, toCrumbleUrl, parseCrumbleUrl } from './crumble-format.js';
-import { ONE, TWO, MEASURE_BASIS, PAIR_MEASURE_BASIS, HERALDS, RESETS as RESET_LIST, REC_CONTROLLED } from './clifford-tables.js';
+import { ONE, TWO, MEASURE_BASIS, PAIR_MEASURE_BASIS, HERALDS, RESETS as RESET_LIST, REC_CONTROLLED, PAIRS as PAIR_LIST } from './clifford-tables.js';
 
 export const ONE_QUBIT = Object.keys(ONE).concat(Object.keys(MEASURE_BASIS), ['R', 'RX', 'RY']);
 export const TWO_QUBIT = Object.keys(TWO).concat(Object.keys(PAIR_MEASURE_BASIS));
@@ -22,6 +22,8 @@ export const PALETTE = ['H', 'S', 'S_DAG', 'SQRT_X', 'X', 'Y', 'Z', 'CX', 'CZ', 
 
 const RESETS = new Set(RESET_LIST);
 const HERALD = new Set(HERALDS);
+/** Gates whose targets come in pairs: an edit on one qubit takes its pair with it. */
+const PAIRS = new Set(PAIR_LIST);
 
 /* -- Pauli algebra on (x, z) bits, signs ignored ------------------------------------------ */
 
@@ -227,8 +229,8 @@ export function propagate(layers, markers, detectors, observables) {
           });
         }
       } else if (HERALD.has(name) || name === 'MPAD') {
-        // Heralds and padding make records no Pauli marker flips.
-        for (const t of op.targets) record(L, qubitOf(t), name, () => false);
+        // Heralds and padding make records no Pauli marker flips (a pad's targets are bits, not qubits).
+        for (const t of op.targets) record(L, name === 'MPAD' ? null : qubitOf(t), name, () => false);
       }
     }
   });
@@ -303,18 +305,43 @@ export class EditorModel {
   static fromCrumbleUrl(url) {
     const { circuit, markers } = parseCrumbleUrl(url);
     const m = new EditorModel();
-    const { coords, layers } = layersOf(circuit);
-    m.coords = coords;
-    m.layers = layers.length ? layers : [[]];
-    // A marker before op index i lands before the layer that op begins; before a TICK, at the
-    // end of the layer that TICK closes (an empty layer among them).
+    // A marker is a Pauli placed before the op it precedes. Stim and Crumble write marks right
+    // before an instruction, mid-layer as often as not, and the model places markers before a
+    // layer's gates: so a mark before an op that is not the first of its layer splits the layer
+    // there (a TICK goes in), a mark before a TICK sits after that layer's gates (the next
+    // layer; the same layer when it is empty), and a mark at the end is after everything.
+    const marked = new Set(markers.map((mk) => mk.before));
+    const ops = [];
+    const layerAt = [];
     let L = 0;
-    const layerOfOp = [];
-    for (const op of circuit.ops) {
-      layerOfOp.push(L);
-      if (op.name === 'TICK') L++;
-    }
-    m.markers = markers.map((mk) => ({ k: mk.k, pauli: mk.pauli, qubit: mk.qubit, layer: Math.min(layerOfOp[mk.before] ?? L, m.layers.length - 1) }));
+    let count = 0;
+    circuit.ops.forEach((op, i) => {
+      if (op.name === 'QUBIT_COORDS') {
+        layerAt[i] = L;
+        ops.push(op);
+        return;
+      }
+      if (op.name === 'TICK') {
+        layerAt[i] = count ? L + 1 : L;
+        ops.push(op);
+        L++;
+        count = 0;
+        return;
+      }
+      if (marked.has(i) && count) {
+        ops.push({ name: 'TICK', args: [], targets: [] });
+        L++;
+        count = 0;
+      }
+      layerAt[i] = L;
+      ops.push(op);
+      count++;
+    });
+    layerAt[circuit.ops.length] = count ? L + 1 : L;
+    const split = layersOf({ ops });
+    m.coords = split.coords;
+    m.layers = split.layers.length ? split.layers : [[]];
+    m.markers = markers.map((mk) => ({ k: mk.k, pauli: mk.pauli, qubit: mk.qubit, layer: Math.min(layerAt[mk.before] ?? L, m.layers.length - 1) }));
     return m;
   }
 
@@ -343,16 +370,19 @@ export class EditorModel {
 
   qubits() {
     const set = new Set(this.coords.keys());
-    for (const layer of this.layers) for (const op of layer) for (const t of op.targets) {
-      const q = qubitOf(t);
-      if (q !== null) set.add(q);
+    for (const layer of this.layers) for (const op of layer) {
+      if (op.name === 'MPAD') continue; // its targets are bits
+      for (const t of op.targets) {
+        const q = qubitOf(t);
+        if (q !== null) set.add(q);
+      }
     }
     return [...set].sort((a, b) => a - b);
   }
 
   /** Every op in `layer` touching `qubit`. */
   opsOn(layer, qubit) {
-    return this.layers[layer].filter((op) => op.targets.some((t) => qubitOf(t) === qubit));
+    return this.layers[layer].filter((op) => op.name !== 'MPAD' && op.targets.some((t) => qubitOf(t) === qubit));
   }
 
   /** The records made before each op (`at`), in circuit order. */
@@ -416,16 +446,26 @@ export class EditorModel {
     const ops = this.layers[layer];
     for (let i = ops.length - 1; i >= 0; i--) {
       const op = ops[i];
-      if (!op.targets.some((t) => qubitOf(t) === qubit)) continue;
+      if (op.name === 'MPAD' || !op.targets.some((t) => qubitOf(t) === qubit)) continue;
       const refs = this._recordRefs();
       const base = this._recordStarts().get(op);
       const before = recordsMade(op);
-      const whole = TWO[op.name] || PAIR_MEASURE_BASIS[op.name] || op.name === 'MPP' || op.name === 'SPP' || op.name === 'SPP_DAG' || ANNOTATIONS.has(op.name);
-      // The record ordinals this op loses: all of them, or those of the removed targets.
+      const whole = op.name === 'MPP' || op.name === 'SPP' || op.name === 'SPP_DAG' || ANNOTATIONS.has(op.name);
+      // The record ordinals this op loses: all of them, those of the removed pairs, or those
+      // of the removed targets.
       const removed = new Set();
       if (whole) {
         for (let j = 0; j < before; j++) removed.add(j);
         ops.splice(i, 1);
+      } else if (PAIRS.has(op.name)) {
+        const kept = [];
+        for (let j = 0; j + 1 < op.targets.length; j += 2) {
+          if (qubitOf(op.targets[j]) === qubit || qubitOf(op.targets[j + 1]) === qubit) {
+            if (before) removed.add(j / 2);
+          } else kept.push(op.targets[j], op.targets[j + 1]);
+        }
+        op.targets = kept;
+        if (!op.targets.length) ops.splice(i, 1);
       } else {
         if (before) op.targets.forEach((t, j) => {
           if (qubitOf(t) === qubit) removed.add(j);
@@ -449,7 +489,7 @@ export class EditorModel {
     for (const q of qubits) this.removeOn(layer, q);
     const ops = this.layers[layer];
     const refs = this._recordRefs();
-    const existing = ops.find((op) => op.name === name && !TWO[name] && !PAIR_MEASURE_BASIS[name] && !op.args.length);
+    const existing = ops.find((op) => op.name === name && !PAIRS.has(name) && !op.args.length);
     let at;
     let made;
     if (existing) {

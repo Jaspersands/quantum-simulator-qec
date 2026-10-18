@@ -64,7 +64,10 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
     """The graph as a lattice-surgery circuit at ``distance`` under SD6 noise ``p`` (the engine's
     noise model), ``rounds`` rounds per time slice (default ``distance``) and ``merged`` rounds
     per merge (default ``rounds``); ``observables`` the correlation surfaces to include (default
-    all the graph has, as ``find_correlation_surfaces`` orders them)."""
+    all the graph has, as ``find_correlation_surfaces`` orders them; each must be a surface of
+    this graph). A surface that runs one patch's logical along two of its lines (it passes two
+    seams of that patch) is refused: the surgery engine's observables take one line, and the
+    difference of two lines is a band of checks whose signs are random."""
     from .correlation import ZXGraph
 
     graph.validate()
@@ -188,6 +191,45 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
     zx = ZXGraph.from_block_graph(graph)
     positions = zx.positions
     surfaces = list(graph.find_correlation_surfaces() if observables is None else observables)
+    if observables is not None:
+        # A surface of another graph (or a made-up one) would compile into a random observable.
+        for k, surface in enumerate(surfaces):
+            for edge in surface.span:
+                for node in (edge.u, edge.v):
+                    if node.id not in positions:
+                        raise TQECError(f"observable {k} names vertex {node.id}, which this graph does not have")
+                if edge.is_self_loop:
+                    continue
+                pu, pv = positions[edge.u.id], positions[edge.v.id]
+                if not graph.has_pipe_between(pu, pv):
+                    raise TQECError(f"observable {k} runs along {pu} -- {pv}, where this graph has no pipe")
+                if (edge.u.basis != edge.v.basis) != zx.is_hadamard(edge.u.id, edge.v.id):
+                    raise TQECError(f"observable {k} changes basis along {pu} -- {pv}, which is not a Hadamard pipe of this graph")
+            # The spider rules at every vertex (tqec's broadcast and passthrough): at a spider
+            # of basis B the edges carrying the other basis are all of them or none, and the
+            # edges carrying B are even in number unless the spider is a leaf; a leaf spider of
+            # type B is a patch prepared or measured in the other basis (|0> is an X spider),
+            # which ends a surface in that other basis alone, as tqec's search starts it.
+            at: dict[int, dict[int, set]] = {}
+            for edge in surface.span:
+                if edge.is_self_loop:
+                    continue
+                at.setdefault(edge.u.id, {}).setdefault(edge.v.id, set()).add(edge.u.basis)
+                at.setdefault(edge.v.id, {}).setdefault(edge.u.id, set()).add(edge.v.basis)
+            for v, by_neighbour in at.items():
+                spider = zx._kind[v]
+                if spider.name not in ("X", "Z"):
+                    continue
+                basis = Basis(spider.name)
+                neighbours = zx.neighbors(v)
+                opposite = sum(1 for u in neighbours if basis.flipped() in by_neighbour.get(u, set()))
+                same = sum(1 for u in neighbours if basis in by_neighbour.get(u, set()))
+                if 0 < opposite < len(neighbours):
+                    raise TQECError(f"observable {k} is not a correlation surface of this graph: at the {basis.value} spider at {positions[v]} it carries {basis.flipped().value} on some pipes and not others")
+                if len(neighbours) > 1 and same % 2:
+                    raise TQECError(f"observable {k} is not a correlation surface of this graph: at the {basis.value} spider at {positions[v]} it carries {basis.value} on an odd number of pipes")
+                if len(neighbours) == 1 and same:
+                    raise TQECError(f"observable {k} is not a correlation surface of this graph: it ends in {basis.value} on the patch at {positions[v]}, which is prepared or measured in {basis.flipped().value}")
     terms_per_surface: list[list[tuple]] = []
     for surface in surfaces:
         terms: list[tuple] = []

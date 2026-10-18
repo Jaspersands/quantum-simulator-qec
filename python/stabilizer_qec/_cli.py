@@ -366,6 +366,12 @@ def cmd_serve(a) -> None:
         raise UsageError("give --dem or --circuit, one of the two")
     if bool(a.tcp) == bool(a.stdio):
         raise UsageError("give --tcp host:port or --stdio, one of the two")
+    if a.tcp:
+        host, _, port = a.tcp.rpartition(":")
+        if not host or not port.isdigit() or not 0 <= int(port) <= 65535:
+            raise UsageError(f"--tcp takes host:port with a port from 0 to 65535, not {a.tcp!r}")
+    if a.threads < 0:
+        raise UsageError(f"--threads is 0 (every core) or positive, not {a.threads}")
     if a.dem is not None:
         decoder = make_decoder(a.decoder, DetectorErrorModel(_read_text(a.dem)))
     else:

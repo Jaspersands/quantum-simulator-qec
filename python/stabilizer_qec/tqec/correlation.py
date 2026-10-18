@@ -424,7 +424,12 @@ class _SubGraph(ZXGraph):
 
 def _find_correlation_surfaces_product(zx_graph: ZXGraph) -> Iterator[_CorrelationSurface]:
     """The products of the components' generators (each a surface of the whole graph)."""
-    per_component = [_find_correlation_surfaces_from_leaf(component, min(component.leaves())) for component in _connected_components(zx_graph)]
+    per_component = []
+    for component in _connected_components(zx_graph):
+        leaves = component.leaves()
+        if not leaves:
+            raise TQECError("The graph must contain at least one leaf node to find correlation surfaces." if len(component._kind) > 1 else f"the cube at {component[next(iter(component._kind))]} has no pipe; a lone cube is a graph of its own (tqec's search needs a leaf in every component)")
+        per_component.append(_find_correlation_surfaces_from_leaf(component, min(leaves)))
     for parts in product(*per_component):
         merged = _CorrelationSurface()
         for part in parts:

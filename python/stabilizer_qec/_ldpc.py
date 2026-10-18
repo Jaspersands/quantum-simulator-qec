@@ -63,6 +63,11 @@ def _probability(p: Any) -> float:
     return p
 
 
+# Fewer shots than this go to the cpu-f32 path on the gpu device (the bits are the same; a GPU
+# earns its keep with hundreds of shots in flight).
+_GPU_BATCH_MIN = 256
+
+
 def _base(name: str, value: Any) -> Any:
     return _BASE_DEFAULTS[name] if isinstance(value, _Default) else value
 
@@ -446,7 +451,10 @@ class BpDecoder(BpDecoderBase):
                     out[i] = np.asarray(hard, dtype=np.uint8)
                     converged[i], iterations[i] = bool(conv), int(iters)
             else:
-                out[live], converged[live], iterations[live] = self._decode_rows32(rows[live], self.device, threads)
+                # A GPU shot is one thread walking the whole graph: a small batch runs faster
+                # on the CPU's threads, with the same bits.
+                device = "cpu-f32" if self.device == "gpu" and len(live) < _GPU_BATCH_MIN else self.device
+                out[live], converged[live], iterations[live] = self._decode_rows32(rows[live], device, threads)
         return (out, converged, iterations) if _details else out
 
     @property

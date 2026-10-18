@@ -1,8 +1,8 @@
 # Third-party notices
 
 The code written for stabilizer-qec is MIT-licensed (see `LICENSE`). Parts of the package are
-ported from, or reproduce material of, other projects under their own licences (Apache-2.0, MIT
-and BSD), which apply to those parts and travel with them; each is listed below with its
+ported from, or reproduce material of, other projects under their own licences (Apache-2.0, MIT,
+BSD, zlib, and Apache-2.0 with LLVM exceptions), which apply to those parts and travel with them; each is listed below with its
 copyright notice.
 
 ## Stim

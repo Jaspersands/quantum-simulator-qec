@@ -24,25 +24,55 @@ export const MAX_OPS = 1_000_000;
 const SHORT = { QUBIT_COORDS: 'Q', DETECTOR: 'DT', OBSERVABLE_INCLUDE: 'OI' };
 const LONG = { Q: 'QUBIT_COORDS', DT: 'DETECTOR', OI: 'OBSERVABLE_INCLUDE' };
 
-const TARGET = /^(!?\d+|!?[XYZ]\d+|rec\[-\d+\]|sweep\[\d+\]|\*)$/;
+const TARGET = /^(!?\d+|!?[XYZ]\d+|rec\[-[1-9]\d*\]|sweep\[\d+\]|\*)$/;
+const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 
-/** Stim's `%g`-style number, integers bare. */
+/** The most REPEAT blocks nest (the package's parser stops at the same depth). */
+const MAX_DEPTH = 100;
+
+function parseArgs(text, line) {
+  const args = text.split(',').map((s) => s.trim()).filter(Boolean);
+  for (const a of args) if (!NUMBER.test(a) || !Number.isFinite(Number(a))) throw new Error(`"${line}": "${a}" is not a number`);
+  return args.map(Number);
+}
+
+/**
+ * A number as the package prints an argument: an integer that fits an i64 bare and exact,
+ * anything else as C's `%g` (six significant digits, rounded half to even on the exact binary
+ * value, trailing zeros dropped, exponent form below 1e-4 and from 1e6).
+ */
 export function formatArg(value) {
   if (!Number.isFinite(value)) return String(value);
-  if (Number.isInteger(value) && Math.abs(value) < 9.2e18) return String(value);
-  // %g: six significant digits, trailing zeros dropped, exponent form when the rounded value's
-  // exponent is below -4 or at least 6 (999999.5 rounds to 1e+06, not 1000000).
-  const r = Number(value.toPrecision(6));
-  if (r === 0) return '0';
-  const exp = Math.floor(Math.log10(Math.abs(r)));
-  if (exp < -4 || exp >= 6) {
-    let [m, e] = r.toExponential(5).split('e');
-    m = m.includes('.') ? m.replace(/\.?0+$/, '') : m;
-    const sign = e[0] === '-' ? '-' : '+';
-    const digits = e.replace(/^[-+]/, '').padStart(2, '0');
-    return `${m}e${sign}${digits}`;
+  if (Number.isInteger(value) && Math.abs(value) < 9223372036854775808) return BigInt(value).toString();
+  if (value === 0) return '0';
+  // toExponential(20) is exact for every double, so a tie at the seventh digit is seen as one.
+  const [mant, expStr] = value.toExponential(20).split('e');
+  const neg = mant[0] === '-';
+  const digits = mant.replace('-', '').replace('.', '');
+  let exp = Number(expStr);
+  let head = digits.slice(0, 6);
+  const tail = digits.slice(6);
+  const up = tail[0] > '5' || (tail[0] === '5' && (/[1-9]/.test(tail.slice(1)) || Number(head[5]) % 2 === 1));
+  if (up) {
+    let n = String(Number(head) + 1);
+    if (n.length > 6) {
+      n = n.slice(0, 6);
+      exp += 1;
+    }
+    head = n;
   }
-  return String(r);
+  let out;
+  if (exp < -4 || exp >= 6) {
+    const m = (head[0] + '.' + head.slice(1)).replace(/\.?0+$/, '');
+    out = `${m}e${exp < 0 ? '-' : '+'}${String(Math.abs(exp)).padStart(2, '0')}`;
+  } else if (exp >= 0) {
+    const intPart = head.slice(0, exp + 1);
+    const frac = head.slice(exp + 1).replace(/0+$/, '');
+    out = frac ? `${intPart}.${frac}` : intPart;
+  } else {
+    out = ('0.' + '0'.repeat(-exp - 1) + head).replace(/0+$/, '');
+  }
+  return (neg ? '-' : '') + out;
 }
 
 /** Stim's canonical name for a gate (`CNOT` is `CX`, `MZ` is `M`, `SQRT_Z` is `S`). */
@@ -55,21 +85,23 @@ export function canonicalName(name) {
 export function parseStim(text) {
   const lines = text.split(/\r?\n/);
   let i = 0;
-  const block = (top) => {
+  const block = (depth) => {
     const body = [];
     for (; i < lines.length; i++) {
-      const line = lines[i].trim();
+      const line = lines[i].split('#')[0].trim() === '}' ? '}' : lines[i].trim();
       if (!line || line.startsWith('#')) continue;
-      if (line.startsWith('}')) {
-        if (top) throw new Error(`line ${i + 1}: "}" closes no REPEAT block`);
+      if (line === '}') {
+        if (depth === 0) throw new Error(`line ${i + 1}: "}" closes no REPEAT block`);
         return body;
       }
+      if (line.startsWith('}')) throw new Error(`line ${i + 1}: a closing brace stands alone on its line`);
       const m = line.match(/^REPEAT\s+(\d+)\s*\{\s*(#.*)?$/i);
       if (m) {
         const count = Number(m[1]);
         if (count < 1) throw new Error(`line ${i + 1}: REPEAT ${m[1]}: a block repeats at least once`);
+        if (depth >= MAX_DEPTH) throw new Error(`line ${i + 1}: REPEAT blocks nested more than ${MAX_DEPTH} deep`);
         i++;
-        const inner = block(false);
+        const inner = block(depth + 1);
         if (i >= lines.length) throw new Error('a REPEAT block is never closed');
         repeatInto(body, inner, count);
         continue;
@@ -77,10 +109,10 @@ export function parseStim(text) {
       body.push(parseInstruction(line));
       if (body.length > MAX_OPS) throw new Error(`more than ${MAX_OPS} operations`);
     }
-    if (!top) throw new Error('a REPEAT block is never closed');
+    if (depth > 0) throw new Error('a REPEAT block is never closed');
     return body;
   };
-  return { ops: block(true) };
+  return { ops: block(0) };
 }
 
 /** Appends `count` copies of `inner` to `body` without spreading (a spread of a million elements overflows the stack). */
@@ -102,24 +134,24 @@ export function parseInstruction(line) {
   const m = rest.match(/^(\(([^)]*)\))?\s*(.*)$/);
   if (!m) throw new Error(`cannot read "${line}"`);
   const name = canonicalName(head[1]);
-  const args = m[2] ? m[2].split(',').map((s) => s.trim()).filter(Boolean).map(Number) : [];
-  if (args.some((a) => Number.isNaN(a))) throw new Error(`"${line}": an argument is not a number`);
+  const args = m[2] ? parseArgs(m[2], line) : [];
   const targets = splitTargets(m[3] ? m[3].split(/\s+/).filter(Boolean) : []);
   for (const t of targets) if (!TARGET.test(t)) throw new Error(`"${line}": "${t}" is not a target`);
   return { name, args, targets };
 }
 
-/** Target words to tokens: `X0*Z1` is `X0`, `*`, `Z1`. */
+/** Target words to tokens: `X0*Z1` is `X0`, `*`, `Z1`; a Pauli letter in either case reads as upper. */
 function splitTargets(words) {
   const out = [];
+  const token = (s) => s.replace(/^(!?)([xyz])(\d+)$/, (_, bang, p, q) => `${bang}${p.toUpperCase()}${q}`);
   for (const w of words) {
     if (!w.includes('*')) {
-      out.push(w);
+      out.push(token(w));
       continue;
     }
     w.split('*').forEach((s, j) => {
       if (j > 0) out.push('*');
-      if (s.length) out.push(s);
+      if (s.length) out.push(token(s));
     });
   }
   return out;
@@ -229,8 +261,7 @@ export function parseCrumbleUrl(url) {
     const m = item.match(/^([A-Za-z][A-Za-z0-9_]*?)(\(([^)]*)\))(.*)$/) ?? splitBare(item);
     if (!m) throw new Error(`cannot read "${item}"`);
     const name = LONG[m[1]] ?? canonicalName(m[1]);
-    const args = m[3] ? m[3].split(',').filter(Boolean).map(Number) : [];
-    if (args.some((a) => Number.isNaN(a))) throw new Error(`"${item}": an argument is not a number`);
+    const args = m[3] ? parseArgs(m[3], item) : [];
     let rest = m[4];
     if (rest.startsWith('_')) rest = rest.slice(1);
     const targets = rest.length ? splitTargets(rest.split('_').filter((s) => s.length)) : [];

@@ -69,3 +69,4 @@ export const PAIR_MEASURE_BASIS = {"MXX": "X", "MYY": "Y", "MZZ": "Z"};
 export const HERALDS = ["HERALDED_ERASE", "HERALDED_PAULI_CHANNEL_1"];
 export const RESETS = ["MR", "MRX", "MRY", "R", "RX", "RY"];
 export const REC_CONTROLLED = {"CX": "X", "CY": "Y", "CZ": "Z", "XCZ": "X", "YCZ": "Y"};
+export const PAIRS = ["CX", "CXSWAP", "CY", "CZ", "CZSWAP", "DEPOLARIZE2", "II", "II_ERROR", "ISWAP", "ISWAP_DAG", "MXX", "MYY", "MZZ", "PAULI_CHANNEL_2", "SQRT_XX", "SQRT_XX_DAG", "SQRT_YY", "SQRT_YY_DAG", "SQRT_ZZ", "SQRT_ZZ_DAG", "SWAP", "SWAPCX", "XCX", "XCY", "XCZ", "YCX", "YCY", "YCZ"];

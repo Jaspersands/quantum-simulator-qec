@@ -1920,6 +1920,8 @@ pub struct PyBp {
     schedule: crate::bp::Schedule,
     serial: crate::bp::SerialState,
     work: crate::bp::BpWork,
+    /// The GPU's pacing of this decoder's batches, learned across calls.
+    pace: crate::lanes::PaceHint,
 }
 
 #[pymethods]
@@ -1929,7 +1931,7 @@ impl PyBp {
         let mut bp = crate::bp::Bp::new(num_checks, &columns, &priors).map_err(err)?;
         bp.zero_shortcut = false;
         let (work, serial) = (bp.work(), crate::bp::SerialState::new(columns.len()));
-        Ok(PyBp { bp, method: bp_method(method, scale)?, max_iter, num_checks, schedule: crate::bp::Schedule::Parallel, serial, work })
+        Ok(PyBp { bp, method: bp_method(method, scale)?, max_iter, num_checks, schedule: crate::bp::Schedule::Parallel, serial, work, pace: crate::lanes::PaceHint::default() })
     }
 
     fn set_priors(&mut self, priors: Vec<f64>) -> PyResult<()> {
@@ -1996,7 +1998,8 @@ impl PyBp {
             "gpu" => {
                 #[cfg(feature = "gpu")]
                 {
-                    py.detach(|| crate::gpu::bp_decode_batch(&bp32, syndromes, shots, scale, max_iter)).map_err(err)?
+                    let pace = &self.pace;
+                    py.detach(|| crate::gpu::bp_decode_batch(&bp32, syndromes, shots, scale, max_iter, pace)).map_err(err)?
                 }
                 #[cfg(not(feature = "gpu"))]
                 {

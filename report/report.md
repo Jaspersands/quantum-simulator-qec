@@ -795,9 +795,10 @@ its status. Four tutorials cover the release (`tutorials/06` to `09`).
 # Reproducing everything
 
 Every number in the report's sections on releases 1.0 to 1.9 is filled in by `tools/report.py`
-from these committed files; the section on release 2.0 quotes the README's tables, which
-`tools/readme_tables.py` writes from `data/clifford_t/`, `data/gpu/`, `data/surgery/leakage.json`
-and `data/bench/` (and `--check` verifies):
+from these committed files; the section on release 2.0 is prose, its figures typed from the
+README's tables, which `tools/readme_tables.py` writes from `data/clifford_t/`, `data/gpu/`,
+`data/surgery/leakage.json` and `data/bench/` (and `--check` verifies), and checked against
+them in the release's review:
 
 - `data/xcheck/reference.json`: the cross-check;
 - `data/sweeps/`: thresholds;
@@ -833,6 +834,13 @@ VIRTUAL_ENV=$PWD/.venv CARGO_TARGET_DIR=target-py .venv/bin/maturin develop --pr
 .venv/bin/python tools/distill.py                      # 15-to-1 distillation
 .venv/bin/python tools/distances.py --time-limit 300   # circuit distances
 node tools/lambda.mjs                                  # every fit
+.venv/bin/python tools/clifford_t.py check             # the Clifford+T check against Tsim (Tsim installed)
+.venv/bin/python tools/clifford_t.py inject            # magic-state injection under coherent noise
+.venv/bin/python tools/clifford_t.py distill           # and distillation
+.venv/bin/python tools/gpu_bench.py                    # sampling and BP on the GPU
+.venv/bin/python tools/surgery_leakage.py              # the lattice-surgery CNOT under leakage
+.venv/bin/python tools/bench.py --record               # the decoder benchmarks
+.venv/bin/python tools/readme_tables.py --write        # the README's tables from the data
 python3 tools/report.py                                # this report
 ```
 

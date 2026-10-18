@@ -17,7 +17,7 @@
   <p class="kicker">Technical report · stabilizer-qec 2.0.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 18 October 2026 · commit <code>549ffaa</code></p>
+  <p class="byline">Jasper Sands · 18 October 2026 · commit <code>a0b524e</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -2731,7 +2731,7 @@
 <li><strong>The estimate is a model.</strong> It prices every tile as an idle patch, consumes Toffolis in sequence unless told otherwise, and extrapolates the decoder’s latency and cores past d = 7. It is meant to show what the measured numbers imply, and which of them the answer depends on.</li>
 </ul>
 <h1 data-number="6" id="reproducing-everything"><span class="header-section-number">6</span> Reproducing everything</h1>
-<p>Every number in the report’s sections on releases 1.0 to 1.9 is filled in by <code>tools/report.py</code> from these committed files; the section on release 2.0 quotes the README’s tables, which <code>tools/readme_tables.py</code> writes from <code>data/clifford_t/</code>, <code>data/gpu/</code>, <code>data/surgery/leakage.json</code> and <code>data/bench/</code> (and <code>--check</code> verifies):</p>
+<p>Every number in the report’s sections on releases 1.0 to 1.9 is filled in by <code>tools/report.py</code> from these committed files; the section on release 2.0 is prose, its figures typed from the README’s tables, which <code>tools/readme_tables.py</code> writes from <code>data/clifford_t/</code>, <code>data/gpu/</code>, <code>data/surgery/leakage.json</code> and <code>data/bench/</code> (and <code>--check</code> verifies), and checked against them in the release’s review:</p>
 <ul>
 <li><code>data/xcheck/reference.json</code>: the cross-check;</li>
 <li><code>data/sweeps/</code>: thresholds;</li>
@@ -2763,7 +2763,14 @@
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/distill.py                      <span class="co"># 15-to-1 distillation</span></span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/distances.py <span class="at">--time-limit</span> 300   <span class="co"># circuit distances</span></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> tools/lambda.mjs                                  <span class="co"># every fit</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/clifford_t.py check             <span class="co"># the Clifford+T check against Tsim (Tsim installed)</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/clifford_t.py inject            <span class="co"># magic-state injection under coherent noise</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/clifford_t.py distill           <span class="co"># and distillation</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/gpu_bench.py                    <span class="co"># sampling and BP on the GPU</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/surgery_leakage.py              <span class="co"># the lattice-surgery CNOT under leakage</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/bench.py <span class="at">--record</span>               <span class="co"># the decoder benchmarks</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="ex">.venv/bin/python</span> tools/readme_tables.py <span class="at">--write</span>        <span class="co"># the README&#39;s tables from the data</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> tools/report.py                                <span class="co"># this report</span></span></code></pre></div>
 <p>The package installs with <code>pip install stabilizer-qec</code>, or from a wheel built by <code>maturin build</code>. Software: Stim 1.16.0, PyMatching 2.4.0. Google’s datasets are CC BY 4.0 (Google Quantum AI; Zenodo 13273331 and 6804040); the engine is MIT-licensed.</p>
 </main>
 </body>

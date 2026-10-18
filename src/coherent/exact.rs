@@ -136,17 +136,25 @@ mod tests {
         out
     }
 
+    fn same(text: &str, what: &str, ours: &BTreeMap<(Vec<bool>, u64), f64>, theirs: &BTreeMap<(Vec<bool>, u64), f64>) {
+        let keys: std::collections::BTreeSet<_> = ours.keys().chain(theirs.keys()).cloned().collect();
+        for k in keys {
+            let (a, b) = (ours.get(&k).copied().unwrap_or(0.0), theirs.get(&k).copied().unwrap_or(0.0));
+            assert!((a - b).abs() < 1e-10, "{text}\n{what} {k:?}: weighted twirl {a}, state vector {b}");
+        }
+    }
+
+    /// The weighted twirl's distribution is the state vector's, both as raw parities (the
+    /// weights' identity) and as detection events (what the sampler reports: flips from the
+    /// reference run, which must be the state vector's reference too; a detector on a random
+    /// outcome tells the two apart).
     fn check(text: &str) {
         let c = Circuit::parse(text).unwrap();
         let p = Program::new(&c).unwrap();
         let kernel = p.full_kernel().unwrap();
-        let ours = p.exact_distribution(&kernel, true, 1 << 22).unwrap();
-        let theirs = truth(&c);
-        let keys: std::collections::BTreeSet<_> = ours.keys().chain(theirs.keys()).cloned().collect();
-        for k in keys {
-            let (a, b) = (ours.get(&k).copied().unwrap_or(0.0), theirs.get(&k).copied().unwrap_or(0.0));
-            assert!((a - b).abs() < 1e-10, "{text}\n{k:?}: weighted twirl {a}, state vector {b}");
-        }
+        same(text, "raw", &p.exact_distribution(&kernel, true, 1 << 22).unwrap(), &truth(&c));
+        let sv = crate::statevec::Program::new(&c).unwrap();
+        same(text, "events", &p.exact_distribution(&kernel, false, 1 << 22).unwrap(), &sv.distribution(1 << 22).unwrap());
     }
 
     #[test]
@@ -185,6 +193,54 @@ mod tests {
             "RX 0 2\nR 1\nI_ERROR[R_Z(theta=0.2)] 0 2\nH 1\nCZ 1 0\nCZ 1 2\nH 1\nMR 1\nI_ERROR[R_Z(theta=-0.3)] 0 2\nH 1\nCZ 1 0\nCZ 1 2\nH 1\nMR 1\n\
              DETECTOR rec[-2]\nDETECTOR rec[-1] rec[-2]\nMX 0 2\nDETECTOR rec[-1] rec[-2] rec[-3]\nOBSERVABLE_INCLUDE(0) rec[-1]",
         );
+    }
+
+    /// A detector on a random outcome, with random outcomes on other qubits before it: the
+    /// adversarial review's circuits, whose detector the 1.9 sampler reported complemented
+    /// whenever its seeded reference run read the measurement as 1.
+    #[test]
+    fn detectors_on_random_outcomes() {
+        check("R 0 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMX 1 2\nMX 0\nDETECTOR rec[-1]");
+        check("R 0 1 2\nI_ERROR[R_Y(theta=0.24)] 0\nMX 1\nMX 0\nDETECTOR rec[-1]");
+        check("R 0 1 2 3\nI_ERROR[R_X(theta=0.15)] 0 2\nCX 0 1 2 1\nM 1\nI_ERROR[R_Y(theta=0.2)] 3\nMX 0 2\nMX 3\nDETECTOR rec[-1]");
+        check("RX 0 1 2\nI_ERROR[R_Z(theta=0.3)] 0\nMX 1\nMY 0\nDETECTOR rec[-1]");
+    }
+
+    /// The review's family: a rotated qubit read out where its outcome is random, after k
+    /// other qubits with random outcomes nobody compares (read in X, read and reset in X, H
+    /// then M, or prepared with RX and never read), k = 0..4; the detector on the random
+    /// outcome, and the whole record's events besides.
+    #[test]
+    fn random_outcomes_elsewhere() {
+        let line = |op: &str, qs: &[usize]| if qs.is_empty() { None } else { Some(format!("{op} {}", qs.iter().map(|q| q.to_string()).collect::<Vec<_>>().join(" "))) };
+        for k in 0..=4usize {
+            let others: Vec<usize> = (1..=k).collect();
+            let all: Vec<usize> = (0..=k).collect();
+            for (prep, rotation, readout) in [("R", "I_ERROR[R_Y(theta=0.24)] 0", "MX 0"), ("RX", "I_ERROR[R_Z(theta=0.3)] 0", "MY 0"), ("R", "I_ERROR[R_X(theta=0.2)] 0", "MY 0")] {
+                for elsewhere in ["MX", "MRX", "H+M", "RX"] {
+                    // Each MRX doubles the branches twice over; four of them cost seconds.
+                    if elsewhere == "MRX" && k == 4 {
+                        continue;
+                    }
+                    let mut lines: Vec<String> = vec![line(prep, &all).unwrap(), rotation.to_string()];
+                    match elsewhere {
+                        "H+M" => {
+                            lines.extend(line("H", &others));
+                            lines.extend(line("M", &others));
+                        }
+                        "RX" => lines.extend(line("RX", &others)),
+                        op => lines.extend(line(op, &others)),
+                    }
+                    lines.push(readout.to_string());
+                    lines.push("DETECTOR rec[-1]".to_string());
+                    if elsewhere != "RX" && k > 0 {
+                        lines.push("DETECTOR rec[-2]".to_string());
+                        lines.push(format!("OBSERVABLE_INCLUDE(0) rec[-1] rec[-{}]", k + 1));
+                    }
+                    check(&lines.join("\n"));
+                }
+            }
+        }
     }
 
     /// Random small circuits of every kind of step.
