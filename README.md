@@ -458,14 +458,19 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 | `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off | examples, random circuits, noise statistics |
 | `Compiled*Sampler`, `CompiledMeasurementsToDetectionEventsConverter` | the same (aliases of the native samplers), every file format byte for byte | examples, file comparisons |
 | `ExplainedError` and its parts | the same objects, text and reprs | examples, generated codes |
-| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags and formats; `repl` byte for byte | examples, command-line comparisons |
+| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte | examples, command-line comparisons |
 
 Where Stim's output depends on its random number generator, results agree in distribution, not
 bit for bit. Two differences are deliberate and documented: products Stim parses but cannot run
 (anti-Hermitian Pauli products, writes to the measurement record) are refused when the circuit
 is built rather than when it runs; and `diagram("interactive")` opens the circuit in Crumble
 from algassert.com rather than embedding Crumble's code. The SVG diagrams are this package's
-own drawings. Code ported from Stim is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+own drawings. Where several answers are equally good, the one returned can differ:
+`search_for_undetectable_logical_errors` returns a shortest error, not always Stim's, and the
+matcher grows its regions in its own order, so among equally light matchings it can pick another
+one than PyMatching's (`decode_to_edges_array` and `decode_to_matched_dets_array` then list it,
+in its own order, and correlated matching reweights from it). PyMatching's `animate` command is
+not ported. Code ported from Stim is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## An exact sparse matcher
 

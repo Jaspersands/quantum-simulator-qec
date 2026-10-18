@@ -100,8 +100,8 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | ID | Feature | Status |
 |---|---|---|
 | S60 | `repl` | done (2.0 W2: Stim's surface, its API equal to Stim 1.16's, member for member) |
-| S61 | `help gates`, `help formats`, `help <gate>`, `help <format>` | done (2.0 W2: Stim's surface, its API equal to Stim 1.16's, member for member) |
-| S62 | Every flag of every subcommand matches Stim (re-audit against `stim help <cmd>`) | done (2.0 W2: Stim's surface, its API equal to Stim 1.16's, member for member) |
+| S61 | `help gates`, `help formats`, `help <gate>`, `help <format>` | done (2.0 W2: Stim's surface, its API equal to Stim 1.16's, member for member; 2.1: Stim's own help pages, every instruction, format, command and index, `tools/stim_help.py`) |
+| S62 | Every flag of every subcommand matches Stim (re-audit against `stim help <cmd>`) | done (2.0 W2: Stim's surface, its API equal to Stim 1.16's, member for member; 2.1: `diagram --filter_coords`, and a test that every flag Stim's pages document is taken) |
 
 ### S.7 Crumble and Quirk
 
@@ -119,11 +119,11 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | P3 | `from_networkx/to_networkx`, `from_rustworkx`/`load_from_rustworkx`/`to_rustworkx` (and retworkx) | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
 | P4 | `from_stim_circuit(_file)`, `from_detector_error_model_file` | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
 | P5 | Queries: `edges()`, `get_edge_data`, `get_boundary_edge_data`, `has_edge`, `has_boundary_edge`, `num_nodes/num_edges/num_fault_ids/boundary` | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
-| P6 | `decode(return_weight=)`, `decode_to_edges_array`, `decode_to_matched_dets_array`, `decode_to_matched_dets_dict` | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
+| P6 | `decode(return_weight=)`, `decode_to_edges_array`, `decode_to_matched_dets_array`, `decode_to_matched_dets_dict` | done (2.0 W3: PyMatching's graph API and CLI, member for member; among equally light matchings the one listed, and its order, can differ from PyMatching's) |
 | P7 | `add_noise` (sample errors on the graph's own probabilities) | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
 | P8 | `draw` | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
 | P9 | Constructor `Matching(H or graph, weights, …)` | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
-| P10 | `pymatching predict` and `pymatching count_mistakes` CLI (we have `decode`, after predict) | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
+| P10 | `pymatching predict` and `pymatching count_mistakes` CLI (we have `decode`, after predict) | done (2.0 W3: PyMatching's graph API and CLI, member for member; 2.1: `predict` reads b8 by default, as PyMatching's does; `animate` not ported) |
 | P11 | `set_seed`, `randomize`, `rand_float` (tie-breaking randomness) | done (2.0 W3: PyMatching's graph API and CLI, member for member) |
 
 ## N — sinter 1.16
@@ -137,7 +137,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | N5 | `fit_binomial`, `fit_line_slope`, `fit_line_y_at_x`, `log_binomial`, `log_factorial`, `shot_error_rate_to_piece_error_rate` | done (2.0 W4: `stabilizer_qec.sinter`, sinter whole, with its CLI) |
 | N6 | `plot_error_rate`, `plot_discard_rate`, `plot_custom`, `group_by`, `better_sorted_str_terms`, `comma_separated_key_values` | done (2.0 W4: `stabilizer_qec.sinter`, sinter whole, with its CLI) |
 | N7 | `predict_observables(_bit_packed)`, `predict_discards_bit_packed`, `predict_on_disk`, `post_selection_mask_from_4th_coord` | done (2.0 W4: `stabilizer_qec.sinter`, sinter whole, with its CLI) |
-| N8 | `Sampler`/`CompiledSampler` and `Decoder`/`CompiledDecoder` plug-in protocols | done (2.0 W4: `stabilizer_qec.sinter`, sinter whole, with its CLI) |
+| N8 | `Sampler`/`CompiledSampler` and `Decoder`/`CompiledDecoder` plug-in protocols | done (2.0 W4: `stabilizer_qec.sinter`, sinter whole, with its CLI; 2.1: the built-in `mw_parity_factor` and `hypergraph_union_find` run on this package's MWPF) |
 | N9 | CLI `collect`, `combine`, `plot` with all flags | done (2.0 W4: `stabilizer_qec.sinter`, sinter whole, with its CLI) |
 
 ## L — ldpc 2.4
