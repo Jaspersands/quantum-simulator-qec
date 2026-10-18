@@ -27,7 +27,7 @@ def get_test_decoders() -> Tuple[List[str], Dict[str, sinter.Decoder]]:
     except ImportError:
         available_decoders.remove('pymatching')
     try:
-        import mwpf
+        from stabilizer_qec import mwpf  # noqa: F401
     except ImportError:
         available_decoders.remove('hypergraph_union_find')
         available_decoders.remove('mw_parity_factor')

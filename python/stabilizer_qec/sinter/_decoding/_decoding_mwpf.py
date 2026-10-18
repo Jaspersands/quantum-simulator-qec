@@ -1,5 +1,5 @@
 # Ported from sinter 1.16.0 (Copyright Google LLC, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
-# modified for stabilizer_qec: Stim and PyMatching are this package's, and scipy is not needed.
+# modified for stabilizer_qec: Stim, PyMatching and MWPF are this package's, and scipy is not needed.
 import math
 import pathlib
 from typing import Callable, List, TYPE_CHECKING, Tuple, Any, Optional
@@ -10,7 +10,7 @@ import stabilizer_qec as stim
 from stabilizer_qec.sinter._decoding._decoding_decoder_class import Decoder, CompiledDecoder
 
 if TYPE_CHECKING:
-    import mwpf
+    from stabilizer_qec import mwpf
 
 
 def mwpf_import_error() -> ImportError:
@@ -43,7 +43,7 @@ class MwpfCompiledDecoder(CompiledDecoder):
         predictions = np.zeros(
             shape=(num_shots, (self.num_obs + 7) // 8), dtype=np.uint8
         )
-        import mwpf
+        from stabilizer_qec import mwpf
 
         for shot in range(num_shots):
             dets_sparse = np.flatnonzero(
@@ -117,7 +117,7 @@ class MwpfDecoder(Decoder):
         obs_predictions_b8_out_path: pathlib.Path,
         tmp_dir: pathlib.Path,
     ) -> None:
-        import mwpf
+        from stabilizer_qec import mwpf
 
         error_model = stim.DetectorErrorModel.from_file(dem_path)
         solver, fault_masks = detector_error_model_to_mwpf_solver_and_fault_masks(
@@ -237,7 +237,7 @@ def detector_error_model_to_mwpf_solver_and_fault_masks(
     """Convert a stim error model into a NetworkX graph."""
 
     try:
-        import mwpf
+        from stabilizer_qec import mwpf
     except ImportError as ex:
         raise mwpf_import_error() from ex
 
