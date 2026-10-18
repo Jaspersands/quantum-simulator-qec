@@ -32,7 +32,7 @@ The site's WebAssembly engine is `cargo build --release --target wasm32-unknown-
   to be removed is deprecated for at least one minor release first.
 - Names follow the tools a user knows: Stim's for circuits and models, PyMatching's for
   matching, `ldpc`'s for BP and BP+OSD.
-- A seed's shots stay the same within 1.x; a change that alters them says so in the
+- A seed's shots stay the same within 2.x; a change that alters them says so in the
   changelog.
 - Each change goes in `CHANGELOG.md`.
 

@@ -10,6 +10,7 @@ import numpy as np
 from . import _core, _dem, _stim
 import bisect
 import math
+import warnings
 from typing import Tuple
 from ._util import b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
@@ -325,7 +326,10 @@ class Circuit:
         each ``I[T]`` and ``I[T_DAG]`` gate and each rotation (a gate or a coherent error, each
         of a ``U3``'s three) by an angle that is not a multiple of π/2 in half-turns (of π/4 in
         this package's ``exp(−iθP)``), whatever the angle: ``I[R_Z(theta=0.1)] 0`` counts 1,
-        ``I[R_Z(theta=0.7853981633974483)] 0`` (S) counts 0."""
+        ``I[R_Z(theta=0.7853981633974483)] 0`` (S) counts 0. Coherent errors count here and
+        not in Tsim, which reads ``I_ERROR[R_Z(...)]`` as nothing: the count is of the phases
+        the circuit's exact simulation pays for (``num_non_clifford_gates`` counts the gates
+        alone)."""
         return call(self._c.t_count)
 
     @property
@@ -804,7 +808,12 @@ class Circuit:
         shots on any machine and any number of threads; ``None`` draws a seed. A circuit with
         non-Clifford gates (``I[T]``, ``I[R_Z(theta=…)]``, ``I[U3(…)]``) gets the
         stabilizer-rank sampler, which runs them (``without_tags()`` for Stim's reading, the
-        identity).
+        identity). A tagged gate at a Clifford angle (``I[R_Z(theta=1.5707963267948966)] 0``
+        is ``Z 0``) is the Clifford gate it is in every sampler. Coherent *errors*
+        (``I_ERROR[R_Z(theta=…)]``) are beyond a frame: the frame sampler reads them as Stim
+        does, as nothing, and warns; ``twirled()`` gives the Pauli-twirled model and
+        ``compile_coherent_sampler`` the coherent one (and the stabilizer-rank sampler, when
+        the circuit has non-Clifford gates too, runs them exactly).
 
         ``device``: ``"cpu"`` (the default: 64 shots a machine word, noise by geometric
         skipping), ``"cpu-lanes"`` (32 shots a word, every random number an integer compare:
@@ -854,7 +863,7 @@ class Circuit:
         trajectories. Its ``sample`` has the detector sampler's signature."""
         return ExactSampler(self, seed)
 
-    def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None) -> "CoherentSampler":
+    def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None, pairs: bool = False) -> "CoherentSampler":
         """A sampler for circuits with coherent errors (``I_ERROR[R_Z(theta=0.02)] 0``,
         ``II_ERROR[R_ZZ(theta=0.01)] 0 1``, any Pauli rotation) at any size: shots of the
         Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
@@ -869,8 +878,12 @@ class Circuit:
         of its class over the twirl's, every member of the class a re-run of the exact engine
         with the member's errors inserted and the shot's outcomes forced. Neither the coherent
         sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
-        exponential in the errors) covers this."""
-        return CoherentSampler(self, order, seed)
+        exponential in the errors) covers this. ``pairs`` has the joint sampler sum the
+        products of every two of its generators besides (quadratic in their number: a check
+        on small circuits). A coherent error at a Clifford angle
+        (``I_ERROR[R_Z(theta=0.7853981633974483)] 0``, a fixed S) is run as the gate it is, not
+        drawn as a twirl: such a circuit gets the joint sampler too."""
+        return CoherentSampler(self, order, seed, pairs=pairs)
 
     def compile_leakage_sampler(self, *, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> "LeakageSampler":
         """A frame sampler that runs leakage, written as Stim-readable tags:
@@ -1699,6 +1712,18 @@ def _gf2_rank(rows: list) -> int:
     return len(pivots)
 
 
+def _warn_if_coherent_errors(circuit: "Circuit") -> None:
+    """The frame engines read coherent errors as Stim does, as nothing: say so once per sampler
+    (``twirled()`` and ``compile_coherent_sampler`` are the models that run them)."""
+    if circuit.num_non_clifford_gates() == 0 and circuit.tcount() > 0:
+        warnings.warn(
+            "the frame sampler reads the circuit's coherent errors (I_ERROR[R_Z(theta=...)] and the rest) as Stim does, as nothing: "
+            "sample circuit.twirled() for the Pauli-twirled model, circuit.compile_coherent_sampler() for the coherent one, "
+            "or circuit.without_tags() to say that nothing is meant",
+            stacklevel=4,
+        )
+
+
 class MeasurementSampler:
     """Raw measurement records, as ``stim.CompiledMeasurementSampler``. Made by
     ``Circuit.compile_sampler``."""
@@ -1725,6 +1750,7 @@ class MeasurementSampler:
                 raise ValueError(f"a circuit with non-Clifford gates samples on the stabilizer-rank sampler, device 'cpu' only (not {device!r})")
             self._s = _ExactRecords(call(circuit._c.stabilizer_rank_sampler, seed_of(seed)), circuit.reference_sample() if skip_reference_sample else None)
         else:
+            _warn_if_coherent_errors(circuit)
             self._s = call(circuit._c.measurement_sampler, seed_of(seed), bool(skip_reference_sample), str(device))
 
     @property
@@ -1880,6 +1906,7 @@ class DetectorSampler:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         self._circuit = circuit
+        _warn_if_coherent_errors(circuit)
         self._s = call(circuit._c.sampler, seed_of(seed), str(device))
 
     @property
@@ -2128,12 +2155,15 @@ class CoherentSampler:
 
     __slots__ = ("_s",)
 
-    def __init__(self, circuit: Circuit, order: int = 3, seed: Union[int, None] = None) -> None:
+    def __init__(self, circuit: Circuit, order: int = 3, seed: Union[int, None] = None, *, pairs: bool = False) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
-        # Non-Clifford gates: the joint sampler, the gates exact and the errors twirled.
-        make = circuit._c.joint_sampler if circuit.num_non_clifford_gates() else circuit._c.coherent_sampler
-        self._s = call(make, seed_of(seed), count(order, "order"))
+        # Non-Clifford gates, or coherent errors at Clifford angles (fixed Cliffords): the joint
+        # sampler, which runs them exactly and twirls the other errors.
+        if circuit.num_non_clifford_gates() or call(circuit._c.num_clifford_angle_errors):
+            self._s = call(circuit._c.joint_sampler, seed_of(seed), count(order, "order"), 12, True, 1, bool(pairs))
+        else:
+            self._s = call(circuit._c.coherent_sampler, seed_of(seed), count(order, "order"))
 
     def __reduce__(self) -> tuple:
         raise TypeError("a CoherentSampler is a position in a stream of shots; send the circuit and a seed")

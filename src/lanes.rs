@@ -18,14 +18,19 @@
 //! -----------
 //! A `Vec<u32>`: an opcode, its operands, the next opcode. A probability is two words, a kind
 //! (0 never, 1 always, 2 compare) and a threshold t: a lane fires when its draw u satisfies
-//! u <= t, so P(fire) = (t + 1) / 2^32 = round(p · 2^32) / 2^32. A channel's case cutoffs are
-//! shares of 2^32 compared with `u < c`. REPEAT carries its count and its body's length; the
-//! GPU runs it with a small loop stack, this executor recursively.
+//! u <= t, so P(fire) = (t + 1) / 2^32 = round(p · 2^32) / 2^32 (the generator's draws cover
+//! every u32). A channel's case cutoffs are shares of 2^32 compared with `u < c`. REPEAT
+//! carries its count (a u32) and its body's length; the GPU runs it with a loop stack
+//! `MAX_REPEAT_DEPTH` deep, this executor recursively, and a program nested deeper is refused
+//! rather than run differently on the two.
 
-use crate::batch_sampler::{batch_seed, compile, BatchSampler, Noise, Op};
+use crate::batch_sampler::{batch_seed, compile, splitmix64, BatchSampler, Noise, Op};
 use crate::circuit::{Basis, Circuit};
 
 pub const LANES: usize = 32;
+
+/// How deep the GPU's loop stack goes (`sample.wgsl`'s `STACK`): the lane program's limit.
+pub const MAX_REPEAT_DEPTH: usize = 16;
 
 pub const OP_RESET: u32 = 1;
 pub const OP_H: u32 = 2;
@@ -217,31 +222,56 @@ pub struct LaneWord {
     pub measurements: Vec<u32>,
 }
 
-/// xorshift32, one per word.
+/// xoshiro128** (Blackman and Vigna), one per word: 128 bits of state from the word's seed, so
+/// that no two words of a run share a stream (a 32-bit state would pair words every 2^33), and
+/// draws that cover every u32.
 #[derive(Clone, Copy)]
-pub struct Rng32(pub u32);
+pub struct Rng32(pub [u32; 4]);
 
 impl Rng32 {
+    /// The state splitmix64 makes of a 64-bit seed (never all zero).
+    pub fn from_seed(seed: u64) -> Rng32 {
+        let a = splitmix64(seed);
+        let b = splitmix64(a ^ 0x9E37_79B9_7F4A_7C15);
+        let mut s = [a as u32, (a >> 32) as u32, b as u32, (b >> 32) as u32];
+        if s == [0; 4] {
+            s[0] = 0x9E37_79B9;
+        }
+        Rng32(s)
+    }
+
     #[inline]
     pub fn next(&mut self) -> u32 {
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 17;
-        x ^= x << 5;
-        self.0 = x;
-        x
+        let s = &mut self.0;
+        let result = s[1].wrapping_mul(5).rotate_left(7).wrapping_mul(9);
+        let t = s[1] << 9;
+        s[2] ^= s[0];
+        s[3] ^= s[1];
+        s[1] ^= s[2];
+        s[0] ^= s[3];
+        s[2] ^= t;
+        s[3] = s[3].rotate_left(11);
+        result
     }
 }
 
-/// The seed of word `w`'s stream, from the sampler's seed and the word alone.
-pub fn word_seed(seed: u64, w: u64) -> u32 {
-    let s = batch_seed(seed, w ^ 0x4C61_6E65_5361_6D70);
-    let x = (s as u32) ^ ((s >> 32) as u32);
-    if x == 0 {
-        0x9E37_79B9
-    } else {
-        x
+/// The state of word `w`'s stream, from the sampler's seed and the word alone.
+pub fn word_seed(seed: u64, w: u64) -> [u32; 4] {
+    Rng32::from_seed(batch_seed(seed, w ^ 0x4C61_6E65_5361_6D70)).0
+}
+
+/// The deepest REPEAT nesting and the largest REPEAT count of a program's ops.
+fn repeat_extent(ops: &[Op]) -> (usize, u64) {
+    let mut depth = 0;
+    let mut count = 0;
+    for op in ops {
+        if let Op::Repeat(n, body) = op {
+            let (d, c) = repeat_extent(body);
+            depth = depth.max(d + 1);
+            count = count.max(*n).max(c);
+        }
     }
+    (depth, count)
 }
 
 struct State {
@@ -589,6 +619,13 @@ impl LaneProgram {
     }
 
     pub fn from_sampler(sampler: &BatchSampler) -> Result<LaneProgram, String> {
+        let (depth, count) = repeat_extent(&sampler.ops);
+        if depth > MAX_REPEAT_DEPTH {
+            return Err(format!("the circuit nests REPEAT blocks {depth} deep; the lane sampler runs them {MAX_REPEAT_DEPTH} deep: flatten the circuit (`flattened()`) or sample on the cpu device"));
+        }
+        if count > u64::from(u32::MAX) {
+            return Err(format!("a REPEAT block runs {count} times; the lane sampler counts to 2^32 - 1: split the block or sample on the cpu device"));
+        }
         let mut code = Vec::new();
         emit(&sampler.ops, &mut code);
         if code.len() > (1 << 30) {
@@ -613,8 +650,8 @@ impl LaneProgram {
     }
 
     /// 32 shots from a word's stream.
-    pub fn run_word(&self, seed32: u32, keep_measurements: bool) -> LaneWord {
-        let mut rng = Rng32(if seed32 == 0 { 0x9E37_79B9 } else { seed32 });
+    pub fn run_word(&self, seed: [u32; 4], keep_measurements: bool) -> LaneWord {
+        let mut rng = Rng32(seed);
         let mut st = State {
             x: vec![0; self.num_qubits],
             // Every qubit starts in |0>, to which Z is invisible.
@@ -763,7 +800,7 @@ mod tests {
         let text = "R 0 1\nCX 0 1\nX_ERROR(1) 0\nZ_ERROR(1) 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nX_ERROR(1) 1\nMR 1\nDETECTOR rec[-1]\nREPEAT 3 {\n    X_ERROR(1) 0\n    M 0\n    DETECTOR rec[-1] rec[-2]\n}\nOBSERVABLE_INCLUDE(0) rec[-1]";
         let c = circuit(text);
         let lanes = LaneProgram::new(&c).unwrap();
-        let word = lanes.run_word(5, false);
+        let word = lanes.run_word(word_seed(5, 0), false);
         let frame = crate::frame_sampler::FrameSampler::new(&c).unwrap();
         let shot = frame.sample(&mut crate::surface_code::Xorshift::new(9));
         for (k, &w) in word.detectors.iter().enumerate() {

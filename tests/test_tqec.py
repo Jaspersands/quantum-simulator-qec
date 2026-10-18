@@ -274,3 +274,56 @@ def test_compose_agrees_with_tqec():
 @needs_tqec
 def test_steane_dae_reads_as_tqec_reads_it():
     assert structure(BlockGraph.from_dae_file(gallery.STEANE_CODE_DAE)) == structure(theirs.BlockGraph.from_dae_file(gallery.STEANE_CODE_DAE))
+
+
+# ---------------------------------------------------------------------------------------------
+# The 2.0 review's regressions
+# ---------------------------------------------------------------------------------------------
+
+
+def _row_of_patches(n: int, merge_at: list[int], height: int) -> BlockGraph:
+    """`n` ZXZ patches side by side for `height` slices, merged along the row at the slices `merge_at`."""
+    g = BlockGraph("row")
+    for x in range(n):
+        for z in range(height):
+            g.add_cube(Position3D(x, 0, z), "ZXZ")
+            if z:
+                g.add_pipe(Position3D(x, 0, z - 1), Position3D(x, 0, z))
+    for z in merge_at:
+        for x in range(n - 1):
+            g.add_pipe(Position3D(x, 0, z), Position3D(x + 1, 0, z))
+    return g
+
+
+def test_a_surface_crossing_two_seams_of_one_merge_gets_one_seam_term():
+    # Three patches merged in a row: the ZZZ-type surface crosses both seams of the one merge. One
+    # seam term covers every seam of its merge, so a second term would cancel the first (the
+    # observable then depended on the seam qubits' resets).
+    compiled = tqec.compile_block_graph(_row_of_patches(3, [1], 3), 3, p=0.001)
+    assert compiled.num_merges == 1 and compiled.stabilizers == ["ZZZZZZ"]
+    (terms,) = compiled.observables
+    assert [t for t in terms if t[0] == "seam"] == [("seam", 0, terms[0][2], 0)] and terms[0][2] in (0, 1, 2)
+    assert terms[1:] == [("logical", 0, "z", 0), ("logical", 1, "z", 0), ("logical", 2, "z", 0)]
+    assert len(compiled.circuit.shortest_graphlike_error()) == 3
+    d, o = tqec.compile_block_graph(_row_of_patches(3, [1], 3), 3).circuit.compile_detector_sampler(seed=1).sample(64, separate_observables=True)
+    assert not d.any() and not o.any()
+
+
+def test_the_same_pair_merging_twice_is_two_merges():
+    # Merges are indexed per time slice: the pair (0, 1) merges at z = 1 and again at z = 3.
+    compiled = tqec.compile_block_graph(_row_of_patches(2, [1, 3], 5), 3, p=0.001)
+    assert compiled.num_merges == 2
+    assert compiled.observables == [[("seam", 0, 0, 0), ("seam", 1, 0, 0), ("logical", 0, "z", 0), ("logical", 1, "z", 0)]]
+    assert len(compiled.circuit.shortest_graphlike_error()) == 3
+    d, o = tqec.compile_block_graph(_row_of_patches(2, [1, 3], 5), 3).circuit.compile_detector_sampler(seed=1).sample(64, separate_observables=True)
+    assert not d.any() and not o.any()
+
+
+def test_hadamard_direction_adjustment_is_an_involution():
+    from stabilizer_qec.tqec.block_graph import block_kind_from_str
+    from stabilizer_qec.tqec.rotations import adjust_hadamards_direction
+
+    pairs = {"ZXOH": "XZOH", "XOZH": "ZOXH", "OXZH": "OZXH"}
+    for a, b in pairs.items():
+        assert str(adjust_hadamards_direction(block_kind_from_str(a))) == b
+        assert str(adjust_hadamards_direction(block_kind_from_str(b))) == a  # the inverse pairs were missing

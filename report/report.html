@@ -17,7 +17,7 @@
   <p class="kicker">Technical report · stabilizer-qec 2.0.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 17 October 2026 · commit <code>d8947a0</code></p>
+  <p class="byline">Jasper Sands · 18 October 2026 · commit <code>549ffaa</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -2717,7 +2717,7 @@
 <li><strong>Noise and hardware</strong>: a density-matrix simulator equal to Quantumsim’s, process matrices, QuantumClifford’s perturbative expansion on detection events, Deltakit’s leakage model with heralds and a leakage-aware decoder.</li>
 <li><strong>Clifford+T circuits</strong> by a stabilizer-rank sampler at any qubit count (Tsim’s demos sample the same distributions), and the headline: magic-state injection and distillation with a coherent over-rotation after every gate, sampled by a joint sampler that runs the gates exactly and the errors twirled and reweighted. The twirl misjudges the encoded state’s infidelity by two to three times and turns a working 5-qubit distillation into a broken one; in the [[17,1,5]] colour code (85 qubits, 801 rotations) the joint sampler is the only instrument that reaches.</li>
 <li><strong>Fault-tolerant compilation</strong>: tqec’s block graphs (every gallery graph equal to tqec’s, correlation surfaces included) compiled on the lattice-surgery engine; Loom’s Eka model interpreted to circuits that equal Loom’s gate for gate; Qualtran’s surface-code cost models and Azure’s Resource Estimator reproduced to the bit on 55 QDK configurations; the surgery CNOT’s threshold under leakage, 0.49% falling to 0.23% at 30% leakage.</li>
-<li><strong>Real time and the GPU</strong>: decodes in the background, a decoder queue with latency statistics, a decoder server over TCP or pipes; frame sampling and min-sum BP on any GPU wgpu drives, each bit for bit equal to its CPU reference (the GPU on this machine runs 2–3 times one CPU thread, not cuStabilizer’s 150).</li>
+<li><strong>Real time and the GPU</strong>: decodes in the background, a decoder queue with latency statistics, a decoder server over TCP or pipes; frame sampling and min-sum BP on any GPU wgpu drives, each bit for bit equal to its CPU reference (the GPU on this machine runs about twice one CPU thread, not cuStabilizer’s 150).</li>
 <li><strong>The site edits circuits</strong>: a Crumble-equivalent editor whose Pauli markers flip exactly the detectors the engine’s sampler flips, checked on about 700 cases.</li>
 </ul>
 <p>The CHANGELOG lists each item with what it was checked against; the inventory in <code>docs/superpowers/notes/2026-10-09-parity-inventory.md</code> lists every feature of every tool with its status. Four tutorials cover the release (<code>tutorials/06</code> to <code>09</code>).</p>
@@ -2731,7 +2731,7 @@
 <li><strong>The estimate is a model.</strong> It prices every tile as an idle patch, consumes Toffolis in sequence unless told otherwise, and extrapolates the decoder’s latency and cores past d = 7. It is meant to show what the measured numbers imply, and which of them the answer depends on.</li>
 </ul>
 <h1 data-number="6" id="reproducing-everything"><span class="header-section-number">6</span> Reproducing everything</h1>
-<p>Every number in this report is filled in by <code>tools/report.py</code> from these committed files:</p>
+<p>Every number in the report’s sections on releases 1.0 to 1.9 is filled in by <code>tools/report.py</code> from these committed files; the section on release 2.0 quotes the README’s tables, which <code>tools/readme_tables.py</code> writes from <code>data/clifford_t/</code>, <code>data/gpu/</code>, <code>data/surgery/leakage.json</code> and <code>data/bench/</code> (and <code>--check</code> verifies):</p>
 <ul>
 <li><code>data/xcheck/reference.json</code>: the cross-check;</li>
 <li><code>data/sweeps/</code>: thresholds;</li>
@@ -2741,7 +2741,11 @@
 <li><code>data/gross/</code>: the gross code’s memory, its checks, automorphisms, gauging and logical measurement;</li>
 <li><code>data/surgery/</code>: lattice surgery’s timing law and programs;</li>
 <li><code>data/estimate/</code>: the noise fit, distillation and sources the estimate rests on;</li>
-<li><code>data/distances.json</code>: the circuit distance of every memory the package builds.</li>
+<li><code>data/distances.json</code>: the circuit distance of every memory the package builds;</li>
+<li><code>data/clifford_t/</code>: the Clifford+T check against Tsim, magic-state injection and distillation under coherent noise (<code>tools/clifford_t.py check | inject | distill</code>);</li>
+<li><code>data/gpu/</code>: sampling and BP on the GPU against the CPU (<code>tools/gpu_bench.py</code>);</li>
+<li><code>data/surgery/leakage.json</code>: the lattice-surgery CNOT’s threshold under leakage (<code>tools/surgery_leakage.py</code>);</li>
+<li><code>data/bench/runs.json</code>: the decoder benchmarks (<code>tools/bench.py --record</code>).</li>
 </ul>
 <p>The report fails to build if a value it quotes is missing. To regenerate the data:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> <span class="at">-m</span> venv .venv <span class="kw">&amp;&amp;</span> <span class="ex">.venv/bin/pip</span> install stim pymatching numpy maturin</span>

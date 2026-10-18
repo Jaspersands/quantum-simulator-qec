@@ -192,8 +192,10 @@ def rate(x):
     """Shots per second as k, M."""
     if x >= 1e6:
         return f"{x / 1e6:.2f}M/s"
-    if x >= 1e3:
+    if x >= 1e4:
         return f"{x / 1e3:.0f}k/s"
+    if x >= 1e3:
+        return f"{x / 1e3:.1f}k/s"
     return f"{x:.0f}/s"
 
 
@@ -428,7 +430,8 @@ def clifford_t_tsim():
         rows.append(f"| {label} | 5 | {gates} | {d['shots']:,} | χ² = {r['chi2']:.1f} on {r['dof']} ({p}) | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6)} |")
     r = c["encoded_distillation"]
     tsim = f"χ² = {r['chi2']:.1f} on {r['dof']}" if "chi2" in r else "Tsim's compilation is killed for memory on a 16 GB machine"
-    rows.append(f"| distillation in the [[17,1,5]] colour code | {r['qubits']} | {r['non_clifford_gates']} | {r['shots']:,} | {tsim} | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6) if 'tsim_s_per_shot' in r else '—'} |")
+    shots = f"{r['shots']:,}" if "chi2" in r else f"{r['shots']:,} (ours; Tsim did not run)"
+    rows.append(f"| distillation in the [[17,1,5]] colour code | {r['qubits']} | {r['non_clifford_gates']} | {shots} | {tsim} | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6) if 'tsim_s_per_shot' in r else '—'} |")
     return rows
 
 
@@ -484,7 +487,7 @@ TABLES = [
     ("estimate validation", r"\| case \| d \| physical qubits \(× source\) \| time \(× source\) \|", estimate_validation),
     ("estimate full", r"\| algorithm \| decoder \| d \| physical qubits \(block \+ factories \+ storage\) \| per Toffoli \| run time \| bound \|", estimate_full),
     ("estimate lambda", r"\| algorithm \| Λ \(from\) \| d \| physical qubits \| run time \| decoding cores \|", estimate_lambda),
-    ("clifford+t against tsim", r"\| circuit \| qubits \| non-Clifford gates \| Tsim shots \| agreement \| ours, per shot \| Tsim, per shot \|", clifford_t_tsim),
+    ("clifford+t against tsim", r"\| circuit \| qubits \| non-Clifford gates \| shots \| agreement \| ours, per shot \| Tsim, per shot \|", clifford_t_tsim),
     ("clifford+t injection", r"\| code \| ε \| Pauli twirl \| joint sampler \(sample size kept\) \| state vector \|", clifford_t_inject),
     ("clifford+t distillation", r"\| circuit \| ε \| qubits \| rotations \| acceptance: twirl / joint / exact \| output infidelity: twirl / joint / exact \| sample size kept \| per shot \|", clifford_t_distill),
 ]

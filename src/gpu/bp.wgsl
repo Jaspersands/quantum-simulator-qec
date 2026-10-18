@@ -63,7 +63,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let b2c = shot * 2u * ne;
     let c2b = b2c + ne;
     let lbase = shot * nv;
-    let hard = shot * (nv + nc + 2u);
+    let hard = shot * (nv + nc + 3u);
     let cand = hard + nv;
     let mbase = cand + nc;
     let sbase = shot * nc;
@@ -154,4 +154,6 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     work[mbase] = converged;
     work[mbase + 1u] = iterations;
+    // The shot ran to its end: a dispatch the driver dropped leaves this unwritten.
+    work[mbase + 2u] = 0xC0DEu;
 }

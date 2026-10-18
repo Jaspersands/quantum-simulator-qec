@@ -72,20 +72,26 @@ fn xor(a: &[u64], b: &[u64]) -> Key {
     a.iter().zip(b).map(|(x, y)| x ^ y).collect()
 }
 
+/// Each location's residue: its flips reduced by the gauges', zero when the gauges match them.
+pub(crate) fn residues(p: &Program, solver: &GaugeSolver) -> Vec<Key> {
+    let words = p.slots.len().div_ceil(64);
+    (0..p.locations.len())
+        .map(|l| {
+            let mut v = vec![0u64; words];
+            for &s in &solver.flips[l] {
+                v[s / 64] ^= 1 << (s % 64);
+            }
+            solver.reduce(&mut v);
+            v
+        })
+        .collect()
+}
+
 impl Kernel {
     pub fn new(p: &Program, solver: &GaugeSolver, options: CoherentOptions) -> Kernel {
         let nl = p.locations.len();
         let words = p.slots.len().div_ceil(64);
-        let residue: Vec<Key> = (0..nl)
-            .map(|l| {
-                let mut v = vec![0u64; words];
-                for &s in &solver.flips[l] {
-                    v[s / 64] ^= 1 << (s % 64);
-                }
-                solver.reduce(&mut v);
-                v
-            })
-            .collect();
+        let residue: Vec<Key> = residues(p, solver);
         let zero = vec![0u64; words];
         // Groups: equal flips, operators equal up to a phase that composes consistently.
         let mut by_flips: HashMap<&Vec<usize>, Vec<usize>> = HashMap::new();

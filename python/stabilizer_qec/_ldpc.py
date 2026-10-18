@@ -367,6 +367,10 @@ class BpDecoder(BpDecoderBase):
             raise ValueError(f"device must be 'cpu', 'cpu-f32' or 'gpu', not {device!r}")
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type, random_serial_schedule=random_serial_schedule, device=device, **kwargs))
         self._input = "syndrome"
+        if device != "cpu" and isinstance(bp_method, _Default):
+            # The single-precision executors are min-sum; a device without a method asks for it
+            # (ldpc's base default, product_sum, is what an unset method otherwise means).
+            bp_method = "minimum_sum"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, random_serial_schedule, kwargs.get("channel_probs", [None]), ())
         self.input_vector_type = input_vector_type
         self.device = device
@@ -398,26 +402,52 @@ class BpDecoder(BpDecoderBase):
     def _decode_one(self, syndrome: Any) -> tuple:
         if self.device == "cpu":
             return call(self._x.decode, syndrome)
-        hard, converged, iterations = self.decode_batch(np.asarray(syndrome, dtype=np.uint8).reshape(1, -1), _details=True)
+        # One shot is one thread on either single-precision device: the CPU's, which the GPU
+        # matches bit for bit, without a graph upload and a readback per call.
+        hard, converged, iterations = self._decode_rows32(np.asarray(syndrome, dtype=np.uint8).reshape(1, -1), "cpu-f32", 1)
         return hard[0], np.full(self.n, np.nan), bool(converged[0]), int(iterations[0])
 
+    def _f32_scale(self) -> float:
+        scale = float(self._scale)
+        as_f32 = float(np.float32(scale))
+        if not np.isfinite(as_f32) or (as_f32 == 0.0) != (scale == 0.0):
+            raise ValueError(f"ms_scaling_factor {scale!r} is not a single-precision number (0 means adaptive scaling): the {self.device!r} device cannot use it")
+        return scale
+
+    def _decode_rows32(self, rows: np.ndarray, device: str, threads: int) -> tuple:
+        self._f32_scale()
+        packed = (rows != 0).astype(np.uint8).tobytes()
+        hard, converged, iterations = call(self._x.decode_batch32, packed, int(rows.shape[0]), device, int(threads))
+        stride = (self.n + 7) // 8
+        bits = np.unpackbits(np.frombuffer(hard, dtype=np.uint8).reshape(len(rows), stride), axis=1, bitorder="little")[:, : self.n]
+        return bits, np.frombuffer(converged, dtype=np.uint8).astype(bool), np.asarray(iterations, dtype=np.int64)
+
     def decode_batch(self, syndromes: Any, *, threads: int = 0, _details: bool = False) -> np.ndarray:
-        """Many syndromes at once (one row each): the hard decisions as rows of 0/1. On
-        ``device="cpu"`` each row is ``decode``; on ``"cpu-f32"`` the single-precision min-sum
-        of the GPU, ``threads`` wide; on ``"gpu"`` the same on the GPU, bit for bit."""
+        """Many syndromes at once (one row each, ``m`` bits: syndromes whatever
+        ``input_vector_type`` says): the hard decisions as rows of 0/1. On ``device="cpu"`` each
+        row runs the double-precision decoder; on ``"cpu-f32"`` the single-precision min-sum of
+        the GPU, ``threads`` wide; on ``"gpu"`` the same on the GPU, bit for bit. An all-zero
+        row is the zero error on every device, as ``decode`` has it; the decoder's
+        ``converge``, ``iter`` and ``log_prob_ratios`` are left as they were."""
         rows = np.asarray(syndromes)
         if rows.ndim != 2 or rows.shape[1] != self.m:
             raise ValueError(f"syndromes are rows of {self.m} bits, not shape {rows.shape}")
-        if self.device == "cpu":
-            out = np.stack([self.decode(r) for r in rows]) if len(rows) else np.zeros((0, self.n), dtype=np.uint8)
-            return (out, None, None) if _details else out
-        packed = (rows != 0).astype(np.uint8).tobytes()
-        hard, converged, iterations = call(self._x.decode_batch32, packed, int(rows.shape[0]), self.device, int(threads))
-        stride = (self.n + 7) // 8
-        bits = np.unpackbits(np.frombuffer(hard, dtype=np.uint8).reshape(len(rows), stride), axis=1, bitorder="little")[:, : self.n]
-        if _details:
-            return bits, np.frombuffer(converged, dtype=np.uint8), np.asarray(iterations)
-        return bits
+        threads = int(threads)
+        if threads < 0:
+            raise ValueError(f"threads must be 0 (every core) or positive, not {threads}")
+        out = np.zeros((len(rows), self.n), dtype=np.uint8)
+        converged = np.ones(len(rows), dtype=bool)
+        iterations = np.zeros(len(rows), dtype=np.int64)
+        live = np.flatnonzero(rows.any(axis=1))
+        if len(live):
+            if self.device == "cpu":
+                for i in live:
+                    hard, _llr, conv, iters = call(self._x.decode, [int(x != 0) for x in rows[i]])
+                    out[i] = np.asarray(hard, dtype=np.uint8)
+                    converged[i], iterations[i] = bool(conv), int(iters)
+            else:
+                out[live], converged[live], iterations[live] = self._decode_rows32(rows[live], self.device, threads)
+        return (out, converged, iterations) if _details else out
 
     @property
     def decoding(self) -> np.ndarray:

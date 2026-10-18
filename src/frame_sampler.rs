@@ -98,6 +98,8 @@ fn apply(x: &mut [bool], z: &mut [bool], q: usize, pauli: u8) {
 
 impl FrameSampler {
     pub fn new(circuit: &Circuit) -> Result<FrameSampler, String> {
+        let view = crate::stabrank::frame_view(circuit)?;
+        let circuit: &Circuit = &view;
         circuit.check_runnable()?;
         let res = circuit.resolve()?;
         if res.observables.len() > 64 {
@@ -120,6 +122,8 @@ impl FrameSampler {
 
     /// A sampler of Deltakit's Stim (its leakage model exactly, see `deltakit`).
     pub fn new_deltakit(circuit: &Circuit) -> Result<FrameSampler, String> {
+        let view = crate::stabrank::frame_view(circuit)?;
+        let circuit: &Circuit = &view;
         circuit.check_runnable()?;
         let split = Circuit { instrs: crate::deltakit::sampler_instrs(&circuit.instrs)? };
         let res = split.resolve()?;

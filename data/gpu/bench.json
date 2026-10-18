@@ -3,17 +3,17 @@
  "processor": "arm",
  "cores": 10,
  "gpu": "Apple M2 Pro (Metal)",
- "version": "1.9.0",
+ "version": "2.0.0",
  "sampling": [
   {
    "distance": 5,
    "qubits": 64,
    "detectors": 120,
    "shots": 1000000,
-   "cpu_1_thread_per_s": 3793780.2285698303,
-   "cpu_all_threads_per_s": 12371963.171024151,
-   "cpu_lanes_per_s": 3130930.42253348,
-   "gpu_per_s": 9927787.753812484,
+   "cpu_1_thread_per_s": 4117657.9584906646,
+   "cpu_all_threads_per_s": 12247497.477160275,
+   "cpu_lanes_per_s": 3900751.8597977404,
+   "gpu_per_s": 8268246.728648085,
    "gpu_equals_lanes": true
   },
   {
@@ -21,10 +21,10 @@
    "qubits": 274,
    "detectors": 1320,
    "shots": 1000000,
-   "cpu_1_thread_per_s": 353106.90300020325,
-   "cpu_all_threads_per_s": 892744.2872224329,
-   "cpu_lanes_per_s": 274301.61745989276,
-   "gpu_per_s": 653662.6474870268,
+   "cpu_1_thread_per_s": 378462.4823366517,
+   "cpu_all_threads_per_s": 1087931.4218161365,
+   "cpu_lanes_per_s": 352604.13880764786,
+   "gpu_per_s": 713257.7102116732,
    "gpu_equals_lanes": true
   },
   {
@@ -32,10 +32,10 @@
    "qubits": 628,
    "detectors": 4896,
    "shots": 1000000,
-   "cpu_1_thread_per_s": 87567.42861009215,
-   "cpu_all_threads_per_s": 186019.5950251264,
-   "cpu_lanes_per_s": 60749.37021128052,
-   "gpu_per_s": 143367.6939966751,
+   "cpu_1_thread_per_s": 93475.17203721368,
+   "cpu_all_threads_per_s": 221914.52949185803,
+   "cpu_lanes_per_s": 83485.49201523096,
+   "gpu_per_s": 147411.20133510014,
    "gpu_equals_lanes": true
   }
  ],
@@ -46,9 +46,9 @@
    "variables": 24483,
    "shots": 20000,
    "max_iter": 20,
-   "cpu_f64_per_s": 153.38753779212328,
-   "cpu_f32_per_s": 1476.6203425283009,
-   "gpu_per_s": 20.9476614838237,
+   "cpu_f64_per_s": 165.9302013695352,
+   "cpu_f32_per_s": 1372.0009309536076,
+   "gpu_per_s": 38.68133960716412,
    "gpu_equals_f32": true
   },
   {
@@ -57,9 +57,9 @@
    "variables": 144,
    "shots": 20000,
    "max_iter": 20,
-   "cpu_f64_per_s": 112050.80778161439,
-   "cpu_f32_per_s": 2250657.783400353,
-   "gpu_per_s": 869596.7496620178,
+   "cpu_f64_per_s": 150574.86621469443,
+   "cpu_f32_per_s": 5374418.26375124,
+   "gpu_per_s": 2169432.693450626,
    "gpu_equals_f32": true
   }
  ]

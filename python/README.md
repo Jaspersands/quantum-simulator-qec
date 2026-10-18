@@ -9,7 +9,14 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
   [PyMatching](https://github.com/oscarhiggott/PyMatching) shot for shot except for ties.
 - A bit-parallel sampler, 64 shots per machine word, that runs `REPEAT` blocks without flattening.
 - Raw measurements to detection events, reproducing Google's Willow and Sycamore files bit for bit.
-- Sliding and parallel window decoders for real-time decoding.
+- Sliding and parallel window decoders for real-time decoding, and decoding as a service
+  (`decode_async`, a decoder queue with statistics, a decoder server).
+- The APIs of Stim, PyMatching, sinter, ldpc, Tsim, tqec, Deltakit, PECOS and twenty more QEC
+  tools under their own names, each port checked against its original.
+- Clifford+T circuits with a coherent error on every gate: a stabilizer-rank sampler for the
+  gates and a joint sampler that reweights the twirl of the errors around them.
+- Fault-tolerant compilation (tqec's block graphs, Loom's lattice surgery), resource estimates
+  (Azure's and Qualtran's), and sampling and min-sum BP on the GPU through wgpu.
 - Belief propagation reproducing the [`ldpc`](https://github.com/quantumgizmos/ldpc) library's
   arithmetic bit for bit, and belief-matching equal to the `beliefmatching` package's.
 - BP+OSD (OSD-0, OSD-E, OSD-CS), whose corrections equal `ldpc`'s `BpOsdDecoder`'s, and IBM's

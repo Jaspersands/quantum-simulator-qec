@@ -318,6 +318,11 @@ impl PyCircuit {
         crate::stabrank::non_clifford_gates(&self.circuit.inner).map_err(err)
     }
 
+    /// How many coherent errors are at Clifford angles (fixed Cliffords the joint sampler runs exactly).
+    fn num_clifford_angle_errors(&self) -> usize {
+        crate::stabrank::clifford_angle_errors(&self.circuit.inner)
+    }
+
     /// Tsim's T-count.
     fn t_count(&self) -> PyResult<usize> {
         crate::stabrank::t_count(&self.circuit.inner).map_err(err)

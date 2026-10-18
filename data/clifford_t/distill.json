@@ -1,15 +1,15 @@
 {
  "shots": 20000,
- "encoded_shots": 300,
+ "encoded_shots": 2000,
  "unencoded": {
   "0.01": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 8.500583041997743,
-    "coherent_s": 54.08634379099385,
+    "twirl_s": 0.7494845410110429,
+    "coherent_s": 6.880011416011257,
     "locations": 34,
     "exact_gates": 12,
-    "generators": 50,
+    "generators": 54,
     "twirl_peak_terms": 32
    },
    "twirl": {
@@ -18,9 +18,9 @@
     "ess": 20000.0
    },
    "coherent": {
-    "infidelity": 0.0006161509031130988,
-    "acceptance": 0.16430803910045658,
-    "ess": 19863.96104711462
+    "infidelity": 0.0006108562660286272,
+    "acceptance": 0.16551497712958566,
+    "ess": 19809.25130946931
    },
    "exact": {
     "infidelity": 2.4810040578487112e-05,
@@ -30,11 +30,11 @@
   "0.02": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 2.8691726660035783,
-    "coherent_s": 51.917512583000644,
+    "twirl_s": 0.8293944170000032,
+    "coherent_s": 6.87596495798789,
     "locations": 34,
     "exact_gates": 12,
-    "generators": 50,
+    "generators": 54,
     "twirl_peak_terms": 32
    },
    "twirl": {
@@ -43,9 +43,9 @@
     "ess": 20000.0
    },
    "coherent": {
-    "infidelity": 0.0019438402560559584,
-    "acceptance": 0.162976207253012,
-    "ess": 19403.455154472013
+    "infidelity": 0.0012746528716926367,
+    "acceptance": 0.16563116095615762,
+    "ess": 19115.353898691243
    },
    "exact": {
     "infidelity": 5.179098236279752e-05,
@@ -55,11 +55,11 @@
   "0.05": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 8.150748624997505,
-    "coherent_s": 87.74403799999709,
+    "twirl_s": 0.7684026249917224,
+    "coherent_s": 7.2573726670088945,
     "locations": 34,
     "exact_gates": 12,
-    "generators": 50,
+    "generators": 54,
     "twirl_peak_terms": 32
    },
    "twirl": {
@@ -68,9 +68,9 @@
     "ess": 20000.0
    },
    "coherent": {
-    "infidelity": 0.012014332473019905,
-    "acceptance": 0.1534095607038068,
-    "ess": 16609.257462104884
+    "infidelity": 0.009289234887928953,
+    "acceptance": 0.16100035951283356,
+    "ess": 15345.68679847337
    },
    "exact": {
     "infidelity": 9.997543798412399e-06,
@@ -82,64 +82,64 @@
   "0.01": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.8413633750024019,
-    "coherent_s": 254.38225395900372,
+    "twirl_s": 0.7823170409974409,
+    "coherent_s": 259.3704608340049,
     "locations": 801,
     "exact_gates": 10,
-    "generators": 776,
+    "generators": 911,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.2631578947368421,
-    "acceptance": 0.12666666666666668,
-    "ess": 300.0
+    "infidelity": 0.3023255813953488,
+    "acceptance": 0.1075,
+    "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.18873065308626222,
-    "acceptance": 0.18023029501462157,
-    "ess": 287.0442523278062
+    "infidelity": 0.2155021218978093,
+    "acceptance": 0.15121682885086307,
+    "ess": 1884.1412476744038
    }
   },
   "0.02": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.2516255410009762,
-    "coherent_s": 415.41005062500335,
+    "twirl_s": 0.7726339579967316,
+    "coherent_s": 258.50192387499555,
     "locations": 801,
     "exact_gates": 10,
-    "generators": 776,
+    "generators": 911,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.28125,
-    "acceptance": 0.10666666666666667,
-    "ess": 300.0
+    "infidelity": 0.3218390804597701,
+    "acceptance": 0.087,
+    "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.18624891460726492,
-    "acceptance": 0.1553483576448501,
-    "ess": 229.67967096525695
+    "infidelity": 0.2116876471656377,
+    "acceptance": 0.12923211144155308,
+    "ess": 1578.650885737319
    }
   },
   "0.05": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 1.7899817080033245,
-    "coherent_s": 204.07436941599735,
+    "twirl_s": 1.1074299159954535,
+    "coherent_s": 300.60991345898947,
     "locations": 801,
     "exact_gates": 10,
-    "generators": 776,
+    "generators": 911,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.4444444444444444,
-    "acceptance": 0.03,
-    "ess": 300.0
+    "infidelity": 0.45714285714285713,
+    "acceptance": 0.0175,
+    "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.3098342433452585,
-    "acceptance": 0.07575696640974743,
-    "ess": 66.77842487822103
+    "infidelity": 0.27565532699337825,
+    "acceptance": 0.046994684361686294,
+    "ess": 559.5456321451276
    }
   }
  }

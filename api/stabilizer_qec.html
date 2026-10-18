@@ -4175,9 +4175,12 @@ On a single-precision device (<code>"cpu-f32"</code>, <code>"gpu"</code>) the sh
     </div>
     <a class="headerlink" href="#BpDecoder.decode_batch"></a>
     
-            <div class="docstring"><p>Many syndromes at once (one row each): the hard decisions as rows of 0/1. On
-<code>device="cpu"</code> each row is <code><a href="#BpDecoder.decode">decode</a></code>; on <code>"cpu-f32"</code> the single-precision min-sum
-of the GPU, <code>threads</code> wide; on <code>"gpu"</code> the same on the GPU, bit for bit.</p>
+            <div class="docstring"><p>Many syndromes at once (one row each, <code>m</code> bits: syndromes whatever
+<code><a href="#BpDecoder.input_vector_type">input_vector_type</a></code> says): the hard decisions as rows of 0/1. On <code>device="cpu"</code> each
+row runs the double-precision decoder; on <code>"cpu-f32"</code> the single-precision min-sum of
+the GPU, <code>threads</code> wide; on <code>"gpu"</code> the same on the GPU, bit for bit. An all-zero
+row is the zero error on every device, as <code><a href="#BpDecoder.decode">decode</a></code> has it; the decoder's
+<code><a href="#BpDecoder.converge">converge</a></code>, <code><a href="#BpDecoder.iter">iter</a></code> and <code><a href="#BpDecoder.log_prob_ratios">log_prob_ratios</a></code> are left as they were.</p>
 </div>
 
 
@@ -6616,7 +6619,10 @@ in the order of <code>endian</code>.</p>
 each <code>I[T]</code> and <code>I[T_DAG]</code> gate and each rotation (a gate or a coherent error, each
 of a <code>U3</code>'s three) by an angle that is not a multiple of π/2 in half-turns (of π/4 in
 this package's <code>exp(−iθP)</code>), whatever the angle: <code>I[R_Z(theta=0.1)] 0</code> counts 1,
-<code>I[R_Z(theta=0.7853981633974483)] 0</code> (S) counts 0.</p>
+<code>I[R_Z(theta=0.7853981633974483)] 0</code> (S) counts 0. Coherent errors count here and
+not in Tsim, which reads <code>I_ERROR[R_Z(...)]</code> as nothing: the count is of the phases
+the circuit's exact simulation pays for (<code><a href="#Circuit.num_non_clifford_gates">num_non_clifford_gates</a></code> counts the gates
+alone).</p>
 </div>
 
 
@@ -7250,7 +7256,12 @@ seed. <code>device</code> as <code><a href="#Circuit.compile_detector_sampler">c
 shots on any machine and any number of threads; <code>None</code> draws a seed. A circuit with
 non-Clifford gates (<code>I[T]</code>, <code>I[R_Z(theta=…)]</code>, <code>I[U3(…)]</code>) gets the
 stabilizer-rank sampler, which runs them (<code><a href="#Circuit.without_tags">without_tags()</a></code> for Stim's reading, the
-identity).</p>
+identity). A tagged gate at a Clifford angle (<code>I[R_Z(theta=1.5707963267948966)] 0</code>
+is <code>Z 0</code>) is the Clifford gate it is in every sampler. Coherent <em>errors</em>
+(<code>I_ERROR[R_Z(theta=…)]</code>) are beyond a frame: the frame sampler reads them as Stim
+does, as nothing, and warns; <code><a href="#Circuit.twirled">twirled()</a></code> gives the Pauli-twirled model and
+<code><a href="#Circuit.compile_coherent_sampler">compile_coherent_sampler</a></code> the coherent one (and the stabilizer-rank sampler, when
+the circuit has non-Clifford gates too, runs them exactly).</p>
 
 <p><code>device</code>: <code>"cpu"</code> (the default: 64 shots a machine word, noise by geometric
 skipping), <code>"cpu-lanes"</code> (32 shots a word, every random number an integer compare:
@@ -7337,7 +7348,7 @@ trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
+        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
 
         
     </div>
@@ -7357,7 +7368,11 @@ the errors are drawn as their twirl, and each shot's weight is the coherent prob
 of its class over the twirl's, every member of the class a re-run of the exact engine
 with the member's errors inserted and the shot's outcomes forced. Neither the coherent
 sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
-exponential in the errors) covers this.</p>
+exponential in the errors) covers this. <code>pairs</code> has the joint sampler sum the
+products of every two of its generators besides (quadratic in their number: a check
+on small circuits). A coherent error at a Clifford angle
+(<code>I_ERROR[R_Z(theta=0.7853981633974483)] 0</code>) is the Clifford gate it is (<code>S 0</code>) to
+both samplers, not a twirl.</p>
 </div>
 
 
@@ -8979,7 +8994,7 @@ Smolin 2014), on <code>padded_n</code> qubits (the Pauli's own by default, the P
                             <div id="CoherentSampler.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span>)</span>
 
         
     </div>

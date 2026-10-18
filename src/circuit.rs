@@ -198,7 +198,7 @@ impl Circuit {
     pub fn parse(text: &str) -> Result<Circuit, String> {
         let lines: Vec<&str> = text.lines().collect();
         let mut pos = 0usize;
-        let instrs = parse_block(&lines, &mut pos, false)?;
+        let instrs = parse_block(&lines, &mut pos, 0)?;
         Ok(Circuit { instrs })
     }
 
@@ -386,7 +386,12 @@ impl Circuit {
     }
 }
 
-fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Instr>, String> {
+/// The deepest REPEAT nesting the parser reads (Stim's circuits nest a few deep; past this the
+/// recursion would run out of stack).
+const MAX_PARSE_DEPTH: usize = 1000;
+
+fn parse_block(lines: &[&str], pos: &mut usize, depth: usize) -> Result<Vec<Instr>, String> {
+    let nested = depth > 0;
     let mut out = Vec::new();
     while *pos < lines.len() {
         let lineno = *pos + 1;
@@ -416,7 +421,10 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<Inst
             if count == 0 {
                 return Err(format!("line {lineno}: Repeating 0 times is not supported."));
             }
-            let body = if empty.is_some() { Vec::new() } else { parse_block(lines, pos, true)? };
+            if depth >= MAX_PARSE_DEPTH {
+                return Err(format!("line {lineno}: REPEAT blocks nested more than {MAX_PARSE_DEPTH} deep"));
+            }
+            let body = if empty.is_some() { Vec::new() } else { parse_block(lines, pos, depth + 1)? };
             out.push(Instr::Repeat { count, body, tag: tag.to_string() });
             continue;
         }

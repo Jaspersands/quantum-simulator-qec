@@ -4,17 +4,89 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## 2.0.0 — 2026-10-17
+## 2.0.0 — 2026-10-18
 
-Every feature of every other QEC tool — twenty-five of them, inventoried in
-`docs/superpowers/notes/2026-10-09-parity-inventory.md` — under the names those tools use, each
-port checked against its original; and one thing none of them has: Clifford+T circuits with a
+The features of twenty-five other QEC tools — inventoried, feature by feature, in
+`docs/superpowers/notes/2026-10-09-parity-inventory.md`, which says what is here and what is
+not — under the names those tools use, each port checked against its original; and one thing
+none of them has: Clifford+T circuits with a
 coherent error on every gate, sampled at sizes no state vector reaches. Thirteen workstreams:
 Stim's objects and PyMatching's graph API, sinter and analysis, ldpc whole and twelve more
 decoders, codes and code tools, noise and hardware models, the stabilizer-rank and joint
 samplers, tqec and Loom and the two resource estimators, real time and the GPU, the editor in
 the site, and these notes. Breaking changes are under **Changed**; `str(circuit)` and the
 decoders' defaults are now Stim's and ldpc's.
+
+**The release's adversarial review** (seven independent reviews of the 2.0 work against the
+references, their scripts in the session's scratchpad; fixed before tagging):
+
+- *Clifford+T.* A tagged gate at a Clifford angle (`I[R_Z(theta=π/2)] 0`, `I[U3(π, 0, π)] 0`) is
+  the Clifford gate it is in every engine — the frame samplers, the reference run, the detector
+  error model and the coherent samplers (`stabrank::frame_view`); Stim reads the tag as nothing,
+  and so did the engines the circuit was routed to when it had no other non-Clifford gate. A
+  coherent error at a Clifford angle (`I_ERROR[R_Z(theta=π/4)]`, a fixed S) is run as the gate it
+  is, exactly, by the joint sampler (which `compile_coherent_sampler` now picks for such a
+  circuit), not drawn as a twirl; the reference run ignores it, as Stim's ignores every error. The truncated joint sampler's generators
+  are now a basis of the kernel's projection onto the error locations with every single-error
+  element present: the basis over every location (the exact gates' among them) could project
+  `{e₁, T}` and `{e₁, e₂}` and leave `{e₂}` to a product no shot formed, and its sums missed
+  first-order terms on small circuits (60σ on a 1-qubit case); `compile_coherent_sampler(pairs=)`
+  exposes the pairwise products as a check. The frame sampler warns when a circuit's coherent
+  errors are read as nothing (`twirled()` and `compile_coherent_sampler` run them; with a
+  non-Clifford gate present the stabilizer-rank sampler runs them exactly, as before).
+  `I_ERROR[T]` is refused (T is a gate). `tcount`'s docstring says where it differs from Tsim.
+- *tqec.* A correlation surface crossing two seams of one merge got two seam terms that
+  cancelled (the compiled observable then depended on the seam qubits' resets); one term covers
+  a merge's seams on a line. Merges are indexed per time slice, so the same pair merging twice is
+  two merges. `adjust_hadamards_direction` has both directions of each Hadamard pair.
+  `ZXGraph.from_block_graph` checks tqec's preconditions. Terms are written in a fixed order.
+- *The editor.* `MPP X0*Z1` parses and prints as Stim writes it; `CNOT`, `MZ`, `SQRT_Z`, `H_XZ`
+  and the other aliases read as their canonical gates; `MPAD`, `MXX`/`MYY`/`MZZ` and the
+  heralded channels make records; `rec[-k]`-controlled gates apply their Pauli when a marker
+  flipped the record; an observable with several `OBSERVABLE_INCLUDE` lines is their parity;
+  `SPP`/`SPP_DAG` follow the product rule; every Clifford gate Stim has is in the tables, which
+  `tools/editor_fixtures.py` now writes from the package's gate data (`js/clifford-tables.js`).
+  Markers in empty layers survive the URL; a `+` in a URL is not a space; `%g` rounds before it
+  picks the exponent; stray braces and bad targets are errors; a million operations is the most
+  a REPEAT block unrolls to; placing or removing a measurement, or deleting a layer, moves every
+  later `rec[-k]` with its record and drops the ones whose record went; coordinates keep every
+  argument.
+- *The GPU.* The pacer's clamp panicked on a graph with fewer than 64 shots per dispatch budget
+  and poisoned the GPU lock; the lock recovers. Dispatches start at one word (or at a billion edge
+  updates' worth of BP shots) and grow fourfold a step while one finishes within a second for
+  sampling and ten for BP (a d = 17 word's own latency is half a second, a d = 11 BP shot's a
+  third, and the GPU runs hundreds or thousands in that same time), shrinking in proportion past
+  it, within 96 MiB of buffers; a GPU that never signals is an error after ten minutes; a word writes a sentinel
+  the host checks, so a dispatch the driver drops (Metal did so now and then past
+  100 MB, with no error) is retried at half the size and, if it still fails, is an error and
+  never zeros; wgpu's validation and allocation errors are errors too. The lane sampler's per-word
+  generator is xoshiro128** (128 bits of state from the word's seed; the 32-bit xorshift paired
+  words every 2³³ and repeated 32-shot blocks), so **the lane devices' shots for a seed differ
+  from 2.0's development builds** (the cpu device's are unchanged). A REPEAT nested deeper than
+  the GPU's 16-level loop stack, or counting past 2³² − 1, is refused rather than skipped; a
+  program too long for the GPU's buffers is refused. The parser refuses REPEAT blocks nested
+  more than 1,000 deep rather than overflowing its stack.
+- *`BpDecoder` on a device.* `decode_batch` means the same on every device: rows are syndromes,
+  a zero row is the zero error, the decoder's per-shot state is left alone, and `_details`
+  returns the flags on the cpu device too; a single shot on the gpu device runs on the cpu-f32
+  path (the same bits, without an upload); a scale single precision cannot hold is refused; a
+  device without a method asks for min-sum; `threads=-1` is a `ValueError`. The f32 claim is
+  bounded to damped min-sum, with a test of what holds at scale 1 and 0.
+- *The estimates.* The QDK's parse-time checks: error rates strictly between 0 and 1, counts
+  non-negative integers, both parts of a Majorana measurement error, all three parts of an error
+  budget, `distanceCoefficientPower` a non-negative integer; a distillation-unit spec with a
+  `name` is the named unit whatever else it carries, as the QDK's untagged union reads it;
+  formulas read as fasteval reads them (`-2^2` is 4, `%`, `x/0` infinite, Python's `**` refused);
+  the binomial quantile's Newton branch and the no-factory loop raise where the QDK hangs; an
+  empty frontier is an error where the QDK panics. Qualtran's `_Density` refuses probabilities
+  outside [0, 1].
+- *Real time.* The protocol caps a frame at 256 MiB and a decode at 2²⁰ shots, drops a stalled
+  connection after `timeout`, and a reset forgets in-flight results; shared queues hold their
+  decoder weakly; `connect` and `spawn` fail fast with the server's error.
+- *The text.* The README's benchmark table is re-recorded with every reference installed; the
+  leakage, herald, twirl and f32 claims are bounded to what the runs show; third-party notices
+  for PECOS, PanQEC, QUITS and the whole of Deltakit; the licence statement names the licences
+  involved; "every decoder" is every detector-error-model decoder.
 
 ### Changed
 
@@ -691,10 +763,10 @@ decoders' defaults are now Stim's and ldpc's.
   0.0043; ε = 0.1: 0.040 against 0.094) and the joint sampler reads it within sampling error;
   on Tsim's 5-qubit distillation protocol the twirl turns a working protocol into a broken one
   (ε = 0.01: acceptance 11.6% and output infidelity 2 × 10⁻² against the exact 16.8% and
-  2 × 10⁻⁵), the joint sampler puts the acceptance back and the infidelity within one to two
+  2 × 10⁻⁵), the joint sampler puts the acceptance back (16.6%) and the infidelity within one to two
   orders of magnitude (a cancellation-dominated quantity the truncation does not reach), and in
   the protocol encoded in the colour code (85 qubits, 801 rotations) it is the only estimate
-  there is, at about a second per shot.
+  there is, at 130 ms per shot.
 - **`stabilizer_qec.tqec`: tqec's block graphs** (tqec/tqec 0.2.0's `computation` package, its
   gallery and its Collada and JSON files, ported on the standard library without networkx, PyZX,
   pycollada or numpy; Apache 2.0): `BlockGraph` with cubes, pipes and ports, the ZX kinds,
@@ -774,13 +846,14 @@ decoders' defaults are now Stim's and ldpc's.
   20,000 shots a point, decoded by matching blind to the leakage and leakage-aware with the
   sampler's heralds; the threshold by the crossing of the two largest distances and by
   qec-util's Wang–Harrington–Preskill fit with a bootstrap interval. Leakage at 3%, 10% and
-  30% of the error rate takes the threshold from 0.49% to 0.45%, 0.37% and 0.23%; at 50% the
-  distance-5 CNOT is worse than the distance-3 one at every p (no threshold); heralds cut the
-  logical error by one to two parts in twenty and move the threshold by less than its interval.
+  30% of the error rate takes the threshold from 0.49% to 0.45%, 0.37% and 0.23%; at 50% a
+  3,000-shot run found the distance-5 CNOT no better than the distance-3 one at any p (too few
+  shots to place a crossing); heralds cut the logical error by one to five per cent and move
+  the threshold by less than its interval.
 - **`stabilizer_qec.realtime`: decoding in the background, a decoder queue with statistics,
   and a decoder server** (CUDA-Q QEC's `decode_async`, `enqueue_syndromes`, `get_corrections`,
-  `reset_decoder` and decoder statistics; its real-time host API). Every decoder has
-  `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the engine
+  `reset_decoder` and decoder statistics; its real-time host API). Every detector-error-model
+  decoder has `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the engine
   and returns an `AsyncResult` (`ready`, `wait`, `get`, its latency and service time).
   `DecoderQueue(decoder, workers=n)` takes `enqueue_syndromes` (a ticket back),
   `get_corrections` (by ticket, or the oldest uncollected batch, in order), `pending`, `reset`

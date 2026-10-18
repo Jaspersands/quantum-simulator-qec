@@ -346,3 +346,79 @@ def test_azure_constraints():
     assert azure_estimate(LogicalCounts(num_qubits=50, measurement_count=1000))["physicalCounts"]["breakdown"]["numTstates"] == 0
     with pytest.raises(ValueError):
         azure_estimate(LogicalCounts(num_qubits=50))
+
+
+# ---------------------------------------------------------------------------------------------
+# The 2.0 review's regressions (the QDK's parse-time checks, fasteval's reading, its hangs)
+# ---------------------------------------------------------------------------------------------
+
+
+def test_azure_formulas_read_as_fasteval_reads_them():
+    ev = az.evaluate_expression
+    assert ev("-2^2", {}) == 4.0 and ev("-2^2^2", {}) == 16.0 and ev("1 - 2^2", {}) == -3.0 and ev("(-2)^3", {}) == -8.0
+    assert ev("7 % 3 + 2 * codeDistance", {"codeDistance": 5}) == 11.0
+    assert ev("1 / 0", {}) == math.inf and ev("-1 / 0", {}) == -math.inf and math.isnan(ev("0 / 0", {}))
+    assert math.isnan(ev("(-8) ^ 0.5", {}))
+    for python_only in ("2 ** 3", "1_000 * z", "0x10 + 1", "abs"):
+        with pytest.raises(ValueError):
+            ev(python_only, {"z": 1.0})
+    # The scheme formula the review used: the QDK's patch of 27 qubits, not 19.
+    scheme = qec_scheme({"name": "custom", "errorCorrectionThreshold": 0.01, "crossingPrefactor": 0.03, "logicalCycleTime": "4 * twoQubitGateTime * codeDistance", "physicalQubitsPerLogicalQubit": "-2^2 + 10 + codeDistance"}, physical_qubit("qubit_gate_ns_e3"))
+    assert scheme.physical_qubits(13) == 27
+
+
+def test_azure_refuses_what_the_qdk_refuses_at_parse_time():
+    base = {"instructionSet": "GateBased", "oneQubitMeasurementTime": "100 ns", "oneQubitGateTime": "50 ns", "twoQubitGateTime": "50 ns", "tGateTime": "50 ns", "oneQubitMeasurementErrorRate": 1e-3, "oneQubitGateErrorRate": 1e-3, "twoQubitGateErrorRate": 1e-3, "tGateErrorRate": 1e-3}
+    physical_qubit(base)
+    for bad in ({"tGateErrorRate": 0.0}, {"tGateErrorRate": 1.5}, {"tGateErrorRate": 1.0}, {"oneQubitGateErrorRate": True}, {"oneQubitGateErrorRate": "1e-3"}):
+        with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+            physical_qubit({**base, **bad})
+    with pytest.raises(ValueError, match="process"):
+        physical_qubit({"name": "qubit_maj_ns_e4", "oneQubitMeasurementErrorRate": {"process": 2e-4}})
+    for bad in ({"tCount": -5}, {"tCount": 5.0}, {"tCount": True}, {"numQubits": "10"}):
+        with pytest.raises(ValueError, match="non-negative integer"):
+            LogicalCounts.fromdict({"numQubits": 10, "tCount": 5, **bad})
+    with pytest.raises(ValueError, match="missing"):
+        ErrorBudget.partition({"logical": 0.1}, LogicalCounts(num_qubits=10, t_count=5))
+    assert ErrorBudget.partition({"logical": 0.1, "tstates": 0.05, "rotations": 0.0}, LogicalCounts(num_qubits=10, t_count=5)) == ErrorBudget(0.1, 0.05, 0.0)
+    gate = physical_qubit("qubit_gate_ns_e3")
+    with pytest.raises(ValueError, match="non-negative integer"):
+        qec_scheme({"name": "surface_code", "distanceCoefficientPower": -1}, gate)
+    with pytest.raises(ValueError, match="non-negative integer"):
+        qec_scheme({"name": "surface_code", "distanceCoefficientPower": 1.5}, gate)
+    # Beyond the QDK (documented): times as numbers of nanoseconds.
+    assert physical_qubit({**base, "tGateTime": 50}).t_gate_time == 50
+
+
+def test_azure_unit_spec_with_a_name_is_the_named_unit():
+    custom = {"displayName": "7-to-1 custom", "numInputTs": 7, "numOutputTs": 1, "failureProbabilityFormula": "7 * z + 20 * c", "outputErrorRateFormula": "7 * z^3 + 7 * c", "physicalQubitSpecification": {"numUnitQubits": 7, "durationInQubitCycleTime": 10}}
+    assert DistillationUnitTemplate.fromspec(custom).name == "7-to-1 custom"
+    named = DistillationUnitTemplate.fromspec({**custom, "name": "15-1 RM"})
+    assert named.name == DistillationUnitTemplate.from_name("15-1 RM").name
+    assert DistillationUnitTemplate.fromspec({"name": "15-1 RM", "foo": 1}).name == named.name
+    with pytest.raises(ValueError, match="Invalid distillation unit"):
+        DistillationUnitTemplate.fromspec({**custom, "name": "my-unit"})
+
+
+def test_azure_hangs_become_errors():
+    # The binomial quantile's Newton branch leaves [0, n] where the probability crate loops forever.
+    b = az._Binomial(2000, 0.9999)
+    with pytest.raises(ValueError, match="does not converge"):
+        b.inverse(1e-12)
+    assert az._Binomial(2000, 0.01).inverse(0.5) == 1980
+    # Every first distillation round fails (15 z >= 1): the QDK never returns; this raises.
+    hopeless = {"instructionSet": "GateBased", "oneQubitMeasurementTime": "100 ns", "oneQubitGateTime": "50 ns", "twoQubitGateTime": "50 ns", "tGateTime": "50 ns", "oneQubitMeasurementErrorRate": 1e-3, "oneQubitGateErrorRate": 1e-3, "twoQubitGateErrorRate": 1e-3, "tGateErrorRate": 0.5}
+    with pytest.raises(ValueError, match="no T factory"):
+        azure_estimate({"numQubits": 10, "tCount": 100}, hopeless)
+    with pytest.raises(ValueError, match="frontier is empty"):
+        azure_estimate({"numQubits": 10, "tCount": 100}, hopeless, estimate_type="frontier")
+
+
+def test_qualtran_density_refuses_probabilities_past_one():
+    from stabilizer_qec.estimate import qualtran as qt
+
+    d = qt._Density(2)
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        d.noisy_rotation("ZZ", 1.5, 0.0, 0.0)
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        d.storage_error("Z", [0.1, -0.2])

@@ -35,6 +35,7 @@ import subprocess
 import sys
 import threading
 import time
+import weakref
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Union
 
 import numpy as np
@@ -170,6 +171,7 @@ class DecoderQueue:
         self._in_flight = 0
         self._depth_max = 0
         self._closed = False
+        self._epoch = 0  # bumped by reset: batches of an earlier epoch leave no statistics
 
     # -- the API --
 
@@ -182,6 +184,7 @@ class DecoderQueue:
         with self._lock:
             ticket = self._next_ticket
             self._next_ticket += 1
+            epoch = self._epoch
             if self._first_enqueue is None:
                 self._first_enqueue = submitted
             self._in_flight += 1
@@ -204,7 +207,7 @@ class DecoderQueue:
             result._finished = finished
             with self._lock:
                 self._in_flight -= 1
-                if not f.cancelled() and f.exception() is None:
+                if epoch == self._epoch and not f.cancelled() and f.exception() is None:
                     self._latencies.append(finished - submitted)
                     self._services.append(finished - result._started)
                     self._decoded += n
@@ -214,11 +217,12 @@ class DecoderQueue:
         return ticket
 
     def submit(self, shots: Any, **kwargs: Any) -> AsyncResult:
-        """``enqueue_syndromes`` as an `AsyncResult` (what ``decode_async`` returns)."""
+        """``enqueue_syndromes`` as an `AsyncResult` (what ``decode_async`` returns); the result
+        belongs to the caller and is not kept by the queue."""
         ticket = self.enqueue_syndromes(shots, **kwargs)
         with self._lock:
             self._uncollected.remove(ticket)
-            return self._results[ticket]
+            return self._results.pop(ticket)
 
     def get_corrections(self, ticket: Optional[int] = None, timeout: Optional[float] = None) -> Any:
         """The predictions of ``ticket``, or of the oldest batch not yet collected; waits for it.
@@ -244,6 +248,7 @@ class DecoderQueue:
         """Drops every batch that has not started, forgets collected and uncollected results,
         and clears the statistics; batches already running finish unseen."""
         with self._lock:
+            self._epoch += 1
             results = list(self._results.values())
             self._results.clear()
             self._uncollected.clear()
@@ -282,21 +287,46 @@ class DecoderQueue:
         return f"DecoderQueue({self.name}, workers={self._workers}, pending={self.pending()})"
 
 
-_shared: Dict[int, DecoderQueue] = {}
+_shared: Dict[int, "tuple[weakref.ref, DecoderQueue]"] = {}
 _shared_lock = threading.Lock()
 
 
 def shared_queue(decoder: Any, workers: Optional[int] = None) -> DecoderQueue:
     """The queue ``decode_async`` uses for a decoder: one per decoder object, made on first use
-    with ``workers`` threads (the machine's cores by default)."""
+    with ``workers`` threads (the machine's cores by default), closed and forgotten when the
+    decoder is garbage-collected."""
     key = id(decoder)
     with _shared_lock:
-        q = _shared.get(key)
-        if q is None or q.decoder is not decoder:
-            import os
+        entry = _shared.get(key)
+        if entry is not None and entry[0]() is decoder:
+            return entry[1]
+        import os
 
-            q = DecoderQueue(decoder, workers=workers or max(1, os.cpu_count() or 1))
-            _shared[key] = q
+        def forget(k=key):
+            with _shared_lock:
+                gone = _shared.pop(k, None)
+            if gone is not None:
+                gone[1].close(wait=False)
+
+        # The queue must not keep the decoder alive: it calls decode_batch through a weak method
+        # and is closed when the decoder goes (a decoder without weak references is held for
+        # the process's life).
+        try:
+            method = weakref.WeakMethod(decoder.decode_batch)
+            ref = weakref.ref(decoder, lambda _r: forget())
+        except TypeError:
+            strong = decoder
+            method = lambda: strong.decode_batch  # noqa: E731
+            ref = lambda: strong  # noqa: E731
+
+        def decode(shots, **kwargs):
+            bound = method()
+            if bound is None:
+                raise RuntimeError("the decoder behind this queue was garbage-collected")
+            return bound(shots, **kwargs)
+
+        q = DecoderQueue(decode=decode, workers=workers or max(1, os.cpu_count() or 1), name=type(decoder).__name__)
+        _shared[key] = (ref, q)
         return q
 
 
@@ -374,23 +404,62 @@ class Protocol:
     def pack(cls, kind: int, payload: bytes = b"", shots: int = 0, flags: int = 0) -> bytes:
         return cls.HEADER.pack(cls.MAGIC, cls.VERSION, kind, flags, shots, len(payload)) + payload
 
+    MAX_FRAME = 256 << 20
+
     @classmethod
-    def read(cls, stream: Any) -> "tuple[int, int, int, bytes]":
-        """(kind, flags, shots, payload) from a readable; ``EOFError`` at a clean close."""
+    def read_header(cls, stream: Any) -> "tuple[int, int, int, int]":
+        """(kind, flags, shots, payload length) from a readable; ``EOFError`` at a clean close."""
         head = _read_exactly(stream, cls.HEADER.size)
         if not head:
             raise EOFError
+        if len(head) != cls.HEADER.size:
+            raise EOFError("the connection closed inside a header")
         magic, version, kind, flags, shots, length = cls.HEADER.unpack(head)
         if magic != cls.MAGIC:
             raise ValueError(f"not a stabilizer-qec frame (magic {magic!r})")
         if version != cls.VERSION:
             raise ValueError(f"protocol version {version} is not {cls.VERSION}")
-        if length > (1 << 40):
-            raise ValueError(f"frame too long ({length} bytes)")
+        return kind, flags, shots, length
+
+    @classmethod
+    def read_payload(cls, stream: Any, length: int) -> bytes:
         payload = _read_exactly(stream, length) if length else b""
         if length and len(payload) != length:
             raise EOFError("the connection closed inside a frame")
-        return kind, flags, shots, payload
+        return payload
+
+    @classmethod
+    def read(cls, stream: Any, max_length: Optional[int] = None) -> "tuple[int, int, int, bytes]":
+        """(kind, flags, shots, payload) from a readable; ``EOFError`` at a clean close,
+        ``ValueError`` for a frame longer than ``max_length`` (`MAX_FRAME` by default), refused
+        before its payload is read."""
+        kind, flags, shots, length = cls.read_header(stream)
+        limit = cls.MAX_FRAME if max_length is None else max_length
+        if length > limit:
+            raise ValueError(f"frame too long ({length} bytes; at most {limit})")
+        return kind, flags, shots, cls.read_payload(stream, length)
+
+
+def _with_timeout(fn: Callable[[], Any], timeout: Optional[float], what: str) -> Any:
+    """``fn()`` on a helper thread, ``TimeoutError`` if it takes longer than ``timeout``."""
+    if timeout is None:
+        return fn()
+    box: Dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            box["value"] = fn()
+        except BaseException as ex:  # re-raised on the caller's thread
+            box["error"] = ex
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        raise TimeoutError(f"{what} did not arrive within {timeout} s")
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
 
 
 def _read_exactly(stream: Any, n: int) -> bytes:
@@ -419,8 +488,8 @@ def _b8_stride(bits: int) -> int:
 class _Session:
     """One connection: frames in, frames out, the decoder behind a queue."""
 
-    def __init__(self, queue: DecoderQueue, num_detectors: int, num_observables: int, threads: int) -> None:
-        self.queue, self.nd, self.no, self.threads = queue, num_detectors, num_observables, threads
+    def __init__(self, queue: DecoderQueue, num_detectors: int, num_observables: int, threads: int, max_shots: int = 1 << 20) -> None:
+        self.queue, self.nd, self.no, self.threads, self.max_shots = queue, num_detectors, num_observables, threads, max_shots
 
     def hello(self) -> bytes:
         return Protocol.pack(Protocol.HELLO, json.dumps({"num_detectors": self.nd, "num_observables": self.no, "decoder": self.queue.name, "workers": self.queue.workers}).encode())
@@ -459,22 +528,33 @@ class _Session:
             return Protocol.pack(Protocol.ERROR, json.dumps({"error": f"{type(ex).__name__}: {ex}"}).encode())
 
     def run(self, reader: Any, writer: Any) -> None:
-        writer.write(self.hello())
-        writer.flush()
-        while True:
-            try:
-                kind, flags, shots, payload = Protocol.read(reader)
-            except EOFError:
-                return
-            except ValueError as ex:
-                writer.write(Protocol.pack(Protocol.ERROR, json.dumps({"error": str(ex)}).encode()))
-                writer.flush()
-                return
-            reply = self.handle(kind, flags, shots, payload)
-            if reply is None:
-                return
-            writer.write(reply)
+        try:
+            writer.write(self.hello())
             writer.flush()
+            while True:
+                try:
+                    kind, flags, shots, length = Protocol.read_header(reader)
+                    # Refuse what cannot be right before buffering it: a DECODE's payload is
+                    # exactly its shots' b8 rows, and no frame is longer than the cap.
+                    stride = _b8_stride(self.nd)
+                    if kind == Protocol.DECODE and (shots > self.max_shots or length != shots * stride):
+                        raise ValueError(f"DECODE of {shots} shots needs {shots * stride} bytes of b8 syndromes (at most {self.max_shots} shots), got {length}")
+                    if length > Protocol.MAX_FRAME:
+                        raise ValueError(f"frame too long ({length} bytes; at most {Protocol.MAX_FRAME})")
+                    payload = Protocol.read_payload(reader, length)
+                except EOFError:
+                    return
+                except ValueError as ex:
+                    writer.write(Protocol.pack(Protocol.ERROR, json.dumps({"error": str(ex)}).encode()))
+                    writer.flush()
+                    return
+                reply = self.handle(kind, flags, shots, payload)
+                if reply is None:
+                    return
+                writer.write(reply)
+                writer.flush()
+        except OSError:  # the connection died or timed out: nothing to answer
+            return
 
 
 def _params(fn: Callable[..., Any]) -> set:
@@ -489,17 +569,19 @@ class _Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, workers: int = 1, threads: int = 0, num_detectors: Optional[int] = None, num_observables: Optional[int] = None, ready: Optional[Callable[[Any], None]] = None) -> None:
+def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, workers: int = 1, threads: int = 0, num_detectors: Optional[int] = None, num_observables: Optional[int] = None, ready: Optional[Callable[[Any], None]] = None, timeout: Optional[float] = 300.0, max_shots: int = 1 << 20) -> None:
     """Serves ``decoder`` (anything with ``decode_batch``, ``num_detectors`` and
     ``num_observables``, or those given) to clients: over ``tcp="host:port"`` (port 0 picks one;
     ``ready(server)`` is called with the bound server, whose ``server_address`` tells which) until
     the server is shut down, or over this process's stdin and stdout (``stdio=True``) until the
     client says BYE or closes the pipe. ``workers`` decode batches at once; ``threads`` is each
-    batch's thread count for decoders that take one."""
+    batch's thread count for decoders that take one. A TCP connection idle for ``timeout`` seconds
+    (or one that sends part of a frame and stops) is dropped; a DECODE of more than ``max_shots``
+    shots, or whose length is not its shots' b8 rows, is refused before it is read."""
     nd = int(num_detectors if num_detectors is not None else decoder.num_detectors)
     no = int(num_observables if num_observables is not None else decoder.num_observables)
     queue = DecoderQueue(decoder, workers=workers)
-    session = _Session(queue, nd, no, threads)
+    session = _Session(queue, nd, no, threads, max_shots)
     if stdio == bool(tcp):
         raise ValueError("serve over tcp='host:port' or stdio=True, one of the two")
     try:
@@ -513,6 +595,8 @@ def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, worke
         class Handler(socketserver.StreamRequestHandler):
             def handle(self) -> None:
                 session.run(self.rfile, self.wfile)
+
+        Handler.timeout = timeout
 
         with _Server((host, int(port)), Handler) as server:
             if ready is not None:
@@ -533,32 +617,60 @@ class DecoderClient:
     model or circuit file and talks over its pipes. ``decode_batch`` and ``decode`` are the
     decoders'; ``stats`` and ``reset`` are the server's queue's; ``close`` says BYE."""
 
-    def __init__(self, reader: Any, writer: Any, *, process: Optional[subprocess.Popen] = None, sock: Optional[socket.socket] = None) -> None:
+    def __init__(self, reader: Any, writer: Any, *, process: Optional[subprocess.Popen] = None, sock: Optional[socket.socket] = None, timeout: Optional[float] = 30.0) -> None:
         self._reader, self._writer, self._process, self._sock = reader, writer, process, sock
         self._lock = threading.Lock()
-        kind, _, _, payload = Protocol.read(reader)
-        if kind != Protocol.HELLO:
-            raise ValueError(f"expected HELLO, got {Protocol.NAMES.get(kind, kind)}")
-        hello = json.loads(payload.decode())
+        try:
+            kind, _, _, payload = _with_timeout(lambda: Protocol.read(reader, 1 << 20), timeout, "the decoder server's HELLO")
+            if kind != Protocol.HELLO:
+                raise ValueError(f"expected HELLO, got {Protocol.NAMES.get(kind, kind)}")
+            hello = json.loads(payload.decode())
+        except BaseException:
+            self._abandon()
+            raise
         self.num_detectors = int(hello["num_detectors"])
         self.num_observables = int(hello["num_observables"])
         self.decoder_name = str(hello.get("decoder", ""))
         self.workers = int(hello.get("workers", 1))
 
-    @classmethod
-    def connect(cls, host: str, port: int, timeout: Optional[float] = None) -> "DecoderClient":
-        sock = socket.create_connection((host, int(port)), timeout=timeout)
-        sock.settimeout(None)
-        return cls(sock.makefile("rb"), sock.makefile("wb"), sock=sock)
+    def _abandon(self) -> None:
+        for f in (getattr(self, "_writer", None), getattr(self, "_reader", None)):
+            try:
+                if f is not None:
+                    f.close()
+            except OSError:
+                pass
+        if self._sock is not None:
+            self._sock.close()
+        if self._process is not None and self._process.poll() is None:
+            self._process.kill()
+            try:
+                self._process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
 
     @classmethod
-    def spawn(cls, dem: Optional[str] = None, *, circuit: Optional[str] = None, decoder: str = "matching", workers: int = 1, threads: int = 0, python: Optional[str] = None) -> "DecoderClient":
+    def connect(cls, host: str, port: int, timeout: Optional[float] = 30.0) -> "DecoderClient":
+        """Reaches a TCP server; ``timeout`` covers the connection and its HELLO."""
+        sock = socket.create_connection((host, int(port)), timeout=timeout)
+        sock.settimeout(None)
+        return cls(sock.makefile("rb"), sock.makefile("wb"), sock=sock, timeout=timeout)
+
+    @classmethod
+    def spawn(cls, dem: Optional[str] = None, *, circuit: Optional[str] = None, decoder: str = "matching", workers: int = 1, threads: int = 0, python: Optional[str] = None, timeout: Optional[float] = 60.0) -> "DecoderClient":
+        """Starts ``stabilizer-qec serve --stdio`` as a subprocess on a model or circuit file and
+        talks over its pipes. A child that does not say HELLO within ``timeout`` seconds (or dies
+        first, its error on stderr) is killed and the error raised here."""
         if (dem is None) == (circuit is None):
             raise TypeError("spawn needs a dem path or a circuit path, one of the two")
         argv = [python or sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--decoder", decoder, "--workers", str(workers), "--threads", str(threads)]
         argv += ["--dem", dem] if dem is not None else ["--circuit", circuit]
         process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        return cls(process.stdout, process.stdin, process=process)
+        try:
+            return cls(process.stdout, process.stdin, process=process, timeout=timeout)
+        except EOFError:
+            code = process.poll()
+            raise RuntimeError(f"the decoder server exited (code {code}) before saying HELLO; its error is on stderr") from None
 
     def _ask(self, kind: int, payload: bytes = b"", shots: int = 0) -> "tuple[int, int, bytes]":
         with self._lock:

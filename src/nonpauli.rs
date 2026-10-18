@@ -215,6 +215,9 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
         }
         "T" | "T_DAG" => {
             single(&name)?;
+            if noise {
+                return Err(format!("{here}: {name} is a gate, written I[{name}]; a coherent error is a rotation (I_ERROR[R_Z(theta=0.7853981633974483)] for a T-sized over-rotation)"));
+            }
             targets.iter().map(|&q| NonPauli::T { qubit: q, dagger: name == "T_DAG" }).collect()
         }
         "U3" => {

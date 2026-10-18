@@ -62,13 +62,36 @@ def _ceil_div(a: int, b: int) -> int:
     return -(-a // b)
 
 
-_BINOPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv, ast.Pow: operator.pow}
+_BINOPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: lambda a, b: _fasteval_div(a, b), ast.Mod: lambda a, b: math.fmod(a, b) if b != 0.0 else math.nan, ast.Pow: lambda a, b: _fasteval_pow(a, b)}
 _UNOPS = {ast.USub: operator.neg, ast.UAdd: operator.pos}
 
 
+_PYTHON_ONLY = re.compile(r"\*\*|\d_\d|\b0[xXoObB][0-9a-fA-F]")
+
+
+def _fasteval_div(a: float, b: float) -> float:
+    if b == 0.0:
+        return math.nan if a == 0.0 or math.isnan(a) else math.copysign(math.inf, a) * math.copysign(1.0, b)
+    return a / b
+
+
+def _fasteval_pow(a: float, b: float) -> float:
+    try:
+        out = a**b
+    except ZeroDivisionError:
+        return math.inf
+    except OverflowError:
+        return math.inf
+    return out if isinstance(out, float) else math.nan  # a negative base to a fractional power is NaN, not complex
+
+
 def evaluate_expression(expression: str, context: Dict[str, float]) -> float:
-    """A QEC scheme's or distillation unit's formula (`+ - * / ^`, numbers, the named variables) evaluated in
-    floating point."""
+    """A QEC scheme's or distillation unit's formula evaluated as the QDK's `fasteval` evaluates it: `+ - * / % ^`,
+    numbers, the named variables, parentheses; unary minus binds tighter than `^` (`-2^2` is 4); a division by
+    zero is infinite, a negative base to a fractional power NaN. Python's own spellings (`**`, `1_000`, `0x10`)
+    are refused, as the QDK refuses them."""
+    if _PYTHON_ONLY.search(expression):
+        raise ValueError(f"unsupported syntax in {expression!r} (the QDK's formulas use ^ for powers and plain decimal numbers)")
     tree = ast.parse(expression.replace("^", "**"), mode="eval")
 
     def ev(node):
@@ -82,6 +105,9 @@ def evaluate_expression(expression: str, context: Dict[str, float]) -> float:
             raise ValueError(f"unknown variable {node.id!r} in {expression!r}")
         if isinstance(node, ast.BinOp) and type(node.op) in _BINOPS:
             return _BINOPS[type(node.op)](ev(node.left), ev(node.right))
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub) and isinstance(node.operand, ast.BinOp) and isinstance(node.operand.op, ast.Pow):
+            # fasteval: -b^e is (-b)^e (Python parses it as -(b^e)); the sign goes to the innermost base.
+            return _fasteval_pow(ev(ast.UnaryOp(op=ast.USub(), operand=node.operand.left)), ev(node.operand.right))
         if isinstance(node, ast.UnaryOp) and type(node.op) in _UNOPS:
             return _UNOPS[type(node.op)](ev(node.operand))
         raise ValueError(f"unsupported syntax in {expression!r}")
@@ -93,7 +119,8 @@ _TIME_RE = re.compile(r"^(\+?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)\s*(s|ms|μs|µs|
 
 
 def parse_time(value: Union[int, float, str, None]) -> Optional[int]:
-    """A duration in nanoseconds: an int, or a string such as ``"100 ns"``, ``"1 µs"``, ``"2 ms"``, ``"1 s"``."""
+    """A duration in nanoseconds: a string such as ``"100 ns"``, ``"1 µs"``, ``"2 ms"``, ``"1 s"`` (the QDK's
+    form), or, beyond the QDK, a number of nanoseconds."""
     if value is None or isinstance(value, bool):
         return None if value is None else int(value)
     if isinstance(value, (int, float)):
@@ -293,12 +320,16 @@ class _Binomial:
             return int(math.floor(_inverse_normal(self.p, self.np, self.npq, p)))
         q = float(self.modes()[0])
         alpha = 1.0
-        while True:
+        for _ in range(10_000):
+            if not 0.0 <= q <= n:
+                break
             delta = alpha * (p - self.distribution(q)) / self.mass(int(q))
             if abs(delta) < 0.5:
                 return int(q)
             q += delta
             alpha *= 0.999
+        # The `probability` crate's loop leaves [0, n] here and never returns (the QDK hangs).
+        raise ValueError(f"the QDK's binomial quantile does not converge for n={n}, failure probability {self.q!r}, p={p!r}")
 
 
 def _inverse_normal(p: float, np_: float, v: float, u: float) -> float:
@@ -478,6 +509,20 @@ QUBIT_NAMES = tuple(_GATE_BASED_PRESETS) + tuple(_MAJORANA_PRESETS)
 _SNAKE = {"oneQubitMeasurementTime": "one_qubit_measurement_time", "oneQubitGateTime": "one_qubit_gate_time", "twoQubitGateTime": "two_qubit_gate_time", "twoQubitJointMeasurementTime": "two_qubit_joint_measurement_time", "tGateTime": "t_gate_time", "oneQubitMeasurementErrorRate": "one_qubit_measurement_error_rate", "oneQubitGateErrorRate": "one_qubit_gate_error_rate", "twoQubitGateErrorRate": "two_qubit_gate_error_rate", "twoQubitJointMeasurementErrorRate": "two_qubit_joint_measurement_error_rate", "tGateErrorRate": "t_gate_error_rate", "idleErrorRate": "idle_error_rate"}
 
 
+def _error_rate(key: str, value: Any) -> float:
+    """An error rate as the QDK's `deserialize_error_rate` takes it: a number strictly between 0 and 1."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 < float(value) < 1.0:
+        raise ValueError(f"{key}: expected value between 0.0 and 1.0, got {value!r}")
+    return float(value)
+
+
+def _count(key: str, value: Any) -> int:
+    """A count as the QDK's `u64` takes it: a non-negative integer (not a bool, not a float)."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{key}: expected a non-negative integer, got {value!r}")
+    return value
+
+
 def physical_qubit(spec: Union[str, dict, GateBasedQubit, MajoranaQubit, None] = None) -> PhysicalQubit:
     """A qubit model from a preset name (`QUBIT_NAMES`), a QDK ``qubitParams`` dict (camelCase keys, times as
     ints in ns or strings with units, Majorana measurement errors as numbers or ``{process, readout}``), or a
@@ -505,7 +550,12 @@ def physical_qubit(spec: Union[str, dict, GateBasedQubit, MajoranaQubit, None] =
         if key.endswith("Time"):
             value = parse_time(value)
         elif isinstance(value, dict):
-            value = (float(value.get("process", _NAN)), float(value.get("readout", _NAN)))
+            # The QDK's Majorana measurement error: both parts, each a rate.
+            if set(value) != {"process", "readout"}:
+                raise ValueError(f"{key} as a dict takes exactly the keys 'process' and 'readout', not {sorted(value)}")
+            value = (_error_rate(key + ".process", value["process"]), _error_rate(key + ".readout", value["readout"]))
+        else:
+            value = _error_rate(key, value)
         kwargs[_SNAKE[key]] = value
     if instruction_set in ("gate_based", "gateBased", "gate-based", "GateBased"):
         return GateBasedQubit(name=name, **kwargs).normalized()
@@ -617,6 +667,10 @@ def qec_scheme(spec: Union[str, dict, QECScheme, None], qubit: PhysicalQubit) ->
             scheme = QECScheme(name, spec["errorCorrectionThreshold"], spec["crossingPrefactor"], spec.get("distanceCoefficientPower", 0), spec["logicalCycleTime"], spec["physicalQubitsPerLogicalQubit"], spec.get("maxCodeDistance", MAX_CODE_DISTANCE))
         if scheme is None:
             raise ValueError("the Floquet code needs a Majorana (measurement-based) qubit")
+        if "distanceCoefficientPower" in spec:
+            _count("distanceCoefficientPower", spec["distanceCoefficientPower"])
+        if "maxCodeDistance" in spec:
+            _count("maxCodeDistance", spec["maxCodeDistance"])
         for key, attr in (("errorCorrectionThreshold", "error_correction_threshold"), ("crossingPrefactor", "crossing_prefactor"), ("distanceCoefficientPower", "distance_coefficient_power"), ("logicalCycleTime", "logical_cycle_time"), ("physicalQubitsPerLogicalQubit", "physical_qubits_per_logical_qubit"), ("maxCodeDistance", "max_code_distance")):
             if key in spec:
                 setattr(scheme, attr, spec[key])
@@ -678,9 +732,9 @@ class LogicalCounts:
         out = {}
         for k, v in d.items():
             if k in keys:
-                out[keys[k]] = int(v)
+                out[keys[k]] = _count(k, v)
             elif k in keys.values():
-                out[k] = int(v)
+                out[k] = _count(k, v)
             elif k not in ("numComputeQubits", "readFromMemoryCount", "writeToMemoryCount"):
                 raise ValueError(f"unknown logical count {k!r}")
         return LogicalCounts(**out)
@@ -724,7 +778,12 @@ class ErrorBudget:
         if isinstance(spec, ErrorBudget):
             return replace(spec)
         if isinstance(spec, dict):
-            logical, tstates, rotations = float(spec["logical"]), float(spec.get("tStates", spec.get("tstates", 0.0))), float(spec.get("rotations", 0.0))
+            if "tstates" in spec and "tStates" not in spec:
+                spec = {**spec, "tStates": spec["tstates"]}
+            missing = [k for k in ("logical", "tStates", "rotations") if k not in spec]
+            if missing:
+                raise ValueError(f"an error budget dict names logical, tStates and rotations; missing {missing}")
+            logical, tstates, rotations = float(spec["logical"]), float(spec["tStates"]), float(spec["rotations"])
             if logical + tstates + rotations >= 1.0 or logical <= 0.0 or tstates < 0.0 or (counts.has_tgates() and tstates == 0.0) or rotations < 0.0 or (counts.has_rotations() and rotations == 0.0):
                 raise ValueError(f"invalid error budget {spec!r}")
             return ErrorBudget(logical, tstates, rotations)
@@ -813,7 +872,9 @@ class DistillationUnitTemplate:
             return spec
         if isinstance(spec, str):
             return DistillationUnitTemplate.from_name(spec)
-        if set(spec) == {"name"}:
+        if "name" in spec:
+            # The QDK's spec is an untagged union whose first arm is the named unit: a dict with
+            # a name is that unit, whatever else it carries.
             return DistillationUnitTemplate.from_name(spec["name"])
         if spec.get("numInputTs", 0) == 0:
             raise ValueError("The number of input t states must be greater than 0.")
@@ -1435,7 +1496,12 @@ class EstimationResult:
 
 
 class _NoFactory(Exception):
-    pass
+    """No factory fits; `any_factory` says whether any reached the error rate at all (then more
+    cycles may fit one) or none did (then only a larger code distance can)."""
+
+    def __init__(self, any_factory: bool) -> None:
+        super().__init__()
+        self.any_factory = any_factory
 
 
 class AzureEstimator:
@@ -1559,6 +1625,7 @@ class AzureEstimator:
         """The QDK's default: the code distance from the logical budget over the algorithm's depth, then the
         best factory; when none fits the depth, the depth grows until the distance and a factory agree."""
         num_cycles = self.compute_num_cycles(budget)
+        last_distance_without_factories = None
         while True:
             budget = replace(budget)
             required = self.required_logical_error_rate(budget.logical, num_cycles)
@@ -1570,7 +1637,16 @@ class AzureEstimator:
                 return EstimationResult(self, patch, num_cycles, None, required, budget)
             try:
                 part, num_cycles_required = self._factory_part(patch, num_cycles, max_allowed, budget, num_magic_states)
-            except _NoFactory:
+            except _NoFactory as none:
+                # More cycles raise the code distance; with no factory at all at this distance,
+                # the same distance again is the same search again, and the QDK loops here
+                # forever (every first distillation round fails, or its cycle count saturates).
+                if none.any_factory:
+                    last_distance_without_factories = None
+                elif last_distance_without_factories == code_distance or code_distance >= self.scheme.max_code_distance:
+                    raise ValueError(f"no T factory reaches a T-state error rate of {budget.tstates / num_magic_states:.3g} at code distance {code_distance}: the estimate has no solution") from None
+                else:
+                    last_distance_without_factories = code_distance
                 num_cycles = max(max_allowed + 1, num_cycles + 1)
                 continue
             return EstimationResult(self, patch, num_cycles_required, part, required, budget)
@@ -1579,10 +1655,10 @@ class AzureEstimator:
         required_t_error = budget.tstates / num_magic_states
         factories = self.find_factories(required_t_error, patch.code_distance)
         if not factories:
-            raise _NoFactory()
+            raise _NoFactory(False)
         found = self.find_factory(factories, patch, num_magic_states, min_cycles, max_cycles)
         if found is None:
-            raise _NoFactory()
+            raise _NoFactory(True)
         factory, num_cycles = found
         copies = self.num_factories(patch, factory, num_magic_states, num_cycles)
         return FactoryPart.new(factory, copies, num_magic_states, required_t_error), num_cycles
@@ -1663,6 +1739,8 @@ class AzureEstimator:
                     copies += 1
         population.filter_out_dominated()
         population.sort_items()
+        if not population.items:
+            raise ValueError(f"no T factory reaches a T-state error rate of {required_t_error:.3g} at any code distance: the frontier is empty (the QDK panics here)")
         return sorted((p.item for p in population.items), key=EstimationResult.runtime)
 
     def estimate_with_max_physical_qubits(self, budget: ErrorBudget, max_qubits: int) -> EstimationResult:

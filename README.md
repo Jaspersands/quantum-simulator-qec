@@ -26,8 +26,9 @@ in it is filled in from the committed data (see [Technical report](#technical-re
 pip install stabilizer-qec
 ```
 
-One abi3 wheel for every CPython from 3.9 on, for Linux (x86_64 and aarch64), macOS (universal2)
-and Windows; numpy is its one dependency. The names follow Stim, PyMatching and `ldpc`, so code
+One abi3 wheel for every CPython from 3.9 on, for Linux (x86_64 and aarch64, glibc and musl),
+macOS (universal2) and Windows (x86_64 and ARM), and a wheel for free-threaded CPython 3.14;
+numpy is its one dependency. The names follow Stim, PyMatching and `ldpc`, so code
 written for them mostly carries over:
 
 ```python
@@ -85,7 +86,7 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **Promises.** A seed gives the same shots on any machine and any number of threads. Bad input
   raises `ValueError` or `TypeError`; an engine bug raises `RuntimeError`. From 1.0, semantic
   versioning: the public API (everything in `stabilizer_qec` without a leading underscore) keeps
-  working through every 1.x release, and anything removed is deprecated first (see
+  working through every 2.x release, and anything removed is deprecated first (see
   [CHANGELOG.md](CHANGELOG.md)). The Rust crate is versioned on its own, with the same promise
   for its documented API.
 - **Tests.** `tests/` (pytest and Hypothesis) runs on Python 3.9 to 3.14 on Linux, macOS and
@@ -170,7 +171,7 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 - **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
   against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
   a million-round stream that keeps up on 4 cores at d = 5. Decoding as a service: `decode_async`
-  on every decoder, a `DecoderQueue` with CUDA-Q QEC's `enqueue_syndromes`/`get_corrections` and
+  on every detector-error-model decoder, a `DecoderQueue` with CUDA-Q QEC's `enqueue_syndromes`/`get_corrections` and
   latency statistics, and `stabilizer-qec serve` over TCP or pipes with its `DecoderClient`.
 - **A circuit editor in the page** (section 17, Crumble's job): qubits on a grid, gates placed
   layer by layer, Pauli markers that propagate live to the detectors and observables they flip,
@@ -203,8 +204,9 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   non-Clifford gates, checked bit for bit against the state vector and against Tsim), Tsim's
   circuit surface, and the joint coherent sampler, which runs the non-Clifford gates exactly
   and reweights the twirl of thousands of small rotations around them — magic-state injection
-  and distillation under over-rotation on every gate, where the twirl misjudges the encoded
-  state's infidelity by two to three times and turns a working distillation into a broken one.
+  and distillation under over-rotation on every gate, where the twirl under-reads the encoded
+  state's infidelity by two to three times from a few hundredths of a radian up and turns a
+  working distillation into a broken one.
 - **Fault-tolerant compilation, two ways**: tqec's block graphs (`stabilizer_qec.tqec`: cubes,
   pipes, ports, correlation surfaces found on a ZX graph of its own, the gallery, Collada and
   JSON files, every gallery graph equal to tqec's) compiled to circuits on the lattice-surgery
@@ -246,17 +248,17 @@ runners, `.github/workflows/bench.yml`); every push is held to them, and the
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
-| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.61 | 0.38 | 0.51 |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.11 | 0.14 | 0.18 |
-| Sampling its detection events, 20,000 shots | 0.92 | 0.74 | 0.57 |
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.59 | 0.38 | 0.51 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.13 | 0.14 | 0.18 |
+| Sampling its detection events, 20,000 shots | 0.98 | 0.74 | 0.57 |
 | Measurements to detection events, 20,000 shots | 0.24 | 0.12 | 0.12 |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.99 | 1.22 | 1.10 |
-| Correlated matching, 20,000 shots (against PyMatching's) | 0.99 | 1.21 | 0.86 |
-| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.60 | 0.61 | 0.63 |
-| Relay-BP on the same shots (against IBM's relay_bp) | 0.87 | 0.96 | 0.99 |
-| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.73 | 0.92 | 0.74 |
-| The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 0.99 | 0.66 | — |
-| *recorded with* | 1.8.0 | 1.8.0 | 1.8.0 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.98 | 1.22 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 1.01 | 1.21 | 0.86 |
+| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.74 | 0.61 | 0.63 |
+| Relay-BP on the same shots (against IBM's relay_bp) | 0.89 | 0.96 | 0.99 |
+| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.74 | 0.92 | 0.74 |
+| The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 1.03 | 0.66 | — |
+| *recorded with* | 2.0.0 | 1.8.0 | 1.8.0 |
 
 ## A note on quoted figures
 
@@ -1038,7 +1040,9 @@ Reproduce with `python tools/realtime.py accuracy` (a few hours on 10 cores) and
 `node tools/lambda.mjs 400 data/realtime/willow-windows.json`.
 
 **Decoding as a service** (`stabilizer_qec.realtime`, CUDA-Q QEC's real-time API). Every
-decoder has `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the
+decoder of a detector error model (`Matching`, correlated matching, and the union-find, BP,
+BP+OSD/LSD, Relay-BP, belief-matching, colour-code, fusion-blossom, MWPF, Tesseract and search
+decoders behind `decoders`) has `decode_async(shots)`: the batch runs on a worker thread with the GIL released in the
 engine and comes back as an `AsyncResult`. A `DecoderQueue` takes `enqueue_syndromes` and hands
 back `get_corrections` in order, with `DecoderStats` — latency from enqueue to result (mean,
 median, 99th percentile), the decode's own time, shots per second, how deep the queue got — so a
@@ -1061,20 +1065,20 @@ shots; this machine's CPU and GPU are named in the file):
 
 | memory | qubits | CPU, 1 thread | CPU, all cores | CPU lanes, all cores | GPU | GPU ÷ 1 thread | GPU = lanes |
 |---|---|---|---|---|---|---|---|
-| d = 5 | 64 | 3.79M/s | 12.37M/s | 3.13M/s | 9.93M/s | 3× | yes |
-| d = 11 | 274 | 353k/s | 893k/s | 274k/s | 654k/s | 2× | yes |
-| d = 17 | 628 | 88k/s | 186k/s | 61k/s | 143k/s | 2× | yes |
+| d = 5 | 64 | 4.12M/s | 12.25M/s | 3.90M/s | 8.27M/s | 2× | yes |
+| d = 11 | 274 | 378k/s | 1.09M/s | 353k/s | 713k/s | 2× | yes |
+| d = 17 | 628 | 93k/s | 222k/s | 83k/s | 147k/s | 2× | yes |
 
 | BP, min-sum, 20 iterations | checks × variables | f64, shot by shot | f32, all cores | GPU | GPU ÷ f64 | GPU = f32 |
 |---|---|---|---|---|---|---|
-| surface d=11 memory | 1320 × 24483 | 153/s | 1k/s | 21/s | 0.1× | yes |
-| gross [[144,12,12]] code capacity 0.3% | 72 × 144 | 112k/s | 2.25M/s | 870k/s | 7.8× | yes |
+| surface d=11 memory | 1320 × 24483 | 166/s | 1.4k/s | 39/s | 0.2× | yes |
+| gross [[144,12,12]] code capacity 0.3% | 72 × 144 | 151k/s | 5.37M/s | 2.17M/s | 14.4× | yes |
 
 - **The GPU equals the CPU's bytes on every row**, a million shots and twenty thousand
   syndromes at a time; that is the claim this port makes, and the one cuStabilizer cannot be held
   to from outside.
 - **It is not 150× here.** On this machine's integrated GPU (named in the file) the sampler runs
-  2 to 3 times one CPU thread of the word sampler and behind all of its cores. The word sampler's
+  about twice one CPU thread of the word sampler and behind all of its cores. The word sampler's
   geometric skipping costs about one random number per noise location for 64 shots; the lane
   program draws one per shot, 64 times the work, which the GPU does in parallel and the CPU does
   not — so the lane sampler is the slow way to run on a CPU and the honest reference for the GPU,
@@ -1082,10 +1086,13 @@ shots; this machine's CPU and GPU are named in the file):
   cuStabilizer's own yardstick. A discrete GPU and a kernel compiled per circuit rather than
   interpreted would move this; neither is here.
 - **BP on the GPU pays off on small graphs only.** One invocation walks a whole shot's Tanner
-  graph, so on the gross code (144 variables) the GPU decodes 7.8 times faster than the f64
-  decoder shot by shot and a third as fast as the f32 decoder on every core; on a d = 11 memory's
+  graph, so on the gross code (144 variables) the GPU decodes 14 times faster than the f64
+  decoder shot by shot and two fifths as fast as the f32 decoder on every core; on a d = 11 memory's
   24,483-variable graph it is slower than either. The f32 decoder itself is the find: ten times
-  the f64 decoder's throughput on the CPU, the same decision on over 98% of syndromes.
+  the f64 decoder's throughput on the CPU, the same decision on over 98% of syndromes with the
+  damped min-sum (`ms_scaling_factor=0.625`); undamped (1.0) or adaptive (0) min-sum grows its
+  messages past single precision on the shots that do not converge, where the two decoders
+  part while their logical error rates agree.
 
 ## Beyond the surface code: IBM's gross code
 
@@ -1494,12 +1501,12 @@ vector's distribution to 10⁻¹⁰ on random circuits of T gates, rotations, U3
 in every basis, resets and feedback. Against Tsim itself on Tsim's own demonstration circuits
 (`tools/clifford_t.py check`, Tsim installed):
 
-| circuit | qubits | non-Clifford gates | Tsim shots | agreement | ours, per shot | Tsim, per shot |
+| circuit | qubits | non-Clifford gates | shots | agreement | ours, per shot | Tsim, per shot |
 |---|---|---|---|---|---|---|
 | magic-state preparation, 1 qubit | 1 | 4 | 50,000 | infidelity 0.0344 against the exact 0.0333 (1.3σ) | 3.1 µs | 2.7 µs |
 | distillation, 5 qubits | 5 | 12 | 50,000 | χ² = 37.0 on 31 (p = 0.21) | 65.7 µs | 2.24 ms |
 | distillation with noise on its gates | 5 | 12 | 50,000 | χ² = 36.9 on 31 (p = 0.21) | 65.5 µs | 3.04 ms |
-| distillation in the [[17,1,5]] colour code | 85 | 10 | 2,000 | Tsim's compilation is killed for memory on a 16 GB machine | 2.14 ms | — |
+| distillation in the [[17,1,5]] colour code | 85 | 10 | 2,000 (ours; Tsim did not run) | Tsim's compilation is killed for memory on a 16 GB machine | 2.14 ms | — |
 
 Tsim's circuit surface came with it: `Circuit.tcount()`, `Circuit.is_clifford`,
 `Circuit.to_matrix()`, `Circuit.inverse()` of tagged gates,
@@ -1534,17 +1541,19 @@ postselected on no detected error:
 | code | ε | Pauli twirl | joint sampler (sample size kept) | state vector |
 |---|---|---|---|---|
 | Steane [[7,1,3]] | 0.01 | -0.0001 | 0.0001 (98%) | 0.0011 |
-| Steane [[7,1,3]] | 0.02 | 0.0015 | 0.0043 (91%) | 0.0043 |
-| Steane [[7,1,3]] | 0.05 | 0.0098 | 0.0272 (64%) | 0.0259 |
-| Steane [[7,1,3]] | 0.1 | 0.0401 | 0.0942 (30%) | 0.0941 |
-| colour [[17,1,5]] | 0.01 | 0.0013 | 0.0015 (97%) | 0.0010 |
+| Steane [[7,1,3]] | 0.02 | 0.0015 | 0.0042 (90%) | 0.0043 |
+| Steane [[7,1,3]] | 0.05 | 0.0098 | 0.0271 (64%) | 0.0259 |
+| Steane [[7,1,3]] | 0.1 | 0.0401 | 0.0939 (30%) | 0.0941 |
+| colour [[17,1,5]] | 0.01 | 0.0013 | 0.0016 (97%) | 0.0010 |
 | colour [[17,1,5]] | 0.02 | 0.0029 | 0.0049 (88%) | 0.0040 |
-| colour [[17,1,5]] | 0.05 | 0.0089 | 0.0243 (55%) | 0.0246 |
-| colour [[17,1,5]] | 0.1 | 0.0437 | 0.0941 (24%) | 0.0960 |
+| colour [[17,1,5]] | 0.05 | 0.0089 | 0.0244 (55%) | 0.0246 |
+| colour [[17,1,5]] | 0.1 | 0.0437 | 0.0945 (24%) | 0.0960 |
 
-The twirl under-reads the infidelity of the encoded magic state by two to three times at every
-angle (on the Steane code, 0.0015 against the true 0.0043 at ε = 0.02; 0.040 against 0.094 at
-ε = 0.1); the joint sampler reads it within sampling error.
+The twirl under-reads the infidelity of the encoded magic state by two to three times from
+ε = 0.02 on the Steane code and ε = 0.05 on the colour code up (on the Steane code, 0.0015
+against the true 0.0043 at ε = 0.02; 0.040 against 0.094 at ε = 0.1); at ε = 0.01 the twirl and
+the truth agree within the run's sampling error. The joint sampler reads the infidelity within
+sampling error at every angle.
 
 *Magic-state distillation.* Tsim's 5-qubit distillation protocol (Rodriguez et al. 2025, Tsim's
 own demonstration), which accepts on a syndrome and leaves a better |T⟩ on its first qubit —
@@ -1554,24 +1563,27 @@ on this machine, Tsim's compilation of the circuit is killed for memory:
 
 | circuit | ε | qubits | rotations | acceptance: twirl / joint / exact | output infidelity: twirl / joint / exact | sample size kept | per shot |
 |---|---|---|---|---|---|---|---|
-| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.164 / 0.168 | 2.0 × 10⁻² / 6.2 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 2.70 ms |
-| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.163 / 0.168 | 2.2 × 10⁻² / 1.9 × 10⁻³ / 5.2 × 10⁻⁵ | 97% | 2.60 ms |
-| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.153 / 0.167 | 3.5 × 10⁻² / 1.2 × 10⁻² / 1.0 × 10⁻⁵ | 83% | 4.39 ms |
-| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.127 / 0.180 / — | 2.6 × 10⁻¹ / 1.9 × 10⁻¹ / — | 96% | 847.9 ms |
-| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.107 / 0.155 / — | 2.8 × 10⁻¹ / 1.9 × 10⁻¹ / — | 77% | 1384.7 ms |
-| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.030 / 0.076 / — | 4.4 × 10⁻¹ / 3.1 × 10⁻¹ / — | 22% | 680.2 ms |
+| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.0 × 10⁻² / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 344 µs |
+| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.2 × 10⁻² / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 344 µs |
+| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.161 / 0.167 | 3.5 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 363 µs |
+| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.107 / 0.151 / — | 3.0 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 129.7 ms |
+| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.087 / 0.129 / — | 3.2 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 129.3 ms |
+| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.018 / 0.047 / — | 4.6 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 150.3 ms |
+
+The unencoded rows are 20,000 shots each; the encoded rows 2,000 shots each (`--encoded-shots`),
+so their acceptances carry about one per cent of sampling error.
 
 Here the twirl is not merely off: it turns a working protocol into a broken one. Unencoded at
 ε = 0.01 the protocol accepts 16.8% of runs and leaves an output infidelity of 2 × 10⁻⁵ (the
 coherent errors on the Clifford gates nearly cancel); the twirl says 11.6% and 2 × 10⁻². The
-joint sampler puts the acceptance back within a few percent and the infidelity within one to
-two orders of magnitude of the truth — not all the way: an observable that coherent
-cancellation drives three orders of magnitude below the twirl's value needs products of
-kernel generators no fault touched, which the truncation leaves out (raising its `order` or
-reach does not change the estimate, nor does adding every pair of untouched generators: the
-missing terms are higher products). In the encoded protocol, where every quantity is the
-joint sampler's or nobody's, it keeps 77–96% of its sample size at ε ≤ 0.02 and runs at about a
-second per shot.
+joint sampler puts the acceptance back within sampling error (16.6%) and the infidelity within
+a factor of 25 of the truth at ε ≤ 0.02 (6 × 10⁻⁴ against 2.5 × 10⁻⁵) — not all the way: an
+observable that coherent cancellation drives three orders of magnitude below the twirl's value
+needs products of kernel generators no fault touched, which the truncation leaves out (raising
+its `order` or reach does not change the estimate, nor does adding every pair of untouched
+generators, `pairs=True`: the missing terms are higher products). In the encoded protocol,
+where every quantity is the joint sampler's or nobody's, it keeps 79–94% of its sample size at
+ε ≤ 0.02 and runs at 130 ms per shot.
 
 **Limits.** The joint sampler's truncation is the coherent sampler's, and its bias is the
 distance between the pairwise sum over local generators and the whole kernel: small where the
@@ -1725,7 +1737,7 @@ and p = 0.3%.
 **With leakage** (`tools/surgery_leakage.py`, Plaquette's experiment on this CNOT: the circuit noise
 is SD6 at p, and after every CX each of its qubits leaks with probability f·p; a leaked qubit reads
 1, leaves every two-qubit partner a random Pauli, and returns at a reset or, with probability 0.1,
-at each of its gates; 20,000 shots per point, d = 3, 5, 7, p from 0.2% to 0.5%). The threshold is
+at each of its two-qubit gates; 20,000 shots per point, d = 3, 5, 7, p from 0.2% to 0.5%). The threshold is
 where the d = 5 and d = 7 curves cross, and in brackets qec-util's Wang–Harrington–Preskill fit
 with its 97.5% bootstrap interval. The decoder is matching on the model without leakage, blind
 to it, or leakage-aware: the sampler's heralds raise the priors of the faults a leak makes likely:
@@ -1739,13 +1751,13 @@ to it, or leakage-aware: the sampler's heralds raise the priors of the faults a 
 
 - **Leakage lowers the threshold in proportion to its share.** Three per cent of the error
   rate as leakage takes the CNOT's threshold from 0.49% to 0.45%; a tenth, to 0.37%; three
-  tenths, to 0.23%. At half the error rate (leakage 0.5p, a 3,000-shot run not in the table)
-  the distance-5 CNOT is worse than the distance-3 one at every p measured: no threshold at
-  all. The reason is in
+  tenths, to 0.23%. At half the error rate (leakage 0.5p; a 3,000-shot run, not in the table,
+  too small to place a crossing) the distance-5 CNOT was no better than the distance-3 one at
+  any p measured. The reason is in
   the model: a leaked data qubit is never corrected, only waited out, and while it is leaked it
   feeds a random Pauli to four stabilizer measurements a round.
 - **Heralds buy a little, not a threshold.** Knowing which measurements read a leaked qubit
-  cuts the logical error by one to two parts in twenty at every leakage rate and moves the
+  cuts the logical error by one to five per cent at every leakage rate and moves the
   threshold by less than its interval. The heralded faults are the partner qubits'; the leaked
   qubit's own, out of the code until it returns, are what the decoder cannot repair.
 
@@ -2475,6 +2487,7 @@ js/estimator.js       the resource estimate's model and its inputs, for section 
 js/editor.js          section 17's model: layers, Pauli markers propagated to the detectors they flip
 js/crumble-format.js  Stim text and Crumble URLs in and out, the package's format byte for byte
 js/editor-examples.js the editor's example circuits, written by tools/editor_fixtures.py
+js/clifford-tables.js every Clifford gate's action on Paulis, from the package's gate data, by the same tool
 
 tools/xcheck.py         the cross-check against Stim and PyMatching; writes data/xcheck/
 tools/editor_fixtures.py the editor's examples and the fixture its tests check the page against
@@ -2516,7 +2529,7 @@ tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page dr
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
 tools/notebooks.py      the tutorials: each .py run and built into its notebook, or checked
-tutorials/              three notebooks, each built from the Python file beside it
+tutorials/              nine notebooks, each built from the Python file beside it
 tools/bench.py          the benchmarks against Stim and PyMatching, recorded and checked
 benchmarks/             the benchmarks page; data/bench/runs.json the recorded runs
 pyproject.toml          the Python package (maturin; one abi3 wheel); python/README.md its PyPI page
@@ -2587,5 +2600,7 @@ in a script's own directory first, so for the two benchmark scripts it would sha
 
 ## License
 
-MIT. Parts ported from Stim (Apache-2.0) are listed in
+MIT for the code written here. The parts ported from other projects keep their own licences
+(Apache-2.0 for Stim, sinter, deltakit, qsample and PECOS among others; MIT and BSD for the
+rest) and are listed, with their copyright notices, in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

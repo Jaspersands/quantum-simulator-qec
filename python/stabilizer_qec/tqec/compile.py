@@ -124,7 +124,7 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
     # The time slices: merges (lines of spatially joined patches) and the steps.
     zs = sorted({c.position.z for c in cubes})
     steps: list[tuple] = []
-    merge_index: dict[frozenset, tuple[int, int]] = {}
+    merge_index: dict[tuple[int, frozenset], tuple[int, int]] = {}  # (z, {patch, patch}) -> (merge, seam)
     merge_orientation: list[bool] = []
     num_merges = 0
     for z in zs:
@@ -173,7 +173,7 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
         if lines:
             for line in lines:
                 for seam, (a, b) in enumerate(zip(line, line[1:])):
-                    merge_index[frozenset((a, b))] = (num_merges, seam)
+                    merge_index[(z, frozenset((a, b)))] = (num_merges, seam)
                 steps.append(("merge", line))
                 merge_orientation.append(len({tiles[q][1] for q in line}) == 1)
                 num_merges += 1
@@ -201,14 +201,14 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
                 raise TQECError(f"a correlation surface runs the {what} logical of the patch at tile {tiles[patch]} along two lines (it passes two seams of that patch); the surgery engine's observables take one line")
 
         crossings: list[tuple[int, int, Basis]] = []
-        for edge in surface.span:
+        for edge in sorted(surface.span, key=lambda e: (e.u.id, e.v.id, e.u.basis.value, e.v.basis.value)):
             if edge.is_self_loop:
                 continue
             pu, pv = positions[edge.u.id], positions[edge.v.id]
             if pu.z != pv.z:
                 continue
             a, b = patch_of[pu], patch_of[pv]
-            merge, seam = merge_index[frozenset((a, b))]
+            merge, seam = merge_index[(pu.z, frozenset((a, b)))]
             horizontal = merge_orientation[merge]
             basis = edge.u.basis
             parity_basis = Basis.Z if horizontal else Basis.X
@@ -221,7 +221,10 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
             else:
                 crossings.append((merge, a, b, basis))
         # A surface crossing a seam orthogonally continues the same logical line on both sides.
-        for merge, a, b, basis in crossings:
+        # One seam term covers every seam of its merge along that line, so a surface crossing a
+        # merge of three or more patches gets one term per (merge, line), not one per crossing.
+        seam_terms: set[tuple[int, int]] = set()
+        for merge, a, b, basis in sorted(crossings, key=lambda c: (c[0], c[1], c[2], c[3].value)):
             lines = z_line if basis == Basis.Z else x_line
             la, lb = lines.get(a), lines.get(b)
             if la is not None and lb is not None and la != lb:
@@ -229,7 +232,9 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
             line = la if la is not None else (lb if lb is not None else 0)
             lines[a] = line
             lines[b] = line
-            terms.append(("seam", merge, a, line))
+            if (merge, line) not in seam_terms:
+                seam_terms.add((merge, line))
+                terms.append(("seam", merge, min(a, b), line))
         for v in sorted(surface.span_vertices):
             pos = positions[v]
             patch = patch_of[pos]

@@ -343,6 +343,11 @@ class _Density:
     def noisy_rotation(self, pauli_string: str, p1: float, p2: float, p3: float) -> None:
         """A π/8 rotation about the Pauli that overshoots to 5π/8, −π/8 or 3π/8 with
         probabilities p1, p2, p3."""
+        for p in (p1, p2, p3):
+            if not 0.0 <= p <= 1.0:
+                raise ValueError(f"a channel probability must be between 0 and 1, got {p!r}")
+        if p1 + p2 + p3 > 1.0 + 1e-12:
+            raise ValueError(f"channel probabilities {p1!r}, {p2!r}, {p3!r} sum past 1")
         probabilities = [1 - p1 - p2 - p3, p1, p2, p3]
         out = np.zeros_like(self.rho)
         for p, k in zip(probabilities, (1, 5, -1, 3)):
@@ -355,6 +360,8 @@ class _Density:
         if kind not in ("Z", "X"):
             raise ValueError(f"kind must be Z or X not {kind}")
         for q, p in enumerate(probabilities):
+            if not 0.0 <= p <= 1.0:
+                raise ValueError(f"a flip probability must be between 0 and 1, got {p!r}")
             if p == 0:
                 continue
             letters = ["I"] * self.n

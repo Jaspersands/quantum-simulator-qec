@@ -16,14 +16,17 @@ struct Params {
 
 @group(0) @binding(0) var<storage, read> code: array<u32>;
 @group(0) @binding(1) var<uniform> params: Params;
+// Four words of xoshiro128** state per word.
 @group(0) @binding(2) var<storage, read> seeds: array<u32>;
 // x frames then z frames per word: frames[word * 2 * nq + q] and frames[word * 2 * nq + nq + q].
 @group(0) @binding(3) var<storage, read_write> frames: array<u32>;
 @group(0) @binding(4) var<storage, read_write> ring: array<u32>;
+// num_words * num_detectors words, then one DONE word per word that ran to its end.
 @group(0) @binding(5) var<storage, read_write> dets: array<u32>;
 @group(0) @binding(6) var<storage, read_write> obs: array<u32>;
 @group(0) @binding(7) var<storage, read_write> meas: array<u32>;
 
+const DONE: u32 = 0xC0DEu;
 const OP_RESET: u32 = 1u;
 const OP_H: u32 = 2u;
 const OP_S: u32 = 3u;
@@ -48,7 +51,11 @@ const PROB_ALWAYS: u32 = 1u;
 
 const STACK: u32 = 16u;
 
-var<private> rng: u32;
+// xoshiro128** state, as `lanes::Rng32`.
+var<private> s0: u32;
+var<private> s1: u32;
+var<private> s2: u32;
+var<private> s3: u32;
 var<private> xbase: u32;
 var<private> zbase: u32;
 var<private> rbase: u32;
@@ -61,13 +68,20 @@ var<private> obs_base: u32;
 var<private> meas_base: u32;
 var<private> keep: bool;
 
+fn rotl(x: u32, k: u32) -> u32 {
+    return (x << k) | (x >> (32u - k));
+}
+
 fn next() -> u32 {
-    var x = rng;
-    x ^= x << 13u;
-    x ^= x >> 17u;
-    x ^= x << 5u;
-    rng = x;
-    return x;
+    let result = rotl(s1 * 5u, 7u) * 9u;
+    let t = s1 << 9u;
+    s2 ^= s0;
+    s3 ^= s1;
+    s1 ^= s2;
+    s0 ^= s3;
+    s2 ^= t;
+    s3 = rotl(s3, 11u);
+    return result;
 }
 
 fn bernoulli(kind: u32, thr: u32) -> u32 {
@@ -138,10 +152,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     let nq = params.num_qubits;
-    rng = seeds[word];
-    if rng == 0u {
-        rng = 0x9E3779B9u;
-    }
+    s0 = seeds[4u * word];
+    s1 = seeds[4u * word + 1u];
+    s2 = seeds[4u * word + 2u];
+    s3 = seeds[4u * word + 3u];
     xbase = word * 2u * nq;
     zbase = xbase + nq;
     rmask = params.ring_mask;
@@ -485,6 +499,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
             }
         }
     }
+    // The word ran to its end: a dispatch the driver cut short leaves this unwritten.
+    dets[params.num_words * params.num_detectors + word] = DONE;
 }
 
 // Stim's case order I, X, Y, Z as the frame's bits (x = 1, z = 2).

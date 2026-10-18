@@ -138,11 +138,11 @@ def test_tcp_server(memory):
             assert isinstance(stats, DecoderStats) and stats.decoded == 2000 + 1 + 7 and stats.batches == 3
             client.reset()
             assert client.stats().batches == 0
-            with pytest.raises(ValueError, match="refused"):  # a malformed frame: the server answers ERROR
-                client._ask(Protocol.DECODE, b"\x00", 2)
-            with pytest.raises(ValueError, match="refused"):
+            with pytest.raises(ValueError, match="refused"):  # an unexpected kind: ERROR, the connection goes on
                 client._ask(Protocol.HELLO)
-            assert np.array_equal(client.decode_batch(dets[:4]), m.decode_batch(dets[:4]))  # the connection survived
+            assert np.array_equal(client.decode_batch(dets[:4]), m.decode_batch(dets[:4]))
+            with pytest.raises(ValueError, match="refused"):  # a DECODE whose length is not its rows: ERROR, then the connection is dropped
+                client._ask(Protocol.DECODE, b"\x00", 2)
         with DecoderClient.connect(host, port, timeout=10) as second:  # a new connection after BYE
             assert np.array_equal(second.decode_batch(dets[:2]), m.decode_batch(dets[:2]))
     finally:
@@ -215,3 +215,85 @@ def test_async_result_repr_and_latency_grow_with_queue(memory):
             r.get(60)
         lat = [r.latency for r in results]
         assert "done" in repr(results[-1]) and lat[-1] >= lat[0] and q.stats().queue_depth_max >= 2
+
+
+def test_server_refuses_oversized_and_malformed_decode_before_reading_it(memory):
+    """A header declaring a 300 MB DECODE (or one whose length is not its shots' rows) is refused
+    at once, without the server buffering the payload; the handler's socket timeout drops a
+    stalled connection."""
+    import socket
+
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=1.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        s = socket.create_connection((host, port), timeout=10)
+        f = s.makefile("rb")
+        Protocol.read(f)  # HELLO
+        t0 = time.perf_counter()
+        s.sendall(Protocol.HEADER.pack(Protocol.MAGIC, Protocol.VERSION, Protocol.DECODE, 0, 2, 300 << 20))
+        kind, _, _, body = Protocol.read(f)
+        assert kind == Protocol.ERROR and b"needs" in body and time.perf_counter() - t0 < 5
+        s.close()
+        # A stalled connection: the server drops it after its timeout rather than holding a thread.
+        s2 = socket.create_connection((host, port), timeout=10)
+        f2 = s2.makefile("rb")
+        Protocol.read(f2)
+        s2.sendall(b"SQRT")  # part of a header, then silence
+        t0 = time.perf_counter()
+        assert f2.read(1) == b"" and time.perf_counter() - t0 < 10
+        s2.close()
+        with DecoderClient.connect(host, port) as client:  # the server is still serving
+            assert np.array_equal(client.decode_batch(dets[:3]), m.decode_batch(dets[:3]))
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
+
+
+def test_reset_leaves_no_statistics_from_running_batches():
+    gate = threading.Event()
+
+    def slow(shots, **kw):
+        gate.wait(10)
+        return np.zeros((len(shots), 1), dtype=np.uint8)
+
+    with DecoderQueue(decode=slow, name="slow") as q:
+        q.enqueue_syndromes(np.zeros((5, 3)))
+        time.sleep(0.05)  # it is running now
+        q.reset()
+        gate.set()
+        time.sleep(0.2)
+        s = q.stats()
+        assert s.batches == 0 and s.decoded == 0 and s.throughput_per_s == 0.0
+
+
+def test_spawn_failure_does_not_hang_or_leak(tmp_path):
+    t0 = time.perf_counter()
+    with pytest.raises(RuntimeError, match="before saying HELLO"):
+        DecoderClient.spawn(str(tmp_path / "missing.dem"), timeout=30)
+    assert time.perf_counter() - t0 < 30
+
+
+def test_shared_queue_is_released_with_its_decoder(memory):
+    import gc
+
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    r = m.decode_async(dets[:10])
+    r.get(30)
+    assert id(m) in realtime._shared
+    q = realtime.shared_queue(m)
+    assert q.pending() == 0 and len(q._results) == 0
+    del m
+    gc.collect()
+    assert all(entry[1] is not q for entry in realtime._shared.values())

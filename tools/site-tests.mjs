@@ -13,8 +13,8 @@ import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardwar
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { surgeryLayout, cnotLayout } from '../js/surgery-geometry.js';
 import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom, epsilonUniform, BLOCKS, tileQubits, factoryFor, latencyAt, estimateFull } from '../js/estimator.js';
-import { parseStim, toStim, toCrumbleUrl, parseCrumbleUrl, formatArg } from '../js/crumble-format.js';
-import { EditorModel, layersOf, propagate, annotationsOf } from '../js/editor.js';
+import { parseStim, toStim, toCrumbleUrl, parseCrumbleUrl, formatArg, CRUMBLE_PREFIX } from '../js/crumble-format.js';
+import { EditorModel, layersOf, propagate, annotationsOf, ONE_QUBIT, TWO_QUBIT } from '../js/editor.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
 
 let passed = 0, failed = 0;
@@ -558,6 +558,104 @@ test('editor: placing, removing and layering gates keeps the text well formed', 
   assert.equal(m.layers.length, 6);
   assert.deepEqual(m.qubits(), [0, 1]);
   assert.deepEqual(m.recordsIn(5).map((r) => [r.qubit, r.lookback]), [[0, 2], [1, 1]]);
+});
+
+
+test('crumble format: Stim text the review threw at the parser', () => {
+  // MPP products split on `*` and print without spaces; aliases canonicalise; a tag may hold '#'.
+  const c = parseStim('MPP X0*Z1 Y2\nCNOT 0 1 # a comment\nMZ[t#ag] 0\nSQRT_Z 1\nH_XZ 2');
+  assert.deepEqual(c.ops[0].targets, ['X0', '*', 'Z1', 'Y2']);
+  assert.deepEqual(c.ops.map((op) => op.name), ['MPP', 'CX', 'M', 'S', 'H']);
+  assert.equal(toStim(c), 'MPP X0*Z1 Y2\nCX 0 1\nM 0\nS 1\nH 2');
+  assert.equal(toCrumbleUrl(c), `${CRUMBLE_PREFIX}MPP_X0*Z1_Y2;CX_0_1;M_0;S_1;H_2_`);
+  assert.deepEqual(parseCrumbleUrl(toCrumbleUrl(c)).circuit, c);
+  // Stray braces and bad targets are errors, not silence.
+  assert.throws(() => parseStim('H 0\n}\nM 0'), /closes no REPEAT/);
+  assert.throws(() => parseStim('REPEAT 2 {\nH 0'), /never closed/);
+  assert.throws(() => parseStim('H 0 1x'), /not a target/);
+  assert.throws(() => parseStim('REPEAT 0 {\nH 0\n}'), /at least once/);
+  assert.throws(() => parseCrumbleUrl('H_0;}'), /closes no REPEAT/);
+  // Unrolling is capped rather than hanging; empty bodies cost nothing.
+  assert.throws(() => parseStim('REPEAT 2000000 {\nH 0\n}'), /more than/);
+  assert.equal(parseStim('REPEAT 4000000000 {\n}\nM 0').ops.length, 1);
+  assert.equal(parseStim('REPEAT 1000 {\nREPEAT 1000 {\nH 0\n}\n}').ops.length, 1000000);
+  // A '+' in a URL is not a space.
+  assert.deepEqual(parseCrumbleUrl('H_0;X_ERROR(0.1)_0;M_0').circuit.ops[1], { name: 'X_ERROR', args: [0.1], targets: ['0'] });
+  // %g rounds before it picks the exponent form.
+  assert.equal(formatArg(999999.5), '1e+06');
+  assert.equal(formatArg(0.000099999999), '0.0001');
+  assert.equal(formatArg(1234567.89), '1.23457e+06');
+  // Coordinates keep every argument.
+  const m = EditorModel.fromStim('QUBIT_COORDS(1, 2, 3) 0\nH 0');
+  assert.deepEqual(m.coords.get(0), [1, 2, 3]);
+  m.setCoords(0, 4, 5);
+  assert.equal(m.toStim(), 'QUBIT_COORDS(4, 5, 3) 0\nH 0');
+});
+
+test('editor: records of MPAD, pair measurements and heralds; feedback; observable parity', () => {
+  // MZZ flips when exactly one of its qubits anticommutes; MPAD and heralds make records no marker flips.
+  const m = EditorModel.fromStim('R 0 1 2\nTICK\nMPAD 0\nHERALDED_ERASE(0.1) 2\nMZZ 0 1\nMXX 1 2\nM 0\nDETECTOR rec[-1] rec[-3]\nDETECTOR rec[-5]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-3]');
+  m.markers = [{ k: 0, pauli: 'X', qubit: 0, layer: 1 }];
+  let a = m.analysis();
+  assert.equal(a.records.length, 5);
+  assert.deepEqual([...a.flips[0]].sort(), [2, 4]); // MZZ 0 1 and M 0; not MXX 1 2, not the pad or the herald
+  assert.deepEqual([...a.detFlips[0]], []); // rec[-1] and rec[-3] both flip: even
+  assert.deepEqual([...a.obsFlips[0]], []); // both includes flip: the observable's parity is even
+  m.markers = [{ k: 0, pauli: 'Z', qubit: 1, layer: 1 }];
+  a = m.analysis();
+  assert.deepEqual([...a.flips[0]], [3]); // MXX 1 2 only
+  assert.deepEqual([...a.detFlips[0]], [2]);
+  // Feedback: a marker that flips the controlling record applies the gate's Pauli.
+  const f = EditorModel.fromStim('R 0 1\nTICK\nX_ERROR(0.1) 0\nM 0\nCX rec[-1] 1\nTICK\nM 1\nDETECTOR rec[-1]');
+  f.markers = [{ k: 0, pauli: 'X', qubit: 0, layer: 1 }];
+  a = f.analysis();
+  assert.deepEqual([...a.flips[0]], [0, 1]);
+  assert.deepEqual([...a.detFlips[0]], [0]);
+  const g = EditorModel.fromStim('R 0 1\nTICK\nM 0\nCZ rec[-1] 1\nTICK\nMX 1\nDETECTOR rec[-1]');
+  g.markers = [{ k: 0, pauli: 'X', qubit: 0, layer: 1 }];
+  assert.deepEqual([...g.analysis().detFlips[0]], [0]);
+  // SPP by the product rule: exp(iπ/4 Z0 Z1) sends X0 to Y0 Z1 (up to sign).
+  const s = EditorModel.fromStim('R 0 1\nTICK\nSPP Z0*Z1\nTICK\nMX 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]');
+  s.markers = [{ k: 0, pauli: 'X', qubit: 0, layer: 1 }];
+  assert.deepEqual([...s.analysis().detFlips[0]], [0, 1]);
+  // Every Clifford gate Stim has is in the tables.
+  assert.ok(ONE_QUBIT.includes('C_NXYZ') && TWO_QUBIT.includes('SQRT_XX') && TWO_QUBIT.includes('CZSWAP'));
+});
+
+test('editor: markers in empty layers survive the URL round trip', () => {
+  const m = EditorModel.fromStim('H 0\nTICK\nTICK\nM 0\nDETECTOR rec[-1]');
+  assert.equal(m.layers.length, 3);
+  m.toggleMarker(0, 'Z', 0, 1);
+  m.toggleMarker(1, 'X', 0, 2);
+  const url = m.toCrumbleUrl();
+  // Each mark between its own TICKs (as Stim writes marks): the first inside the empty layer, the second before M 0.
+  assert.equal(url, `${CRUMBLE_PREFIX}H_0;TICK;TICK;MARKZ(0)0;TICK;TICK;TICK;MARKX(1)0;TICK;M_0;DT_rec[-1]_`);
+  const back = EditorModel.fromCrumbleUrl(url);
+  assert.equal(back.toStim(), m.toStim());
+  assert.deepEqual(back.markers, m.markers);
+  assert.deepEqual([...back.analysis().detFlips[1]], [0]);
+});
+
+test('editor: placing and removing measurements keeps every lookback on its record', () => {
+  const m = EditorModel.fromStim('R 0 1 2\nTICK\nM 0\nM 2\nDETECTOR rec[-2]\nDETECTOR rec[-1]\nTICK\nM 1\nDETECTOR rec[-1] rec[-2]\nCX rec[-3] 0\nOBSERVABLE_INCLUDE(0) rec[-3]');
+  // A measurement placed in layer 1 joins the layer's M (a record at the end of that op's run);
+  // every lookback that reached past the new record grows by one.
+  m.place(1, 'M', [1]);
+  assert.equal(m.toStim(), 'R 0 1 2\nTICK\nM 0 1\nM 2\nDETECTOR rec[-3]\nDETECTOR rec[-1]\nTICK\nM 1\nDETECTOR rec[-1] rec[-2]\nCX rec[-4] 0\nOBSERVABLE_INCLUDE(0) rec[-4]');
+  // Another gate on qubit 0 takes its record away: what named that record goes (a detector, the
+  // feedback pair, the observable include); the new measurement goes before the annotations.
+  m.place(1, 'MX', [0]);
+  assert.equal(m.toStim(), 'R 0 1 2\nTICK\nM 1\nM 2\nMX 0\nDETECTOR rec[-2]\nTICK\nM 1\nDETECTOR rec[-1] rec[-3]');
+  m.removeOn(1, 2);
+  assert.equal(m.toStim(), 'R 0 1 2\nTICK\nM 1\nMX 0\nTICK\nM 1\nDETECTOR rec[-1]');
+  // Deleting a layer with records shifts the later lookbacks too.
+  const d = EditorModel.fromStim('M 0\nTICK\nM 1\nTICK\nM 2\nDETECTOR rec[-1] rec[-3]');
+  d.deleteLayer(1);
+  assert.equal(d.toStim(), 'M 0\nTICK\nM 2\nDETECTOR rec[-1] rec[-2]');
+  // A placed gate matches an existing op only when that op has no arguments.
+  const n = EditorModel.fromStim('X_ERROR(0.1) 0');
+  n.place(0, 'X_ERROR', [1]);
+  assert.equal(n.toStim(), 'X_ERROR(0.1) 0\nX_ERROR 1');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

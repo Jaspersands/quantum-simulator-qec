@@ -6,14 +6,17 @@ abstract: >-
   detector error models in Stim's formats, a bit-parallel sampler, exact sparse-blossom,
   correlated and belief matching, union-find, BP and BP+OSD, window decoders for real time,
   circuit diagrams, IBM's bivariate bicycle codes, any CSS code from its checks, and lattice
-  surgery.
+  surgery. Release 2.0 adds the APIs of Stim, PyMatching, sinter, ldpc and twenty more QEC
+  tools under their own names, Clifford+T circuits with a coherent error on every gate
+  (stabilizer-rank and joint samplers), fault-tolerant compilation (tqec, Loom), resource
+  estimates (Azure, Qualtran), decoding as a service, and sampling and BP on the GPU.
 type: software
 authors:
   - given-names: Jasper
     family-names: Sands
 version: 2.0.0
 doi: 10.5281/zenodo.23212075
-date-released: 2026-10-17
+date-released: 2026-10-18
 license: MIT
 repository-code: "https://github.com/Jaspersands/quantum-simulator-qec"
 url: "https://qcompiler.jaspersands.com"

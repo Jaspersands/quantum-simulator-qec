@@ -104,7 +104,7 @@ class Matching:
     <stabilizer_qec.Matching object with 3 detectors, 0 boundary nodes, and 4 edges>
     """
 
-    __slots__ = ("_g", "_corr", "_dem_text")
+    __slots__ = ("_g", "_corr", "_dem_text", "__weakref__")
 
     def __init__(
         self,
@@ -684,7 +684,7 @@ class _CorrelatedMatching:
     """A model's ``Matching`` that always decodes with correlations (for the decoder kinds
     named ``correlated_matching``)."""
 
-    __slots__ = ("matching",)
+    __slots__ = ("matching", "__weakref__")
 
     def __init__(self, model: Any) -> None:
         self.matching = Matching.from_detector_error_model(model, enable_correlations=True)

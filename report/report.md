@@ -763,7 +763,7 @@ them has. Thirteen workstreams did it, on top of the engine this report describe
   threshold under leakage, 0.49% falling to 0.23% at 30% leakage.
 - **Real time and the GPU**: decodes in the background, a decoder queue with latency statistics,
   a decoder server over TCP or pipes; frame sampling and min-sum BP on any GPU wgpu drives, each
-  bit for bit equal to its CPU reference (the GPU on this machine runs 2–3 times one CPU thread,
+  bit for bit equal to its CPU reference (the GPU on this machine runs about twice one CPU thread,
   not cuStabilizer's 150).
 - **The site edits circuits**: a Crumble-equivalent editor whose Pauli markers flip exactly the
   detectors the engine's sampler flips, checked on about 700 cases.
@@ -794,7 +794,10 @@ its status. Four tutorials cover the release (`tutorials/06` to `09`).
 
 # Reproducing everything
 
-Every number in this report is filled in by `tools/report.py` from these committed files:
+Every number in the report's sections on releases 1.0 to 1.9 is filled in by `tools/report.py`
+from these committed files; the section on release 2.0 quotes the README's tables, which
+`tools/readme_tables.py` writes from `data/clifford_t/`, `data/gpu/`, `data/surgery/leakage.json`
+and `data/bench/` (and `--check` verifies):
 
 - `data/xcheck/reference.json`: the cross-check;
 - `data/sweeps/`: thresholds;
@@ -804,7 +807,13 @@ Every number in this report is filled in by `tools/report.py` from these committ
 - `data/gross/`: the gross code's memory, its checks, automorphisms, gauging and logical measurement;
 - `data/surgery/`: lattice surgery's timing law and programs;
 - `data/estimate/`: the noise fit, distillation and sources the estimate rests on;
-- `data/distances.json`: the circuit distance of every memory the package builds.
+- `data/distances.json`: the circuit distance of every memory the package builds;
+- `data/clifford_t/`: the Clifford+T check against Tsim, magic-state injection and distillation
+  under coherent noise (`tools/clifford_t.py check | inject | distill`);
+- `data/gpu/`: sampling and BP on the GPU against the CPU (`tools/gpu_bench.py`);
+- `data/surgery/leakage.json`: the lattice-surgery CNOT's threshold under leakage
+  (`tools/surgery_leakage.py`);
+- `data/bench/runs.json`: the decoder benchmarks (`tools/bench.py --record`).
 
 The report fails to build if a value it quotes is missing. To regenerate the data:
 

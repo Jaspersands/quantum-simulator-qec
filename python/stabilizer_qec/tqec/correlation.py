@@ -135,6 +135,7 @@ class ZXGraph:
             p2v[cube.position] = g.add_vertex(cube_kind_to_pauli(cube.kind), cube.position)
         for pipe in block_graph.pipes:
             g.add_edge(p2v[pipe.u.position], p2v[pipe.v.position], pipe.kind.has_hadamard)
+        g.check_positioned()
         return g
 
     def check_positioned(self) -> None:

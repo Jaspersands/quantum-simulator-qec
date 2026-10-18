@@ -95,7 +95,7 @@ def adjust_hadamards_direction(kind: "BlockKind") -> "BlockKind":
     """A Hadamard pipe read in the negative direction of its axis: its kind's pair."""
     from .block_graph import block_kind_from_str
 
-    equivalences = {"ZXOH": "XZOH", "XOZH": "ZOXH", "OXZH": "OZXH"}
+    equivalences = {"ZXOH": "XZOH", "XZOH": "ZXOH", "XOZH": "ZOXH", "ZOXH": "XOZH", "OXZH": "OZXH", "OZXH": "OXZH"}
     if str(kind) in equivalences:
         kind = block_kind_from_str(equivalences[str(kind)])
     return kind

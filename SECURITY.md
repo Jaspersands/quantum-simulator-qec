@@ -14,7 +14,7 @@ and what happens. You should hear back within a week.
 
 ## Supported versions
 
-Fixes go into the latest 1.x release of the Python package and of the crate.
+Fixes go into the latest 2.x release of the Python package and of the crate.
 
 ## What the code promises
 

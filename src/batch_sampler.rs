@@ -648,6 +648,8 @@ fn exec(ops: &[Op], st: &mut State, rng: &mut Xorshift, sink: &mut dyn FnMut(usi
 
 impl BatchSampler {
     pub fn new(circuit: &Circuit) -> Result<BatchSampler, String> {
+        let view = crate::stabrank::frame_view(circuit)?;
+        let circuit: &Circuit = &view;
         circuit.check_runnable()?;
         let ops = compile(&circuit.instrs);
         let mut s = Shape::default();

@@ -14,7 +14,16 @@ use crate::lanes::{word_seed, write_b8, LaneProgram, LANES};
 const SHADER: &str = include_str!("sample.wgsl");
 const BP_SHADER: &str = include_str!("bp.wgsl");
 /// Bytes of device memory a dispatch may use for its words' buffers.
-const BUDGET: usize = 256 << 20;
+/// The most bytes one dispatch's buffers take. Metal has dropped dispatches of over 100 MB
+/// on a 16 GB machine now and then, with no error (the readback's sentinel catches it and the
+/// dispatch is retried at half the size); well below that they run.
+const BUDGET: usize = 96 << 20;
+
+/// What a word writes at its end (`sample.wgsl`'s `DONE`): a dispatch cut short lacks it.
+const DONE: u32 = 0xC0DE;
+
+/// How an incomplete dispatch's error starts (the dispatch loops retry such a dispatch smaller).
+const INCOMPLETE: &str = "the GPU dispatch of";
 const WORKGROUP: u32 = 64;
 
 struct Gpu {
@@ -113,7 +122,7 @@ pub fn device_ready() -> Result<(), String> {
 
 /// The device's name, once it is open.
 pub fn device_name() -> Result<String, String> {
-    Ok(gpu()?.lock().map_err(|_| "the GPU lock is poisoned")?.name.clone())
+    Ok(gpu()?.lock().unwrap_or_else(|e| e.into_inner()).name.clone())
 }
 
 fn as_bytes(words: &[u32]) -> Vec<u8> {
@@ -136,22 +145,50 @@ fn from_bytes(bytes: &[u8]) -> Vec<u32> {
 struct Pacer {
     max: usize,
     next: usize,
+    /// How long a dispatch may run before the next one shrinks.
+    target: f64,
 }
 
-const TARGET_SECONDS: f64 = 0.2;
+/// How long a sampling dispatch may run. A word's own latency is what it is (a d = 17 memory's
+/// word is half a second on its own), and the GPU runs thousands of words in that same time, so
+/// a dispatch grows fourfold while it finishes within this and shrinks in proportion when it
+/// does not; the driver's watchdog is many seconds away.
+const TARGET_SECONDS: f64 = 1.0;
+
+/// The same for BP, whose shots on a large graph are memory-bound and slow one by one (a
+/// d = 11 memory's shot is a third of a second): the GPU only earns its keep with hundreds in
+/// flight, which is a dispatch of many seconds. Metal has run such dispatches for minutes.
+const BP_TARGET_SECONDS: f64 = 10.0;
 
 impl Pacer {
+    /// The first dispatch is one word or shot, whatever the circuit; the sizes then grow
+    /// fourfold a step while a dispatch finishes within `TARGET_SECONDS` (its time hardly moves
+    /// while the GPU is not full) and shrink in proportion once one takes longer, so no dispatch
+    /// runs long before its cost is known.
     fn new(max: usize) -> Pacer {
-        Pacer { max: max.max(1), next: 512.min(max.max(1)) }
+        Pacer { max: max.max(1), next: 1, target: TARGET_SECONDS }
+    }
+
+    /// A first dispatch of `first` (from a known cost per unit) rather than one, and its own
+    /// time target.
+    fn with_first(max: usize, first: usize, target: f64) -> Pacer {
+        Pacer { max: max.max(1), next: first.clamp(1, max.max(1)), target }
     }
 
     fn take(&self, remaining: usize) -> usize {
         self.next.min(remaining).max(1)
     }
 
+    /// After a dispatch the driver dropped: never that many again, and retry at half.
+    fn shrink(&mut self, failed: usize) {
+        self.max = (failed / 2).max(1);
+        self.next = self.next.min(self.max);
+    }
+
     fn observe(&mut self, n: usize, seconds: f64) {
-        let rate = n as f64 / seconds.max(1e-4);
-        self.next = ((rate * TARGET_SECONDS) as usize).clamp(64, self.max);
+        let n = n.max(1);
+        let grow = if seconds < self.target { 4 * n } else { (n as f64 * self.target / seconds) as usize };
+        self.next = grow.clamp(1, self.max);
     }
 }
 
@@ -164,6 +201,23 @@ struct Readback {
 impl Gpu {
     fn buffer(&self, label: &str, size: usize, usage: wgpu::BufferUsages) -> wgpu::Buffer {
         self.device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: (size.max(4) as u64).next_multiple_of(4), usage, mapped_at_creation: false })
+    }
+
+    /// Error scopes for one dispatch: a validation error or an allocation the device refuses
+    /// becomes an `Err` from `check_errors` (wgpu's default would log it and run nothing, the
+    /// readback then all zeros).
+    fn push_scopes(&self) -> (wgpu::ErrorScopeGuard, wgpu::ErrorScopeGuard) {
+        (self.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory), self.device.push_error_scope(wgpu::ErrorFilter::Validation))
+    }
+
+    fn check_errors(&self, scopes: (wgpu::ErrorScopeGuard, wgpu::ErrorScopeGuard), n: usize) -> Result<(), String> {
+        let (memory, validation) = scopes;
+        let validation = pollster::block_on(validation.pop());
+        let memory = pollster::block_on(memory.pop());
+        if let Some(e) = validation.or(memory) {
+            return Err(format!("the GPU refused a dispatch of {n} shots or words: {e}; sample in smaller calls or on the cpu-lanes device"));
+        }
+        Ok(())
     }
 
     fn upload(&self, label: &str, words: &[u32], usage: wgpu::BufferUsages) -> wgpu::Buffer {
@@ -187,7 +241,9 @@ impl Gpu {
         slice.map_async(wgpu::MapMode::Read, move |r| {
             let _ = tx.send(r);
         });
-        self.device.poll(wgpu::PollType::wait_indefinitely()).map_err(|e| format!("the GPU did not finish: {e:?}"))?;
+        // A bounded wait: a GPU that never signals (a hung driver) is an error after ten
+        // minutes, not a process that never returns.
+        self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: Some(std::time::Duration::from_secs(600)) }).map_err(|e| format!("the GPU did not finish: {e:?}"))?;
         rx.recv().map_err(|_| "the GPU readback was dropped")?.map_err(|e| format!("mapping the GPU readback failed: {e}"))?;
         let out = {
             let view = slice.get_mapped_range().map_err(|e| format!("reading the GPU readback failed: {e:?}"))?;
@@ -199,16 +255,17 @@ impl Gpu {
 
     /// Words `first..first + n` of `prog`'s stream in one dispatch.
     fn run(&self, prog: &LaneProgram, code: &wgpu::Buffer, seed: u64, first: u64, n: usize, keep: bool) -> Result<Readback, String> {
+        let scopes = self.push_scopes();
         let nq = prog.num_qubits.max(1);
         let ring = prog.ring_mask as usize + 1;
-        let seeds: Vec<u32> = (0..n).map(|w| word_seed(seed, first + w as u64)).collect();
+        let seeds: Vec<u32> = (0..n).flat_map(|w| word_seed(seed, first + w as u64)).collect();
         let params = [n as u32, prog.num_qubits as u32, prog.ring_mask, prog.num_detectors as u32, prog.num_observables as u32, prog.num_measurements as u32, u32::from(keep), prog.code.len() as u32];
         let params_buf = self.upload("params", &params, wgpu::BufferUsages::UNIFORM);
         let seeds_buf = self.upload("seeds", &seeds, wgpu::BufferUsages::STORAGE);
         let rw = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC;
         let frames = self.buffer("frames", n * 2 * nq * 4, rw);
         let ring_buf = self.buffer("ring", n * ring * 4, rw);
-        let dets = self.buffer("detectors", n * prog.num_detectors * 4, rw);
+        let dets = self.buffer("detectors", (n * prog.num_detectors + n) * 4, rw);
         let obs = self.buffer("observables", n * prog.num_observables * 4, rw);
         let meas = self.buffer("measurements", if keep { n * prog.num_measurements * 4 } else { 4 }, rw);
         let bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -233,8 +290,14 @@ impl Gpu {
             pass.dispatch_workgroups((n as u32).div_ceil(WORKGROUP), 1, 1);
         }
         self.queue.submit([encoder.finish()]);
+        self.check_errors(scopes, n)?;
+        let mut detectors = self.read(&dets, (n * prog.num_detectors + n) * 4)?;
+        let flags = detectors.split_off(n * prog.num_detectors);
+        if flags.iter().any(|&f| f != DONE) {
+            return Err(format!("{INCOMPLETE} {n} words of 32 shots came back incomplete (the driver dropped it: a watchdog, or memory pressure): sample on the cpu-lanes device, or in smaller calls"));
+        }
         Ok(Readback {
-            detectors: self.read(&dets, n * prog.num_detectors * 4)?,
+            detectors,
             observables: self.read(&obs, n * prog.num_observables * 4)?,
             measurements: if keep { self.read(&meas, n * prog.num_measurements * 4)? } else { Vec::new() },
         })
@@ -242,8 +305,11 @@ impl Gpu {
 
     /// How many words a dispatch may hold within the budget and the device's buffer limits.
     fn words_per_dispatch(&self, prog: &LaneProgram, keep: bool) -> Result<usize, String> {
-        let per_word = 4 * (2 * prog.num_qubits.max(1) + prog.ring_mask as usize + 1 + prog.num_detectors + prog.num_observables + if keep { prog.num_measurements } else { 0 });
-        let largest = 4 * [2 * prog.num_qubits.max(1), prog.ring_mask as usize + 1, prog.num_detectors, prog.num_observables, if keep { prog.num_measurements } else { 0 }].into_iter().max().unwrap_or(1).max(1);
+        if prog.code.len() * 4 > self.max_buffer {
+            return Err(format!("the circuit's lane program is {} bytes; the GPU's buffers hold {}: sample on the cpu-lanes device", prog.code.len() * 4, self.max_buffer));
+        }
+        let per_word = 4 * (2 * prog.num_qubits.max(1) + prog.ring_mask as usize + 1 + prog.num_detectors + 1 + prog.num_observables + if keep { prog.num_measurements } else { 0 });
+        let largest = 4 * [2 * prog.num_qubits.max(1), prog.ring_mask as usize + 1, prog.num_detectors + 1, prog.num_observables, if keep { prog.num_measurements } else { 0 }].into_iter().max().unwrap_or(1).max(1);
         let by_budget = BUDGET / per_word.max(1);
         let by_buffer = self.max_buffer / largest;
         let by_dispatch = (65_535 * WORKGROUP) as usize;
@@ -258,7 +324,7 @@ impl Gpu {
 /// `shots` shots from word `first` on as b8 rows of detectors and of observables, as
 /// `LaneProgram::sample_seeded` gives them and bit for bit the same.
 pub fn sample_seeded(prog: &LaneProgram, seed: u64, first: u64, shots: usize) -> Result<(Vec<u8>, Vec<u8>), String> {
-    let g = gpu()?.lock().map_err(|_| "the GPU lock is poisoned")?;
+    let g = gpu()?.lock().unwrap_or_else(|e| e.into_inner());
     let (ds, os) = (prog.num_detectors.div_ceil(8), prog.num_observables.div_ceil(8));
     let mut dets = Vec::with_capacity(shots * ds);
     let mut obs = Vec::with_capacity(shots * os);
@@ -269,7 +335,16 @@ pub fn sample_seeded(prog: &LaneProgram, seed: u64, first: u64, shots: usize) ->
     while done < words {
         let n = pacer.take(words - done);
         let t0 = std::time::Instant::now();
-        let back = g.run(prog, &code, seed, first + done as u64, n, false)?;
+        let back = match g.run(prog, &code, seed, first + done as u64, n, false) {
+            Ok(back) => back,
+            // Dropped by the driver: the same words again, in a dispatch half the size (the
+            // words' streams are their own, so the shots are the same).
+            Err(e) if e.starts_with(INCOMPLETE) && n > 1 => {
+                pacer.shrink(n);
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
         pacer.observe(n, t0.elapsed().as_secs_f64());
         for w in 0..n {
             let lanes = (shots - (done + w) * LANES).min(LANES);
@@ -284,7 +359,7 @@ pub fn sample_seeded(prog: &LaneProgram, seed: u64, first: u64, shots: usize) ->
 /// `shots` measurement records as b8 rows, the `reference` with each shot's flips, as
 /// `LaneProgram::sample_measurements_seeded` gives them.
 pub fn sample_measurements_seeded(prog: &LaneProgram, seed: u64, first: u64, shots: usize, reference: &[bool]) -> Result<Vec<u8>, String> {
-    let g = gpu()?.lock().map_err(|_| "the GPU lock is poisoned")?;
+    let g = gpu()?.lock().unwrap_or_else(|e| e.into_inner());
     let stride = prog.num_measurements.div_ceil(8);
     let mut base = vec![0u8; stride];
     for (k, &b) in reference.iter().enumerate() {
@@ -300,7 +375,16 @@ pub fn sample_measurements_seeded(prog: &LaneProgram, seed: u64, first: u64, sho
     while done < words {
         let n = pacer.take(words - done);
         let t0 = std::time::Instant::now();
-        let back = g.run(prog, &code, seed, first + done as u64, n, true)?;
+        let back = match g.run(prog, &code, seed, first + done as u64, n, true) {
+            Ok(back) => back,
+            // Dropped by the driver: the same words again, in a dispatch half the size (the
+            // words' streams are their own, so the shots are the same).
+            Err(e) if e.starts_with(INCOMPLETE) && n > 1 => {
+                pacer.shrink(n);
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
         pacer.observe(n, t0.elapsed().as_secs_f64());
         for w in 0..n {
             let lanes = (shots - (done + w) * LANES).min(LANES);
@@ -321,7 +405,7 @@ pub fn sample_measurements_seeded(prog: &LaneProgram, seed: u64, first: u64, sho
 /// outcome as `Bp32::decode_batch` gives it and bit for bit the same.
 pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, scale: f32, max_iter: usize) -> Result<crate::bp32::Bp32Outcome, String> {
     use crate::bp32::{scales, Bp32Outcome};
-    let g = gpu()?.lock().map_err(|_| "the GPU lock is poisoned")?;
+    let g = gpu()?.lock().unwrap_or_else(|e| e.into_inner());
     let (nc, nv, ne) = (bp.num_checks, bp.num_vars, bp.num_edges());
     if syndromes.len() != shots * nc {
         return Err(format!("{} syndrome bytes for {shots} shots of {nc} checks", syndromes.len()));
@@ -348,14 +432,19 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
     let off_scales = floats.len() as u32;
     floats.extend(scales(scale, max_iter).iter().map(|f| f.to_bits()));
     let floats_buf = g.upload("bp floats", &floats, wgpu::BufferUsages::STORAGE);
-    // Per shot: 2·ne messages, nv posteriors, nv + nc + 2 words of work, nc of syndrome.
-    let per_shot = 4 * (2 * ne + nv + nv + nc + 2 + nc);
-    let largest = 4 * (2 * ne).max(nv + nc + 2).max(nc).max(nv).max(1);
-    let mut pacer = Pacer::new((BUDGET / per_shot.max(1)).min(g.max_buffer / largest).min((65_535 * WORKGROUP) as usize));
+    // Per shot: 2·ne messages, nv posteriors, nv + nc + 3 words of work (hard decisions,
+    // candidate syndrome, converged, iterations, the sentinel), nc of syndrome.
+    let per_shot = 4 * (2 * ne + nv + nv + nc + 3 + nc);
+    let largest = 4 * (2 * ne).max(nv + nc + 3).max(nc).max(nv).max(1);
+    let most = (BUDGET / per_shot.max(1)).min(g.max_buffer / largest).min((65_535 * WORKGROUP) as usize);
+    // The first dispatch from the work a shot is: about 10^9 edge updates.
+    let first = (1e9 / (2.0 * ne.max(1) as f64 * max_iter.max(1) as f64)) as usize;
+    let mut pacer = Pacer::with_first(most, first, BP_TARGET_SECONDS);
     let mut done = 0usize;
     while done < shots {
         let n = pacer.take(shots - done);
         let t0 = std::time::Instant::now();
+        let scopes = g.push_scopes();
         let params = [n as u32, nc as u32, nv as u32, ne as u32, max_iter as u32, off_var_start, off_edge_check, off_edge_var, off_chk_start, off_chk_edges, off_scales, 0];
         let params_buf = g.upload("bp params", &params, wgpu::BufferUsages::UNIFORM);
         let synd: Vec<u32> = syndromes[done * nc..(done + n) * nc].iter().map(|&s| u32::from(s != 0)).collect();
@@ -363,7 +452,7 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
         let rw = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC;
         let messages = g.buffer("bp messages", n * 2 * ne * 4, rw);
         let llr = g.buffer("bp llr", n * nv * 4, rw);
-        let work = g.buffer("bp work", n * (nv + nc + 2) * 4, rw);
+        let work = g.buffer("bp work", n * (nv + nc + 3) * 4, rw);
         let bind = g.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("min-sum BP"),
             layout: &g.bp_layout,
@@ -385,10 +474,19 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
             pass.dispatch_workgroups((n as u32).div_ceil(WORKGROUP), 1, 1);
         }
         g.queue.submit([encoder.finish()]);
-        let back = g.read(&work, n * (nv + nc + 2) * 4)?;
+        g.check_errors(scopes, n)?;
+        let back = g.read(&work, n * (nv + nc + 3) * 4)?;
+        if (0..n).any(|s| back[s * (nv + nc + 3) + nv + nc + 2] != DONE) {
+            // Dropped by the driver: the same shots again, in a dispatch half the size.
+            if n > 1 {
+                pacer.shrink(n);
+                continue;
+            }
+            return Err(format!("{INCOMPLETE} {n} shot came back incomplete (the driver dropped it: a watchdog, or memory pressure): decode on the cpu-f32 device"));
+        }
         pacer.observe(n, t0.elapsed().as_secs_f64());
         for s in 0..n {
-            let base = s * (nv + nc + 2);
+            let base = s * (nv + nc + 3);
             let start = out.hard.len();
             out.hard.resize(start + stride, 0);
             for v in 0..nv {
@@ -408,6 +506,27 @@ pub fn bp_decode_batch(bp: &crate::bp32::Bp32, syndromes: &[u8], shots: usize, s
 mod tests {
     use super::*;
     use crate::circuit::Circuit;
+
+    #[test]
+    fn pacer_stays_within_its_maximum() {
+        // A batch smaller than the 64-word floor (a tiny problem) must not panic the clamp.
+        let mut p = Pacer::new(3);
+        assert_eq!(p.take(100), 1);
+        p.observe(1, 1e-6);
+        assert_eq!(p.next, 3);
+        p.observe(3, 10.0);
+        assert_eq!(p.next, 1);
+        let mut p = Pacer::new(1 << 20);
+        p.observe(512, 0.1);
+        assert_eq!(p.next, 2048); // within the target: fourfold, whatever the rate
+        p.observe(1024, 100.0);
+        assert_eq!(p.next, 10); // past it: in proportion
+        p.observe(2, 1e-6);
+        assert_eq!(p.next, 8);
+        p.shrink(8);
+        assert_eq!((p.max, p.next), (4, 4));
+        assert_eq!(Pacer::new(0).take(5), 1);
+    }
 
     #[test]
     fn gpu_bp_equals_cpu_f32() {
@@ -499,3 +618,4 @@ mod tests {
         assert_eq!(prog.sample_measurements_seeded(9, 7, 333, 4, &[true, false, true]), sample_measurements_seeded(&prog, 9, 7, 333, &[true, false, true]).unwrap());
     }
 }
+

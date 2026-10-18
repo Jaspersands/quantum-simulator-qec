@@ -1,7 +1,7 @@
 {
   "title": "stabilizer-qec: a quantum error-correction simulator and decoder",
   "upload_type": "software",
-  "description": "<p>A quantum error-correction simulator and decoder in Rust, with Python bindings. Circuits and detector error models in Stim's formats (error models and generated circuits identical to Stim's, character for character), a bit-parallel sampler, exact sparse-blossom, correlated and belief matching, union-find, BP and BP+OSD, window decoders for real time and memories of millions of rounds, circuit diagrams, IBM's bivariate bicycle codes, any CSS code from its checks (hypergraph products, colour codes), lattice surgery, and a fault-tolerant resource estimate. Checked against Stim, PyMatching, ldpc and Google's Willow and Sycamore hardware data.</p>",
+  "description": "<p>A quantum error-correction simulator and decoder in Rust, with Python bindings. Circuits and detector error models in Stim's formats (error models and generated circuits identical to Stim's, character for character), a bit-parallel sampler, exact sparse-blossom, correlated and belief matching, union-find, BP and BP+OSD, window decoders for real time and memories of millions of rounds, circuit diagrams, IBM's bivariate bicycle codes, any CSS code from its checks (hypergraph products, colour codes), lattice surgery, and a fault-tolerant resource estimate. Release 2.0 adds the APIs of Stim, PyMatching, sinter, ldpc and twenty more QEC tools under their own names, Clifford+T circuits with a coherent error on every gate (stabilizer-rank and joint samplers), fault-tolerant compilation (tqec, Loom), resource estimates (Azure, Qualtran), decoding as a service, and sampling and BP on the GPU. Checked against Stim, PyMatching, ldpc, Tsim and Google's Willow and Sycamore hardware data.</p>",
   "creators": [
     {
       "name": "Sands, Jasper"
@@ -16,7 +16,11 @@
     "minimum-weight perfect matching",
     "belief propagation",
     "bivariate bicycle codes",
-    "stim"
+    "stim",
+    "clifford+t",
+    "coherent noise",
+    "lattice surgery",
+    "resource estimation"
   ],
   "related_identifiers": [
     {

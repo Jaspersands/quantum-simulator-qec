@@ -42,7 +42,7 @@ Shots are [`BitTable`]s, bit-packed as Stim's `b8` format. Every fallible call r
 ## Stability
 
 Semantic versioning from 1.0: the items in this documentation keep compiling, with the same
-meaning, through every 1.x release (checked by `cargo-semver-checks` in CI). The engine's own
+meaning, through every 2.x release (checked by `cargo-semver-checks` in CI). The engine's own
 modules are public so the Python bindings, the site and the tools can reach them, but they are
 hidden from this documentation and carry no such promise. The Python bindings sit behind the
 `python` feature, off by default. The minimum supported Rust is 1.87.

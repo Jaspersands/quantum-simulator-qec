@@ -159,3 +159,55 @@ def test_joint_sampler_differs_from_the_twirl_and_runs_at_size():
     d, o, w = s.sample(200, threads=0)
     assert d.shape == (200, 2) and np.all(w >= 0) and np.isfinite(w).all()
     assert sq.effective_sample_size(w) > 20
+
+
+# ---------------------------------------------------------------------------------------------
+# The 2.0 review's regressions
+# ---------------------------------------------------------------------------------------------
+
+
+def joint_rate(c: sq.Circuit, shots: int, seed: int = 1, **options):
+    d, _, w = c.compile_coherent_sampler(seed=seed, **options).sample(shots, threads=0)
+    rate = (w * d[:, 0]).sum() / w.sum()
+    ess = w.sum() ** 2 / (w**2).sum()
+    return rate, np.sqrt(max(rate * (1 - rate), 1e-4) / ess)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # The review's case: two errors around two T gates, where the kernel's basis over every
+        # location projected onto the errors without the single-error elements (sv 0.2575, the
+        # truncated sum 0.1613 whatever the order).
+        "R 0\nI_ERROR[R_X(theta=0.2)] 0\nI[T] 0\nH 0\nI_ERROR[R_Y(theta=0.15)] 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]",
+        # Three errors among five exact gates on one qubit.
+        "R 0\nH 0\nI_ERROR[R_Z(theta=0.23)] 0\nI[T] 0\nI_ERROR[R_X(theta=0.2)] 0\nI[T] 0\nH 0\nI[T_DAG] 0\nI_ERROR[R_Y(theta=0.18)] 0\nI[R_Z(theta=0.4)] 0\nH 0\nI[T] 0\nM 0\nDETECTOR rec[-1]",
+        # Two qubits, errors on both sides of a CX between T gates.
+        "R 0 1\nH 0 1\nI_ERROR[R_Z(theta=0.2)] 0\nI[T] 1\nCX 0 1\nI_ERROR[R_X(theta=0.15)] 1\nI[T] 0\nII_ERROR[R_ZZ(theta=0.1)] 0 1\nH 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1] rec[-2]",
+    ],
+)
+def test_the_truncated_joint_sampler_is_unbiased_at_first_order(text):
+    c = sq.Circuit(text)
+    exact = exact_marginals(c)[0]
+    for options in ({}, {"pairs": True}):
+        rate, se = joint_rate(c, 20000, **options)
+        assert abs(rate - exact) < 4 * se + 0.003, (options, rate, exact, se)
+
+
+def test_clifford_angle_coherent_errors_are_the_gates_they_are():
+    # S T S T† = S² = Z between Hadamards: the detector fires every shot. Twirled (I or Z, 50/50)
+    # it would fire half the time; the samplers run the fixed unitary.
+    # The reference run ignores errors (as Stim's), so the detector fires on every shot.
+    c = sq.Circuit("R 0\nH 0\nI_ERROR[R_Z(theta=0.7853981633974483)] 0\nI[T] 0\nI_ERROR[R_Z(theta=0.7853981633974483)] 0\nI[T_DAG] 0\nH 0\nM 0\nDETECTOR rec[-1]")
+    assert c.exact_distribution()[((True,), ())] == pytest.approx(1.0)
+    assert c.exact_distribution(method="coherent")[((True,), ())] == pytest.approx(1.0)
+    s = c.compile_coherent_sampler(seed=1)
+    assert s.num_locations == 0 and s.num_exact == 4  # two T gates and two fixed S errors, all exact
+    d, _, w = s.sample(200)
+    assert d.all() and np.allclose(w, 1.0)
+    # Without a T gate the circuit still gets the joint sampler (the Z error is a fixed Clifford).
+    c2 = sq.Circuit("R 0\nH 0\nI_ERROR[R_Z(theta=1.5707963267948966)] 0\nI_ERROR[R_X(theta=0.1)] 0\nH 0\nM 0\nDETECTOR rec[-1]")
+    s2 = c2.compile_coherent_sampler(seed=1)
+    assert s2.num_locations == 1 and s2.num_exact == 1
+    rate, se = joint_rate(c2, 20000)
+    assert abs(rate - c2.exact_distribution()[((True,), ())]) < 4 * se + 0.003

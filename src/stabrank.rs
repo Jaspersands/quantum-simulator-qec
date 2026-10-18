@@ -28,6 +28,7 @@
 //!
 //! Global phases of the circuit's gates are not kept (no probability depends on them).
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::{FRAC_PI_4, FRAC_PI_8};
 
@@ -579,7 +580,11 @@ impl Program {
                         match op {
                             NonPauli::Rotation { pauli, theta, noise } => {
                                 let p = Pauli::from_codes(w, &pauli.iter().map(|&(q, c)| (q as usize, c)).collect::<Vec<_>>());
-                                if twirl_errors && *noise && !p.is_identity() {
+                                // A coherent error at a Clifford angle is a fixed Clifford: run as the gate
+                                // it is, not drawn as a twirl (I or Z, 50/50) that puts all of it in the
+                                // interference the twirl leaves out. The reference run ignores it, as
+                                // Stim's ignores every error.
+                                if twirl_errors && *noise && !p.is_identity() && !is_clifford_angle(*theta) {
                                     steps.push(Step::Twirl(twirl.len()));
                                     twirl.push((p, *theta));
                                 } else {
@@ -1292,9 +1297,6 @@ pub fn is_clifford_angle(theta: f64) -> bool {
     (r - r.round()).abs() < 1e-9
 }
 
-/// How many non-Clifford gates a circuit has: its T gates, and the rotations and U3 half-angle
-/// rotations written as gates (on `I`, `II`) at angles that are not Clifford. Coherent errors
-/// (`I_ERROR`, `II_ERROR`) are not gates and are not counted.
 /// `f` summed over every non-Pauli op of the circuit, through its loops without unrolling them
 /// (a REPEAT body counts once per repetition; a million-round memory is not expanded).
 fn sum_non_pauli(instrs: &[Instr], f: &dyn Fn(&NonPauli) -> usize) -> usize {
@@ -1310,6 +1312,9 @@ fn sum_non_pauli(instrs: &[Instr], f: &dyn Fn(&NonPauli) -> usize) -> usize {
     n
 }
 
+/// How many non-Clifford gates a circuit has: its T gates, and the rotations and U3 half-angle
+/// rotations written as gates (on `I`, `II`) at angles that are not Clifford. Coherent errors
+/// (`I_ERROR`, `II_ERROR`) are not gates and are not counted.
 pub fn non_clifford_gates(circuit: &Circuit) -> Result<usize, String> {
     Ok(sum_non_pauli(&circuit.instrs, &|op| match op {
         NonPauli::T { .. } => 1,
@@ -1322,7 +1327,8 @@ pub fn non_clifford_gates(circuit: &Circuit) -> Result<usize, String> {
 /// The circuit's T-count as Tsim (pyzx) counts it: its non-Clifford phases, one for each T
 /// and T_DAG gate and each rotation (a gate or a coherent error, each of a `U3`'s three) by an
 /// angle that is not a multiple of π/2 in half-turns (of π/4 in exp(−iθP)), whatever the
-/// angle.
+/// angle. Coherent errors count here and not in Tsim, which reads `I_ERROR[R_Z(...)]` as
+/// nothing: the count is of the phases the circuit's exact simulation pays for.
 pub fn t_count(circuit: &Circuit) -> Result<usize, String> {
     Ok(sum_non_pauli(&circuit.instrs, &|op| match op {
         NonPauli::T { .. } => 1,
@@ -1344,10 +1350,45 @@ pub fn is_clifford(circuit: &Circuit) -> Result<bool, String> {
     }) == 0)
 }
 
+/// Whether the circuit has a tagged gate at a Clifford angle (`I[R_Z(theta=π/4)] 0` is `S 0`,
+/// `I[U3(theta=π, phi=0, lambda=π)] 0` is `X 0`): a Clifford gate Stim reads as nothing, which
+/// every engine here runs as the gate it is (`frame_view`).
+pub fn has_clifford_tagged_gates(circuit: &Circuit) -> bool {
+    sum_non_pauli(&circuit.instrs, &|op| match op {
+        NonPauli::Rotation { pauli, theta, noise: false } => usize::from(!pauli.is_empty() && is_clifford_angle(*theta)),
+        NonPauli::U3 { theta, phi, lambda, .. } => usize::from([lambda, theta, phi].iter().any(|a| is_clifford_angle(**a / 2.0))),
+        _ => 0,
+    }) > 0
+}
+
+/// The circuit as the frame engines (the detector and measurement samplers, the reference run,
+/// the detector error model) run it: with its tagged gates at Clifford angles written as the
+/// Clifford gates they are (`expand_clifford_rotations`), so that `I[R_Z(theta=π/4)] 0` is
+/// `S 0` in every engine and not, as Stim reads it, nothing. The circuit itself when it has
+/// none, which costs one pass over its instructions.
+pub fn frame_view(circuit: &Circuit) -> Result<Cow<'_, Circuit>, String> {
+    if has_clifford_tagged_gates(circuit) {
+        Ok(Cow::Owned(expand_clifford_rotations(circuit)?))
+    } else {
+        Ok(Cow::Borrowed(circuit))
+    }
+}
+
+/// How many coherent errors (`I_ERROR`, `II_ERROR` rotations) are at Clifford angles: fixed
+/// Cliffords (`I_ERROR[R_Z(theta=π/4)] 0` is an S), which the joint sampler runs exactly and the
+/// coherent sampler, a twirl-and-reweight over a Clifford reference, cannot take.
+pub fn clifford_angle_errors(circuit: &Circuit) -> usize {
+    sum_non_pauli(&circuit.instrs, &|op| match op {
+        NonPauli::Rotation { pauli, theta, noise: true } => usize::from(!pauli.is_empty() && is_clifford_angle(*theta)),
+        _ => 0,
+    })
+}
+
 /// The circuit with every tagged gate at a Clifford angle written as the Clifford gate it is
 /// (`I[R_Z(theta=π/4)] 0` is `S 0`, `I[R_PAULI(theta=π/4, pauli=XZ)] 0 1` is `SPP X0*Z1`, a
 /// multiple of π/2 a Pauli gate), and every `U3` as its three rotations, each so written when
-/// Clifford; the other gates and the coherent errors as they are. Loops are kept.
+/// Clifford; the other gates and the coherent errors as they are (an error at a Clifford angle
+/// stays an error: the reference run must not see it). Loops are kept.
 pub fn expand_clifford_rotations(circuit: &Circuit) -> Result<Circuit, String> {
     fn lines_of(pauli: &[(u32, u8)], theta: f64, out: &mut Vec<String>) {
         if pauli.is_empty() {

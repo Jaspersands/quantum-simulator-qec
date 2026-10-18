@@ -1,7 +1,9 @@
 # Third-party notices
 
-stabilizer-qec is MIT-licensed (see `LICENSE`). Parts of it are ported from, or reproduce
-material of, other projects under their own licences, which apply to those parts.
+The code written for stabilizer-qec is MIT-licensed (see `LICENSE`). Parts of the package are
+ported from, or reproduce material of, other projects under their own licences (Apache-2.0, MIT
+and BSD), which apply to those parts and travel with them; each is listed below with its
+copyright notice.
 
 ## Stim
 
@@ -65,8 +67,14 @@ fixes an index overrun in `mod2.solve_linear_system`. Each file says so at its t
 
 ## deltakit
 
-deltakit-explorer and deltakit-decode: Copyright Riverlane. Licensed under the Apache License,
-Version 2.0 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/Deltakit/deltakit
+deltakit-circuit, deltakit-core, deltakit-decode and deltakit-explorer: Copyright Riverlane.
+Licensed under the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`). Source:
+https://github.com/Deltakit/deltakit
+
+`python/stabilizer_qec/deltakit/` is Deltakit whole (deltakit-circuit and -core 0.9.2, -decode
+0.9.2, -explorer 0.9.4) on this package's Stim (`stabilizer_qec.deltakit_stim`, Deltakit's Stim
+with its leakage instructions) and PyMatching; its `LICENSE` is beside it, and each modified
+file says so at its top.
 
 `python/stabilizer_qec/analysis/_dk/` is deltakit-explorer 0.9.4's analysis (`_analysis`,
 `_binomial_fit`, `_estimate`, `_lambda`, `_leppr`, `_quops`) and deltakit-decode 0.9.2's
@@ -76,6 +84,31 @@ and of uncertainties' propagation stand in when those packages are not installed
 Each file says so at its top. `analysis/pij.py`, `analysis/decoding.py`,
 `analysis/error_budget.py` and `analysis/plotting.py` follow deltakit's methods and formulas
 (the p_ij formulas are deltakit-decode's, reproduced) over this package's models.
+
+## PECOS
+
+Copyright 2018 National Technology & Engineering Solutions of Sandia, LLC (NTESS). Licensed under
+the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`). Source:
+https://github.com/PECOS-packages/PECOS
+
+`python/stabilizer_qec/pecos/` is PECOS whole, on this package's engines; its `LICENSE` is
+beside it, and each modified file says so at its top.
+
+## PanQEC
+
+Copyright (c) 2022 PanQEC (Eric Huang and contributors). MIT License. Source:
+https://github.com/panqec/panqec
+
+`python/stabilizer_qec/panqec/` is PanQEC 0.1.7 whole, on this package's ldpc and PyMatching;
+its `LICENSE` is beside it, and each modified file says so at its top.
+
+## QUITS
+
+Copyright (c) 2026 Mingyu Kang (QUITS: Kang, Lin, Yao and Gökduman). MIT License. Source:
+https://github.com/mkang315/QUITS
+
+`python/stabilizer_qec/quits/` is QUITS 1.2.0 whole, on this package's Stim and ldpc; its
+`LICENSE` is beside it, and each modified file says so at its top.
 
 ## qsample
 

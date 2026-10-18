@@ -35,6 +35,10 @@ def main() -> None:
             # The sinter adapter is named too: it stays out of __all__, which a star import
             # would otherwise make require sinter.
             sys.executable, "-m", "pdoc", "stabilizer_qec", "stabilizer_qec.sinter",
+            # 2.0's subpackages written here (the whole ports of other tools' packages keep
+            # those tools' documentation).
+            "stabilizer_qec.estimate", "stabilizer_qec.tqec", "stabilizer_qec.loom", "stabilizer_qec.cudaq_qec",
+            "stabilizer_qec.realtime", "stabilizer_qec.tsim", "stabilizer_qec.analysis",
             "--output-directory", str(OUT),
             "--docformat", "markdown",
             "--favicon", ICON,

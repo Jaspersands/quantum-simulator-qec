@@ -27,7 +27,7 @@ class _DemDecoder:
     Pickled (and copied, and sent to worker processes) as the model and options it was made
     from, and rebuilt from them."""
 
-    __slots__ = ("_x", "_made_from")
+    __slots__ = ("_x", "_made_from", "__weakref__")
 
     def _made(self, model: DetectorErrorModel, **kwargs: Any) -> DetectorErrorModel:
         self._made_from = ((model,), kwargs)

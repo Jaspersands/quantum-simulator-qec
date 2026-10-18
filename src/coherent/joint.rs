@@ -82,7 +82,86 @@ impl JointSampler {
         if loc_of_twirl.len() != program.num_twirl() {
             return Err("the kernel's error locations do not match the term engine's".into());
         }
-        let mut generators = kernel.generators.clone();
+        // The generators: a basis of the kernel's projection onto the error locations, from the
+        // kernel's own generators, every single error whose flips the exact gates' operators
+        // match (its projection one location: the first-order cross terms) and every pair of
+        // errors that agree modulo those operators, smallest projection first and each kept
+        // only if independent of those kept. The kernel's basis alone, found over every
+        // location, can hold {e₁, T} and {e₁, e₂} and leave {e₂} to a product no shot forms:
+        // the sum then misses first-order terms (the review's 1-qubit cases, 60σ off).
+        let nl = kernel_program.locations.len();
+        let residue = super::kernel::residues(&kernel_program, &solver);
+        let mut rows: Vec<(usize, Vec<u64>, Vec<usize>)> = Vec::new();
+        let reduce = |v: &mut Vec<u64>, combo: &mut Vec<usize>, rows: &[(usize, Vec<u64>, Vec<usize>)]| {
+            for (pivot, rv, rc) in rows {
+                if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                    v.iter_mut().zip(rv).for_each(|(a, b)| *a ^= b);
+                    *combo = super::kernel::symmetric_difference(combo, rc);
+                }
+            }
+        };
+        for l in (0..nl).filter(|&l| kernel_program.exact[l]) {
+            let (mut v, mut combo) = (residue[l].clone(), vec![l]);
+            reduce(&mut v, &mut combo, &rows);
+            if let Some(w) = v.iter().position(|&w| w != 0) {
+                let pivot = w * 64 + v[w].trailing_zeros() as usize;
+                for (_, rv, rc) in rows.iter_mut() {
+                    if rv[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                        rv.iter_mut().zip(&v).for_each(|(a, b)| *a ^= b);
+                        *rc = super::kernel::symmetric_difference(rc, &combo);
+                    }
+                }
+                rows.push((pivot, v, combo));
+            }
+        }
+        let mut candidates: std::collections::BTreeSet<Vec<usize>> = kernel.generators.iter().map(|e| e.members.clone()).collect();
+        let mut by_reduced: HashMap<Vec<u64>, Vec<usize>> = HashMap::new();
+        for &l in &loc_of_twirl {
+            let (mut v, mut combo) = (residue[l].clone(), vec![l]);
+            reduce(&mut v, &mut combo, &rows);
+            if v.iter().all(|&w| w == 0) {
+                candidates.insert(combo);
+            } else {
+                by_reduced.entry(v).or_default().push(l);
+            }
+        }
+        for ls in by_reduced.values() {
+            for w in ls.windows(2) {
+                let mut v: Vec<u64> = residue[w[0]].iter().zip(&residue[w[1]]).map(|(a, b)| a ^ b).collect();
+                let mut combo = vec![w[0], w[1]];
+                reduce(&mut v, &mut combo, &rows);
+                if v.iter().all(|&w| w == 0) {
+                    candidates.insert(combo);
+                }
+            }
+        }
+        let projection = |members: &[usize]| -> Vec<usize> { members.iter().filter_map(|&l| twirl_of_loc[l]).collect() };
+        let mut candidates: Vec<Vec<usize>> = candidates.into_iter().collect();
+        candidates.sort_by_key(|g| (projection(g).len(), g.len(), g.clone()));
+        let tw = loc_of_twirl.len().div_ceil(64).max(1);
+        let mut basis: Vec<(usize, Vec<u64>)> = Vec::new();
+        let mut generators: Vec<Element> = Vec::new();
+        for g in candidates {
+            let mut v = vec![0u64; tw];
+            for t in projection(&g) {
+                v[t / 64] ^= 1 << (t % 64);
+            }
+            for (pivot, row) in &basis {
+                if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                    v.iter_mut().zip(row).for_each(|(a, b)| *a ^= b);
+                }
+            }
+            let Some(w) = v.iter().position(|&w| w != 0) else { continue };
+            let Some(e) = kernel_program.element(&g, &solver) else { continue };
+            let pivot = w * 64 + v[w].trailing_zeros() as usize;
+            for (_, row) in basis.iter_mut() {
+                if row[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                    row.iter_mut().zip(&v).for_each(|(a, b)| *a ^= b);
+                }
+            }
+            basis.push((pivot, v));
+            generators.push(e);
+        }
         let mut group_gens = Vec::new();
         for g in &kernel.groups {
             let mut gens = Vec::new();

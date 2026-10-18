@@ -205,6 +205,9 @@ pub(crate) fn run(circuit: &Circuit, num_qubits: usize, sweeps: &[bool], seed: u
 /// The reference sample, as Stim's: the noiseless run with every random outcome 0 (so a
 /// random measurement reads 0, as `stim.Circuit.reference_sample` gives it).
 pub(crate) fn reference(circuit: &Circuit, num_qubits: usize) -> Vec<bool> {
+    // Tagged gates at Clifford angles are the Clifford gates they are (`I[R_Z(theta=π/4)]` is S).
+    let view = crate::stabrank::frame_view(circuit).unwrap_or(std::borrow::Cow::Borrowed(circuit));
+    let circuit: &Circuit = &view;
     let mut sim = StabilizerSimulator::zero_biased(num_qubits.max(1));
     let mut rec = Vec::new();
     run_block(&circuit.instrs, &mut sim, &[], &mut rec);
@@ -308,6 +311,8 @@ const MAX_REFERENCE: u64 = 1 << 32;
 
 impl M2d {
     pub fn new(circuit: &Circuit) -> Result<M2d, String> {
+        let view = crate::stabrank::frame_view(circuit)?;
+        let circuit: &Circuit = &view;
         circuit.check_runnable()?;
         let counts = Counts::of(&circuit.instrs)?;
         if counts.qubits > MAX_QUBITS {

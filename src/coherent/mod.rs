@@ -195,7 +195,9 @@ impl Program {
                                 if pauli.is_empty() {
                                     continue;
                                 }
-                                push(pauli.iter().map(|&(q, c)| (q as usize, c)).collect(), *theta, !*noise);
+                                // An error at a Clifford angle is a fixed Clifford, run exactly (the joint
+                                // sampler's term engine does); the reference run, as Stim's, ignores it.
+                                push(pauli.iter().map(|&(q, c)| (q as usize, c)).collect(), *theta, !*noise || crate::stabrank::is_clifford_angle(*theta));
                             }
                             NonPauli::T { qubit, dagger } => push(vec![(*qubit as usize, 2)], if *dagger { -std::f64::consts::FRAC_PI_8 } else { std::f64::consts::FRAC_PI_8 }, true),
                             // U3(θ, φ, λ) = e^{i(φ+λ)/2} R_Z(φ) R_Y(θ) R_Z(λ), R_P(α) = exp(−iαP/2).

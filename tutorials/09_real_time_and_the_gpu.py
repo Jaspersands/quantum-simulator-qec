@@ -24,7 +24,7 @@ decoder = sq.Matching(dem)
 # %% [markdown]
 # ## A decode in the background
 #
-# Every decoder has `decode_async`: the batch runs on a worker thread with the GIL released in
+# Every detector-error-model decoder has `decode_async`: the batch runs on a worker thread with the GIL released in
 # the engine, and the result is an `AsyncResult` you ask for when you need it.
 
 # %%
@@ -110,8 +110,10 @@ print("the word sampler draws different shots from the same seed, at the same ra
 #
 # `BpDecoder(..., device="cpu-f32")` runs ldpc's parallel min-sum schedule in single precision,
 # the operation order the GPU kernel follows; `device="gpu"` is the same decisions bit for bit.
-# The f32 decoder gives the f64 one's answer on almost every syndrome, at a fraction of the
-# time; a GPU pays off on small graphs only, where a whole shot's Tanner graph is a short walk.
+# With damped min-sum (`ms_scaling_factor=0.625`) the f32 decoder gives the f64 one's answer on
+# almost every syndrome, at a fraction of the time (undamped or adaptive min-sum grows messages
+# past single precision on unconverged shots, where the decisions part and the error rates
+# agree); a GPU pays off on small graphs only, where a whole shot's Tanner graph is a short walk.
 
 # %%
 from stabilizer_qec import BpDecoder

@@ -138,7 +138,8 @@ def test_samplers_dispatch_to_the_engine_on_non_clifford_gates():
     assert sq.Circuit("I[R_Z(theta=0.7853981633974483)] 0\nI_ERROR[R_Z(theta=0.1)] 0\nM 0").num_non_clifford_gates() == 0
     assert sq.Circuit("I[U3(theta=1.5707963267948966, phi=0, lambda=3.141592653589793)] 0\nM 0").num_non_clifford_gates() == 0
     assert sq.Circuit("I[U3(theta=1, phi=0, lambda=3.141592653589793)] 0\nM 0").num_non_clifford_gates() == 1
-    assert isinstance(sq.Circuit("I_ERROR[R_Z(theta=0.1)] 0\nM 0").compile_detector_sampler(), sq.DetectorSampler)
+    with pytest.warns(UserWarning, match="coherent errors"):
+        assert isinstance(sq.Circuit("I_ERROR[R_Z(theta=0.1)] 0\nM 0").compile_detector_sampler(), sq.DetectorSampler)
 
 
 def test_rank_on_code_states_and_many_qubits():
@@ -177,3 +178,67 @@ def test_refusals():
         sq.Circuit("H 0\nM 0\nOBSERVABLE_INCLUDE(0) Z0").compile_stabilizer_rank_sampler()
     with pytest.raises(ValueError, match="method must be"):
         sq.Circuit("M 0").exact_distribution(method="magic")
+
+
+# ---------------------------------------------------------------------------------------------
+# The 2.0 review's regressions
+# ---------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tagged,plain,body",
+    [
+        ("I[R_Z(theta=1.5707963267948966)] 0", "Z 0", "H 0\n{g}\nH 0\nM 0"),
+        ("I[R_X(theta=1.5707963267948966)] 0", "X 0", "{g}\nM 0"),
+        ("I[R_Z(theta=0.7853981633974483)] 0\nI[R_Z(theta=0.7853981633974483)] 0", "S 0\nS 0", "H 0\n{g}\nH 0\nM 0"),
+        ("I[R_Z(theta=0.7853981633974483)] 0", "S 0", "H 0\n{g}\nMY 0"),
+        ("I[U3(theta=3.141592653589793, phi=0, lambda=3.141592653589793)] 0", "X 0", "{g}\nM 0"),
+        ("II[R_ZZ(theta=0.7853981633974483)] 0 1", "SPP Z0*Z1", "H 0 1\n{g}\nMPP Y0*Z1\nMPP Z0*Y1\nDETECTOR rec[-2]"),
+    ],
+)
+def test_clifford_angle_tagged_gates_are_the_gates_they_are_in_every_engine(tagged, plain, body):
+    # Stim reads the tag as nothing; here the gate is run everywhere: the reference run, the
+    # frame samplers, the detector error model and the exact engines agree with the plain
+    # Clifford circuit (each a deterministic measurement of what the gate made).
+    head, tail = "R 0 1 2\n", "\nDETECTOR rec[-1]\nX_ERROR(0.1) 2\nM 2\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]"
+    c, ref = sq.Circuit(head + body.format(g=tagged) + tail), sq.Circuit(head + body.format(g=plain) + tail)
+    assert c.num_non_clifford_gates() == 0 and c.is_clifford
+    assert c.reference_sample().tolist() == ref.reference_sample().tolist()
+    assert str(c.detector_error_model()) == str(ref.detector_error_model())
+    assert isinstance(c.compile_detector_sampler(seed=1), sq.DetectorSampler)
+    a = c.compile_detector_sampler(seed=1).sample(4000, separate_observables=True)
+    b = ref.compile_detector_sampler(seed=1).sample(4000, separate_observables=True)
+    assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
+    assert np.array_equal(c.compile_sampler(seed=2).sample(100), ref.compile_sampler(seed=2).sample(100))
+    for method in ("state_vector", "stabilizer_rank", "density_matrix"):
+        assert c.exact_distribution(method=method) == pytest.approx(ref.exact_distribution(method=method))
+    assert c.compile_coherent_sampler(seed=1).num_locations == 0  # no refusal of the Clifford-angle gate
+    leaky = c.compile_leakage_sampler(seed=1).sample(10), ref.compile_leakage_sampler(seed=1).sample(10)
+    assert all(np.array_equal(a, b) for a, b in zip(leaky[0], leaky[1]))
+
+
+def test_the_frame_sampler_warns_on_coherent_errors_and_runs_them_beside_a_t_gate():
+    coherent = sq.Circuit("R 0\nH 0\nI_ERROR[R_Z(theta=0.5)] 0\nH 0\nM 0\nDETECTOR rec[-1]")
+    with pytest.warns(UserWarning, match="reads the circuit's coherent errors"):
+        s = coherent.compile_detector_sampler(seed=1)
+    assert isinstance(s, sq.DetectorSampler) and s.sample(100).sum() == 0
+    with pytest.warns(UserWarning, match="coherent errors"):
+        coherent.compile_sampler(seed=1)
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        coherent.twirled().compile_detector_sampler(seed=1)
+        coherent.without_tags().compile_detector_sampler(seed=1)
+        sq.Circuit("R 0\nH 0\nI[T] 0\nH 0\nM 0\nDETECTOR rec[-1]").compile_detector_sampler(seed=1)
+    # With a non-Clifford gate the stabilizer-rank sampler runs the error exactly: sin²(0.5).
+    with_t = sq.Circuit("R 0\nH 0\nI_ERROR[R_Z(theta=0.5)] 0\nI[T] 0\nI[T_DAG] 0\nH 0\nM 0\nDETECTOR rec[-1]")
+    assert isinstance(with_t.compile_detector_sampler(seed=1), sq.StabilizerRankSampler)
+    assert abs(with_t.compile_detector_sampler(seed=1).sample(20000).mean() - np.sin(0.5) ** 2) < 0.01
+
+
+def test_a_t_written_as_an_error_is_refused():
+    with pytest.raises(ValueError, match="T is a gate, written I\\[T\\]"):
+        sq.Circuit("I_ERROR[T] 0\nM 0")
+    with pytest.raises(ValueError, match="T_DAG is a gate"):
+        sq.Circuit("I_ERROR[T_DAG] 0\nM 0")

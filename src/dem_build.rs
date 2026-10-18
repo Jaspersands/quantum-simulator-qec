@@ -1220,6 +1220,8 @@ pub fn build_deltakit(circuit: &Circuit, decompose: bool, approximate: Option<f6
 
 #[allow(clippy::too_many_arguments)]
 fn build_mode(circuit: &Circuit, decompose: bool, approximate: Option<f64>, fold: bool, ignore_failures: bool, allow_gauge: bool, block_remnants: bool, deltakit: bool) -> Result<DemProgram, String> {
+    let view = crate::stabrank::frame_view(circuit)?;
+    let circuit: &Circuit = &view;
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let leak = if deltakit { vec![Leak::default(); nq] } else { Vec::new() };
