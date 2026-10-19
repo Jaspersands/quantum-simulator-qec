@@ -6,12 +6,25 @@ text first; given one, a port answers as it does given this package's copy."""
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 
 import stabilizer_qec as sq
 
 stim = pytest.importorskip("stim", minversion="1.16")
+
+QLDPC = ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs")
+DELTAKIT = ("scipy", "networkx", "matplotlib", "pandas", "galois", "uncertainties", "pathos", "plotly", "gql")
+
+
+def needs(python: tuple, *modules: str) -> None:
+    """Skip unless this is the Python and these are the modules the port needs (as in conftest.py)."""
+    if sys.version_info < python:
+        pytest.skip(f"the port needs Python {python[0]}.{python[1]}")
+    for module in modules:
+        pytest.importorskip(module)
 
 TASKS = [
     ("surface_code:rotated_memory_z", 3, 2),
@@ -173,6 +186,7 @@ def test_qec_util_sampler_takes_stim_models():
 # MQT QECC
 
 def test_mqt_circuits_take_stim_circuits():
+    needs((3, 10), "qiskit", "matplotlib", "z3")
     from stabilizer_qec.mqt_qecc.circuit_synthesis.cat_states import fault_gens_from_circuit
     from stabilizer_qec.mqt_qecc.circuit_synthesis.circuits import CliffordIsometry, CNOTCircuit
 
@@ -184,7 +198,7 @@ def test_mqt_circuits_take_stim_circuits():
 
 
 def test_mqt_dem_to_matrices_takes_stim_models():
-    pytest.importorskip("scipy")
+    needs((3, 10), "scipy")
     from stabilizer_qec.mqt_qecc.cc_decoder.stim_interface.dem_to_matrices import detector_error_model_to_check_matrices
 
     model = real_circuit("color_code:memory_xyz", 3, 2).detector_error_model(decompose_errors=True)
@@ -197,6 +211,7 @@ def test_mqt_dem_to_matrices_takes_stim_models():
 # qLDPC
 
 def test_qldpc_takes_stim_models_and_circuits():
+    needs((3, 11), *QLDPC)
     from stabilizer_qec.qldpc import circuits, decoders
 
     c = real_circuit()
@@ -216,6 +231,7 @@ def test_qldpc_takes_stim_models_and_circuits():
 
 
 def test_qldpc_noise_rule_takes_stim_circuits():
+    needs((3, 11), *QLDPC)
     from stabilizer_qec.qldpc.circuits.noise_model import NoiseRule
 
     after = stim.Circuit("DEPOLARIZE1(0.01) 0")
@@ -225,6 +241,7 @@ def test_qldpc_noise_rule_takes_stim_circuits():
 # MWPF, Relay-BP, sinter
 
 def test_mwpf_ref_circuit_takes_stim_circuits():
+    needs((3, 10))
     from stabilizer_qec import mwpf
     from stabilizer_qec.mwpf.sinter_decoders import SinterMWPFDecoder
 
@@ -259,6 +276,7 @@ def test_sinter_model_flattening_takes_stim_models(module):
 # Deltakit
 
 def test_deltakit_takes_stim_circuits():
+    needs((3, 11), *DELTAKIT)
     from stabilizer_qec import deltakit_stim
     from stabilizer_qec.deltakit import circuit as sp
     from stabilizer_qec.deltakit.explorer.types import Measurements
