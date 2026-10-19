@@ -1,18 +1,16 @@
 # Ported from Qualtran (quantumlib/Qualtran 0.7.0, qualtran/surface_code/*.py, the GateCounts of
 # qualtran/resource_counting/_bloq_counts.py and the TComplexity of qualtran/cirq_interop/t_complexity_protocol.py;
-# Copyright 2023 Google LLC, Apache License 2.0; see LICENSE in this directory), modified for stabilizer_qec:
+# Copyright 2023 Google LLC, Apache License 2.0; see LICENSE in the parent directory), modified for stabilizer_qec:
 # dataclasses in place of attrs, plain ints and floats in place of sympy, numpy matrices and a numpy density matrix
 # in place of Cirq's channels and simulator for the 15-to-1 factory; `AlgorithmSummary.from_bloq` counts a Bloq
 # with Qualtran's own resource counting, so it needs Qualtran installed.
-"""Qualtran's surface-code cost models: a QEC scheme (logical error rate from distance), physical
-parameters, data blocks (Gidney–Fowler's simple block; Litinski's compact, intermediate and fast
-blocks), magic-state factories (Gidney–Fowler's catalyzed CCZ-to-2T factory, Litinski's 15-to-1
-with its density-matrix error model and its channels, several factories at once), rotation cost
-models, the `PhysicalCostModel` that combines them, and the Gidney–Fowler spreadsheet's and
-Beverland et al.'s estimates."""
+"""The implementation of `stabilizer_qec.estimate.qualtran`: every class and function of Qualtran's
+``qualtran.surface_code`` (but its ``ui``), which the package and its submodules re-export under
+Qualtran's names."""
 
 from __future__ import annotations
 
+import abc
 import math
 from dataclasses import dataclass, field, replace
 from functools import lru_cache, reduce
@@ -40,7 +38,10 @@ class GateCounts:
 
     def __add__(self, other: "GateCounts") -> "GateCounts":
         if not isinstance(other, GateCounts):
-            raise TypeError(f"Can only add other `GateCounts` objects, not {other!r}")
+            try:
+                other = _as_gate_counts(other)  # Qualtran's own GateCounts adds too
+            except (TypeError, ValueError):
+                raise TypeError(f"Can only add other `GateCounts` objects, not {other!r}") from None
         return GateCounts(self.t + other.t, self.toffoli + other.toffoli, self.cswap + other.cswap, self.and_bloq + other.and_bloq, self.clifford + other.clifford, self.rotation + other.rotation, self.measurement + other.measurement)
 
     def __mul__(self, other) -> "GateCounts":
@@ -113,6 +114,20 @@ class TComplexity:
         return f"T-count:   {self.t:g}\nRotations: {self.rotations:g}\nCliffords: {self.clifford:g}\n"
 
 
+_GATE_COUNT_FIELDS = ("t", "toffoli", "cswap", "and_bloq", "clifford", "rotation", "measurement")
+
+
+def _as_gate_counts(counts) -> "GateCounts":
+    """This module's `GateCounts` for Qualtran's own (``qualtran.resource_counting.GateCounts``) or anything else
+    with its seven counts as attributes; a `GateCounts` as it is."""
+    if isinstance(counts, GateCounts):
+        return counts
+    try:
+        return GateCounts(**{name: _plain_count(name, getattr(counts, name)) for name in _GATE_COUNT_FIELDS})
+    except AttributeError:
+        raise TypeError(f"expected GateCounts (the counts t, toffoli, cswap, and_bloq, clifford, rotation and measurement), not {counts!r}") from None
+
+
 def _plain_count(name: str, value) -> int:
     """A count Qualtran's resource counting returned (an int or a sympy number) as an int."""
     if isinstance(value, (int, np.integer)):
@@ -146,7 +161,7 @@ class AlgorithmSummary:
             raise ImportError("AlgorithmSummary.from_bloq counts the Bloq with Qualtran's resource counting, which needs Qualtran: pip install qualtran") from ex
         counts = get_cost_value(bloq, QECGatesCost())
         qubits = int(get_cost_value(bloq, QubitCount()))
-        gates = GateCounts(**{name: _plain_count(name, getattr(counts, name)) for name in ("t", "toffoli", "cswap", "and_bloq", "clifford", "rotation", "measurement")})
+        gates = _as_gate_counts(counts)
         return AlgorithmSummary(n_algo_qubits=qubits, n_logical_gates=gates)
 
 
@@ -162,6 +177,9 @@ class QECScheme:
 
     error_rate_scaler: float
     error_rate_threshold: float
+
+    def __repr__(self) -> str:  # as Qualtran's attrs class prints it: both numbers `:g`
+        return f"QECScheme(error_rate_scaler={self.error_rate_scaler:g}, error_rate_threshold={self.error_rate_threshold:g})"
 
     def logical_error_rate(self, code_distance: int, physical_error: float) -> float:
         return self.error_rate_scaler * math.pow(physical_error / self.error_rate_threshold, (code_distance + 1) / 2)
@@ -184,21 +202,33 @@ class QECScheme:
         return cls(error_rate_scaler=0.03, error_rate_threshold=0.01)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class LogicalErrorModel:
-    """A QEC scheme at one physical error rate: callable on a code distance."""
+    """A QEC scheme at one physical error rate: callable on a code distance. As Qualtran's, the scheme is the
+    private ``_qec_scheme`` (given as ``qec_scheme``; `qec_scheme` reads it too)."""
 
     physical_error: float
-    qec_scheme: QECScheme
+    _qec_scheme: QECScheme
+
+    def __init__(self, physical_error: float, qec_scheme: QECScheme) -> None:
+        object.__setattr__(self, "physical_error", physical_error)
+        object.__setattr__(self, "_qec_scheme", qec_scheme)
+
+    @property
+    def qec_scheme(self) -> QECScheme:
+        return self._qec_scheme
 
     def __call__(self, code_distance: int) -> float:
-        return self.qec_scheme.logical_error_rate(code_distance=code_distance, physical_error=self.physical_error)
+        return self._qec_scheme.logical_error_rate(code_distance=code_distance, physical_error=self.physical_error)
 
 
 @dataclass(frozen=True)
 class PhysicalParameters:
     physical_error: float = 1e-3
     cycle_time_us: float = 1.0
+
+    def __repr__(self) -> str:  # as Qualtran's attrs class prints it: the error rate `:g`
+        return f"PhysicalParameters(physical_error={self.physical_error:g}, cycle_time_us={self.cycle_time_us!r})"
 
     @classmethod
     def make_beverland_et_al(cls, qubit_modality: str = "superconducting", optimistic_err_rate: bool = False) -> "PhysicalParameters":
@@ -225,18 +255,38 @@ class PhysicalParameters:
 # ---------------------------------------------------------------------------------------------
 
 
-class DataBlock:
+class DataBlock(metaclass=abc.ABCMeta):
     """How the algorithm's qubits are laid out in surface-code tiles: the tiles for a number of
-    algorithm qubits and the steps (of ``data_d`` cycles) a magic state takes to consume."""
-
-    data_d: int
-
-    def n_tiles(self, n_algo_qubits: int) -> int:
-        raise NotImplementedError
+    algorithm qubits and the steps (of ``data_d`` cycles) a magic state takes to consume. Abstract, as
+    Qualtran's: a block defines `data_d`, `n_tiles` and `n_steps_to_consume_a_magic_state`."""
 
     @property
+    @abc.abstractmethod
+    def data_d(self) -> int:
+        """The code distance of the data block's tiles."""
+
+    @abc.abstractmethod
+    def n_tiles(self, n_algo_qubits: int) -> int:
+        """The surface-code tiles that hold `n_algo_qubits` algorithm qubits."""
+
+    @property
+    @abc.abstractmethod
     def n_steps_to_consume_a_magic_state(self) -> int:
-        raise NotImplementedError
+        """The steps (of `data_d` cycles each) a magic state takes to consume."""
+
+    # The blocks below keep `data_d` in a slot (so that it overrides the abstract property, as an attrs field
+    # does Qualtran's); pickle and copy, at every protocol, take the slot with the instance dict and set both
+    # past the frozen dataclass's __setattr__.
+    def __getstate__(self):
+        slots = {k: getattr(self, k) for c in type(self).__mro__ for k in c.__dict__.get("__slots__", ()) if hasattr(self, k)}
+        return (getattr(self, "__dict__", None) or None, slots or None)
+
+    def __setstate__(self, state) -> None:
+        dict_state, slot_state = state if isinstance(state, tuple) else (state, None)
+        if dict_state:
+            self.__dict__.update(dict_state)
+        for key, value in (slot_state or {}).items():
+            object.__setattr__(self, key, value)
 
     def n_cycles(self, n_logical_gates: GateCounts, logical_error_model: LogicalErrorModel) -> int:
         counts = n_logical_gates.total_t_and_ccz_count()
@@ -253,6 +303,7 @@ class DataBlock:
 class SimpleDataBlock(DataBlock):
     """One tile per algorithm qubit plus a routing overhead (Gidney–Fowler's spreadsheet)."""
 
+    __slots__ = ("data_d",)
     data_d: int
     routing_overhead: float = 0.5
 
@@ -268,6 +319,7 @@ class SimpleDataBlock(DataBlock):
 class CompactDataBlock(DataBlock):
     """Litinski's compact block: 1.5 tiles per qubit, 9 steps per magic state."""
 
+    __slots__ = ("data_d",)
     data_d: int
 
     def n_tiles(self, n_algo_qubits: int) -> int:
@@ -282,6 +334,7 @@ class CompactDataBlock(DataBlock):
 class IntermediateDataBlock(DataBlock):
     """Litinski's intermediate block: 2 tiles per qubit, 5 steps per magic state."""
 
+    __slots__ = ("data_d",)
     data_d: int
 
     def n_tiles(self, n_algo_qubits: int) -> int:
@@ -296,6 +349,7 @@ class IntermediateDataBlock(DataBlock):
 class FastDataBlock(DataBlock):
     """Litinski's fast block: ``2n + √(8n) + 1`` tiles, one step per magic state."""
 
+    __slots__ = ("data_d",)
     data_d: int
 
     @staticmethod
@@ -320,18 +374,21 @@ class FastDataBlock(DataBlock):
 # ---------------------------------------------------------------------------------------------
 
 
-class MagicStateFactory:
+class MagicStateFactory(metaclass=abc.ABCMeta):
     """A factory's physical qubits, the cycles to make the magic states the gates need, and the
-    error it leaves in them."""
+    error it leaves in them. Abstract, as Qualtran's."""
 
+    @abc.abstractmethod
     def n_physical_qubits(self) -> int:
-        raise NotImplementedError
+        """The physical qubits of the factory."""
 
+    @abc.abstractmethod
     def n_cycles(self, n_logical_gates: GateCounts, logical_error_model: LogicalErrorModel) -> int:
-        raise NotImplementedError
+        """The cycles to make the magic states the gates need."""
 
+    @abc.abstractmethod
     def factory_error(self, n_logical_gates: GateCounts, logical_error_model: LogicalErrorModel) -> float:
-        raise NotImplementedError
+        """The error the factory leaves in those magic states."""
 
 
 @dataclass(frozen=True)
@@ -498,7 +555,13 @@ class _Density:
 class FifteenToOne(MagicStateFactory):
     """Litinski's 15-to-1 T factory (arXiv:1905.06903): ``d_X`` and ``d_Z`` the patch sides,
     ``d_m`` the measurement rounds per surgery; its failure and output error from the paper's
-    density-matrix error model of the eleven π/8 rotations."""
+    density-matrix error model of the eleven π/8 rotations.
+
+    The density matrix is evolved here with numpy, not with Cirq's simulator as in Qualtran, so the last bits
+    of `p_fail` and `p_out` can differ from Qualtran's: `p_fail` agrees to about 1e-11 relative, and `p_out`
+    (one minus a trace near 1) to about 1e-16 absolute, which is a large relative difference when `p_out` is
+    itself near 1e-14 (a few percent at ``d_X=9, d_Z=5, d_m=3`` and a 1e-5 physical error). Everything else
+    here, `n_cycles` included, has given Qualtran's numbers exactly."""
 
     d_X: int
     d_Z: int
@@ -527,9 +590,10 @@ class FifteenToOne(MagicStateFactory):
         target = np.kron(t_state.conj().T @ t_state, np.ones((16, 16)) / 16)
         return float(np.real(1 - np.trace(projected @ target)))
 
-    def n_cycles(self, n_logical_gates: GateCounts, logical_error_model: LogicalErrorModel) -> int:
-        """The expected cycles, failures included (page 11 of the paper)."""
-        return int(math.ceil(n_logical_gates.total_t_count() * 6 * self.d_m / (1 - self.p_fail(logical_error_model))))
+    def n_cycles(self, n_logical_gates: GateCounts, logical_error_model: LogicalErrorModel) -> float:
+        """The expected cycles, failures included (page 11 of the paper), as Qualtran gives them: a numpy float
+        (``np.ceil``)."""
+        return np.ceil(n_logical_gates.total_t_count() * 6 * self.d_m / (1 - self.p_fail(logical_error_model)))
 
     def factory_error(self, n_logical_gates: GateCounts, logical_error_model: LogicalErrorModel) -> float:
         return self.p_out(logical_error_model) * n_logical_gates.total_t_count()
@@ -607,12 +671,17 @@ class MultiFactory(MagicStateFactory):
 # ---------------------------------------------------------------------------------------------
 
 
-class RotationCostModel:
-    def rotation_cost(self, error_budget: float) -> GateCounts:
-        raise NotImplementedError
+class RotationCostModel(metaclass=abc.ABCMeta):
+    """The gates a single-qubit rotation costs within an error budget, and the gates to prepare whatever
+    the rotations share. Abstract, as Qualtran's."""
 
+    @abc.abstractmethod
+    def rotation_cost(self, error_budget: float) -> GateCounts:
+        """The gates one rotation costs within `error_budget`."""
+
+    @abc.abstractmethod
     def preparation_overhead(self, error_budget: float) -> GateCounts:
-        raise NotImplementedError
+        """The gates paid once, before the rotations."""
 
 
 @dataclass(frozen=True)
@@ -760,14 +829,14 @@ def iter_simple_data_blocks(d_start: int = 7, d_stop: int = 35) -> Iterator[Simp
         yield SimpleDataBlock(data_d=d)
 
 
-def get_ccz2t_costs_from_grid_search(*, n_logical_gates: GateCounts, n_algo_qubits: int, phys_err: float = 1e-3, error_budget: float = 1e-2, cycle_time_us: float = 1.0, factory_iter: Optional[Iterable[MagicStateFactory]] = None, data_block_iter: Optional[Iterable[DataBlock]] = None, cost_function: Callable[[PhysicalCostsSummary], float] = lambda pc: pc.qubit_hours) -> tuple[PhysicalCostsSummary, MagicStateFactory, DataBlock]:
-    """The factory and data block that minimise ``cost_function`` within the error budget."""
-    factories = tuple(iter_ccz2t_factories()) if factory_iter is None else tuple(factory_iter)
-    blocks = tuple(iter_simple_data_blocks()) if data_block_iter is None else tuple(data_block_iter)
+def get_ccz2t_costs_from_grid_search(*, n_logical_gates: GateCounts, n_algo_qubits: int, phys_err: float = 1e-3, error_budget: float = 1e-2, cycle_time_us: float = 1.0, factory_iter: Iterable[MagicStateFactory] = tuple(iter_ccz2t_factories()), data_block_iter: Iterable[DataBlock] = tuple(iter_simple_data_blocks()), cost_function: Callable[[PhysicalCostsSummary], float] = lambda pc: pc.qubit_hours) -> tuple[PhysicalCostsSummary, MagicStateFactory, DataBlock]:
+    """The factory and data block that minimise ``cost_function`` within the error budget. As Qualtran's, the
+    blocks are iterated again for each factory, so a one-shot iterator of blocks is used up by the first factory
+    (and ``ValueError: No valid factories found!`` follows when none of its blocks fits)."""
     best: Optional[PhysicalCostsSummary] = None
     best_params = None
-    for factory in factories:
-        for data_block in blocks:
+    for factory in factory_iter:
+        for data_block in data_block_iter:
             cost = get_ccz2t_costs(n_logical_gates=n_logical_gates, n_algo_qubits=n_algo_qubits, phys_err=phys_err, cycle_time_us=cycle_time_us, factory=factory, data_block=data_block)
             if cost.failure_prob > error_budget:
                 continue
@@ -804,9 +873,11 @@ def code_distance(*, error_budget: float, time_steps: float, alg: AlgorithmSumma
 
 
 def n_discrete_logical_gates(*, eps_syn: float, alg: AlgorithmSummary, rotation_model: RotationCostModel) -> GateCounts:
-    """The counts with every rotation synthesised into T and Toffoli gates."""
-    n_rotations = alg.n_logical_gates.rotation
-    ret = replace(alg.n_logical_gates, rotation=0)
+    """The counts with every rotation synthesised into T and Toffoli gates (Qualtran's own `GateCounts` in the
+    summary is read as this module's)."""
+    counts = _as_gate_counts(alg.n_logical_gates)
+    n_rotations = counts.rotation
+    ret = replace(counts, rotation=0)
     if n_rotations > 0:
         ret = ret + rotation_model.preparation_overhead(eps_syn) + n_rotations * rotation_model.rotation_cost(eps_syn / n_rotations)
     return ret
