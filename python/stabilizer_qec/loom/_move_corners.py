@@ -15,7 +15,7 @@ from .circuit import ChannelType, Circuit, SyndromeCircuit
 from .eka import DiagonalDirection, Direction, MeasureBlockSyndromes, Orientation, PauliOperator, Stabilizer
 from .interpreter import InterpretationStep, measureblocksyndromes
 from .rotated_surface_code import RotatedSurfaceCode
-from ._rsc_geometry import find_relative_diagonal_direction, generate_syndrome_extraction_circuits
+from ._rsc_geometry import find_relative_diagonal_direction, generate_syndrome_extraction_circuits, zip_strict
 
 Coord = tuple[int, ...]
 
@@ -32,7 +32,7 @@ def move_corners(step: InterpretationStep, block: RotatedSurfaceCode, corner_arg
         future["X"] += future_stabilizers[0]
         future["Z"] += future_stabilizers[1]
         block = step.get_block(initial_block_name)
-        for pauli, past_stabs, logical in zip(("X", "Z"), past_stabilizers, (block.logical_x_operators[0], block.logical_z_operators[0]), strict=True):
+        for pauli, past_stabs, logical in zip_strict(("X", "Z"), past_stabilizers, (block.logical_x_operators[0], block.logical_z_operators[0])):
             cbits = tuple(cbit for stab in past_stabs for cbit in step.get_prev_syndrome(stab.uuid, block.uuid)[0].measurements)
             step.update_logical_operator_updates_MUT(pauli, logical.uuid, cbits, inherit_updates=logical not in previous)
     step = measureblocksyndromes(step, MeasureBlockSyndromes(initial_block_name), same_timeslice, debug_mode)
@@ -120,7 +120,7 @@ def is_2_body_included(block: RotatedSurfaceCode, corner_qubit: Coord, boundary:
 def cut_corner_stabilizer(block: RotatedSurfaceCode, corner_qubit: Coord) -> Stabilizer:
     """The weight-4 stabilizer on the corner qubit without it."""
     stab = next(s for s in block.stabilizers if corner_qubit in s.data_qubits and len(s.data_qubits) == 4)
-    paulis, qubits = zip(*((p, q) for p, q in zip(stab.pauli, stab.data_qubits, strict=True) if q != corner_qubit), strict=True)
+    paulis, qubits = zip_strict(*((p, q) for p, q in zip_strict(stab.pauli, stab.data_qubits) if q != corner_qubit))
     return Stabilizer(pauli="".join(paulis), data_qubits=qubits, ancilla_qubits=stab.ancilla_qubits)
 
 
@@ -181,7 +181,7 @@ def move_corner_logical_operators(block: RotatedSurfaceCode, corner_qubit: Coord
         raise ValueError("Only a single logical qubit is supported")
     new_ops, evolutions = [], []
     for old in (block.logical_x_operators[0], block.logical_z_operators[0]):
-        paulis = {q: p for p, q in zip(old.pauli, old.data_qubits, strict=True)}
+        paulis = {q: p for p, q in zip_strict(old.pauli, old.data_qubits)}
         included = set(to_update) & set(old.data_qubits)
         if not included:
             new_op, evolution = old, {}
@@ -195,7 +195,7 @@ def move_corner_logical_operators(block: RotatedSurfaceCode, corner_qubit: Coord
                 old_qubits = set(old.data_qubits)
                 intersections = [set(s.data_qubits) & old_qubits for s in new_stabs_to_be_added]
                 anchor = next(next(iter(i)) for i in intersections if len(i) == 1)
-            old_stab_paulis = {q: p for s in old_stabs_to_be_removed for p, q in zip(s.pauli, s.data_qubits, strict=True)}
+            old_stab_paulis = {q: p for s in old_stabs_to_be_removed for p, q in zip_strict(s.pauli, s.data_qubits)}
             start = to_update.index(anchor)
             included_old = [s for s in old_stabs_to_be_removed if all(q in to_update[start:] for q in s.data_qubits)]
             for q in to_update[start:]:
@@ -217,7 +217,7 @@ def move_corner_circuit(step: InterpretationStep, block: RotatedSurfaceCode, cor
     of the detectors and observables)."""
     if isinstance(cut_stabilizer, Stabilizer):
         stab = next(s for s in block.bulk_stabilizers if corner_qubit in s.data_qubits)
-        pauli = next(p for p, q in zip(stab.pauli, stab.data_qubits, strict=True) if q == corner_qubit)
+        pauli = next(p for p, q in zip_strict(stab.pauli, stab.data_qubits) if q == corner_qubit)
         basis = "" if pauli == "Z" else f"_{pauli}"
         q_chan = step.get_channel_MUT(str(corner_qubit))
         c_chan = step.get_channel_MUT(f"c_{corner_qubit}", ChannelType.CLASSICAL)

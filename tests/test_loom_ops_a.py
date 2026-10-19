@@ -25,7 +25,6 @@ import pytest
 import stabilizer_qec as sq
 import stabilizer_qec.deltakit_stim as dstim
 from stabilizer_qec import loom
-from stabilizer_qec.deltakit import circuit as dk
 from stabilizer_qec.loom import executor
 
 HERE = pathlib.Path(__file__).parent
@@ -260,6 +259,10 @@ def with_observables(text: str, groups: list[list[int]]) -> str:
 def noisy(text: str, p: float) -> sq.Circuit:
     """The circuit with this package's Deltakit noise: depolarizing after every Clifford gate,
     flips before measurements and after resets."""
+    if sys.version_info < (3, 11):
+        pytest.skip("stabilizer_qec.deltakit needs Python 3.11, as Deltakit")
+    from stabilizer_qec.deltakit import circuit as dk
+
     circuit = dk.Circuit.from_stim_circuit(dstim.Circuit(text))
     circuit.apply_gate_noise(dk.after_clifford_depolarisation(p), dk.Circuit.LayerAdjacency.AFTER)
     circuit.apply_gate_noise(dk.before_measure_flip_probability(p), dk.Circuit.LayerAdjacency.BEFORE)

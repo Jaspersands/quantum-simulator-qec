@@ -18,6 +18,15 @@ from .circuit import Circuit, SyndromeCircuit
 from .eka import DiagonalDirection, Direction, FourBodySchedule, Orientation, PauliOperator, Stabilizer
 from .rotated_surface_code import RotatedSurfaceCode
 
+
+def zip_strict(*iterables):
+    """``zip(*iterables, strict=True)``, which Python 3.9 lacks: a ``ValueError`` if the lengths differ."""
+    seqs = [list(it) for it in iterables]
+    if len({len(s) for s in seqs}) > 1:
+        raise ValueError("zip() arguments have different lengths")
+    return zip(*seqs)
+
+
 Coord = tuple[int, ...]
 
 
@@ -226,7 +235,7 @@ def direction_to_coord(direction: Union[Direction, DiagonalDirection], sublattic
 
 
 def update_qubit_coords(input_qubit_coords: Sequence[Coord], direction: Union[Direction, DiagonalDirection]) -> tuple[Coord, ...]:
-    return tuple(tuple(c + d for c, d in zip(q, direction_to_coord(direction, q[-1]), strict=True)) for q in input_qubit_coords)
+    return tuple(tuple(c + d for c, d in zip_strict(q, direction_to_coord(direction, q[-1]))) for q in input_qubit_coords)
 
 
 def shift_block_towards_direction(rsc_block: RotatedSurfaceCode, direction: Union[Direction, DiagonalDirection], debug_mode: bool) -> tuple[RotatedSurfaceCode, dict[str, tuple[str, ...]], dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]:

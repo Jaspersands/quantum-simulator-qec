@@ -15,7 +15,7 @@ from .circuit import Circuit
 from .eka import DiagonalDirection, Direction, MoveBlock, Orientation, Stabilizer
 from .interpreter import Cbit, InterpretationStep, generate_detectors, generate_syndromes
 from .rotated_surface_code import RotatedSurfaceCode
-from ._rsc_geometry import DetailedSchedule, construct_padded_circuit_time_sequence, direction_along_orientation, direction_to_coord, find_detailed_schedules, pauli_type, shift_block_towards_direction, update_qubit_coords
+from ._rsc_geometry import DetailedSchedule, construct_padded_circuit_time_sequence, direction_along_orientation, direction_to_coord, find_detailed_schedules, pauli_type, shift_block_towards_direction, update_qubit_coords, zip_strict
 
 Coord = tuple[int, ...]
 
@@ -73,7 +73,7 @@ def move_block_diagonally_via_swap_qec(step: InterpretationStep, current_block: 
 
 def check_valid_move(occupied_qubits: Sequence[Coord], moving_qubits: Sequence[Coord], direction) -> None:
     for q in moving_qubits:
-        new = tuple(a + b for a, b in zip(q, direction_to_coord(direction, q[-1]), strict=True))
+        new = tuple(a + b for a, b in zip_strict(q, direction_to_coord(direction, q[-1])))
         if new in occupied_qubits:
             raise ValueError(f"The move operation is invalid. The following qubit, {q}, is moving to an occupied qubit, {new}.")
 
@@ -110,7 +110,7 @@ def find_swap_then_qec_qubit_initializations(stabilizers: Sequence[Stabilizer], 
     for stab in stabilizers:
         if stab in leading:
             continue
-        anc_to_init[pauli_type(stab)].append(tuple(a + b for a, b in zip(stab.ancilla_qubits[0], vector, strict=True)))
+        anc_to_init[pauli_type(stab)].append(tuple(a + b for a, b in zip_strict(stab.ancilla_qubits[0], vector)))
     teleportation_pairs: list[tuple[Coord, Coord]] = []
     data_vector = direction_to_coord(diag_direction.opposite(), anc_sublattice)
     for stab in stabilizers:
@@ -120,17 +120,17 @@ def find_swap_then_qec_qubit_initializations(stabilizers: Sequence[Stabilizer], 
         p = pauli_type(stab)
         if anc not in anc_to_init[p]:
             anc_to_init[p].append(anc)
-            teleportation_pairs.append((anc, tuple(map(sum, zip(anc, data_vector, strict=True)))))
+            teleportation_pairs.append((anc, tuple(map(sum, zip_strict(anc, data_vector)))))
     data_to_init: dict[str, list[Coord]] = {"X": [], "Z": []}
     anc_to_data = direction_to_coord(diag_direction, anc_sublattice)
     for stab in leading:
-        data_to_init[pauli_type(stab)].append(tuple(a + b for a, b in zip(stab.ancilla_qubits[0], anc_to_data, strict=True)))
+        data_to_init[pauli_type(stab)].append(tuple(a + b for a, b in zip_strict(stab.ancilla_qubits[0], anc_to_data)))
     if relocation_diag_direction is not None:
         anc_relocation = direction_to_coord(relocation_diag_direction, anc_sublattice)
         data_relocation = direction_to_coord(relocation_diag_direction, data_sublattice)
 
         def add(a, b):
-            return tuple(map(sum, zip(a, b, strict=True)))
+            return tuple(map(sum, zip_strict(a, b)))
 
         anc_to_init = {k: [add(q, anc_relocation) for q in v] for k, v in anc_to_init.items()}
         data_to_init = {k: [add(q, data_relocation) for q in v] for k, v in data_to_init.items()}
@@ -178,7 +178,7 @@ def generate_syndrome_measurement_circuit_and_cbits(step: InterpretationStep, bl
     stab_measurements: list[tuple[Cbit, ...]] = []
     gates: list[Circuit] = []
     for stab in block.stabilizers:
-        anc = tuple(map(sum, zip(stab.ancilla_qubits[0], actual_anc_qubit_relocation_vector, strict=True)))
+        anc = tuple(map(sum, zip_strict(stab.ancilla_qubits[0], actual_anc_qubit_relocation_vector)))
         anc_channel = step.get_channel_MUT(anc)
         cbit = step.get_new_cbit_MUT(f"c_{anc}")
         stab_measurements.append((cbit,))

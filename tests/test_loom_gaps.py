@@ -28,7 +28,6 @@ import pytest
 import stabilizer_qec as sq
 import stabilizer_qec.deltakit_stim as dstim
 from stabilizer_qec import loom
-from stabilizer_qec.deltakit import circuit as dk
 from stabilizer_qec.loom import Block, Channel, Circuit, Eka, Lattice, LogicalState, PauliOperator, Stabilizer
 
 HERE = pathlib.Path(__file__).parent
@@ -43,6 +42,12 @@ def message(f) -> str | None:
     except Exception as e:  # noqa: BLE001
         return f"{type(e).__name__}: {e}"
     return None
+
+
+def call_message(text: str) -> str:
+    """A bad call's TypeError as this Python words it: before 3.10 it names the method without
+    its class."""
+    return text if sys.version_info >= (3, 10) else re.sub(r"\w+\.(?=\w+\(\))", "", text)
 
 
 def loom_message(text: str) -> str:
@@ -173,8 +178,8 @@ def test_the_executor_is_looms(step):
         assert isinstance(loom.Executor(target_language=language).converter, loom.Converter)
     with pytest.raises(ValueError, match="target_language"):
         loom.Executor(target_language="stim")
-    assert message(lambda: loom.EkaToPennylaneConverter().convert(step, is_catalyst=True)) == CONVERTERS["converter_bad_keyword"]
-    assert message(lambda: loom.EkaToStimConverter().convert()) == CONVERTERS["converter_no_step"]
+    assert message(lambda: loom.EkaToPennylaneConverter().convert(step, is_catalyst=True)) == call_message(CONVERTERS["converter_bad_keyword"])
+    assert message(lambda: loom.EkaToStimConverter().convert()) == call_message(CONVERTERS["converter_no_step"])
 
 
 # ---------------------------------------------------------------------------------------------
@@ -608,6 +613,10 @@ STIM = sorted(name for name, ref in EXPERIMENTS.items() if "stim" in ref)
 def noisy(text: str, p: float) -> sq.Circuit:
     """The circuit with this package's Deltakit noise: depolarizing after every Clifford gate,
     flips before measurements and after resets."""
+    if sys.version_info < (3, 11):
+        pytest.skip("stabilizer_qec.deltakit needs Python 3.11, as Deltakit")
+    from stabilizer_qec.deltakit import circuit as dk
+
     circuit = dk.Circuit.from_stim_circuit(dstim.Circuit(text))
     circuit.apply_gate_noise(dk.after_clifford_depolarisation(p), dk.Circuit.LayerAdjacency.AFTER)
     circuit.apply_gate_noise(dk.before_measure_flip_probability(p), dk.Circuit.LayerAdjacency.BEFORE)

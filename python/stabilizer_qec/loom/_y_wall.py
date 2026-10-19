@@ -19,7 +19,7 @@ from .eka import DiagonalDirection, Direction, FourBodySchedule, Orientation, Pa
 from .interpreter import Cbit, InterpretationStep
 from .rotated_surface_code import RotatedSurfaceCode
 from ._move_block import find_swap_then_qec_qubit_initializations, generate_and_append_block_syndromes_and_detectors, generate_syndrome_measurement_circuit_and_cbits
-from ._rsc_geometry import DetailedSchedule, construct_padded_circuit_time_sequence, direction_to_coord, find_relative_diagonal_direction, generate_syndrome_extraction_circuits, pauli_type
+from ._rsc_geometry import DetailedSchedule, construct_padded_circuit_time_sequence, direction_to_coord, find_relative_diagonal_direction, generate_syndrome_extraction_circuits, pauli_type, zip_strict
 
 Coord = tuple[int, ...]
 
@@ -94,7 +94,7 @@ def y_wall_out_consistency_check(block: RotatedSurfaceCode, wall_pos: int, wall_
 
 
 def qubit_mapper(q: Coord, move_direction) -> Coord:
-    return tuple(map(sum, zip(q, direction_to_coord(move_direction, q[2]), strict=True)))
+    return tuple(map(sum, zip_strict(q, direction_to_coord(move_direction, q[2]))))
 
 
 def move_logicals_and_append_evolution_and_updates(step: InterpretationStep, block: RotatedSurfaceCode, move_direction: DiagonalDirection) -> tuple[PauliOperator, PauliOperator]:
@@ -156,7 +156,7 @@ def get_final_block_syndrome_measurement_cnots_circuit(block: RotatedSurfaceCode
     if is_swap_then_qec:
         vec = direction_to_coord(idle_side_directions, 0)
         for q in block.data_qubits:
-            current = tuple(map(sum, zip(q, vec, strict=True)))
+            current = tuple(map(sum, zip_strict(q, vec)))
             if q in anc_qubits_to_init["X"]:
                 pair = (q, current)
             elif q in anc_qubits_to_init["Z"]:
@@ -352,10 +352,10 @@ def find_new_stabilizers_and_define_evolution_and_updates(step: InterpretationSt
     v = idle_to_had.to_vector()
     new_wall = [Stabilizer(s.pauli, [q if q not in qubits_to_measure else (q[0] + v[0], q[1] + v[1], q[2]) for q in s.data_qubits], ancilla_qubits=s.ancilla_qubits) for s in wall_idle]
     evolution: dict[str, tuple[str, ...]] = {}
-    evolution |= {new.uuid: (old.uuid,) for old, new in zip(old_had + old_idle, new_had + new_idle, strict=True)}
-    evolution |= {new.uuid: (i.uuid, h.uuid) for i, h, new in zip(wall_idle, wall_had_ordered, new_wall, strict=True)}
+    evolution |= {new.uuid: (old.uuid,) for old, new in zip_strict(old_had + old_idle, new_had + new_idle)}
+    evolution |= {new.uuid: (i.uuid, h.uuid) for i, h, new in zip_strict(wall_idle, wall_had_ordered, new_wall)}
     step.stabilizer_evolution.update(evolution)
-    for new, old in zip(new_wall, wall_idle, strict=True):
+    for new, old in zip_strict(new_wall, wall_idle):
         measured = set(old.data_qubits) & set(qubits_to_measure)
         cbits = tuple(c for c, q in zip(y_meas_cbits, qubits_to_measure) if q in measured)
         step.stabilizer_updates[new.uuid] = step.stabilizer_updates.get(new.uuid, ()) + cbits + (1,)
@@ -365,7 +365,7 @@ def find_new_stabilizers_and_define_evolution_and_updates(step: InterpretationSt
 def measure_y_and_hadamard_circuit(block: RotatedSurfaceCode, qubits_to_measure: Sequence[Coord], qubits_to_hadamard: Sequence[Coord], step: InterpretationStep) -> tuple[Circuit, list[Cbit]]:
     cbits = [step.get_new_cbit_MUT(f"c_{q}") for q in qubits_to_measure]
     cbit_channels = [step.get_channel_MUT(f"{c[0]}_{c[1]}", channel_type="classical") for c in cbits]
-    wall = Circuit(name=f"Measure wall of qubits in the Y basis for block {block.unique_label}", circuit=[[Circuit("measure_y", channels=[step.get_channel_MUT(q), ch]) for q, ch in zip(qubits_to_measure, cbit_channels, strict=True)]])
+    wall = Circuit(name=f"Measure wall of qubits in the Y basis for block {block.unique_label}", circuit=[[Circuit("measure_y", channels=[step.get_channel_MUT(q), ch]) for q, ch in zip_strict(qubits_to_measure, cbit_channels)]])
     hadamards = Circuit(name=f"transversal hadamard on the data qubits for the y_wall_out operation of block {block.unique_label}", circuit=[[Circuit("h", channels=[step.get_channel_MUT(q)]) for q in qubits_to_hadamard]])
     return Circuit(name="y_wall_out - y wall measurement and hadamard", circuit=((wall, hadamards),)), cbits
 
@@ -488,7 +488,7 @@ def get_final_block_syndrome_measurement_first_swap_then_qec_cnots_circuit(step:
     for qubits, direction, anc in ((qubits_to_had, had_side_directions, anc_qubits_to_init_had), (qubits_to_idle, idle_side_directions, anc_qubits_to_init_idle)):
         vec = direction_to_coord(direction, 0)
         for q in qubits:
-            a = tuple(map(sum, zip(q, vec, strict=True)))
+            a = tuple(map(sum, zip_strict(q, vec)))
             if a in anc["Z"]:
                 pair = (q, a)
             elif a in anc["X"]:
