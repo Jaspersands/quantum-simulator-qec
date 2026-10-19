@@ -211,3 +211,157 @@ def test_clifford_angle_coherent_errors_are_the_gates_they_are():
     assert s2.num_locations == 1 and s2.num_exact == 1
     rate, se = joint_rate(c2, 20000)
     assert abs(rate - c2.exact_distribution()[((True,), ())]) < 4 * se + 0.003
+
+
+# ---------------------------------------------------------------------------------------------
+# Interference between distant faults (2.1): a logical error at one time with the same logical
+# at another is one kernel element, of weight 2d, which no local search finds
+# ---------------------------------------------------------------------------------------------
+
+
+def repetition_memory(d: int, rounds: int, theta: float) -> sq.Circuit:
+    """A distance-d repetition memory with an over-rotation exp(−iθX) on every data qubit at
+    each round's start and no other noise (the 2.1 audit's circuit at d = 3, 2 rounds)."""
+    data = " ".join(str(2 * i) for i in range(d))
+    lines = ["R " + " ".join(str(q) for q in range(2 * d - 1))]
+    for r in range(rounds):
+        lines += [
+            f"I_ERROR[R_X(theta={theta!r})] {data}",
+            "CX " + " ".join(f"{2 * i} {2 * i + 1}" for i in range(d - 1)),
+            "CX " + " ".join(f"{2 * i + 2} {2 * i + 1}" for i in range(d - 1)),
+            "MR " + " ".join(str(2 * i + 1) for i in range(d - 1)),
+        ]
+        lines += [f"DETECTOR rec[-{d - 1 - k}]" if r == 0 else f"DETECTOR rec[-{d - 1 - k}] rec[-{2 * d - 2 - k}]" for k in range(d - 1)]
+    lines.append(f"M {data}")
+    lines += [f"DETECTOR rec[-{d - k}] rec[-{d - k - 1}] rec[-{2 * d - 1 - k}]" for k in range(d - 1)]
+    lines.append("OBSERVABLE_INCLUDE(0) rec[-1]")
+    return sq.Circuit("\n".join(lines))
+
+
+def surface_memory(rounds: int, theta: float) -> sq.Circuit:
+    """Stim's d = 3 rotated surface-code X memory with an over-rotation exp(−iθZ) on every data
+    qubit at each round's start (before the X ancillas' first Hadamard), no other noise."""
+    lines = str(sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=rounds)).splitlines()
+    data = " ".join([line for line in lines if line.strip().startswith("MX ")][-1].split()[1:])
+    out = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("H ") and i + 2 < len(lines) and lines[i + 1].strip() == "TICK" and lines[i + 2].strip().startswith("CX "):
+            out.append(f"I_ERROR[R_Z(theta={theta!r})] {data}")
+        out.append(line)
+    return sq.Circuit("\n".join(out))
+
+
+def silent_exact(c: sq.Circuit, rounds: int, theta: float) -> tuple[float, float]:
+    """P(no detection event, observable kept) and P(no detection event, observable flipped) for
+    a memory of these two kinds, by an independent state vector of its data qubits alone. The
+    rotations sit before each round's gates and nothing else is noisy, so each round's checks
+    of the rotated basis measure the parities of the faults on their supports exactly, and the
+    other basis's checks commute with everything that is read: in the rotated basis's frame a
+    round is exp(−iθX) on every data qubit and a projection onto even parities."""
+    lines = [line.strip() for line in str(c).splitlines()]
+    last = max(i for i, line in enumerate(lines) if line.startswith(("M ", "MX ")))
+    n = len(lines[last].split()) - 1
+    # The final detectors' and the observable's data records, as positions among the data.
+    def support(line: str) -> list[int]:
+        return [n - k for k in (int(t[5:-1]) for t in line.split() if t.startswith("rec[-")) if k <= n]
+    checks = [support(line) for line in lines[last + 1 :] if line.startswith("DETECTOR")]
+    logical = [support(line) for line in lines[last + 1 :] if line.startswith("OBSERVABLE_INCLUDE")][0]
+    idx = np.arange(1 << n)
+    parity = lambda qs: np.bitwise_xor.reduce([(idx >> q) & 1 for q in qs])
+    even = np.all([parity(ch) == 0 for ch in checks], axis=0)
+    flipped = parity(logical) == 1
+    psi = np.zeros(1 << n, dtype=complex)
+    psi[0] = 1.0
+    for _ in range(rounds):
+        for q in range(n):
+            psi = np.cos(theta) * psi - 1j * np.sin(theta) * psi[idx ^ (1 << q)]
+        psi = np.where(even, psi, 0.0)
+    p = np.abs(psi) ** 2
+    return float(p[~flipped].sum()), float(p[flipped].sum())
+
+
+def silent_rates(c: sq.Circuit, shots: int, seed: int = 9):
+    """The coherent sampler's P(no detection event, kept) and P(no detection event, flipped),
+    with their standard errors, and the sampler."""
+    s = c.compile_coherent_sampler(seed=seed)
+    d, o, w = s.sample(shots, threads=0)
+    quiet = ~d.any(axis=1)
+    return sq.weighted_rate(quiet & ~o[:, 0], w), sq.weighted_rate(quiet & o[:, 0], w), s
+
+
+@pytest.mark.parametrize("d, rounds, theta", [(3, 2, 0.3), (3, 3, 0.3), (5, 2, 0.5)])
+def test_logical_errors_at_different_times_interfere(d, rounds, theta):
+    """The audit's case and its kin: XXX in one round with XXX in another flips nothing, so the
+    two give the same outcome and their amplitudes add, doubling the rate of a logical error
+    with no detection event over the twirl's (0.00203 against 0.00101 at d = 3, 2 rounds; the
+    2.0 sampler read the twirl's, 44σ off). The sampler's weights are now the whole kernel's."""
+    c = repetition_memory(d, rounds, theta)
+    assert silent_exact(c, rounds, theta)[1] == pytest.approx(sum(p for (dets, obs), p in c.exact_distribution().items() if not any(dets) and obs[0]), rel=1e-9)
+    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, 1_000_000)
+    assert s.kernel_complete and s.exact_weights and s.num_nonlocal_generators == rounds - 1 == s.num_generators
+    exact_kept, exact_flipped = silent_exact(c, rounds, theta)
+    assert abs(kept - exact_kept) < 5 * se_kept, (kept, exact_kept, se_kept)
+    assert abs(flipped - exact_flipped) < 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+    # The twirl is far outside: the test sees the interference.
+    twirl = sum(p for (dets, obs), p in c.twirled().exact_distribution().items() if not any(dets) and obs[0])
+    assert abs(exact_flipped - twirl) > 8 * se_flipped
+    # Every detector's and the observable's marginal, too.
+    mean, se, _ = weighted_marginals(c, 200_000, seed=3)
+    assert np.all(np.abs(mean - exact_marginals(c)) < 5 * se + 1e-9)
+
+
+def test_decoded_logical_error_with_one_rotation_per_round():
+    """The audit's decoded case: matching on the twirled model, d = 3, 2 rounds, θ = 0.2 once per
+    round (the 2.0 sampler: 0.00907 ± 0.00009 against the exact 0.00950)."""
+    c = repetition_memory(3, 2, 0.2)
+    dec = sq.Matching.from_detector_error_model(c.twirled().detector_error_model(decompose_errors=True))
+    dist = c.exact_distribution()
+    keys = list(dist)
+    fails = (dec.decode_batch(np.array([k[0] for k in keys], dtype=bool)) != np.array([k[1] for k in keys], dtype=bool)).any(axis=1)
+    exact = float((np.array([dist[k] for k in keys]) * fails).sum())
+    d, o, w = c.compile_coherent_sampler(seed=5).sample(400_000, threads=0)
+    rate, se = sq.weighted_rate((dec.decode_batch(d) != o).any(axis=1), w)
+    assert abs(rate - exact) < 5 * se, (rate, exact, se)
+
+
+def test_surface_code_memory_with_one_rotation_per_round():
+    """The d = 3 rotated surface code's X memory, exp(−iθZ) on every data qubit once per round:
+    17 qubits, whose every branch no state vector here follows, against the data's own state
+    vector. Two rounds have a kernel of nine generators, one of them non-local, summed whole
+    (the 2.0 sampler: 0.00117 ± 0.00008 against the exact 0.00240, the twirl's 0.00144)."""
+    theta = 0.25
+    c = surface_memory(2, theta)
+    exact_kept, exact_flipped = silent_exact(c, 2, theta)
+    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, 300_000)
+    assert s.kernel_complete and s.exact_weights and s.num_nonlocal_generators >= 1
+    assert abs(kept - exact_kept) < 5 * se_kept, (kept, exact_kept, se_kept)
+    assert abs(flipped - exact_flipped) < 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+
+
+def test_surface_code_memory_past_the_whole_sum_is_truncated():
+    """Three rounds: fourteen generators, past the whole sum. The truncated sum takes the
+    logical at other times for the faults that reach it, and its estimate of a silent logical
+    error moves from 2.0's 0.00100 ± 0.00007 (below even the twirl's 0.00123) towards the
+    exact 0.00258, to 0.00161 ± 0.00013: part of the interference between rounds is still left
+    out (README, Limits). What is not a logical error stays exact within its error."""
+    theta = 0.25
+    c = surface_memory(3, theta)
+    exact_kept, exact_flipped = silent_exact(c, 3, theta)
+    twirl_flipped = 0.001233  # the twirl's classical chain (ref_values in the 2.1 audit)
+    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, 300_000)
+    assert s.kernel_complete and not s.exact_weights and s.num_nonlocal_generators >= 2
+    assert abs(kept - exact_kept) < 5 * se_kept, (kept, exact_kept, se_kept)
+    assert flipped > twirl_flipped + 2 * se_flipped, (flipped, twirl_flipped, se_flipped)
+    assert flipped < exact_flipped + 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+
+
+def test_past_the_completion_limit_the_sampler_says_so():
+    c = repetition_memory(3, 2, 0.3)
+    with pytest.warns(UserWarning, match="interference between distant faults"):
+        s = c.compile_coherent_sampler(seed=1, max_complete=5)
+    assert not s.kernel_complete and s.num_nonlocal_generators == 0 and not s.exact_weights
+    # The joint sampler (a T gate besides) completes its kernel and says when it does not.
+    t = sq.Circuit(str(c) + "\nR 5\nH 5\nI[T] 5\nH 5\nM 5\nDETECTOR rec[-1]")
+    assert t.compile_coherent_sampler(seed=1).kernel_complete
+    with pytest.warns(UserWarning, match="interference between distant faults"):
+        assert not t.compile_coherent_sampler(seed=1, max_complete=0).kernel_complete
