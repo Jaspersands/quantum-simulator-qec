@@ -851,6 +851,92 @@ pub fn unitary_matrix(circuit: &Circuit, little_endian: bool) -> Result<(usize, 
     Ok((n, m))
 }
 
+/// The most entries `tsim_matrix` builds (64 MiB of complex128): a state of 22 qubits, a
+/// unitary of 11.
+pub const MAX_TSIM_MATRIX_ENTRIES: usize = 1 << 22;
+
+/// Tsim's `to_matrix`: the map the circuit's gates apply to the qubits it uses (renumbered in
+/// order; a qubit no instruction names is no index), a qubit whose first operation is a reset
+/// an output alone, starting in the reset's state (|0⟩, |+⟩, or |i⟩ as `RY` resolves): a
+/// 2^n × 2^k matrix, k the qubits that are not reset first, and a state column (k = 0) when every
+/// qubit is. Noise channels are skipped (Tsim's graph with no error drawn). A measurement, a
+/// reset after a qubit's first operation, feedback or leakage has no matrix. Entry (row, col)
+/// has basis-index bit q qubit q (`little_endian`) or the reverse, as `unitary_matrix`'s.
+/// Returns (n, k, entries row-major).
+pub fn tsim_matrix(circuit: &Circuit, little_endian: bool) -> Result<(usize, usize, Vec<C>), String> {
+    let program = Program::with_layout_for(circuit, false, MAX_QUBITS, Outcomes::StateOnly)?;
+    let n = program.num_qubits();
+    let mut touched = vec![false; n];
+    let mut prepared: Vec<Option<Basis>> = vec![None; n];
+    let mut gates: Vec<&Step> = Vec::new();
+    for step in &program.steps {
+        let qubits: Vec<usize> = match step {
+            Step::Reset { q, basis } if !touched[*q] => {
+                touched[*q] = true;
+                prepared[*q] = Some(*basis);
+                continue;
+            }
+            Step::H(q) | Step::S(q) | Step::Unitary(q, _) => vec![*q],
+            Step::Cx(a, b) | Step::Cz(a, b) => vec![*a, *b],
+            Step::Paulis(p) | Step::Rotation { paulis: p, .. } => p.iter().map(|&(q, _)| q).collect(),
+            // Noise: the identity, with no error drawn; its qubits are in use from here.
+            Step::Channel(branches) => {
+                for (_, p) in branches {
+                    for &(q, _) in p {
+                        touched[q] = true;
+                    }
+                }
+                continue;
+            }
+            Step::Correlated { paulis, .. } => {
+                for &(q, _) in paulis {
+                    touched[q] = true;
+                }
+                continue;
+            }
+            Step::Damp { q, .. } | Step::Dephase { q, .. } => {
+                touched[*q] = true;
+                continue;
+            }
+            _ => return Err("the circuit has no matrix: it has a measurement, a reset after its qubit's first operation, feedback or leakage".into()),
+        };
+        for q in qubits {
+            touched[q] = true;
+        }
+        gates.push(step);
+    }
+    let inputs: Vec<usize> = (0..n).filter(|&q| prepared[q].is_none()).collect();
+    let k = inputs.len();
+    if n >= 32 || (1usize << n).saturating_mul(1usize << k) > MAX_TSIM_MATRIX_ENTRIES {
+        return Err(format!("the matrix would be 2^{n} by 2^{k}: at most {MAX_TSIM_MATRIX_ENTRIES} entries are built (a state of 22 qubits, a unitary of 11)"));
+    }
+    let (rows, cols) = (1usize << n, 1usize << k);
+    let rev = |i: usize, bits: usize| (0..bits).fold(0usize, |acc, q| acc | ((i >> q) & 1) << (bits - 1 - q));
+    let mut m = vec![C::ZERO; rows * cols];
+    for col in 0..cols {
+        let mut sv = StateVector::new(n);
+        // Bit j of the column is input qubit inputs[j]; the prepared qubits start in their states.
+        let ones: Vec<(usize, u8)> = inputs.iter().enumerate().filter(|&(j, _)| col >> j & 1 == 1).map(|(_, &q)| (q, 1u8)).collect();
+        if !ones.is_empty() {
+            sv.pauli(&ones);
+        }
+        for (q, b) in prepared.iter().enumerate() {
+            if *b == Some(Basis::X) {
+                sv.h(q);
+            }
+        }
+        let (mut rec, mut ctx) = (Vec::new(), program.ctx());
+        for step in &gates {
+            run_step(step, &mut sv, &mut rec, &mut ctx, &mut |_| 0);
+        }
+        for (row, &a) in sv.amplitudes().iter().enumerate() {
+            let (r, c) = if little_endian { (row, col) } else { (rev(row, n), rev(col, k)) };
+            m[r * cols + c] = a;
+        }
+    }
+    Ok((n, k, m))
+}
+
 /// Exact samples, `shots` of them: detection events and observable flips as b8 rows, the
 /// shot with index s drawn from its own stream (`batch_seed(seed, s)`), so threads do not
 /// change them.
@@ -929,6 +1015,43 @@ mod tests {
     fn amplitude_damping_decays_one() {
         let d = dist("R 0\nX 0\nI_ERROR[AMPLITUDE_DAMPING(gamma=0.25)] 0\nM 0\nDETECTOR rec[-1]");
         assert!((d[&(vec![true], 0)] - 0.25).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tsim_matrix_states_and_dropped_qubits() {
+        let of = |text: &str| tsim_matrix(&Circuit::parse(text).unwrap(), false).unwrap();
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        // Every qubit reset first: a state column.
+        let (n, k, m) = of("R 0 1\nH 0\nCX 0 1");
+        assert_eq!((n, k), (2, 0));
+        let want = [h, 0.0, 0.0, h];
+        assert!(m.iter().zip(want).all(|(a, w)| (a.re - w).abs() < 1e-12 && a.im.abs() < 1e-12));
+        // RX is |+⟩, RY |i⟩.
+        let (_, _, m) = of("RX 0");
+        assert!((m[0].re - h).abs() < 1e-12 && (m[1].re - h).abs() < 1e-12);
+        let (_, _, m) = of("RY 0");
+        assert!((m[0].re - h).abs() < 1e-12 && (m[1].im - h).abs() < 1e-12);
+        // Qubit 1 is never named: R_ZZ on 0 and 2 is 4 × 4; a qubit reset first has no input.
+        let dims = |text: &str| {
+            let (n, k, _) = of(text);
+            (n, k)
+        };
+        assert_eq!(dims("II[R_ZZ(theta=0.25)] 0 2"), (2, 2));
+        assert_eq!(dims("R 0\nH 1"), (2, 1));
+        assert_eq!(dims("H 1\nR 0"), (2, 1));
+        assert_eq!(dims(""), (0, 0));
+        // Noise is skipped; a later reset, a measurement or feedback has no matrix.
+        assert_eq!(dims("R 0\nX_ERROR(0.1) 0\nDEPOLARIZE1(0.1) 0"), (1, 0));
+        for text in ["H 0\nR 0", "R 0\nM 0", "M 0\nCX rec[-1] 1", "MR 0"] {
+            assert!(tsim_matrix(&Circuit::parse(text).unwrap(), false).unwrap_err().contains("no matrix"), "{text}");
+        }
+        // Bit order: qubit 0 the most significant bit (big) or the least (little).
+        let (_, _, big) = of("R 0 1\nX 1");
+        assert!((big[1].re - 1.0).abs() < 1e-12);
+        let (_, _, little) = tsim_matrix(&Circuit::parse("R 0 1\nX 1").unwrap(), true).unwrap();
+        assert!((little[2].re - 1.0).abs() < 1e-12);
+        let text: String = (0..23).map(|q| format!("R {q}\n")).collect();
+        assert!(tsim_matrix(&Circuit::parse(&text).unwrap(), false).unwrap_err().contains("at most"));
     }
 
     #[test]

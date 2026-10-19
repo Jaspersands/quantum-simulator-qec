@@ -149,9 +149,12 @@ impl Instruction {
         self.gate.flags & flag != 0
     }
 
-    /// Whether `other` can be fused onto the end of this one (Stim's `can_fuse`).
+    /// Whether `other` can be fused onto the end of this one (Stim's `can_fuse`). A Pauli-product
+    /// rotation's tag (`I[R_PAULI(theta=…, pauli=ZZ)] 0 1`) names one Pauli per target, so two of
+    /// them are two products and never fuse, though Stim, which reads them as `I`, would fuse
+    /// them.
     pub fn can_fuse(&self, other: &Instruction) -> bool {
-        self.gate.name == other.gate.name && self.args == other.args && self.tag == other.tag && !self.has_flag(FLAG_IS_NOT_FUSABLE)
+        self.gate.name == other.gate.name && self.args == other.args && self.tag == other.tag && !self.has_flag(FLAG_IS_NOT_FUSABLE) && !self.tag.trim_start().starts_with("R_PAULI")
     }
 
     /// Fuse `other` onto the end of this one when Stim would, or when both are Deltakit's
@@ -651,6 +654,10 @@ mod tests {
         assert!(Circuit::parse("REPEAT 0 {\nH 0\n}").is_err());
         let c = Circuit::parse("X_ERROR(0.123456789) 0").unwrap();
         assert_eq!(Circuit::parse(&c.exact_text()).unwrap(), c);
+        // Two Pauli-product rotations are two products.
+        let two = "I[R_PAULI(theta=0.1, pauli=ZZ)] 0 1\nI[R_PAULI(theta=0.1, pauli=ZZ)] 2 3";
+        assert_eq!(rt(two), two);
+        assert_eq!(rt("I[R_Z(theta=0.1)] 0\nI[R_Z(theta=0.1)] 1"), "I[R_Z(theta=0.1)] 0 1");
     }
 
     #[test]

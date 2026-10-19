@@ -340,6 +340,14 @@ impl PyCircuit {
         Ok((n, PyBytes::new(py, &le_f64(m.iter().flat_map(|c| [c.re, c.im])))))
     }
 
+    /// Tsim's matrix: (n, k, 2^n × 2^k complex128 entries, row-major), unused qubits dropped
+    /// and a qubit reset first an output alone.
+    fn tsim_matrix<'py>(&self, py: Python<'py>, little_endian: bool) -> PyResult<(usize, usize, Bound<'py, PyBytes>)> {
+        let inner = &self.circuit.inner;
+        let (n, k, m) = py.detach(|| crate::statevec::tsim_matrix(inner, little_endian)).map_err(err)?;
+        Ok((n, k, PyBytes::new(py, &le_f64(m.iter().flat_map(|c| [c.re, c.im])))))
+    }
+
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
     #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
     fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyCoherentSampler> {
