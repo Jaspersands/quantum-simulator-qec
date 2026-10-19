@@ -655,7 +655,8 @@ linear space, the circuit's spacetime kernel, in which the randomness of measure
 random outcomes counts as gauge. Each $r$, a member's amplitude relative to the shot's, has a
 closed form from carrying Pauli operators through the circuit.
 - Rotations that are the same fault in several places are drawn as one.
-- The rest of the kernel is found locally.
+- The rest of the kernel is found locally and completed to a basis of the whole kernel, which
+  holds a logical at one time with the same logical at another.
 - On every branch of 150 random small circuits the weighted twirl equals the state vector's
   distribution to $10^{-10}$.
 - Against the state vector's exact answers:
