@@ -5,6 +5,7 @@ hyperedges (``search_for_undetectable_logical_errors``)."""
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 import stabilizer_qec as sq
@@ -125,20 +126,52 @@ HYPER = [
 ]
 
 
+def _terms(errors):
+    return [[str(t.dem_target) for t in e.dem_error_terms] for e in errors]
+
+
 @pytest.mark.parametrize("name,make", HYPER)
-def test_heuristic_search_matches_stims_length(name, make):
+def test_heuristic_search_finds_stims_faults(name, make):
+    # Stim's steps, so Stim's answer, fault for fault (among equally short ones too).
     c = make()
-    for kw in (SEARCH, {**SEARCH, "dont_explore_edges_increasing_symptom_degree": True}):
+    for kw in (SEARCH, {**SEARCH, "dont_explore_edges_increasing_symptom_degree": True}, {**SEARCH, "dont_explore_detection_event_sets_with_size_above": 2, "dont_explore_edges_with_degree_above": 2}):
         try:
-            want = len(c.search_for_undetectable_logical_errors(**kw))
-        except ValueError:
+            want = c.search_for_undetectable_logical_errors(**kw)
+        except ValueError as ex:
             # Where Stim's search finds nothing within its limits, neither does this one.
-            with pytest.raises(ValueError, match="Failed to find any logical errors"):
+            with pytest.raises(ValueError) as ours:
                 sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw)
+            assert str(ours.value) == str(ex)
             continue
         got = sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw)
-        assert len(got) == want, (name, kw)
+        assert _terms(got) == _terms(want), (name, kw)
         assert all(e.circuit_error_locations for e in got)
+
+
+@pytest.mark.parametrize("seed", range(60))
+def test_heuristic_search_finds_stims_faults_on_random_models(seed):
+    # A circuit with any model: a qubit per detector and observable, each fault an E on them.
+    rng = np.random.default_rng(seed)
+    n, nobs = int(rng.integers(2, 10)), int(rng.integers(1, 4))
+    lines = []
+    for _ in range(int(rng.integers(2, 19))):
+        dets = sorted(rng.choice(n, size=int(rng.integers(1, min(4, n) + 1)), replace=False).tolist())
+        obs = [k for k in range(nobs) if rng.random() < 0.3]
+        lines.append("E(0.01) " + " ".join(f"X{q}" for q in dets + [n + k for k in obs]))
+    lines.append("M " + " ".join(map(str, range(n + nobs))))
+    lines += [f"DETECTOR rec[{q - n - nobs}]" for q in range(n)] + [f"OBSERVABLE_INCLUDE({k}) rec[{k - nobs}]" for k in range(nobs)]
+    c = stim.Circuit("\n".join(lines))
+    for limits in [(4, 4, False), (3, 3, True), (6, 3, False), (2, 2, False)]:
+        kw = dict(zip(SEARCH, limits))
+        try:
+            want = _terms(c.search_for_undetectable_logical_errors(**kw))
+        except ValueError as ex:
+            want = str(ex)
+        try:
+            got = _terms(sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw))
+        except ValueError as ex:
+            got = str(ex)
+        assert got == want, (limits, str(c))
 
 
 def test_search_on_models_and_limits():

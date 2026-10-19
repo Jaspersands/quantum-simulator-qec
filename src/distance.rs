@@ -12,6 +12,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{BuildHasherDefault, Hasher};
+use std::rc::Rc;
 
 use crate::dem::Dem;
 
@@ -167,11 +168,6 @@ fn backtrack(back: &Back, last: State) -> Vec<Fault> {
         }
         cur = prev;
     }
-    let targets = |(dets, obs): &Fault| -> Vec<u64> {
-        let mut t: Vec<u64> = dets.iter().map(|&d| u64::from(d)).collect();
-        t.extend((0..64).filter(|k| obs >> k & 1 == 1).map(|k| 1u64 << 63 | k));
-        t
-    };
     out.sort_by_key(targets);
     out
 }
@@ -204,110 +200,155 @@ impl Hasher for Mix {
 /// The most search states `search_undetectable` visits before giving up.
 const MAX_STATES: usize = 20_000_000;
 
-/// Stim's `search_for_undetectable_logical_errors`: a breadth-first search over sets of fired
-/// detectors (and flipped observables). Each fault of at most `max_degree` detectors is an edge
-/// (the whole fault, hyperedges included); a search starts from each, and a step adds a fault
-/// touching the set's lowest detector, never growing the set past `max_symptoms` (nor at all
-/// with `no_increase`). The first set with no detector and an observable flipped is the
-/// answer: the fewest faults this search can reach.
+/// Stim's `search_for_undetectable_logical_errors`, step for step as Stim takes it, so that it
+/// is Stim's own answer, fault for fault (`stim/search/hyper/{graph,algo}.cc`):
+///
+/// - Limits of two and two are the graph-like search's (`shortest_graphlike` ignoring larger
+///   faults), as in Stim.
+/// - Each fault of nonzero probability with at most `max_degree` detectors is an edge at each of
+///   its detectors, in the model's order (repeats left out: they reach no new set). One with no
+///   detector and an observable flipped is a logical error by itself (the last such, as Stim).
+/// - The search starts from each edge that flips an observable, taken at its lowest detector in
+///   detector order, and steps by adding an edge at the set's lowest detector, never growing the
+///   set past `max_symptoms` (nor at all with `no_increase`); each set (with its observables) is
+///   visited once, and the empty set with no observable counts as visited from the start.
+/// - The first empty set reached (necessarily with an observable flipped) ends the search; its
+///   faults, sorted by their targets (detectors, then observables) with pairs of one fault
+///   cancelled, are the answer: the fewest faults this search can reach.
 pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no_increase: bool) -> Result<Vec<Fault>, String> {
+    if max_degree == 2 && max_symptoms == 2 {
+        return shortest_graphlike(dem, true);
+    }
     let mut edges: Vec<Fault> = Vec::new();
     let mut seen = HashSet::new();
-    for m in &dem.mechanisms {
+    let mut at: Vec<Vec<u32>> = vec![Vec::new(); dem.num_detectors];
+    let mut distance_1 = 0u64;
+    for m in dem.mechanisms.iter().filter(|m| m.p != 0.0) {
+        if m.detectors.len() > max_degree {
+            continue;
+        }
         if m.detectors.is_empty() {
             if m.observables != 0 {
-                return Ok(vec![(Vec::new(), m.observables)]);
+                distance_1 = m.observables;
             }
             continue;
         }
-        if m.detectors.len() <= max_degree && seen.insert((m.detectors.clone(), m.observables)) {
+        if seen.insert((m.detectors.clone(), m.observables)) {
+            let k = u32::try_from(edges.len()).map_err(|_| "too many faults for the search".to_string())?;
+            for &d in &m.detectors {
+                at[d as usize].push(k);
+            }
             edges.push((m.detectors.clone(), m.observables));
         }
     }
-    let mut touching: HashMap<u32, Vec<usize>> = HashMap::new();
-    for (k, (dets, _)) in edges.iter().enumerate() {
-        for &d in dets {
-            touching.entry(d).or_default().push(k);
-        }
+    if distance_1 != 0 {
+        return Ok(vec![(Vec::new(), distance_1)]);
     }
-    let xor = |a: &[u32], b: &[u32]| -> Vec<u32> {
-        let (mut i, mut j, mut out) = (0, 0, Vec::with_capacity(a.len() + b.len()));
-        while i < a.len() || j < b.len() {
-            match (a.get(i), b.get(j)) {
-                (Some(x), Some(y)) if x == y => {
-                    i += 1;
-                    j += 1;
-                }
-                (Some(x), Some(y)) if x < y => {
-                    out.push(*x);
-                    i += 1;
-                }
-                (Some(_), Some(y)) => {
-                    out.push(*y);
-                    j += 1;
-                }
-                (Some(x), None) => {
-                    out.push(*x);
-                    i += 1;
-                }
-                (None, Some(y)) => {
-                    out.push(*y);
-                    j += 1;
-                }
-                (None, None) => unreachable!(),
-            }
-        }
-        out
-    };
-    // States as (detectors, observables), each with the state it came from and the fault added.
-    let mut states: Vec<(Vec<u32>, u64, usize, usize)> = Vec::new();
-    let mut index: HashMap<(Vec<u32>, u64), usize> = HashMap::new();
+    // Each visited set: its detectors (shared with the index), observables, the set it was reached
+    // from and the edge added (u32::MAX for the empty set and the starts' parent).
+    const NONE: u32 = u32::MAX;
+    let mut states: Vec<(Rc<[u32]>, u64, u32, u32)> = vec![(Rc::from(Vec::new()), 0, NONE, NONE)];
+    let mut index: HashSet<SetKey, BuildHasherDefault<Mix>> = HashSet::default();
+    index.insert(SetKey(states[0].0.clone(), 0));
     let mut queue = VecDeque::new();
-    for (k, (dets, obs)) in edges.iter().enumerate() {
-        if dets.len() > max_symptoms {
-            continue;
+    let mut visit = |states: &mut Vec<(Rc<[u32]>, u64, u32, u32)>, dets: &[u32], obs: u64, parent: u32, k: u32| -> Result<Option<u32>, String> {
+        let key = SetKey(Rc::from(dets), obs);
+        if index.contains(&key) {
+            return Ok(None);
         }
-        if let std::collections::hash_map::Entry::Vacant(slot) = index.entry((dets.clone(), *obs)) {
-            slot.insert(states.len());
-            states.push((dets.clone(), *obs, usize::MAX, k));
-            queue.push_back(states.len() - 1);
+        if states.len() >= MAX_STATES {
+            return Err(format!("the search visited {MAX_STATES} sets of detectors without finding an undetectable logical error; lower its limits"));
+        }
+        let id = states.len() as u32;
+        states.push((key.0.clone(), obs, parent, k));
+        index.insert(key);
+        Ok(Some(id))
+    };
+    for (node, ks) in at.iter().enumerate() {
+        for &k in ks {
+            let (dets, obs) = &edges[k as usize];
+            if *obs != 0 && dets[0] as usize == node && dets.len() <= max_symptoms {
+                if let Some(id) = visit(&mut states, dets, *obs, 0, k)? {
+                    queue.push_back(id);
+                }
+            }
         }
     }
-    let path = |states: &Vec<(Vec<u32>, u64, usize, usize)>, mut s: usize| -> Vec<Fault> {
-        let mut out = Vec::new();
-        while s != usize::MAX {
-            out.push(edges[states[s].3].clone());
-            s = states[s].2;
-        }
-        out.sort();
-        out
-    };
+    let mut next = Vec::new();
     while let Some(s) = queue.pop_front() {
-        let (dets, obs) = (states[s].0.clone(), states[s].1);
-        if dets.is_empty() {
-            if obs != 0 {
-                return Ok(path(&states, s));
-            }
-            continue;
-        }
-        for &k in touching.get(&dets[0]).map(Vec::as_slice).unwrap_or(&[]) {
-            let next = xor(&dets, &edges[k].0);
-            if next.len() > max_symptoms || (no_increase && next.len() > dets.len()) {
+        let (cur, obs) = (states[s as usize].0.clone(), states[s as usize].1);
+        for &k in &at[cur[0] as usize] {
+            xor_into(&cur, &edges[k as usize].0, &mut next);
+            if next.len() > max_symptoms || (no_increase && next.len() > cur.len()) {
                 continue;
             }
-            let key = (next, obs ^ edges[k].1);
-            if index.contains_key(&key) {
-                continue;
+            let Some(id) = visit(&mut states, &next, obs ^ edges[k as usize].1, s, k)? else { continue };
+            if next.is_empty() {
+                let mut out = Vec::new();
+                let mut t = id;
+                while t != 0 {
+                    out.push(edges[states[t as usize].3 as usize].clone());
+                    t = states[t as usize].2;
+                }
+                out.sort_by_key(targets);
+                let mut i = 0;
+                while i + 1 < out.len() {
+                    if out[i] == out[i + 1] {
+                        out.drain(i..i + 2);
+                    } else {
+                        i += 1;
+                    }
+                }
+                return Ok(out);
             }
-            if states.len() >= MAX_STATES {
-                return Err(format!("the search visited {MAX_STATES} sets of detectors without finding an undetectable logical error; lower its limits"));
-            }
-            index.insert(key.clone(), states.len());
-            states.push((key.0, key.1, s, k));
-            queue.push_back(states.len() - 1);
+            queue.push_back(id);
         }
     }
     Err(no_logical_error(dem, "Failed to find any logical errors.", None))
+}
+
+/// A visited set of the search: its detectors and observables, hashed word by word.
+#[derive(PartialEq, Eq)]
+struct SetKey(Rc<[u32]>, u64);
+
+impl std::hash::Hash for SetKey {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        for &d in self.0.iter() {
+            h.write_u32(d);
+        }
+        h.write_u64(self.1);
+    }
+}
+
+/// `out` = the symmetric difference of two sorted sets.
+fn xor_into(a: &[u32], b: &[u32], out: &mut Vec<u32>) {
+    out.clear();
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        match a[i].cmp(&b[j]) {
+            std::cmp::Ordering::Equal => {
+                i += 1;
+                j += 1;
+            }
+            std::cmp::Ordering::Less => {
+                out.push(a[i]);
+                i += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                out.push(b[j]);
+                j += 1;
+            }
+        }
+    }
+    out.extend_from_slice(&a[i..]);
+    out.extend_from_slice(&b[j..]);
+}
+
+/// A fault's targets as Stim orders them: detectors, then observables after every detector.
+fn targets((dets, obs): &Fault) -> Vec<u64> {
+    let mut t: Vec<u64> = dets.iter().map(|&d| u64::from(d)).collect();
+    t.extend((0..64).filter(|k| obs >> k & 1 == 1).map(|k| 1u64 << 63 | k));
+    t
 }
 
 /// The faults as a model's text, each `error(1)`, as Stim writes the result.

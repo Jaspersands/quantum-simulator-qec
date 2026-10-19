@@ -471,8 +471,7 @@ from algassert.com rather than embedding Crumble's code; and with `decompose_err
 fault Stim would split into pieces of its channel whose observables do not add up to its own is
 left whole (Stim's split changes what the fault does to the observables: on ldpc's [[4,2,2]]
 memory in the X basis, 1.3e-4 of probability moves from `D1 D2 L0` to `D1 D2`, and so on). The SVG diagrams are this package's
-own drawings. Where several answers are equally good, the one returned can differ:
-`search_for_undetectable_logical_errors` returns a shortest error, not always Stim's, and the
+own drawings. Where several answers are equally good, the one returned can differ: the
 matcher grows its regions in its own order, so among equally light matchings it can pick another
 one than PyMatching's (`decode_to_edges_array` and `decode_to_matched_dets_array` then list it,
 in its own order, and correlated matching reweights from it). PyMatching's `animate` command is
@@ -1791,7 +1790,7 @@ whole circuit that flip an observable and set off no detector. It is measured th
   Stim's algorithm, on circuits and on models;
 - `search_for_undetectable_logical_errors`: Stim's breadth-first search through every fault,
   hyperedges included, within its limits (here: sets of up to 6 detectors, faults of up to
-  6), which gives an upper bound;
+  6), which gives an upper bound; step for step Stim's, so the same faults as Stim's;
 - `DetectorErrorModel.distance()`: an integer program over every fault, which proves the
   distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
   found is still a real undetectable logical error, and so an upper bound.
