@@ -23,6 +23,7 @@ from ._codes import (
     Depolarization1,
     Depolarization2,
     DepolarizationChannel,
+    KernelNotRunWarning,
     NoiseModel,
     Pauli1,
     Pauli2,
@@ -139,7 +140,7 @@ __all__ = [
     "AsyncDecoderResult", "BatchDecoderResult", "Decoder", "DecoderResult", "DetectorErrorModel", "decoder", "dem_from_stim_text", "dump_pcm",
     "generate_random_pcm", "get_decoder", "get_pcm_for_rounds", "get_sorted_pcm_column_indices", "pcm_extend_to_n_rounds", "pcm_is_sorted",
     "pcm_to_sparse_vec", "reorder_pcm_columns", "shuffle_pcm_columns", "simplify_pcm", "sort_pcm_columns",
-    "dem_sampling", "patch", "relay_solutions", "pcm_from_sparse_vec", "generate_timelike_sparse_detector_matrix",
+    "KernelNotRunWarning", "dem_sampling", "patch", "relay_solutions", "pcm_from_sparse_vec", "generate_timelike_sparse_detector_matrix",
 ]
 
 from .plugins.decoders import example as _example  # noqa: E402,F401  (registers "example_byod")
