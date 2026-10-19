@@ -110,7 +110,7 @@ def test_canonicalized_errors_have_one_location():
 
 
 def test_no_logical_error_is_an_error():
-    with pytest.raises(ValueError, match="undetectable"):
+    with pytest.raises(ValueError, match="Failed to find any graphlike logical errors"):
         sq.DetectorErrorModel("error(0.1) D0 D1\nerror(0.1) D1").shortest_graphlike_error()
 
 
@@ -133,7 +133,7 @@ def test_heuristic_search_matches_stims_length(name, make):
             want = len(c.search_for_undetectable_logical_errors(**kw))
         except ValueError:
             # Where Stim's search finds nothing within its limits, neither does this one.
-            with pytest.raises(ValueError, match="no undetectable"):
+            with pytest.raises(ValueError, match="Failed to find any logical errors"):
                 sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw)
             continue
         got = sq.Circuit(str(c)).search_for_undetectable_logical_errors(**kw)
@@ -145,5 +145,27 @@ def test_search_on_models_and_limits():
     dem = sq.DetectorErrorModel("error(0.1) D0 D1 D2\nerror(0.1) D0\nerror(0.1) D1 D2 L0")
     found = dem.search_for_undetectable_logical_errors(**SEARCH)
     assert found.num_errors == 3 and undetected_logical(str(found))
-    with pytest.raises(ValueError, match="undetectable"):
+    with pytest.raises(ValueError, match="Failed to find any logical errors"):
         dem.search_for_undetectable_logical_errors(**{**SEARCH, "dont_explore_edges_with_degree_above": 2})
+
+
+@pytest.mark.parametrize("text", [
+    "R 0\nM 0\nDETECTOR rec[-1]",
+    "R 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR rec[-1]",
+    "R 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]",
+    "R 0 1\nX_ERROR(0.1) 0\nM 0 1\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+    "R 0 1 2\nX_ERROR(0.1) 0\nM 0 1 2\nDETECTOR rec[-3] rec[-2] rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+    "R 0 1 2\nX_ERROR(0.1) 0\nCX 0 1 0 2\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+])
+def test_searches_that_find_nothing_say_so_as_stim(text):
+    # Stim's message, with its warnings for a model that makes the search vacuous.
+    for run in (
+        lambda c: c.shortest_graphlike_error(),
+        lambda c: c.detector_error_model().shortest_graphlike_error(),
+        lambda c: c.search_for_undetectable_logical_errors(dont_explore_detection_event_sets_with_size_above=4, dont_explore_edges_with_degree_above=4, dont_explore_edges_increasing_symptom_degree=False),
+    ):
+        with pytest.raises(ValueError) as want:
+            run(stim.Circuit(text))
+        with pytest.raises(ValueError) as got:
+            run(sq.Circuit(text))
+        assert str(got.value) == str(want.value)

@@ -102,7 +102,26 @@ pub fn shortest_graphlike(dem: &Dem, ignore_ungraphlike: bool) -> Result<Vec<Fau
             queue.push_back(if next.0 == NONE { (next.1, next.0, next.2) } else { next });
         }
     }
-    Err("there is no undetectable logical error among the model's graph-like faults".into())
+    Err(no_logical_error(dem, "Failed to find any graphlike logical errors.", Some(adj.iter().any(|e| !e.is_empty()))))
+}
+
+/// Stim's message when a search finds nothing, with its warnings for a model that makes the
+/// search vacuous (`stim/search/{graphlike,hyper}/algo.cc`); `graphlike_edges` is whether the
+/// graph-like search had any edge.
+fn no_logical_error(dem: &Dem, head: &str, graphlike_edges: Option<bool>) -> String {
+    let mut msg = head.to_string();
+    if dem.num_observables == 0 {
+        msg += "\n    WARNING: NO OBSERVABLES. The circuit or detector error model didn't define any observables, making it vacuously impossible to find a logical error.";
+    }
+    if dem.num_detectors == 0 {
+        msg += "\n    WARNING: NO DETECTORS. The circuit or detector error model didn't define any detectors.";
+    }
+    if dem.mechanisms.is_empty() {
+        msg += "\n    WARNING: NO ERRORS. The circuit or detector error model didn't include any errors, making it vacuously impossible to find a logical error.";
+    } else if graphlike_edges == Some(false) {
+        msg += "\n    WARNING: NO GRAPHLIKE ERRORS. Although the circuit or detector error model does define some errors, none of them are graphlike (i.e. have at most two detection events), making it vacuously impossible to find a graphlike logical error.";
+    }
+    msg
 }
 
 /// A state of the graph-like search: (the moving detection event, the held one, the observables
@@ -288,7 +307,7 @@ pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no
             queue.push_back(states.len() - 1);
         }
     }
-    Err("the search found no undetectable logical error within its limits".into())
+    Err(no_logical_error(dem, "Failed to find any logical errors.", None))
 }
 
 /// The faults as a model's text, each `error(1)`, as Stim writes the result.
