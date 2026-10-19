@@ -99,7 +99,7 @@ def test_generate_cluster_script(runner):
     data_dir = os.path.abspath('my-experiment')
     assert text == (
         '#!/bin/bash\n#SBATCH -t 10:00:00\n#SBATCH --job-name=my-experiment\n#SBATCH --array=1-8\n\n\n'
-        'stabilizer-qec panqec monitor-usage my-experiment/logs/usage_${SLURM_JOB_ID}_$SLURM_ARRAY_TASK_ID.txt &\n\n'
+        f'stabilizer-qec panqec monitor-usage {os.path.join("my-experiment", "logs")}/usage_${{SLURM_JOB_ID}}_$SLURM_ARRAY_TASK_ID.txt &\n\n'
         f'stabilizer-qec panqec run-parallel -d {data_dir} -n 8 -j $SLURM_ARRAY_TASK_ID -c 5 -t 10000 '
         '--delete-existing\n\ndate'
     )

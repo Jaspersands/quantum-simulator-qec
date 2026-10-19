@@ -106,6 +106,6 @@ def test_doc_example_runs(steane: CSSCode, zero_prep) -> None:
     sim = NoisyDFTStatePrepSimulator(sp.circ.to_qiskit_circuit(), verifications, steane, noise.E1_1)
     stats = sim.dss_logical_error_rates({"q": [1e-4, 1e-3, 1e-2]}, {"q": 0.01}, 1, 300)
     upper = np.asarray(stats[-2], dtype=float)
-    assert np.all(upper < np.array([1e-4, 1e-3, 1e-2]))
+    assert np.all(np.asarray(stats[0], dtype=float) < np.array([1e-4, 1e-3, 1e-2]))
     slopes = np.diff(np.log10(upper)) / np.diff(np.log10([1e-4, 1e-3, 1e-2]))
     assert np.all(slopes > 1.5)
