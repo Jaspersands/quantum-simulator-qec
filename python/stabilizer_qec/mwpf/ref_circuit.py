@@ -39,6 +39,31 @@ from ._frozendict import FrozenList
 from stabilizer_qec import mwpf
 
 
+# Modified for stabilizer_qec: MWPF's code is given Stim's own objects (by sinter, which
+# compiles decoders for stim.DetectorErrorModel, and by users); they are read as this
+# package's, where ``stim`` here is this package.
+def _ours(obj: Any) -> Any:
+    """A Stim circuit, model or target as this package's (through its text); anything else
+    as it is."""
+    kind = type(obj)
+    if kind.__module__.split(".")[0] != "stim":
+        return obj
+    if kind.__name__ in ("Circuit", "DetectorErrorModel", "DemTarget"):
+        return getattr(stim, kind.__name__)(obj)
+    if kind.__name__ == "GateTarget":
+        from .._circuit import _target
+
+        return stim.GateTarget(_target(obj))
+    return obj
+
+
+def _like(out: Any, given: Any) -> Any:
+    """``out``, one of this package's circuits, as Stim's when ``given`` was Stim's."""
+    if type(given).__module__.split(".")[0] == "stim":
+        return type(given)(out._stim_exact_text())
+    return out
+
+
 @dataclass(frozen=True)
 class RefRec:
     instruction: "RefInstruction"
@@ -87,6 +112,7 @@ class RefInstruction:
     def new_heralded_erase(
         targets: tuple[stim.GateTarget | RefRec, ...], p: float
     ) -> "RefInstruction":
+        targets = tuple(_ours(t) for t in targets)
         instruction = RefInstruction(
             name="HERALDED_ERASE",
             targets=targets,
@@ -111,6 +137,7 @@ class RefInstruction:
         pY: float = 0,
         pZ: float = 0,
     ) -> "RefInstruction":
+        targets = tuple(_ours(t) for t in targets)
         instruction = RefInstruction(
             name="HERALDED_PAULI_CHANNEL_1",
             targets=targets,
@@ -153,6 +180,7 @@ class RefCircuit:
     ) -> "RefCircuit":
         if circuit is None:
             return RefCircuit(instructions=tuple())
+        circuit = _ours(circuit)
         if not isinstance(circuit, stim.Circuit):
             return RefCircuit(instructions=tuple(circuit))
         instructions: list[RefInstruction] = []
@@ -509,6 +537,7 @@ class RefDetectorErrorModel:
         ref_circuit: RefCircuit | None = None,
         dem: stim.DetectorErrorModel | None = None,
     ) -> "RefDetectorErrorModel":
+        dem = _ours(dem)
         if dem is None:
             assert ref_circuit is not None, "circuit and dem cannot be both None"
             dem = ref_circuit.circuit().detector_error_model(
@@ -591,7 +620,8 @@ class RefDetectorErrorModel:
                     if isinstance(target, RefDetector):
                         detectors ^= {self.ref_circuit.detector_to_index[target]}
                     elif (
-                        isinstance(target, stim.DemTarget)
+                        # (duck-typed: a model may hold Stim's own targets)
+                        hasattr(target, "is_logical_observable_id")
                         and target.is_logical_observable_id()
                     ):
                         observables ^= {target.val}

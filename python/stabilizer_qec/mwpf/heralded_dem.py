@@ -21,6 +21,7 @@ from .ref_circuit import (
     RefDetectorErrorModel,
     probability_to_weight,
     Predictor,
+    _like,
 )
 from typing import Sequence
 import functools
@@ -409,7 +410,7 @@ def add_herald_detectors(circuit: stim.Circuit) -> stim.Circuit:
                         targets=(rec,),
                     ),
                 )
-    return RefCircuit.of(new_instructions).circuit()
+    return _like(RefCircuit.of(new_instructions).circuit(), circuit)
 
 
 def remove_herald_detectors(circuit: stim.Circuit) -> stim.Circuit:
@@ -435,7 +436,7 @@ def remove_herald_detectors(circuit: stim.Circuit) -> stim.Circuit:
         assert isinstance(rec, RefRec)
         if not is_heralded_error(rec.instruction):
             new_instructions.append(instruction)
-    return RefCircuit.of(new_instructions).circuit()
+    return _like(RefCircuit.of(new_instructions).circuit(), circuit)
 
 
 def is_heralded_error(instruction: RefInstruction) -> bool:

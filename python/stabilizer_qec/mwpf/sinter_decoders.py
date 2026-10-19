@@ -24,6 +24,7 @@ import time
 import struct
 from contextlib import nullcontext
 from .ref_circuit import *
+from .ref_circuit import _ours
 from .heralded_dem import *
 
 available_decoders = [
@@ -115,6 +116,7 @@ class SinterMWPFDecoder:
         if circuit is None:
             self.circuit = None
             return self
+        circuit = _ours(circuit)  # (Stim's own circuit, read as this package's)
         assert isinstance(circuit, stim.Circuit)
         self.circuit = circuit.copy()
         return self
@@ -122,6 +124,7 @@ class SinterMWPFDecoder:
     def common_prepare(
         self, dem: "stim.DetectorErrorModel"
     ) -> tuple[Any, Predictor, Any]:
+        dem = _ours(dem)  # (sinter gives Stim's own model; read as this package's)
         if self.pass_circuit:
             assert (
                 self.circuit is not None
