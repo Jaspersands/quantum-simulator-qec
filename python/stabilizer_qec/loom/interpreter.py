@@ -3,7 +3,8 @@
 # src/loom_rotated_surface_code/applicator/{grow,shrink,merge,split}.py; Copyright 2024 Entropica Labs Pte Ltd,
 # Apache License 2.0; see LICENSE in this directory), modified for stabilizer_qec: plain classes in place of
 # pydantic and no plugin discovery. The rotated surface code's other applicators (auxiliary CNOT, transversal
-# Hadamard, state injection, move, rotate, Y-wall phase gate) are ported in this directory's _*.py modules.
+# Hadamard, state injection, move, rotate, Y-wall phase gate) are ported in this directory's _*.py modules, the
+# repetition code's (grow, shrink, merge, split) in _repetition_code_ops.py.
 """Loom's interpreter: operations on blocks become a circuit (in Loom's IR) with syndromes,
 detectors and logical observables, bookkept through the blocks' evolution (which stabilizer
 grew or shrank into which, which measurements correct a logical operator after a merge or
@@ -424,7 +425,9 @@ def reset_all_data_qubits(step: InterpretationStep, operation: ResetAllDataQubit
 
 def reset_all_ancilla_qubits(step: InterpretationStep, operation: ResetAllAncillaQubits, same_timeslice: bool, debug_mode: bool) -> InterpretationStep:
     block = step.get_block(operation.input_block_name)
-    circuit = Circuit(name=f"reset all ancilla qubits of block {block.unique_label} to |{operation.state.value}>", circuit=[[Circuit(f"reset_{operation.state.value}", channels=step.get_channel_MUT(q)) for q in block.ancilla_qubits]])
+    # Loom's Block.ancilla_qubits goes through a set (of integer tuples, so the order is the same in every run); the resets follow it.
+    ancillas = tuple(set(q for s in block.stabilizers for q in s.ancilla_qubits))
+    circuit = Circuit(name=f"reset all ancilla qubits of block {block.unique_label} to |{operation.state.value}>", circuit=[[Circuit(f"reset_{operation.state.value}", channels=step.get_channel_MUT(q)) for q in ancillas]])
     step.append_circuit_MUT(circuit, same_timeslice)
     return step
 
@@ -1064,9 +1067,16 @@ def interpret_operation(eka: Eka, step: InterpretationStep, op: Operation, same_
         raise NotImplementedError(f"Operations including blocks of different classes are not supported at the moment. Block classes: {[c.__name__ for c in classes]}")
     klass = classes.pop()
     table = ROTATED_SURFACE_CODE_APPLICATORS if issubclass(klass, RotatedSurfaceCode) else CODE_APPLICATORS
+    applicator_name = "RotatedSurfaceCodeApplicator" if issubclass(klass, RotatedSurfaceCode) else "CodeApplicator"
+    # Loom's other code plugins: their applicators want every block of the Eka of their type.
+    for code, (code_applicator_name, code_table) in OTHER_CODE_APPLICATORS.items():
+        if issubclass(klass, code):
+            if any(not isinstance(block, code) for block in eka.blocks):
+                raise ValueError(f"All blocks must be of type {code.__name__}.")
+            table, applicator_name = code_table, code_applicator_name
     applicator = table.get(name)
     if applicator is None:
-        raise NotImplementedError(f"Operation {name} is not supported by {'RotatedSurfaceCodeApplicator' if issubclass(klass, RotatedSurfaceCode) else 'CodeApplicator'}")
+        raise NotImplementedError(f"Operation {name} is not supported by {applicator_name}")
     step = applicator(step, op, same_timeslice, debug_mode)
     if step.composite_operation_session_stack:
         raise ValueError(f"Please ensure that all composite operation sessions have been ended. Found live sessions: {step.composite_operation_session_stack}")
@@ -1108,3 +1118,18 @@ from ._move_block import move_block  # noqa: E402
 from ._rotate_block import rotate_block  # noqa: E402
 
 ROTATED_SURFACE_CODE_APPLICATORS.update({"MoveBlock": move_block, "LogicalPhaseViaYwall": logical_phase_via_ywall, "RotateBlock": rotate_block})
+
+# Loom's repetition, Shor, Steane and five-qubit-perfect code plugins: the code applicator's
+# operations, and on repetition chains Loom's own grow, shrink, merge and split.
+from ._repetition_code_ops import grow as _rep_grow, merge as _rep_merge, shrink as _rep_shrink, split as _rep_split  # noqa: E402
+from .five_qubit_perfect_code import FiveQubitPerfectCode  # noqa: E402
+from .repetition_code import RepetitionCode  # noqa: E402
+from .shor_code import ShorCode  # noqa: E402
+from .steane_code import SteaneCode  # noqa: E402
+
+OTHER_CODE_APPLICATORS: dict[type, tuple[str, dict[str, Applicator]]] = {
+    RepetitionCode: ("RepetitionCodeApplicator", {**CODE_APPLICATORS, "Grow": _rep_grow, "Shrink": _rep_shrink, "Split": _rep_split, "Merge": _rep_merge}),
+    ShorCode: ("ShorCodeApplicator", CODE_APPLICATORS),
+    SteaneCode: ("SteaneCodeApplicator", CODE_APPLICATORS),
+    FiveQubitPerfectCode: ("FiveQubitPerfectCodeApplicator", CODE_APPLICATORS),
+}

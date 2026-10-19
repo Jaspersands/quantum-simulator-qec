@@ -1,8 +1,9 @@
 # Ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/eka/{eka,lattice,pauli_operator,stabilizer,block}.py,
 # src/loom/eka/operations/*.py, src/loom/eka/utilities/enums.py and src/loom_rotated_surface_code/utilities/enums.py;
 # Copyright 2024 Entropica Labs Pte Ltd, Apache License 2.0; see LICENSE in this directory), modified for
-# stabilizer_qec: plain dataclasses in place of pydantic, GF(2) eliminations in place of numpy, the Tanner-graph
-# and parity-check-matrix views and the lattices beyond the square family left out.
+# stabilizer_qec: plain dataclasses in place of pydantic (the first failed check raised, as a ValueError, with
+# Loom's message), GF(2) eliminations in place of numpy, and the Tanner-graph and parity-check-matrix views left
+# out.
 """Loom's Eka model: a lattice, blocks of stabilizers with their logical operators and syndrome
 circuits, and the operations of a logical computation (code operations on blocks, logical
 operations, logical measurements), with Loom's validation and its dict form."""
@@ -166,6 +167,8 @@ class LatticeType(_CaseInsensitive):
     SQUARE_2D_2ANC = "square_2d_2anc"
     CAIRO_PENT_2D = "cairo_pent_2d"
     HEX_2D = "hex_2d"
+    OCT_2D = "oct_2d"
+    POLY_2D = "poly_2D"
     CUBE_3D = "cube_3d"
 
 
@@ -184,7 +187,9 @@ class Lattice:
     lattice_type: LatticeType = LatticeType.CUSTOM
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "basis_vectors", tuple(tuple(float(x) for x in v) for v in self.basis_vectors))
+        # An empty basis is one site at the origin, as in Loom (the cube lattice's).
+        basis_vectors = self.basis_vectors if len(self.basis_vectors) else ((0, 0),)
+        object.__setattr__(self, "basis_vectors", tuple(tuple(float(x) for x in v) for v in basis_vectors))
         object.__setattr__(self, "lattice_vectors", tuple(tuple(float(x) for x in v) for v in self.lattice_vectors))
         if self.size is not None:
             object.__setattr__(self, "size", tuple(int(s) for s in self.size))
@@ -194,9 +199,9 @@ class Lattice:
         if len({len(v) for v in self.lattice_vectors}) > 1:
             raise ValueError("All lattice vectors must have the same length.")
         if self.size is not None and len(self.size) != len(self.lattice_vectors):
-            raise ValueError("The size must have one entry per lattice vector.")
+            raise ValueError(f"The given `size` is invalid. `size` has {len(self.size)} elements, but the lattice has {len(self.lattice_vectors)} dimensions.")
         if self.size is not None and any(s < 0 for s in self.size):
-            raise ValueError("The size must not be negative.")
+            raise ValueError("Size cannot be negative.")
 
     @property
     def n_dimensions(self) -> int:
@@ -206,17 +211,47 @@ class Lattice:
     def unit_cell_size(self) -> int:
         return len(self.basis_vectors)
 
-    def all_unit_cells(self) -> list[tuple[int, ...]]:
-        if self.size is None:
-            raise ValueError("An infinite lattice has no list of unit cells.")
-        return [cell for cell in product(*(range(s) for s in self.size))]
+    def all_unit_cells(self, size: Optional[Sequence[Optional[int]]] = None) -> list[tuple[int, ...]]:
+        """The unit cells of the lattice, or of ``size`` (whose ``None`` entries take the
+        lattice's size)."""
+        if size is None and self.size is None:
+            raise ValueError("Please specify the `size` parameter.")
+        if self.size is None and any(x is None for x in size):
+            raise ValueError("Please specify all dimensions in the `size` parameter.")
+        if size is not None and len(size) != self.n_dimensions:
+            raise ValueError(f"The given `size` is invalid. `size` has {len(size)} elements, but the lattice has {self.n_dimensions} dimensions.")
+        adapted = self.size if size is None else [size[i] if size[i] is not None else self.size[i] for i in range(self.n_dimensions)]
+        return [tuple(int(c) for c in cell) for cell in product(*(range(s) for s in adapted))]
 
-    def all_qubits(self) -> list[tuple[int, ...]]:
-        return [cell + (b,) for cell in self.all_unit_cells() for b in range(self.unit_cell_size)]
+    def all_qubits(self, size: Optional[Sequence[Optional[int]]] = None, force_including_basis: bool = False) -> list[tuple[int, ...]]:
+        """The qubits ``cell + (basis index,)``; on a one-site lattice the cells alone, unless
+        ``force_including_basis``."""
+        cells = self.all_unit_cells(size)
+        if self.unit_cell_size == 1 and force_including_basis is False:
+            return cells
+        return [cell + (b,) for cell in cells for b in range(self.unit_cell_size)]
+
+    @staticmethod
+    def _points_on_circle(n_points: int, radius: Union[float, int], offset: Union[float, int] = -0.5 * math.pi, disp: tuple = (0, 0)) -> list[list[float]]:
+        if not isinstance(n_points, int) or n_points < 1:
+            raise ValueError(f"Number of points must be an integer that is at least 1. Received {n_points} of type {type(n_points)}.")
+        if not isinstance(radius, (int, float)) or radius <= 0:
+            raise ValueError(f"Radius must be a positive number (int or float). Received {radius} of type {type(radius)}.")
+        if not isinstance(offset, (int, float)):
+            raise TypeError(f"Offset must be a number (int or float). Received {offset} of type {type(offset)}.")
+        if not isinstance(disp, tuple) or not all(isinstance(x, (int, float)) for x in disp) or len(disp) != 2:
+            raise TypeError(f"Disp must be a tuple of two numbers (x, y). Received {disp} of type {type(disp)}.")
+        if n_points == 1:
+            return [[disp[0], disp[1]]]
+        return [[float(radius * math.cos(2 * math.pi * i / n_points + offset) + disp[0]), float(radius * math.sin(2 * math.pi * i / n_points + offset) + disp[1])] for i in range(n_points)]
 
     @classmethod
-    def linear(cls, lattice_size: Optional[int] = None) -> "Lattice":
-        return cls(((0.0,), (0.5,)), ((1.0,),), None if lattice_size is None else (lattice_size,), LatticeType.LINEAR)
+    def linear(cls, lattice_size: Optional[Union[tuple[int], int]] = None) -> "Lattice":
+        """A chain: a data site and an ancilla half a cell to its right (in the plane, as in
+        Loom). The size is a 1-tuple, ``(n,)``; a bare int is taken as ``(n,)``."""
+        if isinstance(lattice_size, int):
+            lattice_size = (lattice_size,)
+        return cls(((0, 0), (0.5, 0)), ((1, 0),), lattice_size, LatticeType.LINEAR)
 
     @classmethod
     def triangle_2d(cls, lattice_size: Optional[tuple[int, int]] = None) -> "Lattice":
@@ -246,6 +281,40 @@ class Lattice:
         basis = ((0, 0), (0.5 * r3, 0.5), (0.5 * (r3 - 1), 0.5 * (1 + r3)), (0.5 * (1 - r3), 0.5 * (1 + r3)), (-0.5 * r3, 0.5), (-r3, 1))
         return cls(basis, ((2 * r3, 0), (r3, r3)), lattice_size, LatticeType.CAIRO_PENT_2D)
 
+    @classmethod
+    def oct_2d(cls, lattice_size: Optional[tuple[int, int]] = None, r: float = 0.5, anc: int = 0) -> "Lattice":
+        """Octagons of radius ``r`` with squares between them; ``anc`` ancillas on a small
+        circle at the octagon's centre and at the three square centres of the cell."""
+        if not isinstance(anc, int) or anc < 0:
+            raise ValueError("Number of ancilla qubits must be a non-negative integer.")
+        anc_radius = r * math.sin(math.pi / 8) / 2
+        cell_dist = 2 * r * (math.sin(math.pi / 8) + math.cos(math.pi / 8))
+        basis = cls._points_on_circle(8, r, -5 * math.pi / 8)
+        if anc > 0:
+            basis = basis + cls._points_on_circle(anc, anc_radius) + cls._points_on_circle(anc, anc_radius, disp=(0, 0.5 * cell_dist)) + cls._points_on_circle(anc, anc_radius, disp=(0.5 * cell_dist, 0)) + cls._points_on_circle(anc, anc_radius, disp=(0.5 * cell_dist, 0.5 * cell_dist))
+        return cls(basis, ((0, cell_dist), (cell_dist, 0)), lattice_size, LatticeType.OCT_2D)
+
+    @classmethod
+    def poly_2d(cls, lattice_size: Optional[tuple[int, int]] = None, n: Optional[int] = None, poly_radius: Union[float, int] = 0.5, poly_offset: Union[float, int] = -0.5 * math.pi, cell_dist_factor: Union[float, int] = (1 + math.sqrt(3)), anc: int = 1, anc_radius: Union[float, int] = 0.2, anc_offset: Union[float, int] = -0.5 * math.pi, anc_disp: tuple = (0, 0)) -> "Lattice":
+        """A regular ``n``-gon of data sites per cell, with ``anc`` ancillas on a circle inside
+        it (the five-qubit code's lattice with ``n=5``)."""
+        if n is None:
+            raise ValueError("Please specify the number of sides `n` for the polygon.")
+        if not isinstance(n, int) or n < 3:
+            raise ValueError("Number of sides must be an integer that is at least 3.")
+        if not isinstance(anc, int) or anc < 0:
+            raise ValueError("Number of ancilla qubits must be a non-negative integer.")
+        basis = cls._points_on_circle(n, poly_radius, poly_offset)
+        if anc > 0:
+            basis = basis + cls._points_on_circle(anc, anc_radius, anc_offset, anc_disp)
+        cell_dist = poly_radius * cell_dist_factor
+        return cls(basis, ((0, cell_dist), (cell_dist, 0)), lattice_size, LatticeType.POLY_2D)
+
+    @classmethod
+    def cube_3d(cls, lattice_size: Optional[tuple[int, int, int]] = None) -> "Lattice":
+        """The cubic lattice, one site per cell."""
+        return cls((), ((1, 0, 0), (0, 1, 0), (0, 0, 1)), lattice_size, LatticeType.CUBE_3D)
+
     def asdict(self) -> dict:
         return {"basis_vectors": [list(v) for v in self.basis_vectors], "lattice_vectors": [list(v) for v in self.lattice_vectors], "size": None if self.size is None else list(self.size), "lattice_type": self.lattice_type.value}
 
@@ -263,23 +332,36 @@ def _coords(qubits: Iterable) -> tuple[Coord, ...]:
     return tuple(tuple(int(c) for c in q) for q in qubits)
 
 
+def _checked_coords(qubits: Iterable) -> tuple[Coord, ...]:
+    """Loom's checks on a list of coordinates, in its order: one length, then distinct."""
+    qubits = [tuple(q) for q in qubits]
+    if qubits and any(len(q) != len(qubits[0]) for q in qubits):
+        raise ValueError("Length of coordinates must be consistent.")
+    return _coords(qubits)
+
+
+def _distinct(qubits: tuple[Coord, ...]) -> tuple[Coord, ...]:
+    if len(qubits) != len(set(qubits)):
+        raise ValueError(f"List of {type(qubits[0])} must have distinct elements.")
+    return qubits
+
+
 class PauliOperator:
     """A Pauli string on data qubits named by their lattice coordinates. Equality and hashing
-    ignore the uuid and the order of the qubits."""
+    ignore the uuid and the order of the qubits. As in Loom, the letters are upper-case X, Y
+    and Z."""
 
     __slots__ = ("pauli", "data_qubits", "uuid")
 
     def __init__(self, pauli: str, data_qubits: Iterable, uuid: Optional[str] = None) -> None:
-        pauli = str(pauli).upper()
-        if not pauli or any(c not in "XYZ" for c in pauli):
-            raise ValueError(f"Pauli string {pauli!r} must be made of X, Y and Z.")
-        data_qubits = _coords(data_qubits)
+        pauli = str(pauli)
+        for p in pauli:
+            if p not in ("X", "Y", "Z"):
+                raise ValueError(f"Invalid pauli: {p}. Must be one of ['X', 'Y', 'Z'].")
+        data_qubits = _checked_coords(data_qubits)
         if len(data_qubits) != len(pauli):
-            raise ValueError("The number of data qubits must match the length of the Pauli string.")
-        if len(set(data_qubits)) != len(data_qubits):
-            raise ValueError("Data qubits must be distinct.")
-        if len({len(q) for q in data_qubits}) > 1:
-            raise ValueError("All qubit coordinates must have the same length.")
+            raise ValueError(f"Number of qubits: {len(data_qubits)} does not match the length of the pauli string: {len(pauli)}.")
+        _distinct(data_qubits)
         self.pauli = pauli
         self.data_qubits = data_qubits
         self.uuid = uuid or str(uuid4())
@@ -346,13 +428,11 @@ class Stabilizer(PauliOperator):
 
     def __init__(self, pauli: str, data_qubits: Iterable, uuid: Optional[str] = None, ancilla_qubits: Iterable = (), nr_of_ancillae: Optional[int] = None) -> None:
         super().__init__(pauli, data_qubits, uuid)
-        ancilla_qubits = _coords(ancilla_qubits)
+        ancilla_qubits = _checked_coords(ancilla_qubits)
         if nr_of_ancillae and not ancilla_qubits:
             # Workbench's convention: the first data qubit's cell, basis 1, 2, ...
             ancilla_qubits = tuple((self.data_qubits[0][0], self.data_qubits[0][1], k + 1) for k in range(nr_of_ancillae))
-        if len(set(ancilla_qubits)) != len(ancilla_qubits):
-            raise ValueError("Ancilla qubits must be distinct.")
-        self.ancilla_qubits = ancilla_qubits
+        self.ancilla_qubits = _distinct(ancilla_qubits)
 
     def __repr__(self) -> str:
         return f"{self.pauli} {self.data_qubits} {self.ancilla_qubits}"
@@ -420,12 +500,15 @@ class Block:
         logical_z_operators = tuple(o if isinstance(o, PauliOperator) else PauliOperator.fromdict({k: v for k, v in o.items() if k != "nr_of_ancillae"}) for o in logical_z_operators)
         syndrome_circuits = tuple(c if isinstance(c, SyndromeCircuit) else SyndromeCircuit.fromdict(c) for c in syndrome_circuits)
         stabilizer_to_circuit = dict(stabilizer_to_circuit or {})
-        if not stabilizers:
-            raise ValueError("A block needs at least one stabilizer.")
-        stabilizer_qubits = {q for s in stabilizers for q in s.data_qubits}
-        logical_qubits = {q for o in logical_x_operators + logical_z_operators for q in o.data_qubits}
-        if not logical_qubits <= stabilizer_qubits:
-            raise ValueError("All qubits used in the logical operators must be included in the stabilizers.")
+        for given in (stabilizers, logical_x_operators, logical_z_operators):
+            if len(given) == 0:
+                raise ValueError("List cannot be empty.")
+        if len(logical_x_operators) != len(logical_z_operators):
+            raise ValueError("The number of logical X operators must be equal to the number of logical Z operators.")
+        # Built as Loom builds it, so a set of several qubits prints in Loom's order.
+        outside = set(q for o in logical_x_operators + logical_z_operators for q in o.data_qubits) - set(q for s in stabilizers for q in s.data_qubits)
+        if outside:
+            raise ValueError(f"Qubits {outside} are not included in the stabilizers but are used in the logical operators")
         for a, b in combinations(stabilizers, 2):
             if a == b:
                 raise ValueError("Stabilizers must be distinct.")
@@ -744,8 +827,18 @@ class CodeOperation(Operation):
 
 
 def _positive(name: str, value: int) -> None:
-    if not isinstance(value, int) or value <= 0:
-        raise ValueError(f"{name} must be larger than zero, not {value!r}.")
+    if not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer, not {value!r}.")
+    if value <= 0:
+        raise ValueError(f"{name} has to be larger than 0.")
+
+
+def _pair(name: str, value) -> tuple:
+    # Loom types these fields tuple[str, str]: exactly two names.
+    value = tuple(value) if not isinstance(value, str) else (value,)
+    if len(value) != 2:
+        raise ValueError(f"{name} must be two block names, not {len(value)}: {value!r}.")
+    return value
 
 
 @dataclass(frozen=True)
@@ -837,7 +930,7 @@ class Merge(CodeOperation):
     orientation: Optional[Orientation] = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "input_blocks_name", tuple(self.input_blocks_name))
+        object.__setattr__(self, "input_blocks_name", _pair("input_blocks_name", self.input_blocks_name))
         if self.orientation is not None:
             object.__setattr__(self, "orientation", Orientation(self.orientation))
 
@@ -850,7 +943,7 @@ class Split(CodeOperation):
     split_position: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "output_blocks_name", tuple(self.output_blocks_name))
+        object.__setattr__(self, "output_blocks_name", _pair("output_blocks_name", self.output_blocks_name))
         object.__setattr__(self, "orientation", Orientation(self.orientation))
         _positive("split_position", self.split_position)
 

@@ -2,7 +2,8 @@
 # check_code_stabilizers,check_logical_ops,check_stabilizer_measurement,utilities,debug_dataclass}.py and
 # src/loom/eka/logical_state.py; Copyright 2024 Entropica Labs Pte Ltd, Apache License 2.0; see LICENSE in this
 # directory), modified for stabilizer_qec: this package's TableauSimulator in place of Loom's cliffordsim, a small
-# signed-Pauli algebra in place of its stabilizer arrays.
+# signed-Pauli algebra in place of its stabilizer arrays, and plain dataclasses (Loom's fields, messages and
+# printing) in place of the pydantic ones of DebugData, its checks and their outputs.
 """Loom's circuit validator: is a circuit (in Loom's IR) a valid operation from an input code to
 an output code? The output code's stabilizers must stabilize the final state (with the parity
 the classical bits predict), the logical states must transform as declared, and the named
@@ -10,6 +11,7 @@ measurements must measure the named input stabilizers, deterministically."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from functools import reduce
 from itertools import product
@@ -144,15 +146,35 @@ def _to_pauli_string(op: SignedPauli):
 # ---------------------------------------------------------------------------------------------
 
 
+_SPARSE_PAIR = re.compile(r"([XYZ])(\d+)", re.IGNORECASE)
+
+
+def _loom_sparse(text: str, n: Optional[int] = None) -> SignedPauli:
+    """A sparse Pauli string with Loom's checks: a sign, then letter-index pairs (``+Z0X1``),
+    each index once, within ``n`` qubits when ``n`` is given."""
+    if text[:1] not in ("+", "-"):
+        raise ValueError("The first character of the a Pauli string should be '+' or '-'.")
+    rest = text[1:]
+    invalid = _SPARSE_PAIR.sub("", rest)
+    if invalid:
+        raise ValueError(f"Invalid elements in the Pauli string: {invalid}.")
+    indices = [int(i) for _, i in _SPARSE_PAIR.findall(rest)]
+    if len(indices) != len(set(indices)):
+        raise ValueError(f"Qubit indices { {i for i in indices if indices.count(i) > 1} } appear more than once in the Pauli string.")
+    if n is not None and indices and n < max(indices) + 1:
+        raise ValueError(f"Qubit index {max(indices)} is out of range for {n} qubits.")
+    return SignedPauli.from_sparse_string(text, n)
+
+
 class LogicalState:
-    """A logical state by the logical Paulis that stabilize it (sparse strings on the logical
-    qubits, ``("+Z0", "+X1")``), one per logical qubit, independent."""
+    """A logical state by the logical Paulis that stabilize it (signed sparse strings on the
+    logical qubits, ``("+Z0", "+X1")``), one per logical qubit, independent."""
 
     def __init__(self, sparse_logical_paulistrings) -> None:
         if isinstance(sparse_logical_paulistrings, str):
             sparse_logical_paulistrings = (sparse_logical_paulistrings,)
         strings = tuple(s.upper() for s in sparse_logical_paulistrings)
-        ops = [SignedPauli.from_sparse_string(s) for s in strings]
+        ops = [_loom_sparse(s) for s in strings]
         width = max(op.n for op in ops)
         if width != len(strings):
             raise ValueError(f"The number of sparse stabilizers ({len(strings)}) does not match the maximum logical qubits required by the operators ({width}).")
@@ -346,118 +368,215 @@ def _output_operator(op: PauliOperator, output_index: dict[Coord, int], n: int) 
 
 
 @dataclass(frozen=True)
-class CodeStabilizerCheck:
+class CodeStabilizerCheckOutput:
     missing_stabilizers: tuple[Stabilizer, ...]
     stabilizers_with_incorrect_parity: tuple[Stabilizer, ...]
 
-    @property
-    def valid(self) -> bool:
-        return not self.missing_stabilizers and not self.stabilizers_with_incorrect_parity
-
-    @property
-    def message(self) -> str:
-        return "" if self.valid else "Some code stabilizer(s) were not found in the output."
+    def __len__(self) -> int:
+        return len(self.missing_stabilizers) + len(self.stabilizers_with_incorrect_parity)
 
     def __str__(self) -> str:
-        out = f"CodeStabilizerCheck: valid = {self.valid}"
-        if self.message:
-            out += f"\nmessage: {self.message}"
+        out = ""
         if self.missing_stabilizers:
-            out += "\n- Missing Stabilizers:\n" + "\n".join(str(s) for s in self.missing_stabilizers)
+            out += "- Missing Stabilizers:\n" + "\n".join(str(s) for s in self.missing_stabilizers) + "\n"
         if self.stabilizers_with_incorrect_parity:
-            out += "\n- Stabilizers with Incorrect Parity:\n" + "\n".join(str(s) for s in self.stabilizers_with_incorrect_parity)
-        return out
+            out += "- Stabilizers with Incorrect Parity:\n" + "\n".join(str(s) for s in self.stabilizers_with_incorrect_parity) + "\n"
+        return out.rstrip("\n")
 
 
 @dataclass(frozen=True)
-class LogicalOperatorCheck:
-    failed_transformations: tuple[tuple[LogicalState, tuple[LogicalState, ...], Optional[LogicalState]], ...]
-    failed_transformations_with_parity: tuple[tuple[LogicalState, tuple[LogicalState, tuple[int, ...]], Optional[LogicalState]], ...]
+class LogicalOperatorCheckOutput:
+    input_vs_expected_vs_actual_logicals_multi: tuple[tuple[LogicalState, tuple[LogicalState, ...], Optional[LogicalState]], ...]
+    input_vs_expected_vs_actual_logicals_with_parity: tuple[tuple[LogicalState, tuple[LogicalState, tuple[int, ...]], Optional[LogicalState]], ...]
 
-    @property
-    def valid(self) -> bool:
-        return not self.failed_transformations and not self.failed_transformations_with_parity
-
-    @property
-    def message(self) -> str:
-        return "" if self.valid else "Some logical states were not transformed correctly."
+    def __len__(self) -> int:
+        return len(self.input_vs_expected_vs_actual_logicals_multi) + len(self.input_vs_expected_vs_actual_logicals_with_parity)
 
     def __str__(self) -> str:
-        out = f"LogicalOperatorCheck: valid = {self.valid}"
-        if self.message:
-            out += f"\nmessage: {self.message}"
-        if self.failed_transformations:
-            out += "\n- Failed Logical State Transformations:"
-            for initial, allowed, actual in self.failed_transformations:
-                out += f"\nInitial: {initial}, Allowed Finals: {allowed}, Actual: {actual}"
-        if self.failed_transformations_with_parity:
-            out += "\n- Expected vs Actual Logical Transformations:"
-            for initial, (expected, flips), actual in self.failed_transformations_with_parity:
-                out += f"\nInitial: {initial}, Expected: {expected}, Flips: {flips}, Actual: {actual}"
-        return out
+        out = ""
+        if self.input_vs_expected_vs_actual_logicals_multi:
+            out += "- Failed Logical State Transformations:\n"
+            for initial, allowed, actual in self.input_vs_expected_vs_actual_logicals_multi:
+                out += f"Initial: {initial}, Allowed Finals: {allowed}, Actual: {actual}\n"
+        if self.input_vs_expected_vs_actual_logicals_with_parity:
+            out += "- Expected vs Actual Logical Transformations:\n"
+            for initial, (expected, flips), actual in self.input_vs_expected_vs_actual_logicals_with_parity:
+                out += f"Initial: {initial}, Expected: {expected}, Flips: {flips}, Actual: {actual}\n"
+        return out.rstrip("\n")
 
 
 @dataclass(frozen=True)
-class StabilizerMeasurementCheck:
+class StabilizerMeasurementCheckOutput:
     expected_vs_measured_stabs: tuple[tuple[str, Stabilizer, tuple[Stabilizer, ...]], ...]
     probabilistic_measurements: tuple[str, ...]
 
+    def __len__(self) -> int:
+        return len(self.expected_vs_measured_stabs) + len(self.probabilistic_measurements)
+
+    def __str__(self) -> str:
+        out = ""
+        if any(self.expected_vs_measured_stabs):
+            out = "- Expected vs Measured Stabilizers:\n"
+            for idx, stab, measured in self.expected_vs_measured_stabs:
+                out += f"Measurement {idx}: Expected {stab}, Measured: {', '.join(str(s) for s in measured) if measured else 'None'}\n"
+        if any(self.probabilistic_measurements):
+            out += "- Probabilistic Measurements: " + ", ".join(str(idx) for idx in self.probabilistic_measurements) + "\n"
+        return out.rstrip("\n")
+
+
+class _ValidityCheck:
+    """Loom's validity check: its ``output`` (what failed), ``valid`` when the output is empty,
+    a ``message``, and the text ``Name: valid = ...`` with the message and output when not
+    valid."""
+
+    output: Any
+
+    def __init__(self, output) -> None:
+        object.__setattr__(self, "output", output)
+
+    def __setattr__(self, name: str, value) -> None:
+        raise AttributeError(f"cannot assign to field '{name}'")
+
+    def __eq__(self, other: object) -> bool:
+        return type(other) is type(self) and other.output == self.output
+
+    def __hash__(self) -> int:
+        return hash((type(self).__name__, self.output))
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(output={self.output!r})"
+
     @property
     def valid(self) -> bool:
-        return not self.expected_vs_measured_stabs and not self.probabilistic_measurements
+        return len(self.output) == 0
 
     @property
     def message(self) -> str:
-        a, b = bool(self.expected_vs_measured_stabs), bool(self.probabilistic_measurements)
-        if not a and not b:
+        raise NotImplementedError
+
+    def __str__(self) -> str:
+        out = f"{self.__class__.__name__}: valid = {self.valid}\n"
+        if not self.valid:
+            out += f"message: {self.message}\n"
+            out += "output: \n"
+            out += str(self.output) + "\n"
+        return out.rstrip("\n")
+
+
+class CodeStabilizerCheck(_ValidityCheck):
+    """Are the output code's stabilizers on the final state, with the right parity? The output
+    is a ``CodeStabilizerCheckOutput`` (2.0's two tuples are accepted too)."""
+
+    def __init__(self, output, stabilizers_with_incorrect_parity: Optional[Sequence[Stabilizer]] = None) -> None:
+        if not isinstance(output, CodeStabilizerCheckOutput):
+            output = CodeStabilizerCheckOutput(tuple(output), tuple(stabilizers_with_incorrect_parity or ()))
+        super().__init__(output)
+
+    @property
+    def message(self) -> str:
+        return "" if len(self.output) == 0 else "Some code stabilizer(s) were not found in the output."
+
+    @property
+    def missing_stabilizers(self) -> tuple[Stabilizer, ...]:
+        return self.output.missing_stabilizers
+
+    @property
+    def stabilizers_with_incorrect_parity(self) -> tuple[Stabilizer, ...]:
+        return self.output.stabilizers_with_incorrect_parity
+
+
+class LogicalOperatorCheck(_ValidityCheck):
+    """Do the logical states transform as declared? The output is a
+    ``LogicalOperatorCheckOutput``."""
+
+    def __init__(self, output, input_vs_expected_vs_actual_logicals_with_parity: Optional[Sequence] = None) -> None:
+        if not isinstance(output, LogicalOperatorCheckOutput):
+            output = LogicalOperatorCheckOutput(tuple(output), tuple(input_vs_expected_vs_actual_logicals_with_parity or ()))
+        super().__init__(output)
+
+    @property
+    def message(self) -> str:
+        return "Some logical states were not transformed correctly." if not self.valid else ""
+
+    @property
+    def failed_transformations(self) -> tuple:
+        return self.output.input_vs_expected_vs_actual_logicals_multi
+
+    @property
+    def failed_transformations_with_parity(self) -> tuple:
+        return self.output.input_vs_expected_vs_actual_logicals_with_parity
+
+
+class StabilizerMeasurementCheck(_ValidityCheck):
+    """Do the named measurements measure the named input stabilizers, deterministically? The
+    output is a ``StabilizerMeasurementCheckOutput``."""
+
+    def __init__(self, output, probabilistic_measurements: Optional[Sequence[str]] = None) -> None:
+        if not isinstance(output, StabilizerMeasurementCheckOutput):
+            output = StabilizerMeasurementCheckOutput(tuple(output), tuple(probabilistic_measurements or ()))
+        super().__init__(output)
+
+    @property
+    def message(self) -> str:
+        wrong, random = len(self.output.expected_vs_measured_stabs), len(self.output.probabilistic_measurements)
+        if (wrong, random) == (0, 0):
             return ""
-        if not a:
+        if wrong == 0:
             return "Some measurement(s) were not deterministic."
-        if not b:
+        if random == 0:
             return "Some measurement(s) did not measure the assigned stabilizer."
         return "Some measurement(s) were not deterministic and some did not measure the assigned stabilizer."
 
-    def __str__(self) -> str:
-        out = f"StabilizerMeasurementCheck: valid = {self.valid}"
-        if self.message:
-            out += f"\nmessage: {self.message}"
-        for idx, stab, measured in self.expected_vs_measured_stabs:
-            out += f"\nMeasurement {idx}: Expected {stab}, Measured: {', '.join(str(s) for s in measured) if measured else 'None'}"
-        if self.probabilistic_measurements:
-            out += "\n- Probabilistic Measurements: " + ", ".join(self.probabilistic_measurements)
-        return out
+    @property
+    def expected_vs_measured_stabs(self) -> tuple:
+        return self.output.expected_vs_measured_stabs
+
+    @property
+    def probabilistic_measurements(self) -> tuple[str, ...]:
+        return self.output.probabilistic_measurements
 
 
 @dataclass(frozen=True)
 class AllChecks:
+    """The three checks, iterable in this order."""
+
     code_stabilizers: CodeStabilizerCheck
     logical_operators: LogicalOperatorCheck
-    stabilizer_measurements: StabilizerMeasurementCheck
+    stabilizers_measured: StabilizerMeasurementCheck
+
+    def __iter__(self):
+        return iter((self.code_stabilizers, self.logical_operators, self.stabilizers_measured))
+
+    @property
+    def stabilizer_measurements(self) -> StabilizerMeasurementCheck:
+        # 2.0's name for stabilizers_measured.
+        return self.stabilizers_measured
 
     @property
     def valid(self) -> bool:
-        return self.code_stabilizers.valid and self.logical_operators.valid and self.stabilizer_measurements.valid
+        return all(check.valid for check in self)
 
 
 @dataclass(frozen=True)
 class DebugData:
-    """The validator's verdict: ``valid`` and the three checks."""
+    """The validator's verdict: ``valid`` (all checks valid) and the ``checks``; its text names
+    each failed check, after a separator."""
 
     checks: AllChecks
 
     @property
     def valid(self) -> bool:
-        return self.checks.valid
+        return all(check.valid for check in self.checks)
 
     def __bool__(self) -> bool:
         return self.valid
 
     def __str__(self) -> str:
-        parts = [f"DebugData: valid = {self.valid}", "-" * 40]
-        for check in (self.checks.code_stabilizers, self.checks.logical_operators, self.checks.stabilizer_measurements):
+        out = f"DebugData: valid = {self.valid}\n"
+        for check in self.checks:
             if not check.valid:
-                parts.append(str(check))
-        return "\n".join(parts)
+                out += "-" * 40 + "\n" + str(check) + "\n"
+        return out.rstrip("\n")
 
 
 def _parity(run: _Run, cbits: Sequence[Union[str, int]]) -> int:
@@ -493,7 +612,7 @@ def check_code_stabilizers_output(circuit: Circuit, input_block: Block, output_b
     for stab in output_stabilizers_with_any_value:
         if run.expectation(_output_operator(stab, output_index, n)) == 0:
             missing.append(stab)
-    return CodeStabilizerCheck(tuple(missing), tuple(wrong))
+    return CodeStabilizerCheck(CodeStabilizerCheckOutput(tuple(missing), tuple(wrong)))
 
 
 def all_possible_pauli_strings(n_qubits: int) -> list[str]:
@@ -559,7 +678,7 @@ def check_logical_operators_transformation(circuit: Circuit, input_block: Block,
         flips = [_parity(run, parity_dict.get(i, ())) for i in range(output_block.n_logical_qubits)]
         if not all(run.expectation(op) == 1 for op in expected(state_out, flips)):
             failed_parity.append((state_in, (state_out, tuple(flips)), _find_logical_state(output_block, run, output_index, n)))
-    return LogicalOperatorCheck(tuple(failed), tuple(failed_parity))
+    return LogicalOperatorCheck(LogicalOperatorCheckOutput(tuple(failed), tuple(failed_parity)))
 
 
 def check_input_stabilizer_measurement(circuit: Circuit, input_block: Block, output_block: Block, measurement_to_stabilizer_map: dict[str, Stabilizer]) -> StabilizerMeasurementCheck:
@@ -609,7 +728,7 @@ def check_input_stabilizer_measurement(circuit: Circuit, input_block: Block, out
         prod = reduce(lambda a, b: a * b, (_block_operator(s, qubits) for s in contributions[label]), SignedPauli.identity(len(qubits)))
         if prod.hermitian() != _block_operator(stab, qubits).hermitian():
             mismatched.append((label, stab, tuple(contributions[label])))
-    return StabilizerMeasurementCheck(tuple(sorted(mismatched, key=lambda t: t[0])), tuple(sorted(probabilistic)))
+    return StabilizerMeasurementCheck(StabilizerMeasurementCheckOutput(tuple(sorted(mismatched, key=lambda t: t[0])), tuple(sorted(probabilistic))))
 
 
 def is_circuit_valid(circuit: Circuit, input_block: Union[Block, Sequence[Block]], output_block: Union[Block, Sequence[Block]], output_stabilizers_parity: dict, output_stabilizers_with_any_value: Sequence[Stabilizer], logical_state_transformations_with_parity: dict, logical_state_transformations: Sequence[tuple[LogicalState, Sequence[LogicalState]]], measurement_to_input_stabilizer_map: dict[str, Stabilizer], seed: Optional[int] = None) -> DebugData:
@@ -676,8 +795,15 @@ def logical_state_transformations_to_check(x_operators_sparse_pauli_map: Sequenc
     if len(x_operators_sparse_pauli_map) != len(z_operators_sparse_pauli_map):
         raise ValueError("The number of X and Z operators should be the same for the logical state transformations.")
     k = len(x_operators_sparse_pauli_map)
-    x_map = [SignedPauli.from_sparse_string("+" + x, k) for x in x_operators_sparse_pauli_map]
-    z_map = [SignedPauli.from_sparse_string("+" + z, k) for z in z_operators_sparse_pauli_map]
+    x_map = [_loom_sparse("+" + x, k) for x in x_operators_sparse_pauli_map]
+    z_map = [_loom_sparse("+" + z, k) for z in z_operators_sparse_pauli_map]
+    # Loom's tableau check: the images generate the Pauli group, the Xs commute, the Zs commute,
+    # and Z_i anticommutes with X_j exactly when i == j (checked for j >= i, as Loom does).
+    valid = gf2_rank([op.x | (op.z << k) for op in x_map + z_map]) == 2 * k
+    valid = valid and all(x_map[i].commutes_with(x_map[j]) and z_map[i].commutes_with(z_map[j]) for i in range(k) for j in range(i + 1))
+    valid = valid and all((not z_map[i].commutes_with(x_map[j])) == (i == j) for i in range(k) for j in range(i, k))
+    if not valid:
+        raise ValueError("The transformed X and Z operators do not generate a valid tableau when stacked. Check the input sparse Pauli string maps.")
     out = []
     for state in logical_states_to_check(k):
         images = []
