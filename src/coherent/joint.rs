@@ -20,11 +20,17 @@
 //! unbiased for every pair whose difference G is among the sets summed). Two error sets whose
 //! states overlap differ by an element of the spacetime kernel projected onto the error
 //! locations — every non-Clifford gate is a location for the kernel's search, so that the
-//! interference running through the T gates is found — and the sets summed are those
-//! projections: the kernel's generators each on its own, products of up to `order` of the
-//! generators a fired error touches (per cluster), and products within each group of locations
-//! with equal flips (the same fault in different places, a T gate's among them), as the
-//! coherent sampler truncates; with the whole kernel, every projection, and the identity is
+//! interference running through the T gates is found — and the generators are a basis of that
+//! projection: the kernel's local generators, the single errors and pairs the exact gates'
+//! operators relate, and (up to `max_complete` locations) the directions those leave out, from
+//! the null space of the errors' residues modulo the exact gates' (`kernel::null_space`; a
+//! logical error at one time with the same logical at another is the commonest, which no local
+//! search finds and whose halves add as amplitudes). With at most `SMALL_KERNEL` generators a
+//! shot sums every product of them, the whole projected kernel: exact. Otherwise the sets
+//! summed are the generators each on its own, products of up to `order` of the generators a
+//! fired error touches (per cluster), and products within each group of locations with equal
+//! flips (the same fault in different places, a T gate's among them), as the coherent sampler
+//! truncates; with the whole kernel, every projection, and the identity is
 //! exact (`exact_distribution`, checked against the state vector). Unlike the coherent
 //! sampler's class form, the sum is not a product over clusters: through a T gate, members of
 //! different clusters overlap. Each member's state is a re-run of the term engine with the
@@ -33,16 +39,12 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use super::kernel::{CoherentOptions, Kernel};
+use super::kernel::{CoherentOptions, Kernel, SMALL_KERNEL};
 use super::{Element, GaugeSolver, Program as KernelProgram};
 use crate::circuit::Circuit;
 use crate::stabrank::{Key, Memo, Odometer, Program, Recording, Replay, Run, Source, Stream};
 use crate::statevec::C;
 use crate::surface_code::Xorshift;
-
-/// With this many generators or fewer, a shot sums every product of them (the whole projected
-/// kernel, 2^12 members at most): exact, and the same set from every shot.
-const SMALL_KERNEL: usize = 12;
 
 pub struct JointSampler {
     /// The term engine, the coherent errors as twirled locations.
@@ -57,6 +59,14 @@ pub struct JointSampler {
     twirl_of_loc: Vec<Option<usize>>,
     /// The kernel's generators, and every pair within each group of equal-flip locations.
     generators: Vec<Element>,
+    /// How many of the generators are local (found by the kernel's search; the first ones).
+    num_local: usize,
+    /// How many of the generators complete the local ones to a basis of the projected kernel
+    /// (those after the local ones).
+    num_nonlocal: usize,
+    /// Whether the generators span the whole projected kernel (false past `max_complete`
+    /// locations, where interference between distant errors is left out).
+    complete: bool,
     /// Each group's pair generators (indices into `generators`).
     group_gens: Vec<Vec<usize>>,
     by_location: Vec<Vec<usize>>,
@@ -74,7 +84,8 @@ impl JointSampler {
         let program = Program::with_twirl(&expanded)?;
         let kernel_program = KernelProgram::new(&expanded)?;
         let solver = GaugeSolver::new(&kernel_program);
-        let kernel = Kernel::new(&kernel_program, &solver, options.clone());
+        // The kernel's local search alone: the completion is of the projection, below.
+        let kernel = Kernel::new(&kernel_program, &solver, CoherentOptions { max_complete: 0, ..options });
         let mut loc_of_twirl = Vec::new();
         let mut twirl_of_loc = vec![None; kernel_program.locations.len()];
         for (l, &exact) in kernel_program.exact.iter().enumerate() {
@@ -166,6 +177,62 @@ impl JointSampler {
             basis.push((pivot, v));
             generators.push(e);
         }
+        // The directions the generators and the groups' pairs leave out. A projected kernel
+        // element is a set of errors whose residues, reduced by the exact gates', sum to zero;
+        // reduced by the span (in echelon form over the errors) it is off that span's pivots, and
+        // a nonzero element of the span is on one: so the quotient is the null space of the free
+        // errors' reduced residues, each vector carrying the exact gates that complete it.
+        let num_local = generators.len();
+        let mut complete = nl <= options.max_complete;
+        if complete {
+            let mut span = basis.clone();
+            for g in &kernel.groups {
+                for (i, &a) in g.members.iter().enumerate() {
+                    for &b in &g.members[i + 1..] {
+                        let mut v = vec![0u64; tw];
+                        for t in projection(&[a, b]) {
+                            v[t / 64] ^= 1 << (t % 64);
+                        }
+                        for (pivot, row) in &span {
+                            if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                                v.iter_mut().zip(row).for_each(|(a, b)| *a ^= b);
+                            }
+                        }
+                        let Some(w) = v.iter().position(|&w| w != 0) else { continue };
+                        let pivot = w * 64 + v[w].trailing_zeros() as usize;
+                        for (_, row) in span.iter_mut() {
+                            if row[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                                row.iter_mut().zip(&v).for_each(|(a, b)| *a ^= b);
+                            }
+                        }
+                        span.push((pivot, v));
+                    }
+                }
+            }
+            let mut pinned = vec![false; loc_of_twirl.len()];
+            for (pivot, _) in &span {
+                pinned[*pivot] = true;
+            }
+            let free: Vec<(Vec<u64>, Vec<usize>)> = (0..loc_of_twirl.len())
+                .filter(|&t| !pinned[t])
+                .map(|t| {
+                    let l = loc_of_twirl[t];
+                    let (mut v, mut combo) = (residue[l].clone(), vec![l]);
+                    reduce(&mut v, &mut combo, &rows);
+                    (v, combo)
+                })
+                .collect();
+            // Fewest errors first, then fewest exact gates.
+            let local: Vec<Vec<usize>> = generators.iter().map(|e| e.members.clone()).collect();
+            let cost = |l: usize| -> u64 { if kernel_program.exact[l] { 1 } else { 1 << 16 } };
+            for members in super::kernel::shorten(super::kernel::null_space(free), &local, nl, &cost) {
+                match kernel_program.element(&members, &solver) {
+                    Some(e) => generators.push(e),
+                    None => complete = false,
+                }
+            }
+        }
+        let num_nonlocal = generators.len() - num_local;
         let mut group_gens = Vec::new();
         for g in &kernel.groups {
             let mut gens = Vec::new();
@@ -185,7 +252,7 @@ impl JointSampler {
                 by_location[l].push(i);
             }
         }
-        Ok(JointSampler { program, kernel_program, kernel, solver, loc_of_twirl, twirl_of_loc, generators, group_gens, by_location, options, pairs: false, whole: None })
+        Ok(JointSampler { program, kernel_program, kernel, solver, loc_of_twirl, twirl_of_loc, generators, num_local, num_nonlocal, complete, group_gens, by_location, options, pairs: false, whole: None })
     }
 
     /// The same, summing also over the products of every two untouched generators.
@@ -222,6 +289,22 @@ impl JointSampler {
 
     pub fn num_generators(&self) -> usize {
         self.generators.len()
+    }
+
+    /// The generators that complete the local ones to a basis of the projected kernel.
+    pub fn num_nonlocal_generators(&self) -> usize {
+        self.num_nonlocal
+    }
+
+    /// Whether the generators span the whole projected kernel.
+    pub fn kernel_complete(&self) -> bool {
+        self.complete
+    }
+
+    /// Whether every shot sums the whole projected kernel (complete, and at most
+    /// `SMALL_KERNEL` generators): the weights are then exact.
+    pub fn is_whole(&self) -> bool {
+        self.whole.is_some() || (self.complete && self.generators.len() <= SMALL_KERNEL)
     }
 
     /// The error sets G summed for a shot whose errors `fired`: distinct, sorted lists of
@@ -271,7 +354,10 @@ impl JointSampler {
                 fired_locs[self.loc_of_twirl[t]] = true;
             }
         }
-        let touched = self.kernel.touched(&self.generators, &self.by_location, &fired_locs, self.options.hops);
+        // The local generators (and group pairs) the errors touch, by clusters as before 2.1;
+        // the non-local ones each alone, and with their neighbours below.
+        let nonlocal = |g: usize| g >= self.num_local && g < self.num_local + self.num_nonlocal;
+        let touched = self.kernel.touched(&self.generators, &self.by_location, &fired_locs, self.options.hops, &|g| !nonlocal(g));
         let mut untouched = Vec::new();
         let mut t = touched.iter().peekable();
         for (g, e) in self.generators.iter().enumerate() {
@@ -301,13 +387,51 @@ impl JointSampler {
             }
         }
         for cluster in self.kernel.clusters(&self.generators, &touched) {
-            let elements = self.kernel.products(&self.generators, &cluster, &self.options, cache, &mut element_of);
-            add(elements, &mut out);
+            let elements = self.kernel.products(&self.generators, &cluster, &self.options, cache, &mut element_of, &|_| true, None);
+            add(elements.into_iter().map(|(_, e)| e).collect(), &mut out);
         }
         for gens in &self.group_gens {
             if gens.len() > 1 {
-                let elements = self.kernel.products(&self.generators, gens, &self.options, cache, &mut element_of);
-                add(elements, &mut out);
+                let elements = self.kernel.products(&self.generators, gens, &self.options, cache, &mut element_of, &|_| true, None);
+                add(elements.into_iter().map(|(_, e)| e).collect(), &mut out);
+            }
+        }
+        // A non-local generator the errors reach (holding one, or sharing a location with a
+        // touched generator: a logical error at one time, its partner the same logical at
+        // another): itself, and its products with the products of up to `order` generators
+        // around it (those sharing a location with it, in clusters of their own, joined when
+        // they share a location), which move the errors on along it. Not merged into the
+        // clusters, whose products past `max_cluster` generators stop at pairs.
+        let mut reached = self.kernel.touched(&self.generators, &self.by_location, &fired_locs, 0, &nonlocal);
+        for &t in &touched {
+            for &l in &self.generators[t].members {
+                reached.extend(self.by_location[l].iter().copied().filter(|&g| nonlocal(g)));
+            }
+        }
+        reached.sort_unstable();
+        reached.dedup();
+        for &g in &reached {
+            let ge = &self.generators[g];
+            let mut around: Vec<usize> = ge.members.iter().flat_map(|&l| self.by_location[l].iter().copied()).filter(|&h| h != g).collect();
+            around.sort_unstable();
+            around.dedup();
+            // And the non-local generators chained to those, up to `order` steps further: the
+            // same logical at further times.
+            let mut frontier: Vec<usize> = around.iter().copied().filter(|&h| nonlocal(h)).collect();
+            for _ in 1..self.options.order {
+                let mut next: Vec<usize> = frontier.iter().flat_map(|&h| self.generators[h].members.iter().flat_map(|&l| self.by_location[l].iter().copied())).filter(|&x| nonlocal(x) && x != g && around.binary_search(&x).is_err()).collect();
+                next.sort_unstable();
+                next.dedup();
+                if next.is_empty() {
+                    break;
+                }
+                around.extend_from_slice(&next);
+                around.sort_unstable();
+                frontier = next;
+            }
+            for d in self.kernel.clusters(&self.generators, &around) {
+                let elements = self.kernel.products(&self.generators, &d, &self.options, cache, &mut element_of, &|_| true, Some(&ge.members));
+                add(elements.into_iter().map(|(_, e)| e).collect(), &mut out);
             }
         }
         out
@@ -489,6 +613,37 @@ mod tests {
             }
             check(&text);
         }
+    }
+
+    /// The sampler as built, its own sums (not `with_whole_kernel`'s), over every branch.
+    fn check_built(text: &str) -> JointSampler {
+        let c = Circuit::parse(text).unwrap();
+        let s = JointSampler::new(&c, CoherentOptions::default()).unwrap();
+        close(&s.exact_distribution(1 << 22).unwrap(), &truth(&c), text);
+        s
+    }
+
+    /// A logical error in one round and the same logical in the next: a kernel element of
+    /// weight six that no local search finds, whose halves add as amplitudes (the 2.1 audit's
+    /// case: the sampler read the twirl's rate, 44σ off). With a T gate beside the memory, and
+    /// with one on a data qubit between the rounds (its Z a kernel element of its own).
+    #[test]
+    fn logical_errors_at_different_times_interfere() {
+        let memory = "R 0 1 2 3 4\nI_ERROR[R_X(theta=0.3)] 0 2 4\nCX 0 1 2 3\nCX 2 1 4 3\nMR 1 3\nDETECTOR rec[-2]\nDETECTOR rec[-1]\nBETWEEN\
+                      I_ERROR[R_X(theta=0.3)] 0 2 4\nCX 0 1 2 3\nCX 2 1 4 3\nMR 1 3\nDETECTOR rec[-2] rec[-4]\nDETECTOR rec[-1] rec[-3]\n\
+                      M 0 2 4\nDETECTOR rec[-3] rec[-2] rec[-5]\nDETECTOR rec[-2] rec[-1] rec[-4]\nOBSERVABLE_INCLUDE(0) rec[-1]";
+        for text in [memory.replace("BETWEEN", "") + "\nR 5\nH 5\nI[T] 5\nH 5\nM 5\nDETECTOR rec[-1]", memory.replace("BETWEEN", "I[T] 0\n")] {
+            let s = check_built(&text);
+            assert!(s.num_nonlocal_generators() >= 1 && s.kernel_complete() && s.is_whole(), "{text}");
+        }
+        // Without the completion the same sums miss it.
+        let text = memory.replace("BETWEEN", "") + "\nR 5\nH 5\nI[T] 5\nH 5\nM 5\nDETECTOR rec[-1]";
+        let c = Circuit::parse(&text).unwrap();
+        let s = JointSampler::new(&c, CoherentOptions { max_complete: 0, ..CoherentOptions::default() }).unwrap();
+        assert!(!s.kernel_complete() && s.num_nonlocal_generators() == 0);
+        let (ours, theirs) = (s.exact_distribution(1 << 22).unwrap(), truth(&c));
+        let worst = theirs.iter().map(|(k, v)| (ours.get(k).copied().unwrap_or(0.0) - v).abs()).fold(0.0, f64::max);
+        assert!(worst > 1e-4, "{worst}");
     }
 
     #[test]

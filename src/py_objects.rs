@@ -349,18 +349,18 @@ impl PyCircuit {
     }
 
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
-    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1))]
-    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize) -> PyResult<PyCoherentSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops };
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
+    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize) -> PyResult<PyCoherentSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
         Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
     }
 
     /// The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
-    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, pairs=false))]
-    fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool) -> PyResult<PyJointSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops };
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, pairs=false, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
+    fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool, max_complete: usize) -> PyResult<PyJointSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options).map(|s| s.with_pairs(pairs))).map_err(err)?;
         Ok(PyJointSampler { sampler, seed, next: 0.into() })
@@ -533,6 +533,21 @@ impl PyCoherentSampler {
         self.sampler.kernel.generators.len()
     }
 
+    #[getter]
+    fn num_nonlocal_generators(&self) -> usize {
+        self.sampler.kernel.num_nonlocal
+    }
+
+    #[getter]
+    fn kernel_complete(&self) -> bool {
+        self.sampler.kernel.complete
+    }
+
+    #[getter]
+    fn exact_weights(&self) -> bool {
+        self.sampler.kernel.is_whole()
+    }
+
     fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {
         let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
         let (sampler, seed) = (&self.sampler, self.seed);
@@ -606,6 +621,21 @@ impl PyJointSampler {
     #[getter]
     fn num_generators(&self) -> usize {
         self.sampler.num_generators()
+    }
+
+    #[getter]
+    fn num_nonlocal_generators(&self) -> usize {
+        self.sampler.num_nonlocal_generators()
+    }
+
+    #[getter]
+    fn kernel_complete(&self) -> bool {
+        self.sampler.kernel_complete()
+    }
+
+    #[getter]
+    fn exact_weights(&self) -> bool {
+        self.sampler.is_whole()
     }
 
     fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {

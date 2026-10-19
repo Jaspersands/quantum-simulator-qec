@@ -1414,8 +1414,22 @@ small rotations) at sizes beyond a state vector. That is what this release adds.
     operators through the circuit.
   - Faults that are the same fault in several places, either side of a gate that leaves them
     alone, are drawn as one, at their summed angle.
-  - The rest of the kernel is found locally: pairs and quads by hashing, products of up to three
-    generators per cluster of faults.
+  - The rest of the kernel is found locally, pairs and quads by hashing, and then completed to a
+    basis of the whole kernel by one elimination over the rotations' effects. The completion
+    holds what no local search finds: a logical error at one time with the same logical at
+    another (XXX in round 1 with XXX in round 2 of a repetition memory, weight 2d). Its two
+    halves give the same outcome, so logical errors at different times add as amplitudes.
+    Before 2.1 the sampler missed them and read the twirl's rate instead. One example is a
+    d = 3 memory with one over-rotation of θ = 0.3 per data qubit per round, counting shots
+    with no detection event and the logical flipped: 2.0 read 0.00103, the exact rate is
+    0.00203.
+  - With at most twelve generators, every shot sums the whole class and the weights are exact
+    (`exact_weights`). Past that the sum is truncated. A shot sums the products of up to three
+    generators per cluster of the faults it touches. Each non-local generator that one of its
+    faults reaches adds its products with its neighbours (`num_nonlocal_generators` counts
+    them).
+  - Past 50,000 rotations (`max_complete`) the completion is skipped and the sampler warns.
+    `kernel_complete` is then False, and interference between distant faults is left out.
 - **`Circuit.compile_exact_sampler`** and **`Circuit.exact_distribution`** run the full state
   vector, up to 24 qubits in use. They handle `I[T]`, `I[U3(…)]` and amplitude damping as well;
   this is the oracle.
@@ -1433,19 +1447,37 @@ small rotations) at sizes beyond a state vector. That is what this release adds.
 
 | circuit | θ | exact | coherent sampler | apart | Pauli twirl |
 |---|---|---|---|---|---|
-| repetition, d = 3, 2 rounds | 0.1 | 0.02320 | 0.02321 ± 0.00019 | +0.0σ | 0.00418 |
-| repetition, d = 3, 3 rounds | 0.1 | 0.05093 | 0.05049 ± 0.00031 | -1.4σ | 0.00739 |
-| repetition, d = 5, 2 rounds | 0.1 | 0.00322 | 0.00314 ± 0.00008 | -1.0σ | 0.00032 |
-| repetition, d = 3, 3 rounds | 0.05 | 0.00354 | 0.00355 ± 0.00008 | +0.1σ | 0.00050 |
+| repetition, d = 3, 2 rounds | 0.1 | 0.02320 | 0.02324 ± 0.00019 | +0.2σ | 0.00418 |
+| repetition, d = 3, 3 rounds | 0.1 | 0.05093 | 0.05112 ± 0.00031 | +0.6σ | 0.00739 |
+| repetition, d = 5, 2 rounds | 0.1 | 0.00322 | 0.00316 ± 0.00008 | -0.7σ | 0.00032 |
+| repetition, d = 3, 3 rounds | 0.05 | 0.00354 | 0.00356 ± 0.00008 | +0.3σ | 0.00050 |
 | repetition, d = 5, 2 rounds | 0.05 | 0.00006 | 0.00006 ± 0.00001 | +0.8σ | 0.00001 |
-| repetition, d = 3, 4 rounds | 0.05 | 0.00559 | 0.00548 ± 0.00010 | -1.1σ | 0.00071 |
-| surface, d = 3, 2 rounds | 0.02 | 0.01742 ± 0.00053 | 0.01789 ± 0.00014 | +0.8σ | 0.00343 |
-| surface, d = 3, 2 rounds | 0.04 | 0.11247 ± 0.00129 | 0.11418 ± 0.00034 | +1.3σ | 0.01207 |
+| repetition, d = 3, 4 rounds | 0.05 | 0.00559 | 0.00555 ± 0.00010 | -0.4σ | 0.00071 |
+| surface, d = 3, 2 rounds | 0.02 | 0.01742 ± 0.00053 | 0.01777 ± 0.00014 | +0.6σ | 0.00343 |
+| surface, d = 3, 2 rounds | 0.04 | 0.11247 ± 0.00129 | 0.11441 ± 0.00034 | +1.5σ | 0.01207 |
 
 Logical error, decoded by matching on the twirled model. The repetition codes have no noise besides
 X over-rotations on every data qubit after every tick, and their exact answer is the state vector's
 every branch. The d = 3 surface code has circuit noise p = 0.2% and Z over-rotations, and its exact
 answer is the state vector's samples.
+
+Interference between rounds, which 2.1 adds: one over-rotation per data qubit per round and no
+other noise, against an independent state vector of the data. Each column is the probability of
+no detection event with the logical flipped, except the last row, which is decoded:
+
+| circuit | θ | exact | 2.1 | 2.0 | Pauli twirl |
+|---|---|---|---|---|---|
+| repetition, d = 3, 2 rounds | 0.3 | 0.00203 | 0.00206 ± 0.00005 | 0.00103 ± 0.00002 | 0.00101 |
+| repetition, d = 3, 3 rounds | 0.3 | 0.00346 | 0.00329 ± 0.00016 | 0.00110 ± 0.00005 | 0.00116 |
+| repetition, d = 5, 2 rounds | 0.5 | 0.00070 | 0.00073 ± 0.00006 | 0.00037 ± 0.00003 | 0.00035 |
+| surface, d = 3, 2 rounds | 0.25 | 0.00240 | 0.00206 ± 0.00018 | 0.00117 ± 0.00008 | 0.00144 |
+| surface, d = 3, 3 rounds (truncated) | 0.25 | 0.00258 | 0.00161 ± 0.00013 | 0.00100 ± 0.00007 | 0.00123 |
+| repetition, d = 3, 2 rounds, decoded | 0.2 | 0.00950 | 0.00948 ± 0.00010 | 0.00907 ± 0.00009 | 0.00906 |
+
+The first row has 2,000,000 shots, the decoded row 1,000,000 and the rest 400,000. Every
+kernel there but the last surface row's has at most twelve generators, so their weights are
+exact. The three-round surface code
+has fourteen generators: its sum is truncated and still misses part of the interference.
 
 **Measured** (`tools/coherent.py`): the rotated surface code's X memory over d rounds, under circuit
 noise p = 0.2% and a coherent Z over-rotation by θ on every data qubit after every tick, against
@@ -1472,6 +1504,10 @@ the same circuit twirled. The last column decodes the same shots on the merged m
 | 9 | 0.005 | 5.6 × 10⁻⁵ ± 4.6 × 10⁻⁶ | 3.0 × 10⁻⁵ | 1.8 | 6.1 × 10⁻⁵ | 84% |
 | 9 | 0.01 | 3.6 × 10⁻⁴ ± 3.2 × 10⁻⁵ | 5.3 × 10⁻⁵ | 6.8 | 3.8 × 10⁻⁴ | 52% |
 
+These circuits, with a rotation after every tick, need no completion: their local generators
+already span the whole kernel at every distance from 3 to 11 (`num_nonlocal_generators` is 0),
+so the 2.1 completion leaves this table as it was.
+
 Coherent errors are suppressed more slowly with distance than their twirl. At θ = 0.01 per tick,
 the coherent logical error is 2.4 times the twirl's at d = 3 and 6.8 times at d = 9. Rotations
 repeated between the gates that would tell them apart add as amplitudes, and a larger code has
@@ -1490,6 +1526,15 @@ Coherent over twirled logical error, by distance:
 | 0.35 | 1.01 ± 0.01 | 0.99 ± 0.01 | 1.00 ± 0.01 | 1.01 ± 0.01 | 1.00 ± 0.01 | 1.02 ± 0.01 | 0.99 ± 0.01 |
 
 **Limits.**
+- Past twelve generators the class sum is truncated. A non-local generator the faults reach
+  is summed with the generators around it and with the same logical a few rounds further on.
+  Products of two non-local generators that share no location are taken as independent, and
+  so are untouched generators that overlap. On the d = 3 surface code with one rotation per
+  round, that truncation leaves part of the interference between rounds out at three rounds
+  (see Checked).
+- Past `max_complete` rotations the kernel is the local one alone, and the sampler warns.
+  Completion costs one elimination over the rotations: the sweep's d = 11 circuit (9,317
+  rotations) compiled in 7.1 s against 2.0's 4.6 s, on a loaded machine.
 - The weights' spread grows with the circuit's volume times θ. The effective sample size stays
   above about 40% to d = 11 at θ = 0.01 per tick, but falls to a few percent there at θ = 0.02.
   The table's last column reports it for every point.
@@ -1550,8 +1595,10 @@ member's state a re-run of the exact engine with its errors inserted and the sho
 forced, the overlaps dot products of the two runs' terms in one Pauli frame. With the whole
 kernel the weighted twirl equals the state vector's distribution exactly, on random circuits
 with T gates, U3, rotations, coherent errors, Pauli noise, resets and mid-circuit measurements;
-`exact_distribution(method="coherent")` is that check. Truncated to the kernel's local
-generators, as the coherent sampler is, it is what runs at size.
+`exact_distribution(method="coherent")` is that check. Its kernel is completed as the coherent
+sampler's is, so its whole sum covers interference between errors far apart too. Truncated to
+the products of a few generators each shot's errors touch, as the coherent sampler is, it is
+what runs at size.
 
 Two experiments, both under an over-rotation after every gate — exp(−iεZ) after each one-qubit
 gate, exp(−iεZZ) after each two-qubit gate, exp(−iεX) after each reset — by the Pauli twirl of
@@ -1607,12 +1654,15 @@ a factor of 25 of the truth at ε ≤ 0.02 (6 × 10⁻⁴ against 2.5 × 10⁻�
 observable that coherent cancellation drives three orders of magnitude below the twirl's value
 needs products of kernel generators no fault touched, which the truncation leaves out (raising
 its `order` or reach does not change the estimate, nor does adding every pair of untouched
-generators, `pairs=True`: the missing terms are higher products). In the encoded protocol,
+generators, `pairs=True`: the missing terms are higher products). The kernel there is not
+incomplete: its local generators span it (`num_nonlocal_generators` is 0), and the gap is the
+truncation alone. In the encoded protocol,
 where every quantity is the joint sampler's or nobody's, it keeps 79–94% of its sample size at
 ε ≤ 0.02 and runs at 130 ms per shot.
 
 **Limits.** The joint sampler's truncation is the coherent sampler's, and its bias is the
-distance between the pairwise sum over local generators and the whole kernel: small where the
+distance between the pairwise sum over the generators each shot touches and the whole
+kernel: small where the
 coherent correction is itself first order in the errors (the injection), large where a result
 rests on cancellation (the distilled state's infidelity). The whole kernel is affordable for a
 few dozen rotations only (`exact_distribution(method="coherent")`). Weights can be negative

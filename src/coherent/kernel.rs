@@ -1,10 +1,10 @@
-//! The spacetime kernel of a large circuit, locally: its low-weight generators, found by
-//! hashing, and per shot the classes of the faults that fired, summed over products of the
-//! generators those faults touch.
+//! The spacetime kernel of a circuit: its low-weight generators, found by hashing, completed to
+//! a basis of the whole kernel, and per shot the classes of the faults that fired, summed over
+//! products of the generators those faults touch.
 //!
 //! A set of locations is in the kernel when the gauges can match what it flips, which the gauge
 //! solver's reduction tests exactly: reduce each location's flips by the gauges and the residues
-//! of a kernel element sum to zero. The generators sought are
+//! of a kernel element sum to zero. The local generators sought are
 //!
 //! - single locations whose residue is zero (a rotation the state does not see);
 //! - pairs with equal residues (two places the same fault can sit, say either side of a gate,
@@ -12,10 +12,28 @@
 //! - three and four locations whose residues sum to zero, built from pairs of locations that
 //!   share a detector (a stabiliser's worth of faults in one time step).
 //!
-//! A shot's weight is then a product over clusters of touched generators (those holding a
-//! fault that fired, joined when they share a location) of |1 + Σ r|² / (1 + Σ |r|²) over the
-//! products of up to `order` of the cluster's generators, times each untouched generator's
-//! factor on its own. The estimate is self-normalised.
+//! They miss every element that is not a sum of such small pieces, and the one that matters
+//! most is the commonest: a logical operator at one time times the same logical at another (in
+//! a repetition memory, XXX in round 1 with XXX in round 2: weight 2d, no syndrome, no logical
+//! effect). Its two halves give the same outcome, so their amplitudes add — logical errors at
+//! different times accumulate coherently — and a kernel without it reads the twirl's rate (a d =
+//! 3, 2-round memory at θ = 0.3: 0.00103 against the exact 0.00203). So the local generators
+//! are completed: the whole kernel's null space modulo their span (`complete`), each new
+//! direction shortened against the generators, appended as a non-local generator. That costs
+//! one elimination over the locations' residues and is done up to `max_complete` locations;
+//! past it the kernel is the local one and `complete` is false.
+//!
+//! With the whole kernel spanned by at most `SMALL_KERNEL` generators (and the groups), a shot
+//! sums every product of them: the class sum of `Program::weight`, exact. Otherwise its weight
+//! is truncated. The local generators go by clusters as before 2.1: those holding a fault that
+//! fired and their neighbours, joined when they share a location, each cluster's sum over the
+//! products of up to `order` of its generators, each other generator's 1 + r on its own, the
+//! weight |Π S|² / Π N of the sums S and their squared sizes N. A non-local generator holding a
+//! fault adds to Π S its connected products of up to `order` generators with its neighbours,
+//! each times the factors it does not overlap (and to Π N their sizes): first order in the
+//! non-local generators, so products of two that share no location, and products with
+//! generators no fault reached that it overlaps, are left out. The estimate is
+//! self-normalised.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -34,17 +52,38 @@ pub struct CoherentOptions {
     /// How many steps of shared locations a shot's clusters reach past the generators its
     /// faults touch.
     pub hops: usize,
+    /// The most locations whose kernel is completed past the local generators (one Gaussian
+    /// elimination over their residues); 0 never completes it.
+    pub max_complete: usize,
 }
 
 impl Default for CoherentOptions {
     fn default() -> Self {
-        CoherentOptions { order: 3, max_cluster: 12, quads: true, hops: 1 }
+        CoherentOptions { order: 3, max_cluster: 12, quads: true, hops: 1, max_complete: MAX_COMPLETE }
     }
 }
 
-/// The kernel's local generators, and each location's generators.
+/// The default `max_complete`: a d = 11 surface-code memory with a rotation after every tick
+/// (about 9,000 locations) completes in about a second.
+pub const MAX_COMPLETE: usize = 50_000;
+
+/// With the kernel complete and this many generators or fewer, a shot sums every product of
+/// them (2^12 elements at most): exact, and the same set from every shot.
+pub const SMALL_KERNEL: usize = 12;
+
+/// The kernel's generators (the local ones first, then those completing them to a basis of the
+/// whole kernel), and each location's generators.
 pub struct Kernel {
     pub generators: Vec<Element>,
+    /// How many of `generators`, at the end, are not local: the completion.
+    pub num_nonlocal: usize,
+    /// Whether the generators and the groups span the whole kernel (false past `max_complete`
+    /// locations: interference between distant faults, a logical error at one time with one at
+    /// another, is then left out).
+    pub complete: bool,
+    /// With a complete kernel of at most `SMALL_KERNEL` generators: every nonzero product of
+    /// them, which each shot sums.
+    span: Option<Vec<Element>>,
     /// Groups of locations that flip exactly the same outcomes: the same fault in different
     /// places. Their class sums have a closed form.
     pub groups: Vec<Group>,
@@ -271,6 +310,48 @@ impl Kernel {
             basis.push((pivot, v));
             generators.push(e);
         }
+        // The rest of the kernel: what the local generators and the groups leave out. Reduced
+        // by the groups' pairs (each member past a group's first replaced by the first) and then
+        // by the generators' basis, a kernel element is off every location those pin (the members
+        // past the first, the basis's pivots), and a nonzero element of their span is on one of
+        // them: so the kernel modulo the local span is the null space of the free locations'
+        // residues, and each vector of that null space is a new direction.
+        let num_local = generators.len();
+        let mut complete = nl <= options.max_complete;
+        if complete {
+            let mut pinned: Vec<bool> = is_rep.iter().map(|&r| !r).collect();
+            for (pivot, _) in &basis {
+                pinned[*pivot] = true;
+            }
+            let free: Vec<(Key, Vec<usize>)> = (0..nl).filter(|&l| !pinned[l]).map(|l| (residue[l].clone(), vec![l])).collect();
+            let local: Vec<Vec<usize>> = generators.iter().map(|e| e.members.clone()).collect();
+            for members in shorten(null_space(free), &local, nl, &|_| 1) {
+                match p.element(&members, solver) {
+                    Some(e) => generators.push(e),
+                    // A kernel element always carries through; were one not to, say so.
+                    None => complete = false,
+                }
+            }
+        }
+        // A small kernel, whole: every product of the generators, once for every shot.
+        let span = (complete && generators.len() <= SMALL_KERNEL).then(|| {
+            let n = generators.len();
+            let mut out = Vec::with_capacity((1usize << n) - 1);
+            for mask in 1u32..(1u32 << n) {
+                if mask.count_ones() == 1 {
+                    out.push(generators[mask.trailing_zeros() as usize].clone());
+                    continue;
+                }
+                let mut members: Vec<usize> = Vec::new();
+                for (g, e) in generators.iter().enumerate() {
+                    if mask >> g & 1 == 1 {
+                        members = symmetric_difference(&members, &e.members);
+                    }
+                }
+                out.extend(p.element(&members, solver));
+            }
+            out
+        });
         let mut by_location = vec![Vec::new(); nl];
         for (i, g) in generators.iter().enumerate() {
             for &l in &g.members {
@@ -284,7 +365,14 @@ impl Kernel {
             }
         }
         let zobrist = (0..nl as u64).map(|l| crate::batch_sampler::splitmix64(l.wrapping_add(0x9e37_79b9_7f4a_7c15))).collect();
-        Kernel { generators, groups, rep_of, zobrist, by_location, options }
+        let num_nonlocal = generators.len() - num_local;
+        Kernel { generators, num_nonlocal, complete, span, groups, rep_of, zobrist, by_location, options }
+    }
+
+    /// Whether every shot sums the whole kernel (complete, and at most `SMALL_KERNEL`
+    /// generators): the weights are then exact.
+    pub fn is_whole(&self) -> bool {
+        self.span.is_some()
     }
 
     /// The whole kernel's dimension: locations less the rank of their residues.
@@ -337,25 +425,10 @@ impl Kernel {
         self.groups.iter().map(|g| (g.members.clone(), g.mu.clone())).collect()
     }
 
-    /// A shot's weight, by clusters of the generators its faults touch. `cache` holds the
+    /// A shot's weight: with a small whole kernel, its class sum over every product of the
+    /// generators; otherwise by clusters of the generators its faults touch. `cache` holds the
     /// products already carried through the circuit (by their locations).
     pub fn weight(&self, p: &Program, shot: &Shot, solver: &GaugeSolver, cache: &mut HashMap<u64, Option<Element>>) -> f64 {
-        let mut touched: Vec<usize> = Vec::new();
-        for (l, &f) in shot.fired.iter().enumerate() {
-            if f {
-                touched.extend(&self.by_location[self.rep_of[l]]);
-            }
-        }
-        touched.sort_unstable();
-        touched.dedup();
-        // With their neighbours (generators sharing a location), whose products with them
-        // move the faults on.
-        for _ in 0..self.options.hops {
-            let neighbours: Vec<usize> = touched.iter().flat_map(|&g| self.generators[g].members.iter().flat_map(|&l| self.by_location[l].iter().copied())).collect();
-            touched.extend(neighbours);
-            touched.sort_unstable();
-            touched.dedup();
-        }
         // Each group as one location: its sums over the even and the odd sets of its members to
         // toggle, in closed form. The even sum is the group's own factor; in any element holding
         // the group's first member, odd over even takes that member's place.
@@ -412,133 +485,204 @@ impl Kernel {
             }
             (r, n)
         };
-        // Generators no fault touches, each on its own: |1 + r|² / (1 + |r|²).
-        let mut t = touched.iter().peekable();
+        // The whole kernel: |1 + Σ r|² / (1 + Σ |r|²) over every element (`Program::weight`'s
+        // class sum, the groups in closed form), exact.
+        if let Some(span) = &self.span {
+            let (mut sum, mut norm) = (C::ONE, 1.0);
+            for e in span {
+                let (r, n) = term(e);
+                sum = sum + r;
+                norm += n;
+            }
+            return w * sum.norm2() / norm;
+        }
+        // Truncated: the local generators by clusters, as before 2.1, and the non-local ones on
+        // top. Every factor below is a class sum S over some generators' products with its
+        // squared size N, the weight |Π S|² / Π N; the non-local terms add to Π S and Π N.
+        let nloc = self.generators.len() - self.num_nonlocal;
+        let mut fired = vec![false; self.rep_of.len()];
+        for (l, &f) in shot.fired.iter().enumerate() {
+            if f {
+                fired[self.rep_of[l]] = true;
+            }
+        }
+        // The local generators the faults touch, with their local neighbours (generators sharing
+        // a location), whose products with them move the faults on.
+        let touched = self.touched(&self.generators, &self.by_location, &fired, self.options.hops, &|g| g < nloc);
+        // The non-local generators the faults reach: holding one, or sharing a location with a
+        // touched generator (a logical at another time whose representative here is not the
+        // faults' own, one product of local generators away).
+        let mut reached = self.touched(&self.generators, &self.by_location, &fired, 0, &|g| g >= nloc);
+        for &t in &touched {
+            for &l in &self.generators[t].members {
+                reached.extend(self.by_location[l].iter().copied().filter(|&g| g >= nloc));
+            }
+        }
+        reached.sort_unstable();
+        reached.dedup();
+        // Every other generator on its own: 1 + r, 1 + |r|².
+        let mut alone: Vec<Option<(C, f64)>> = vec![None; self.generators.len()];
+        let (mut pu, mut qu) = (C::ONE, 1.0);
+        let (mut t, mut s) = (touched.iter().peekable(), reached.iter().peekable());
         for (g, e) in self.generators.iter().enumerate() {
             if t.peek() == Some(&&g) {
                 t.next();
                 continue;
             }
+            if s.peek() == Some(&&g) {
+                s.next();
+                continue;
+            }
             let (r, n) = term(e);
-            w *= (C::ONE + r).norm2() / (1.0 + n);
+            alone[g] = Some((C::ONE + r, 1.0 + n));
+            pu = pu * (C::ONE + r);
+            qu *= 1.0 + n;
         }
-        if touched.is_empty() {
-            return w;
-        }
-        // Clusters: touched generators joined when they share a location.
-        let n = touched.len();
-        let mut parent: Vec<usize> = (0..n).collect();
-        fn find(parent: &mut [usize], mut i: usize) -> usize {
-            while parent[i] != i {
-                parent[i] = parent[parent[i]];
-                i = parent[i];
-            }
-            i
-        }
-        let mut owner: HashMap<usize, usize> = HashMap::new();
-        for (i, &g) in touched.iter().enumerate() {
-            for &l in &self.generators[g].members {
-                if let Some(&j) = owner.get(&l) {
-                    let (a, b) = (find(&mut parent, i), find(&mut parent, j));
-                    parent[a] = b;
-                } else {
-                    owner.insert(l, i);
-                }
-            }
-        }
-        let mut clusters: HashMap<usize, Vec<usize>> = HashMap::new();
-        for i in 0..n {
-            let root = find(&mut parent, i);
-            clusters.entry(root).or_default().push(touched[i]);
-        }
-        for gens in clusters.values() {
-            let order = if gens.len() > self.options.max_cluster { self.options.order.min(2) } else { self.options.order };
-            // Generators of the cluster sharing a location.
-            let n = gens.len();
-            let mut at: HashMap<usize, Vec<usize>> = HashMap::new();
-            for (i, &g) in gens.iter().enumerate() {
-                for &l in &self.generators[g].members {
-                    at.entry(l).or_default().push(i);
-                }
-            }
-            let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
-            for list in at.values() {
-                for &a in list {
-                    for &b in list {
-                        if a != b {
-                            adj[a].push(b);
-                        }
-                    }
-                }
-            }
-            for a in adj.iter_mut() {
-                a.sort_unstable();
-                a.dedup();
-            }
+        let mut element_of = |members: &[usize]| p.element(members, solver);
+        // Clusters of touched local generators (joined when they share a location): the sum over
+        // their connected products of up to `order` generators.
+        let clusters = self.clusters(&self.generators, &touched);
+        let mut cluster_of: HashMap<usize, usize> = HashMap::new();
+        let mut sums: Vec<(C, f64)> = Vec::with_capacity(clusters.len());
+        for (k, gens) in clusters.iter().enumerate() {
             let (mut sum, mut norm) = (C::ONE, 1.0);
-            let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
-            // Every connected set of up to `order` generators (each sharing a location with
-            // another), by Wernicke's enumeration; each resulting element once.
-            let mut visit = |subset: &[usize], seen: &mut std::collections::HashSet<u64>| {
-                let mut members: Vec<usize> = Vec::new();
-                for &i in subset {
-                    members = symmetric_difference(&members, &self.generators[gens[i]].members);
-                }
-                if members.is_empty() {
-                    return;
-                }
-                let key = members.iter().fold(0u64, |h, &l| h ^ self.zobrist[l]);
-                if !seen.insert(key) {
-                    return;
-                }
-                let e = if subset.len() == 1 {
-                    Some(self.generators[gens[subset[0]]].clone())
-                } else {
-                    cache.entry(key).or_insert_with(|| p.element(&members, solver)).clone()
-                };
-                if let Some(e) = e {
-                    let (r, m) = term(&e);
-                    sum = sum + r;
-                    norm += m;
-                }
-            };
-            for v in 0..n {
-                let ext: Vec<usize> = adj[v].iter().copied().filter(|&u| u > v).collect();
-                let mut stack: Vec<(Vec<usize>, Vec<usize>)> = vec![(vec![v], ext)];
-                while let Some((sub, mut ext)) = stack.pop() {
-                    visit(&sub, &mut seen);
-                    if sub.len() == order {
+            for (_, e) in self.products(&self.generators, gens, &self.options, cache, &mut element_of, &|_| true, None) {
+                let (r, m) = term(&e);
+                sum = sum + r;
+                norm += m;
+            }
+            for &g in gens {
+                cluster_of.insert(g, k);
+            }
+            sums.push((sum, norm));
+        }
+        let (mut total, mut size) = (pu, qu);
+        for &(sum, norm) in &sums {
+            total = total * sum;
+            size *= norm;
+        }
+        if reached.is_empty() {
+            return w * total.norm2() / size;
+        }
+        // A reached non-local generator g (a logical at one time with the same logical at
+        // another): every element g ⊕ k, k a product of the generators around g, in g's frame.
+        // Those sharing a location with g (whole touched clusters, untouched generators, reached
+        // ones after g) fall into clusters D of their own, joined when they share a location (g
+        // left out: it would join them all). Within each, the connected products k of up to
+        // `order` of D's generators give A_D = Σ r(g ⊕ k) / r(g), with 1 for k = ∅: exact in the
+        // rotations' toggles where the D are apart (in a memory, g's two ends). g's term is
+        // r(g) Π A_D times every factor around it does not take the place of. An element is
+        // counted with the first reached generator it holds: those before g are left out here.
+        let mut position = vec![usize::MAX; self.generators.len()];
+        for (i, &g) in reached.iter().enumerate() {
+            position[g] = i;
+        }
+        let (mut extra, mut extra_size) = (C::ZERO, 0.0);
+        for (i, &g) in reached.iter().enumerate() {
+            let ge = &self.generators[g];
+            let (rg, ng) = term(ge);
+            if rg.norm2() < 1e-280 || ng < 1e-280 {
+                continue;
+            }
+            let inv = rg.conj().scale(1.0 / rg.norm2());
+            let mut around: Vec<usize> = Vec::new();
+            let mut taken = vec![false; sums.len()];
+            for &l in &ge.members {
+                for &h in &self.by_location[l] {
+                    if h == g {
                         continue;
                     }
-                    while let Some(w) = ext.pop() {
-                        let mut next = ext.clone();
-                        for &u in &adj[w] {
-                            if u > v && !sub.contains(&u) && !next.contains(&u) && !sub.iter().any(|&s| adj[s].binary_search(&u).is_ok()) {
-                                next.push(u);
-                            }
+                    if let Some(&k) = cluster_of.get(&h) {
+                        if !taken[k] {
+                            taken[k] = true;
+                            around.extend_from_slice(&clusters[k]);
                         }
-                        let mut sub2 = sub.clone();
-                        sub2.push(w);
-                        stack.push((sub2, next));
+                    } else if position[h] == usize::MAX || position[h] > i {
+                        around.push(h);
                     }
                 }
             }
-            w *= sum.norm2() / norm;
+            around.sort_unstable();
+            around.dedup();
+            // And the non-local generators chained to those around g, up to `order` steps
+            // further: the same logical at further times.
+            let mut frontier: Vec<usize> = around.iter().copied().filter(|&h| h >= nloc).collect();
+            for _ in 1..self.options.order {
+                let mut next: Vec<usize> = frontier.iter().flat_map(|&h| self.generators[h].members.iter().flat_map(|&l| self.by_location[l].iter().copied())).filter(|&x| x >= nloc && x != g && (position[x] == usize::MAX || position[x] > i) && around.binary_search(&x).is_err()).collect();
+                next.sort_unstable();
+                next.dedup();
+                if next.is_empty() {
+                    break;
+                }
+                around.extend_from_slice(&next);
+                around.sort_unstable();
+                frontier = next;
+            }
+            let (mut prod, mut norm) = (rg, ng);
+            for d in self.clusters(&self.generators, &around) {
+                let (mut a, mut b) = (C::ONE, 1.0);
+                for (_, e) in self.products(&self.generators, &d, &self.options, cache, &mut element_of, &|_| true, Some(&ge.members)) {
+                    let (r, m) = term(&e);
+                    a = a + r * inv;
+                    b += m / ng;
+                }
+                prod = prod * a;
+                norm *= b;
+            }
+            // The touched clusters g does not overlap.
+            for (k, &(sum, n)) in sums.iter().enumerate() {
+                if !taken[k] {
+                    prod = prod * sum;
+                    norm *= n;
+                }
+            }
+            // The untouched generators not around g: their product with those around divided
+            // out (each near 1; directly if one is not).
+            let around_has = |h: usize| around.binary_search(&h).is_ok();
+            if around.iter().any(|&h| alone[h].is_some_and(|(a, _)| a.norm2() < 0.25)) {
+                for (h, a) in alone.iter().enumerate() {
+                    if let Some((a, n)) = a {
+                        if !around_has(h) {
+                            prod = prod * *a;
+                            norm *= n;
+                        }
+                    }
+                }
+            } else {
+                prod = prod * pu;
+                norm *= qu;
+                for &h in &around {
+                    if let Some((a, n)) = alone[h] {
+                        prod = (prod * a.conj()).scale(1.0 / a.norm2());
+                        norm /= n;
+                    }
+                }
+            }
+            // The reached generators after g, not around it, on their own.
+            for &h in &reached[i + 1..] {
+                if !around_has(h) {
+                    let (r, n) = term(&self.generators[h]);
+                    prod = prod * (C::ONE + r);
+                    norm *= 1.0 + n;
+                }
+            }
+            extra = extra + prod;
+            extra_size += norm;
         }
-        w
+        w * (total + extra).norm2() / (size + extra_size)
     }
 }
 
 impl Kernel {
-    /// The generators (of `generators`, indexed by `by_location`) holding a fired location,
-    /// with `hops` steps of neighbours sharing a location; sorted. For the joint sampler, whose
-    /// generator list carries each group's pairs itself.
-    pub(crate) fn touched(&self, generators: &[Element], by_location: &[Vec<usize>], fired: &[bool], hops: usize) -> Vec<usize> {
-        let mut touched: Vec<usize> = fired.iter().enumerate().filter(|(_, &f)| f).flat_map(|(l, _)| by_location[l].iter().copied()).collect();
+    /// The generators (of `generators`, indexed by `by_location`, those `include` takes)
+    /// holding a fired location, with `hops` steps of such neighbours sharing a location;
+    /// sorted. The joint sampler's generator list carries each group's pairs itself.
+    pub(crate) fn touched(&self, generators: &[Element], by_location: &[Vec<usize>], fired: &[bool], hops: usize, include: &dyn Fn(usize) -> bool) -> Vec<usize> {
+        let mut touched: Vec<usize> = fired.iter().enumerate().filter(|(_, &f)| f).flat_map(|(l, _)| by_location[l].iter().copied()).filter(|&g| include(g)).collect();
         touched.sort_unstable();
         touched.dedup();
         for _ in 0..hops {
-            let neighbours: Vec<usize> = touched.iter().flat_map(|&g| generators[g].members.iter().flat_map(|&l| by_location[l].iter().copied())).collect();
+            let neighbours: Vec<usize> = touched.iter().flat_map(|&g| generators[g].members.iter().flat_map(|&l| by_location[l].iter().copied())).filter(|&g| include(g)).collect();
             touched.extend(neighbours);
             touched.sort_unstable();
             touched.dedup();
@@ -577,9 +721,12 @@ impl Kernel {
     }
 
     /// A cluster's elements: every connected set of up to `order` of its generators (each
-    /// sharing a location with another; pairs at most past `max_cluster` generators), by
-    /// Wernicke's enumeration, each resulting location set once, as `element_of` makes it.
-    pub(crate) fn products(&self, generators: &[Element], gens: &[usize], options: &CoherentOptions, cache: &mut HashMap<u64, Option<Element>>, element_of: &mut dyn FnMut(&[usize]) -> Option<Element>) -> Vec<Element> {
+    /// sharing a location with another; pairs at most past `max_cluster` generators) that
+    /// `keep` takes, by Wernicke's enumeration, each resulting location set once, as
+    /// `element_of` makes it, with the generators (ids in `generators`) it is the product of.
+    /// With `shift`, each product times that element (its locations), outside the cluster.
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
+    pub(crate) fn products(&self, generators: &[Element], gens: &[usize], options: &CoherentOptions, cache: &mut HashMap<u64, Option<Element>>, element_of: &mut dyn FnMut(&[usize]) -> Option<Element>, keep: &dyn Fn(&[usize]) -> bool, shift: Option<&[usize]>) -> Vec<(Vec<usize>, Element)> {
         let order = if gens.len() > options.max_cluster { options.order.min(2) } else { options.order };
         let n = gens.len();
         let mut at: HashMap<usize, Vec<usize>> = HashMap::new();
@@ -604,8 +751,12 @@ impl Kernel {
         }
         let mut out = Vec::new();
         let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
-        let mut visit = |subset: &[usize], seen: &mut std::collections::HashSet<u64>, out: &mut Vec<Element>| {
-            let mut members: Vec<usize> = Vec::new();
+        let mut visit = |subset: &[usize], seen: &mut std::collections::HashSet<u64>, out: &mut Vec<(Vec<usize>, Element)>| {
+            let ids: Vec<usize> = subset.iter().map(|&i| gens[i]).collect();
+            if !keep(&ids) {
+                return;
+            }
+            let mut members: Vec<usize> = shift.map(|s| s.to_vec()).unwrap_or_default();
             for &i in subset {
                 members = symmetric_difference(&members, &generators[gens[i]].members);
             }
@@ -616,9 +767,9 @@ impl Kernel {
             if !seen.insert(key) {
                 return;
             }
-            let e = if subset.len() == 1 { Some(generators[gens[subset[0]]].clone()) } else { cache.entry(key).or_insert_with(|| element_of(&members)).clone() };
+            let e = if subset.len() == 1 && shift.is_none() { Some(generators[gens[subset[0]]].clone()) } else { cache.entry(key).or_insert_with(|| element_of(&members)).clone() };
             if let Some(e) = e {
-                out.push(e);
+                out.push((ids, e));
             }
         };
         for v in 0..n {
@@ -651,6 +802,80 @@ impl Kernel {
     pub(crate) fn zobrist(&self, l: usize) -> u64 {
         self.zobrist[l]
     }
+}
+
+/// The null space of `items` (each a residue and the sorted locations it stands for): every
+/// combination of items whose residues sum to zero, as the symmetric difference of their
+/// locations, a basis of them. Forward elimination in the items' order (rows in echelon form,
+/// each zero at the pivots before it, so one pass reduces).
+pub(crate) fn null_space(items: Vec<(Key, Vec<usize>)>) -> Vec<Vec<usize>> {
+    let mut rows: Vec<(usize, Key, Vec<usize>)> = Vec::new();
+    let mut out = Vec::new();
+    for (mut v, mut combo) in items {
+        for (pivot, rv, rc) in &rows {
+            if v[pivot / 64] >> (pivot % 64) & 1 == 1 {
+                v.iter_mut().zip(rv).for_each(|(a, b)| *a ^= b);
+                combo = symmetric_difference(&combo, rc);
+            }
+        }
+        match v.iter().position(|&w| w != 0) {
+            Some(w) => rows.push((w * 64 + v[w].trailing_zeros() as usize, v, combo)),
+            None if !combo.is_empty() => out.push(combo),
+            None => {}
+        }
+    }
+    out
+}
+
+/// Kernel vectors (sorted locations among `n`) made light: each, greedily, plus whichever of the
+/// generators `gens` (or of the vectors before it, already made light) lowers its cost most, the
+/// sum of `cost` over its locations, until none does. Adding a generator keeps a vector's class
+/// modulo their span, and adding an earlier vector keeps the set a basis of the same quotient.
+pub(crate) fn shorten(mut found: Vec<Vec<usize>>, gens: &[Vec<usize>], n: usize, cost: &dyn Fn(usize) -> u64) -> Vec<Vec<usize>> {
+    let mut by_location: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, g) in gens.iter().enumerate() {
+        for &l in g {
+            by_location[l].push(i);
+        }
+    }
+    let weight = |v: &[usize]| v.iter().map(|&l| cost(l)).sum::<u64>();
+    for i in 0..found.len() {
+        let mut v = std::mem::take(&mut found[i]);
+        let mut held = vec![false; n];
+        for &l in &v {
+            held[l] = true;
+        }
+        loop {
+            let mut best: (i64, Option<usize>) = (0, None);
+            let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+            for &l in &v {
+                for &g in &by_location[l] {
+                    if seen.insert(g) {
+                        let gain: i64 = gens[g].iter().map(|&m| if held[m] { cost(m) as i64 } else { -(cost(m) as i64) }).sum();
+                        if gain > best.0 {
+                            best = (gain, Some(g));
+                        }
+                    }
+                }
+            }
+            let next = match best.1 {
+                Some(g) => symmetric_difference(&v, &gens[g]),
+                None => match found[..i].iter().map(|f| symmetric_difference(&v, f)).min_by_key(|w| weight(w)) {
+                    Some(w) if weight(&w) < weight(&v) => w,
+                    _ => break,
+                },
+            };
+            for &l in &v {
+                held[l] = false;
+            }
+            for &l in &next {
+                held[l] = true;
+            }
+            v = next;
+        }
+        found[i] = v;
+    }
+    found
 }
 
 pub(crate) fn symmetric_difference(a: &[usize], b: &[usize]) -> Vec<usize> {
@@ -802,6 +1027,144 @@ mod survey {
             }
         }
         assert!(worst < 1e-9, "worst {worst:.2e}");
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod nonlocal {
+    use super::*;
+    use crate::circuit::Circuit;
+
+    /// A repetition memory of distance d: an over-rotation exp(−iθX) on every data qubit at
+    /// each round's start, nothing else (the 2.1 audit's circuit at d = 3, 2 rounds).
+    pub(crate) fn repetition(d: usize, rounds: usize, theta: f64) -> String {
+        let data: Vec<String> = (0..d).map(|i| (2 * i).to_string()).collect();
+        let ancillas: Vec<String> = (0..d - 1).map(|i| (2 * i + 1).to_string()).collect();
+        let pairs = |off: usize| (0..d - 1).map(|i| format!("{} {}", 2 * i + off, 2 * i + 1)).collect::<Vec<_>>().join(" ");
+        let mut s = format!("R {}\n", (0..2 * d - 1).map(|q| q.to_string()).collect::<Vec<_>>().join(" "));
+        for r in 0..rounds {
+            s += &format!("I_ERROR[R_X(theta={theta})] {}\nCX {}\nCX {}\nMR {}\n", data.join(" "), pairs(0), pairs(2), ancillas.join(" "));
+            for k in 0..d - 1 {
+                let a = d - 1 - k;
+                s += &if r == 0 { format!("DETECTOR rec[-{a}]\n") } else { format!("DETECTOR rec[-{a}] rec[-{}]\n", a + d - 1) };
+            }
+        }
+        s += &format!("M {}\n", data.join(" "));
+        for k in 0..d - 1 {
+            s += &format!("DETECTOR rec[-{}] rec[-{}] rec[-{}]\n", d - k, d - k - 1, 2 * d - 1 - k);
+        }
+        s + "OBSERVABLE_INCLUDE(0) rec[-1]\n"
+    }
+
+    /// Stim's rotated surface-code X memory with an over-rotation exp(−iθZ) on every data qubit
+    /// at each round's start (before the round's first Hadamard on the X ancillas).
+    pub(crate) fn surface(d: u32, rounds: u64, theta: f64) -> String {
+        let text = crate::generated::generate("surface_code:rotated_memory_x", d, rounds, &crate::generated::Noise::default()).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        let data = lines.iter().rev().find(|l| l.trim_start().starts_with("MX ")).unwrap().trim_start()[3..].to_string();
+        let mut out = Vec::new();
+        for (i, line) in lines.iter().enumerate() {
+            if line.trim_start().starts_with("H ") && lines.get(i + 1).is_some_and(|l| l.trim() == "TICK") && lines.get(i + 2).is_some_and(|l| l.trim_start().starts_with("CX ")) {
+                out.push(format!("I_ERROR[R_Z(theta={theta})] {data}"));
+            }
+            out.push(line.to_string());
+        }
+        out.join("\n")
+    }
+
+    /// The largest difference (relative past 1), over `shots` shots, between the kernel's weight
+    /// and the whole kernel's class sum (`Program::weight`, which `exact` proves).
+    fn against_whole(k: &Kernel, p: &Program, solver: &GaugeSolver, shots: u64) -> f64 {
+        against_whole_if(k, p, solver, shots, &|_| true)
+    }
+
+    /// The same over the shots `take` takes.
+    fn against_whole_if(k: &Kernel, p: &Program, solver: &GaugeSolver, shots: u64, take: &dyn Fn(&Shot) -> bool) -> f64 {
+        let full = p.full_kernel().unwrap();
+        let mut cache = HashMap::new();
+        let mut worst = 0.0f64;
+        for seed in 0..shots {
+            let mut rng = crate::surface_code::Xorshift::new(seed);
+            let shot = p.run_shot(&mut super::super::shot::Stream(&mut rng));
+            if !take(&shot) {
+                continue;
+            }
+            let (a, b) = (k.weight(p, &shot, solver, &mut cache), p.weight(&shot, &full));
+            worst = worst.max((a - b).abs() / b.max(1.0));
+        }
+        worst
+    }
+
+    fn kernel(text: &str, options: CoherentOptions) -> (Program, GaugeSolver, Kernel) {
+        let p = Program::new(&Circuit::parse(text).unwrap()).unwrap();
+        let solver = GaugeSolver::new(&p);
+        let k = Kernel::new(&p, &solver, options);
+        (p, solver, k)
+    }
+
+    /// XXX in round 1 with XXX in round 2: no syndrome, no logical effect, weight six, and the
+    /// whole kernel; the local search finds nothing.
+    #[test]
+    fn the_cross_round_logical_completes_the_kernel() {
+        let (_, _, k) = kernel(&repetition(3, 2, 0.3), CoherentOptions::default());
+        assert_eq!((k.generators.len(), k.num_nonlocal, k.complete, k.is_whole()), (1, 1, true, true));
+        assert_eq!(k.generators[0].members, vec![0, 1, 2, 3, 4, 5]);
+        let (_, _, local) = kernel(&repetition(3, 2, 0.3), CoherentOptions { max_complete: 0, ..CoherentOptions::default() });
+        assert_eq!((local.generators.len(), local.complete, local.is_whole()), (0, false, false));
+    }
+
+    /// The completion's directions are the shortest there are: a logical in one round with the
+    /// same logical in another, 2d locations (the surface code's Z_L is a line of three; its
+    /// stabilisers, which the local search finds, are shorter still).
+    #[test]
+    fn nonlocal_generators_are_short() {
+        for (text, rounds, weight) in [(repetition(5, 3, 0.2), 3, 10), (repetition(3, 4, 0.2), 4, 6)] {
+            let (_, _, k) = kernel(&text, CoherentOptions::default());
+            assert!(k.complete);
+            assert_eq!(k.num_nonlocal, rounds - 1, "{text}");
+            for e in &k.generators[k.generators.len() - k.num_nonlocal..] {
+                assert_eq!(e.members.len(), weight, "{:?}", e.members);
+            }
+        }
+        let (p, solver, k) = kernel(&surface(3, 3, 0.2), CoherentOptions::default());
+        assert!(k.complete && k.num_nonlocal >= 2);
+        assert_eq!(k.generators.len(), k.dimension(&p, &solver), "a basis of the whole kernel");
+        for e in &k.generators[k.generators.len() - k.num_nonlocal..] {
+            assert!(e.members.len() <= 6, "{:?}", e.members);
+        }
+    }
+
+    /// With the kernel complete and small, a shot's weight is the whole kernel's class sum:
+    /// exact, per shot, with no sampling noise. At θ = 0.6 a logical error fires often.
+    #[test]
+    fn small_complete_kernels_are_the_whole_kernels_sums() {
+        for text in [repetition(3, 2, 0.6), repetition(3, 3, 0.6), repetition(5, 2, 0.6), surface(3, 2, 0.6)] {
+            let (p, solver, k) = kernel(&text, CoherentOptions::default());
+            assert!(k.is_whole(), "{text}");
+            let worst = against_whole(&k, &p, &solver, 3000);
+            assert!(worst < 1e-9, "{text}\nworst {worst:.3e}");
+        }
+    }
+
+    /// Past `SMALL_KERNEL` a shot whose faults reach a non-local generator sums its elements in
+    /// its frame: on the audit's circuit (one generator) that is the whole kernel, and with
+    /// three rounds (a logical in round 1, 2 or 3 with the same logical in the others) it is
+    /// the whole kernel for every shot with a fault. With none, the untouched generators'
+    /// product leaves out that the two overlap: a term of order tan⁶ θ.
+    #[test]
+    fn truncated_sums_take_the_nonlocal_generators() {
+        let (p, solver, mut k) = kernel(&repetition(3, 2, 0.6), CoherentOptions::default());
+        k.span = None;
+        let worst = against_whole(&k, &p, &solver, 3000);
+        assert!(worst < 1e-9, "worst {worst:.3e}");
+        let (p, solver, mut k) = kernel(&repetition(3, 3, 0.6), CoherentOptions::default());
+        k.span = None;
+        let worst = against_whole_if(&k, &p, &solver, 3000, &|shot| shot.fired.iter().any(|&f| f));
+        assert!(worst < 1e-9, "worst {worst:.3e}");
+        let (p, solver, mut k) = kernel(&repetition(3, 3, 0.2), CoherentOptions::default());
+        k.span = None;
+        let worst = against_whole(&k, &p, &solver, 3000);
+        assert!(worst < 1e-3, "worst {worst:.3e}");
     }
 }
 
