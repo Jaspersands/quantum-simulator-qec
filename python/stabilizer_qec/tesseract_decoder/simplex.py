@@ -5,9 +5,12 @@
 an integer program, whole or in sliding time windows.
 
 Tesseract solves the program with HiGHS; here each one is solved exactly by an A* search with
-no beam and no pruning. Both find an optimum, so the cost of the errors found is the same;
-where several sets of errors are equally likely the two may pick different ones (and, with
-windows, a different pick in one window can change what the next windows see)."""
+no beam and no pruning. Without windows both find an optimum, so the cost of the errors found
+is the same, though where several sets of errors are equally likely the two may pick different
+ones. With windows each window's pick fixes what the next windows see, so after a different
+pick among equally likely ones the total cost can come out higher or lower than Tesseract's.
+With ``verbose`` this prints each window's bounds, not HiGHS's log, iteration count, objective
+or basis."""
 
 from __future__ import annotations
 
@@ -15,7 +18,7 @@ from typing import Any, Dict, List
 
 from .. import _core
 from .._util import call
-from .common import _dem
+from .common import _as_given, _dem, _is_stims
 from .tesseract import _Decoder
 from .utils import get_detector_coords
 
@@ -43,12 +46,21 @@ class SimplexConfig:
         for name, value in (("window_length", window_length), ("window_slide_length", window_slide_length)):
             if isinstance(value, bool) or int(value) < 0:
                 raise TypeError(f"{name} must be a nonnegative integer.")
-        self.dem = _dem(dem)
+        self.dem = dem
         self.parallelize = bool(parallelize)
         self.window_length = int(window_length)
         self.window_slide_length = int(window_slide_length)
         self.verbose = bool(verbose)
         self.merge_errors = bool(merge_errors)
+
+    @property
+    def dem(self) -> Any:
+        """The model: Stim's when it was given as Stim's, this package's otherwise (a copy)."""
+        return _as_given(self._dem, self._stims) if self._stims else self._dem.copy()
+
+    @dem.setter
+    def dem(self, dem: Any) -> None:
+        self._dem, self._stims = _dem(dem), _is_stims(dem)
 
     def windowing_enabled(self) -> bool:
         """Whether the decoder works in time windows (``window_length > 0``)."""
@@ -75,9 +87,9 @@ class SimplexDecoder(_Decoder):
     def __init__(self, config: SimplexConfig) -> None:
         import copy
 
-        flat = self._prepare(config.dem, config.merge_errors)
+        flat = self._prepare(config._dem, config.merge_errors)
         self.config = copy.copy(config)
-        self.config.dem = flat
+        self.config._dem = flat
         self.error_masks: List[List[int]] = []
         self._masks = [sum(1 << d for d in set(e.symptom.detectors)) for e in self.errors]
         t_coords = [0.0] * self.num_detectors

@@ -444,6 +444,25 @@ fn coordinate_order(dem: &crate::dem::Dem, rng: &mut Mt19937_64, lib: Library) -
     with
 }
 
+/// Detector orders for `n` detectors: at least one, each every detector once.
+fn check_orders(orders: &[Vec<u32>], n: usize) -> Result<(), String> {
+    if orders.is_empty() {
+        return Err("at least one detector order is needed".into());
+    }
+    for (k, order) in orders.iter().enumerate() {
+        let mut seen = vec![false; n];
+        if order.len() != n {
+            return Err(format!("detector order {k} has {} detectors, but the model has {n}", order.len()));
+        }
+        for &d in order {
+            if d as usize >= n || std::mem::replace(&mut seen[d as usize], true) {
+                return Err(format!("detector order {k} repeats or exceeds detector {d}"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// One search's result: the model faults found (by model index) and whether the search gave
 /// up (Tesseract's low-confidence flag).
 #[derive(Clone, Debug, Default)]
@@ -456,21 +475,8 @@ impl Search {
     /// The decoder for a flat model with the given configuration (`orders` already
     /// generated; at least one).
     pub fn new(dem: &crate::dem::Dem, config: SearchConfig) -> Result<Search, String> {
-        if config.orders.is_empty() {
-            return Err("at least one detector order is needed".into());
-        }
         let n = dem.num_detectors;
-        for (k, order) in config.orders.iter().enumerate() {
-            let mut seen = vec![false; n];
-            if order.len() != n {
-                return Err(format!("detector order {k} has {} detectors, but the model has {n}", order.len()));
-            }
-            for &d in order {
-                if d as usize >= n || std::mem::replace(&mut seen[d as usize], true) {
-                    return Err(format!("detector order {k} repeats or exceeds detector {d}"));
-                }
-            }
-        }
+        check_orders(&config.orders, n)?;
         // Merge faults with the same detectors and observables (in first-seen order), then
         // drop those of probability 0, each step through a probability as Tesseract writes
         // its intermediate models.
@@ -641,10 +647,16 @@ impl Search {
             }
         };
         if self.config.beam_climbing {
-            let (mut b, mut o) = (0, 0);
-            for _ in 0..(beam + 1).max(orders) {
-                run(o, b);
-                b = (b + 1) % (beam + 1);
+            // Tesseract climbs in its config's int: max(det_beam + 1, orders) trials, the beam
+            // stepping modulo det_beam + 1 (a beam given as a negative int, wrapped here, is
+            // that int again; C++'s remainder keeps the dividend's sign; and a remainder by 0,
+            // det_beam = -1, is the dividend, as the arm64 division Tesseract's wheel runs
+            // gives it).
+            let m = beam as i64 + 1;
+            let (mut b, mut o) = (0i64, 0);
+            for _ in 0..(m.max(orders as i64) as usize) {
+                run(o, b as usize);
+                b = if m == 0 { b + 1 } else { (b + 1) % m };
                 o = (o + 1) % orders;
             }
         } else {
@@ -710,6 +722,16 @@ impl Search {
         for &d in detectors {
             self.d2e[d as usize].sort_by(|&a, &b| min_cost(a).partial_cmp(&min_cost(b)).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b)));
         }
+    }
+
+    /// The settings Tesseract reads from its decoder's config at every decode, changed for
+    /// the decodes after: the beam, beam climbing, revisiting, the queue bound, the detector
+    /// orders and the detector penalty.
+    pub fn reconfigure(&mut self, beam: Option<usize>, beam_climbing: bool, no_revisit: bool, queue_limit: Option<usize>, orders: Vec<Vec<u32>>, detector_penalty: f64) -> Result<(), String> {
+        check_orders(&orders, self.num_detectors)?;
+        let c = &mut self.config;
+        (c.beam, c.beam_climbing, c.no_revisit, c.queue_limit, c.orders, c.detector_penalty) = (beam, beam_climbing, no_revisit, queue_limit, orders, detector_penalty);
+        Ok(())
     }
 
     /// One search, with detector order `order` and beam `beam` (Tesseract's
@@ -832,7 +854,10 @@ impl Search {
         let mut initial = vec![0u64; words];
         let mut initial_tuples = vec![Tuple::default(); ne];
         for &d in detections {
-            flip(&mut initial, d);
+            // Tesseract sets each detection's detector (a repeated one stays lit once) but
+            // counts every detection, so a repeated detection leaves the count of lit
+            // detectors above the lit ones: no state then has none lit, and the search gives up.
+            initial[d as usize / 64] |= 1 << (d % 64);
             for &ei in &d2e[d as usize] {
                 initial_tuples[ei as usize].count += 1;
             }
@@ -921,7 +946,9 @@ impl Search {
                 }
             }
             let mut next_tuples = tuples.clone();
-            let min_detector = *order.iter().find(|&&d| get(&dets, d)).expect("a lit detector");
+            // (Only after a repeated detection can a state count lit detectors and have none;
+            // Tesseract then reads past its fault lists, and it has nothing to grow.)
+            let Some(&min_detector) = order.iter().find(|&&d| get(&dets, d)) else { continue };
             let mut prev: Option<u32> = None;
             let mut cache = vec![-1.0f64; n];
             for &ei in &d2e[min_detector as usize] {

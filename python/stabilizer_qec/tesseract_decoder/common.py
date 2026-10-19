@@ -5,8 +5,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import math
-from typing import Any, Iterable, List, Sequence, Tuple
+import os
+import re
+import sys
+from typing import Any, Iterable, Iterator, List, Sequence, Tuple
 
 import stabilizer_qec as _sq
 
@@ -15,11 +19,73 @@ __all__ = ["Error", "Symptom", "dem_from_counts", "merge_indistinguishable_error
 _MAX = 2**64 - 1
 
 
+def _is_stims(obj: Any) -> bool:
+    """Whether ``obj`` is one of Stim's own objects."""
+    return type(obj).__module__.split(".")[0] == "stim"
+
+
 def _dem(dem: Any) -> "_sq.DetectorErrorModel":
-    """A model as this package's (Stim's are read from their text, as Tesseract reads them)."""
+    """A model as this package's. As Tesseract's binding does, anything else is read from its
+    text (so a Stim model is read exactly, and a name that is no instruction is refused with
+    Stim's error)."""
     if isinstance(dem, _sq.DetectorErrorModel):
         return dem
-    return _sq.DetectorErrorModel(str(dem))
+    try:
+        return _sq.DetectorErrorModel(dem if _is_stims(dem) else str(dem))
+    except ValueError as e:
+        name = re.fullmatch(r"line \d+: unsupported instruction '(.*)'", str(e))
+        if name is None:
+            raise
+        raise IndexError(f"Unrecognized instruction name: {name.group(1).lower()}") from None
+
+
+def _as_given(out: "_sq.DetectorErrorModel", stims: Any) -> Any:
+    """``out`` as Stim's model when ``stims`` (or the model it was made from) is Stim's, and as
+    this package's otherwise: each function returns the kind of model it was given."""
+    if stims is True or (stims is not False and _is_stims(stims)):
+        import stim
+
+        return stim.DetectorErrorModel(str(out))
+    return out
+
+
+# How many ``ostream_redirect`` blocks (or bindings that redirect for their own call) are
+# sending Tesseract's C++ standard output to Python's ``sys.stdout``.
+_redirects = [0]
+
+
+@contextlib.contextmanager
+def _redirected() -> Iterator[None]:
+    """Tesseract's ``py::scoped_ostream_redirect`` for one call: its output goes to Python's
+    ``sys.stdout``."""
+    _redirects[0] += 1
+    try:
+        yield
+    finally:
+        _redirects[0] -= 1
+
+
+def _cout(lines: Iterable[Any]) -> None:
+    """Lines written as Tesseract writes them to ``std::cout``: to Python's ``sys.stdout``
+    inside ``ostream_redirect`` (or a call that redirects its own output), and otherwise
+    straight to the process's standard output (file descriptor 1), past any Python
+    redirection, after what Python has buffered there."""
+    text = "".join(f"{line}\n" for line in lines)
+    if not text:
+        return
+    if _redirects[0]:
+        sys.stdout.write(text)
+        return
+    try:
+        sys.stdout.flush()
+    except (AttributeError, OSError, ValueError):
+        pass
+    data = text.encode()
+    try:
+        while data:
+            data = data[os.write(1, data) :]
+    except OSError:
+        pass
 
 
 def _flat(dem: Any) -> "_sq.DetectorErrorModel":
@@ -34,16 +100,34 @@ def _vec(v: Sequence[int]) -> str:
 
 
 class Symptom:
-    """The detectors and observables an error flips."""
+    """The detectors and observables an error flips. (As Tesseract's binding does, reading
+    ``detectors`` or ``observables`` gives a copy; assign the attribute to change it.)"""
 
     __hash__ = None  # type: ignore[assignment]
+    __slots__ = ("_detectors", "_observables")
 
     def __init__(self, detectors: Sequence[int] = [], observables: Sequence[int] = []) -> None:
-        self.detectors = [int(d) for d in detectors]
-        self.observables = [int(o) for o in observables]
+        self.detectors = detectors  # type: ignore[assignment]
+        self.observables = observables  # type: ignore[assignment]
+
+    @property
+    def detectors(self) -> List[int]:
+        return list(self._detectors)
+
+    @detectors.setter
+    def detectors(self, value: Sequence[int]) -> None:
+        self._detectors = tuple(_int(d, "detectors") for d in value)
+
+    @property
+    def observables(self) -> List[int]:
+        return list(self._observables)
+
+    @observables.setter
+    def observables(self, value: Sequence[int]) -> None:
+        self._observables = tuple(_int(o, "observables") for o in value)
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, Symptom) and self.detectors == other.detectors and self.observables == other.observables
+        return isinstance(other, Symptom) and self._detectors == other._detectors and self._observables == other._observables
 
     def __ne__(self, other: object) -> bool:
         return not self == other
@@ -52,14 +136,29 @@ class Symptom:
         return f"Symptom{{detectors={_vec(self.detectors)}, observables={_vec(self.observables)}}}"
 
     def _key(self) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
-        return tuple(self.detectors), tuple(self.observables)
+        return self._detectors, self._observables
 
     def as_dem_instruction_targets(self) -> List[Any]:
-        return [_sq.target_relative_detector_id(d) for d in self.detectors] + [_sq.target_logical_observable_id(o) for o in self.observables]
+        """The symptom as model targets (this package's ``DemTarget``s; Tesseract's are
+        Stim's)."""
+        return [_sq.target_relative_detector_id(d) for d in self._detectors] + [_sq.target_logical_observable_id(o) for o in self._observables]
+
+
+def _int(value: Any, name: str, low: int = -(2**31), high: int = 2**31) -> int:
+    """A C++ integer argument (``int`` by default), refused as pybind11 refuses one: a
+    ``TypeError`` for a float, a non-number or a value out of range."""
+    if isinstance(value, float) or not hasattr(type(value), "__index__"):
+        raise TypeError(f"{name}: incompatible function arguments; expected an integer, got {value!r}.")
+    v = value.__index__()
+    if not low <= v < high:
+        raise TypeError(f"{name}: incompatible function arguments; {v} is out of range for this argument.")
+    return v
 
 
 class Error:
     """An error: its symptom and its cost, ``−ln(p/(1 − p))``."""
+
+    __slots__ = ("likelihood_cost", "symptom")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if not args and not kwargs:
@@ -138,7 +237,24 @@ def _preserve(out: "_sq.DetectorErrorModel", num_detectors: int, num_observables
         out.append("logical_observable", [], [_sq.target_logical_observable_id(num_observables - 1)])
 
 
-def _merge(dem: Any) -> Tuple["_sq.DetectorErrorModel", List[int]]:
+_NAN_ARGUMENT = "Parens arguments for 'detector error model instruction' didn't end with a ')'."
+
+
+def _probability_argument(p: float) -> float:
+    """``p`` as an error's argument, refused as Stim refuses the text Tesseract's C++ model
+    turns into when it reaches Python."""
+    if math.isnan(p):
+        raise ValueError(_NAN_ARGUMENT)
+    if not 0 <= p <= 1:
+        raise ValueError(f"'error' instruction argument must be a probability (0 to 1) but got {p:f}")
+    return p
+
+
+def _merge(dem: Any, public: bool = False) -> Tuple["_sq.DetectorErrorModel", List[int]]:
+    """Tesseract's merge of the errors of one symptom. Merging two errors of probability 0 (or
+    two of probability 1, or one of each) makes a cost of NaN; Tesseract's decoder drops such
+    an error with those of probability 0, which is what this does unless ``public``, where (as
+    the model Tesseract returns cannot be read back) it is refused."""
     flat = _flat(dem)
     nd, no = _counts(flat)
     out = _sq.DetectorErrorModel()
@@ -148,8 +264,8 @@ def _merge(dem: Any) -> Tuple["_sq.DetectorErrorModel", List[int]]:
     for inst in flat:
         if inst.type == "error":
             e = Error(inst)
-            if not e.symptom.detectors:
-                print("Warning: the circuit has errors that do not flip any detectors")
+            if not e.symptom._detectors:
+                _cout(["Warning: the circuit has errors that do not flip any detectors"])
             k = by_symptom.get(e.symptom._key())
             if k is not None:
                 merged[k].likelihood_cost = merge_weights(e.likelihood_cost, merged[k].likelihood_cost)
@@ -163,7 +279,12 @@ def _merge(dem: Any) -> Tuple["_sq.DetectorErrorModel", List[int]]:
         else:
             raise ValueError(f"Unrecognized instruction type: {inst}")
     for e in merged:
-        out.append("error", [e.get_probability()], e.symptom.as_dem_instruction_targets())
+        p = e.get_probability()
+        if math.isnan(p):
+            if public:
+                raise ValueError(_NAN_ARGUMENT)
+            p = 0.0
+        out.append("error", [p], e.symptom.as_dem_instruction_targets())
     _preserve(out, nd, no)
     return out, index_map
 
@@ -190,32 +311,37 @@ def _remove_zero(dem: Any) -> Tuple["_sq.DetectorErrorModel", List[int]]:
     return out, index_map
 
 
-def merge_indistinguishable_errors(dem: Any) -> "_sq.DetectorErrorModel":
+def merge_indistinguishable_errors(dem: Any) -> Any:
     """The model with errors of the same symptom merged into one (in first-seen order, after the
-    detector and observable declarations)."""
-    return _merge(dem)[0]
+    detector and observable declarations); Stim's model when given Stim's."""
+    return _as_given(_merge(dem, public=True)[0], dem)
 
 
-def remove_zero_probability_errors(dem: Any) -> "_sq.DetectorErrorModel":
-    """The model without its errors of probability 0."""
-    return _remove_zero(dem)[0]
+def remove_zero_probability_errors(dem: Any) -> Any:
+    """The model without its errors of probability 0; Stim's model when given Stim's."""
+    return _as_given(_remove_zero(dem)[0], dem)
 
 
-def dem_from_counts(orig_dem: Any, error_counts: Sequence[int], num_shots: int) -> "_sq.DetectorErrorModel":
-    """The model with each error's probability estimated as its count over ``num_shots``."""
+def dem_from_counts(orig_dem: Any, error_counts: Sequence[int], num_shots: int) -> Any:
+    """The model with each error's probability estimated as its count over ``num_shots``;
+    Stim's model when given Stim's."""
     flat = _flat(orig_dem)
-    counts = [int(c) for c in error_counts]
+    counts = [_int(c, "error_counts", 0, 2**64) for c in error_counts]
+    shots = _int(num_shots, "num_shots", 0, 2**64)
     if flat.num_errors != len(counts):
         raise ValueError("Error hits array must be the same size as the number of errors in the original DEM.")
     out = _sq.DetectorErrorModel()
     k = 0
     for inst in flat:
         if inst.type == "error":
-            out.append("error", [float(counts[k]) / float(num_shots)], inst.targets_copy(), tag=inst.tag)
+            c = counts[k]
+            # (Tesseract divides doubles: c/0 is ∞, 0/0 NaN.)
+            p = c / shots if shots else (math.inf if c else math.nan)
+            out.append("error", [_probability_argument(p)], inst.targets_copy(), tag=inst.tag)
             k += 1
         else:
             out.append(inst)
-    return out
+    return _as_given(out, orig_dem)
 
 
 def _retained_maps(dem: Any, merge_errors: bool) -> Tuple["_sq.DetectorErrorModel", List[int], List[int]]:

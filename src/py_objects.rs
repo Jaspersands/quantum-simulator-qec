@@ -2712,6 +2712,16 @@ impl PyDemSearch {
         Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &gave_up)))
     }
 
+    /// Change the settings a decode reads (Tesseract reads them from its decoder's config at
+    /// every decode): the beam, beam climbing, revisiting, the queue bound, the detector
+    /// orders and the detector penalty.
+    #[allow(clippy::too_many_arguments)]
+    fn reconfigure(&mut self, beam: Option<usize>, beam_climbing: bool, no_revisit: bool, queue_limit: Option<usize>, orders: Vec<Vec<u32>>, penalty: f64) -> PyResult<()> {
+        self.dec.reconfigure(beam, beam_climbing, no_revisit, queue_limit, orders.clone(), penalty).map_err(err)?;
+        self.orders = orders;
+        Ok(())
+    }
+
     /// The model faults one shot's search found (by index in the flattened model).
     fn decode_to_faults(&self, defects: Vec<u32>) -> (Vec<usize>, bool) {
         let found = self.dec.decode(&defects);

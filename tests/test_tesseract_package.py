@@ -8,10 +8,12 @@ errors of the same (optimal) cost; and the error, model and order helpers agree.
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import io
 import os
 import pickle
 import random
+import subprocess
 import sys
 
 import numpy as np
@@ -228,3 +230,268 @@ def test_helpers():
     assert (str(e1), str(e1.symptom), e1.get_probability()) == (str(e2), str(e2.symptom), e2.get_probability())
     assert str(T.utils.DetectorOrderMethod.BFS) == str(O.utils.DetectorOrderMethod.BFS)
     assert str(T.SchedulingStrategy.Causal) == str(O.SchedulingStrategy.Causal)
+
+
+def surface(rounds=3, p=0.01):
+    c = stim.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=rounds, after_clifford_depolarization=p)
+    return c.detector_error_model(), c.compile_detector_sampler(seed=11).sample(40)
+
+
+def test_two_pass_decoder_on_an_annotated_model():
+    # Tesseract's two-pass reweighting addresses errors by their index in the flattened model;
+    # those once indexed the merged model here ("DEM error index 96 is out of range").
+    sys.path.insert(0, os.path.dirname(T.__file__))
+    try:
+        import multi_pass_sinter_decoders as TM
+    except ImportError:
+        pytest.skip("Tesseract's multi_pass_sinter_decoders is not installed")
+    finally:
+        sys.path.pop(0)
+    from stabilizer_qec.tesseract_decoder import multi_pass_sinter_decoders as OM
+
+    c = stim.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.006)
+    dets = c.compile_detector_sampler(seed=5).sample(200, bit_packed=True)
+    dem = c.detector_error_model().flattened()
+    theirs = T.demutil.annotate_detector_bases(dem, detector_basis_classifier=T.demutil.stim_surface_code_detector_basis_classifier)
+    mine = O.demutil.annotate_detector_bases(ours(dem), detector_basis_classifier=O.demutil.stim_surface_code_detector_basis_classifier)
+    for strategy in (0, 1):
+        a = TM.MultiPassSinterDecoder(num_passes=2, strategy=T.SchedulingStrategy(strategy)).compile_decoder_for_dem(dem=theirs)
+        b = OM.MultiPassSinterDecoder(num_passes=2, strategy=O.SchedulingStrategy(strategy)).compile_decoder_for_dem(dem=mine)
+        assert np.array_equal(a.decode_shots_bit_packed(bit_packed_detection_event_data=dets), b.decode_shots_bit_packed(bit_packed_detection_event_data=dets))
+
+
+def test_repeated_detection_events():
+    # Tesseract lights a repeated detector once but counts it twice: no state is then free of
+    # lit detectors, and the search gives up (this once panicked). (Tesseract then reads past
+    # its fault lists, and may crash: it is run in its own process, and compared when it lives.)
+    dem, shots = surface()
+    od = O.tesseract.TesseractConfig(ours(dem)).compile_decoder()
+    b = od.decode_from_detection_events([4, 4, 9])
+    assert (b.tolist(), od.predicted_errors_buffer, od.low_confidence_flag) == ([False], [], True)
+    script = (
+        "import stim, tesseract_decoder as T\n"
+        "c = stim.Circuit.generated('surface_code:rotated_memory_z', distance=3, rounds=3, after_clifford_depolarization=0.01)\n"
+        "d = T.tesseract.TesseractConfig(c.detector_error_model()).compile_decoder()\n"
+        "r = d.decode_from_detection_events([4, 4, 9])\n"
+        "print(repr((r.tolist(), list(d.predicted_errors_buffer), d.low_confidence_flag)))\n"
+    )
+    run = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    if run.returncode == 0:
+        assert run.stdout.strip().splitlines()[-1] == repr(([False], [], True))
+    td = T.tesseract.TesseractConfig(dem).compile_decoder()
+    assert [list(td.decode_to_errors(s)) for s in shots] == [od.decode_to_errors(s) for s in shots]
+    for kw in ({}, dict(beam_climbing=True, det_beam=2), dict(no_revisit_dets=False, pqlimit=50), dict(det_beam=1)):
+        od = O.tesseract.TesseractConfig(ours(dem), **kw).compile_decoder()
+        for events in ([0, 0], [3, 7, 3, 7, 3], [2, 9, 2]):
+            assert (od.decode_from_detection_events(events).tolist(), od.predicted_errors_buffer, od.low_confidence_flag) == ([False], [], True)
+
+
+def test_merging_errors_of_probability_zero():
+    # Two errors of probability 0 (or 1) with one symptom merge to NaN: Tesseract's decoder
+    # drops it; the model Tesseract's merge returns cannot be read back.
+    for text in ("error(0) D0\nerror(0) D0\nerror(0.1) D1", "error(1) D0\nerror(1) D0\nerror(0.1) D0 D1", "error(0) D0 L0\nerror(1) D0 L0\nerror(0.2) D0 D1"):
+        dem = stim.DetectorErrorModel(text)
+        for merge in (True, False):
+            td = T.tesseract.TesseractConfig(dem, merge_errors=merge).compile_decoder()
+            od = O.tesseract.TesseractConfig(ours(dem), merge_errors=merge).compile_decoder()
+            assert [str(e) for e in td.errors] == [str(e) for e in od.errors]
+            for row in ([1, 0], [0, 1], [1, 1]):
+                assert td.decode(np.array(row, bool)).tolist() == od.decode(np.array(row, bool)).tolist()
+        errors = []
+        for mod, d in ((T, dem), (O, ours(dem))):
+            try:
+                errors.append(str(mod.common.merge_indistinguishable_errors(d)))
+            except ValueError as e:
+                errors.append(str(e))
+        assert errors[0] == errors[1]
+
+
+def decodes(d, shots):
+    return [(list(d.decode_to_errors(s)), d.low_confidence_flag) for s in shots]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("det_beam", 0), ("det_beam", 2), ("pqlimit", 3), ("det_penalty", 5.0), ("beam_climbing", True), ("no_revisit_dets", False), ("verbose", True), ("create_visualization", True)],
+)
+def test_decoder_config_is_live(field, value, tmp_path):
+    # Tesseract reads its decoder's config at every decode.
+    dem, shots = surface()
+    results = []
+    for mod, d in ((T, dem), (O, ours(dem))):
+        dec = mod.tesseract.TesseractConfig(d, det_beam=5, pqlimit=10000).compile_decoder()
+        setattr(dec.config, field, value)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            got = decodes(dec, shots)
+        dec.visualizer.write(str(tmp_path / "v.txt"))
+        results.append((got, buf.getvalue(), (tmp_path / "v.txt").read_text()))
+    assert results[0] == results[1]
+    if field not in ("verbose", "create_visualization", "no_revisit_dets"):
+        fresh = decodes(O.tesseract.TesseractConfig(ours(dem), **{"det_beam": 5, "pqlimit": 10000, field: value}).compile_decoder(), shots)
+        assert results[1][0] == fresh
+
+
+def test_decoder_config_assignment_and_orders():
+    dem, shots = surface()
+    rng = random.Random(3)
+    orders = [rng.sample(range(dem.num_detectors), dem.num_detectors) for _ in range(2)]
+    rev = [list(range(dem.num_detectors))[::-1]]
+    outcomes = []
+    for mod, d in ((T, dem), (O, ours(dem))):
+        out = []
+        dec = mod.tesseract.TesseractConfig(d, det_beam=1).compile_decoder()
+        dec.config.det_orders = orders
+        out.append(decodes(dec, shots))
+        assert dec.config is dec.config
+        # (Orders are checked when read or compiled, not when set.)
+        config = mod.tesseract.TesseractConfig(d)
+        config.det_orders = [[0, 1]]
+        with pytest.raises(ValueError, match="has size 2"):
+            config.det_orders
+        with pytest.raises(ValueError, match="has size 2"):
+            config.compile_decoder()
+        if mod is O:
+            # (Tesseract reads past a short order at the next decode; this refuses it.)
+            bad = O.tesseract.TesseractConfig(d).compile_decoder()
+            bad.config.det_orders = [[0] * d.num_detectors]
+            with pytest.raises(ValueError, match="more than once"):
+                bad.decode_to_errors(shots[0])
+        dec.config.det_orders = []
+        with pytest.raises(RuntimeError, match="not been resolved"):
+            dec.decode_to_errors(shots[0])
+        dec = mod.tesseract.TesseractConfig(d).compile_decoder()
+        dec.config = mod.tesseract.TesseractConfig(d, det_beam=0)
+        with pytest.raises(RuntimeError, match="not been resolved"):
+            dec.decode_to_errors(shots[0])
+        dec.config = mod.tesseract.TesseractConfig(d, det_beam=0, det_orders=rev)
+        out.append(decodes(dec, shots))
+        other = mod.tesseract.TesseractConfig(d, det_beam=2).compile_decoder()
+        dec.config = other.config
+        other.config.det_beam = 0  # (a copy was assigned)
+        out.append((dec.config.det_beam, decodes(dec, shots)))
+        outcomes.append(out)
+    assert outcomes[0] == outcomes[1]
+
+
+@pytest.mark.parametrize("beam", [-1, -2, -5])
+def test_beam_climbing_with_a_negative_beam(beam):
+    # Tesseract climbs in its config's int: a remainder by det_beam + 1 = 0 is the dividend
+    # (on arm64), one by a negative divisor keeps the dividend's sign.
+    dem, shots = surface()
+    for climbing in (True, False):
+        # (A negative beam is no beam: the queue bound keeps the search short.)
+        td = T.tesseract.TesseractConfig(dem, det_beam=beam, beam_climbing=climbing, pqlimit=2000).compile_decoder()
+        od = O.tesseract.TesseractConfig(ours(dem), det_beam=beam, beam_climbing=climbing, pqlimit=2000).compile_decoder()
+        assert decodes(td, shots[:6]) == decodes(od, shots[:6])
+
+
+def raised(fn):
+    try:
+        fn()
+    except Exception as e:  # noqa: BLE001
+        # (pybind11's messages for a refused argument list its overloads, and the C++
+        # library's for an index out of range differ by platform; only the type is compared
+        # for those.)
+        return type(e), str(e) if type(e) in (ValueError, IndexError, RuntimeError) and "vector" not in str(e) else ""
+    return None
+
+
+def test_config_constructors():
+    # Tesseract's TesseractConfig takes its settings with no model (from det_beam) or after one;
+    # anything else in the model's place is read as a model's text.
+    dem = surface()[0]
+    for args, kwargs in [((), {}), ((7,), {}), ((True,), {}), ((7, True), {}), ((), dict(det_beam=3)), ((dem, 3), {}), ((), dict(dem=dem, det_beam=3)), (("error(0.1) D0",), {})]:
+        mine = tuple(ours(a) if isinstance(a, stim.DetectorErrorModel) else a for a in args)
+        assert str(T.tesseract.TesseractConfig(*args, **kwargs)) == str(O.tesseract.TesseractConfig(*mine, **{k: ours(v) if k == "dem" else v for k, v in kwargs.items()}))
+    for args, kwargs in [((7.0,), {}), ((None,), {}), ((7,), dict(dem=dem)), ((dem,), dict(pqlimit=-1)), ((dem,), dict(det_beam=2**31)), ((dem,), dict(det_penalty="x")),
+                         ((dem,), dict(det_order_method=1)), ((dem,), dict(seed=-1)), ((dem,), dict(num_det_orders=0)), ((dem,), dict(det_orders=[[0, 1]]))]:
+        assert raised(lambda: T.tesseract.TesseractConfig(*args, **kwargs)) == raised(lambda: O.tesseract.TesseractConfig(*args, **kwargs)), (args, kwargs)
+
+
+def test_enums_as_pybind11_binds_them():
+    for TE, OE in ((T.utils.DetectorOrderMethod, O.utils.DetectorOrderMethod), (T.SchedulingStrategy, O.SchedulingStrategy)):
+        assert list(TE.__members__) == list(OE.__members__)
+        for name in TE.__members__:
+            a, b = getattr(TE, name), getattr(OE, name)
+            assert (repr(a), str(a), a.name, a.value, int(a), hash(a), bool(a)) == (repr(b), str(b), b.name, b.value, int(b), hash(b), bool(b))
+            assert (a == 0, a == a.value, a != 0, a == TE(int(a))) == (b == 0, b == b.value, b != 0, b == OE(int(b)))
+            assert pickle.loads(pickle.dumps(b)) == b
+        for v in (5, -1, True):
+            assert (repr(TE(v)), TE(v).name) == (repr(OE(v)), OE(v).name)
+        for v in (1.0, "BFS", 2**31):
+            assert raised(lambda: TE(v)) == raised(lambda: OE(v)) == (TypeError, "")
+        assert raised(lambda: TE(0) < TE(1)) == raised(lambda: OE(0) < OE(1)) == (TypeError, "")
+    assert T.utils.DetectorOrderMethod.__doc__ == O.utils.DetectorOrderMethod.__doc__
+    M, N = T.utils.DetectorOrderMethod, O.utils.DetectorOrderMethod
+    assert (T.utils.DetBFS is M.DetBFS, M.DetBFS is M.BFS, M.DetBFS == M.BFS) == (O.utils.DetBFS is N.DetBFS, N.DetBFS is N.BFS, N.DetBFS == N.BFS)
+
+
+def test_errors_raised_as_tesseracts_binding_raises_them(tmp_path):
+    dem = stim.DetectorErrorModel("error(0.1) D0 D1 L0\nerror(0.05) D0 D1 L0\nerror(0) D2\nerror(0.2) D1 D2\ndetector(0, 0, 0) D0\ndetector(1, 0, 0) D1\ndetector(2, 0, 0) D2")
+    cases = {
+        "observables of a negative index": lambda m, d: m.tesseract.TesseractConfig(d).compile_decoder().get_observables_from_errors([-1]),
+        "cost of a negative index": lambda m, d: m.tesseract.TesseractConfig(d).compile_decoder().cost_from_errors([-1]),
+        "observables past the end": lambda m, d: m.tesseract.TesseractConfig(d).compile_decoder().get_observables_from_errors([99]),
+        "a 2D syndrome": lambda m, d: m.tesseract.TesseractConfig(d).compile_decoder().decode_to_errors(np.array([[1, 1, 0]], bool)),
+        "a 1D batch": lambda m, d: m.tesseract.TesseractConfig(d).compile_decoder().decode_batch(np.array([1, 1, 0], bool)),
+        "a float detection": lambda m, d: m.tesseract.TesseractConfig(d).compile_decoder().decode_from_detection_events([1.5]),
+        "an int method for orders": lambda m, d: m.utils.build_det_orders(d, 1, 1),
+        "a negative seed for orders": lambda m, d: m.utils.build_det_orders(d, 1, m.utils.DetectorOrderMethod.Index, -1),
+        "an unknown method": lambda m, d: m.utils.build_det_orders(d, 1, m.utils.DetectorOrderMethod(5), 0),
+        "an int method for sinter": lambda m, d: m.TesseractSinterDecoder(det_order_method=0),
+        "counts over no shots": lambda m, d: m.common.dem_from_counts(d, [1, 2, 3, 4], 0),
+        "no counts over no shots": lambda m, d: m.common.dem_from_counts(d, [0, 0, 0, 0], 0),
+        "counts above the shots": lambda m, d: m.common.dem_from_counts(d, [20, 0, 0, 0], 10),
+        "a negative count": lambda m, d: m.common.dem_from_counts(d, [-1, 0, 0, 0], 10),
+        "a float detector": lambda m, d: m.common.Symptom([1.0], []),
+        "a detector past int": lambda m, d: m.common.Symptom([2**31], []),
+        "a visualizer file of None": lambda m, d: m.viz.Visualizer().write(None),
+        "a visualizer file that cannot be opened": lambda m, d: m.viz.Visualizer().write(str(tmp_path / "missing" / "v.txt")),
+        "a visualizer file of an int": lambda m, d: m.viz.Visualizer().write(123),
+        "a config of an int": lambda m, d: setattr(m.tesseract.TesseractConfig(d).compile_decoder(), "config", 5),
+        "an attribute a config has not": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "foo", 1),
+        "a beam that is a float": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "det_beam", 1.5),
+        "a queue bound past size_t": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "pqlimit", 2**64),
+        "orders of None": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "det_orders", None),
+        "a model of None": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "dem", None),
+    }
+    for label, case in cases.items():
+        assert raised(lambda: case(T, dem)) == raised(lambda: case(O, ours(dem))), label
+    for mod in (T, O):
+        s = mod.common.Symptom([1], [2])
+        s.detectors.append(5)
+        assert s.detectors == [1]
+
+
+def test_output_goes_where_tesseracts_goes(capfd):
+    # Tesseract's C++ output reaches Python's sys.stdout only from the calls that redirect it
+    # themselves (decode, decode_to_errors, decode_from_detection_events) or inside
+    # ostream_redirect; the rest goes to the process's standard output.
+    c = stim.Circuit.generated("repetition_code:memory", distance=3, rounds=2, after_clifford_depolarization=0.03)
+    dem = c.detector_error_model()
+    shot = next(s for s in c.compile_detector_sampler(seed=2).sample(20) if s.sum() >= 2)
+    zero = stim.DetectorErrorModel("error(0.1) D0\nerror(0.1)\nerror(0.2) D0 D1")
+    libc = ctypes.CDLL(None)
+    cases = {
+        "merge warning": lambda m, d: m.common.merge_indistinguishable_errors(d),
+        "construction": lambda m, d: m.tesseract.TesseractConfig(d, verbose=True).compile_decoder(),
+        "decode": lambda m, d: m.tesseract.TesseractConfig(d, verbose=True).compile_decoder().decode(shot),
+        "decode_from_detection_events": lambda m, d: m.tesseract.TesseractConfig(d, verbose=True).compile_decoder().decode_from_detection_events(np.flatnonzero(shot).tolist()),
+        "decode_to_errors with an order": lambda m, d: m.tesseract.TesseractConfig(d, verbose=True).compile_decoder().decode_to_errors(shot, 0, 2),
+        "decode_batch": lambda m, d: m.tesseract.TesseractConfig(d, verbose=True).compile_decoder().decode_batch(np.array([shot, shot])),
+    }
+    for label, case in cases.items():
+        model = zero if label == "merge warning" else dem
+        for redirect in (None, {}, dict(stdout=False)):
+            seen = []
+            for mod, d in ((T, model), (O, ours(model))):
+                buf = io.StringIO()
+                capfd.readouterr()
+                with contextlib.redirect_stdout(buf):
+                    with contextlib.nullcontext() if redirect is None else mod.ostream_redirect(**redirect):
+                        case(mod, d)
+                libc.fflush(None)  # (Tesseract's C++ output may sit in the C library's buffer.)
+                seen.append((buf.getvalue(), capfd.readouterr().out))
+            assert seen[0] == seen[1], (label, redirect)
+            assert seen[1] != ("", "")

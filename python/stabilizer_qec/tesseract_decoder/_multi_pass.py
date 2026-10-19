@@ -324,8 +324,8 @@ class MultiPassTesseractDecoder:
             )
         components = [int(c) for c in detector_components]
         if not components:
-            components = _canonical_components(base_config.dem)
-        labels, self._component_of, decomposed, dems = prepare_two_component_dem(base_config.dem, components)
+            components = _canonical_components(base_config._dem)
+        labels, self._component_of, decomposed, dems = prepare_two_component_dem(base_config._dem, components)
         self.monolithic_dem = decomposed
         self.assignment_labels = labels
         self.active_detector_counts = [self._component_of.count(c) for c in range(2)]
