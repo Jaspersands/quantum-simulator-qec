@@ -1,5 +1,6 @@
 # This file is from IBM's relay_bp 0.2.2 (Copyright IBM 2025, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
-# modified for stabilizer_qec: Stim, sinter, relay_bp and beliefmatching are this package's.
+# modified for stabilizer_qec: Stim, sinter, relay_bp and beliefmatching are this package's, and a
+# Stim circuit given to insert_uniform_academic_circuit_noise comes back a Stim circuit.
 # (C) Copyright IBM 2025
 #
 # This code is licensed under the Apache License, Version 2.0. You may
@@ -11,7 +12,7 @@
 # that they have been altered from the originals.
 
 import stabilizer_qec as stim
-from stabilizer_qec._util import ours
+from stabilizer_qec._util import text_of
 
 
 def detect_data_qubits(circuit: stim.Circuit) -> list[int]:
@@ -61,8 +62,19 @@ def insert_uniform_academic_circuit_noise(
     Returns:
         A new stim circuit with noise inserted to the original.
     """
-    circuit = ours(circuit)  # a Stim object too
     assert 0 <= p <= 1
+
+    if not isinstance(circuit, stim.Circuit):
+        # (stabilizer_qec: a Stim circuit, REPEAT blocks and all, has its noise inserted as this
+        # package's circuit and comes back as its own type, built from the text.)
+        noisy = insert_uniform_academic_circuit_noise(
+            stim.Circuit(circuit),
+            p,
+            apply_to_final_data_qubit_measurement=apply_to_final_data_qubit_measurement,
+            is_repeat_block=is_repeat_block,
+            data_qubits=data_qubits,
+        )
+        return type(circuit)(text_of(noisy, "Circuit", stim.Circuit))
 
     noisy_circuit = stim.Circuit()
 

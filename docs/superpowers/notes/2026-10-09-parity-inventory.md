@@ -166,13 +166,13 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 |---|---|---|
 | R1 | `MinSumBPDecoder` in every precision: F32, F64, Fixed, I8, I16, I32, I64; Relay in F32/F64/I32/I64 | done (2.0 W5: `stabilizer_qec.relay_bp`, every precision) |
 | R2 | `decode_detailed(_batch)` → iterations, success, posterior ratios | done (2.0 W5: `stabilizer_qec.relay_bp`, every precision) |
-| R3 | `ObservableDecoderRunner` (observables directly, detailed results: converged, error_detected, error_mismatch_detected, better/worse quality, from_errors_* helpers) | done (2.0 W5: `stabilizer_qec.relay_bp`, every precision) |
+| R3 | `ObservableDecoderRunner` (observables directly, detailed results: converged, error_detected, error_mismatch_detected, better/worse quality, from_errors_* helpers) | done (2.0 W5: `stabilizer_qec.relay_bp`, every precision; 2.1: `parallel=True` decodes on threads without the GIL, one decoder state per thread, where 2.0's was serial; the runner writes the decoder's `relay_logging.out`; check matrices with stored zeros read as relay_bp reads them) |
 | R4 | Tesseract `decode_to_errors`, `cost_from_errors`, `get_observables_from_errors`, `low_confidence_flag`, visualizer | done (2.0 W5: `stabilizer_qec.tesseract_decoder`, Tesseract whole, `demutil` too) |
 | R5 | Tesseract `SimplexDecoder` (exact LP/ILP decoding with windows) | done (2.0 W5: `stabilizer_qec.tesseract_decoder`, Tesseract whole, `demutil` too) |
 | R6 | Tesseract utilities `dem_from_counts`, `merge_indistinguishable_errors`, `remove_zero_probability_errors`, `build_det_orders` (BFS, coordinate, index), `build_detector_graph`, sparsify options | done (2.0 W5: `stabilizer_qec.tesseract_decoder`, Tesseract whole, `demutil` too) |
 | R7 | Chromobius `predict_weighted_obs_flips_from_dets_bit_packed` (weights out) | done (2.0 W5: `stabilizer_qec.chromobius`) |
 | R8 | BeliefMatching `from_stim_circuit` | done (2.0 W5: `stabilizer_qec.beliefmatching`) |
-| R9 | stimbposd BPOSD/BPLSD on a DEM | done (2.0 W5: `stabilizer_qec.bposd`) |
+| R9 | stimbposd BPOSD/BPLSD on a DEM | done (2.1: `stabilizer_qec.stimbposd`, stimbposd 0.2.0 whole: `BPOSD`, `BPLSD`, its sinter decoders and `sinter_decoders()`' eight variants, `detector_error_model_to_check_matrices`; 2.0 had marked it done by `stabilizer_qec.bposd`, which is quantumgizmos' bposd 2.1, another package; the native `BpOsd`/`BpLsd` take its `schedule=` and `random_schedule_seed=` too) |
 
 ## D — Deltakit 0.10 (Riverlane)
 

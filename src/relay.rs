@@ -95,6 +95,11 @@ pub struct RelayCore<N: RelayNum> {
     edge_var: Vec<u32>,
     chk_start: Vec<u32>,
     chk_edges: Vec<u32>,
+    /// Per edge, 1 where its stored value is odd (empty: every edge's is). Messages pass along
+    /// every stored entry, but the checks a hard decision sets off are IBM's
+    /// `check_matrix * decoding % 2`, which reads the values: an even one (an explicit 0 left
+    /// by `H.data %= 2`) is an edge that sets nothing off.
+    parity: Vec<u8>,
     /// ln((1 − p)/p), scaled and bounded, `N::max_value()` where p = 0.
     prior: Vec<N>,
     /// ln((1 − p)/p) where finite, for weighing solutions.
@@ -154,8 +159,20 @@ pub struct RelayOutcome {
 impl<N: RelayNum> RelayCore<N> {
     /// `columns[v]` lists the checks fault `v` sets off; `priors[v]` is its probability.
     pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], config: RelayConfig) -> Result<RelayCore<N>, String> {
+        Self::with_values(num_checks, columns, None, priors, config)
+    }
+
+    /// As `new`, with the check matrix's stored value for each entry of `columns`
+    /// (`values[v][k]` for `columns[v][k]`): every entry is an edge, and one whose values sum
+    /// to an even number sets off nothing, as in IBM's decoder.
+    pub fn with_values(num_checks: usize, columns: &[Vec<u32>], values: Option<&[Vec<u8>]>, priors: &[f64], config: RelayConfig) -> Result<RelayCore<N>, String> {
         if columns.len() != priors.len() {
             return Err(format!("{} columns but {} priors", columns.len(), priors.len()));
+        }
+        if let Some(vals) = values {
+            if vals.len() != columns.len() || vals.iter().zip(columns).any(|(a, b)| a.len() != b.len()) {
+                return Err("one stored value per check-matrix entry".to_string());
+            }
         }
         let (lo, hi) = config.gamma_range;
         if !(lo < hi && lo.is_finite() && hi.is_finite()) {
@@ -170,19 +187,40 @@ impl<N: RelayNum> RelayCore<N> {
         let mut edge_check = Vec::new();
         let mut edge_var = Vec::new();
         let mut degree = vec![0u32; num_checks];
+        let mut parity = Vec::new();
         for (v, col) in columns.iter().enumerate() {
-            let mut col = col.clone();
-            col.sort_unstable();
-            col.dedup();
-            for &c in &col {
+            // (check, value parity), sorted, a repeated entry once with its values' parity.
+            let mut entries: Vec<(u32, u8)> = match values {
+                Some(vals) => col.iter().copied().zip(vals[v].iter().map(|&x| x & 1)).collect(),
+                None => col.iter().map(|&c| (c, 1)).collect(),
+            };
+            entries.sort_unstable_by_key(|&(c, _)| c);
+            let mut merged: Vec<(u32, u8)> = Vec::with_capacity(entries.len());
+            for (c, p) in entries {
+                match merged.last_mut() {
+                    Some(last) if last.0 == c => {
+                        if values.is_some() {
+                            last.1 ^= p;
+                        }
+                    }
+                    _ => merged.push((c, p)),
+                }
+            }
+            for &(c, p) in &merged {
                 if c as usize >= num_checks {
                     return Err(format!("fault {v} sets off check {c}, beyond {num_checks}"));
                 }
                 edge_check.push(c);
                 edge_var.push(v as u32);
+                if values.is_some() {
+                    parity.push(p);
+                }
                 degree[c as usize] += 1;
             }
             var_start.push(edge_check.len() as u32);
+        }
+        if parity.iter().all(|&p| p == 1) {
+            parity.clear();
         }
         let mut chk_start = vec![0u32; num_checks + 1];
         for c in 0..num_checks {
@@ -207,7 +245,7 @@ impl<N: RelayNum> RelayCore<N> {
         convert(config.data_scale.map_or(g0, |s| s * g0), "the memory strength")?;
         let weight = llr.iter().map(|&x| if x.is_finite() { x } else { 0.0 }).collect();
         let uniform = Uniform::new(lo, hi);
-        Ok(RelayCore { num_checks, num_vars: columns.len(), var_start, edge_var, chk_start, chk_edges, prior, weight, data_scale, max_data, config, uniform })
+        Ok(RelayCore { num_checks, num_vars: columns.len(), var_start, edge_var, chk_start, chk_edges, parity, prior, weight, data_scale, max_data, config, uniform })
     }
 
     /// The faults' priors (0 where a prior was 0).
@@ -354,8 +392,15 @@ impl<N: RelayNum> RelayCore<N> {
     fn explains(&self, syndrome: &[u8], w: &mut RelayCoreWork<N>) -> bool {
         for c in 0..self.num_checks {
             let mut x = 0u8;
-            for &e in &self.chk_edges[self.chk_start[c] as usize..self.chk_start[c + 1] as usize] {
-                x ^= w.hard[self.edge_var[e as usize] as usize];
+            let row = &self.chk_edges[self.chk_start[c] as usize..self.chk_start[c + 1] as usize];
+            if self.parity.is_empty() {
+                for &e in row {
+                    x ^= w.hard[self.edge_var[e as usize] as usize];
+                }
+            } else {
+                for &e in row {
+                    x ^= w.hard[self.edge_var[e as usize] as usize] & self.parity[e as usize];
+                }
             }
             w.decoded[c] = x;
         }
@@ -497,6 +542,27 @@ impl<N: RelayNum> RelayCore<N> {
 }
 
 impl<N: RelayNum> RelayCoreWork<N> {
+    /// Become a copy of `other` (a decoder's state as it was), keeping this one's buffers: what
+    /// a parallel batch does before each row, so that every row decodes from the same state on
+    /// one work per thread.
+    pub fn copy_from(&mut self, other: &RelayCoreWork<N>) {
+        let RelayCoreWork { v2c, c2v, posterior, gamma, hard, decoded, rng, correction, decoded_detectors, posterior_ratios, log_iter, log_conv, log_best, log_legs } = other;
+        self.v2c.clone_from(v2c);
+        self.c2v.clone_from(c2v);
+        self.posterior.clone_from(posterior);
+        self.gamma.clone_from(gamma);
+        self.hard.clone_from(hard);
+        self.decoded.clone_from(decoded);
+        self.rng.clone_from(rng);
+        self.correction.clone_from(correction);
+        self.decoded_detectors.clone_from(decoded_detectors);
+        self.posterior_ratios.clone_from(posterior_ratios);
+        self.log_iter.clone_from(log_iter);
+        self.log_conv.clone_from(log_conv);
+        self.log_best.clone_from(log_best);
+        self.log_legs = *log_legs;
+    }
+
     /// IBM's log of the last decode, one line per leg: "leg (−1 for the first), iterations,
     /// converged, unique best".
     pub fn log_lines(&self) -> Vec<String> {

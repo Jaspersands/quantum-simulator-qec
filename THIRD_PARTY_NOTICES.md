@@ -244,6 +244,15 @@ Source: https://github.com/quantumgizmos/bp_osd
 
 `python/stabilizer_qec/bposd/` is bposd 2.1's package on this package's ldpc.
 
+## stimbposd
+
+Copyright Oscar Higgott. Licensed under the Apache License, Version 2.0
+(`python/stabilizer_qec/stimbposd/LICENSE`, the licence its source distribution carries; its
+package metadata's classifier says MIT). Source: https://github.com/oscarhiggott/stimbposd
+
+`python/stabilizer_qec/stimbposd/` is stimbposd 0.2.0's package, and `tests/stimbposd_port/` its
+tests and their test data, with their imports pointed at this package's Stim, ldpc and sinter.
+
 ## MQT QECC
 
 Copyright (c) 2023 - 2026 Chair for Design Automation, TUM. Licensed under the MIT License

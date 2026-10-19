@@ -173,3 +173,156 @@ def test_errors_and_types():
     r = d.decode_detailed(np.array([1, 0], dtype=np.uint8))
     assert r.decoding.dtype == np.uint8 and r.posterior_ratios.dtype == np.float64 and r.success
     assert os.path.basename(type(d).__module__) == "stabilizer_qec.relay_bp.bp"
+
+
+def test_parallel_batches_on_threads(monkeypatch):
+    """A parallel batch decodes each row from the runner's present state, on any number of
+    threads, as relay_bp's does, and leaves that state as it was: the serial decodes after it
+    continue the same random strengths. With a progress bar showing, the rows go in in parts."""
+    import io
+    import sys
+
+    rng = np.random.default_rng(21)
+    h = (rng.random((14, 36)) < 0.18).astype(np.uint8)
+    obs = (rng.random((3, 36)) < 0.3).astype(np.uint8)
+    p = rng.uniform(0.01, 0.06, 36)
+    errors = (rng.random((70, 36)) < 0.08).astype(np.uint8)
+    dets = (errors @ h.T % 2).astype(np.uint8)
+    kw = dict(pre_iter=4, num_sets=12, set_max_iter=6, stop_nconv=2, seed=9)
+    t = relay_bp.ObservableDecoderRunner(relay_bp.RelayDecoderF32(h, p, **kw), obs)
+    t.decode_batch(dets[:5], progress_bar=False)
+    expected = t.decode_detailed_batch(dets, parallel=True, progress_bar=False)
+    expected_obs = t.from_errors_decode_observables_batch(errors, parallel=True, progress_bar=False)
+    after = [t.decode_detailed(x) for x in dets[:5]]
+
+    class Tty(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    for threads, bar in (("1", False), ("3", False), ("", False), ("2", True)):
+        monkeypatch.setenv("RAYON_NUM_THREADS", threads)
+        tty = Tty()
+        monkeypatch.setattr(sys, "stderr", tty)
+        m = ours.ObservableDecoderRunner(ours.RelayDecoderF32(h, p, **kw), obs)
+        m.decode_batch(dets[:5], progress_bar=False)
+        got = m.decode_detailed_batch(dets, parallel=True, progress_bar=bar)
+        assert len(got) == len(expected) and all(same(x, y) for x, y in zip(expected, got)), threads
+        assert np.array_equal(m.from_errors_decode_observables_batch(errors, parallel=True, progress_bar=False), expected_obs)
+        assert all(same(x, m.decode_detailed(d)) for x, d in zip(after, dets[:5]))
+        assert ("70/70" in tty.getvalue()) == bar
+    monkeypatch.undo()
+    # An empty batch (relay_bp's panics on one).
+    m = ours.ObservableDecoderRunner(ours.RelayDecoderF32(h, p, **kw), obs)
+    empty = np.zeros((0, 14), dtype=np.uint8)
+    for parallel in (False, True):
+        assert m.decode_batch(empty, parallel=parallel, progress_bar=False).shape == (0, 36)
+        assert m.decode_observables_batch(empty, parallel=parallel, progress_bar=False).shape == (0, 3)
+
+
+def test_runner_relay_log(tmp_path: pathlib.Path, monkeypatch):
+    """The observable runner writes the decoder's relay_logging.out as relay_bp's does: decode for
+    decode in its serial batches, single decodes and decodes from errors, and the same lines from
+    a parallel batch (relay_bp's in the order its threads finish them, these in row order)."""
+    rng = np.random.default_rng(12)
+    h = (rng.random((12, 30)) < 0.2).astype(np.uint8)
+    obs = (rng.random((2, 30)) < 0.3).astype(np.uint8)
+    p = rng.uniform(0.01, 0.06, 30)
+    errors = (rng.random((30, 30)) < 0.1).astype(np.uint8)
+    dets = (errors @ h.T % 2).astype(np.uint8)
+    logs = []
+    for k, module in enumerate((relay_bp, ours)):
+        d = tmp_path / str(k)
+        d.mkdir()
+        monkeypatch.chdir(d)
+        log = d / "relay_logging.out"
+        dec = module.RelayDecoderF64(h, p, num_sets=8, set_max_iter=5, pre_iter=6, stop_nconv=2, logging=True, seed=4)
+        dec.decode(dets[0])
+        r = module.ObservableDecoderRunner(dec, obs)
+        r.decode_batch(dets[1:6], progress_bar=False)
+        r.decode(dets[6])
+        r.from_errors_decode_observables_detailed(errors[7])
+        r.decode_observables_detailed_batch(dets[8:12], progress_bar=False)
+        r.from_errors_decode_observables_batch(errors[12:15], progress_bar=False)
+        serial = log.read_text()
+        r.decode_detailed_batch(dets[15:30], parallel=True, progress_bar=False)
+        parallel = log.read_text()[len(serial) :]
+        r.decode_observables_batch(dets[:4], progress_bar=False)
+        logs.append((serial, sorted(parallel.splitlines()), log.read_text()[len(serial) + len(parallel) :]))
+    assert logs[0][0] and logs[0][1] and logs[0][2]
+    assert logs[0] == logs[1]
+
+
+def test_sinter_relay_log(tmp_path: pathlib.Path, monkeypatch):
+    """sinter_decoders(logging=True) writes relay_bp's relay_logging.out while it decodes."""
+    stim = pytest.importorskip("stim")
+    pytest.importorskip("beliefmatching")
+    import relay_bp.stim as theirs_stim
+
+    from stabilizer_qec.relay_bp.stim import sinter_decoders
+
+    circuit = stim.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, after_clifford_depolarization=0.006, before_measure_flip_probability=0.006)
+    dem = circuit.detector_error_model()
+    dets = circuit.compile_detector_sampler(seed=1).sample(50, bit_packed=True)
+    texts = []
+    for k, decoders in enumerate((theirs_stim.sinter_decoders, sinter_decoders)):
+        d = tmp_path / str(k)
+        d.mkdir()
+        monkeypatch.chdir(d)
+        compiled = decoders(logging=True, pre_iter=5, num_sets=10)["relay-bp"].compile_decoder_for_dem(dem=dem)
+        compiled.decode_shots_bit_packed(bit_packed_detection_event_data=dets)
+        texts.append((d / "relay_logging.out").read_text())
+    assert texts[0].count("\n") > 50 and texts[0] == texts[1]
+
+
+def test_check_matrices_with_stored_zeros():
+    """A check matrix's stored entries are its Tanner graph's edges and their values its parities,
+    as in relay_bp: a sparse matrix reduced mod 2 in place (its zeros still stored), or a dense one
+    with even values, decodes as relay_bp's does."""
+    import scipy.sparse as sp
+
+    rep = sp.csr_matrix(np.array([[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1]], dtype=np.uint8))
+    a = sp.kron(rep, sp.eye(4, dtype=np.uint8), format="csr")
+    b = sp.kron(sp.eye(3, dtype=np.uint8), rep.T @ rep, format="csr")  # 2s on its diagonal
+    h = sp.hstack([a, b], format="csr")
+    dense = h.toarray()
+    h.data %= 2
+    assert h.nnz > np.count_nonzero(h.data)
+    n = h.shape[1]
+    rng = np.random.default_rng(0)
+    errors = (rng.random((60, n)) < 0.05).astype(np.uint8)
+    dets = (errors @ (dense % 2).T % 2).astype(np.uint8)
+    p = np.full(n, 0.05)
+    obs = np.ones((1, n), dtype=np.uint8)
+    for cls, kw in (("MinSumBPDecoderF64", dict(max_iter=30)), ("RelayDecoderF64", dict(pre_iter=10, num_sets=6, set_max_iter=10, seed=1))):
+        for matrix in (h, h.tocsc(), dense):
+            t, m = getattr(relay_bp, cls)(matrix, p, **kw), getattr(ours, cls)(matrix, p, **kw)
+            for x, y in zip(t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)):
+                assert same(x, y), (cls, type(matrix))
+            tr = relay_bp.ObservableDecoderRunner(getattr(relay_bp, cls)(matrix, p, **kw), obs)
+            mr = ours.ObservableDecoderRunner(getattr(ours, cls)(matrix, p, **kw), obs)
+            for x, y in zip(tr.from_errors_decode_observables_detailed_batch(errors, progress_bar=False), mr.from_errors_decode_observables_detailed_batch(errors, progress_bar=False)):
+                assert (x.error_detected, x.error_mismatch_detected, x.converged) == (y.error_detected, y.error_mismatch_detected, y.converged)
+                assert np.array_equal(x.observables, y.observables)
+
+
+def test_noise_on_stim_circuits():
+    """insert_uniform_academic_circuit_noise takes Stim's circuits (REPEAT blocks too) and gives
+    back Stim's, as relay_bp's does, and this package's circuits back as this package's."""
+    stim = pytest.importorskip("stim")
+    from relay_bp.stim import noise as theirs
+
+    import stabilizer_qec as sq
+    from stabilizer_qec.relay_bp.stim import noise as mine
+
+    for circuit in (
+        stim.Circuit.generated("surface_code:rotated_memory_x", rounds=5, distance=3),
+        stim.Circuit.generated("repetition_code:memory", rounds=4, distance=5),
+        stim.Circuit.generated("color_code:memory_xyz", rounds=3, distance=3),
+        stim.Circuit.generated("surface_code:unrotated_memory_z", rounds=3, distance=3).flattened(),
+    ):
+        for kw in ({}, {"apply_to_final_data_qubit_measurement": True}):
+            expected = theirs.insert_uniform_academic_circuit_noise(circuit, 0.001, **kw)
+            got = mine.insert_uniform_academic_circuit_noise(circuit, 0.001, **kw)
+            assert isinstance(got, stim.Circuit) and got == expected
+            got = mine.insert_uniform_academic_circuit_noise(sq.Circuit(str(circuit)), 0.001, **kw)
+            assert isinstance(got, sq.Circuit) and str(got) == str(expected)
