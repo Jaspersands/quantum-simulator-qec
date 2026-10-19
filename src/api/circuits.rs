@@ -1160,6 +1160,30 @@ impl CoherentSampler {
         self.inner.program.locations.len()
     }
 
+    /// The generators of the circuit's interference (sets of rotations no record tells apart):
+    /// the local ones and those completing them to a basis of the whole kernel.
+    pub fn num_generators(&self) -> usize {
+        self.inner.kernel.generators.len()
+    }
+
+    /// The generators no local search finds, such as a logical error at one time with the same
+    /// logical at another.
+    pub fn num_nonlocal_generators(&self) -> usize {
+        self.inner.kernel.num_nonlocal
+    }
+
+    /// Whether the generators span the whole kernel: false past the completion's limit (about
+    /// 50,000 rotations), where interference between distant faults is left out.
+    pub fn kernel_complete(&self) -> bool {
+        self.inner.kernel.complete
+    }
+
+    /// Whether every shot sums the whole kernel (complete, at most 12 generators besides the
+    /// groups of equivalent rotations): the weights are then exact, not truncated.
+    pub fn exact_weights(&self) -> bool {
+        self.inner.kernel.is_whole()
+    }
+
     /// `shots` more weighted shots, each from its own stream; `threads = 0` uses every core and
     /// never changes them.
     pub fn sample(&mut self, shots: usize, threads: usize) -> WeightedSamples {
@@ -1235,6 +1259,27 @@ impl JointSampler {
     /// The non-Clifford gates, run exactly.
     pub fn num_exact(&self) -> usize {
         self.inner.num_exact()
+    }
+
+    /// The generators of the interference between error sets, local and non-local.
+    pub fn num_generators(&self) -> usize {
+        self.inner.num_generators()
+    }
+
+    /// The generators no local search finds (a logical error at one time with one at another).
+    pub fn num_nonlocal_generators(&self) -> usize {
+        self.inner.num_nonlocal_generators()
+    }
+
+    /// Whether the generators span the whole projected kernel (false past the completion's
+    /// limit, where interference between distant errors is left out).
+    pub fn kernel_complete(&self) -> bool {
+        self.inner.kernel_complete()
+    }
+
+    /// Whether every shot sums the whole projected kernel: the weights are then exact.
+    pub fn exact_weights(&self) -> bool {
+        self.inner.is_whole()
     }
 
     /// `shots` more weighted shots, each from its own stream; `threads = 0` uses every core
