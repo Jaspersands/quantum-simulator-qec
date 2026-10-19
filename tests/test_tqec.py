@@ -719,3 +719,93 @@ def test_tqec_is_an_attribute_before_it_is_imported():
     env = {**os.environ, "PYTHONPATH": str(pathlib.Path(sq.__file__).parent.parent)}
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
     assert out.stdout.strip() == "24"
+
+
+def test_find_correlation_surfaces_takes_tqecs_arguments():
+    g = gallery.cnot()
+    zx = g.to_zx_graph()
+    assert spans(tqec.find_correlation_surfaces(zx, parallel=True)) == spans(tqec.find_correlation_surfaces(zx)) == spans(g.find_correlation_surfaces())
+    with pytest.raises(NotImplementedError, match="reserved"):
+        tqec.find_correlation_surfaces(zx, vertex_ordering=[{0}])
+
+
+# ---------------------------------------------------------------------------------------------
+# PyZX interop (PyZX optional) and block synthesis
+# ---------------------------------------------------------------------------------------------
+
+
+def test_block_synthesis_without_pyzx():
+    from stabilizer_qec.tqec.interop.pyzx import block_synthesis
+
+    for name, basis in (("cnot", "Z"), ("cnot", "X"), ("memory", "Z"), ("move_rotation", "X")):
+        g = ours(name, basis)
+        assert structure(g.to_zx_graph().to_block_graph()) == structure(block_synthesis(g.to_zx_graph())) == structure(g)
+    # Open graphs come back with the ports named by vertex, as tqec names them.
+    assert structure(gallery.cnot().to_zx_graph().to_block_graph())[2] == {"P_0": (0, 0, 0), "P_3": (0, 0, 3), "P_9": (1, 1, 3), "P_6": (1, 1, 0)}
+    with pytest.raises(ValueError, match="requires specifying positions"):
+        block_synthesis(object())
+
+
+def test_pyzx_graphs_in_and_out():
+    zx = pytest.importorskip("pyzx")
+    from fractions import Fraction
+
+    from stabilizer_qec.tqec.interop.pyzx import PositionedZX, block_synthesis, is_boundary, zx_to_pauli
+
+    g = gallery.cnot(Basis.Z)
+    z = g.to_zx_graph()
+    pg = z.g
+    assert list(pg.vertices()) == z.vertices() and sorted(pg.edges()) == sorted(z.edges())
+    assert [str(zx_to_pauli(pg, v)) for v in pg.vertices()] == [str(z.kind(v)) for v in z.vertices()]
+    assert spans(tqec.find_correlation_surfaces(pg)) == spans(g.find_correlation_surfaces())
+    for s in g.find_correlation_surfaces():
+        web = s.to_pauli_web(z)
+        assert web.half_edges() == s.half_edge_paulis() and spans([tqec.CorrelationSurface.from_pauli_web(web)]) == spans([s])
+    memory = gallery.memory(Basis.Z)
+    single = memory.find_correlation_surfaces()[0]
+    assert spans([tqec.CorrelationSurface.from_pauli_web(single.to_pauli_web(memory.to_zx_graph()))]) == spans([single])
+    # An L of PyZX's: in, Z, X, out, and an S spider on top; its inputs and outputs name the ports.
+    h = zx.Graph()
+    vs = [h.add_vertex(t) for t in (zx.VertexType.BOUNDARY, zx.VertexType.Z, zx.VertexType.X, zx.VertexType.BOUNDARY, zx.VertexType.Z)]
+    h.set_phase(vs[4], Fraction(1, 2))
+    for e in ((0, 1), (1, 2), (2, 3), (2, 4)):
+        h.add_edge(e)
+    h.set_inputs((0,))
+    h.set_outputs((3,))
+    positions = {0: Position3D(-1, 0, 0), 1: Position3D(0, 0, 0), 2: Position3D(0, 1, 0), 3: Position3D(0, 2, 0), 4: Position3D(0, 1, 1)}
+    assert structure(block_synthesis(h, positions=positions)) == structure(PositionedZX(h, positions).to_block_graph()) == (
+        [((-1, 0, 0), "PORT", "IN_0"), ((0, 0, 0), "XXZ", ""), ((0, 1, 0), "XZZ", ""), ((0, 1, 1), "Y", ""), ((0, 2, 0), "PORT", "OUT_0")],
+        [((-1, 0, 0), (0, 0, 0), "OXZ"), ((0, 0, 0), (0, 1, 0), "XOZ"), ((0, 1, 0), (0, 1, 1), "XZO"), ((0, 1, 0), (0, 2, 0), "XOZ")],
+        {"IN_0": (-1, 0, 0), "OUT_0": (0, 2, 0)},
+    )
+    assert is_boundary(h, 0) and PositionedZX(h, positions).g is h
+    with pytest.raises(ValueError, match="requires specifying positions"):
+        block_synthesis(h)
+    with pytest.raises(TQECError, match="do not match"):
+        PositionedZX(h, {v: p for v, p in positions.items() if v != 4})
+    with pytest.raises(TQECError, match="must be neighbors"):
+        PositionedZX(h, {**positions, 4: Position3D(0, 1, 3)})
+    bad = zx.Graph()
+    bad.add_vertex(zx.VertexType.H_BOX)
+    with pytest.raises(TQECError, match="Unsupported spider type and phase"):
+        tqec.find_correlation_surfaces(bad)
+
+
+@needs_tqec
+@pytest.mark.parametrize("name,basis", GALLERY + [("cz", f) for f in CZ_FLOWS])
+def test_pyzx_interop_agrees_with_tqec(name, basis):
+    from tqec.computation.correlation import find_correlation_surfaces as their_find
+
+    from stabilizer_qec.tqec.interop.pyzx import block_synthesis
+
+    def shape(g):
+        return [(v, str(g.type(v)), g.phase(v), [(u, str(g.edge_type((v, u)))) for u in g.neighbors(v)]) for v in g.vertices()]
+
+    o, t = ours(name, basis), tqecs(name, basis)
+    oz, tz = o.to_zx_graph(), t.to_zx_graph()
+    assert shape(oz.g) == shape(tz.g)
+    assert spans(tqec.find_correlation_surfaces(tz.g)) == spans(their_find(tz.g)) == spans(their_find(oz.g))
+    for a, b in zip(o.find_correlation_surfaces(), t.find_correlation_surfaces()):
+        assert a.to_pauli_web(oz).half_edges() == b.to_pauli_web(tz.g).half_edges()
+    assert structure(oz.to_block_graph()) == structure(tz.to_block_graph())
+    assert structure(block_synthesis(tz.g, positions={v: Position3D(*p.as_tuple()) for v, p in tz.positions.items()})) == structure(tz.to_block_graph())

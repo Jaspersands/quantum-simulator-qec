@@ -1,8 +1,8 @@
 # Ported from tqec (tqec/tqec 0.2.0, src/tqec/computation/correlation.py, src/tqec/computation/_correlation.py,
 # src/tqec/interop/pyzx/positioned.py and src/tqec/interop/pyzx/utils.py; Apache License 2.0; see LICENSE in this
-# directory), modified for stabilizer_qec: a small ZX graph class of this package's own in place of PyZX, no
-# multiprocessing, the reserved `vertex_ordering` argument left out, the Pauli-web conversions left out, and
-# the generator reduction done with a GF(2) elimination in place of stim's tableaux.
+# directory), modified for stabilizer_qec: a small ZX graph class of this package's own in place of PyZX (PyZX
+# graphs and Pauli webs converted to and from it when PyZX is installed), no multiprocessing, and the
+# generator reduction done with a GF(2) elimination in place of stim's tableaux.
 """Correlation surfaces (Pauli webs, logical observables) of a block graph, found on its ZX graph."""
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from copy import copy
 from dataclasses import dataclass
 from functools import cached_property, lru_cache, partial, reduce
 from itertools import accumulate, chain, combinations, product, repeat, starmap
-from typing import TYPE_CHECKING, Callable, Generator, Iterable, Iterator, NamedTuple, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Generator, Iterable, Iterator, Mapping, NamedTuple, Optional, Sequence
 
 
 def pairwise(iterable):
@@ -44,6 +44,32 @@ def cube_kind_to_pauli(kind: CubeKind) -> Pauli:
     return Pauli.Y
 
 
+def _pyzx_pauli(vertex_type, phase) -> Pauli:
+    """tqec's ``vertex_type_to_pauli`` for a PyZX spider (refusing others as tqec does)."""
+    from fractions import Fraction
+
+    from pyzx.utils import VertexType
+
+    if vertex_type == VertexType.BOUNDARY:
+        return Pauli.I
+    if vertex_type == VertexType.X and phase == 0:
+        return Pauli.X
+    if vertex_type == VertexType.Z and phase == 0:
+        return Pauli.Z
+    if vertex_type == VertexType.Z and phase == Fraction(1, 2):
+        return Pauli.Y
+    raise TQECError(f"Unsupported spider type and phase: {vertex_type} and {phase}.")
+
+
+def _pyzx_spider(kind: Pauli) -> tuple:
+    """tqec's ``cube_kind_to_zx``, from the spider's Pauli: PyZX's vertex type and phase."""
+    from fractions import Fraction
+
+    from pyzx.utils import VertexType
+
+    return {Pauli.X: (VertexType.X, 0), Pauli.Z: (VertexType.Z, 0), Pauli.Y: (VertexType.Z, Fraction(1, 2)), Pauli.I: (VertexType.BOUNDARY, 0)}[kind]
+
+
 class ZXGraph:
     """A ZX graph of phase-free Z and X spiders, S spiders (Z with phase π/2) and boundaries, its
     edges plain or Hadamard, each vertex optionally at a 3D position. Vertices are integers in
@@ -56,6 +82,10 @@ class ZXGraph:
         self._kind: dict[int, Pauli] = {}
         self._adj: dict[int, dict[int, bool]] = {}
         self._positions: dict[int, Position3D] = {}
+        # The edges in the order they were added (PyZX's adjacency order follows it), and the
+        # PyZX graph this one was read from, if any (``g``).
+        self._edge_order: list[tuple[int, int]] = []
+        self._pyzx = None
 
     def add_vertex(self, kind: Pauli, position: Optional[Position3D] = None) -> int:
         v = len(self._kind)
@@ -68,6 +98,8 @@ class ZXGraph:
     def add_edge(self, u: int, v: int, hadamard: bool = False) -> None:
         if u == v:
             raise TQECError("A ZX graph has no self loops.")
+        if v not in self._adj[u]:
+            self._edge_order.append((u, v))
         self._adj[u][v] = hadamard
         self._adj[v][u] = hadamard
 
@@ -124,6 +156,66 @@ class ZXGraph:
 
     def leaves(self) -> list[int]:
         return [v for v in self._kind if len(self._adj[v]) == 1]
+
+    @staticmethod
+    def from_pyzx(g, positions: Optional[Mapping[int, Position3D]] = None) -> ZXGraph:
+        """This package's ZX graph for a PyZX graph (tqec's kind: phase-free Z and X spiders, S
+        spiders and boundaries), its vertex numbers and adjacency order kept, so the correlation
+        surfaces found on it are tqec's; with 3D positions if given (tqec's ``PositionedZX``)."""
+        from pyzx.utils import EdgeType
+
+        out = ZXGraph()
+        for v in g.vertices():
+            out._kind[v] = _pyzx_pauli(g.type(v), g.phase(v))
+            out._adj[v] = {}
+        for v in g.vertices():
+            for u in g.neighbors(v):
+                if u == v:
+                    raise TQECError("A ZX graph has no self loops.")
+                out._adj[v][u] = g.edge_type((v, u)) == EdgeType.HADAMARD
+        out._edge_order = out.edges()
+        if positions is not None:
+            out._positions = dict(positions)
+            out.check_positioned()
+        out._pyzx = g
+        return out
+
+    @property
+    def g(self):
+        """The graph as a PyZX graph (``pyzx.graph.graph_s.GraphS``; PyZX needed), as tqec's
+        ``PositionedZX.g``: the same vertex numbers, spiders and edges, added in the same order
+        (the PyZX graph it was read from, when it was)."""
+        if self._pyzx is not None:
+            return self._pyzx
+        from pyzx.graph.graph_s import GraphS
+        from pyzx.utils import EdgeType
+
+        g = GraphS()
+        for v, kind in self._kind.items():
+            vertex_type, phase = _pyzx_spider(kind)
+            if v == g.vindex():
+                g.add_vertex(vertex_type, phase=phase)
+            else:
+                g.add_vertex_indexed(v)
+                g.set_type(v, vertex_type)
+                g.set_phase(v, phase)
+        for u, v in self._edge_order:
+            g.add_edge((u, v), EdgeType.HADAMARD if self._adj[u][v] else EdgeType.SIMPLE)
+        return g
+
+    def to_block_graph(self) -> "BlockGraph":
+        """The block graph of the positioned graph, as tqec's ``PositionedZX.to_block_graph``
+        synthesises it (``positioned_block_synthesis``)."""
+        from .interop.pyzx.synthesis.positioned import positioned_block_synthesis
+
+        return positioned_block_synthesis(self)
+
+    def draw(self, *, figsize: tuple[float, float] = (5, 6), title: Optional[str] = None, node_size: int = 400, hadamard_size: int = 200, edge_width: int = 1):
+        """A matplotlib figure of the positioned graph, ``(figure, axes)``, as tqec's
+        ``PositionedZX.draw`` (matplotlib needed)."""
+        from .interop.pyzx.plot import plot_positioned_zx_graph
+
+        return plot_positioned_zx_graph(self, figsize=figsize, title=title, node_size=node_size, hadamard_size=hadamard_size, edge_width=edge_width)
 
     @staticmethod
     def from_block_graph(block_graph: "BlockGraph") -> ZXGraph:
@@ -225,6 +317,42 @@ class CorrelationSurface:
         """The bases of the surface at a vertex."""
         return self._graph_view[1].get(v, set())
 
+    def half_edge_paulis(self) -> dict[tuple[int, int], str]:
+        """The Pauli (``"X"``, ``"Y"`` or ``"Z"``) on each half edge ``(u, v)`` the surface
+        covers, the half at ``u``: the half edges of tqec's Pauli web for it."""
+        half_edge_bases: dict[tuple[int, int], set[str]] = {}
+        for edge in self.span:
+            u, v = edge.u, edge.v
+            half_edge_bases.setdefault((u.id, v.id), set()).add(u.basis.value)
+            half_edge_bases.setdefault((v.id, u.id), set()).add(v.basis.value)
+        return {e: "Y" if len(bases) == 2 else next(iter(bases)) for e, bases in half_edge_bases.items()}
+
+    def to_pauli_web(self, g):
+        """The surface as a PyZX ``PauliWeb`` on ``g`` (a PyZX graph, or this package's ZX graph,
+        given as its ``g``; PyZX needed), as tqec converts it."""
+        from pyzx.pauliweb import PauliWeb
+
+        pauli_web = PauliWeb(g.g if isinstance(g, ZXGraph) else g)
+        for e, pauli in self.half_edge_paulis().items():
+            pauli_web.add_half_edge(e, pauli)
+        return pauli_web
+
+    @staticmethod
+    def from_pauli_web(pauli_web) -> CorrelationSurface:
+        """The surface of a PyZX ``PauliWeb``, as tqec reads it (and the one-node surface of a
+        one-node graph, its self loop, which tqec's reading fails on)."""
+        span: set[ZXEdge] = set()
+        half_edges: dict[tuple[int, int], str] = dict(pauli_web.half_edges())
+        while half_edges:
+            (u, v), pauli_u = half_edges.popitem()
+            pauli_v = half_edges.pop((v, u)) if u != v else pauli_u
+            if pauli_u == "Y":
+                span.add(ZXEdge.sorted(ZXNode(u, Basis.X), ZXNode(v, Basis.X)))
+                span.add(ZXEdge.sorted(ZXNode(u, Basis.Z), ZXNode(v, Basis.Z)))
+                continue
+            span.add(ZXEdge.sorted(ZXNode(u, Basis(pauli_u)), ZXNode(v, Basis(pauli_v))))
+        return CorrelationSurface(frozenset(span))
+
     @property
     def is_single_node(self) -> bool:
         return len(self.span) == 1 and next(iter(self.span)).is_self_loop
@@ -269,7 +397,7 @@ class CorrelationSurface:
         return surface
 
 
-def find_correlation_surfaces(g: ZXGraph) -> list[CorrelationSurface]:
+def find_correlation_surfaces(g: ZXGraph, vertex_ordering: Optional[Sequence[set[int]]] = None, parallel: bool = False) -> list[CorrelationSurface]:
     """The correlation surfaces of a ZX graph, as tqec finds them: for each connected component,
     from its smallest leaf, explore node by node keeping a generating set of surfaces of the
     explored subgraph (at a node of basis B, the *broadcast* rule: all or none of its edges carry
@@ -278,7 +406,14 @@ def find_correlation_surfaces(g: ZXGraph) -> list[CorrelationSurface]:
     ports (an X or Z leaf supports only the opposite operator, a Y leaf only Y, a boundary any)
     and to keep few Y-terminating surfaces; the components' generators combined.
 
-    The result is sorted by span."""
+    The result is sorted by span. ``g`` is this package's ZX graph or a PyZX graph (tqec's
+    argument). ``vertex_ordering`` is reserved, as in tqec; ``parallel`` is tqec's
+    multiprocessing of the independent parts, which gives the same surfaces (here they run in
+    one process)."""
+    if vertex_ordering is not None:
+        raise NotImplementedError("The `vertex_ordering` argument is reserved for an unfinished feature and should not be used at this moment.")
+    if not isinstance(g, ZXGraph):
+        g = ZXGraph.from_pyzx(g)
     _check_spiders_are_supported(g)
     if g.num_vertices() == 1:
         v = g.vertices()[0]
