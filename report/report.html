@@ -14,10 +14,10 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 2.0.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 2.1.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 18 October 2026 · commit <code>a0b524e</code></p>
+  <p class="byline">Jasper Sands · 20 October 2026 · commit <code>74a1405</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -2029,7 +2029,7 @@
 </ul>
 <h2 data-number="4.10" id="beyond-pauli-noise"><span class="header-section-number">4.10</span> Beyond Pauli noise</h2>
 <p>Every result above, like Stim and every decoder, models noise as random Pauli errors. Hardware also over-rotates: a qubit meant to idle turns by a small angle θ, the same way every time. Its Pauli twirl (Z with probability <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mo>sin</mo><mn>2</mn></msup><mi>θ</mi></mrow><annotation encoding="application/x-tex">\sin^2\theta</annotation></semantics></math>) is exact for one rotation alone, but rotations that repeat add as amplitudes. Earlier work treats code capacity by free fermions (Bravyi et al., 2018), returns outcome probabilities of Clifford circuits with small errors (Miller et al., 2025), or estimates one idling memory’s logical channel (LeBlond et al., 2025). Tsim (Haenel, Luo and Zhao, 2026) samples circuits with a few non-Clifford gates at any size, at a cost exponential in their number. None of them samples and decodes circuits with coherent noise on every gate.</p>
-<p>The <strong>coherent sampler</strong> does. It draws shots of the twirled circuit and weights each by its class’s coherent over twirled probability, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mn>1</mn><mo>+</mo><mo>∑</mo><mi>r</mi><msup><mo stretchy="false" form="prefix">|</mo><mn>2</mn></msup><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>+</mo><mo>∑</mo><mo stretchy="false" form="prefix">|</mo><mi>r</mi><msup><mo stretchy="false" form="prefix">|</mo><mn>2</mn></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">|1 + \sum r|^2 / (1 + \sum |r|^2)</annotation></semantics></math>. A class is every fault set that no measurement can tell apart from the shot’s. These sets are the cosets of a linear space, the circuit’s spacetime kernel, in which the randomness of measurements with random outcomes counts as gauge. Each <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>r</mi><annotation encoding="application/x-tex">r</annotation></semantics></math>, a member’s amplitude relative to the shot’s, has a closed form from carrying Pauli operators through the circuit. - Rotations that are the same fault in several places are drawn as one. - The rest of the kernel is found locally. - On every branch of 150 random small circuits the weighted twirl equals the state vector’s distribution to <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mn>10</mn><mrow><mo>−</mo><mn>10</mn></mrow></msup><annotation encoding="application/x-tex">10^{-10}</annotation></semantics></math>. - Against the state vector’s exact answers:</p>
+<p>The <strong>coherent sampler</strong> does. It draws shots of the twirled circuit and weights each by its class’s coherent over twirled probability, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">|</mo><mn>1</mn><mo>+</mo><mo>∑</mo><mi>r</mi><msup><mo stretchy="false" form="prefix">|</mo><mn>2</mn></msup><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mn>1</mn><mo>+</mo><mo>∑</mo><mo stretchy="false" form="prefix">|</mo><mi>r</mi><msup><mo stretchy="false" form="prefix">|</mo><mn>2</mn></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">|1 + \sum r|^2 / (1 + \sum |r|^2)</annotation></semantics></math>. A class is every fault set that no measurement can tell apart from the shot’s. These sets are the cosets of a linear space, the circuit’s spacetime kernel, in which the randomness of measurements with random outcomes counts as gauge. Each <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>r</mi><annotation encoding="application/x-tex">r</annotation></semantics></math>, a member’s amplitude relative to the shot’s, has a closed form from carrying Pauli operators through the circuit. - Rotations that are the same fault in several places are drawn as one. - The rest of the kernel is found locally and completed to a basis of the whole kernel, which holds a logical at one time with the same logical at another. - On every branch of 150 random small circuits the weighted twirl equals the state vector’s distribution to <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mn>10</mn><mrow><mo>−</mo><mn>10</mn></mrow></msup><annotation encoding="application/x-tex">10^{-10}</annotation></semantics></math>. - Against the state vector’s exact answers:</p>
 <table style="width:100%;">
 <colgroup>
 <col style="width: 16%" />
@@ -2054,32 +2054,32 @@
 <td style="text-align: left;">repetition, d = 3, 2 rounds</td>
 <td style="text-align: right;">0.1</td>
 <td style="text-align: right;">0.02320</td>
-<td style="text-align: right;">0.02321 ± 0.00019</td>
-<td style="text-align: right;">+0.0σ</td>
+<td style="text-align: right;">0.02324 ± 0.00019</td>
+<td style="text-align: right;">+0.2σ</td>
 <td style="text-align: right;">0.00418</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">repetition, d = 3, 3 rounds</td>
 <td style="text-align: right;">0.1</td>
 <td style="text-align: right;">0.05093</td>
-<td style="text-align: right;">0.05049 ± 0.00031</td>
-<td style="text-align: right;">-1.4σ</td>
+<td style="text-align: right;">0.05112 ± 0.00031</td>
+<td style="text-align: right;">+0.6σ</td>
 <td style="text-align: right;">0.00739</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">repetition, d = 5, 2 rounds</td>
 <td style="text-align: right;">0.1</td>
 <td style="text-align: right;">0.00322</td>
-<td style="text-align: right;">0.00314 ± 0.00008</td>
-<td style="text-align: right;">-1.0σ</td>
+<td style="text-align: right;">0.00316 ± 0.00008</td>
+<td style="text-align: right;">-0.7σ</td>
 <td style="text-align: right;">0.00032</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">repetition, d = 3, 3 rounds</td>
 <td style="text-align: right;">0.05</td>
 <td style="text-align: right;">0.00354</td>
-<td style="text-align: right;">0.00355 ± 0.00008</td>
-<td style="text-align: right;">+0.1σ</td>
+<td style="text-align: right;">0.00356 ± 0.00008</td>
+<td style="text-align: right;">+0.3σ</td>
 <td style="text-align: right;">0.00050</td>
 </tr>
 <tr class="odd">
@@ -2094,24 +2094,24 @@
 <td style="text-align: left;">repetition, d = 3, 4 rounds</td>
 <td style="text-align: right;">0.05</td>
 <td style="text-align: right;">0.00559</td>
-<td style="text-align: right;">0.00548 ± 0.00010</td>
-<td style="text-align: right;">-1.1σ</td>
+<td style="text-align: right;">0.00555 ± 0.00010</td>
+<td style="text-align: right;">-0.4σ</td>
 <td style="text-align: right;">0.00071</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">surface, d = 3, 2 rounds</td>
 <td style="text-align: right;">0.02</td>
 <td style="text-align: right;">0.01742 ± 0.00053</td>
-<td style="text-align: right;">0.01789 ± 0.00014</td>
-<td style="text-align: right;">+0.8σ</td>
+<td style="text-align: right;">0.01777 ± 0.00014</td>
+<td style="text-align: right;">+0.6σ</td>
 <td style="text-align: right;">0.00343</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">surface, d = 3, 2 rounds</td>
 <td style="text-align: right;">0.04</td>
 <td style="text-align: right;">0.11247 ± 0.00129</td>
-<td style="text-align: right;">0.11418 ± 0.00034</td>
-<td style="text-align: right;">+1.3σ</td>
+<td style="text-align: right;">0.11441 ± 0.00034</td>
+<td style="text-align: right;">+1.5σ</td>
 <td style="text-align: right;">0.01207</td>
 </tr>
 </tbody>
