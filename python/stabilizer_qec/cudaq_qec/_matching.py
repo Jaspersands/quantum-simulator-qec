@@ -236,7 +236,7 @@ def _fusion_from_matrix(inputs: _Inputs, output: str, params: dict) -> _NvFusion
             raise RuntimeError("nv-fusion-decoder: error_rate_vec value is out of range (0, 0.5]")
     obs_of: List[List[int]] = [[] for _ in range(inputs.num_cols)]
     num_obs = None
-    if inputs.has_observable_model() and inputs.num_observables > 0:
+    if inputs.has_observable_model() and inputs.num_observables > 0 and output != "errors":
         num_obs = inputs.num_observables
         for o, row in enumerate(inputs.O or []):
             for e in row:
@@ -251,6 +251,9 @@ def _fusion_from_matrix(inputs: _Inputs, output: str, params: dict) -> _NvFusion
             raise RuntimeError(f"nv-fusion-decoder: column {j} of H has {len(col)} non-zero rows; every error mechanism must touch one or two detectors (graphlike)")
         mechanisms.append((sorted(col), obs_of[j], _weight(rates[j]) if rates else 1.0))
     return _NvFusion(inputs.num_rows, mechanisms, num_obs, inputs.num_cols, list(range(inputs.num_cols)), params, False)
+
+
+_fusion_from_matrix._raw_output = True  # (with O and no asked-for output, observables, as CUDA-Q's)
 
 
 def _fusion_dem(dem_text: str, params: dict, rows: Optional[int] = None, cols: Optional[int] = None, output: Optional[str] = None) -> _NvFusion:

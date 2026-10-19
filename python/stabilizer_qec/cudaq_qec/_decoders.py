@@ -646,7 +646,8 @@ def _native(name: str, inputs: _Inputs, options: dict) -> _NativeDecoder:
     if factory is None:
         raise _invalid(name)
     _no_cuda(params)
-    return factory(inputs, output or "errors", params)
+    # (A factory with ``_raw_output`` tells an unset output, None, from an asked-for one.)
+    return factory(inputs, output if getattr(factory, "_raw_output", False) else (output or "errors"), params)
 
 
 def _native_dem(name: str, dem_text: str, options: dict) -> _NativeDecoder:
@@ -696,7 +697,9 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
 
 
 def _register_plugins() -> None:
-    from . import _matching
+    from . import _matching, _qldpc
+
+    _NATIVE["nv-qldpc-decoder"] = _qldpc._NvQldpc
 
     _NATIVE["chromobius"] = _matching._chromobius_from_matrix
     _NATIVE_DEM["chromobius"] = _matching._Chromobius
