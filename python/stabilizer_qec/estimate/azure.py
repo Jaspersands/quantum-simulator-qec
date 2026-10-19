@@ -3,9 +3,12 @@
 # modified for stabilizer_qec: Python dataclasses in place of the Rust structs and traits, fasteval 0.2.4's
 # parser, constant folding and evaluator written out in place of the compiled expressions, the binomial quantile
 # of the `probability` crate (0.20) written out, the profiling output left out; with the QDK's Python
-# `LogicalCounts.estimate` and `EstimatorResult` (qdk/estimator/_estimator.py) as data, their HTML left out.
+# `LogicalCounts.estimate` and `EstimatorResult` (qdk/estimator/_estimator.py) as data, their HTML left out;
+# its errors (`EstimatorError` with the QDK's codes and messages, `QSharpError` for input it cannot read, with
+# serde_json's reason and its position in the JSON text, serde's derived readers written out).
 # The numbers are the QDK's bit for bit on its own test cases (tests/estimate_port/qdk_estimates.json), and the
-# whole result, the report's text included, on each of them (tests/estimate_port/qdk_reports.json.gz).
+# whole result, the report's text included, on each of them (tests/estimate_port/qdk_reports.json.gz); its errors
+# and echoes on 286 inputs it reads or refuses (tests/estimate_port/qdk_errors.json).
 """Azure's Resource Estimator: from logical counts (qubits, T, rotations, CCZ, measurements) to physical
 qubits and runtime on a chosen qubit model and QEC scheme, with the T factories found by the QDK's exhaustive
 search over distillation rounds and code distances, and the QDK's report: the counts formatted as it formats
@@ -36,6 +39,7 @@ import functools
 import json
 import math
 import re
+import unicodedata
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -46,6 +50,107 @@ NUM_MEASUREMENTS_PER_R = 1
 NUM_MEASUREMENTS_PER_TOF = 3
 NUM_TS_PER_ROTATION_A_COEFFICIENT = 0.53
 NUM_TS_PER_ROTATION_B_COEFFICIENT = 4.86
+
+# ---------------------------------------------------------------------------------------------
+# The QDK's errors (system/error.rs, estimates/error.rs; qdk/estimator/_estimator.py's EstimatorError)
+# ---------------------------------------------------------------------------------------------
+
+_ERROR_GROUPS = {"CannotParseJSON": "IOError", "CannotEvaluateExpression": "EvaluationError", "InvalidValue": "InvalidValueError", "InvalidFaultToleranceProtocol": "InvalidInputError", "NonPositiveLogicalCycleTime": "InvalidInputError", "NonPositivePhysicalQubitsPerLogicalQubit": "InvalidInputError", "InvalidErrorBudget": "InvalidInputError", "ConstraintsProvidedForFrontierEstimation": "InvalidInputError", "CannotComputeInverseBinomial": "TFactoryError"}
+
+
+class EstimatorError(ValueError):
+    """The QDK's `EstimatorError`: an estimate the QDK refuses, with its `code` (``Qdk.Qsc.Estimates.`` and the
+    error's name, as ``Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget``) and its `message`, ``Error
+    estimating resources (<code>):`` with the QDK's reason on the next line, which is also the error's string.
+    `reason` is the reason alone, what a batch's failed item holds as its ``message``. A ValueError here (the
+    QDK's derives from BaseException)."""
+
+    def __init__(self, code: str, reason: str):
+        self.code, self.reason = code, reason
+        self.message = f"Error estimating resources ({code}):\n{reason}"
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        return self.message
+
+    def __reduce__(self):
+        return (type(self), (self.code, self.reason))
+
+    @classmethod
+    def of(cls, name: str, reason: str) -> "EstimatorError":
+        """The QDK's error `name` (``InvalidErrorBudget``, ``MaxDurationTooSmall``, …) with its code."""
+        group = _ERROR_GROUPS.get(name)
+        return cls(f"Qdk.Qsc.Estimates.{group + '.' if group else ''}{name}", reason)
+
+
+class QSharpError(ValueError):
+    """The QDK's `QSharpError` as its `LogicalCounts.estimate` raises it when the logical counts or the job
+    parameters do not read: ``cannot parse JSON: '<serde's reason> at line 1 column <n>'``, the column counted
+    in the JSON text the QDK's Python sends (``json.dumps`` of the counts, of the list of items)."""
+
+
+def _parse_error(reason: str) -> EstimatorError:
+    """The QDK's `IO::CannotParseJSON` of a serde error made without a position (a check after reading)."""
+    return EstimatorError.of("CannotParseJSON", f"cannot parse JSON: '{reason}'")
+
+
+def _rust_debug_str(s: str) -> str:
+    """A string as Rust's `{:?}` writes it: in double quotes, ``"`` and ``\\`` escaped, ``\\t \\r \\n \\0``, and a
+    character Rust does not print (a control or format character, a separator but the space, a combining mark)
+    as ``\\u{hex}``."""
+    out = ['"']
+    for ch in s:
+        if ch in _RUST_ESCAPES:
+            out.append(_RUST_ESCAPES[ch])
+        elif ch == " " or (ch.isprintable() and unicodedata.category(ch) not in ("Mn", "Me")):
+            out.append(ch)
+        else:
+            out.append("\\u{%x}" % ord(ch))
+    out.append('"')
+    return "".join(out)
+
+
+_RUST_ESCAPES = {'"': '\\"', "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t", "\0": "\\0"}
+
+
+def _serde_float(x: float) -> str:
+    """A float as serde_json writes it in an error (``invalid type: floating point `…```): the shortest digits that
+    read back, without an exponent from 1e-5 up to below 1e16 (``.0`` when whole), else ``d.ddde±N``."""
+    if x == 0.0:
+        return "-0.0" if math.copysign(1.0, x) < 0 else "0.0"
+    sign = "-" if x < 0 else ""
+    d = decimal.Decimal(repr(abs(x))).normalize()
+    digits = "".join(map(str, d.as_tuple().digits))
+    k = d.as_tuple().exponent  # the value is digits × 10^k
+    kk = len(digits) + k
+    if 0 <= k and kk <= 16:
+        body = digits + "0" * k + ".0"
+    elif 0 < kk <= 16:
+        body = digits[:kk] + "." + digits[kk:]
+    elif -5 < kk <= 0:
+        body = "0." + "0" * -kk + digits
+    else:
+        exponent = f"e{'+' if kk - 1 > 0 else ''}{kk - 1}"
+        body = (digits if len(digits) == 1 else digits[0] + "." + digits[1:]) + exponent
+    return sign + body
+
+
+_COMPUTATION_FAILED = {"PhysicalQubitComputationFailed": "The number of physical qubits required for a code cannot be computed", "LogicalCycleTimeComputationFailed": "The logical cycle time cannot be computed", "LogicalErrorRateComputationFailed": "The logical error rate cannot be computed", "CodeParameterComputationFailed": "The code parameter cannot be computed"}
+
+
+def _computation_failed(name: str, detail: str) -> EstimatorError:
+    """The QDK's ``<name>`` error of a code's computation, its `detail` kept for the callers that rewrap it."""
+    error = EstimatorError.of(name, f"{_COMPUTATION_FAILED[name]}: {detail}")
+    error.detail = detail
+    return error
+
+
+def _exp(x: float, precision: int) -> str:
+    """Rust's `{:.Ne}`: the exponent bare (``1.234e-5``, ``2.000e5``)."""
+    if x != x or math.isinf(x):
+        return "NaN" if x != x else ("inf" if x > 0 else "-inf")
+    mantissa, exponent = f"{x:.{precision}e}".split("e")
+    return f"{mantissa}e{int(exponent)}"
 
 # ---------------------------------------------------------------------------------------------
 # Arithmetic the way the QDK does it
@@ -102,7 +207,16 @@ _EPS8 = 8.0 * 2.220446049250313e-16
 _PRECEDENCE = {"||": 1, "&&": 2, "!=": 3, "==": 4, ">=": 5, "<=": 6, ">": 7, "<": 8, "+": 9, "-": 10, "*": 11, "/": 12, "%": 13, "^": 14}
 _COMPARISONS = ("==", "!=", "<", ">", "<=", ">=")
 _SUFFIXES = {"k": 3, "K": 3, "M": 6, "G": 9, "T": 12, "m": -3, "u": -6, "µ": -6, "n": -9, "p": -12}
+_WRONG_ARGS = {"log": "expected log(x) or log(base,x)", "round": "round: expected round(x) or round(modulus,x)", "min": "min: expected one or more args", "max": "max: expected one or more args", "e": "e: expected no args", "pi": "pi: expected no args"}
 _ARITY = {"int": (1, 1), "ceil": (1, 1), "floor": (1, 1), "abs": (1, 1), "sign": (1, 1), "log": (1, 2), "round": (1, 2), "min": (1, 10**9), "max": (1, 10**9), "e": (0, 0), "pi": (0, 0), "sin": (1, 1), "cos": (1, 1), "tan": (1, 1), "asin": (1, 1), "acos": (1, 1), "atan": (1, 1), "sinh": (1, 1), "cosh": (1, 1), "tanh": (1, 1), "asinh": (1, 1), "acosh": (1, 1), "atanh": (1, 1)}
+
+
+def _fasteval_error(debug: str) -> "EstimatorError":
+    """The QDK's `Error::Evaluation` of a fasteval error, written as fasteval writes it (its `Debug`, as
+    ``EofWhileParsing("value")``); the fasteval text is kept in `fasteval` for the callers that wrap it."""
+    error = EstimatorError.of("CannotEvaluateExpression", f"cannot evaluate expression: '{debug}'")
+    error.fasteval = debug
+    return error
 
 
 def _eq(a: float, b: float) -> bool:
@@ -210,7 +324,7 @@ class _Formula:
         self.text, self.pos, self.exprs, self.vals = text, 0, 0, 0
 
     def fail(self, what: str):
-        raise ValueError(f"cannot evaluate expression {self.text!r}: {what}")
+        raise _fasteval_error(what)
 
     def peek(self, k: int = 0):
         i = self.pos + k
@@ -232,7 +346,7 @@ class _Formula:
             pairs.append((op, self.value(depth)))
         self.spaces()
         if expect_eof and self.pos < len(self.text):
-            self.fail(f"UnparsedTokensRemaining({self.text[self.pos:]!r})")
+            self.fail(f"UnparsedTokensRemaining({_rust_debug_str(self.text[self.pos:])})")
         self.exprs += 1
         if self.exprs > _SLAB_CAPACITY:
             self.fail("SlabOverflow")
@@ -248,7 +362,7 @@ class _Formula:
             v = read(depth)
             if v is not None:
                 return v
-        self.fail("EofWhileParsing(value)" if self.pos >= len(self.text) else "InvalidValue")
+        self.fail('EofWhileParsing("value")' if self.pos >= len(self.text) else "InvalidValue")
 
     def constant(self):
         self.spaces()
@@ -276,7 +390,7 @@ class _Formula:
         try:
             value = float(token)
         except ValueError:
-            self.fail(f"ParseF64({token!r})")
+            self.fail(f"ParseF64({_rust_debug_str(token)})")
         self.pos += n
         return value
 
@@ -296,9 +410,9 @@ class _Formula:
             self.spaces()
             close = ")" if b == "(" else "]"
             if self.peek() is None:
-                self.fail("EofWhileParsing(parentheses)")
+                self.fail('EofWhileParsing("parentheses")' if b == "(" else 'EofWhileParsing("square brackets")')
             if self.peek() != close:
-                self.fail(f"Expected({close!r})")
+                self.fail(f'Expected("{close}")')
             self.pos += 1
             return ("paren", e)
         return None
@@ -339,23 +453,23 @@ class _Formula:
             return ("var", name)
         self.pos += 1
         if name == "print":
-            self.fail("print() is not supported")
+            raise ValueError("print() in a formula is not supported here (the QDK's fasteval prints its arguments)")
         close, args = ")" if opener == "(" else "]", []
         while True:
             self.spaces()
             b = self.peek()
             if b is None:
-                self.fail(f"EofWhileParsing({name})")
+                self.fail(f"EofWhileParsing({_rust_debug_str(name)})")
             if b == close:
                 self.pos += 1
                 break
             if args:
                 self.pos += 1
                 if b not in (",", ";"):
-                    self.fail("Expected(',' or ';')")
+                    self.fail('Expected("\',\' or \';\'")')
             args.append(self.expression(depth + 1, False))
         if name in _ARITY and not _ARITY[name][0] <= len(args) <= _ARITY[name][1]:
-            self.fail(f"WrongArgs({name})")
+            self.fail(f"WrongArgs({_rust_debug_str(_WRONG_ARGS.get(name, name + ': expected one arg'))})")
         return ("func", name, args)
 
 
@@ -526,7 +640,7 @@ def _eval(node, ctx: Dict[str, float]) -> float:
     if tag in ("var", "call"):
         if node[1] in ctx and (tag == "var" or not node[2]):
             return float(ctx[node[1]])
-        raise ValueError(f"unknown variable {node[1]!r}")
+        raise _fasteval_error(f"Undefined({_rust_debug_str(node[1])})")
     if tag in ("add", "mul"):
         acc = _eval(node[1][0], ctx)
         for item in node[1][1:]:
@@ -578,7 +692,7 @@ def _compile_expression(expression: str):
     if not isinstance(expression, str):
         raise ValueError(f"a formula is a string, not {expression!r}")
     if len(expression.encode("utf-8")) > _EXPR_LEN_LIMIT:
-        raise ValueError(f"cannot evaluate expression {expression[:40]!r}...: TooLong")
+        raise _fasteval_error("TooLong")
     return _compile_slice(*_Formula(expression).expression(0, True))
 
 
@@ -591,25 +705,43 @@ def evaluate_expression(expression: str, context: Dict[str, float]) -> float:
     pi(), e(); `inf` and `NaN`. Constants fold at compile time as fasteval folds them (every constant of a
     `+`/`*` chain is combined first, so `codeDistance + 0.1 + 0.2` is 3.3 and a NaN constant vanishes).
     Division by zero is infinite, a negative base to a fractional power NaN. Formulas over 4096 bytes or nested
-    over 32 deep are refused, as are Python's own spellings (`**`, `1_000`, `0x10`)."""
-    try:
-        return _eval(_compile_expression(expression), context)
-    except ValueError as e:
-        raise ValueError(f"{e} in {expression!r}") if str(e).startswith("unknown variable") else e
+    over 32 deep are refused, as are Python's own spellings (`**`, `1_000`, `0x10`). A formula that does not
+    parse, or names a variable the context lacks, raises the QDK's `EstimatorError` ``CannotEvaluateExpression``
+    with fasteval's error (``cannot evaluate expression: 'EofWhileParsing("value")'``, ``'Undefined("d")'``)."""
+    return _eval(_compile_expression(expression), context)
 
 
-_TIME_RE = re.compile(r"^(\+?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)[ \t\n\r\f\v]*(s|ms|μs|µs|us|ns)$")
+_TIME_RE = re.compile(r"^(\+?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)[ \t\n\r\f\v]*(s|ms|μs|µs|us|ns)\Z")
+
+
+def _py_unexpected(value: Any) -> str:
+    """serde's name for a value it did not expect (``null``, ``integer `5```, ``string "x"``, ``map``), of a
+    Python value as it reaches the QDK through JSON."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return f"boolean `{'true' if value else 'false'}`"
+    if isinstance(value, int):
+        return f"integer `{value}`" if -2**63 <= value < 2**64 else f"floating point `{_serde_float(float(value))}`"
+    if isinstance(value, float):
+        return f"floating point `{_serde_float(value)}`"
+    if isinstance(value, str):
+        return f"string {_rust_debug_str(value)}"
+    return "map" if isinstance(value, dict) else "sequence"
 
 
 def parse_time(value: Union[int, float, str]) -> int:
     """A duration in nanoseconds: a string such as ``"100 ns"``, ``"1 µs"``, ``"2 ms"``, ``"1 s"`` (the QDK's
     form, no surrounding spaces, the value rounded and saturated to u64 as the QDK's), or, beyond the QDK, a
-    number of nanoseconds."""
+    number of nanoseconds. Anything else is refused with serde's reason (``invalid value: string "fast",
+    expected cannot parse time``)."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return _as_u64(_round_half_away(float(value)))
-    m = _TIME_RE.match(value) if isinstance(value, str) else None
+    if not isinstance(value, str):
+        raise ValueError(f"invalid type: {_py_unexpected(value)}, expected a string")
+    m = _TIME_RE.match(value)
     if m is None:
-        raise ValueError(f"cannot parse time {value!r}")
+        raise ValueError(f"invalid value: string {_rust_debug_str(value)}, expected cannot parse time")
     multiplier = {"s": 1e9, "ms": 1e6, "μs": 1e3, "µs": 1e3, "us": 1e3, "ns": 1.0}[m.group(3)]
     return _as_u64(_round_half_away(float(m.group(1)) * multiplier))
 
@@ -893,7 +1025,7 @@ class GateBasedQubit:
                     setattr(q, f, getattr(base, f))
         missing = [n for ok, n in ((q.one_qubit_measurement_time is not None, "oneQubitMeasurementTime"), (not _is_nan(q.t_gate_error_rate), "tGateErrorRate"), (not _is_nan(q.one_qubit_measurement_error_rate), "oneQubitMeasurementErrorRate"), (q.one_qubit_gate_time is not None, "oneQubitGateTime"), (not _is_nan(q.one_qubit_gate_error_rate), "oneQubitGateErrorRate")) if not ok]
         if missing:
-            raise ValueError("missing qubit parameters: " + ", ".join(f"`{m}`" for m in missing))
+            raise ValueError("missing fields " + ", ".join(f"`{m}`" for m in missing))
         if q.two_qubit_gate_time is None:
             q.two_qubit_gate_time = q.one_qubit_gate_time
         if q.t_gate_time is None:
@@ -953,7 +1085,7 @@ class MajoranaQubit:
                     setattr(q, f, getattr(base, f))
         missing = [n for ok, n in ((q.one_qubit_measurement_time is not None, "oneQubitMeasurementTime"), (not self._rate_is_nan(q.one_qubit_measurement_error_rate), "oneQubitMeasurementErrorRate"), (not _is_nan(q.t_gate_error_rate), "tGateErrorRate")) if not ok]
         if missing:
-            raise ValueError("missing qubit parameters: " + ", ".join(f"`{m}`" for m in missing))
+            raise ValueError("missing fields " + ", ".join(f"`{m}`" for m in missing))
         one = q.one_qubit_measurement_error_rate
         one = (one, one) if isinstance(one, float) else tuple(one)
         two = q.two_qubit_joint_measurement_error_rate
@@ -1000,74 +1132,64 @@ QUBIT_NAMES = tuple(_GATE_BASED_PRESETS) + tuple(_MAJORANA_PRESETS)
 _SNAKE = {"oneQubitMeasurementTime": "one_qubit_measurement_time", "oneQubitGateTime": "one_qubit_gate_time", "twoQubitGateTime": "two_qubit_gate_time", "twoQubitJointMeasurementTime": "two_qubit_joint_measurement_time", "tGateTime": "t_gate_time", "oneQubitMeasurementErrorRate": "one_qubit_measurement_error_rate", "oneQubitGateErrorRate": "one_qubit_gate_error_rate", "twoQubitGateErrorRate": "two_qubit_gate_error_rate", "twoQubitJointMeasurementErrorRate": "two_qubit_joint_measurement_error_rate", "tGateErrorRate": "t_gate_error_rate", "idleErrorRate": "idle_error_rate"}
 
 
-def _error_rate(key: str, value: Any) -> float:
-    """An error rate as the QDK's `deserialize_error_rate` takes it: a number strictly between 0 and 1."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 < float(value) < 1.0:
-        raise ValueError(f"{key}: expected value between 0.0 and 1.0, got {value!r}")
-    return float(value)
-
-
-def _count(key: str, value: Any, bits: int = 64) -> int:
-    """A count as the QDK's `u64` (or `u32`) takes it: a non-negative integer below 2^bits (not a bool, not a
-    float)."""
-    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**bits:
-        raise ValueError(f"{key}: expected a non-negative integer below 2^{bits}, got {value!r}")
+def _ns(value: Any) -> Any:
+    """A number of nanoseconds as the QDK's time string (``100`` is ``"100 ns"``); anything else as it is."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value!r} ns" if isinstance(value, float) else f"{value} ns"
     return value
 
 
-def _float_field(key: str, value: Any) -> float:
-    """A number as the QDK's `f64` takes it: an int or a float, not a bool, not a string."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{key}: expected a number, got {value!r}")
-    return float(value)
+def _qubit_item(spec: Any) -> Any:
+    """A qubit model as the QDK's ``qubitParams``: a preset name as ``{"name": ...}``, a model object's set
+    fields, a QDK parameters object's ``as_dict()``, a dict with its numeric times written in ns."""
+    if isinstance(spec, str):
+        return {"name": spec}
+    if isinstance(spec, (GateBasedQubit, MajoranaQubit)):
+        out: Dict[str, Any] = {"instructionSet": spec.instruction_set}
+        if spec.name:
+            out["name"] = spec.name
+        for key, attr in _SNAKE.items():
+            value = getattr(spec, attr, None)
+            if value is None or (isinstance(value, float) and _is_nan(value)):
+                continue
+            if isinstance(value, tuple):
+                if _is_nan(value[0]) and _is_nan(value[1]):
+                    continue
+                value = {"process": value[0], "readout": value[1]}
+            out[key] = _ns(value) if key.endswith("Time") else value
+        return out
+    if hasattr(spec, "as_dict"):
+        return spec.as_dict()
+    if isinstance(spec, dict):
+        return {k: _ns(v) if isinstance(k, str) and k.endswith("Time") else v for k, v in spec.items()}
+    return spec
 
 
 def physical_qubit(spec: Union[str, dict, GateBasedQubit, MajoranaQubit, None] = None) -> PhysicalQubit:
     """A qubit model from a preset name (`QUBIT_NAMES`), a QDK ``qubitParams`` dict (camelCase keys, times as
-    ints in ns or strings with units, Majorana measurement errors as numbers or ``{process, readout}``), or a
-    model object; normalized."""
+    strings with units or, beyond the QDK, ints in ns, Majorana measurement errors as numbers or
+    ``{process, readout}``), a QDK `EstimatorQubitParams`, or a model object; normalized. A dict the QDK
+    refuses raises its `QSharpError` (``cannot parse JSON: 'missing fields `oneQubitGateTime`'``)."""
     if spec is None:
         spec = "qubit_gate_ns_e3"
     if isinstance(spec, (GateBasedQubit, MajoranaQubit)):
         return spec.normalized()
-    if isinstance(spec, str):
-        spec = {"name": spec}
-    spec = dict(spec)
-    instruction_set = spec.pop("instructionSet", None)
-    name = spec.pop("name", "")
-    if not isinstance(name, str):
-        raise ValueError(f"the qubit's name is a string, not {name!r}")
-    if instruction_set is None:
-        if name in _GATE_BASED_PRESETS:
-            instruction_set = "GateBased"
-        elif name in _MAJORANA_PRESETS:
-            instruction_set = "Majorana"
-        else:
-            raise ValueError(f"unknown qubit {name!r}: give `instructionSet` (GateBased or Majorana) with the parameters")
-    kwargs = {}
-    for key, value in spec.items():
-        if key not in _SNAKE:
-            raise ValueError(f"unknown qubit parameter {key!r}")
-        if key.endswith("Time"):
-            value = parse_time(value)
-        elif isinstance(value, dict):
-            # The QDK's Majorana measurement error: both parts, each a rate (other keys are ignored, as serde ignores them).
-            if not {"process", "readout"} <= set(value):
-                raise ValueError(f"{key} as a dict takes the keys 'process' and 'readout', not {sorted(value)}")
-            value = (_error_rate(key + ".process", value["process"]), _error_rate(key + ".readout", value["readout"]))
-        else:
-            value = _error_rate(key, value)
-        kwargs[_SNAKE[key]] = value
-    if instruction_set in ("gate_based", "gateBased", "gate-based", "GateBased"):
-        return GateBasedQubit(name=name, **kwargs).normalized()
-    if instruction_set in ("Majorana", "majorana"):
-        return MajoranaQubit(name=name, **kwargs).normalized()
-    raise ValueError('expected "GateBased" or "Majorana" as value for instructionSet')
+    return _read_fragment(_de_qubit, _qubit_item(spec))
 
 
 # ---------------------------------------------------------------------------------------------
 # QEC schemes (system/modeling/fault_tolerance.rs, estimates/error_correction)
 # ---------------------------------------------------------------------------------------------
+
+
+def _formula_value(expression: str, context: Dict[str, float], failure: str) -> float:
+    """A scheme formula's value; a formula fasteval refuses is the QDK's `failure` with fasteval's error."""
+    try:
+        return evaluate_expression(expression, context)
+    except EstimatorError as e:
+        if getattr(e, "fasteval", None) is None:
+            raise
+        raise _computation_failed(failure, e.fasteval) from None
 
 
 @dataclass
@@ -1101,24 +1223,27 @@ class QECScheme:
 
     def physical_qubits(self, code_distance: int) -> int:
         """The formula's value `as u64`, as the QDK casts it: a NaN passes its non-positive check and becomes 0,
-        an infinity 2^64 − 1."""
-        value = evaluate_expression(self.physical_qubits_per_logical_qubit, {"codeDistance": code_distance})
+        an infinity 2^64 − 1. A formula that fails, or is not positive, raises the QDK's
+        ``PhysicalQubitComputationFailed``."""
+        value = _formula_value(self.physical_qubits_per_logical_qubit, {"codeDistance": code_distance}, "PhysicalQubitComputationFailed")
         if value <= 0.0:
-            raise ValueError(f"non-positive number of physical qubits per logical qubit at code distance {code_distance}")
+            raise _computation_failed("PhysicalQubitComputationFailed", f"physicalQubitsPerLogicalQubit formula yields non-positive value for code distance = {code_distance}")
         return _as_u64(value)
 
     def cycle_time(self, qubit: PhysicalQubit, code_distance: int) -> int:
-        value = evaluate_expression(self.logical_cycle_time, qubit.expression_context(code_distance))
+        """The formula's value rounded, as the QDK's; a failure is its ``LogicalCycleTimeComputationFailed``."""
+        value = _formula_value(self.logical_cycle_time, qubit.expression_context(code_distance), "LogicalCycleTimeComputationFailed")
         if value <= 0.0:
-            raise ValueError(f"non-positive logical cycle time at code distance {code_distance}")
+            raise _computation_failed("LogicalCycleTimeComputationFailed", f"logicalCycleTime formula yields non-positive value for code distance = {code_distance}")
         return _as_u64(_round_half_away(value))
 
     def logical_error_rate(self, qubit: PhysicalQubit, code_distance: int) -> float:
         """The QDK raises the distance to the coefficient power in u64 arithmetic, which wraps (50^12 already
-        overflows); `pow(d, k, 2^64)` is that wrap, and cheap for any `k < 2^32`."""
+        overflows); `pow(d, k, 2^64)` is that wrap, and cheap for any `k < 2^32`. A physical error rate above
+        the threshold is the QDK's ``LogicalErrorRateComputationFailed``."""
         p = self.physical_error_rate(qubit)
         if p > self.error_correction_threshold:
-            raise ValueError(f"invalid value for 'physical_error_rate', expected value between 0 and {self.error_correction_threshold}")
+            raise _computation_failed("LogicalErrorRateComputationFailed", f"invalid value for 'physical_error_rate', expected value between 0 and {_display(self.error_correction_threshold)}")
         return self.crossing_prefactor * float(pow(code_distance, self.distance_coefficient_power, 2**64)) * _powi(p / self.error_correction_threshold, (code_distance + 1) // 2)
 
     def code_distance_range(self, lower: Optional[int] = None) -> range:
@@ -1129,74 +1254,91 @@ class QECScheme:
         polynomial prefactor, as the QDK's)."""
         if self.distance_coefficient_power == 0:
             p = self.physical_error_rate(qubit)
-            numerator = 2.0 * math.log(self.crossing_prefactor / required_logical_error_rate)
-            denominator = math.log(self.error_correction_threshold / p)
-            code_distance = max(0, math.ceil(numerator / denominator - 1.0)) | 1
+            numerator = 2.0 * _ln(self.crossing_prefactor / required_logical_error_rate)
+            denominator = _ln(self.error_correction_threshold / p)
+            x = _div(numerator, denominator) - 1.0
+            code_distance = _as_u64(float(math.ceil(x)) if math.isfinite(x) else x) | 1
             if code_distance > self.max_code_distance:
-                raise ValueError(f"The computed code distance {code_distance} is too high; maximum allowed code distance is {self.max_code_distance}; try increasing the total logical error budget")
+                raise _computation_failed("CodeParameterComputationFailed", f"The computed code distance {code_distance} is too high; maximum allowed code distance is {self.max_code_distance}; try increasing the total logical error budget")
             return code_distance
         for d in self.code_distance_range():
-            if self.logical_error_rate(qubit, d) <= required_logical_error_rate:
+            try:
+                rate = self.logical_error_rate(qubit, d)
+            except EstimatorError as e:
+                raise _computation_failed("CodeParameterComputationFailed", e.detail) from None
+            if rate <= required_logical_error_rate:
                 return d
-        raise ValueError(f"No code parameter achieves required logical error rate {required_logical_error_rate:.3e}")
+        raise _computation_failed("CodeParameterComputationFailed", f"No code parameter achieves required logical error rate {_exp(required_logical_error_rate, 3)}")
 
     def asdict(self) -> dict:
         return {"name": self.name, "errorCorrectionThreshold": self.error_correction_threshold, "crossingPrefactor": self.crossing_prefactor, "distanceCoefficientPower": self.distance_coefficient_power, "logicalCycleTime": self.logical_cycle_time, "physicalQubitsPerLogicalQubit": self.physical_qubits_per_logical_qubit, "maxCodeDistance": self.max_code_distance}
 
 
 _OPTIONAL_SCHEME_FIELDS = ("errorCorrectionThreshold", "crossingPrefactor", "distanceCoefficientPower", "logicalCycleTime", "physicalQubitsPerLogicalQubit")
+_SCHEME_ATTRS = (("errorCorrectionThreshold", "error_correction_threshold"), ("crossingPrefactor", "crossing_prefactor"), ("distanceCoefficientPower", "distance_coefficient_power"), ("logicalCycleTime", "logical_cycle_time"), ("physicalQubitsPerLogicalQubit", "physical_qubits_per_logical_qubit"))
+
+
+def _scheme_item(spec: Any) -> Any:
+    """A scheme as the QDK's ``qecScheme``: a name as ``{"name": ...}``, a `QECScheme` with all its fields, a
+    QDK `EstimatorQecScheme`'s ``as_dict()``."""
+    if isinstance(spec, str):
+        return {"name": spec}
+    if isinstance(spec, QECScheme):
+        return spec.asdict()
+    if hasattr(spec, "as_dict"):
+        return spec.as_dict()
+    return spec
 
 
 def qec_scheme(spec: Union[str, dict, QECScheme, None], qubit: PhysicalQubit) -> QECScheme:
     """A scheme from a name (``surface_code``, ``floquet_code``; the surface code picks its gate-based or
     measurement-based variant from the qubit), a QDK ``qecScheme`` dict (a name with overrides, or a full custom
-    scheme), or a `QECScheme`; validated against the qubit as the QDK does."""
-    if spec is None:
-        spec = {"name": "surface_code"}
-    if isinstance(spec, str):
-        spec = {"name": spec}
-    if isinstance(spec, QECScheme):
-        scheme = replace(spec)
+    scheme, whose name may be absent), a QDK `EstimatorQecScheme`, or a `QECScheme`; checked against the qubit
+    as the QDK checks it, its errors the QDK's (`EstimatorError`, `QSharpError` for a dict it cannot read)."""
+    return _load_protocol(None if spec is None else _read_fragment(_de_protocol, _scheme_item(spec)), qubit)
+
+
+def _load_protocol(model: Optional[Dict[str, Any]], qubit: PhysicalQubit) -> QECScheme:
+    """The QDK's `load_protocol_from_specification`: the predefined scheme with the given fields over its own,
+    or a custom one (its required fields, then its formulas), then the crossing prefactor, the threshold
+    against the qubit, and both formulas at every distance from 3 to the maximum. The scheme's ``jobParams``
+    echo (the name as given, a predefined scheme's fields filled in) is kept in ``_echo``."""
+    model = dict(model) if model is not None else {"name": "surface_code", **{k: None for k in _OPTIONAL_SCHEME_FIELDS}, "maxCodeDistance": MAX_CODE_DISTANCE}
+    name = model["name"]
+    majorana = isinstance(qubit, MajoranaQubit)
+    if name in ("surface_code", "surfaceCode", "surface-code"):
+        scheme = QECScheme.surface_code_measurement_based() if majorana else QECScheme.surface_code_gate_based()
+    elif name in ("floquet_code", "floquetCode", "floquet-code"):
+        if not majorana:
+            raise EstimatorError.of("InvalidFaultToleranceProtocol", "fault tolerance protocol does not support gate type of qubit")
+        scheme = QECScheme.floquet_code()
     else:
-        spec = {k: v for k, v in dict(spec).items() if not (v is None and k in _OPTIONAL_SCHEME_FIELDS)}  # null is absent for the QDK's `Option` fields (not for maxCodeDistance or name)
-        name = spec.pop("name", "surface_code")
-        if not isinstance(name, str):
-            raise ValueError(f"the QEC scheme's name is a string, not {name!r}")
-        for key in ("errorCorrectionThreshold", "crossingPrefactor"):
-            if key in spec:
-                spec[key] = _float_field(key, spec[key])
-        for key in ("logicalCycleTime", "physicalQubitsPerLogicalQubit"):
-            if key in spec and not isinstance(spec[key], str):
-                raise ValueError(f"{key}: expected a formula string, got {spec[key]!r}")
-        if "distanceCoefficientPower" in spec:
-            spec["distanceCoefficientPower"] = _count("distanceCoefficientPower", spec["distanceCoefficientPower"], 32)
-        if "maxCodeDistance" in spec:
-            spec["maxCodeDistance"] = _count("maxCodeDistance", spec["maxCodeDistance"])
-        majorana = isinstance(qubit, MajoranaQubit)
-        if name in ("surface_code", "surfaceCode", "surface-code"):
-            scheme = QECScheme.surface_code_measurement_based() if majorana else QECScheme.surface_code_gate_based()
-        elif name in ("floquet_code", "floquetCode", "floquet-code"):
-            if not majorana:
-                scheme = None
-            else:
-                scheme = QECScheme.floquet_code()
-        else:
-            for required in ("errorCorrectionThreshold", "crossingPrefactor", "logicalCycleTime", "physicalQubitsPerLogicalQubit"):
-                if required not in spec:
-                    raise ValueError(f"missing field `{required}` of the QEC scheme {name!r}")
-            scheme = QECScheme(name, spec["errorCorrectionThreshold"], spec["crossingPrefactor"], spec.get("distanceCoefficientPower", 0), spec["logicalCycleTime"], spec["physicalQubitsPerLogicalQubit"], spec.get("maxCodeDistance", MAX_CODE_DISTANCE))
-        if scheme is None:
-            raise ValueError("the Floquet code needs a Majorana (measurement-based) qubit")
-        for key, attr in (("errorCorrectionThreshold", "error_correction_threshold"), ("crossingPrefactor", "crossing_prefactor"), ("distanceCoefficientPower", "distance_coefficient_power"), ("logicalCycleTime", "logical_cycle_time"), ("physicalQubitsPerLogicalQubit", "physical_qubits_per_logical_qubit"), ("maxCodeDistance", "max_code_distance")):
-            if key in spec:
-                setattr(scheme, attr, spec[key])
+        for key in ("errorCorrectionThreshold", "crossingPrefactor", "logicalCycleTime", "physicalQubitsPerLogicalQubit"):
+            if model[key] is None:
+                raise _parse_error(f"missing field `{key}`")
+        _compile_expression(model["logicalCycleTime"])
+        _compile_expression(model["physicalQubitsPerLogicalQubit"])
+        scheme = QECScheme(name, model["errorCorrectionThreshold"], model["crossingPrefactor"], model["distanceCoefficientPower"] or 0, model["logicalCycleTime"], model["physicalQubitsPerLogicalQubit"], model["maxCodeDistance"])
+        name = None
+    if name is not None:
+        for key, attr in _SCHEME_ATTRS:
+            if model[key] is None:
+                model[key] = getattr(scheme, attr)
+                continue
+            if key in ("logicalCycleTime", "physicalQubitsPerLogicalQubit"):
+                _compile_expression(model[key])
+            setattr(scheme, attr, model[key])
+        scheme.name = model["name"]
+        scheme.max_code_distance = model["maxCodeDistance"]
     if scheme.crossing_prefactor > 0.5:
-        raise ValueError("invalid value for crossingPrefactor, expected value between 0 and 0.5")
+        raise EstimatorError.of("InvalidValue", "invalid value for 'crossingPrefactor', expected value between 0 and 0.5")
     if qubit.clifford_error_rate() >= scheme.error_correction_threshold:
-        raise ValueError(f"the qubit's Clifford error rate {qubit.clifford_error_rate()} is not below the scheme's threshold {scheme.error_correction_threshold}")
+        names = "idleErrorRate, oneQubitMeasurementErrorRate.process, twoQubitJointMeasurementErrorRate.process" if majorana else "oneQubitGateErrorRate, twoQubitGateErrorRate, idleErrorRate"
+        raise EstimatorError.of("InvalidValue", f"invalid value for '{names}', expected value between 0 and {_display(scheme.error_correction_threshold)}")
     for d in range(3, scheme.max_code_distance + 1):  # the QDK's `(1..=max).skip(2)`: even distances too
         scheme.cycle_time(qubit, d)
         scheme.physical_qubits(d)
+    scheme._echo = model
     return scheme
 
 
@@ -1234,7 +1376,7 @@ class LogicalCounts:
     qubits; one logical cycle per measurement, T and rotation, three per CCZ/CCiX, plus the rotation layers'
     synthesis T gates; a T state per T, four per CCZ/CCiX, ``⌈0.53·log₂(rotations/ε) + 4.86⌉`` per rotation."""
 
-    num_qubits: int
+    num_qubits: int = 0
     t_count: int = 0
     rotation_count: int = 0
     rotation_depth: int = 0
@@ -1246,18 +1388,21 @@ class LogicalCounts:
     read_from_memory_count: Optional[int] = None
     write_to_memory_count: Optional[int] = None
 
+    def __post_init__(self) -> None:
+        """The QDK's `LogicalCounts(dict)` too (``LogicalCounts({"numQubits": 100, "tCount": 10})``): the counts
+        it names, the others 0, keys it does not know dropped. Every count is then checked as the QDK reads it
+        (a u64; the memory counts may be absent), a failure its `QSharpError` (``cannot parse JSON: 'invalid
+        value: integer `-1`, expected u64 at line 1 column 14'``), raised here rather than at the estimate."""
+        if isinstance(self.num_qubits, dict) or hasattr(self.num_qubits, "keys"):
+            for attr, value in _counts_from_dict(dict(self.num_qubits)).items():
+                object.__setattr__(self, attr, value)
+        _read_counts(self.asdict())
+
     @staticmethod
     def fromdict(d: dict) -> "LogicalCounts":
-        keys = {"numQubits": "num_qubits", "tCount": "t_count", "rotationCount": "rotation_count", "rotationDepth": "rotation_depth", "cczCount": "ccz_count", "ccixCount": "ccix_count", "measurementCount": "measurement_count", "numComputeQubits": "num_compute_qubits", "readFromMemoryCount": "read_from_memory_count", "writeToMemoryCount": "write_to_memory_count"}
-        out = {}
-        for k, v in d.items():
-            if k in keys:
-                out[keys[k]] = _count(k, v)
-            elif k in keys.values():
-                out[k] = _count(k, v)
-            else:
-                raise ValueError(f"unknown logical count {k!r}")
-        return LogicalCounts(**out)
+        """The counts of a QDK ``logicalCounts`` dict (camelCase keys; the snake_case field names too), as the
+        QDK's `LogicalCounts` takes them: missing counts are 0, unknown keys dropped."""
+        return LogicalCounts(**_counts_from_dict(d, snake=True))
 
     def asdict(self) -> dict:
         d = {"numQubits": self.num_qubits, "tCount": self.t_count, "rotationCount": self.rotation_count, "rotationDepth": self.rotation_depth, "cczCount": self.ccz_count, "ccixCount": self.ccix_count, "measurementCount": self.measurement_count}
@@ -1289,26 +1434,22 @@ class LogicalCounts:
     def estimate(self, params: Union[dict, Sequence[dict], Any, None] = None) -> "EstimatorResult":
         """The QDK's `LogicalCounts.estimate`: the estimate for a dict of job parameters (``qubitParams``,
         ``qecScheme``, ``errorBudget``, ``constraints``, ``distillationUnitSpecifications``, ``estimateType``), or
-        a batch for a list of them (an item that fails holds its message; a single estimate that fails raises
-        ValueError). The QDK's own `EstimatorParams` is taken too, through its ``as_dict``."""
+        a batch for a list of them (an item that fails holds the QDK's ``code`` and ``message``; a single estimate
+        that fails raises the QDK's `EstimatorError`, parameters it cannot read its `QSharpError`). The
+        `EstimatorParams` here and the QDK's own are taken too, through their ``as_dict``."""
         if params is None:
             items = [{}]
         elif isinstance(params, dict):
             items = [params]
         elif hasattr(params, "as_dict"):
-            d = params.as_dict()
-            items = d["items"] if "items" in d else [d]
+            items = params.as_dict()["items"] if getattr(params, "has_items", False) else [params.as_dict()]
         else:
-            items = list(params)
-        if len(items) == 1:
-            return EstimatorResult(_estimate_item(self, items[0]))
-        results = []
-        for item in items:
-            try:
-                results.append(EstimatorResult(_estimate_item(self, item)))
-            except ValueError as ex:
-                results.append(EstimatorResult({"message": str(ex)}, error=ex))
-        return EstimatorResult(results)
+            items = params
+        return _estimate_items(self, items)
+
+
+def _invalid_budget(value: float) -> EstimatorError:
+    return EstimatorError.of("InvalidErrorBudget", f"The error budget must be between 0.0 and 1.0, provided input was `{_display(value)}`")
 
 
 @dataclass
@@ -1322,22 +1463,26 @@ class ErrorBudget:
     @staticmethod
     def partition(spec: Union[float, dict, "ErrorBudget"], counts: LogicalCounts) -> "ErrorBudget":
         """A total is split in thirds; in halves when there are no rotations; all to logical when there are
-        no T gates. A dict ``{logical, tStates, rotations}`` is taken as is."""
+        no T gates. A dict ``{logical, tStates, rotations}`` is taken as is. A budget the QDK refuses raises its
+        `EstimatorError` ``InvalidErrorBudget``, with the value it names."""
         if isinstance(spec, ErrorBudget):
             return replace(spec)
+        spec = _read_fragment(_de_error_budget, _budget_item(spec))
         if isinstance(spec, dict):
-            if "tstates" in spec and "tStates" not in spec:
-                spec = {**spec, "tStates": spec["tstates"]}
-            missing = [k for k in ("logical", "tStates", "rotations") if k not in spec]
-            if missing:
-                raise ValueError(f"an error budget dict names logical, tStates and rotations; missing {missing}")
-            logical, tstates, rotations = (_float_field(k, spec[k]) for k in ("logical", "tStates", "rotations"))
-            if logical + tstates + rotations >= 1.0 or logical <= 0.0 or tstates < 0.0 or (counts.has_tgates() and tstates == 0.0) or rotations < 0.0 or (counts.has_rotations() and rotations == 0.0):
-                raise ValueError(f"invalid error budget {spec!r}")
+            logical, tstates, rotations = spec["logical"], spec["tStates"], spec["rotations"]
+            total = logical + tstates + rotations
+            if total >= 1.0:
+                raise _invalid_budget(total)
+            if logical <= 0.0:
+                raise _invalid_budget(logical)
+            if tstates < 0.0 or (counts.has_tgates() and tstates == 0.0):
+                raise _invalid_budget(tstates)
+            if rotations < 0.0 or (counts.has_rotations() and rotations == 0.0):
+                raise _invalid_budget(rotations)
             return ErrorBudget(logical, tstates, rotations)
-        total = _float_field("errorBudget", spec)
+        total = spec
         if total <= 0.0 or total >= 1.0:
-            raise ValueError(f"invalid error budget {total}: expected a value strictly between 0 and 1")
+            raise _invalid_budget(total)
         if counts.has_tgates() and counts.has_rotations():
             return ErrorBudget(total / 3.0, total / 3.0, total / 3.0)
         if counts.has_tgates():
@@ -1407,7 +1552,7 @@ class DistillationUnitTemplate:
             return DistillationUnitTemplate.fifteen_to_one_rm_prep()
         if name in ("15-1 space-efficient", "15-1 space efficient", "15-to-1 space-efficient", "15-to-1 space efficient"):
             return DistillationUnitTemplate.fifteen_to_one_space_efficient()
-        raise ValueError(f"Invalid distillation unit specification name: {name}.")
+        raise _parse_error(f"Invalid distillation unit specification name: {name}.")
 
     @staticmethod
     def defaults() -> List["DistillationUnitTemplate"]:
@@ -1422,63 +1567,46 @@ class DistillationUnitTemplate:
             return spec
         if isinstance(spec, str):
             return DistillationUnitTemplate.from_name(spec)
-        if not isinstance(spec, dict):
-            raise ValueError(f"a distillation unit specification is a name or a dict, not {spec!r}")
-        if isinstance(spec.get("name"), str):
-            # The QDK's spec is an untagged union whose first arm is the named unit: a dict with
-            # a name is that unit, whatever else it carries (a name that is not a string is ignored).
-            return DistillationUnitTemplate.from_name(spec["name"])
-        for key in ("displayName", "numInputTs", "numOutputTs", "failureProbabilityFormula", "outputErrorRateFormula"):
-            if key not in spec:
-                raise ValueError(f"missing field `{key}` of the distillation unit")
-        if not isinstance(spec["displayName"], str):
-            raise ValueError(f"displayName: expected a string, got {spec['displayName']!r}")
-        num_input_ts, num_output_ts = _count("numInputTs", spec["numInputTs"]), _count("numOutputTs", spec["numOutputTs"])
-        if num_input_ts == 0:
-            raise ValueError("The number of input t states must be greater than 0.")
-        if num_output_ts == 0:
-            raise ValueError("The number of output t states must be greater than 0.")
-
-        def resources(key):
-            r = spec.get(key)
-            if r is None:
-                return None
-            if not isinstance(r, dict) or not {"numUnitQubits", "durationInQubitCycleTime"} <= set(r):
-                raise ValueError(f"{key} takes numUnitQubits and durationInQubitCycleTime, got {r!r}")
-            num_unit_qubits, duration = _count(key + ".numUnitQubits", r["numUnitQubits"]), _count(key + ".durationInQubitCycleTime", r["durationInQubitCycleTime"])
-            if num_unit_qubits == 0:
-                raise ValueError("The number of unit qubits must be greater than 0.")
-            return (num_unit_qubits, duration)
-
-        physical, logical, override = resources("physicalQubitSpecification"), resources("logicalQubitSpecification"), resources("logicalQubitSpecificationFirstRoundOverride")
-        if physical is None and logical is None:
-            raise ValueError("At least one of the physical or the logical specification must be specified.")
-        if physical is not None and logical is not None:
-            unit_type = "Combined"
-        elif physical is not None:
-            if override is not None:
-                raise ValueError("The logical specification can be overridden for the first round of distillation only if the logical specification is specified.")
-            unit_type = "Physical"
-        else:
-            unit_type = "Logical"
-        return DistillationUnitTemplate(spec["displayName"], num_input_ts, num_output_ts, _formula(spec["failureProbabilityFormula"]), _formula(spec["outputErrorRateFormula"]), unit_type, physical, logical, override)
+        return _unit_template(_read_fragment(_de_unit, spec.as_dict() if hasattr(spec, "as_dict") else spec))
 
 
-def _unit_specification_echo(spec: Union[str, dict, DistillationUnitTemplate]) -> dict:
-    """A distillation unit specification (one `DistillationUnitTemplate.fromspec` took) as the QDK echoes it in
-    ``jobParams``, its reading written back: a named unit as its name, a custom unit's fields in the QDK's order
-    without unknown keys or absent specifications. A template object is echoed by its name."""
+def _unit_template(spec: Dict[str, Any]) -> DistillationUnitTemplate:
+    """The QDK's `as_templates` of one specification read by `_de_unit`: a predefined unit by its name, or a
+    custom unit checked in the QDK's order (its counts, which specifications it has, their qubits, then its two
+    formulas)."""
+    if "name" in spec:
+        return DistillationUnitTemplate.from_name(spec["name"])
+    if spec["numInputTs"] == 0:
+        raise _parse_error("The number of input t states must be greater than 0.")
+    if spec["numOutputTs"] == 0:
+        raise _parse_error("The number of output t states must be greater than 0.")
+    physical, logical, override = (spec.get(k) for k in ("physicalQubitSpecification", "logicalQubitSpecification", "logicalQubitSpecificationFirstRoundOverride"))
+    if physical is None and logical is None:
+        raise _parse_error("At least one of the physical or the logical specification must be specified.")
+    if logical is None and override is not None:
+        raise _parse_error("The logical specification can be overridden for the first round of distillation only if the logical specification is specified.")
+
+    def resources(r):
+        if r is None:
+            return None
+        if r["numUnitQubits"] == 0:
+            raise _parse_error("The number of unit qubits must be greater than 0.")
+        return (r["numUnitQubits"], r["durationInQubitCycleTime"])
+
+    physical, logical, override = resources(physical), resources(logical), resources(override)
+    unit_type = "Combined" if physical is not None and logical is not None else "Physical" if physical is not None else "Logical"
+    failure, output = _formula(spec["failureProbabilityFormula"]), _formula(spec["outputErrorRateFormula"])
+    return DistillationUnitTemplate(spec["displayName"], spec["numInputTs"], spec["numOutputTs"], failure, output, unit_type, physical, logical, override)
+
+
+def _unit_item(spec: Any) -> Any:
+    """A unit as the QDK's ``distillationUnitSpecifications`` entry: a name as ``{"name": ...}``, a QDK
+    `DistillationUnitSpecification`'s ``as_dict()``."""
     if isinstance(spec, str):
         return {"name": spec}
-    if isinstance(spec, DistillationUnitTemplate):
-        return {"name": spec.name}
-    if isinstance(spec.get("name"), str):
-        return {"name": spec["name"]}
-    out = {key: spec[key] for key in ("displayName", "numInputTs", "numOutputTs", "failureProbabilityFormula", "outputErrorRateFormula")}
-    for key in ("physicalQubitSpecification", "logicalQubitSpecification", "logicalQubitSpecificationFirstRoundOverride"):
-        if spec.get(key) is not None:
-            out[key] = {"numUnitQubits": spec[key]["numUnitQubits"], "durationInQubitCycleTime": spec[key]["durationInQubitCycleTime"]}
-    return out
+    if hasattr(spec, "as_dict"):
+        return spec.as_dict()
+    return spec
 
 
 @dataclass(frozen=True)
@@ -1978,22 +2106,14 @@ class Constraints:
 
     @staticmethod
     def fromspec(spec: Union[dict, "Constraints", None]) -> "Constraints":
+        """The QDK's ``constraints`` (camelCase keys, or the field names; ``maxDuration`` a time string or, beyond
+        the QDK, a number of ns), a QDK `EstimatorConstraints`, or a `Constraints`. A dict the QDK refuses
+        raises its `QSharpError` (``unknown field `foo`, expected one of …``)."""
         if spec is None:
             return Constraints()
         if isinstance(spec, Constraints):
             return replace(spec)
-        if not isinstance(spec, dict):
-            raise ValueError(f"constraints are a dict, not {spec!r}")
-        keys = {"logicalDepthFactor": "logical_depth_factor", "maxTFactories": "max_t_factories", "maxDuration": "max_duration", "maxPhysicalQubits": "max_physical_qubits", "maxDistillationRounds": "max_distillation_rounds"}
-        out = {}
-        for k, v in spec.items():
-            attr = keys.get(k, k if k in keys.values() else None)
-            if attr is None:
-                raise ValueError(f"unknown constraint {k!r}")
-            if v is None and attr in ("logical_depth_factor", "max_t_factories", "max_physical_qubits"):
-                continue  # the QDK's optional fields: null is absent (maxDuration and maxDistillationRounds refuse null)
-            out[attr] = parse_time(v) if attr == "max_duration" else _float_field(k, v) if attr == "logical_depth_factor" else _count(k, v)
-        return Constraints(**out)
+        return _read_fragment(_de_constraints, _constraints_item(spec))
 
     def asdict(self) -> dict:
         d = {}
@@ -2368,7 +2488,7 @@ class AzureEstimator:
     """The QDK's `PhysicalResourceEstimation` for one algorithm: a qubit model, a QEC scheme, the distillation
     units, the logical counts and the constraints. `estimate(budget)` runs the single-point estimate."""
 
-    def __init__(self, counts: LogicalCounts, qubit: PhysicalQubit, scheme: QECScheme, templates: Sequence[DistillationUnitTemplate], constraints: Constraints, error_budget_spec=None, estimate_type: str = "singlePoint", unit_specifications: Optional[Sequence[dict]] = None):
+    def __init__(self, counts: LogicalCounts, qubit: PhysicalQubit, scheme: QECScheme, templates: Sequence[DistillationUnitTemplate], constraints: Constraints, error_budget_spec=None, estimate_type: str = "singlePoint", unit_specifications: Optional[Sequence[dict]] = None, profiling: Optional[dict] = None):
         self.counts = counts
         self.qubit = qubit
         self.scheme = scheme
@@ -2379,9 +2499,12 @@ class AzureEstimator:
             raise ValueError(f"estimateType must be 'singlePoint' or 'frontier', not {estimate_type!r}")
         self.estimate_type = estimate_type
         self.unit_specifications = list(unit_specifications or ())  # the QDK's echo of distillationUnitSpecifications
+        self.profiling = dict(profiling or {})  # read and echoed, as the QDK's (its profiling output is not ported)
 
     def job_params(self) -> dict:
-        out = {"qecScheme": self.scheme.asdict(), "errorBudget": _budget_echo(self.error_budget_spec), "qubitParams": self.qubit.asdict(), "constraints": self.constraints.asdict()}
+        out = {"qecScheme": dict(getattr(self.scheme, "_echo", None) or self.scheme.asdict()), "errorBudget": _budget_echo(self.error_budget_spec), "qubitParams": self.qubit.asdict(), "constraints": self.constraints.asdict()}
+        if self.profiling:
+            out["profiling"] = dict(self.profiling)
         if self.unit_specifications:
             out["distillationUnitSpecifications"] = self.unit_specifications
         out["estimateType"] = self.estimate_type
@@ -2409,7 +2532,7 @@ class AzureEstimator:
         factor = self.constraints.logical_depth_factor
         if factor is not None:
             if factor < 1.0:
-                raise ValueError(f"logical depth scaling factor {factor} must be at least 1")
+                raise EstimatorError.of("LogicalDepthScalingFactorTooSmall", f"Logical depth scaling factor is too small, it must be at least 1: {_display(factor)}")
             scaled = num_cycles * factor
             num_cycles = 2**64 - 1 if not math.isfinite(scaled) else min(math.ceil(scaled), 2**64 - 1)  # the QDK's `.ceil() as u64` saturates
         return num_cycles
@@ -2417,7 +2540,7 @@ class AzureEstimator:
     def compute_num_cycles(self, budget: ErrorBudget) -> int:
         num_cycles = self.algorithmic_logical_depth(budget)
         if num_cycles == 0 and self.counts.num_magic_states(budget) == 0:
-            raise ValueError("the algorithm has no logical depth and no magic states to estimate")
+            raise EstimatorError.of("AlgorithmHasNoResources", "Algorithm requires at least one magic state or measurement to estimate resources")
         return num_cycles
 
     def required_logical_error_rate(self, logical_budget: float, num_cycles: int) -> float:
@@ -2482,7 +2605,7 @@ class AzureEstimator:
 
     def estimate(self, budget: ErrorBudget) -> EstimationResult:
         if self.constraints.max_duration is not None and self.constraints.max_physical_qubits is not None:
-            raise ValueError("both maxDuration and maxPhysicalQubits provided; set at most one")
+            raise EstimatorError.of("BothDurationAndPhysicalQubitsProvided", "Both duration and number of physical qubits constraints are provided, but only one is allowed")
         if self.constraints.max_duration is not None:
             return self.estimate_with_max_duration(budget, self.constraints.max_duration)
         if self.constraints.max_physical_qubits is not None:
@@ -2566,7 +2689,7 @@ class AzureEstimator:
             patch = self.patch(min_d)
             if num_cycles_layout * patch.logical_cycle_time <= max_duration:
                 return EstimationResult(self, patch, num_cycles_layout, None, required, budget)
-            raise ValueError("maxDuration is too small for this algorithm")
+            raise EstimatorError.of("MaxDurationTooSmall", "No solution found for the provided maximum duration.")
         best: Optional[EstimationResult] = None
         last_factories: List[TFactory] = []
         last_d: Optional[int] = None
@@ -2591,7 +2714,7 @@ class AzureEstimator:
                 if best is None or result.physical_qubits() < best.physical_qubits():
                     best = result
         if best is None:
-            raise ValueError("maxDuration is too small for this algorithm")
+            raise EstimatorError.of("MaxDurationTooSmall", "No solution found for the provided maximum duration.")
         return best
 
     def build_frontier(self, budget: ErrorBudget) -> List[EstimationResult]:
@@ -2600,7 +2723,7 @@ class AzureEstimator:
         fewest that finish within the distance's allowed cycles, the Pareto frontier of (physical qubits,
         runtime); sorted by runtime, shortest first."""
         if self.constraints.max_duration is not None or self.constraints.max_physical_qubits is not None or self.constraints.max_t_factories is not None:
-            raise ValueError("constraints maxDuration, maxPhysicalQubits and maxTFactories cannot be combined with the frontier estimate")
+            raise EstimatorError.of("ConstraintsProvidedForFrontierEstimation", "Unsupported constraints provided for Frontier Estimation.")
         min_d, min_cycles, required, required_t_error, num_magic_states = self._initial_values(budget)
         if num_magic_states == 0:
             return [EstimationResult(self, self.patch(min_d), min_cycles, None, required, budget)]
@@ -2640,7 +2763,7 @@ class AzureEstimator:
             patch = self.patch(min_d)
             if _ceil_div(self.counts.logical_qubits(), patch.logical_qubits) * patch.physical_qubits <= max_qubits:
                 return EstimationResult(self, patch, num_cycles_layout, None, required, budget)
-            raise ValueError("maxPhysicalQubits is too small for this algorithm")
+            raise EstimatorError.of("MaxPhysicalQubitsTooSmall", "No solution found for the provided maximum number of physical qubits.")
         best: Optional[EstimationResult] = None
         last_factories: List[TFactory] = []
         last_d: Optional[int] = None
@@ -2671,51 +2794,574 @@ class AzureEstimator:
             if best is None or result.runtime() < best.runtime():
                 best = result
         if best is None:
-            raise ValueError("maxPhysicalQubits is too small for this algorithm")
+            raise EstimatorError.of("MaxPhysicalQubitsTooSmall", "No solution found for the provided maximum number of physical qubits.")
         return best
 
 
+_CONSTRAINT_KEYS = {"logical_depth_factor": "logicalDepthFactor", "max_t_factories": "maxTFactories", "max_duration": "maxDuration", "max_physical_qubits": "maxPhysicalQubits", "max_distillation_rounds": "maxDistillationRounds"}
+
+
+def _constraints_item(spec: Any) -> Any:
+    """Constraints as the QDK's ``constraints``: a `Constraints`' fields, a QDK `EstimatorConstraints`'
+    ``as_dict()``, a dict with snake_case keys in camelCase and a numeric ``maxDuration`` in ns."""
+    if isinstance(spec, Constraints):
+        return spec.asdict()
+    if hasattr(spec, "as_dict"):
+        return spec.as_dict()
+    if isinstance(spec, dict):
+        out = {}
+        for k, v in spec.items():
+            k = _CONSTRAINT_KEYS.get(k, k)
+            out[k] = _ns(v) if k == "maxDuration" else v
+        return out
+    return spec
+
+
+def _budget_item(spec: Any) -> Any:
+    """An error budget as the QDK's ``errorBudget``: a total, or the parts (an `ErrorBudget`, a QDK
+    `ErrorBudgetPartition`, a dict whose ``tstates`` is named ``tStates``)."""
+    if isinstance(spec, ErrorBudget):
+        return {"logical": spec.logical, "tStates": spec.tstates, "rotations": spec.rotations}
+    if hasattr(spec, "as_dict"):
+        return spec.as_dict()
+    if isinstance(spec, dict) and "tstates" in spec and "tStates" not in spec:
+        return {("tStates" if k == "tstates" else k): v for k, v in spec.items()}
+    return spec
+
+
+def _job_item(qubit_params, qec_scheme_spec, error_budget, constraints, distillation_unit_specifications, estimate_type) -> Tuple[dict, Dict[int, DistillationUnitTemplate]]:
+    """`azure_estimate`'s arguments as one item of the QDK's job parameters, and the unit templates given as
+    objects (each stands in the item under its name)."""
+    item: Dict[str, Any] = {}
+    if qec_scheme_spec is not None:
+        item["qecScheme"] = _scheme_item(qec_scheme_spec)
+    if error_budget is not None:
+        item["errorBudget"] = _budget_item(error_budget)
+    if qubit_params is not None:
+        item["qubitParams"] = _qubit_item(qubit_params)
+    if constraints is not None:
+        item["constraints"] = _constraints_item(constraints)
+    overrides: Dict[int, DistillationUnitTemplate] = {}
+    if distillation_unit_specifications is not None:
+        units = distillation_unit_specifications
+        if isinstance(units, (list, tuple)):
+            units = []
+            for i, u in enumerate(distillation_unit_specifications):
+                if isinstance(u, DistillationUnitTemplate):
+                    overrides[i] = u
+                    u = {"name": u.name}
+                units.append(_unit_item(u))
+        item["distillationUnitSpecifications"] = units
+    item["estimateType"] = estimate_type
+    return item, overrides
+
+
+def _counts(counts: Union["LogicalCounts", dict]) -> "LogicalCounts":
+    return counts if isinstance(counts, LogicalCounts) else LogicalCounts(counts)
+
+
 def azure_estimator(counts: Union[LogicalCounts, dict], qubit_params=None, qec_scheme_spec=None, constraints=None, distillation_unit_specifications=None, error_budget=1e-3, estimate_type: str = "singlePoint") -> AzureEstimator:
-    """An `AzureEstimator` from QDK-style parameters (see `azure_estimate`)."""
-    if not isinstance(counts, LogicalCounts):
-        counts = LogicalCounts.fromdict(counts)
-    qubit = physical_qubit(qubit_params)
-    scheme = qec_scheme(qec_scheme_spec, qubit)
-    if distillation_unit_specifications is not None and not isinstance(distillation_unit_specifications, (list, tuple)):
-        raise ValueError(f"distillationUnitSpecifications is a list of unit specifications, not {distillation_unit_specifications!r}")
-    templates = DistillationUnitTemplate.defaults() if not distillation_unit_specifications else [DistillationUnitTemplate.fromspec(s) for s in distillation_unit_specifications]
-    echo = [_unit_specification_echo(s) for s in distillation_unit_specifications or ()]
-    return AzureEstimator(counts, qubit, scheme, templates, Constraints.fromspec(constraints), error_budget, estimate_type, echo)
+    """An `AzureEstimator` from QDK-style parameters (see `azure_estimate`), read and checked as the QDK reads
+    and checks them (the error budget is checked when it is partitioned)."""
+    item, overrides = _job_item(qubit_params, qec_scheme_spec, error_budget, constraints, distillation_unit_specifications, estimate_type)
+    return _job_estimator(_counts(counts), _read_params([item])[0], overrides)
 
 
-def azure_estimate(counts: Union[LogicalCounts, dict], qubit_params: Union[str, dict, GateBasedQubit, MajoranaQubit, None] = None, qec_scheme: Union[str, dict, QECScheme, None] = None, error_budget: Union[float, dict, ErrorBudget] = 1e-3, constraints: Union[dict, Constraints, None] = None, distillation_unit_specifications: Optional[Sequence[Union[str, dict, DistillationUnitTemplate]]] = None, estimate_type: str = "singlePoint") -> dict:
-    """The QDK's physical resource estimate from logical counts, as its result dict: ``status``, ``jobParams``,
-    ``physicalCounts`` (``physicalQubits``, ``runtime`` in ns, ``rqops``, a ``breakdown``),
+def azure_estimate(counts: Union[LogicalCounts, dict], qubit_params: Union[str, dict, GateBasedQubit, MajoranaQubit, None] = None, qec_scheme: Union[str, dict, QECScheme, None] = None, error_budget: Union[float, dict, ErrorBudget] = 1e-3, constraints: Union[dict, Constraints, None] = None, distillation_unit_specifications: Optional[Sequence[Union[str, dict, DistillationUnitTemplate]]] = None, estimate_type: str = "singlePoint") -> "EstimatorResult":
+    """The QDK's physical resource estimate from logical counts, as its `EstimatorResult`: ``status``,
+    ``jobParams``, ``physicalCounts`` (``physicalQubits``, ``runtime`` in ns, ``rqops``, a ``breakdown``),
     ``physicalCountsFormatted`` (the same as the report's strings), ``logicalQubit``, ``tfactory``,
     ``errorBudget``, ``logicalCounts`` and ``reportData`` (the report's groups of labelled, explained entries);
     with ``estimate_type="frontier"``, ``frontierEntries`` (each with those sections) along the qubits–runtime
-    Pareto frontier instead, and the report of the first. Parameters are the QDK's: a
+    Pareto frontier instead, and the report of the first, whose sections the result's keys reach
+    (``result["physicalCounts"]`` is the first entry's). Parameters are the QDK's: a
     qubit preset name (``qubit_gate_ns_e3``, ``qubit_gate_ns_e4``, ``qubit_gate_us_e3``, ``qubit_gate_us_e4``,
     ``qubit_maj_ns_e4``, ``qubit_maj_ns_e6``) or ``qubitParams`` dict; ``surface_code`` or ``floquet_code`` or a
     ``qecScheme`` dict; a total error budget or ``{logical, tStates, rotations}``; ``constraints``
     (``logicalDepthFactor``, ``maxTFactories``, ``maxDuration``, ``maxPhysicalQubits``,
-    ``maxDistillationRounds``); ``distillationUnitSpecifications``."""
-    estimator = azure_estimator(counts, qubit_params, qec_scheme, constraints, distillation_unit_specifications, error_budget, estimate_type)
-    budget = ErrorBudget.partition(error_budget, estimator.counts)
+    ``maxDistillationRounds``); ``distillationUnitSpecifications``; or the objects here and the QDK's parameter
+    objects. An estimate the QDK refuses raises its `EstimatorError` (with its ``code``), parameters it cannot
+    read its `QSharpError`, each with the QDK's message."""
+    item, overrides = _job_item(qubit_params, qec_scheme, error_budget, constraints, distillation_unit_specifications, estimate_type)
+    return _estimate_items(_counts(counts), [item], overrides)
+
+
+def _counts_from_dict(d: dict, snake: bool = False) -> Dict[str, Any]:
+    """The QDK's `LogicalCounts(dict)`: its known counts (0 when missing; the memory counts absent), the rest
+    dropped; with `snake`, the field names stand for the keys too."""
+    out = {}
+    for i, key in enumerate(_COUNT_KEYS):
+        attr = _COUNT_ATTRS[i]
+        value = d[key] if key in d else d[attr] if snake and attr in d else None if i >= 7 else 0
+        out[attr] = value
+    return out
+
+
+_COUNT_ATTRS = ("num_qubits", "t_count", "rotation_count", "rotation_depth", "ccz_count", "ccix_count", "measurement_count", "num_compute_qubits", "read_from_memory_count", "write_to_memory_count")
+
+
+def _units_templates(units: Sequence[dict], overrides: Optional[Dict[int, DistillationUnitTemplate]] = None) -> List[DistillationUnitTemplate]:
+    if not units:
+        return DistillationUnitTemplate.defaults()
+    return [overrides[i] if overrides and i in overrides else _unit_template(u) for i, u in enumerate(units)]
+
+
+def _job_estimator(counts: LogicalCounts, job: Dict[str, Any], overrides: Optional[Dict[int, DistillationUnitTemplate]] = None) -> AzureEstimator:
+    """The QDK's `estimate_single` up to the estimation: the scheme, then the distillation units."""
+    qubit = job["qubitParams"]
+    scheme = _load_protocol(job["qecScheme"], qubit)
+    templates = _units_templates(job["distillationUnitSpecifications"], overrides)
+    return AzureEstimator(counts, qubit, scheme, templates, job["constraints"], job["errorBudget"], job["estimateType"], job["distillationUnitSpecifications"], job["profiling"])
+
+
+def _estimate_job(counts: LogicalCounts, job: Dict[str, Any], overrides: Optional[Dict[int, DistillationUnitTemplate]] = None) -> dict:
+    """The QDK's `estimate_single`: the scheme, the units, the budget's partition, then the estimate."""
+    estimator = _job_estimator(counts, job, overrides)
+    budget = ErrorBudget.partition(job["errorBudget"], counts)
     return estimator.result_dict(budget)
+
+
+def _estimate_items(counts: LogicalCounts, items: Any, overrides: Optional[Dict[int, DistillationUnitTemplate]] = None) -> "EstimatorResult":
+    """The QDK's `physical_estimates`: every item read first (a failure is its `QSharpError`), then each
+    estimated, an item it refuses held as ``{"code", "message"}``; one item alone that fails raises."""
+    results = []
+    for job in _read_params(items):
+        try:
+            results.append(_estimate_job(counts, job, overrides))
+        except EstimatorError as e:
+            results.append({"code": e.code, "message": e.reason})
+    return EstimatorResult(results)
+
+
+# ---------------------------------------------------------------------------------------------
+# The QDK's reading of its JSON input (serde_json on the text its Python sends: `json.dumps` of the counts and
+# of the list of job parameters), its reasons and positions written out
+# ---------------------------------------------------------------------------------------------
+
+
+class _SerdeError(Exception):
+    """A serde error: its reason, and its column in the JSON text (None until the innermost container that
+    serde_json reads places it, as its `fix_position` does)."""
+
+    def __init__(self, reason: str, column: Optional[int] = None):
+        super().__init__(reason)
+        self.reason, self.column = reason, column
+
+
+class _Node:
+    """A value of the JSON text: its kind (null, bool, int, float, str, map, seq), its Python value, where it
+    starts and ends, and its entries ((key, key end, node) for a map, nodes for a seq)."""
+
+    __slots__ = ("kind", "value", "start", "end", "items")
+
+    def __init__(self, kind, value, start, end, items=None):
+        self.kind, self.value, self.start, self.end, self.items = kind, value, start, end, items
+
+    def plain(self):
+        if self.kind == "map":
+            return {k: n.plain() for k, _, n in self.items}
+        if self.kind == "seq":
+            return [n.plain() for n in self.items]
+        return self.value
+
+
+def _json_nodes(value: Any) -> _Node:
+    """The nodes of ``json.dumps(value)`` (a TypeError for what JSON cannot hold, as the QDK's Python raises),
+    each with its place in that text."""
+    value = json.loads(json.dumps(value))  # keys as strings, tuples as lists: what the QDK reads
+
+    def build(v, pos):
+        if isinstance(v, dict):
+            start, items, pos = pos, [], pos + 1
+            for i, (k, x) in enumerate(v.items()):
+                pos += 2 if i else 0
+                pos += len(json.dumps(k))
+                key_end = pos
+                node = build(x, pos + 2)
+                items.append((k, key_end, node))
+                pos = node.end
+            return _Node("map", None, start, pos + 1, items)
+        if isinstance(v, list):
+            start, items, pos = pos, [], pos + 1
+            for i, x in enumerate(v):
+                node = build(x, pos + (2 if i else 0))
+                items.append(node)
+                pos = node.end
+            return _Node("seq", None, start, pos + 1, items)
+        kind = "null" if v is None else "bool" if isinstance(v, bool) else "int" if isinstance(v, int) else "float" if isinstance(v, float) else "str"
+        return _Node(kind, v, pos, pos + len(json.dumps(v)))
+
+    return build(value, 0)
+
+
+def _unexpected(n: _Node) -> str:
+    """serde's name for a value it did not expect."""
+    if n.kind == "map":
+        return "map"
+    if n.kind == "seq":
+        return "sequence"
+    return _py_unexpected(n.value)
+
+
+def _check_number(n: _Node) -> None:
+    """Python's ``NaN`` and ``Infinity`` are not JSON: serde_json refuses them where it meets them."""
+    if n.kind == "float" and not math.isfinite(n.value):
+        raise _SerdeError("invalid number", n.start + 2) if n.value < 0 else _SerdeError("expected value", n.start + 1)
+
+
+def _scan(n: _Node) -> None:
+    """A value serde_json reads whole (one it ignores, or buffers for an untagged enum or a `Value`): the
+    first number it refuses, in the text's order."""
+    _check_number(n)
+    for item in n.items or ():
+        _scan(item[2] if n.kind == "map" else item)
+
+
+def _invalid_type(n: _Node, expected: str) -> _SerdeError:
+    """serde_json's type error: at the end of a scalar it read, at the start of a map or a sequence."""
+    _check_number(n)
+    return _SerdeError(f"invalid type: {_unexpected(n)}, expected {expected}", n.start if n.kind in ("map", "seq") else n.end)
+
+
+def _de_unsigned(n: _Node, bits: int = 64, name: str = "u64") -> int:
+    if n.kind == "int" and 0 <= n.value < 2**bits:
+        return n.value
+    if n.kind == "int" and -2**63 <= n.value < 2**64:
+        raise _SerdeError(f"invalid value: integer `{n.value}`, expected {name}", n.end)
+    raise _invalid_type(n, name)
+
+
+def _de_f64(n: _Node) -> float:
+    if n.kind in ("int", "float") and (n.kind == "int" or math.isfinite(n.value)):
+        return float(n.value) if abs(n.value) < 2**1024 else math.copysign(math.inf, n.value)
+    raise _invalid_type(n, "f64")
+
+
+def _de_string(n: _Node) -> str:
+    if n.kind == "str":
+        return n.value
+    raise _invalid_type(n, "a string")
+
+
+def _de_bool(n: _Node) -> bool:
+    if n.kind == "bool":
+        return n.value
+    raise _invalid_type(n, "a boolean")
+
+
+def _de_option(read):
+    return lambda n: None if n.kind == "null" else read(n)
+
+
+def _one_of(names: Sequence[str]) -> str:
+    return ", ".join(f"`{name}`" for name in names)
+
+
+def _de_struct(n: _Node, name: str, fields: Sequence[Tuple[str, Callable, bool]], deny_unknown: bool = False) -> Dict[str, Any]:
+    """A derived struct as serde_json reads it, from a map (unknown keys ignored, or refused) or from a
+    sequence in the fields' order: `fields` are (key, reader, required in a sequence). Returns the fields
+    present; an error inside is placed where serde_json places it (after the entry, or the struct's end)."""
+    out: Dict[str, Any] = {}
+    if n.kind == "map":
+        readers = {key: read for key, read, _ in fields}
+        for i, (key, key_end, value) in enumerate(n.items):
+            if key not in readers:
+                if deny_unknown:
+                    raise _SerdeError(f"unknown field `{key}`, expected one of {_one_of([f[0] for f in fields])}", key_end)
+                _scan(value)
+                continue
+            try:
+                out[key] = readers[key](value)
+            except _SerdeError as e:
+                if e.column is None:
+                    e.column = n.end if i == len(n.items) - 1 else value.end
+                raise
+        return out
+    if n.kind == "seq":
+        for i, (key, read, required) in enumerate(fields):
+            if i >= len(n.items):
+                if required:
+                    raise _SerdeError(f"invalid length {i}, expected struct {name} with {len(fields)} elements", n.end)
+                continue
+            try:
+                out[key] = read(n.items[i])
+            except _SerdeError as e:
+                if e.column is None:
+                    e.column = n.end if i == len(n.items) - 1 else n.items[i + 1].start
+                raise
+        if len(n.items) > len(fields):
+            raise _SerdeError("trailing characters", n.items[len(fields)].start + 1)
+        return out
+    raise _invalid_type(n, f"struct {name}")
+
+
+def _de_time(n: _Node) -> int:
+    value = _de_string(n)
+    try:
+        return parse_time(value)
+    except ValueError as e:
+        raise _SerdeError(str(e)) from None
+
+
+def _protocol_fields():
+    return [("name", _de_string, False), ("errorCorrectionThreshold", _de_option(_de_f64), False), ("crossingPrefactor", _de_option(_de_f64), False), ("distanceCoefficientPower", _de_option(lambda n: _de_unsigned(n, 32, "u32")), False), ("logicalCycleTime", _de_option(_de_string), False), ("physicalQubitsPerLogicalQubit", _de_option(_de_string), False), ("maxCodeDistance", _de_unsigned, False)]
+
+
+def _de_protocol(n: _Node) -> Dict[str, Any]:
+    """The QDK's `ProtocolSpecification` (``qecScheme``): every field optional, the name ``""`` when absent."""
+    spec = _de_struct(n, "ProtocolSpecification", _protocol_fields())
+    return {"name": spec.get("name", ""), **{k: spec.get(k) for k in _OPTIONAL_SCHEME_FIELDS}, "maxCodeDistance": spec.get("maxCodeDistance", MAX_CODE_DISTANCE)}
+
+
+def _content_f64(v: Any) -> Optional[float]:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _de_error_budget(n: _Node) -> Union[float, Dict[str, float]]:
+    """The QDK's untagged `ErrorBudgetSpecification`: a number, or a map of ``logical``, ``tStates`` and
+    ``rotations`` (other keys ignored)."""
+    _scan(n)
+    total = _content_f64(n.value)
+    if total is not None:
+        return total
+    if n.kind == "map":
+        v = n.plain()
+        parts = [_content_f64(v.get(k)) for k in ("logical", "tStates", "rotations")]
+        if None not in parts:
+            return {"logical": parts[0], "tStates": parts[1], "rotations": parts[2]}
+    raise _SerdeError("data did not match any variant of untagged enum ErrorBudgetSpecification")
+
+
+_GATE_FIELDS = ("name", "oneQubitMeasurementTime", "oneQubitGateTime", "twoQubitGateTime", "tGateTime", "oneQubitMeasurementErrorRate", "oneQubitGateErrorRate", "twoQubitGateErrorRate", "tGateErrorRate", "idleErrorRate")
+_MAJORANA_FIELDS = ("name", "oneQubitMeasurementTime", "twoQubitJointMeasurementTime", "tGateTime", "oneQubitMeasurementErrorRate", "twoQubitJointMeasurementErrorRate", "tGateErrorRate", "idleErrorRate")
+
+
+def _value_rate(v: Any) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise _SerdeError(f"invalid type: {_py_unexpected(v)}, expected f64")
+    if not 0.0 < float(v) < 1.0:
+        raise _SerdeError("expected value between 0.0 and 1.0")
+    return float(v)
+
+
+def _value_measurement_rate(v: Any) -> Union[float, Tuple[float, float]]:
+    def rate(x):
+        x = _content_f64(x)
+        return x if x is not None and 0.0 < x < 1.0 else None
+
+    if rate(v) is not None:
+        return rate(v)
+    if isinstance(v, dict) and rate(v.get("process")) is not None and rate(v.get("readout")) is not None:
+        return (rate(v["process"]), rate(v["readout"]))
+    raise _SerdeError("data did not match any variant of untagged enum MeasurementErrorRate")
+
+
+def _qubit_from_value(m: Dict[str, Any]) -> PhysicalQubit:
+    """The QDK's `PhysicalQubit::try_from` a JSON map: the instruction set (named, or the preset's), then the
+    fields in the map's sorted order (serde_json's `Value` map), then the presets and the missing fields."""
+    m = dict(m)
+    instruction_set = m.pop("instructionSet", None)
+    if isinstance(instruction_set, str):
+        if instruction_set in ("gate_based", "gateBased", "gate-based", "GateBased"):
+            majorana = False
+        elif instruction_set in ("Majorana", "majorana"):
+            majorana = True
+        else:
+            raise _SerdeError(f'invalid value: string {_rust_debug_str(instruction_set)}, expected expected "GateBased" or "Majorana" as value for instructionSet')
+    elif isinstance(m.get("name"), str):
+        if m["name"] in _GATE_BASED_PRESETS:
+            majorana = False
+        elif m["name"] in _MAJORANA_PRESETS:
+            majorana = True
+        else:
+            raise _SerdeError("missing field `instructionSet`")
+    else:
+        raise _SerdeError("missing field `name or instructionSet`")
+    allowed = _MAJORANA_FIELDS if majorana else _GATE_FIELDS
+    kwargs: Dict[str, Any] = {}
+    for key in sorted(m):
+        value = m[key]
+        if key not in allowed:
+            raise _SerdeError(f"unknown field `{key}`, expected one of {_one_of(allowed)}")
+        if key == "name":
+            if not isinstance(value, str):
+                raise _SerdeError(f"invalid type: {_py_unexpected(value)}, expected a string")
+            kwargs["name"] = value
+        elif key.endswith("Time"):
+            if not isinstance(value, str):
+                raise _SerdeError(f"invalid type: {_py_unexpected(value)}, expected a string")
+            try:
+                kwargs[_SNAKE[key]] = parse_time(value)
+            except ValueError as e:
+                raise _SerdeError(str(e)) from None
+        elif majorana and key in ("oneQubitMeasurementErrorRate", "twoQubitJointMeasurementErrorRate"):
+            kwargs[_SNAKE[key]] = _value_measurement_rate(value)
+        else:
+            kwargs[_SNAKE[key]] = _value_rate(value)
+    qubit = (MajoranaQubit if majorana else GateBasedQubit)(**kwargs)
+    try:
+        return qubit.normalized()
+    except ValueError as e:
+        raise _SerdeError(str(e)) from None
+
+
+def _de_qubit(n: _Node) -> PhysicalQubit:
+    """The QDK's ``qubitParams``: a map (read whole), then `_qubit_from_value`."""
+    if n.kind != "map":
+        raise _invalid_type(n, "a map")
+    _scan(n)
+    return _qubit_from_value(n.plain())
+
+
+_CONSTRAINT_FIELDS = ("logicalDepthFactor", "maxTFactories", "maxDuration", "maxPhysicalQubits", "maxDistillationRounds")
+
+
+def _de_constraints(n: _Node) -> "Constraints":
+    """The QDK's `Constraints` (unknown keys refused; ``maxDuration`` and ``maxDistillationRounds`` not null)."""
+    spec = _de_struct(n, "Constraints", [("logicalDepthFactor", _de_option(_de_f64), True), ("maxTFactories", _de_option(_de_unsigned), True), ("maxDuration", _de_time, False), ("maxPhysicalQubits", _de_option(_de_unsigned), True), ("maxDistillationRounds", _de_unsigned, False)], deny_unknown=True)
+    return Constraints(spec.get("logicalDepthFactor"), spec.get("maxTFactories"), spec.get("maxDuration"), spec.get("maxPhysicalQubits"), spec.get("maxDistillationRounds", MAX_DISTILLATION_ROUNDS))
+
+
+def _de_profiling(n: _Node) -> Dict[str, Any]:
+    spec = _de_struct(n, "Profiling", [("callStackDepth", _de_option(lambda n: _de_unsigned(n, 64, "usize")), False), ("inlineFunctions", _de_option(_de_bool), False)])
+    return {k: v for k, v in spec.items() if v is not None}
+
+
+def _content_u64(v: Any) -> Optional[int]:
+    return v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v < 2**64 else None
+
+
+def _content_unit_resources(v: Any):
+    """A unit's ``{numUnitQubits, durationInQubitCycleTime}`` (or the pair as a sequence); False if it does not
+    read, None if absent."""
+    if v is None:
+        return None
+    if isinstance(v, dict):
+        pair = [v.get("numUnitQubits", False), v.get("durationInQubitCycleTime", False)]
+    elif isinstance(v, list) and len(v) == 2:
+        pair = v
+    else:
+        return False
+    pair = [_content_u64(x) for x in pair]
+    return False if None in pair else {"numUnitQubits": pair[0], "durationInQubitCycleTime": pair[1]}
+
+
+def _de_unit(n: _Node) -> Dict[str, Any]:
+    """One of the QDK's untagged `TFactoryDistillationUnitSpecification`: a map whose ``name`` is a string (a
+    predefined unit, whatever else it holds), or a custom unit; returned as the QDK echoes it."""
+    _scan(n)
+    v = n.plain()
+    if isinstance(v, dict) and isinstance(v.get("name"), str):
+        return {"name": v["name"]}
+    if isinstance(v, dict):
+        out = {"displayName": v.get("displayName"), "numInputTs": _content_u64(v.get("numInputTs")), "numOutputTs": _content_u64(v.get("numOutputTs")), "failureProbabilityFormula": v.get("failureProbabilityFormula"), "outputErrorRateFormula": v.get("outputErrorRateFormula")}
+        ok = all(isinstance(out[k], str) for k in ("displayName", "failureProbabilityFormula", "outputErrorRateFormula")) and None not in (out["numInputTs"], out["numOutputTs"])
+        for key in ("physicalQubitSpecification", "logicalQubitSpecification", "logicalQubitSpecificationFirstRoundOverride"):
+            resources = _content_unit_resources(v.get(key))
+            ok = ok and resources is not False
+            if resources:
+                out[key] = resources
+        if ok:
+            return out
+    raise _SerdeError("data did not match any variant of untagged enum TFactoryDistillationUnitSpecification")
+
+
+def _de_units(n: _Node) -> List[Dict[str, Any]]:
+    if n.kind != "seq":
+        raise _invalid_type(n, "a sequence")
+    out = []
+    for i, item in enumerate(n.items):
+        try:
+            out.append(_de_unit(item))
+        except _SerdeError as e:
+            if e.column is None:
+                e.column = n.end if i == len(n.items) - 1 else n.items[i + 1].start
+            raise
+    return out
+
+
+def _de_estimate_type(n: _Node) -> str:
+    """The QDK's `EstimateType`: ``"frontier"`` or ``"singlePoint"``, or the map ``{"frontier": null}``."""
+    variants = ("frontier", "singlePoint")
+
+    def variant(name: str, end: int) -> str:
+        if name not in variants:
+            raise _SerdeError(f"unknown variant `{name}`, expected `frontier` or `singlePoint`", end)
+        return name
+
+    if n.kind == "str":
+        return variant(n.value, n.end)
+    if n.kind == "map":
+        if not n.items:
+            raise _SerdeError("expected value", n.start + 2)
+        key, key_end, value = n.items[0]
+        name = variant(key, key_end)
+        if value.kind != "null":
+            raise _invalid_type(value, "unit")
+        if len(n.items) > 1:
+            raise _SerdeError("expected value", value.end)
+        return name
+    raise _SerdeError("expected value", n.start + 1)
+
+
+def _de_job(n: _Node) -> Dict[str, Any]:
+    """One item of the QDK's job parameters (`JobParams`), every section optional."""
+    job = _de_struct(n, "JobParams", [("qecScheme", _de_protocol, False), ("errorBudget", _de_error_budget, False), ("qubitParams", _de_qubit, False), ("constraints", _de_constraints, False), ("profiling", _de_profiling, False), ("distillationUnitSpecifications", _de_units, False), ("estimateType", _de_estimate_type, False)])
+    return {"qecScheme": job.get("qecScheme"), "errorBudget": job.get("errorBudget", 1e-3), "qubitParams": job.get("qubitParams") or physical_qubit("qubit_gate_ns_e3"), "constraints": job.get("constraints") or Constraints(), "profiling": job.get("profiling") or {}, "distillationUnitSpecifications": job.get("distillationUnitSpecifications", []), "estimateType": job.get("estimateType", "singlePoint")}
+
+
+def _qsharp_error(e: _SerdeError, positioned: bool = True) -> "QSharpError":
+    where = f" at line 1 column {e.column}" if positioned and e.column is not None else ""
+    return QSharpError(f"cannot parse JSON: '{e.reason}{where}'")
+
+
+def _read_params(params: Any) -> List[Dict[str, Any]]:
+    """The QDK's reading of its job parameters: ``json.dumps(params)`` read as a list of `JobParams`; a
+    failure is the QDK's `QSharpError` with serde's reason and position."""
+    n = _json_nodes(params)
+    try:
+        if n.kind != "seq":
+            raise _invalid_type(n, "a sequence")
+        jobs = []
+        for i, item in enumerate(n.items):
+            if item.kind not in ("map", "seq"):
+                raise _invalid_type(item, "struct JobParams")
+            try:
+                jobs.append(_de_job(item))
+            except _SerdeError as e:
+                if e.column is None:
+                    e.column = n.end if i == len(n.items) - 1 else n.items[i + 1].start
+                raise
+        return jobs
+    except _SerdeError as e:
+        raise _qsharp_error(e) from None
+
+
+def _read_fragment(read: Callable[[_Node], Any], value: Any) -> Any:
+    """A section read alone (a building block given a dict): the QDK's reading of it, its reason without a
+    position (which only has a meaning in the whole call's text)."""
+    try:
+        return read(_json_nodes(value))
+    except _SerdeError as e:
+        raise _qsharp_error(e, positioned=False) from None
+
+
+_COUNT_KEYS = ("numQubits", "tCount", "rotationCount", "rotationDepth", "cczCount", "ccixCount", "measurementCount", "numComputeQubits", "readFromMemoryCount", "writeToMemoryCount")
+
+
+def _read_counts(data: Dict[str, Any]) -> None:
+    """The QDK's reading of the logical counts (the JSON its `LogicalCounts` sends): each a u64 (the memory
+    counts may be null), a failure the QDK's `QSharpError`."""
+    n = _json_nodes(data)
+    try:
+        _de_struct(n, "LogicalResourceCounts", [(k, _de_option(_de_unsigned) if i >= 7 else _de_unsigned, i == 0) for i, k in enumerate(_COUNT_KEYS)], deny_unknown=True)
+    except _SerdeError as e:
+        raise _qsharp_error(e) from None
 
 
 # ---------------------------------------------------------------------------------------------
 # The QDK's Python entry point and result (qdk/estimator/_estimator.py: LogicalCounts.estimate, EstimatorResult)
 # ---------------------------------------------------------------------------------------------
-
-
-def _estimate_item(counts: LogicalCounts, params: dict) -> dict:
-    """One item of the QDK's job parameters (``qubitParams``, ``qecScheme``, ``errorBudget``, ``constraints``,
-    ``distillationUnitSpecifications``, ``estimateType``; other keys ignored, as the QDK's serde ignores them)."""
-    if not isinstance(params, dict):
-        raise ValueError(f"estimator parameters are a dict, not {params!r}")
-    return azure_estimate(counts, params.get("qubitParams"), params.get("qecScheme"), params.get("errorBudget", 1e-3), params.get("constraints"), params.get("distillationUnitSpecifications"), params.get("estimateType", "singlePoint"))
 
 
 def _lookup(result: dict, path: str):
@@ -2748,8 +3394,8 @@ def _text_table(header: Optional[List[str]], sections: List[Tuple[str, List[List
 
 class EstimatorResult(dict):
     """The QDK's `EstimatorResult`, its data: one estimate's result dict (as `azure_estimate` gives it), or a
-    batch's, indexed 0, 1, … by the items' results (a failed item holds its ``message``, and the error in
-    `error`). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
+    batch's, indexed 0, 1, … by the items' results (a failed item holds the QDK's ``code`` and ``message``, and
+    its `EstimatorError` in `error`; a list of one failed item raises it, as the QDK's does). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
     is. `summary` is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
     ``_repr_html_``, the diagrams and the plot are not ported."""
 
@@ -2759,7 +3405,11 @@ class EstimatorResult(dict):
         self._error = error
         if isinstance(data, list) and len(data) == 1 and not isinstance(data[0], EstimatorResult):
             data = data[0]
+            if not self._is_succeeded(data) and "code" in data:
+                raise EstimatorError(data["code"], data.get("message", ""))
         if isinstance(data, dict):
+            if self._error is None and not self._is_succeeded(data) and "code" in data:
+                self._error = EstimatorError(data["code"], data.get("message", ""))
             self._data = data
             self._is_simple = True
             super().__init__(data)

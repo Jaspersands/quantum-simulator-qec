@@ -476,8 +476,9 @@ def test_azure_against_qdk_recorded(key):
     5 frontier estimates (every entry of the frontier, in the QDK's order)."""
     case = QDK_CASES[key]
     if case["status"] != "success":
-        with pytest.raises(ValueError):
+        with pytest.raises(az.EstimatorError) as e:
             _ours(case["jobParams"], case["logicalCounts"])
+        assert str(e.value) == case["message"]
         return
     ours = _ours(case["jobParams"], case["logicalCounts"])
     if "frontierEntries" in case:
@@ -501,8 +502,9 @@ def test_azure_against_qdk_recorded_review2(key):
     distance power, null fields, a unit whose `name` is not a string."""
     case = QDK_REVIEW2[key]
     if case["status"] != "success":
-        with pytest.raises(ValueError):
+        with pytest.raises(az.EstimatorError) as e:
             _ours(case["jobParams"], case["logicalCounts"])
+        assert "EstimatorError: " + str(e.value).replace("\n", " ") == case["message"]  # recorded as `{type}: {str}` on one line
         return
     ours = _ours(case["jobParams"], case["logicalCounts"])
     for section in ("physicalCounts", "logicalQubit", "tfactory", "errorBudget"):
@@ -598,8 +600,9 @@ def test_azure_estimator_result():
         _ = one[0:1]
     with pytest.raises(ValueError, match="idx"):
         one.data(0)
-    with pytest.raises(ValueError, match="maxDuration"):
+    with pytest.raises(az.EstimatorError, match="MaxDurationTooSmall") as e:
         counts.estimate({"constraints": {"maxDuration": "1 ns"}})
+    assert e.value.code == "Qdk.Qsc.Estimates.MaxDurationTooSmall" and str(e.value) == "Error estimating resources (Qdk.Qsc.Estimates.MaxDurationTooSmall):\nNo solution found for the provided maximum duration."
     frontier = counts.estimate({"estimateType": "frontier"})
     assert "physicalCounts" not in dict(frontier) and frontier["physicalCounts"] == frontier["frontierEntries"][0]["physicalCounts"] and frontier["logicalQubit"] == frontier["frontierEntries"][0]["logicalQubit"]
     assert frontier.summary.splitlines()[1].split()[1:3] == frontier["frontierEntries"][0]["physicalCountsFormatted"]["runtime"].split()
@@ -607,7 +610,7 @@ def test_azure_estimator_result():
         _ = one["frontierEntries"]
     batch = counts.estimate([{"qubitParams": {"name": "qubit_gate_ns_e3"}}, {"constraints": {"maxDuration": "1 ns"}}, {"qubitParams": {"name": "qubit_maj_ns_e4"}, "qecScheme": {"name": "floquet_code"}, "unknownKey": 1}, {"estimateType": "frontier"}])
     assert list(batch) == [0, 1, 2, 3] and batch.data(0) == azure_estimate(counts, "qubit_gate_ns_e3") and batch.data(2) == azure_estimate(counts, "qubit_maj_ns_e4", "floquet_code")
-    assert batch[1].data() == {"message": batch[1].error.args[0]} and isinstance(batch[1].error, ValueError) and batch[0].error is None
+    assert batch[1].data() == {"code": "Qdk.Qsc.Estimates.MaxDurationTooSmall", "message": "No solution found for the provided maximum duration."} and isinstance(batch[1].error, az.EstimatorError) and batch[0].error is None
     assert json.loads(batch.json) == [batch.data(i) for i in range(4)] and batch.logical_counts == one.logical_counts
     table = batch.summary.splitlines()
     assert table[0].split() == ["Item", "0", "1", "2", "3"] and table[1] == "Physical resource estimates" and table[2].split()[:2] == ["Runtime", batch[0]["physicalCountsFormatted"]["runtime"].split()[0]] and "N/A" in table[2]
@@ -615,7 +618,7 @@ def test_azure_estimator_result():
     big = counts.estimate([{}] * 7)
     assert big.summary.startswith("(the first 5 of 7 items") and big[:].splitlines()[0].split() == ["Item"] + [str(i) for i in range(7)]
     assert counts.estimate([{"constraints": {"maxDuration": "1 ns"}}] * 2).summary == "None of the jobs succeeded"
-    with pytest.raises(ValueError, match="a dict"):
+    with pytest.raises(az.QSharpError, match=r"^cannot parse JSON: 'invalid type: string \"qubit_gate_ns_e3\", expected struct JobParams at line 1 column 19'$"):
         counts.estimate(["qubit_gate_ns_e3"])
 
 
@@ -656,6 +659,122 @@ def test_azure_estimator_result_against_qdk_live():
     except ImportError:  # pragma: no cover
         return
     assert theirs.summary_data_frame(labels=["a"]).equals(ours.summary_data_frame(labels=["a"]))
+
+
+QDK_ERRORS = json.loads((pathlib.Path(__file__).parent / "estimate_port" / "qdk_errors.json").read_text())["cases"]
+
+
+def _outcome(counts: dict, params) -> dict:
+    """What `LogicalCounts(counts).estimate(params)` gives, as tests/estimate_port/qdk_errors.json records the
+    QDK's (the counts are checked when the `LogicalCounts` is made here, when the estimate starts in the QDK)."""
+    try:
+        r = LogicalCounts(counts).estimate(params)
+    except (az.EstimatorError, az.QSharpError) as e:
+        return {"ok": False, "cls": type(e).__name__, "code": getattr(e, "code", None), "str": str(e)}
+    return _result_outcome(r)
+
+
+def _result_outcome(r) -> dict:
+    d = r.data()
+    if isinstance(d, list):
+        return {"ok": True, "batch": [{"status": x.get("status"), "code": x.get("code"), "message": x.get("message"), "jobParams": x.get("jobParams")} for x in d], "errors": [str(r[i].error) if r[i].error else None for i in range(len(d))]}
+    return {"ok": True, "status": d.get("status"), "jobParams": d.get("jobParams"), "logicalCounts": d.get("logicalCounts")}
+
+
+@pytest.mark.parametrize("index", range(len(QDK_ERRORS)), ids=[c["name"] for c in QDK_ERRORS])
+def test_azure_errors_against_qdk_recorded(index):
+    """The QDK's reading of its input and its refusals (qdk 1.33.1, recorded in tests/estimate_port/qdk_errors.json):
+    parameters it cannot read raise its `QSharpError` with serde's reason and the column in the JSON text it is
+    sent (``cannot parse JSON: 'invalid type: null, expected a map at line 1 column 21'``), a refused estimate its
+    `EstimatorError` with its code and message, a batch holds each failed item's ``code`` and ``message``, and an
+    estimate it accepts echoes the parameters as it does (the scheme's name as given, a custom scheme's absent
+    power as null). Every case: the class, the code and the text are the QDK's."""
+    case = QDK_ERRORS[index]
+    assert _outcome(case["counts"], case["params"]) == case["qdk"]
+
+
+LIVE_ERRORS = [i for i in range(len(QDK_ERRORS)) if i % 6 == 0]
+
+
+@needs_qdk
+@pytest.mark.parametrize("index", LIVE_ERRORS, ids=[QDK_ERRORS[i]["name"] for i in LIVE_ERRORS])
+def test_azure_errors_against_qdk_live(index):
+    case = QDK_ERRORS[index]
+    try:
+        theirs = _result_outcome(QdkLogicalCounts(case["counts"]).estimate(case["params"]))
+    except BaseException as e:  # the QDK's EstimatorError derives from BaseException
+        theirs = {"ok": False, "cls": type(e).__name__, "code": getattr(e, "code", None), "str": str(e)}
+    assert _outcome(case["counts"], case["params"]) == theirs
+
+
+def test_azure_errors():
+    """`EstimatorError` is a ValueError with the QDK's code and message (and pickles); a single estimate that fails
+    raises it, a batch keeps it per item; the building blocks raise the QDK's errors too, a dict they cannot read
+    with serde's reason alone (a position means something only in the whole call's JSON text)."""
+    import pickle
+
+    counts = LogicalCounts(num_qubits=10, t_count=100)
+    with pytest.raises(az.EstimatorError) as e:
+        azure_estimate(counts, error_budget=1.5)
+    err = e.value
+    assert isinstance(err, ValueError) and err.code == "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget" and err.reason == "The error budget must be between 0.0 and 1.0, provided input was `1.5`"
+    assert str(err) == err.message == "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1.5`"
+    again = pickle.loads(pickle.dumps(err))
+    assert (type(again), again.code, str(again)) == (az.EstimatorError, err.code, str(err))
+    with pytest.raises(az.QSharpError, match=r"^cannot parse JSON: 'invalid type: null, expected a map at line 1 column 44'$"):
+        counts.estimate([{"errorBudget": 0.01}, {"qubitParams": None}])
+    with pytest.raises(az.QSharpError, match=r"^cannot parse JSON: 'missing field `name or instructionSet`'$"):
+        physical_qubit({})
+    with pytest.raises(az.EstimatorError, match="missing field `errorCorrectionThreshold`") as e:
+        qec_scheme({}, physical_qubit())
+    assert e.value.code == "Qdk.Qsc.Estimates.IOError.CannotParseJSON"
+    with pytest.raises(az.EstimatorError) as e:
+        qec_scheme({"name": "surface_code", "logicalCycleTime": "codeDistance - 4"}, physical_qubit())
+    assert str(e.value) == "Error estimating resources (Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed):\nThe logical cycle time cannot be computed: logicalCycleTime formula yields non-positive value for code distance = 3"
+    with pytest.raises(az.QSharpError, match=r"^cannot parse JSON: 'unknown field `bar`, expected one of `logicalDepthFactor`, `maxTFactories`, `maxDuration`, `maxPhysicalQubits`, `maxDistillationRounds`'$"):
+        Constraints.fromspec({"bar": 1})
+    with pytest.raises(az.EstimatorError, match="Invalid distillation unit specification name: foo.") as e:
+        DistillationUnitTemplate.fromspec("foo")
+    assert e.value.code == "Qdk.Qsc.Estimates.IOError.CannotParseJSON"
+    with pytest.raises(az.EstimatorError, match="provided input was `-0`"):
+        ErrorBudget.partition({"logical": 0.001, "tStates": -0.0, "rotations": 0.0}, counts)
+    batch = counts.estimate([{"errorBudget": 0.01}, {"errorBudget": 0.0}])
+    assert batch.data(1) == {"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget", "message": "The error budget must be between 0.0 and 1.0, provided input was `0`"} and batch[1].error.code == batch.data(1)["code"]
+    with pytest.raises(az.EstimatorError):
+        EstimatorResult([{"code": "Qdk.Qsc.Estimates.MaxDurationTooSmall", "message": "No solution found for the provided maximum duration."}])
+    assert counts.estimate([]).data() == []
+
+
+def test_azure_counts_as_the_qdk_takes_them():
+    """`LogicalCounts` takes the QDK's dict as the QDK's `LogicalCounts` does: a missing count is 0, an unknown
+    key is dropped (the snake_case names too, though `fromdict` reads them), the memory counts stay absent; and
+    each count must be a u64, as the QDK reads it."""
+    c = LogicalCounts({"numQubits": 5, "tCount": 7, "foo": 1, "t_count": 9})
+    assert c == LogicalCounts(num_qubits=5, t_count=7) and isinstance(c.num_qubits, int) and c.num_compute_qubits is None
+    assert LogicalCounts({"tCount": 3}).num_qubits == 0 and LogicalCounts.fromdict({"num_qubits": 4, "t_count": 2}) == LogicalCounts(4, 2)
+    assert LogicalCounts({"numQubits": 5, "numComputeQubits": None}).asdict() == LogicalCounts(5).asdict()
+    with pytest.raises(az.QSharpError, match=r"^cannot parse JSON: 'invalid value: integer `-1`, expected u64 at line 1 column 16'$"):
+        LogicalCounts(num_qubits=-1)
+    with pytest.raises(az.QSharpError, match="invalid type: boolean `true`, expected u64"):
+        LogicalCounts({"numQubits": 5, "readFromMemoryCount": True})
+
+
+def test_azure_estimate_returns_the_qdks_result():
+    """`azure_estimate` gives the QDK's `EstimatorResult`: a frontier's sections come from its first entry, as
+    `result["physicalCounts"]` does in the QDK; objects (a `QECScheme`, an `ErrorBudget`, `Constraints`, unit
+    templates, a qubit model) stand in the QDK's parameters."""
+    counts = LogicalCounts(num_qubits=10, t_count=100, rotation_count=5, rotation_depth=3)
+    frontier = azure_estimate(counts, estimate_type="frontier")
+    assert isinstance(frontier, EstimatorResult) and frontier["physicalCounts"] == frontier["frontierEntries"][0]["physicalCounts"]
+    gate = physical_qubit("qubit_gate_ns_e4")
+    a = azure_estimate(counts, gate, qec_scheme("surface_code", gate), ErrorBudget(5e-4, 3e-4, 2e-4), Constraints(max_t_factories=4), [DistillationUnitTemplate.fifteen_to_one_rm_prep(), "15-1 space-efficient"])
+    b = azure_estimate(counts, "qubit_gate_ns_e4", "surface_code", {"logical": 5e-4, "tStates": 3e-4, "rotations": 2e-4}, {"maxTFactories": 4}, ["15-to-1 RM prep", "15-1 space-efficient"])
+    for section in SECTIONS:
+        assert a[section] == b[section], section
+    assert a["jobParams"]["qecScheme"] == b["jobParams"]["qecScheme"] and a["jobParams"]["qubitParams"] == b["jobParams"]["qubitParams"]
+    custom = azure_estimate(counts, qec_scheme={"errorCorrectionThreshold": 0.01, "crossingPrefactor": 0.03, "logicalCycleTime": "codeDistance", "physicalQubitsPerLogicalQubit": "2 * codeDistance"})
+    assert custom["jobParams"]["qecScheme"]["name"] == "" and custom["jobParams"]["qecScheme"]["distanceCoefficientPower"] is None
+    assert azure_estimate(counts, qec_scheme="surfaceCode")["jobParams"]["qecScheme"]["name"] == "surfaceCode"
 
 
 def test_azure_entry_points_agree():
@@ -811,8 +930,9 @@ def test_azure_formulas_read_as_fasteval_reads_them():
     for bad in ("2 ** 3", "1_000 * z", "0x10 + 1", "abs", "sqrt(4)", "pi", "nan", "min()", "pi(1)", "log(1, 2, 3)", "1 // 2", "~1", "2 if 1 else 3", "(1, 2)", "not 1", "2 3", "2(3)", "", "()", "1 +", "1e", "1 + 2 # x", "−2", "print(1)", 100):
         with pytest.raises(ValueError):
             ev(bad, {"z": 1.0})
-    with pytest.raises(ValueError, match="unknown variable"):
+    with pytest.raises(az.EstimatorError, match=r"""cannot evaluate expression: 'Undefined\("d"\)'""") as e:
         ev("2 * d", d)
+    assert e.value.code == "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression"
     with pytest.raises(ValueError, match="TooLong"):
         ev("1" + "+1" * 3000, {})
     assert ev("1" + "+1" * 2000, {}) == 2001.0 and ev("z" + "+z" * 1000, {"z": 1.0}) == 1001.0 and ev("z" + "^z" * 1000, {"z": 1.0}) == 1.0  # long chains need no deep recursion
@@ -832,20 +952,20 @@ def test_azure_refuses_what_the_qdk_refuses_at_parse_time():
     base = {"instructionSet": "GateBased", "oneQubitMeasurementTime": "100 ns", "oneQubitGateTime": "50 ns", "twoQubitGateTime": "50 ns", "tGateTime": "50 ns", "oneQubitMeasurementErrorRate": 1e-3, "oneQubitGateErrorRate": 1e-3, "twoQubitGateErrorRate": 1e-3, "tGateErrorRate": 1e-3}
     physical_qubit(base)
     for bad in ({"tGateErrorRate": 0.0}, {"tGateErrorRate": 1.5}, {"tGateErrorRate": 1.0}, {"oneQubitGateErrorRate": True}, {"oneQubitGateErrorRate": "1e-3"}):
-        with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+        with pytest.raises(az.QSharpError, match="expected value between 0.0 and 1.0|expected f64"):
             physical_qubit({**base, **bad})
-    with pytest.raises(ValueError, match="process"):
+    with pytest.raises(az.QSharpError, match="untagged enum MeasurementErrorRate"):
         physical_qubit({"name": "qubit_maj_ns_e4", "oneQubitMeasurementErrorRate": {"process": 2e-4}})
     for bad in ({"tCount": -5}, {"tCount": 5.0}, {"tCount": True}, {"numQubits": "10"}):
-        with pytest.raises(ValueError, match="non-negative integer"):
+        with pytest.raises(az.QSharpError, match="expected u64"):
             LogicalCounts.fromdict({"numQubits": 10, "tCount": 5, **bad})
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(az.QSharpError, match="untagged enum ErrorBudgetSpecification"):
         ErrorBudget.partition({"logical": 0.1}, LogicalCounts(num_qubits=10, t_count=5))
     assert ErrorBudget.partition({"logical": 0.1, "tstates": 0.05, "rotations": 0.0}, LogicalCounts(num_qubits=10, t_count=5)) == ErrorBudget(0.1, 0.05, 0.0)
     gate = physical_qubit("qubit_gate_ns_e3")
-    with pytest.raises(ValueError, match="non-negative integer"):
+    with pytest.raises(az.QSharpError, match="invalid value: integer `-1`, expected u32"):
         qec_scheme({"name": "surface_code", "distanceCoefficientPower": -1}, gate)
-    with pytest.raises(ValueError, match="non-negative integer"):
+    with pytest.raises(az.QSharpError, match="invalid type: floating point `1.5`, expected u32"):
         qec_scheme({"name": "surface_code", "distanceCoefficientPower": 1.5}, gate)
     # Beyond the QDK (documented): times as numbers of nanoseconds.
     assert physical_qubit({**base, "tGateTime": 50}).t_gate_time == 50
@@ -885,15 +1005,15 @@ def test_azure_hangs_become_errors():
     # Inputs the QDK refuses at parse time no longer hang here: a distance power is u32, a count u64; and the
     # distance power is applied in u64 arithmetic, which wraps, as the QDK's does.
     gate = physical_qubit("qubit_gate_ns_e3")
-    with pytest.raises(ValueError, match="below 2\\^32"):
+    with pytest.raises(az.QSharpError, match="invalid value: integer `4294967296`, expected u32"):
         qec_scheme({"name": "surface_code", "distanceCoefficientPower": 2**32}, gate)
     scheme = qec_scheme({"name": "surface_code", "distanceCoefficientPower": 2**32 - 1}, gate)
     assert scheme.logical_error_rate(gate, 3) == 0.03 * float(pow(3, 2**32 - 1, 2**64)) * az._powi(0.1, 2)
     assert qec_scheme({"name": "surface_code", "distanceCoefficientPower": 12}, gate).logical_error_rate(gate, 49) == 0.03 * float(49**12 % 2**64) * az._powi(0.1, 25)
     for key in ("maxCodeDistance",):
-        with pytest.raises(ValueError, match="below 2\\^64"):
+        with pytest.raises(az.QSharpError, match="floating point `1.8446744073709552e\\+19`, expected u64"):
             qec_scheme({"name": "surface_code", key: 2**64}, gate)
-    with pytest.raises(ValueError, match="below 2\\^64"):
+    with pytest.raises(az.QSharpError, match="floating point `1.8446744073709552e\\+19`, expected u64"):
         LogicalCounts.fromdict({"numQubits": 10, "tCount": 2**64})
     assert LogicalCounts.fromdict({"numQubits": 10, "tCount": 2**64 - 1}).t_count == 2**64 - 1
 
@@ -909,7 +1029,7 @@ def test_azure_rejects_what_the_qdk_rejects_second_review():
             physical_qubit({**base, "twoQubitGateTime": bad})
     assert physical_qubit({**base, "twoQubitGateTime": "50\tns"}).two_qubit_gate_time == 50 and az.parse_time("1e30 s") == 2**64 - 1 and az.parse_time("0.4 ns") == 0
     for bad in (5, None):
-        with pytest.raises(ValueError, match="name"):
+        with pytest.raises(az.QSharpError, match="expected a string"):
             physical_qubit({**base, "name": bad})
     assert physical_qubit({"name": "qubit_maj_ns_e4", "oneQubitMeasurementErrorRate": {"process": 2e-4, "readout": 1e-4, "foo": 1}}).one_qubit_measurement_error_rate == (2e-4, 1e-4)  # serde ignores the extra key
     counts = LogicalCounts(num_qubits=10, t_count=100)
@@ -945,7 +1065,7 @@ def test_azure_rejects_what_the_qdk_rejects_second_review():
         azure_estimate(counts, distillation_unit_specifications={})
     # The memory counts: validated as counts, echoed as the QDK echoes them (only when given).
     for bad in ({"numComputeQubits": 1.5}, {"numComputeQubits": "x"}, {"readFromMemoryCount": -1}):
-        with pytest.raises(ValueError, match="non-negative integer"):
+        with pytest.raises(az.QSharpError, match="expected u64"):
             LogicalCounts.fromdict({"numQubits": 10, "tCount": 100, **bad})
     echoed = azure_estimate({"numQubits": 10, "tCount": 100, "numComputeQubits": 7, "readFromMemoryCount": 3, "writeToMemoryCount": 4})["logicalCounts"]
     assert (echoed["numComputeQubits"], echoed["readFromMemoryCount"], echoed["writeToMemoryCount"]) == (7, 3, 4) and "numComputeQubits" not in azure_estimate(counts)["logicalCounts"]

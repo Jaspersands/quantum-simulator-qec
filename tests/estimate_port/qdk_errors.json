@@ -1,0 +1,7062 @@
+{
+"qdk": "1.33.1",
+"cases": [
+{
+"name": "scheme {}",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'missing field `errorCorrectionThreshold`'"
+}
+},
+{
+"name": "scheme name null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 28'"
+}
+},
+{
+"name": "scheme null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected struct ProtocolSpecification at line 1 column 19'"
+}
+},
+{
+"name": "scheme unknown key",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"foo": 1
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"ccixCount": 0,
+"measurementCount": 999
+}
+}
+},
+{
+"name": "scheme name 5",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": 5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `5`, expected a string at line 1 column 25'"
+}
+},
+{
+"name": "scheme custom missing lct",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'missing field `logicalCycleTime`'"
+}
+},
+{
+"name": "scheme custom bad formula",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "1 +",
+"physicalQubitsPerLogicalQubit": "2"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"value\")'"
+}
+},
+{
+"name": "scheme prefactor 0.6",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"crossingPrefactor": 0.6
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'crossingPrefactor', expected value between 0 and 0.5"
+}
+},
+{
+"name": "scheme threshold string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": "0.01"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"0.01\", expected f64 at line 1 column 74'"
+}
+},
+{
+"name": "scheme maxCodeDistance null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected u64 at line 1 column 63'"
+}
+},
+{
+"name": "scheme power -1",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"distanceCoefficientPower": -1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: integer `-1`, expected u32 at line 1 column 70'"
+}
+},
+{
+"name": "floquet gate",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "floquet_code"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol):\nfault tolerance protocol does not support gate type of qubit"
+}
+},
+{
+"name": "qubit null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a map at line 1 column 21'"
+}
+},
+{
+"name": "qubit {}",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `name or instructionSet` at line 1 column 20'"
+}
+},
+{
+"name": "qubit unknown name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "foo"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `instructionSet` at line 1 column 33'"
+}
+},
+{
+"name": "qubit name 5",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": 5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `name or instructionSet` at line 1 column 29'"
+}
+},
+{
+"name": "qubit unknown key gate",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"foo": 1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `foo`, expected one of `name`, `oneQubitMeasurementTime`, `oneQubitGateTime`, `twoQubitGateTime`, `tGateTime`, `oneQubitMeasurementErrorRate`, `oneQubitGateErrorRate`, `twoQubitGateErrorRate`, `tGateErrorRate`, `idleErrorRate` at line 1 column 56'"
+}
+},
+{
+"name": "qubit maj gate time",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitGateTime": "20 ns"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `oneQubitGateTime`, expected one of `name`, `oneQubitMeasurementTime`, `twoQubitJointMeasurementTime`, `tGateTime`, `oneQubitMeasurementErrorRate`, `twoQubitJointMeasurementErrorRate`, `tGateErrorRate`, `idleErrorRate` at line 1 column 74'"
+}
+},
+{
+"name": "qubit rate 2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateErrorRate": 2
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value between 0.0 and 1.0 at line 1 column 74'"
+}
+},
+{
+"name": "qubit rate string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateErrorRate": "0.1"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"0.1\", expected f64 at line 1 column 78'"
+}
+},
+{
+"name": "qubit rate null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateErrorRate": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected f64 at line 1 column 77'"
+}
+},
+{
+"name": "qubit time bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "20 parsecs"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"20 parsecs\", expected cannot parse time at line 1 column 80'"
+}
+},
+{
+"name": "qubit time int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": 20
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `20`, expected a string at line 1 column 70'"
+}
+},
+{
+"name": "qubit time null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 72'"
+}
+},
+{
+"name": "qubit gate meas dict",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e4",
+"oneQubitMeasurementErrorRate": {
+"process": 1e-05,
+"readout": 2e-05
+}
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: map, expected f64 at line 1 column 116'"
+}
+},
+{
+"name": "qubit custom missing",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"oneQubitMeasurementTime": "100 ns"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing fields `tGateErrorRate`, `oneQubitMeasurementErrorRate`, `oneQubitGateTime`, `oneQubitGateErrorRate` at line 1 column 86'"
+}
+},
+{
+"name": "qubit instr bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"instructionSet": "Foo"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"Foo\", expected expected \"GateBased\" or \"Majorana\" as value for instructionSet at line 1 column 43'"
+}
+},
+{
+"name": "qubit clifford > threshold",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateErrorRate": 0.02
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'oneQubitGateErrorRate, twoQubitGateErrorRate, idleErrorRate', expected value between 0 and 0.01"
+}
+},
+{
+"name": "budget 0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"errorBudget": 0.0
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`"
+}
+},
+{
+"name": "budget null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"errorBudget": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 22'"
+}
+},
+{
+"name": "budget string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"errorBudget": "0.01"
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 24'"
+}
+},
+{
+"name": "budget parts missing",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"errorBudget": {
+"logical": 0.001
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 36'"
+}
+},
+{
+"name": "budget parts bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"errorBudget": {
+"logical": 0.5,
+"tStates": 0.5,
+"rotations": 0.1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1.1`"
+}
+},
+{
+"name": "budget parts tstates 0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.0,
+"rotations": 0.001
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`"
+}
+},
+{
+"name": "constraints null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected struct Constraints at line 1 column 21'"
+}
+},
+{
+"name": "constraints unknown",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"foo": 1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `foo`, expected one of `logicalDepthFactor`, `maxTFactories`, `maxDuration`, `maxPhysicalQubits`, `maxDistillationRounds` at line 1 column 23'"
+}
+},
+{
+"name": "constraints maxDuration bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"maxDuration": "1 parsec"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"1 parsec\", expected cannot parse time at line 1 column 44'"
+}
+},
+{
+"name": "constraints maxDuration null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"maxDuration": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 37'"
+}
+},
+{
+"name": "constraints both",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"maxDuration": "1 s",
+"maxPhysicalQubits": 1000000
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.BothDurationAndPhysicalQubitsProvided",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.BothDurationAndPhysicalQubitsProvided):\nBoth duration and number of physical qubits constraints are provided, but only one is allowed"
+}
+},
+{
+"name": "constraints duration too small",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"maxDuration": "1 ns"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.MaxDurationTooSmall",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.MaxDurationTooSmall):\nNo solution found for the provided maximum duration."
+}
+},
+{
+"name": "constraints qubits too small",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"maxPhysicalQubits": 10
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.MaxPhysicalQubitsTooSmall",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.MaxPhysicalQubitsTooSmall):\nNo solution found for the provided maximum number of physical qubits."
+}
+},
+{
+"name": "constraints ldf 0.5",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"logicalDepthFactor": 0.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalDepthScalingFactorTooSmall",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalDepthScalingFactorTooSmall):\nLogical depth scaling factor is too small, it must be at least 1: 0.5"
+}
+},
+{
+"name": "constraints frontier",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"constraints": {
+"maxTFactories": 3
+},
+"estimateType": "frontier"
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.ConstraintsProvidedForFrontierEstimation",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.ConstraintsProvidedForFrontierEstimation):\nUnsupported constraints provided for Frontier Estimation."
+}
+},
+{
+"name": "estimateType bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"estimateType": "foo"
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown variant `foo`, expected `frontier` or `singlePoint` at line 1 column 23'"
+}
+},
+{
+"name": "estimateType null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"estimateType": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 19'"
+}
+},
+{
+"name": "units null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a sequence at line 1 column 40'"
+}
+},
+{
+"name": "units bad name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"name": "foo"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'Invalid distillation unit specification name: foo.'"
+}
+},
+{
+"name": "units not list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": {
+"name": "15-1 RM"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: map, expected a sequence at line 1 column 36'"
+}
+},
+{
+"name": "units custom missing",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 58'"
+}
+},
+{
+"name": "units custom zero in",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 0,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'The number of input t states must be greater than 0.'"
+}
+},
+{
+"name": "units custom no spec",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'At least one of the physical or the logical specification must be specified.'"
+}
+},
+{
+"name": "units custom bad formula",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z +",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"value\")'"
+}
+},
+{
+"name": "top unknown key",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"foo": 1
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"ccixCount": 0,
+"measurementCount": 999
+}
+}
+},
+{
+"name": "counts negative",
+"counts": {
+"numQubits": -1,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: integer `-1`, expected u64 at line 1 column 16'"
+}
+},
+{
+"name": "counts float",
+"counts": {
+"numQubits": 1.5,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1.5`, expected u64 at line 1 column 17'"
+}
+},
+{
+"name": "counts string",
+"counts": {
+"numQubits": "10",
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"10\", expected u64 at line 1 column 18'"
+}
+},
+{
+"name": "counts none",
+"counts": {
+"numQubits": 10
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.AlgorithmHasNoResources",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.AlgorithmHasNoResources):\nAlgorithm requires at least one magic state or measurement to estimate resources"
+}
+},
+{
+"name": "counts zero",
+"counts": {},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.AlgorithmHasNoResources",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.AlgorithmHasNoResources):\nAlgorithm requires at least one magic state or measurement to estimate resources"
+}
+},
+{
+"name": "too small budget",
+"counts": {
+"numQubits": 10,
+"tCount": 1000000000000
+},
+"params": {
+"errorBudget": 1e-12
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 1e-12,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 10,
+"tCount": 1000000000000,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "even distance formula",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "codeDistance % 2 - 0.5"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed):\nThe logical cycle time cannot be computed: logicalCycleTime formula yields non-positive value for code distance = 4"
+}
+},
+{
+"name": "bad pq formula",
+"counts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 77,
+"rotationDepth": 20,
+"cczCount": 50,
+"measurementCount": 999
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"physicalQubitsPerLogicalQubit": "0 - codeDistance"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.PhysicalQubitComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.PhysicalQubitComputationFailed):\nThe number of physical qubits required for a code cannot be computed: physicalQubitsPerLogicalQubit formula yields non-positive value for code distance = 3"
+}
+},
+{
+"name": "budget null then more",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": null,
+"qubitParams": {
+"name": "qubit_gate_ns_e3"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 21'"
+}
+},
+{
+"name": "qubit {} then more",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {},
+"errorBudget": 0.01
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `name or instructionSet` at line 1 column 19'"
+}
+},
+{
+"name": "units bad first of two",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x"
+},
+{
+"name": "15-1 RM"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 59'"
+}
+},
+{
+"name": "units bad second of two",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"name": "15-1 RM"
+},
+{
+"displayName": "x"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 79'"
+}
+},
+{
+"name": "units bare string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+"15-1 RM"
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 47'"
+}
+},
+{
+"name": "units seq predefined",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+[
+"15-1 RM"
+]
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 49'"
+}
+},
+{
+"name": "qubit two errors alpha",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"tGateErrorRate": 2,
+"idleErrorRate": 3
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value between 0.0 and 1.0 at line 1 column 87'"
+}
+},
+{
+"name": "qubit two errors alpha2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"idleErrorRate": "x",
+"tGateErrorRate": 2
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"x\", expected f64 at line 1 column 89'"
+}
+},
+{
+"name": "qubit unknown and bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"zzz": 1,
+"idleErrorRate": 3
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value between 0.0 and 1.0 at line 1 column 76'"
+}
+},
+{
+"name": "qubit unknown and bad2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"aaa": 1,
+"idleErrorRate": 3
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `aaa`, expected one of `name`, `oneQubitMeasurementTime`, `oneQubitGateTime`, `twoQubitGateTime`, `tGateTime`, `oneQubitMeasurementErrorRate`, `oneQubitGateErrorRate`, `twoQubitGateErrorRate`, `tGateErrorRate`, `idleErrorRate` at line 1 column 76'"
+}
+},
+{
+"name": "qubit instr int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": 5,
+"name": "qubit_gate_ns_e3"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "qubit instr int no name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": 5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `name or instructionSet` at line 1 column 39'"
+}
+},
+{
+"name": "qubit instr maj gate name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "Majorana",
+"name": "qubit_gate_ns_e3"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing fields `oneQubitMeasurementTime`, `oneQubitMeasurementErrorRate`, `tGateErrorRate` at line 1 column 76'"
+}
+},
+{
+"name": "qubit instr gate preset",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e4"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e4",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.0001,
+"oneQubitGateErrorRate": 0.0001,
+"twoQubitGateErrorRate": 0.0001,
+"tGateErrorRate": 0.0001,
+"idleErrorRate": 0.0001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "qubit instr gate name null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": null,
+"oneQubitMeasurementTime": "1 ns"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 98'"
+}
+},
+{
+"name": "qubit maj meas 2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitMeasurementErrorRate": 2
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum MeasurementErrorRate at line 1 column 80'"
+}
+},
+{
+"name": "qubit maj meas dict bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitMeasurementErrorRate": {
+"process": 2,
+"readout": 0.1
+}
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum MeasurementErrorRate at line 1 column 109'"
+}
+},
+{
+"name": "qubit maj meas list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitMeasurementErrorRate": [
+0.001,
+0.002
+]
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum MeasurementErrorRate at line 1 column 93'"
+}
+},
+{
+"name": "qubit rate bool",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"idleErrorRate": true
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: boolean `true`, expected f64 at line 1 column 69'"
+}
+},
+{
+"name": "qubit rate list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"idleErrorRate": [
+1
+]
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: sequence, expected f64 at line 1 column 68'"
+}
+},
+{
+"name": "qubit rate huge int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"idleErrorRate": 1180591620717411303424
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value between 0.0 and 1.0 at line 1 column 87'"
+}
+},
+{
+"name": "qubit time float",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": 2.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `2.5`, expected a string at line 1 column 71'"
+}
+},
+{
+"name": "qubit time unicode",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "20 \u00b5x"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"20 \u00b5x\", expected cannot parse time at line 1 column 80'"
+}
+},
+{
+"name": "qubit time quote",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "a\"b\\c\n\u0001"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"a\\\"b\\\\c\\n\\u{1}\", expected cannot parse time at line 1 column 85'"
+}
+},
+{
+"name": "qubit list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": [
+1
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: sequence, expected a map at line 1 column 17'"
+}
+},
+{
+"name": "qubit int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": 5
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `5`, expected a map at line 1 column 18'"
+}
+},
+{
+"name": "qubit string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": "qubit_gate_ns_e3"
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"qubit_gate_ns_e3\", expected a map at line 1 column 35'"
+}
+},
+{
+"name": "scheme list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": [
+"surface_code"
+]
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "scheme string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": "surface_code"
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"surface_code\", expected struct ProtocolSpecification at line 1 column 29'"
+}
+},
+{
+"name": "scheme mcd huge",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 18446744073709551616
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1.8446744073709552e+19`, expected u64 at line 1 column 79'"
+}
+},
+{
+"name": "scheme mcd float",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e+20
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e+20`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "scheme mcd 2.0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 2.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `2.0`, expected u64 at line 1 column 62'"
+}
+},
+{
+"name": "scheme mcd 1e-7",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e-07
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e-7`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "scheme power big",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"distanceCoefficientPower": 4294967296
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: integer `4294967296`, expected u32 at line 1 column 78'"
+}
+},
+{
+"name": "scheme power neg big",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"distanceCoefficientPower": -9223372036854775809
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `-9.223372036854776e+18`, expected u32 at line 1 column 88'"
+}
+},
+{
+"name": "scheme threshold nan",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": NaN
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 69'"
+}
+},
+{
+"name": "scheme threshold inf",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": Infinity
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 69'"
+}
+},
+{
+"name": "scheme threshold -inf",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": -Infinity
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid number at line 1 column 70'"
+}
+},
+{
+"name": "scheme threshold bool",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": false
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: boolean `false`, expected f64 at line 1 column 73'"
+}
+},
+{
+"name": "scheme threshold dict",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": {}
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: map, expected f64 at line 1 column 68'"
+}
+},
+{
+"name": "scheme lct int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": 5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `5`, expected a string at line 1 column 61'"
+}
+},
+{
+"name": "budget list3",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": [
+0.001,
+0.001,
+0.001
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 39'"
+}
+},
+{
+"name": "budget list2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": [
+0.001,
+0.001
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 32'"
+}
+},
+{
+"name": "budget bool",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": true
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 22'"
+}
+},
+{
+"name": "budget int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": 0
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`"
+}
+},
+{
+"name": "budget parts extra",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.001,
+"rotations": 0.001,
+"x": 1
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.001,
+"rotations": 0.001
+},
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "constraints list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": [
+1.0
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid length 1, expected struct Constraints with 5 elements at line 1 column 22'"
+}
+},
+{
+"name": "constraints ldf bool",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"logicalDepthFactor": true
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: boolean `true`, expected f64 at line 1 column 44'"
+}
+},
+{
+"name": "constraints mtf null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxTFactories": null
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "constraints mdr null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxDistillationRounds": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected u64 at line 1 column 47'"
+}
+},
+{
+"name": "constraints two unknown",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxTFactories": 3,
+"bar": 1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `bar`, expected one of `logicalDepthFactor`, `maxTFactories`, `maxDuration`, `maxPhysicalQubits`, `maxDistillationRounds` at line 1 column 43'"
+}
+},
+{
+"name": "profiling null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected struct Profiling at line 1 column 19'"
+}
+},
+{
+"name": "profiling bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": {
+"callStackDepth": -1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: integer `-1`, expected usize at line 1 column 36'"
+}
+},
+{
+"name": "profiling unknown",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": {
+"foo": 1
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "estimateType int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": 5
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 19'"
+}
+},
+{
+"name": "estimateType map",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": {
+"frontier": null
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "frontier"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "item int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+5
+],
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `5`, expected struct JobParams at line 1 column 2'"
+}
+},
+{
+"name": "item list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+[]
+],
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "item null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+null
+],
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected struct JobParams at line 1 column 5'"
+}
+},
+{
+"name": "batch parse error second",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{},
+{
+"qubitParams": null
+}
+],
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a map at line 1 column 25'"
+}
+},
+{
+"name": "batch item error and parse error",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{
+"errorBudget": 0.0
+},
+{
+"qubitParams": null
+}
+],
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a map at line 1 column 43'"
+}
+},
+{
+"name": "batch item errors",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{
+"errorBudget": 0.0
+},
+{
+"qecScheme": {
+"name": "floquet_code"
+}
+},
+{}
+],
+"qdk": {
+"ok": true,
+"batch": [
+{
+"status": null,
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"message": "The error budget must be between 0.0 and 1.0, provided input was `0`",
+"jobParams": null
+},
+{
+"status": null,
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol",
+"message": "fault tolerance protocol does not support gate type of qubit",
+"jobParams": null
+},
+{
+"status": "success",
+"code": null,
+"message": null,
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+}
+}
+],
+"errors": [
+"Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`",
+"Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol):\nfault tolerance protocol does not support gate type of qubit",
+null
+]
+}
+},
+{
+"name": "counts huge",
+"counts": {
+"numQubits": 18446744073709551616,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1.8446744073709552e+19`, expected u64 at line 1 column 34'"
+}
+},
+{
+"name": "counts nan",
+"counts": {
+"numQubits": NaN,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 15'"
+}
+},
+{
+"name": "counts null",
+"counts": {
+"numQubits": null,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected u64 at line 1 column 18'"
+}
+},
+{
+"name": "counts mem null",
+"counts": {
+"numQubits": 5,
+"tCount": 5,
+"numComputeQubits": null
+},
+"params": {},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 5,
+"tCount": 5,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "counts mem bad",
+"counts": {
+"numQubits": 5,
+"tCount": 5,
+"readFromMemoryCount": "x"
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"x\", expected u64 at line 1 column 150'"
+}
+},
+{
+"name": "counts bool",
+"counts": {
+"numQubits": true,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: boolean `true`, expected u64 at line 1 column 18'"
+}
+},
+{
+"name": "counts and params bad",
+"counts": {
+"numQubits": -1,
+"tCount": 5
+},
+"params": {
+"qubitParams": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: integer `-1`, expected u64 at line 1 column 16'"
+}
+},
+{
+"name": "unit custom zero qubits",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 0,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'The number of unit qubits must be greater than 0.'"
+}
+},
+{
+"name": "unit custom override only phys",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z",
+"physicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+},
+"logicalQubitSpecificationFirstRoundOverride": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'The logical specification can be overridden for the first round of distillation only if the logical specification is specified.'"
+}
+},
+{
+"name": "unit custom bad out formula",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z )",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'UnparsedTokensRemaining(\")\")'"
+}
+},
+{
+"name": "scheme custom bad pq formula",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "codeDistance",
+"physicalQubitsPerLogicalQubit": "2 *"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"value\")'"
+}
+},
+{
+"name": "scheme custom undefined var",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "foo * codeDistance",
+"physicalQubitsPerLogicalQubit": "2"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed):\nThe logical cycle time cannot be computed: Undefined(\"foo\")"
+}
+},
+{
+"name": "scheme custom pq uses qubit var",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "codeDistance",
+"physicalQubitsPerLogicalQubit": "oneQubitMeasurementTime"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.PhysicalQubitComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.PhysicalQubitComputationFailed):\nThe number of physical qubits required for a code cannot be computed: Undefined(\"oneQubitMeasurementTime\")"
+}
+},
+{
+"name": "scheme custom echo",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "100 * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance^2"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": null,
+"logicalCycleTime": "100 * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance^2",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "scheme surfaceCode echo",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surfaceCode"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surfaceCode",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "scheme threshold low",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 1e-05
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'oneQubitGateErrorRate, twoQubitGateErrorRate, idleErrorRate', expected value between 0 and 0.00001"
+}
+},
+{
+"name": "maj threshold low",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4"
+},
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 1e-05
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'idleErrorRate, oneQubitMeasurementErrorRate.process, twoQubitJointMeasurementErrorRate.process', expected value between 0 and 0.00001"
+}
+},
+{
+"name": "ldf 0.5 and no resources",
+"counts": {
+"numQubits": 5
+},
+"params": {
+"constraints": {
+"logicalDepthFactor": 0.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalDepthScalingFactorTooSmall",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalDepthScalingFactorTooSmall):\nLogical depth scaling factor is too small, it must be at least 1: 0.5"
+}
+},
+{
+"name": "budget parts logical 0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.0,
+"tStates": 0.001,
+"rotations": 0.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`"
+}
+},
+{
+"name": "budget parts rotations neg",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.001,
+"rotations": -0.1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `-0.1`"
+}
+},
+{
+"name": "budget total 1e-300",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": 1e-300
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.CodeParameterComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.CodeParameterComputationFailed):\nThe code parameter cannot be computed: The computed code distance 607 is too high; maximum allowed code distance is 50; try increasing the total logical error budget"
+}
+},
+{
+"name": "budget total 1.5",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": 1.5
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1.5`"
+}
+},
+{
+"name": "budget total 1e-7",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": -1e-07
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `-0.0000001`"
+}
+},
+{
+"name": "constraints empty list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": []
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid length 0, expected struct Constraints with 5 elements at line 1 column 19'"
+}
+},
+{
+"name": "constraints seq ldf 2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": [
+2.0
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid length 1, expected struct Constraints with 5 elements at line 1 column 22'"
+}
+},
+{
+"name": "constraints seq bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": [
+"x"
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"x\", expected f64 at line 1 column 21'"
+}
+},
+{
+"name": "scheme list full",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": [
+"surface_code",
+0.01
+]
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "profiling list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": [
+3
+]
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"profiling": {
+"callStackDepth": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "counts missing numQubits",
+"counts": {
+"tCount": 3
+},
+"params": {},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 0,
+"tCount": 3,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "item string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+"x"
+],
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"x\", expected struct JobParams at line 1 column 4'"
+}
+},
+{
+"name": "budget parts missing rotations",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.001
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 54'"
+}
+},
+{
+"name": "budget parts null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": null,
+"tStates": 0.001,
+"rotations": 0.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum ErrorBudgetSpecification at line 1 column 71'"
+}
+},
+{
+"name": "qubit gate custom no name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"oneQubitMeasurementTime": "1 ns"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing fields `tGateErrorRate`, `oneQubitMeasurementErrorRate`, `oneQubitGateTime`, `oneQubitGateErrorRate` at line 1 column 84'"
+}
+},
+{
+"name": "qubit gate custom full",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "mine",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "mine",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "qubit unknown preset",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "foo"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `instructionSet` at line 1 column 33'"
+}
+},
+{
+"name": "qubit null field",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"tGateTime": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 65'"
+}
+},
+{
+"name": "qubit maj meas partial",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitMeasurementErrorRate": {
+"process": 0.1
+}
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum MeasurementErrorRate at line 1 column 95'"
+}
+},
+{
+"name": "qubit maj meas extra",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitMeasurementErrorRate": {
+"process": 0.1,
+"readout": 0.1,
+"x": 1
+}
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'idleErrorRate, oneQubitMeasurementErrorRate.process, twoQubitJointMeasurementErrorRate.process', expected value between 0 and 0.0015"
+}
+},
+{
+"name": "qubit maj gate field",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e4",
+"oneQubitGateTime": "1 ns"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `oneQubitGateTime`, expected one of `name`, `oneQubitMeasurementTime`, `twoQubitJointMeasurementTime`, `tGateTime`, `oneQubitMeasurementErrorRate`, `twoQubitJointMeasurementErrorRate`, `tGateErrorRate`, `idleErrorRate` at line 1 column 73'"
+}
+},
+{
+"name": "qubit uppercase sort",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"idleErrorRate": 3,
+"ZZ": 1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown field `ZZ`, expected one of `name`, `oneQubitMeasurementTime`, `oneQubitGateTime`, `twoQubitGateTime`, `tGateTime`, `oneQubitMeasurementErrorRate`, `oneQubitGateErrorRate`, `twoQubitGateErrorRate`, `tGateErrorRate`, `idleErrorRate` at line 1 column 75'"
+}
+},
+{
+"name": "qubit instr lower gate",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "gate_based",
+"name": "qubit_gate_us_e3"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_us_e3",
+"oneQubitMeasurementTime": "100000 ns",
+"oneQubitGateTime": "100000 ns",
+"twoQubitGateTime": "100000 ns",
+"tGateTime": "100000 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 1e-06,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "qubit instr gate maj preset",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_maj_ns_e4"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing fields `oneQubitMeasurementTime`, `tGateErrorRate`, `oneQubitMeasurementErrorRate`, `oneQubitGateTime`, `oneQubitGateErrorRate` at line 1 column 76'"
+}
+},
+{
+"name": "item extra key",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"foo": 1
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "units custom neg",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": -1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 241'"
+}
+},
+{
+"name": "units predefined unknown",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"name": "foo"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'Invalid distillation unit specification name: foo.'"
+}
+},
+{
+"name": "units predefined extra",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"name": "15-1 RM",
+"numInputTs": 1
+}
+]
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"distillationUnitSpecifications": [
+{
+"name": "15-1 RM"
+}
+],
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "scheme custom no name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"crossingPrefactor": 0.03
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'missing field `errorCorrectionThreshold`'"
+}
+},
+{
+"name": "scheme floquet gate",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "floquet_code"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol):\nfault tolerance protocol does not support gate type of qubit"
+}
+},
+{
+"name": "scheme unknown name",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "foo"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'missing field `errorCorrectionThreshold`'"
+}
+},
+{
+"name": "scheme crossing big",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"crossingPrefactor": 0.6
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'crossingPrefactor', expected value between 0 and 0.5"
+}
+},
+{
+"name": "scheme surfaceCode power null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "Surface_Code"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'missing field `errorCorrectionThreshold`'"
+}
+},
+{
+"name": "mcd 1000000000000000.0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1000000000000000.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1000000000000000.0`, expected u64 at line 1 column 77'"
+}
+},
+{
+"name": "mcd 1e+16",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e+16
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e+16`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "mcd 1e+17",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e+17
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e+17`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "mcd 1.2345678901234568e+17",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1.2345678901234568e+17
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1.2345678901234568e+17`, expected u64 at line 1 column 81'"
+}
+},
+{
+"name": "mcd 1e-05",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e-05
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `0.00001`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "mcd 0.0001",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 0.0001
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `0.0001`, expected u64 at line 1 column 65'"
+}
+},
+{
+"name": "mcd 1.234e-05",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1.234e-05
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `0.00001234`, expected u64 at line 1 column 68'"
+}
+},
+{
+"name": "mcd 1e+300",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e+300
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e+300`, expected u64 at line 1 column 65'"
+}
+},
+{
+"name": "mcd 5e-324",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 5e-324
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `5e-324`, expected u64 at line 1 column 65'"
+}
+},
+{
+"name": "mcd -0.0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": -0.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `-0.0`, expected u64 at line 1 column 63'"
+}
+},
+{
+"name": "mcd 0.5",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 0.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `0.5`, expected u64 at line 1 column 62'"
+}
+},
+{
+"name": "mcd 123456.789",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 123456.789
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `123456.789`, expected u64 at line 1 column 69'"
+}
+},
+{
+"name": "mcd 1e+21",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e+21
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e+21`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "mcd 1.5e-07",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1.5e-07
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1.5e-7`, expected u64 at line 1 column 66'"
+}
+},
+{
+"name": "mcd 12345678.9",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 12345678.9
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `12345678.9`, expected u64 at line 1 column 69'"
+}
+},
+{
+"name": "mcd 9007199254740992.0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 9007199254740992.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `9007199254740992.0`, expected u64 at line 1 column 77'"
+}
+},
+{
+"name": "mcd 1e-300",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 1e-300
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1e-300`, expected u64 at line 1 column 65'"
+}
+},
+{
+"name": "mcd 3e-05",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 3e-05
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `0.00003`, expected u64 at line 1 column 64'"
+}
+},
+{
+"name": "mcd 0.000123",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 0.000123
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `0.000123`, expected u64 at line 1 column 67'"
+}
+},
+{
+"name": "et empty map",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": {}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 20'"
+}
+},
+{
+"name": "et frontier 1",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": {
+"frontier": 1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `1`, expected unit at line 1 column 32'"
+}
+},
+{
+"name": "et frontier extra",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": {
+"frontier": null,
+"x": 1
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 35'"
+}
+},
+{
+"name": "et foo map",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": {
+"foo": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown variant `foo`, expected `frontier` or `singlePoint` at line 1 column 24'"
+}
+},
+{
+"name": "et Frontier",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": "Frontier"
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown variant `Frontier`, expected `frontier` or `singlePoint` at line 1 column 28'"
+}
+},
+{
+"name": "et seq",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": [
+"frontier"
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 19'"
+}
+},
+{
+"name": "et null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": null
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 19'"
+}
+},
+{
+"name": "et null then more",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": null,
+"errorBudget": 0.01
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 19'"
+}
+},
+{
+"name": "et bad then more",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": "foo",
+"errorBudget": 0.01
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown variant `foo`, expected `frontier` or `singlePoint` at line 1 column 23'"
+}
+},
+{
+"name": "et bad last",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": 0.01,
+"estimateType": "foo"
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'unknown variant `foo`, expected `frontier` or `singlePoint` at line 1 column 44'"
+}
+},
+{
+"name": "constraints seq 4",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": [
+1.0,
+null,
+null,
+null
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 33'"
+}
+},
+{
+"name": "constraints seq 6",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": [
+1.0,
+null,
+null,
+null,
+3,
+7
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected a string at line 1 column 33'"
+}
+},
+{
+"name": "constraints seq dur bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": [
+1.0,
+null,
+"1 parsec",
+null
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"1 parsec\", expected cannot parse time at line 1 column 41'"
+}
+},
+{
+"name": "constraints dur bad then more",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxDuration": "1 parsec",
+"maxTFactories": 3
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"1 parsec\", expected cannot parse time at line 1 column 43'"
+}
+},
+{
+"name": "constraints dur bad last",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxDuration": "1 parsec"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"1 parsec\", expected cannot parse time at line 1 column 44'"
+}
+},
+{
+"name": "constraints dur bad item then more",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxDuration": "1 parsec"
+},
+"errorBudget": 0.01
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"1 parsec\", expected cannot parse time at line 1 column 44'"
+}
+},
+{
+"name": "profiling float",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": {
+"callStackDepth": 1.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: floating point `1.5`, expected usize at line 1 column 37'"
+}
+},
+{
+"name": "profiling bool str",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": {
+"inlineFunctions": "x"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"x\", expected a boolean at line 1 column 38'"
+}
+},
+{
+"name": "profiling seq 3",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": [
+1,
+true,
+5
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'trailing characters at line 1 column 26'"
+}
+},
+{
+"name": "qubit nan",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"idleErrorRate": NaN
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 64'"
+}
+},
+{
+"name": "budget nan",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": NaN
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 18'"
+}
+},
+{
+"name": "budget parts nan",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": NaN,
+"tStates": 0.001,
+"rotations": 0.001
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 30'"
+}
+},
+{
+"name": "unknown key nan",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"foo": NaN
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 10'"
+}
+},
+{
+"name": "unknown key nan after error",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {},
+"foo": NaN
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'missing field `name or instructionSet` at line 1 column 19'"
+}
+},
+{
+"name": "top string",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": "x",
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: string \"x\", expected a sequence at line 1 column 3'"
+}
+},
+{
+"name": "top int",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": 5,
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: integer `5`, expected a sequence at line 1 column 1'"
+}
+},
+{
+"name": "top empty list",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [],
+"qdk": {
+"ok": true,
+"batch": [],
+"errors": []
+}
+},
+{
+"name": "qubit instr null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"instructionSet": null
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "time e acute",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "\u00e9"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"\u00e9\", expected cannot parse time at line 1 column 76'"
+}
+},
+{
+"name": "time zwsp",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "a\u200bb"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"a\\u{200b}b\", expected cannot parse time at line 1 column 78'"
+}
+},
+{
+"name": "time combining",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "a\u0301"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"a\\u{301}\", expected cannot parse time at line 1 column 77'"
+}
+},
+{
+"name": "time combining first",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "\u0301a"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"\\u{301}a\", expected cannot parse time at line 1 column 77'"
+}
+},
+{
+"name": "time tab nul",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "\t\u0000\u007f'"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"\\t\\0\\u{7f}'\", expected cannot parse time at line 1 column 85'"
+}
+},
+{
+"name": "time newline suffix",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "1 ns\n"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"1 ns\\n\", expected cannot parse time at line 1 column 76'"
+}
+},
+{
+"name": "time emoji",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3",
+"oneQubitGateTime": "\ud83d\ude00"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid value: string \"\ud83d\ude00\", expected cannot parse time at line 1 column 82'"
+}
+},
+{
+"name": "budget huge",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": 1180591620717411303424
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1180591620717411300000`"
+}
+},
+{
+"name": "counts max",
+"counts": {
+"numQubits": 18446744073709551615,
+"tCount": 5
+},
+"params": {},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 18446744073709551615,
+"tCount": 5,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "gate meas dict",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_gate_ns_e4",
+"oneQubitMeasurementErrorRate": {
+"process": 1e-05,
+"readout": 2e-05
+}
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: map, expected f64 at line 1 column 116'"
+}
+},
+{
+"name": "unit bool count",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": true,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'data did not match any variant of untagged enum TFactoryDistillationUnitSpecification at line 1 column 243'"
+}
+},
+{
+"name": "unit nan in custom",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": NaN
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 73'"
+}
+},
+{
+"name": "scheme nan unknown",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"zz": NaN
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'expected value at line 1 column 47'"
+}
+},
+{
+"name": "scheme mcd null",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": null
+}
+},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: null, expected u64 at line 1 column 63'"
+}
+},
+{
+"name": "scheme mcd 0",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.CodeParameterComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.CodeParameterComputationFailed):\nThe code parameter cannot be computed: The computed code distance 13 is too high; maximum allowed code distance is 0; try increasing the total logical error budget"
+}
+},
+{
+"name": "scheme mcd 2",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 2
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.CodeParameterComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.CodeParameterComputationFailed):\nThe code parameter cannot be computed: The computed code distance 13 is too high; maximum allowed code distance is 2; try increasing the total logical error budget"
+}
+},
+{
+"name": "scheme mcd 3",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 3
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.CodeParameterComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.CodeParameterComputationFailed):\nThe code parameter cannot be computed: The computed code distance 13 is too high; maximum allowed code distance is 3; try increasing the total logical error budget"
+}
+},
+{
+"name": "budget parts sum 1",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.5,
+"tStates": 0.25,
+"rotations": 0.25
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1`"
+}
+},
+{
+"name": "budget parts tstates 0 no t",
+"counts": {
+"numQubits": 5,
+"measurementCount": 10
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.0,
+"rotations": 0.0
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.0,
+"rotations": 0.0
+},
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 5,
+"tCount": 0,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 10
+}
+}
+},
+{
+"name": "budget parts tstates neg",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": -0.0,
+"rotations": 0.0
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `-0`"
+}
+},
+{
+"name": "frontier mtf",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": "frontier",
+"constraints": {
+"maxTFactories": 3
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.ConstraintsProvidedForFrontierEstimation",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.ConstraintsProvidedForFrontierEstimation):\nUnsupported constraints provided for Frontier Estimation."
+}
+},
+{
+"name": "frontier ldf",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": "frontier",
+"constraints": {
+"logicalDepthFactor": 2.0
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"logicalDepthFactor": 2.0,
+"maxDistillationRounds": 3
+},
+"estimateType": "frontier"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "frontier bad budget",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"estimateType": "frontier",
+"constraints": {
+"maxTFactories": 3
+},
+"errorBudget": 0.0
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`"
+}
+},
+{
+"name": "both constraints",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxDuration": "1 s",
+"maxPhysicalQubits": 1000000
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.BothDurationAndPhysicalQubitsProvided",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.BothDurationAndPhysicalQubitsProvided):\nBoth duration and number of physical qubits constraints are provided, but only one is allowed"
+}
+},
+{
+"name": "both constraints ldf",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"maxDuration": "1 s",
+"maxPhysicalQubits": 1000000,
+"logicalDepthFactor": 0.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.BothDurationAndPhysicalQubitsProvided",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.BothDurationAndPhysicalQubitsProvided):\nBoth duration and number of physical qubits constraints are provided, but only one is allowed"
+}
+},
+{
+"name": "ldf 0.5 with resources",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"constraints": {
+"logicalDepthFactor": 0.5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalDepthScalingFactorTooSmall",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalDepthScalingFactorTooSmall):\nLogical depth scaling factor is too small, it must be at least 1: 0.5"
+}
+},
+{
+"name": "no resources",
+"counts": {
+"numQubits": 5
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.AlgorithmHasNoResources",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.AlgorithmHasNoResources):\nAlgorithm requires at least one magic state or measurement to estimate resources"
+}
+},
+{
+"name": "no resources frontier",
+"counts": {
+"numQubits": 5
+},
+"params": {
+"estimateType": "frontier"
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.AlgorithmHasNoResources",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.AlgorithmHasNoResources):\nAlgorithm requires at least one magic state or measurement to estimate resources"
+}
+},
+{
+"name": "no resources max dur",
+"counts": {
+"numQubits": 5
+},
+"params": {
+"constraints": {
+"maxDuration": "1 s"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.AlgorithmHasNoResources",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.AlgorithmHasNoResources):\nAlgorithm requires at least one magic state or measurement to estimate resources"
+}
+},
+{
+"name": "units bad name and bad budget",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"name": "foo"
+}
+],
+"errorBudget": 0.0
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'Invalid distillation unit specification name: foo.'"
+}
+},
+{
+"name": "scheme bad and bad units",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"crossingPrefactor": 0.6
+},
+"distillationUnitSpecifications": [
+{
+"name": "foo"
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'crossingPrefactor', expected value between 0 and 0.5"
+}
+},
+{
+"name": "unit custom both specs bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z +",
+"outputErrorRateFormula": "z )",
+"physicalQubitSpecification": {
+"numUnitQubits": 0,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'The number of unit qubits must be greater than 0.'"
+}
+},
+{
+"name": "unit custom formula then zero",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "z +",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 0,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.IOError.CannotParseJSON",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.IOError.CannotParseJSON):\ncannot parse JSON: 'The number of unit qubits must be greater than 0.'"
+}
+},
+{
+"name": "unit custom wrong args",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "log(1, 2, 3)",
+"outputErrorRateFormula": "z",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+]
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'WrongArgs(\"expected log(x) or log(base,x)\")'"
+}
+},
+{
+"name": "scheme formula expected paren",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "(codeDistance"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"parentheses\")'"
+}
+},
+{
+"name": "scheme formula expected bracket",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "[codeDistance)"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'Expected(\"]\")'"
+}
+},
+{
+"name": "scheme formula eof bracket",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "[codeDistance"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"square brackets\")'"
+}
+},
+{
+"name": "scheme formula eof func",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "min(codeDistance"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"min\")'"
+}
+},
+{
+"name": "scheme formula comma",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "min(1 2)"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'Expected(\"',' or ';'\")'"
+}
+},
+{
+"name": "scheme formula parsef64",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "1e"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'ParseF64(\"1e\")'"
+}
+},
+{
+"name": "scheme formula invalid value",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "*"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'InvalidValue'"
+}
+},
+{
+"name": "scheme formula pq bad override",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"physicalQubitsPerLogicalQubit": "2 * "
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"value\")'"
+}
+},
+{
+"name": "scheme formula lct and pq bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "1 +",
+"physicalQubitsPerLogicalQubit": "2 * "
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'EofWhileParsing(\"value\")'"
+}
+},
+{
+"name": "scheme formula long",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'TooLong'"
+}
+},
+{
+"name": "scheme formula unparsed quote",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "1 \"x\""
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression):\ncannot evaluate expression: 'UnparsedTokensRemaining(\"\\\"x\\\"\")'"
+}
+},
+{
+"name": "scheme formula undefined quote",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"logicalCycleTime": "codeDistance * twoQubitJointMeasurementTime"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalCycleTimeComputationFailed):\nThe logical cycle time cannot be computed: Undefined(\"twoQubitJointMeasurementTime\")"
+}
+},
+{
+"name": "scheme custom pq nonpos",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "codeDistance",
+"physicalQubitsPerLogicalQubit": "codeDistance - 4"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.PhysicalQubitComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.PhysicalQubitComputationFailed):\nThe number of physical qubits required for a code cannot be computed: physicalQubitsPerLogicalQubit formula yields non-positive value for code distance = 3"
+}
+},
+{
+"name": "scheme custom threshold low",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "x",
+"errorCorrectionThreshold": 0.0001,
+"crossingPrefactor": 0.03,
+"logicalCycleTime": "codeDistance",
+"physicalQubitsPerLogicalQubit": "codeDistance"
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidValueError.InvalidValue",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidValueError.InvalidValue):\ninvalid value for 'oneQubitGateErrorRate, twoQubitGateErrorRate, idleErrorRate', expected value between 0 and 0.0001"
+}
+},
+{
+"name": "batch one bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{
+"errorBudget": 0.01
+},
+{
+"errorBudget": 0.0
+},
+{
+"constraints": {
+"maxDuration": "1 ns"
+}
+}
+],
+"qdk": {
+"ok": true,
+"batch": [
+{
+"status": "success",
+"code": null,
+"message": null,
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.01,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+}
+},
+{
+"status": null,
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"message": "The error budget must be between 0.0 and 1.0, provided input was `0`",
+"jobParams": null
+},
+{
+"status": null,
+"code": "Qdk.Qsc.Estimates.MaxDurationTooSmall",
+"message": "No solution found for the provided maximum duration.",
+"jobParams": null
+}
+],
+"errors": [
+null,
+"Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`",
+"Error estimating resources (Qdk.Qsc.Estimates.MaxDurationTooSmall):\nNo solution found for the provided maximum duration."
+]
+}
+},
+{
+"name": "batch all bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{
+"qecScheme": {
+"name": "floquet_code"
+}
+},
+{
+"errorBudget": 2.0
+}
+],
+"qdk": {
+"ok": true,
+"batch": [
+{
+"status": null,
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol",
+"message": "fault tolerance protocol does not support gate type of qubit",
+"jobParams": null
+},
+{
+"status": null,
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"message": "The error budget must be between 0.0 and 1.0, provided input was `2`",
+"jobParams": null
+}
+],
+"errors": [
+"Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidFaultToleranceProtocol):\nfault tolerance protocol does not support gate type of qubit",
+"Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `2`"
+]
+}
+},
+{
+"name": "batch single bad",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{
+"errorBudget": 0.0
+}
+],
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `0`"
+}
+},
+{
+"name": "batch empty",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [],
+"qdk": {
+"ok": true,
+"batch": [],
+"errors": []
+}
+},
+{
+"name": "batch tuple",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": [
+{
+"errorBudget": 0.01
+},
+{
+"estimateType": "frontier"
+}
+],
+"qdk": {
+"ok": true,
+"batch": [
+{
+"status": "success",
+"code": null,
+"message": null,
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.01,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+}
+},
+{
+"status": "success",
+"code": null,
+"message": null,
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "frontier"
+}
+}
+],
+"errors": [
+null,
+null
+]
+}
+},
+{
+"name": "counts memory null",
+"counts": {
+"numQubits": 5,
+"tCount": 5,
+"numComputeQubits": null
+},
+"params": {},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 5,
+"tCount": 5,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "counts memory bool",
+"counts": {
+"numQubits": 5,
+"tCount": 5,
+"readFromMemoryCount": true
+},
+"params": {},
+"qdk": {
+"ok": false,
+"cls": "QSharpError",
+"code": null,
+"str": "cannot parse JSON: 'invalid type: boolean `true`, expected u64 at line 1 column 151'"
+}
+},
+{
+"name": "counts unknown dropped",
+"counts": {
+"numQubits": 5,
+"tCount": 5,
+"foo": 1,
+"t_count": 9
+},
+"params": {},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 5,
+"tCount": 5,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "scheme custom power",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "mine",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 2,
+"logicalCycleTime": "codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "mine",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 2,
+"logicalCycleTime": "codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "scheme floquet maj echo",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"name": "qubit_maj_ns_e6"
+},
+"qecScheme": {
+"name": "floquetCode"
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "floquetCode",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.07,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "3 * oneQubitMeasurementTime * codeDistance",
+"physicalQubitsPerLogicalQubit": "4 * codeDistance * codeDistance + 8 * (codeDistance - 1)",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "Majorana",
+"name": "qubit_maj_ns_e6",
+"oneQubitMeasurementTime": "100 ns",
+"twoQubitJointMeasurementTime": "100 ns",
+"tGateTime": "100 ns",
+"oneQubitMeasurementErrorRate": {
+"process": 1e-06,
+"readout": 1e-06
+},
+"twoQubitJointMeasurementErrorRate": {
+"process": 1e-06,
+"readout": 1e-06
+},
+"tGateErrorRate": 0.01,
+"idleErrorRate": 1e-06
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "unit custom echo",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"foo": 1,
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15 * z + 356 * c",
+"outputErrorRateFormula": "35 * z ^ 3 + 7.1 * c",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+},
+"physicalQubitSpecification": null
+}
+]
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15 * z + 356 * c",
+"outputErrorRateFormula": "35 * z ^ 3 + 7.1 * c",
+"logicalQubitSpecification": {
+"numUnitQubits": 1,
+"durationInQubitCycleTime": 1
+}
+}
+],
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "unit custom seq resources",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15 * z + 356 * c",
+"outputErrorRateFormula": "35 * z ^ 3 + 7.1 * c",
+"logicalQubitSpecification": [
+3,
+4
+]
+}
+]
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"distillationUnitSpecifications": [
+{
+"displayName": "x",
+"numInputTs": 1,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15 * z + 356 * c",
+"outputErrorRateFormula": "35 * z ^ 3 + 7.1 * c",
+"logicalQubitSpecification": {
+"numUnitQubits": 3,
+"durationInQubitCycleTime": 4
+}
+}
+],
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "profiling echo",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"profiling": {
+"callStackDepth": 3
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": 0.001,
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"profiling": {
+"callStackDepth": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "budget parts echo",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.002,
+"rotations": 0.0,
+"x": 1
+}
+},
+"qdk": {
+"ok": true,
+"status": "success",
+"jobParams": {
+"qecScheme": {
+"name": "surface_code",
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 50
+},
+"errorBudget": {
+"logical": 0.001,
+"tStates": 0.002,
+"rotations": 0.0
+},
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "qubit_gate_ns_e3",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "50 ns",
+"tGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001,
+"oneQubitGateErrorRate": 0.001,
+"twoQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+},
+"constraints": {
+"maxDistillationRounds": 3
+},
+"estimateType": "singlePoint"
+},
+"logicalCounts": {
+"numQubits": 37,
+"tCount": 1234,
+"rotationCount": 0,
+"rotationDepth": 0,
+"cczCount": 0,
+"ccixCount": 0,
+"measurementCount": 0
+}
+}
+},
+{
+"name": "code distance too high",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"maxCodeDistance": 5
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.CodeParameterComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.CodeParameterComputationFailed):\nThe code parameter cannot be computed: The computed code distance 13 is too high; maximum allowed code distance is 5; try increasing the total logical error budget"
+}
+},
+{
+"name": "readout above threshold",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qubitParams": {
+"instructionSet": "GateBased",
+"name": "x",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.02,
+"oneQubitGateErrorRate": 0.001,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 0.001
+}
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.LogicalErrorRateComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.LogicalErrorRateComputationFailed):\nThe logical error rate cannot be computed: invalid value for 'physical_error_rate', expected value between 0 and 0.01"
+}
+},
+{
+"name": "power scheme no code parameter",
+"counts": {
+"numQubits": 37,
+"tCount": 1234
+},
+"params": {
+"qecScheme": {
+"name": "surface_code",
+"distanceCoefficientPower": 1,
+"maxCodeDistance": 3
+},
+"errorBudget": 1e-09
+},
+"qdk": {
+"ok": false,
+"cls": "EstimatorError",
+"code": "Qdk.Qsc.Estimates.CodeParameterComputationFailed",
+"str": "Error estimating resources (Qdk.Qsc.Estimates.CodeParameterComputationFailed):\nThe code parameter cannot be computed: No code parameter achieves required logical error rate 4.357e-15"
+}
+}
+]
+}
