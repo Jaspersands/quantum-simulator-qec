@@ -196,6 +196,19 @@ impl Drawer {
                 }
                 return;
             }
+            // A tagged non-Clifford gate (`I[T] 0`, `I[R_X(theta=…)] 0`): Stim draws the `I` it
+            // reads; drawn here as the gate it is (`T`, `R_X(0.1π)`), as Tsim labels it.
+            Instr::Gate { line, tag, body } => {
+                if let [Instr::NonPauli(ops)] = body.as_slice() {
+                    if let Some(groups) = split_instruction(line).ok().and_then(|(gate, ..)| crate::nonpauli::diagram_labels(&gate, tag, ops)) {
+                        for cells in groups {
+                            let joined = cells.len() > 1;
+                            self.place(cells, joined);
+                        }
+                        return;
+                    }
+                }
+            }
             _ => {}
         }
         let line = instr_line(ins);
