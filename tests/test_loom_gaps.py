@@ -45,9 +45,11 @@ def message(f) -> str | None:
 
 
 def call_message(text: str) -> str:
-    """A bad call's TypeError as this Python words it: before 3.10 it names the method without
-    its class."""
-    return text if sys.version_info >= (3, 10) else re.sub(r"\w+\.(?=\w+\(\))", "", text)
+    """A bad call's TypeError as this Python words it: before 3.10 an unexpected keyword's names
+    the method without its class."""
+    if sys.version_info >= (3, 10) or "unexpected keyword" not in text:
+        return text
+    return re.sub(r"\w+\.(?=\w+\(\))", "", text)
 
 
 def loom_message(text: str) -> str:

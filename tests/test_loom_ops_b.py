@@ -142,6 +142,7 @@ def texts_at_hash_seed_0():
     return json.loads(run.stdout.strip().splitlines()[-1])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="before Python 3.11 the same hash seed orders Loom's sets differently from the fixtures' Python")
 @pytest.mark.parametrize("name", sorted(n for n in EXPERIMENTS if hash_dependent(n)))
 def test_stim_text_is_looms_under_the_same_hash_seed(name, texts_at_hash_seed_0):
     assert canonical(texts_at_hash_seed_0[name]) == canonical(EXPERIMENTS[name]["stim"])
