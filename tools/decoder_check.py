@@ -26,8 +26,9 @@ Sections (each skipped, and said so, when its reference is not installed):
   color   ColorMatching against chromobius on annotated colour-code memories (d = 3 to 9, both
           bases, two noise strengths) and Chromobius's own colour repetition code: the Möbius
           matching's weight equal on every shot (a check of the whole Möbius graph), and the
-          predictions equal except where they differ at that equal weight, which is a tie
-          between two minimum-weight matchings.
+          predictions equal except where they differ at that equal weight, which is a tie:
+          the matched edges listed in another order than PyMatching's (or, rarely, another
+          minimum-weight matching), on which Chromobius's lifting depends.
 
   search  SearchDecoder against tesseract_decoder (Tesseract's defaults: 20 index orders; two
           literal orders; beam 8 with beam climbing) on surface, colour and gross-code models:
