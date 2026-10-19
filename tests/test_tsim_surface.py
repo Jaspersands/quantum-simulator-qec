@@ -246,13 +246,14 @@ def test_tsim_circuit_reads_both_forms():
     a = tsim.Circuit("R 0\nT 0\nR_X(0.25) 0\nM 0")
     b = tsim.Circuit("R 0\nS[T] 0\nI[R_X(theta=0.25*pi)] 0\nM 0")
     assert a == b and a.tcount() == 2
-    assert str(a) == "R 0\nI[T] 0\nI[R_X(theta=0.39269908169872414)] 0\nM 0"
+    assert str(sq.Circuit(a)) == "R 0\nI[T] 0\nI[R_X(theta=0.39269908169872414)] 0\nM 0"
+    assert str(a) == str(b) == "R 0\nT 0\nR_X(0.25) 0\nM 0"
 
 
 def test_tsim_conveniences():
     # Tsim's from_stim_program, cast_to_stim, stim_circuit and without_annotations.
     c = tsim.Circuit.from_stim_program(("H 0\nS[T] 0\nI[R_Z(theta=0.5*pi)] 1\nM 0 1\nDETECTOR rec[-1]\nREPEAT 2 {\n    M 0\n    DETECTOR rec[-1]\n}\nOBSERVABLE_INCLUDE(0) rec[-2]"))
-    assert c.tcount() == 1 and str(c).count("I[T]") == 1
+    assert c.tcount() == 1 and str(sq.Circuit(c)).count("I[T]") == 1 and str(c).splitlines()[1] == "T 0"
     assert c.cast_to_stim() is c
     expanded = c.stim_circuit
     assert "R_Z" not in str(expanded) and "I[T]" in str(expanded) and equal_up_to_phase(expanded[:3].to_matrix(), c[:3].to_matrix())

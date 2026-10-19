@@ -322,9 +322,106 @@ pub fn inverse_tag(tag: &str) -> Result<Option<String>, String> {
     }))
 }
 
+/// A number as `%g` writes it with 6 significant digits (`0.1`, `-0.25`, `1`, `1e-07`).
+fn short(x: f64) -> String {
+    if x == 0.0 || !x.is_finite() {
+        return if x == 0.0 { "0".to_string() } else { format!("{x}") };
+    }
+    let trim = |s: String| if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').to_string() } else { s };
+    let e = x.abs().log10().floor() as i32;
+    // The exponent after rounding to 6 digits (0.9999995 is 1).
+    let rounded: f64 = format!("{x:.5e}").parse().unwrap_or(x);
+    let e = if rounded.abs() >= 10f64.powi(e + 1) { e + 1 } else { e };
+    if (-4..6).contains(&e) {
+        trim(format!("{x:.*}", (5 - e) as usize))
+    } else {
+        let s = format!("{x:.5e}");
+        let (m, exp) = s.split_once('e').unwrap_or((&s, "0"));
+        let exp: i32 = exp.parse().unwrap_or(0);
+        format!("{}e{}{:02}", trim(m.to_string()), if exp < 0 { '-' } else { '+' }, exp.abs())
+    }
+}
+
+/// An angle in radians as a multiple of π (`0.1π`).
+fn turns(radians: f64) -> String {
+    format!("{}π", short(radians / std::f64::consts::PI))
+}
+
+/// How a diagram labels a tagged gate on `I` or `II` (`I[T]`, `I[R_X(theta=…)]`,
+/// `II[R_ZZ(theta=…)]`, `I[R_PAULI(…)]`, `I[U3(…)]`): groups of (qubit, label) cells, a group
+/// of several qubits drawn joined. Rotations are written as Tsim writes them, by their angle
+/// as a multiple of π (`R_X(0.1π)` is exp(−i 0.1π X / 2), the tag's θ = 0.05π), Pauli
+/// products factor by factor (`R_PAULI[X](0.3π)`, and `TPP[X]` / `TPP_DAG[X]` at ±π/8, Tsim's
+/// T-like product rotations). `None` for anything else — coherent errors, leakage, damping,
+/// other gates — which keeps its drawing.
+pub fn diagram_labels(gate: &str, tag: &str, ops: &[NonPauli]) -> Option<Vec<Vec<(u32, String)>>> {
+    if !matches!(gate, "I" | "II") {
+        return None;
+    }
+    let name = tag.split('(').next().unwrap_or("").trim();
+    let letter = |p: u8| ['I', 'X', 'Z', 'Y'][p as usize & 3];
+    let mut out = Vec::new();
+    for op in ops {
+        match op {
+            NonPauli::T { qubit, dagger } => out.push(vec![(*qubit, if *dagger { "T_DAG" } else { "T" }.to_string())]),
+            NonPauli::U3 { qubit, theta, phi, lambda } => out.push(vec![(*qubit, format!("U3({},{},{})", turns(*theta), turns(*phi), turns(*lambda)))]),
+            NonPauli::Rotation { pauli, theta, noise: false } => {
+                // The rotation angle is 2θ: exp(−iθP) = R_P(2θ).
+                let angle = turns(2.0 * theta);
+                if pauli.is_empty() {
+                    continue;
+                }
+                let same_pair = pauli.len() == 2 && pauli[0].1 == pauli[1].1;
+                let cells: Vec<(u32, String)> = match name {
+                    "R_X" | "R_Y" | "R_Z" | "R_XX" | "R_YY" | "R_ZZ" => {
+                        let label = format!("{name}({angle})");
+                        pauli.iter().map(|&(q, _)| (q, label.clone())).collect()
+                    }
+                    _ if theta.abs() == std::f64::consts::FRAC_PI_8 => {
+                        let head = if *theta > 0.0 { "TPP" } else { "TPP_DAG" };
+                        pauli.iter().map(|&(q, p)| (q, format!("{head}[{}]", letter(p)))).collect()
+                    }
+                    _ if same_pair => {
+                        let p = letter(pauli[0].1);
+                        let label = format!("R_{p}{p}({angle})");
+                        pauli.iter().map(|&(q, _)| (q, label.clone())).collect()
+                    }
+                    _ => pauli.iter().map(|&(q, p)| (q, format!("R_PAULI[{}]({angle})", letter(p)))).collect(),
+                };
+                out.push(cells);
+            }
+            _ => return None,
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diagram_labels_of_tagged_gates() {
+        let labels = |gate: &str, tag: &str, targets: &[u32]| diagram_labels(gate, tag, &parse(gate, tag, targets).unwrap().unwrap());
+        assert_eq!(labels("I", "T", &[0, 2]).unwrap(), vec![vec![(0, "T".to_string())], vec![(2, "T".to_string())]]);
+        assert_eq!(labels("I", "T_DAG", &[1]).unwrap(), vec![vec![(1, "T_DAG".to_string())]]);
+        assert_eq!(labels("I", "R_X(theta=0.15707963267948966)", &[0]).unwrap(), vec![vec![(0, "R_X(0.1π)".to_string())]]);
+        assert_eq!(labels("II", "R_ZZ(theta=-0.7853981633974483)", &[0, 3]).unwrap(), vec![vec![(0, "R_ZZ(-0.5π)".to_string()), (3, "R_ZZ(-0.5π)".to_string())]]);
+        assert_eq!(labels("I", "R_PAULI(theta=0.39269908169872414, pauli=XY)", &[0, 1]).unwrap(), vec![vec![(0, "TPP[X]".to_string()), (1, "TPP[Y]".to_string())]]);
+        assert_eq!(labels("I", "R_PAULI(theta=-0.39269908169872414, pauli=Z)", &[4]).unwrap(), vec![vec![(4, "TPP_DAG[Z]".to_string())]]);
+        assert_eq!(labels("I", "R_PAULI(theta=0.7853981633974483, pauli=ZZ)", &[0, 2]).unwrap(), vec![vec![(0, "R_ZZ(0.5π)".to_string()), (2, "R_ZZ(0.5π)".to_string())]]);
+        assert_eq!(labels("I", "R_PAULI(theta=0.4712388980384689, pauli=XIZ)", &[0, 1, 2]).unwrap(), vec![vec![(0, "R_PAULI[X](0.3π)".to_string()), (2, "R_PAULI[Z](0.3π)".to_string())]]);
+        assert_eq!(labels("I", "U3(theta=0.3141592653589793, phi=0.6283185307179586, lambda=0.9424777960769379)", &[0]).unwrap(), vec![vec![(0, "U3(0.1π,0.2π,0.3π)".to_string())]]);
+        assert_eq!(labels("I_ERROR", "R_Z(theta=0.1)", &[0]), None);
+        assert_eq!(labels("I_ERROR", "LEAK(p=0.1)", &[0]), None);
+        assert_eq!(short(1e-7), "1e-07");
+        assert_eq!(short(1e-5), "1e-05");
+        assert_eq!(short(0.0001), "0.0001");
+        assert_eq!(short(123456.7), "123457");
+        assert_eq!(short(1234567.0), "1.23457e+06");
+        assert_eq!(short(0.9999999), "1");
+        assert_eq!(short(-0.25), "-0.25");
+    }
 
     #[test]
     fn inverse_tags() {

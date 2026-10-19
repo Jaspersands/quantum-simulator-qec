@@ -1,6 +1,6 @@
 # Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5, src/tsim/noise/dem.py; Apache License 2.0;
 # see LICENSE in the tsim directory), modified for stabilizer_qec: stim is stabilizer_qec, and the
-# circuit is this package's.
+# circuit is this package's (a tsim.Circuit read as Stim reads Tsim's tagged form of it).
 """Detector error model generation for QEC decoder integration."""
 
 from __future__ import annotations
@@ -29,6 +29,11 @@ def get_detector_error_model(
     converting those detectors back into observables; gauge errors on observables alone
     (``error(0.5) L0``) are dropped. With ``decompose_errors`` that conversion is not supported.
 
+    A ``tsim.Circuit``'s model is Tsim's: Stim's analysis of Tsim's tagged form, which reads T
+    as ``S``, a rotation or ``U3`` as ``I`` and a Pauli-product rotation as ``SPP`` (so
+    ``R 0``, ``H 0``, ``T 0``, ``H 0``, ``M 0`` has a random observable, ``error(0.5) D0 L0``);
+    a ``stabilizer_qec.Circuit``'s reads ``I[T]`` and the rotations as the identity.
+
     WARNING: if the circuit has distance one (an error flips an observable alone), the model is
     wrong, as Tsim's is.
     """
@@ -42,9 +47,17 @@ def get_detector_error_model(
         ignore_decomposition_failures=ignore_decomposition_failures,
         block_decomposition_from_introducing_remnant_edges=block_decomposition_from_introducing_remnant_edges,
     )
+    from stabilizer_qec.tsim._native import stim_reading
+    from stabilizer_qec.tsim.circuit import Circuit as TsimCircuit
+
+    if isinstance(circuit, TsimCircuit):
+        # Tsim's model is Stim's of its tagged circuit: T read as S, a rotation as I, a
+        # Pauli-product rotation as SPP.
+        circuit = sq.Circuit(stim_reading(circuit._stim_exact_text()))
     circuit = circuit if isinstance(circuit, sq.Circuit) else sq.Circuit(circuit)
     if not allow_non_deterministic_observables:
-        return circuit.detector_error_model(**kwargs)
+        # Stim's model (a tsim.Circuit's own method is this one's).
+        return sq.Circuit.detector_error_model(circuit, **kwargs)
 
     obs: dict = defaultdict(list)
     new_circuit = sq.Circuit()

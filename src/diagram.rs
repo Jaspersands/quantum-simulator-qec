@@ -374,6 +374,16 @@ impl Builder {
                 body,
                 tag: own,
             } => {
+                // A tagged non-Clifford gate, drawn as the gate it is (`T`, `R_X(0.1π)`).
+                if let [Instr::NonPauli(ops)] = body.as_slice() {
+                    if let Some(groups) = split_instruction(line).ok().and_then(|(gate, ..)| crate::nonpauli::diagram_labels(&gate, own, ops)) {
+                        for cells in groups {
+                            let joined = cells.len() > 1;
+                            self.place(cells, joined);
+                        }
+                        return;
+                    }
+                }
                 if !own.is_empty()
                     && body.len() == 1
                     && !matches!(body[0], Instr::Gate { .. })
@@ -1122,8 +1132,9 @@ enum Drawn {
     One(u32, String),
     /// A two-qubit gate: its qubits and each end's label (`@` a control dot, `⊕` a CX target).
     Pair(u32, u32, String, String),
-    /// A Pauli product (`MPP`, `SPP`, `E`): its factors, joined.
-    Product(Vec<(u32, String)>, String),
+    /// A Pauli product (`MPP`, `SPP`, `E`, a tagged product rotation): its factors and their
+    /// labels (`SPP[X]`), joined.
+    Product(Vec<(u32, String)>),
 }
 
 /// The operations a circuit applies during tick `tick` (after `tick` `TICK`s, before the next),
@@ -1143,6 +1154,22 @@ fn tick_ops(circuit: &Circuit, tick: u64) -> Result<Vec<Drawn>, String> {
         if t != tick {
             continue;
         }
+        // A tagged non-Clifford gate, drawn as the gate it is (`T`, `R_X(0.1π)`).
+        if let Instr::Gate { line, tag, body } = ins {
+            if let [Instr::NonPauli(ops)] = body.as_slice() {
+                if let Some(groups) = split_instruction(line).ok().and_then(|(gate, ..)| crate::nonpauli::diagram_labels(&gate, tag, ops)) {
+                    for mut cells in groups {
+                        if cells.len() == 1 {
+                            let (q, label) = cells.remove(0);
+                            out.push(Drawn::One(q, label));
+                        } else {
+                            out.push(Drawn::Product(cells));
+                        }
+                    }
+                    continue;
+                }
+            }
+        }
         let line = crate::circuit::instr_line(ins);
         let Ok((name, _, a, tokens)) = split_instruction(&line) else { continue };
         let q = |s: &str| s.trim_start_matches('!').parse::<u32>().ok();
@@ -1155,10 +1182,10 @@ fn tick_ops(circuit: &Circuit, tick: u64) -> Result<Vec<Drawn>, String> {
                         .split('*')
                         .filter_map(|f| {
                             let f = f.trim_start_matches('!');
-                            Some((f.get(1..)?.parse().ok()?, f[..1].to_string()))
+                            Some((f.get(1..)?.parse().ok()?, format!("{name}[{}]", &f[..1])))
                         })
                         .collect();
-                    out.push(Drawn::Product(cells, name.clone()));
+                    out.push(Drawn::Product(cells));
                 }
             }
             _ => {
@@ -1342,14 +1369,14 @@ pub fn slices_svg_filtered(circuit: &Circuit, ticks: std::ops::Range<u64>, rows:
                             }
                         }
                     }
-                    Drawn::Product(cells, name) => {
+                    Drawn::Product(cells) => {
                         let ds: Vec<f64> = cells.iter().map(|c| nudge(c.0)).collect();
                         for w in 0..cells.len().saturating_sub(1) {
                             let ((x0, y0), (x1, y1)) = (px(cells[w].0), px(cells[w + 1].0));
                             let _ = write!(s, "<line class=\"join\" x1=\"{:.1}\" y1=\"{:.1}\" x2=\"{:.1}\" y2=\"{:.1}\" stroke-width=\"2\" stroke-dasharray=\"4 2\"/>", x0 + ds[w], y0 + ds[w], x1 + ds[w + 1], y1 + ds[w + 1]);
                         }
-                        for ((q, p), d) in cells.iter().zip(ds) {
-                            boxed(&mut s, *q, &format!("{name}[{p}]"), d);
+                        for ((q, label), d) in cells.iter().zip(ds) {
+                            boxed(&mut s, *q, label, d);
                         }
                     }
                 }

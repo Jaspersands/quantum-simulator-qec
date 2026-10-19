@@ -1,9 +1,11 @@
 # Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5; Apache License 2.0; see LICENSE in this directory),
-# modified for stabilizer_qec: tsim is stabilizer_qec.tsim; annotations postponed (Python 3.9).
+# modified for stabilizer_qec: tsim is stabilizer_qec.tsim; annotations postponed (Python 3.9);
+# stim_to_shorthand also reads this package's tagged forms (I[T], radians).
 """Conversion utilities between tsim shorthand and stim program text."""
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable
 
@@ -228,6 +230,85 @@ def shorthand_to_stim(text: str) -> str:
     return text
 
 
+_NATIVE_LINE = re.compile(r"^(\s*)(I|II)\[([^\]\n]*)\](.*)$")
+_NATIVE_TAG = re.compile(r"^\s*(\w+)\s*(?:\((.*)\))?\s*$")
+
+
+def _native_args(body: str) -> dict[str, str] | None:
+    out: dict[str, str] = {}
+    for part in body.split(","):
+        key, eq, value = part.partition("=")
+        if not eq:
+            return None
+        out[key.strip()] = value.strip()
+    return out
+
+
+def _turns(radians: float, scale: float) -> str:
+    """The shortest number of half-turns h with ``float(h) * pi * scale == radians``, as
+    ``tsim_to_native`` reads it back (``scale`` 1/2 for a rotation's exp(−iθP), 1 for U3)."""
+    h = radians / (math.pi * scale)
+    for digits in range(1, 18):
+        candidate = float(f"{h:.{digits}g}")
+        if candidate * math.pi * scale == radians:
+            return repr(candidate)
+    return repr(h)
+
+
+def _native_to_shorthand_line(line: str) -> str | None:
+    m = _NATIVE_LINE.match(line)
+    if not m:
+        return None
+    indent, gate, tag, rest = m.groups()
+    t = _NATIVE_TAG.match(tag)
+    if not t:
+        return None
+    name, body = t.group(1), t.group(2)
+    targets = rest.split()
+    if gate == "I" and body is None and name in ("T", "T_DAG") and targets:
+        return f"{indent}{name} {' '.join(targets)}"
+    args = _native_args(body) if body else None
+    if args is None or not targets:
+        return None
+    try:
+        if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"}:
+            return f"{indent}{name}({_turns(float(args['theta']), 0.5)}) {' '.join(targets)}"
+        if gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
+            a, b, c = (_turns(float(args[k]), 1.0) for k in ("theta", "phi", "lambda"))
+            return f"{indent}U3({a}, {b}, {c}) {' '.join(targets)}"
+        if gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and set(args) == {"theta"} and len(targets) % 2 == 0:
+            angle = _turns(float(args["theta"]), 0.5)
+            return "\n".join(f"{indent}{name}({angle}) {targets[i]} {targets[i + 1]}" for i in range(0, len(targets), 2))
+        if gate == "I" and name == "R_PAULI" and set(args) == {"theta", "pauli"}:
+            theta, pauli = float(args["theta"]), args["pauli"].upper()
+            if len(pauli) != len(targets) or not set(pauli) <= set("IXYZ") or not all(q.isdecimal() for q in targets):
+                return None
+            factors = [(p, q) for p, q in zip(pauli, targets) if p != "I"]
+            if not factors:
+                return None
+            product = "*".join(f"{p}{q}" for p, q in factors)
+            if abs(theta) == math.pi / 8:
+                return f"{indent}{'TPP' if theta > 0 else 'TPP_DAG'} {product}"
+            angle = _turns(theta, 0.5)
+            if len(factors) == 2 and factors[0][0] == factors[1][0] and factors[0][1] != factors[1][1]:
+                p = factors[0][0]
+                return f"{indent}R_{p}{p}({angle}) {factors[0][1]} {factors[1][1]}"
+            return f"{indent}R_PAULI({angle}) {product}"
+    except ValueError:
+        return None
+    return None
+
+
+def _native_to_shorthand(text: str) -> str:
+    """This package's tagged forms (``I[T]``, ``I[R_X(theta=<radians>)]``, ``I[U3(...)]``,
+    ``I[R_PAULI(theta=..., pauli=...)]``, ``II[R_ZZ(theta=...)]``) as Tsim's shorthand."""
+    out = []
+    for line in text.split("\n"):
+        converted = _native_to_shorthand_line(line)
+        out.append(line if converted is None else converted)
+    return "\n".join(out)
+
+
 def stim_to_shorthand(text: str) -> str:
     """Convert expanded stim annotations back to tsim shorthand.
 
@@ -240,7 +321,19 @@ def stim_to_shorthand(text: str) -> str:
     - SPP_DAG[T] → TPP_DAG
     - S[T] → T
     - S_DAG[T] → T_DAG
+
+    and this package's tagged forms (stabilizer_qec's addition), angles in radians of
+    exp(−iθP) written back in half-turns:
+    - I[T] / I[T_DAG] → T / T_DAG
+    - I[R_X(theta=t)] → R_X(2t/π), and R_Y, R_Z
+    - I[U3(theta=a, phi=b, lambda=c)] → U3(a/π, b/π, c/π)
+    - I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0*Y1 (the same gate as
+      R_PAULI(±0.25), which prints so)
+    - I[R_PAULI(theta=t, pauli=ZZ)] 0 1 → R_ZZ(2t/π) 0 1; any other product
+      R_PAULI(2t/π) X0*Y1
+    - II[R_XX(theta=t)] 0 1 2 3 → R_XX(2t/π) 0 1 and R_XX(2t/π) 2 3, a line a pair
     """
+    text = _native_to_shorthand(text)
 
     # Replace I[U3(theta=θ*pi, phi=φ*pi, lambda=λ*pi)] with U3(θ, φ, λ)
     def replace_u3(m: re.Match) -> str:

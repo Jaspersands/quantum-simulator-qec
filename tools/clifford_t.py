@@ -202,7 +202,7 @@ def check(shots: int, out: pathlib.Path, tsim_encoded: bool = False) -> dict:
     # (every noise branch followed) against Tsim's histogram.
     text = distillation_text()
     records = np.array([[(i >> k) & 1 for k in range(5)] for i in range(32)], dtype=bool)
-    dist = sq.Circuit(str(ours_tsim.Circuit(text)) + "\n" + "\n".join(f"DETECTOR rec[-{k}]" for k in range(5, 0, -1))).exact_distribution(method="stabilizer_rank")
+    dist = ours_tsim.Circuit(text + "\n" + "\n".join(f"DETECTOR rec[-{k}]" for k in range(5, 0, -1))).exact_distribution(method="stabilizer_rank")
     probs = np.array([dist.get((tuple(bool(b) for b in r), ()), 0.0) for r in records])
     o, t, timing = both_records(text, shots)
     hist_t = histogram(t)
