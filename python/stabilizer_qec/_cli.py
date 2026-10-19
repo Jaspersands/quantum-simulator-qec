@@ -39,7 +39,46 @@ COMMANDS = {
     "sample": "Samples measurements from a circuit.",
     "sample_dem": "Samples detection events from a detector error model.",
     "serve": "Serve a decoder to clients over TCP or over stdin/stdout (stabilizer_qec.realtime.DecoderClient).",
+    "panqec": "PanQEC's command line: ls, run, start-gui, generate-input, ... (`stabilizer-qec panqec ls`).",
+    "qecsim": "qecsim's command line: run, run-ftp and merge (`stabilizer-qec qecsim run ...`).",
 }
+
+# The ports whose own command lines (click groups) run as `stabilizer-qec <name> ...`, with the
+# same arguments as `panqec ...` and `qecsim ...` (no `panqec` or `qecsim` scripts here: they
+# would shadow the real packages').
+PORT_CLIS = {"panqec": "stabilizer_qec.panqec.cli", "qecsim": "stabilizer_qec.qecsim.cli"}
+
+
+def _port_cli(command: str):
+    import importlib
+
+    return importlib.import_module(PORT_CLIS[command]).cli
+
+
+def _port_cli_help(command: str) -> str:
+    """The port's own help page (its command line needs click, an extra's dependency)."""
+    try:
+        import click
+
+        cli = _port_cli(command)
+    except ImportError:
+        return f"{COMMANDS[command]}\n(It needs `pip install stabilizer-qec[{command}]`.)\n"
+    with click.Context(cli, info_name=f"stabilizer-qec {command}") as ctx:
+        return cli.get_help(ctx) + "\n"
+
+
+def _run_port_cli(command: str, rest: List[str]) -> int:
+    """Runs PanQEC's or qecsim's command line on `rest`, as `stabilizer-qec <command>`."""
+    try:
+        cli = _port_cli(command)
+    except ImportError as ex:
+        print(f"stabilizer-qec {command}: {ex} (`pip install stabilizer-qec[{command}]`)", file=sys.stderr)
+        return 1
+    try:
+        cli.main(args=rest, prog_name=f"stabilizer-qec {command}")
+    except SystemExit as ex:  # click's standalone mode ends this way
+        return ex.code if isinstance(ex.code, int) else int(ex.code is not None)
+    return 0
 
 FORMATS = ["01", "b8", "r8", "ptb64", "hits", "dets"]
 
@@ -498,6 +537,8 @@ def _commands_markdown(program: str, pages: dict) -> str:
 def _command_help(command: str) -> str:
     """A command's help: Stim's page for Stim's commands, the flags for this package's own."""
     pages = _stim_help()["commands"]
+    if command in PORT_CLIS:
+        return _port_cli_help(command)
     return _as_ours(pages[command]) if command in pages else _parser(command).format_help()
 
 
@@ -647,6 +688,8 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
         from .sinter._command._main import main as sinter_main
 
         return sinter_main(command_line_args=rest) or 0
+    if command in PORT_CLIS:
+        return _run_port_cli(command, rest)
     if command not in COMMANDS:
         print(f"Unrecognized command '{command}'. Use `stabilizer-qec help` for the commands.", file=sys.stderr)
         return 1

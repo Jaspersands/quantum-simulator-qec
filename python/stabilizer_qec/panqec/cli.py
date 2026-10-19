@@ -1,4 +1,5 @@
-# modified for stabilizer_qec: its ldpc and PyMatching are this package's, and panqec is stabilizer_qec.panqec.
+# modified for stabilizer_qec: its ldpc and PyMatching are this package's, and panqec is stabilizer_qec.panqec; its
+# command line is `stabilizer-qec panqec`, which the cluster scripts it writes call.
 import os
 from typing import Optional, List
 import click
@@ -28,13 +29,13 @@ from .analysis import Analysis
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version=panqec.__version__, prog_name='stabilizer_qec.panqec')
+@click.version_option(version=panqec.__version__, prog_name='panqec')
 @click.pass_context
 def cli(ctx):
     """
     panqec - biased noise in 3D simulations.
 
-    See panqec COMMAND --help for command-specific help.
+    See stabilizer-qec panqec COMMAND --help for command-specific help.
     """
     if not ctx.invoked_subcommand:
         print(ctx.get_help())
@@ -339,7 +340,7 @@ def monitor_usage(log_file: str, interval: float = 10):
     show_default=True,
     type=click.Choice(list(DECODERS.keys())),
     help='Decoder class name. '
-    'Use `panqec ls decoders` to find the list of all decoders.'
+    'Use `stabilizer-qec panqec ls decoders` to find the list of all decoders.'
 )
 @click.option(
     '-s', '--sizes', default='3x3,5x5,7x7', type=str,
@@ -366,13 +367,13 @@ def monitor_usage(log_file: str, interval: float = 10):
     '--code_class', default=None, type=str,
     show_default=True,
     help='Code class name, e.g. Toric3DCode. '
-    'Use `panqec ls codes` to find the list of all codes'
+    'Use `stabilizer-qec panqec ls codes` to find the list of all codes'
 )
 @click.option(
     '--noise_class', default='PauliErrorModel', type=str,
     show_default=True,
     help='Error model class name, e.g. PauliErrorModel. '
-    'Use `panqec ls error_models` to find the list of all error models'
+    'Use `stabilizer-qec panqec ls error_models` to find the list of all error models'
 )
 @click.option(
     '--deformation_name', default=None, type=str,
@@ -400,7 +401,7 @@ def generate_input(
 
     \b
     Example:
-    panqec generate-input -i data/toric-3d-code/ \\
+    stabilizer-qec panqec generate-input -i data/toric-3d-code/ \\
             --code_class Toric3DCode \\
             --noise_class PauliErrorModel \\
             -s 3x3x3,5x5x5,7x7x7, --decoder BeliefPropagationOSDDecoder \\
@@ -596,9 +597,9 @@ def generate_cluster_script(
     for template_string, value in replace_map.items():
         text = text.replace(template_string, value)
 
-    monitor_command = "panqec monitor-usage " \
+    monitor_command = "stabilizer-qec panqec monitor-usage " \
         f"{log_dir}/usage_{job_id}_{i_node}.txt &"
-    run_command = "panqec run-parallel " \
+    run_command = "stabilizer-qec panqec run-parallel " \
         f"-d {data_dir} " \
         f"-n {n_nodes} " \
         f"-j {i_node} " \

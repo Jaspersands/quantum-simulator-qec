@@ -1,5 +1,5 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim, and its command line `stabilizer-qec qecsim`.
 """
 This module contains the qecsim command line interface (CLI).
 
@@ -113,7 +113,7 @@ class _ConstructorParamType(click.ParamType):
         """See ``click.ParamType.get_metavar``"""
         return '[{}]'.format('|'.join(sorted(self._constructors.keys())))
 
-    def get_missing_message(self, param):
+    def get_missing_message(self, param, ctx=None):  # (stabilizer_qec: click 8.2 passes ctx too)
         """See ``click.ParamType.get_missing_message``"""
         return '(choose from {})'.format(', '.join(sorted(self._constructors.keys())))
 
@@ -246,12 +246,12 @@ def _validate_measurement_error_probability(ctx, param, value):
 
 
 @click.group()
-@click.version_option(version=qecsim.__version__, prog_name='stabilizer_qec.qecsim')
+@click.version_option(version=qecsim.__version__, prog_name='qecsim')
 def cli():
     """
     qecsim - quantum error correction simulator using stabilizer codes.
 
-    See qecsim COMMAND --help for command-specific help.
+    See stabilizer-qec qecsim COMMAND --help for command-specific help.
     """
     util.init_logging()
 
@@ -293,15 +293,15 @@ def run(code, error_model, decoder, error_probabilities, max_failures, max_runs,
 
     Examples:
 
-     qecsim run -r10 "five_qubit" "generic.depolarizing" "generic.naive" 0.1
+     stabilizer-qec qecsim run -r10 "five_qubit" "generic.depolarizing" "generic.naive" 0.1
 
-     qecsim run -f5 -r50 -s13 "steane" "generic.phase_flip" "generic.naive" 0.1
+     stabilizer-qec qecsim run -f5 -r50 -s13 "steane" "generic.phase_flip" "generic.naive" 0.1
 
-     qecsim run -r20 "planar(7,7)" "generic.bit_flip" "planar.mps(6)" 0.101 0.102 0.103
+     stabilizer-qec qecsim run -r20 "planar(7,7)" "generic.bit_flip" "planar.mps(6)" 0.101 0.102 0.103
 
-     qecsim run -r10 "color666(7)" "generic.bit_flip" "color666.mps(16)" 0.09 0.10
+     stabilizer-qec qecsim run -r10 "color666(7)" "generic.bit_flip" "color666.mps(16)" 0.09 0.10
 
-     qecsim run -o"data.json" -f9 "toric(3,3)" "generic.bit_flip" "toric.mwpm" 0.1
+     stabilizer-qec qecsim run -o"data.json" -f9 "toric(3,3)" "generic.bit_flip" "toric.mwpm" 0.1
     """
     # INPUT
     code.validate()
@@ -368,11 +368,11 @@ def run_ftp(code, time_steps, error_model, decoder, error_probabilities, max_fai
 
     Examples:
 
-     qecsim run-ftp -r5 "rotated_planar(13,13)" 13 "generic.bit_phase_flip" "rotated_planar.smwpm" 0.1 0.2
+     stabilizer-qec qecsim run-ftp -r5 "rotated_planar(13,13)" 13 "generic.bit_phase_flip" "rotated_planar.smwpm" 0.1 0.2
 
-     qecsim run-ftp -r5 -m0.05 "rotated_toric(6,6)" 4 "generic.bit_phase_flip" "rotated_toric.smwpm" 0.1
+     stabilizer-qec qecsim run-ftp -r5 -m0.05 "rotated_toric(6,6)" 4 "generic.bit_phase_flip" "rotated_toric.smwpm" 0.1
 
-     qecsim run-ftp -r5 -o"data.json" "rotated_planar(7,7)" 7 "generic.depolarizing" "rotated_planar.smwpm" 0.1
+     stabilizer-qec qecsim run-ftp -r5 -o"data.json" "rotated_planar(7,7)" 7 "generic.depolarizing" "rotated_planar.smwpm" 0.1
     """
     # INPUT
     code.validate()
@@ -411,9 +411,9 @@ def merge(data_file, output):
 
     Examples:
 
-     qecsim merge "data1.json" "data2.json" "data3.json"
+     stabilizer-qec qecsim merge "data1.json" "data2.json" "data3.json"
 
-     qecsim merge -o"merged.json" data*.json
+     stabilizer-qec qecsim merge -o"merged.json" data*.json
     """
     # INPUT
     input_data = []

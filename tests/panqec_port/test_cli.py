@@ -1,4 +1,6 @@
 # modified for stabilizer_qec: its ldpc and PyMatching are this package's, and panqec is stabilizer_qec.panqec.
+import os
+
 import numpy as np
 import pytest
 from click.testing import CliRunner
@@ -78,3 +80,26 @@ def test_read_range_input(spec, expected_values):
     for value, expected_value in zip(values, expected_values):
         assert value == expected_value
         assert isinstance(value, type(expected_value))
+
+
+def test_generate_cluster_script(runner):
+    # (stabilizer_qec: the script calls `stabilizer-qec panqec ...`, which a cluster with only this
+    # package installed has, where PanQEC's calls `panqec ...`; the rest is PanQEC's.)
+    os.makedirs('my-experiment/inputs')
+    with open('slurm_header.sbatch', 'w') as f:
+        f.write('#!/bin/bash\n#SBATCH -t ${TIME}\n#SBATCH --job-name=${NAME}\n#SBATCH --array=1-${N_NODES}\n')
+    result = runner.invoke(cli, [
+        'generate-cluster-script', 'slurm_header.sbatch', '--output-file', 'my-experiment/run.sbatch',
+        '--data-dir', 'my-experiment', '--cluster', 'slurm', '--n-nodes', '8', '--wall-time', '10:00:00',
+        '--memory', '20GB', '--trials', '10000', '--n-cores', '5', '--delete-existing'
+    ])
+    assert result.exit_code == 0, result.output
+    with open('my-experiment/run.sbatch') as f:
+        text = f.read()
+    data_dir = os.path.abspath('my-experiment')
+    assert text == (
+        '#!/bin/bash\n#SBATCH -t 10:00:00\n#SBATCH --job-name=my-experiment\n#SBATCH --array=1-8\n\n\n'
+        'stabilizer-qec panqec monitor-usage my-experiment/logs/usage_${SLURM_JOB_ID}_$SLURM_ARRAY_TASK_ID.txt &\n\n'
+        f'stabilizer-qec panqec run-parallel -d {data_dir} -n 8 -j $SLURM_ARRAY_TASK_ID -c 5 -t 10000 '
+        '--delete-existing\n\ndate'
+    )
