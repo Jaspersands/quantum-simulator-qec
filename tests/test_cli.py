@@ -219,6 +219,42 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     assert sq.main(command_line_args=["sample", "--help"]) == 0
 
 
+def test_panqec_and_qecsim_command_lines(tmp_path, capsys):
+    """`stabilizer-qec panqec ...` and `stabilizer-qec qecsim ...` are PanQEC's `panqec ...` and
+    qecsim's `qecsim ...`: the same arguments, outputs and exit codes."""
+    import json
+
+    pytest.importorskip("click")
+    pytest.importorskip("networkx")
+
+    def run(*args, code=0):
+        capsys.readouterr()
+        assert sq.main(command_line_args=list(args)) == code
+        return capsys.readouterr()
+
+    assert ours("qecsim", "--version") == b"qecsim, version 1.0b9\n"
+    data = json.loads(run("qecsim", "run", "-r5", "-s13", "five_qubit", "generic.depolarizing", "generic.naive", "0.1").out)
+    assert [(d["code"], d["n_run"], d["error_probability"]) for d in data] == [("5-qubit", 5, 0.1)]
+    out = tmp_path / "ftp.json"
+    run("qecsim", "run-ftp", "-r2", "-s5", f"-o{out}", "rotated_planar(3,3)", "3", "generic.bit_phase_flip", "rotated_planar.smwpm", "0.1")
+    assert json.loads(out.read_text())[0]["time_steps"] == 3
+    err = run("qecsim", "run", code=2).err
+    assert "Usage: stabilizer-qec qecsim run " in err and "Missing argument 'CODE'" in err
+    assert "No such command 'frobnicate'" in run("qecsim", "frobnicate", code=2).err
+    assert "Usage: stabilizer-qec qecsim [OPTIONS] COMMAND" in run("help", "qecsim").out
+    assert "stabilizer-qec qecsim run -r10" in run("qecsim", "run", "--help").out
+    for module in ("pandas", "tqdm", "psutil", "scipy"):
+        pytest.importorskip(module)
+    assert run("panqec", "--version").out == "panqec, version 0.1.7\n"
+    codes = run("panqec", "ls", "codes").out
+    assert codes.startswith("Codes:\n") and "Toric3DCode" in codes
+    # The commands its cluster scripts call.
+    run("panqec", "run-parallel", "--help")
+    run("panqec", "monitor-usage", "--help")
+    page = run("panqec", "--help").out
+    assert page.startswith("Usage: stabilizer-qec panqec [OPTIONS] [COMMAND]") and run("help", "panqec").out == page
+
+
 @needs_stim
 def test_diagram_flags_and_replayed_shot_counts(files):
     c = files / "noisy.stim"

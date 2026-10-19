@@ -21,6 +21,15 @@ def test_center_slice_error_model_properties():
     assert error_model.ratio == (1 / 6, 1 / 6, 2 / 3)
 
 
+def test_center_slice_error_model_label_and_repr():
+    # (stabilizer_qec: as qecsim prints them under NumPy 1, the run-ftp JSON's "error_model" too; not np.float64(0.2))
+    error_model = CenterSliceErrorModel((0.2, 0.8, 0), 0.5)
+    assert error_model.label == 'Center-slice (lim=(0.2, 0.8, 0.0), pos=0.5)'
+    assert repr(error_model) == 'CenterSliceErrorModel((0.2, 0.8, 0.0), 0.5)'
+    assert repr(CenterSliceErrorModel(np.array([1, 0, 0]), np.float64(-0.25))) == 'CenterSliceErrorModel((1.0, 0.0, 0.0), -0.25)'
+    assert all(type(x) is float for x in error_model.lim + error_model.ratio + error_model.neg_lim)
+
+
 @pytest.mark.parametrize('lim, pos', [
     ((0, 0, 1), 1),
     ((0, 0, 1), 0.5),

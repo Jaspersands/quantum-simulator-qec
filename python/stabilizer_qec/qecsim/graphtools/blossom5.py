@@ -204,8 +204,12 @@ def weight_to_int_fn(weights):
 
 
 def _mwpm_ids_standin(n_nodes, edges):
-    """Minimum weight perfect matching by this package's exact matcher (or, past its size,
-    NetworkX's), in Blossom V's form: {(node_id, node_id), ...}, each tuple sorted."""
+    """Minimum weight perfect matching by this package's exact matchers, in Blossom V's form:
+    {(node_id, node_id), ...}, each tuple sorted.
+
+    Up to 512 nodes, the dense blossom (src/blossom.rs, which caps its O(n^2) memory and O(n^3)
+    time there); past it, Fusion Blossom on the same graph with every node a defect, which is
+    exact too and stays fast at thousands of nodes. (NetworkX only if neither applies.)"""
     if n_nodes == 0:
         return set()
     from stabilizer_qec import _core
@@ -213,6 +217,9 @@ def _mwpm_ids_standin(n_nodes, edges):
     if n_nodes <= 512:
         mates = _core.blossom_mwpm_ids(n_nodes, [(int(a), int(b), int(w)) for a, b, w in edges])
         return {tuple(sorted((a, b))) for a, b in enumerate(mates)}
+    mates = _mwpm_ids_fusion(n_nodes, edges)
+    if mates is not None:
+        return mates
     import networkx as nx
 
     graph = nx.Graph()
@@ -222,3 +229,51 @@ def _mwpm_ids_standin(n_nodes, edges):
     mates = nx.max_weight_matching(graph, maxcardinality=True)
     return {tuple(sorted(m)) for m in mates}
 
+
+def _mwpm_ids_fusion(n_nodes, edges):
+    """Minimum weight perfect matching by Fusion Blossom, or None when the graph has no perfect
+    matching (or its weights would overflow).
+
+    Fusion Blossom matches defects along shortest paths. With every node a defect and each weight
+    raised to 2(w - low + M), M = (n/2)W + 1 (W the weight range), a matching that uses any path
+    of two or more edges costs at least 2M(n/2 + 1), more than any perfect matching of direct
+    edges (at most n(W + M)); so its optimum is one of direct edges, and minimum in the original
+    weights too, since every perfect matching's raised weight is twice its own plus n(M - low)."""
+    best = {}
+    for a, b, w in edges:  # (the lightest of parallel edges; no loops)
+        a, b, w = int(a), int(b), int(w)
+        key = (min(a, b), max(a, b))
+        if a != b and (key not in best or w < best[key]):
+            best[key] = w
+    if n_nodes % 2 or not best:
+        return None
+    # each connected component needs an even number of nodes (else Fusion Blossom, with no
+    # boundary to match to, has no answer)
+    parent = list(range(n_nodes))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in best:
+        parent[find(a)] = find(b)
+    sizes = {}
+    for x in range(n_nodes):
+        sizes[find(x)] = sizes.get(find(x), 0) + 1
+    if any(size % 2 for size in sizes.values()):
+        return None
+    low = min(best.values())
+    span = max(best.values()) - low
+    big = (n_nodes // 2) * span + 1
+    if 2 * (span + big) * n_nodes >= 1 << 62:
+        return None
+    from stabilizer_qec import fusion_blossom as fb
+
+    solver = fb.SolverSerial(fb.SolverInitializer(n_nodes, [(a, b, 2 * (w - low + big)) for (a, b), w in best.items()], []))
+    solver.solve(fb.SyndromePattern(list(range(n_nodes))))
+    mates = {tuple(sorted(pair)) for pair in solver.perfect_matching().peer_matchings}
+    if len(mates) != n_nodes // 2 or len({x for pair in mates for x in pair}) != n_nodes or any(pair not in best for pair in mates):
+        return None  # (no perfect matching of direct edges: the graph has none)
+    return mates

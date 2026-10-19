@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; refactor works with neither choose nor prefer.
 
 """
 Functions:
@@ -109,7 +109,7 @@ def refactor(state,
         if protected:
             available = gens - protected
         else:
-            available = gens
+            available = set(gens)  # (stabilizer_qec: PECOS's, gens itself, raised KeyError with neither choose nor prefer)
 
         # Pick a stabilizer generator to become the requested stabilizer generator.
         if choose is None and prefer is None:

@@ -1,5 +1,5 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim, and its command line `stabilizer-qec qecsim`.
 """
 This module contains the qecsim command line interface (CLI).
 
@@ -37,7 +37,8 @@ from stabilizer_qec.qecsim.model import ATTR_CLI_DESCRIPTION
 
 
 # qecsim's entry points (setup.cfg [options.entry_points]), as a table: this package does not
-# register them with the installer.
+# register them with the installer. Installed distributions' entry points in the same groups
+# (qecsim's extensions, e.g. qecsimext's) are read too: see _constructors.
 _ENTRY_POINTS = {
     'qecsim.cli.run.codes': [
         ('color666', 'stabilizer_qec.qecsim.models.color', 'Color666Code'),
@@ -94,6 +95,36 @@ _ENTRY_POINTS = {
 logger = logging.getLogger(__name__)
 
 
+def _installed_entry_points(group):
+    """Installed distributions' entry points in `group` (as qecsim's pkg_resources.iter_entry_points), but for
+    the real qecsim's own, which name its classes where the port's table names this package's."""
+    import importlib.metadata as md
+
+    eps = md.entry_points()
+    eps = eps.select(group=group) if hasattr(eps, 'select') else eps.get(group, [])  # (Python 3.9: a dict)
+    seen, out = set(), []
+    for ep in eps:
+        if ep.value.split(':')[0].split('.')[0] == 'qecsim' or (ep.name, ep.value) in seen:
+            continue
+        seen.add((ep.name, ep.value))
+        out.append(ep)
+    return out
+
+
+def _constructors(entry_point_id):
+    """Each name in the entry point group `entry_point_id` (e.g. qecsim.cli.run_ftp.codes) and its class: the
+    port's own and installed extensions' (whose name wins over the port's), sorted by name as qecsim's are. An
+    extension that does not load is skipped with a warning (qecsim would fail to start)."""
+    table = {name: (module, attr) for name, module, attr in _ENTRY_POINTS.get(entry_point_id, [])}
+    constructors = {name: getattr(importlib.import_module(module), attr) for name, (module, attr) in table.items()}
+    for ep in sorted(_installed_entry_points(entry_point_id), key=lambda ep: ep.name):
+        try:
+            constructors[ep.name] = ep.load()
+        except Exception as ex:  # noqa: BLE001 - a broken extension should not stop the others
+            logger.warning('SKIPPING ENTRY POINT {}: {} = {} ({!r}).'.format(entry_point_id, ep.name, ep.value, ex))
+    return dict(sorted(constructors.items()))
+
+
 class _ConstructorParamType(click.ParamType):
     """
     Constructor param type that accepts parameters in the format ``name(<args>)``.
@@ -113,7 +144,7 @@ class _ConstructorParamType(click.ParamType):
         """See ``click.ParamType.get_metavar``"""
         return '[{}]'.format('|'.join(sorted(self._constructors.keys())))
 
-    def get_missing_message(self, param):
+    def get_missing_message(self, param, ctx=None):  # (stabilizer_qec: click 8.2 passes ctx too)
         """See ``click.ParamType.get_missing_message``"""
         return '(choose from {})'.format(', '.join(sorted(self._constructors.keys())))
 
@@ -208,8 +239,7 @@ def _model_argument(model_type):
     def _decorator(func):
         # extract name and class from entry-point, e.g. {'five_qubit': FiveQubitCode, ...}
         entry_point_id = 'qecsim.cli.{}.{}s'.format(func.__name__, model_type)  # e.g. qecsim.cli.run_ftp.codes
-        entry_points = sorted(_ENTRY_POINTS.get(entry_point_id, []))
-        constructors = {name: getattr(importlib.import_module(module), attr) for name, module, attr in entry_points}
+        constructors = _constructors(entry_point_id)
         # add argument decorator
         func = click.argument(model_type, type=_ConstructorParamType(constructors), metavar=model_type.upper())(func)
         # extract name and cli_help, e.g. [('five_qubit', '5-qubit'), ...]
@@ -251,7 +281,7 @@ def cli():
     """
     qecsim - quantum error correction simulator using stabilizer codes.
 
-    See qecsim COMMAND --help for command-specific help.
+    See stabilizer-qec qecsim COMMAND --help for command-specific help.
     """
     util.init_logging()
 
@@ -293,15 +323,15 @@ def run(code, error_model, decoder, error_probabilities, max_failures, max_runs,
 
     Examples:
 
-     qecsim run -r10 "five_qubit" "generic.depolarizing" "generic.naive" 0.1
+     stabilizer-qec qecsim run -r10 "five_qubit" "generic.depolarizing" "generic.naive" 0.1
 
-     qecsim run -f5 -r50 -s13 "steane" "generic.phase_flip" "generic.naive" 0.1
+     stabilizer-qec qecsim run -f5 -r50 -s13 "steane" "generic.phase_flip" "generic.naive" 0.1
 
-     qecsim run -r20 "planar(7,7)" "generic.bit_flip" "planar.mps(6)" 0.101 0.102 0.103
+     stabilizer-qec qecsim run -r20 "planar(7,7)" "generic.bit_flip" "planar.mps(6)" 0.101 0.102 0.103
 
-     qecsim run -r10 "color666(7)" "generic.bit_flip" "color666.mps(16)" 0.09 0.10
+     stabilizer-qec qecsim run -r10 "color666(7)" "generic.bit_flip" "color666.mps(16)" 0.09 0.10
 
-     qecsim run -o"data.json" -f9 "toric(3,3)" "generic.bit_flip" "toric.mwpm" 0.1
+     stabilizer-qec qecsim run -o"data.json" -f9 "toric(3,3)" "generic.bit_flip" "toric.mwpm" 0.1
     """
     # INPUT
     code.validate()
@@ -368,11 +398,11 @@ def run_ftp(code, time_steps, error_model, decoder, error_probabilities, max_fai
 
     Examples:
 
-     qecsim run-ftp -r5 "rotated_planar(13,13)" 13 "generic.bit_phase_flip" "rotated_planar.smwpm" 0.1 0.2
+     stabilizer-qec qecsim run-ftp -r5 "rotated_planar(13,13)" 13 "generic.bit_phase_flip" "rotated_planar.smwpm" 0.1 0.2
 
-     qecsim run-ftp -r5 -m0.05 "rotated_toric(6,6)" 4 "generic.bit_phase_flip" "rotated_toric.smwpm" 0.1
+     stabilizer-qec qecsim run-ftp -r5 -m0.05 "rotated_toric(6,6)" 4 "generic.bit_phase_flip" "rotated_toric.smwpm" 0.1
 
-     qecsim run-ftp -r5 -o"data.json" "rotated_planar(7,7)" 7 "generic.depolarizing" "rotated_planar.smwpm" 0.1
+     stabilizer-qec qecsim run-ftp -r5 -o"data.json" "rotated_planar(7,7)" 7 "generic.depolarizing" "rotated_planar.smwpm" 0.1
     """
     # INPUT
     code.validate()
@@ -411,9 +441,9 @@ def merge(data_file, output):
 
     Examples:
 
-     qecsim merge "data1.json" "data2.json" "data3.json"
+     stabilizer-qec qecsim merge "data1.json" "data2.json" "data3.json"
 
-     qecsim merge -o"merged.json" data*.json
+     stabilizer-qec qecsim merge -o"merged.json" data*.json
     """
     # INPUT
     input_data = []

@@ -15,7 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; ErrorSetMultiQuditGate takes a set mixing gates and
+# tuples, e.g. {('I', 'X'), ('X', 'X'), 'CNOT'}, on NumPy 1.24 too, and draws tuples before a gate too.
 
 """
 Simple error generator meant to demonstrate a basic error generator that produces errors.
@@ -291,8 +292,12 @@ class Generator:
             try:
                 self.data = np.array(list(error_set))
             except ValueError:
-                error_set[0] = (error_set[0],)
-                self.data = np.array(list(error_set))
+                # (stabilizer_qec: NumPy < 1.24 made such a ragged list an object array of its items, with a warning,
+                # and PECOS draws from that; NumPy 1.24 raises, as it does on PECOS's retry with error_set[0] wrapped.)
+                items = list(error_set)
+                self.data = np.empty(len(items), dtype=object)
+                for i, item in enumerate(items):
+                    self.data[i] = item
 
             if after:
                 self.error_func = self.error_func_after
@@ -329,7 +334,7 @@ class Generator:
             indx = np.random.choice(len(self.data))
             error_symbols = self.data[indx]
 
-            if isinstance(error_symbols, np.ndarray) and len(error_symbols) > 1:
+            if isinstance(error_symbols, (tuple, np.ndarray)) and len(error_symbols) > 1:  # (stabilizer_qec: tuple too)
                 for sym, loc in zip(error_symbols, location):
                     if sym != 'I':
                         before.update(sym, {loc}, emptyappend=True)

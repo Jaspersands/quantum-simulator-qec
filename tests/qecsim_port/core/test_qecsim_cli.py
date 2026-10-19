@@ -289,3 +289,72 @@ def test_cli_unknown_subcommand():
     with runner.isolated_filesystem():
         result = runner.invoke(cli, ['blah'])
         assert result.exit_code != 0
+
+
+# (stabilizer_qec: extensions, as qecsim's README and qecsimext have them: an installed distribution's
+# entry points in the qecsim.cli.run.* and qecsim.cli.run_ftp.* groups add codes, error models and decoders.)
+_EXTENSION = '''
+from stabilizer_qec.qecsim.model import cli_description
+from stabilizer_qec.qecsim.models.basic import BasicCode
+from stabilizer_qec.qecsim.models.generic import BitFlipErrorModel, NaiveDecoder
+
+
+@cli_description('3-qubit repetition (an extension)')
+class ThreeQubitCode(BasicCode):
+    def __init__(self):
+        super().__init__(('ZZI', 'IZZ'), ('XXX',), ('IIZ',), (3, 1, 1), '3-qubit')
+
+
+@cli_description('3-qubit bit-flip (an extension)')
+class ThreeQubitBitFlipErrorModel(BitFlipErrorModel):
+    @property
+    def label(self):
+        return '3-qubit bit-flip'
+
+
+@cli_description('3-qubit lookup (an extension)')
+class ThreeQubitLookupDecoder(NaiveDecoder):
+    @property
+    def label(self):
+        return '3-qubit lookup'
+'''
+
+
+def test_cli_run_extension_entry_points(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+
+    (tmp_path / 'myqecext.py').write_text(_EXTENSION)
+    for dist, entry_points in [
+        ('myqecext-0.1', '[qecsim.cli.run.codes]\next_3qubit = myqecext:ThreeQubitCode\n'
+                         '[qecsim.cli.run.error_models]\next_3qubit.bit_flip = myqecext:ThreeQubitBitFlipErrorModel\n'
+                         '[qecsim.cli.run.decoders]\next_3qubit.lookup = myqecext:ThreeQubitLookupDecoder\n'
+                         'ext_broken = no_such_module:Decoder\n'
+                         '[qecsim.cli.run_ftp.codes]\next_rotated_planar = stabilizer_qec.qecsim.models.rotatedplanar:RotatedPlanarCode\n'),
+        # The real qecsim's own entry points name its classes: the port keeps its own.
+        ('qecsim-1.0b9', '[qecsim.cli.run.codes]\nfive_qubit = qecsim.models.basic:FiveQubitCode\n'),
+    ]:
+        info = tmp_path / (dist + '.dist-info')
+        info.mkdir()
+        name, version = dist.split('-')
+        (info / 'METADATA').write_text('Metadata-Version: 2.1\nName: {}\nVersion: {}\n'.format(name, version))
+        (info / 'entry_points.txt').write_text(entry_points)
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(tmp_path)] + [p for p in [os.environ.get('PYTHONPATH')] if p]))
+
+    def run(*args):
+        r = subprocess.run([sys.executable, '-m', 'stabilizer_qec.qecsim', *args], capture_output=True, text=True,
+                           env=env, cwd=str(tmp_path))
+        assert r.returncode == 0, r.stderr
+        return r
+
+    r = run('run', '-r20', '-s3', 'ext_3qubit', 'ext_3qubit.bit_flip', 'ext_3qubit.lookup', '0.3')
+    data = json.loads(r.stdout)
+    assert [(d['code'], d['error_model'], d['decoder'], d['n_run']) for d in data] == [
+        ('3-qubit', '3-qubit bit-flip', '3-qubit lookup', 20)]
+    assert 'SKIPPING ENTRY POINT qecsim.cli.run.decoders: ext_broken' in r.stderr and 'five_qubit' not in r.stderr
+    page = run('run', '--help').stdout
+    assert '3-qubit repetition (an extension)' in page and 'five_qubit' in page and 'ext_broken' not in page
+    assert json.loads(run('run', '-r2', 'five_qubit', 'generic.bit_flip', 'generic.naive', '0.1').stdout)[0]['code'] == '5-qubit'
+    assert 'ext_rotated_planar' in run('run-ftp', '--help').stdout

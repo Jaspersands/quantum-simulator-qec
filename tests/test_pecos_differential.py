@@ -4,8 +4,9 @@ random circuits of every gate, initialization and measurement (forced and on see
 C++ one against this package's Rust one; every instruction of every code; the fault-tolerance
 checks; error generators and the standard runner on seeds, with MWPM2D's recoveries; logical
 error rates. Equal, except where PECOS 0.2.0 raises and the port does not (each checked here),
-and where networkx 3 breaks a matching's ties otherwise than networkx 2 (an equal-weight recovery
-with the same syndrome)."""
+where networkx 3 breaks a matching's ties otherwise than networkx 2 (an equal-weight recovery
+with the same syndrome), and where the port fixes PECOS's C++ 'init |-i>' and TimingRunner's
+total_time (each run as PECOS's, or checked, here)."""
 
 import json
 import os
@@ -25,12 +26,28 @@ REF = json.loads((ROOT / "tests" / "data" / "pecos_reference.json").read_text())
 
 # Run as the reference was: PECOS draws Paulis from sets of strings, in the order of the strings'
 # hashes, so on a fixed hash seed (in a fresh interpreter; Python 3.11's string hash on).
+# The port's C++ SparseSim prepares |-i> for 'init |-i>'; PECOS's C++ (|1> then H6) prepares |+i>,
+# so against the C++'s record it runs the C++'s composition (test_cysparsesim_init_minusi checks the fix).
 SCRIPT = """
 import json, sys
 sys.path.insert(0, sys.argv[1])
 import pecos_reference
 from stabilizer_qec import pecos
-print(json.dumps(pecos_reference.compute(pecos, pecos.simulators.cySparseSim)))
+from stabilizer_qec.pecos.simulators import _cysparsesim as cy
+
+
+def cpp_init_minusi(sim, qubit, **params):
+    sim.initone(qubit)
+    sim._state.gate([qubit], cy.IMAGES['H6'])
+
+
+class CppSparseSim(cy.SparseSim):
+    def __init__(self, num_qubits):
+        super().__init__(num_qubits)
+        self.bindings = dict(self.bindings, **{'init |-i>': cpp_init_minusi})
+
+
+print(json.dumps(pecos_reference.compute(pecos, CppSparseSim)))
 """
 
 
@@ -99,10 +116,10 @@ def test_fault_tolerance_checks(ours):
             assert raises(a, "AttributeError"), key
             assert b == [True, 1], key  # every weight-1 error corrected
         elif key.startswith("tool collection"):
-            # PECOS raises on the decoder's input; the port finds what this one-round check
-            # cannot pass, a fault within the round (a measurement's, or a data qudit's).
+            # PECOS raises (on the decoder's input, on a random measurement's -1); the port, which
+            # decodes an ideal round after each faulty one, finds every weight-1 fault corrected.
             assert raises(a), key
-            assert raises(b, "Exception") and b[2].startswith("Decoder failed to correct error: {"), key
+            assert b is None, key
         else:
             assert a == b, key  # MWPM2D, built or not (on the 4.8.8 code it raises in both)
 
@@ -137,7 +154,9 @@ def test_runs(ours):
 def test_rates(ours):
     ref, got = REF["rates"], ours["rates"]
     for p in ("0.05", "0.1"):
-        assert ref[f"codecapacity {p}"] == got[f"codecapacity {p}"]
+        # (rate, total_time): PECOS's TimingRunner timed no gate, its total_time 0.0; the port's times them.
+        (rate_ref, time_ref), (rate_got, time_got) = ref[f"codecapacity {p}"], got[f"codecapacity {p}"]
+        assert rate_ref == rate_got and time_ref == 0.0 < time_got
     a, b = dict(ref["pseudo"]), dict(got["pseudo"])
     assert a["distance"] == b["distance"] and a["ps"] == b["ps"]
     # 30 runs a rate, on the same errors; matching's ties (networkx 3, not 2) move a few.

@@ -21,6 +21,13 @@
 # X and Z, read off the compiled C++ (and so its CY, S CNOT Sd in that order, is controlled -Y).
 # Random outcomes come from NumPy's global generator, drawn where PECOS's Python SparseSim draws
 # them, so that np.random.seed reproduces a run (the C++ calls rand()).
+# Where PECOS's Python SparseSim has more than the C++ one, this one has it too: print_stabs's
+# print_y and print_destabs, copy, refactor, find_stab, run_direct and 'G2'. Two bugs are fixed:
+# 'init |-i>' prepares |-i> (the C++'s, |1> then H6, prepares |+i>), and Y's sign prints right
+# (the Python one's print_y drops the -1 of i*i).
+
+import copy as _copy
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -63,7 +70,20 @@ IMAGES = {
     'SqrtXX': ((0, 1, 0), (3, 3, 1), (0, 2, 0), (3, 3, 2)),
 }
 # The C++ wrapper's other names for these.
-ALIASES = {'H1': 'H', 'H+z+x': 'H', 'H-z-x': 'H2', 'H+y-z': 'H3', 'H-y-z': 'H4', 'H-x+y': 'H5', 'H-x-y': 'H6', 'MS': 'SqrtXX', 'MSXX': 'SqrtXX'}
+ALIASES = {'H1': 'H', 'H+z+x': 'H', 'H-z-x': 'H2', 'H+y-z': 'H3', 'H-y-z': 'H4', 'H-x+y': 'H5', 'H-x-y': 'H6', 'MS': 'SqrtXX', 'MSXX': 'SqrtXX',
+           'G2': 'G'}  # ('G2': the Python SparseSim's name for G, which is the same gate)
+
+_PHASES = ('  ', ' i', ' -', '-i')  # i^p for p = 0, 1, 2, 3
+
+
+def y_letters(stab_letters, print_signs):
+    """A generator's sign and letters, W = XZ = -iY printed as Y: k of them take i^p to i^(p + 3k).
+    (stabilizer_qec: PECOS's Python SparseSim's print_y drops the -1 of i*i, printing -Y for |+i>'s Y.)"""
+    k = stab_letters.count('W')
+    letters = [stab_letters[0]] + ['Y' if letter == 'W' else letter for letter in stab_letters[1:]]
+    if print_signs:
+        letters[0] = _PHASES[(_PHASES.index(letters[0]) + 3 * k) % 4]
+    return letters
 
 
 def _one(name):
@@ -138,7 +158,9 @@ class SparseSim:
         self._state.gate([qubit], IMAGES['H5'])
 
     def initminusi(self, qubit, **params):
-        self.initone(qubit)
+        # (stabilizer_qec: |0> then H6, which takes Z to -Y, as the Python SparseSim's init_minusi; PECOS's C++
+        # starts from |1>, preparing |+i>.)
+        self.initzero(qubit)
         self._state.gate([qubit], IMAGES['H6'])
 
     def force_output(self, qubit, forced_output=-1):
@@ -165,6 +187,10 @@ class SparseSim:
                 output[location] = results
         return output
 
+    def run_direct(self, symbol, location, **gate_kwargs):
+        """(As the Python SparseSim's) one gate on one location, with no output collected."""
+        self.bindings[symbol](self, location, **gate_kwargs)
+
     def run_circuit(self, circuit, removed_locations=None):
         if removed_locations is None:
             removed_locations = set([])
@@ -178,6 +204,37 @@ class SparseSim:
 
     def clear(self):
         self._state.clear()
+
+    def copy(self):
+        """(As the Python SparseSim's, which forgets to return it) a copy of this state."""
+        new = SparseSim.__new__(SparseSim)
+        new.__dict__.update(self.__dict__)
+        new._state = _copy.copy(self._state)
+        return new
+
+    def _gens(self):
+        # The generators as the Python SparseSim's Gens: lists of sets, the signs on the stabilizers.
+        stabs, destabs = (SimpleNamespace(**gen) for gen in (self.stabs, self.destabs))
+        stabs.signs_minus, stabs.signs_i = self.signs_minus, self.signs_i
+        destabs.signs_minus, destabs.signs_i = set(), set()
+        return SimpleNamespace(stabs=stabs, destabs=destabs, num_qubits=self.num_qubits)
+
+    def find_stab(self, xs, zs):
+        """(As the Python SparseSim's) whether X on xs and Z on zs is in the stabilizer group, and the ids of the
+        stabilizer generators whose product it is."""
+        from .._sparsesim.refactor import find_stab
+        return find_stab(self._gens(), set(xs), set(zs))
+
+    def refactor(self, xs, zs, choose=None, prefer=None, protected=None):
+        """(As the Python SparseSim's) makes X on xs and Z on zs a stabilizer generator, if it is in the group."""
+        from .._sparsesim.refactor import refactor
+        gens = self._gens()
+        result = refactor(gens, set(xs), set(zs), choose, prefer, protected)
+        if result[0]:
+            self._state.set_rows([sorted(r) for r in gens.stabs.row_x], [sorted(r) for r in gens.stabs.row_z],
+                                 [sorted(r) for r in gens.destabs.row_x], [sorted(r) for r in gens.destabs.row_z])
+            self._state.set_signs(sorted(gens.stabs.signs_minus), sorted(gens.stabs.signs_i))
+        return result
 
     @property
     def signs_minus(self):
@@ -202,26 +259,29 @@ class SparseSim:
             sign = ' i' if i_gen in self.signs_i else '  '
         return sign
 
-    def col_string(self, gen, print_signs=True):
+    # (stabilizer_qec: num_qubits and print_y as the Python SparseSim's.)
+    def col_string(self, gen, num_qubits=None, print_signs=True, print_y=False):
         col_x, col_z = gen['col_x'], gen['col_z']
+        n = self.num_qubits if num_qubits is None else num_qubits
         result = []
-        for i_gen in range(self.num_qubits):
+        for i_gen in range(n):
             stab_letters = [self._pauli_sign(gen, i_gen) if print_signs else '  ']
-            for qubit in range(self.num_qubits):
+            for qubit in range(n):
                 x, z = i_gen in col_x[qubit], i_gen in col_z[qubit]
                 stab_letters.append('W' if x and z else 'X' if x else 'Z' if z else 'I')
-            result.append(''.join(stab_letters))
+            result.append(''.join(y_letters(stab_letters, print_signs) if print_y else stab_letters))
         return result
 
-    def row_string(self, gen, print_signs=True):
+    def row_string(self, gen, num_qubits=None, print_signs=True, print_y=False):
         row_x, row_z = gen['row_x'], gen['row_z']
+        n = self.num_qubits if num_qubits is None else num_qubits
         result = []
-        for i_gen in range(self.num_qubits):
+        for i_gen in range(n):
             stab_letters = [self._pauli_sign(gen, i_gen) if print_signs else '  ']
-            for qubit in range(self.num_qubits):
+            for qubit in range(n):
                 x, z = qubit in row_x[i_gen], qubit in row_z[i_gen]
                 stab_letters.append('W' if x and z else 'X' if x else 'Z' if z else 'I')
-            result.append(''.join(stab_letters))
+            result.append(''.join(y_letters(stab_letters, print_signs) if print_y else stab_letters))
         return result
 
     def get_largest_degree(self):
@@ -245,9 +305,9 @@ class SparseSim:
         self._state.set_rows([sorted(r) for r in stabs_row_x], [sorted(r) for r in stabs_row_z],
                              [sorted(r) for r in destabs_row_x], [sorted(r) for r in destabs_row_z])
 
-    def print_tableau(self, gen, verbose=True, print_signs=True):
-        col_str = self.col_string(gen, print_signs=print_signs)
-        row_str = self.row_string(gen, print_signs=print_signs)
+    def print_tableau(self, gen, verbose=True, print_signs=True, print_y=True):
+        col_str = self.col_string(gen, print_signs=print_signs, print_y=print_y)
+        row_str = self.row_string(gen, print_signs=print_signs, print_y=print_y)
         if col_str != row_str:
             print('col')
             for line in col_str:
@@ -262,11 +322,16 @@ class SparseSim:
                 print(line)
         return col_str
 
-    def print_stabs(self):
-        str_s = self.print_tableau(self.stabs, verbose=True)
-        print('-------------------------------')
-        str_d = self.print_tableau(self.destabs, verbose=True, print_signs=False)
-        return str_s, str_d
+    def print_stabs(self, verbose=True, print_y=True, print_destabs=False):
+        # (stabilizer_qec: as the Python SparseSim's, which PECOS's docs show: the destabilizers on print_destabs,
+        # Y for W = XZ. PECOS's C++ one takes no arguments, always prints both, and prints W.)
+        str_s = self.print_tableau(self.stabs, verbose=verbose, print_y=print_y)
+        if print_destabs:
+            if verbose:
+                print('-------------------------------')
+            str_d = self.print_tableau(self.destabs, verbose=verbose, print_signs=False, print_y=print_y)
+            return str_s, str_d
+        return str_s
 
 
 bindings = {
@@ -285,5 +350,5 @@ bindings = {
 for _name in ['I', 'X', 'Y', 'Z', 'Q', 'Qd', 'R', 'Rd', 'S', 'Sd', 'H', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
               'H+z+x', 'H-z-x', 'H+y-z', 'H-y-z', 'H-x+y', 'H-x-y', 'F1', 'F2', 'F3', 'F4', 'F1d', 'F2d', 'F3d', 'F4d']:
     bindings[_name] = _one(_name)
-for _name in ['CNOT', 'CZ', 'CY', 'SWAP', 'G', 'SqrtXX', 'MS', 'MSXX']:
+for _name in ['CNOT', 'CZ', 'CY', 'SWAP', 'G', 'G2', 'SqrtXX', 'MS', 'MSXX']:
     bindings[_name] = _two(_name)
