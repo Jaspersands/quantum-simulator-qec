@@ -181,7 +181,8 @@ class BpOsd(_DemDecoder):
     """BP+OSD on a detector error model (Roffe et al.), each fault a column with its prior,
     corrections equal to ``ldpc``'s ``BpOsdDecoder`` on the same matrix but for ties among
     equally likely columns. For codes whose faults flip three or more detectors, such as
-    IBM's bivariate bicycle codes: give it the undecomposed model."""
+    IBM's bivariate bicycle codes: give it the undecomposed model. ``schedule`` and
+    ``random_schedule_seed`` are ``ldpc``'s (see ``_schedule``)."""
 
     __slots__ = ()
 
@@ -194,8 +195,10 @@ class BpOsd(_DemDecoder):
         ms_scaling_factor: float = 0.0,
         osd_method: str = "osd_cs",
         osd_order: int = 7,
+        schedule: str = "parallel",
+        random_schedule_seed: int = 0,
     ) -> None:
-        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, osd_method=osd_method, osd_order=osd_order)
+        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, osd_method=osd_method, osd_order=osd_order, schedule=schedule, random_schedule_seed=random_schedule_seed)
         model = self._made(_model(model), **options)
         self._x = call(
             _core.DemBpOsd,
@@ -205,6 +208,7 @@ class BpOsd(_DemDecoder):
             real(ms_scaling_factor, "ms_scaling_factor"),
             osd_method,
             count(osd_order, "osd_order"),
+            _schedule(schedule, random_schedule_seed),
         )
 
     def decode_batch(
@@ -240,6 +244,22 @@ def _bp_method(method: Any) -> str:
     raise ValueError(f"bp_method must be product_sum or minimum_sum (or ldpc's aliases), not {method!r}")
 
 
+def _schedule(schedule: Any, random_schedule_seed: Any) -> str:
+    """BP's schedule by ``ldpc``'s names: "parallel" (flooding), "serial" or "serial_relative"
+    (or 0, 1, 2). ``random_schedule_seed`` is checked as ``ldpc``'s; as in ``ldpc``'s
+    constructors, which turn the random serial order it starts back off, the serial order stays
+    the fixed one (stimbposd's serial decoders pass ``random_schedule_seed=0``)."""
+    from ._ldpc import _SCHEDULES
+
+    s = _SCHEDULES.get(str(schedule).lower())
+    if s is None:
+        raise ValueError(f"schedule must be parallel, serial or serial_relative, not {schedule!r}")
+    seed = random_schedule_seed
+    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)) or seed < -2:
+        raise ValueError(f"random_schedule_seed must be an integer of at least -2 (as ldpc's), not {seed!r}")
+    return s
+
+
 _LSD_NAMES = ("osd_0", "osd_e", "osd_cs", "osde", "osdcs", "osd0", "lsd_0", "lsd_e", "lsd_cs", "lsd0", "lsdcs", "lsde")
 
 
@@ -272,7 +292,8 @@ class BpLsd(_DemDecoder):
     ``ldpc``'s ``BpLsdDecoder`` on the same matrix but for ties among equally likely columns.
     For codes whose faults flip three or more detectors: give it the undecomposed model. The
     defaults are ``ldpc``'s sinter decoder's but for ``max_iter``: 30 iterations, where its
-    0 means one per fault (thousands on the gross code, and most of the time)."""
+    0 means one per fault (thousands on the gross code, and most of the time). ``schedule``
+    and ``random_schedule_seed`` are ``ldpc``'s (see ``_schedule``)."""
 
     __slots__ = ()
 
@@ -286,11 +307,13 @@ class BpLsd(_DemDecoder):
         lsd_method: Any = "lsd_0",
         lsd_order: int = 0,
         bits_per_step: int = 1,
+        schedule: str = "parallel",
+        random_schedule_seed: int = 0,
     ) -> None:
-        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, lsd_method=lsd_method, lsd_order=lsd_order, bits_per_step=bits_per_step)
+        options = dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, lsd_method=lsd_method, lsd_order=lsd_order, bits_per_step=bits_per_step, schedule=schedule, random_schedule_seed=random_schedule_seed)
         model = self._made(_model(model), **options)
         method, order = _lsd_method(lsd_method, lsd_order)
-        self._x = call(_core.DemBpLsd, model._d, count(max_iter, "max_iter"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"), method, order, count(bits_per_step, "bits_per_step"))
+        self._x = call(_core.DemBpLsd, model._d, count(max_iter, "max_iter"), _bp_method(bp_method), real(ms_scaling_factor, "ms_scaling_factor"), method, order, count(bits_per_step, "bits_per_step"), _schedule(schedule, random_schedule_seed))
 
     def decode_batch(
         self,

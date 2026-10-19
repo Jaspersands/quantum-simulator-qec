@@ -172,7 +172,7 @@ Status: **have** (1.9.0 has it), **part** (has some of it; the gap is named), **
 | R6 | Tesseract utilities `dem_from_counts`, `merge_indistinguishable_errors`, `remove_zero_probability_errors`, `build_det_orders` (BFS, coordinate, index), `build_detector_graph`, sparsify options | done (2.0 W5: `stabilizer_qec.tesseract_decoder`, Tesseract whole, `demutil` too) |
 | R7 | Chromobius `predict_weighted_obs_flips_from_dets_bit_packed` (weights out) | done (2.0 W5: `stabilizer_qec.chromobius`) |
 | R8 | BeliefMatching `from_stim_circuit` | done (2.0 W5: `stabilizer_qec.beliefmatching`) |
-| R9 | stimbposd BPOSD/BPLSD on a DEM | done (2.1: `stabilizer_qec.stimbposd`, stimbposd 0.2.0 whole: `BPOSD`, `BPLSD`, its sinter decoders and `sinter_decoders()`' eight variants, `detector_error_model_to_check_matrices`; 2.0 had marked it done by `stabilizer_qec.bposd`, which is quantumgizmos' bposd 2.1, another package) |
+| R9 | stimbposd BPOSD/BPLSD on a DEM | done (2.1: `stabilizer_qec.stimbposd`, stimbposd 0.2.0 whole: `BPOSD`, `BPLSD`, its sinter decoders and `sinter_decoders()`' eight variants, `detector_error_model_to_check_matrices`; 2.0 had marked it done by `stabilizer_qec.bposd`, which is quantumgizmos' bposd 2.1, another package; the native `BpOsd`/`BpLsd` take its `schedule=` and `random_schedule_seed=` too) |
 
 ## D — Deltakit 0.10 (Riverlane)
 

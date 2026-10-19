@@ -91,6 +91,33 @@ def test_against_stimbposd_itself():
         assert list(theirs) == list(mine)
 
 
+@pytest.mark.parametrize("index", [0, 1, 3])
+def test_native_decoders_schedules(index):
+    """sq.BpOsd and sq.BpLsd take ldpc's schedule= and random_schedule_seed=: given stimbposd's
+    options, they give its predictions in each of its sinter variants, serial ones too (whose
+    predictions differ from the parallel ones' here). (On the repetition code, ties among equally
+    likely columns go another way, as sq.BpOsd's documentation says.)"""
+    import pickle
+
+    problem = REF["problems"][index]
+    model = sq.DetectorErrorModel(problem["model"])
+    shots = unpacked(problem["shots"], problem["num_shots"], model.num_detectors)
+    columns = len(ours.detector_error_model_to_check_matrices(model).priors)
+    osd = dict(osd_method="osd_cs", osd_order=max(0, min(60, columns - model.num_detectors)))
+    for method, suffix in (("product_sum", ""), ("minimum_sum", "-minsum")):
+        for schedule, infix in (("parallel", ""), ("serial", "-serial")):
+            kw = dict(max_iter=30, bp_method=method, ms_scaling_factor=1.0, schedule=schedule, random_schedule_seed=0)
+            for name, dec in ((f"bposd{infix}{suffix}", sq.BpOsd(model, **kw, **osd)), (f"bplsd{infix}{suffix}", sq.BpLsd(model, **kw))):
+                assert recorded.packed_hex(dec.decode_batch(shots)) == problem["predictions"][name], name
+                assert np.array_equal(pickle.loads(pickle.dumps(dec)).decode_batch(shots[:5]), dec.decode_batch(shots[:5]))
+    for cls in (sq.BpOsd, sq.BpLsd):
+        with pytest.raises(ValueError):
+            cls(model, schedule="sideways")
+        with pytest.raises(ValueError):
+            cls(model, random_schedule_seed=-3)
+        cls(model, schedule=1, random_schedule_seed=-1)  # ldpc's other spellings
+
+
 def test_check_matrices():
     model = sq.DetectorErrorModel(REF["problems"][2]["model"])
     m = ours.detector_error_model_to_check_matrices(model)

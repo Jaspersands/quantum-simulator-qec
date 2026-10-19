@@ -1120,12 +1120,14 @@ pub struct PyDemBpOsd {
 impl PyDemBpOsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize) -> PyResult<Self> {
+    #[pyo3(signature = (dem, max_iter, method, scale, osd, order, sched="parallel"))]
+    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize, sched: &str) -> PyResult<Self> {
         let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
-        let dec = BpOsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?)
+        let mut dec = BpOsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?)
             .map_err(err)?;
+        dec.schedule = schedule(sched)?;
         let obs = d.mechanisms.iter().map(|m| m.observables).collect();
         Ok(PyDemBpOsd { dec, obs, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
@@ -1156,13 +1158,15 @@ pub struct PyDemBpLsd {
 impl PyDemBpLsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, lsd: &str, order: usize, bits_per_step: usize) -> PyResult<Self> {
+    #[pyo3(signature = (dem, max_iter, method, scale, lsd, order, bits_per_step, sched="parallel"))]
+    fn new(dem: &PyDem, max_iter: usize, method: &str, scale: f64, lsd: &str, order: usize, bits_per_step: usize, sched: &str) -> PyResult<Self> {
         let d = dem.flat()?;
         let columns: Vec<Vec<u32>> = d.mechanisms.iter().map(|m| m.detectors.clone()).collect();
         let priors: Vec<f64> = d.mechanisms.iter().map(|m| m.p).collect();
         // As ldpc: no iteration limit given means one per fault.
         let max_iter = if max_iter == 0 { columns.len() } else { max_iter };
-        let dec = BpLsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(lsd, order)?, bits_per_step, false).map_err(err)?;
+        let mut dec = BpLsd::new(d.num_detectors, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(lsd, order)?, bits_per_step, false).map_err(err)?;
+        dec.schedule = schedule(sched)?;
         let obs = d.mechanisms.iter().map(|m| m.observables).collect();
         Ok(PyDemBpLsd { dec, obs, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
