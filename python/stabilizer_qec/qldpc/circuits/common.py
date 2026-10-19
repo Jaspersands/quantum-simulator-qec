@@ -16,6 +16,7 @@ import galois
 import numpy as np
 import numpy.typing as npt
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc import codes, math
 
@@ -105,6 +106,7 @@ def with_remapped_qubits(
     Returns:
         The input circuit with remapped qubits.
     """
+    circuit = ours(circuit)  # a Stim object too
     qubit_map = (
         qubit_map
         if isinstance(qubit_map, Mapping)

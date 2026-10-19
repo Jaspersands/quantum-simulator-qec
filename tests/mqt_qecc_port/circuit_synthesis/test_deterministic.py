@@ -6,7 +6,8 @@
 # Licensed under the MIT License
 # Ported from MQT QECC 2.0.0 (munich-quantum-toolkit/qecc; Chair for Design Automation, TUM; MIT; see
 # THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, qecsim and bposd are this
-# package's, and mqt.qecc is stabilizer_qec.mqt_qecc.
+# package's, and mqt.qecc is stabilizer_qec.mqt_qecc; qsample is stabilizer_qec.qsample, so the simulations run (MQT's CI
+# installs no qsample and skips them).
 
 """Test synthesis and simulation of deterministic FT state preparation circuits."""
 
@@ -25,7 +26,7 @@ from stabilizer_qec.mqt_qecc.codes import RotatedSurfaceCode
 from .utils import in_span
 
 try:
-    from qsample import noise  # ty: ignore[unresolved-import]
+    from stabilizer_qec.qsample import noise  # this package's qsample: the simulation tests always run
 
     from stabilizer_qec.mqt_qecc.circuit_synthesis.simulation_det import NoisyDFTStatePrepSimulator
 

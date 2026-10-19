@@ -19,6 +19,7 @@ from enum import Enum
 import random
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 from io import BufferedReader, BufferedWriter
 import time
 import struct
@@ -115,6 +116,7 @@ class SinterMWPFDecoder:
         if circuit is None:
             self.circuit = None
             return self
+        circuit = ours(circuit)  # a Stim object too
         assert isinstance(circuit, stim.Circuit)
         self.circuit = circuit.copy()
         return self

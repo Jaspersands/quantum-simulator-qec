@@ -18,6 +18,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.sparse
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc import math
 from stabilizer_qec.qldpc._util import get_external_caller_stacklevel
@@ -970,6 +971,7 @@ def _organize_lookup_table_initialization_data(
             "A LookupDecoder probability_cutoff must be a finite probability between 0 and 1,"
             " inclusive"
         )
+    pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
     if isinstance(pcm_or_dem, stim.DetectorErrorModel):
         if error_channel is not None or observable_flip_matrix is not None:
             raise ValueError(

@@ -16,6 +16,7 @@ import galois
 import numpy as np
 import numpy.typing as npt
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc._util import get_external_caller_stacklevel
 from stabilizer_qec.qldpc.math import IntegerArray
@@ -103,6 +104,7 @@ def _erasure_bit_support(
 
 def _to_pcm(pcm_or_dem: _PcmOrDem) -> IntegerArray:
     """Return a parity-check matrix, densifying a detector error model."""
+    pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
     if isinstance(pcm_or_dem, stim.DetectorErrorModel):
         return DetectorErrorModelArrays(pcm_or_dem).detector_flip_matrix.toarray()
     return pcm_or_dem
@@ -114,6 +116,7 @@ def _get_matrix_error_channel(
     error_rate: float | None,
 ) -> npt.NDArray[np.floating] | None:
     """Normalize matrix error probabilities and reject explicit probabilities for a DEM."""
+    pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
     if isinstance(pcm_or_dem, stim.DetectorErrorModel):
         _reject_dem_error_probabilities(error_channel, error_rate)
         return None

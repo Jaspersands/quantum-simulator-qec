@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 from scipy.sparse import csc_matrix
 
 if TYPE_CHECKING:
@@ -87,6 +88,7 @@ def detector_error_model_to_check_matrices(
     Returns:
         A collection of matrices representing the stim DetectorErrorModel
     """
+    dem = ours(dem)  # a Stim object too
     hyperedge_ids: dict[frozenset[int], int] = {}
     edge_ids: dict[frozenset[int], int] = {}
     hyperedge_obs_map: dict[int, frozenset[int]] = {}

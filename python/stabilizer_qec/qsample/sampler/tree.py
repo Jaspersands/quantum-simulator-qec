@@ -26,7 +26,9 @@ def draw_tree(tree, verbose=False, path=None):
     PNG image
         Image of `CountTree`
     """
-    import pydot  # needed only to draw
+    from stabilizer_qec.qsample.utils import _optional
+
+    pydot = _optional("pydot", "Tree.draw")  # needed only to draw
 
 
     def gen_node(node):

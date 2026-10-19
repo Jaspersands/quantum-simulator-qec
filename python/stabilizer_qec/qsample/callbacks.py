@@ -11,9 +11,9 @@ from stabilizer_qec.qsample import math
 class _LazyPyplot:
     # matplotlib is needed only by the plotting callbacks.
     def __getattr__(self, name):
-        import matplotlib.pyplot
+        from stabilizer_qec.qsample.utils import _optional
 
-        return getattr(matplotlib.pyplot, name)
+        return getattr(_optional("matplotlib.pyplot", "qsample's plotting callbacks"), name)
 
 
 plt = _LazyPyplot()

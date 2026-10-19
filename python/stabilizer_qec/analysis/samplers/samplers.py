@@ -12,6 +12,7 @@ from datetime import datetime
 import numpy as np
 import numpy.typing as npt
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 # the package "fcntl" is only available for Unix systems.
 FILE_LOCKING = False
@@ -162,6 +163,7 @@ def sample_failures(
     to avoid having multiple python instances writing on the same file at the same
     time. For any other OS, it will run without file locking.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."

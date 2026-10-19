@@ -8,6 +8,7 @@ from itertools import product
 import numpy as np
 import numpy.typing as npt
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from ..dems import (
     get_errors_triggering_detectors,
@@ -46,6 +47,7 @@ def get_circuit_distance(
     Solved exactly as an integer program by scipy's HiGHS (qec-util uses Gurobi): this
     needs scipy.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise ValueError(
             f"'dem' must be a 'stim.DetectorErrorModel', but {type(dem)} was given."
@@ -88,6 +90,7 @@ def get_circuit_distance_observable(
     Solved exactly as an integer program by scipy's HiGHS (qec-util uses Gurobi): this
     needs scipy.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."

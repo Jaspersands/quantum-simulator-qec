@@ -49,7 +49,9 @@ def draw_circuit(circuit, path=None, scale=2):
     drawSvg.drawing.Drawing
         Image object
     """
-    import latextools  # needed only to draw
+    from stabilizer_qec.qsample.utils import _optional
+
+    latextools = _optional("latextools", "Circuit.draw")  # needed only to draw
 
     
     n_qubits = max(unpack(circuit)) + 1

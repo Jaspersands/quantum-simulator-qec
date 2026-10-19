@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 import numpy as np
 import numpy.typing as npt
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc._util import format_docstring, get_external_caller_stacklevel
 from stabilizer_qec.qldpc.math import IntegerArray
@@ -337,6 +338,7 @@ def _to_ldpc_inputs(
     error_rate: float | None,
 ) -> tuple[IntegerArray, list[float]]:
     """Convert backend input to the matrix and probabilities expected by ldpc."""
+    pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
     matrix_error_channel = _get_matrix_error_channel(pcm_or_dem, error_channel, error_rate)
     if isinstance(pcm_or_dem, stim.DetectorErrorModel):
         dem_arrays = DetectorErrorModelArrays(pcm_or_dem)

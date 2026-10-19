@@ -16,7 +16,7 @@ from unittest import mock
 import pytest
 
 # MQT QECC's console scripts (its `[project.scripts]`), by the names its tests run them as.
-_SCRIPTS = {"stabilizer_qec.mqt_qecc.cc-decoder": "stabilizer_qec.mqt_qecc.cc_decoder.cli:cli"}
+_SCRIPTS = {"mqt.qecc.cc-decoder": "stabilizer_qec.mqt_qecc.cc_decoder.cli:cli"}
 
 
 @dataclass

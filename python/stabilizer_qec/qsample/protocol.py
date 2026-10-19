@@ -26,8 +26,10 @@ def draw_protocol(protocol, path=None, legend=False, figsize=(6,6), label_offset
         Offset position of all edge labels
     """
     
-    import matplotlib.pyplot as plt
-    import networkx as nx  # needed only to draw
+    from stabilizer_qec.qsample.utils import _optional
+
+    plt = _optional("matplotlib.pyplot", "Protocol.draw")  # needed only to draw
+    nx = _optional("networkx", "Protocol.draw")
 
     if isinstance(protocol, DiGraph):
         protocol = protocol.to_networkx()

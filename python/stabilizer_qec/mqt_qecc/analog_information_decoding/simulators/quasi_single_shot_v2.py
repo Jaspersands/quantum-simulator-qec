@@ -55,7 +55,7 @@ class QssSimulator:
         codename: str,
         bp_params: BpParams,
         code_params: dict[str, int],
-        decoding_method: str = "stabilizer_qec.bposd",  # bposd or matching
+        decoding_method: str = "bposd",  # bposd or matching
         check_side: str = "X",
         seed: int = 666,
         analog_tg: bool = False,
@@ -100,7 +100,7 @@ class QssSimulator:
             msg = "repetitions must be even"
             raise ValueError(msg)
 
-        if self.decoding_method not in {"stabilizer_qec.bposd", "matching"}:
+        if self.decoding_method not in {"bposd", "matching"}:
             msg = "Decoding method must be either bposd or matching"
             raise ValueError(msg)
 
@@ -167,7 +167,7 @@ class QssSimulator:
                 self.syndr_err_channel[0]  # x/z + y
             )  # assumes all sigmas are the same
         self.bp_iterations = 0
-        if self.decoding_method == "stabilizer_qec.bposd":
+        if self.decoding_method == "bposd":
             self.decoder = BpOsdDecoder(
                 pcm=self.H3D.astype(np.int_),
                 channel_probs=channel_probs,

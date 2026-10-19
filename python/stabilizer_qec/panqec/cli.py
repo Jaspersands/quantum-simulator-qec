@@ -28,7 +28,7 @@ from .analysis import Analysis
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version=panqec.__version__, prog_name='stabilizer_qec.panqec')
+@click.version_option(version=panqec.__version__, prog_name='panqec')
 @click.pass_context
 def cli(ctx):
     """

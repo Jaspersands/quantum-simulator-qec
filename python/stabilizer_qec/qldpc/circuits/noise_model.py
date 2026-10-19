@@ -142,6 +142,7 @@ from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from typing import TypeAlias, overload
 
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc._util import format_docstring
 
@@ -715,6 +716,7 @@ class NoiseRule:
             raise ValueError(f"{reset_error=} is not between 0 and 1")
 
         self.after: AbstractPauliChannel | stim.Circuit | None
+        after = ours(after)  # a Stim object too
         if after is None:
             self.after = None
         elif isinstance(after, AbstractPauliChannel):
@@ -1162,6 +1164,7 @@ class NoiseModel:
             raise ValueError("immune_op_tag must be non-empty or None")
         if immune_qubit_tag == "":
             raise ValueError("immune_qubit_tag must be non-empty or None")
+        circuit = ours(circuit)  # a Stim Circuit too
         if not isinstance(circuit, stim.Circuit):
             # convert to stim, add noise, convert back
             stim_input = stim.Circuit()

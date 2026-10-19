@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from .dem_instrs import get_detectors, get_observables
 
@@ -35,6 +36,7 @@ def decompose_hyperedge_to_edges(
     If the hyperedge contains a decomposition with ``stim.target_separator``s,
     it is going to be overwritten.
     """
+    hyperedge = ours(hyperedge)  # a Stim DemInstruction too
     if not isinstance(hyperedge, stim.DemInstruction):
         raise TypeError(
             f"'hyperedge' must be a stim.DemInstruction, but {type(hyperedge)} was given."
@@ -43,6 +45,7 @@ def decompose_hyperedge_to_edges(
         raise TypeError(
             f"'hyperedge' must be an error, but {hyperedge.type} was given."
         )
+    dem_edges = ours(dem_edges)  # a Stim DetectorErrorModel too
     if not isinstance(dem_edges, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem_edges' must be a stim.DetectorErrorModel, but {type(dem_edges)} was given."

@@ -29,6 +29,7 @@ print(circuit_2)  # print the circuit in relative indices
 """
 
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 from dataclasses import dataclass, field
 from typing import Iterator, Iterable, TypeAlias, Collection, Protocol, Sequence, Any
 import functools
@@ -153,6 +154,7 @@ class RefCircuit:
     ) -> "RefCircuit":
         if circuit is None:
             return RefCircuit(instructions=tuple())
+        circuit = ours(circuit)  # a Stim Circuit too
         if not isinstance(circuit, stim.Circuit):
             return RefCircuit(instructions=tuple(circuit))
         instructions: list[RefInstruction] = []

@@ -19,6 +19,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.sparse
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 HashableType = TypeVar("HashableType", bound=Hashable)
 
@@ -78,6 +79,7 @@ class DetectorErrorModelArrays:
                 it came from.  Simplifying afterwards then merges components that coincide,
                 combining their probabilities.  Defaults to ``False``.
         """
+        circuit_or_dem = ours(circuit_or_dem)  # a Stim object too
         dem = (
             circuit_or_dem.detector_error_model(approximate_disjoint_errors=True)
             if isinstance(circuit_or_dem, stim.Circuit)

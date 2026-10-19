@@ -17,6 +17,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.sparse
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc.math import IntegerArray
 
@@ -122,6 +123,7 @@ class RelayBPDecoder(BatchErrorDecoder):
                 " help(qldpc.decoders.RelayBPDecoder)"
             )
 
+        pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
         if isinstance(pcm_or_dem, stim.DetectorErrorModel):
             if observable_error_matrix is not None:
                 raise ValueError(

@@ -93,7 +93,7 @@ def test_z3_solver(
     """Test the Z3 solver."""
     d = d3_so_code.distance
     ret = script_runner.run([
-        "stabilizer_qec.mqt_qecc.cc-decoder",
+        "mqt.qecc.cc-decoder",
         "--type",
         "square_octagon",
         str(d),

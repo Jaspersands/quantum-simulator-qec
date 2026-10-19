@@ -21,6 +21,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.sparse
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc.math import IntegerArray
 
@@ -229,6 +230,7 @@ def _build_matching(
     _validate_backend_options(pymatching, backend_options)
     decoder_args |= backend_options
     infers_decomposed_errors = False
+    pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
     if isinstance(pcm_or_dem, stim.DetectorErrorModel):
         dem_arrays = DetectorErrorModelArrays(pcm_or_dem, decompose_errors=decompose_errors)
         pcm = dem_arrays.detector_flip_matrix

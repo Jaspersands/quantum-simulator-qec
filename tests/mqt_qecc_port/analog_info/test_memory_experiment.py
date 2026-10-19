@@ -104,7 +104,7 @@ def test_decode_multiround_syndr_err(
 
     analog_syndr = np.array([[0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]])
     sigma = 0.3
-    decoding_method = "stabilizer_qec.bposd"
+    decoding_method = "bposd"
     syndrome = np.array([[0, 1, 0, 0], [0, 0, 0, 0]])
     res = decode_multiround(
         pcm=pcm,
