@@ -106,3 +106,30 @@ def test_cysparsesim_g2_is_g():
             state.run_gate(gate if state is cy else 'G2', {(0, 1)})
         assert cy.print_stabs(verbose=False, print_destabs=True) == py.print_stabs(verbose=False, print_destabs=True)
     assert cySparseSim(2).bindings['G2'].__name__ == 'G2'
+
+
+@pytest.mark.parametrize('code', ['SurfaceMedial4444', 'Surface4444', 'Color488'])
+def test_instruction_plot_on_networkx_3(code, monkeypatch, tmp_path):
+    # PECOS's docs' `syn_extract.plot()` (and their ZRepetition's): networkx 3 refuses the edge_labels that networkx 2
+    # ignored in draw_networkx_edges; the picture is the same, an arrow per CNOT, labelled by its tick.
+    matplotlib = pytest.importorskip('matplotlib')
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
+    from matplotlib.patches import FancyArrowPatch
+
+    import stabilizer_qec.pecos as pc
+
+    monkeypatch.setattr(plt, 'show', lambda: None)
+    instr = getattr(pc.qeccs, code)(distance=3).instruction('instr_syn_extract')
+    instr.plot(filename=str(tmp_path / 'syn.png'))
+    ax = plt.gca()
+    edges = {}
+    for tick in range(len(instr.circuit)):
+        for sym, locations, _ in instr.circuit.items(tick=tick):
+            if sym in ('CNOT', 'CZ', 'CY'):
+                edges.update({edge: str(tick) for edge in locations})
+    arrows = [p for p in ax.patches if isinstance(p, FancyArrowPatch)]
+    labels = sorted(t.get_text() for t in ax.texts if t.get_text() in edges.values())
+    assert len(arrows) == len(edges) and labels == sorted(edges.values())
+    assert (tmp_path / 'syn.png').stat().st_size > 10000
+    plt.close('all')

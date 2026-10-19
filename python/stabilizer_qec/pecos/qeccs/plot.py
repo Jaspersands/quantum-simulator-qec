@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; plot_instr draws on networkx 3.
 
 from matplotlib import pyplot as plt
 import networkx as nx
@@ -151,7 +151,9 @@ def plot_instr(instr, figsize=(9, 9), dpi=80, filename=None, title_font_size=16,
     plt.figure(num=None, figsize=figsize, dpi=dpi, edgecolor='k')
     plt.title("Logical Instruction: '%s'  QECC: %s" % (instr.symbol, instr.qecc.name), size=title_font_size)
 
-    nx.draw_networkx_edges(G, pos=pos, edge_labels=edge_labels, arrowsize=30)
+    # (stabilizer_qec: networkx 2 ignored this call's edge_labels, which networkx 3 refuses; the labels are drawn
+    # below, by draw_networkx_edge_labels.)
+    nx.draw_networkx_edges(G, pos=pos, arrowsize=30)
 
     nodes = nx.draw_networkx_nodes(G, pos=pos, nodelist=qudit_nodes_data, node_color='lightyellow', node_size=700,
                                    label='data qubit')
