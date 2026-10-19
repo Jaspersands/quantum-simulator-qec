@@ -16,14 +16,20 @@
 //! charge around it, which says which observables the correction flips.
 //!
 //! This module is a port of Chromobius (quantumlib/chromobius, `src/chromobius`) in its order
-//! of operations, so its predictions are Chromobius's but for the matcher's ties: the same
-//! basic faults (`collect_atomic_errors`), the same decomposition of every other fault into
-//! them (`collect_composite_errors`), the same Möbius model, and the same charge, drag and
-//! representative tables (`graphs`) and lifting (`decode`). One step is not reproducible:
-//! Chromobius walks the charge graph's neighbours in `std::unordered_map` order, which differs
-//! between C++ libraries, when it looks for the shortest way to drag charge between two
-//! places. Where two such ways flip different observables, the table entry is marked
-//! ambiguous, and a shot whose lifting uses one is counted as a tie.
+//! of operations: the same basic faults (`collect_atomic_errors`), the same decomposition of
+//! every other fault into them (`collect_composite_errors`), the same Möbius model, and the
+//! same charge, drag and representative tables (`graphs`) and lifting (`decode`). Handed the
+//! matched edges PyMatching finds, in PyMatching's order (`ColorDecoder::decode_given_edges`),
+//! the lifting gives Chromobius's predictions (all but 1 of about 18,500 colour-code shots
+//! checked). Its own decodes still differ from Chromobius on some shots, always at the same
+//! matching weight, because the lifting depends on the order of the matched edges, and this
+//! package's matcher lists them in another order than PyMatching's (and, rarely, picks
+//! another matching of the same weight). PyMatching's order comes from its search flooder's
+//! paths; it is not reproduced. Separately, Chromobius walks the charge graph's neighbours in
+//! `std::unordered_map` order, which differs between C++ libraries, when it looks for the
+//! shortest way to drag charge between two places; where two such ways flip different
+//! observables the table entry is marked ambiguous, and a shot whose lifting uses one is
+//! flagged as tied (no shot checked has needed one).
 
 mod decode;
 mod graphs;

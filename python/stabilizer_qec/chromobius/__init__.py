@@ -3,8 +3,21 @@
 # decoder is this package's port (``ColorMatching``, src/color/).
 """Chromobius under its own names (``import stabilizer_qec.chromobius as chromobius``): the
 colour-code decoder compiled for a model, its weighted predictions, and its sinter decoder.
-Predictions are Chromobius's but for ties between equally light matchings; weights are
-Chromobius's (PyMatching's discretized Möbius matching weight, as float32) bit for bit."""
+Weights are Chromobius's (PyMatching's discretized Möbius matching weight, as float32) bit for
+bit. Predictions are Chromobius's except on some shots (about 2% of a d = 3 colour code's at
+p = 1%, fewer at lower noise or larger distance) where the matching, of the same weight, comes
+out with its edges in another order (rarely, another matching of that weight): Chromobius's
+lifting depends on that order, and this package's matcher does not list edges in PyMatching's
+order. Handed PyMatching's edges, the lifting is Chromobius's.
+
+Where it differs from Chromobius:
+
+- A model with a fault of probability 1 is refused (Chromobius's weights are then NaN);
+  probabilities above 1/2 are negative-weight edges, as in Chromobius.
+- No command line: Chromobius's command-line program, built from its C++ sources, is not
+  ported; the decoder is, through Python and sinter.
+- ``decode_via_files`` with records wider than the model refuses a set bit past its detectors,
+  as Chromobius does, but may name another detector."""
 
 from __future__ import annotations
 
@@ -43,6 +56,7 @@ class CompiledDecoder:
         model = _model(dem)
         out = object.__new__(CompiledDecoder)
         out._decoder = ColorMatching(model)
+        out._num_detectors = model.num_detectors
         out._num_detector_bytes = (model.num_detectors + 7) // 8
         out._num_observable_bytes = (model.num_observables + 7) // 8
         return out
@@ -51,8 +65,10 @@ class CompiledDecoder:
         if not isinstance(dets, _np.ndarray) or dets.dtype != _np.uint8:
             raise ValueError("Expected bit packed detection event data, but dets.dtype wasn't np.uint8.")
         if dets.ndim == 2:
-            if dets.shape[0] and dets.strides[1] != 1:
-                raise ValueError(f"Bit packed shot data must be contiguous in memory, but dets.stride[1] wasn't equal to 1.\nIt was {dets.strides[1]}.")
+            # (An empty batch is refused too: Chromobius's binding sees its stride as 0.)
+            stride = dets.strides[1] if dets.shape[0] else 0
+            if stride != 1:
+                raise ValueError(f"Bit packed shot data must be contiguous in memory, but dets.stride[1] wasn't equal to 1.\nIt was {stride}.")
             rows = dets
         elif dets.ndim == 1:
             rows = dets.reshape(1, -1)
@@ -63,6 +79,7 @@ class CompiledDecoder:
                 f"Expected dets.shape[1]={rows.shape[1]} == num_detector_bytes={self._num_detector_bytes} because dets.shape == 2 "
                 "and dets.dtype==np.uint8 indicating bit packed shots."
             )
+        _check_padding(rows, self._num_detectors)
         preds, weights = self._decoder.decode_batch(rows, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
         # Chromobius keeps a 64-bit observable mask; bytes past it are zero.
         obs = _np.zeros((rows.shape[0], self._num_observable_bytes), dtype=_np.uint8)
@@ -84,6 +101,24 @@ class CompiledDecoder:
         return self._predict(dets, True)
 
 
+def _check_padding(rows: _Any, num_detectors: int) -> None:
+    """Refuse a shot with bits set past the last detector, as Chromobius does (its matcher is
+    handed both Möbius copies of each such detection event, beyond the graph's nodes): the
+    first such shot's lowest such bit is named."""
+    if not rows.size or 8 * rows.shape[1] <= num_detectors:
+        return
+    first, used = num_detectors // 8, num_detectors % 8
+    extra = rows[:, first:].copy()
+    extra[:, 0] &= 0xFF ^ ((1 << used) - 1)
+    shots = _np.flatnonzero(extra.any(axis=1))
+    if shots.size:
+        row = extra[shots[0]]
+        k = int(_np.flatnonzero(row)[0])
+        low = int(row[k])
+        d = 8 * (first + k) + (low & -low).bit_length() - 1
+        raise ValueError(f"The detection event with index {2 * d} does not correspond to a node in the graph, which only has {2 * num_detectors} nodes.")
+
+
 def compile_decoder_for_dem(dem: _Any) -> CompiledDecoder:
     """Compiles a decoder for a detector error model (see ``CompiledDecoder.from_dem``)."""
     return CompiledDecoder.from_dem(dem)
@@ -99,8 +134,11 @@ class _ChromobiusSinterCompiledDecoder:
         data = bit_packed_detection_event_data
         if not isinstance(data, _np.ndarray) or data.ndim != 2:
             raise ValueError("bit_packed_detection_event_data.ndim() != 2")
-        if data.shape[0] and data.strides[1] != 1:
+        # Chromobius's binding casts the data to bytes (any integer dtype, any layout); an
+        # empty batch it refuses, its stride then reading as 0.
+        if not data.shape[0]:
             raise ValueError("bit_packed_detection_event_data.strides(1) != 1")
+        data = _np.ascontiguousarray(data.astype(_np.uint8, copy=False))
         if data.shape[1] != self._decoder._num_detector_bytes:
             raise ValueError("bit_packed_detection_event_data.shape(1) != num_detector_bytes")
         return self._decoder.predict_obs_flips_from_dets_bit_packed(data.astype(_np.uint8, copy=False))
@@ -138,11 +176,34 @@ class _ChromobiusSinterDecoder:
         from .._circuit import DetectorErrorModel
 
         decoder = CompiledDecoder.from_dem(DetectorErrorModel(_pathlib.Path(str(dem_path)).read_text()))
-        nd = (int(num_dets) + 7) // 8
-        raw = _pathlib.Path(str(dets_b8_in_path)).read_bytes()[: int(num_shots) * nd]
-        rows = _np.frombuffer(raw, dtype=_np.uint8).reshape(int(num_shots), nd)
-        preds = decoder.predict_obs_flips_from_dets_bit_packed(rows) if int(num_shots) else _np.zeros((0, (int(num_obs) + 7) // 8), _np.uint8)
-        _pathlib.Path(str(obs_predictions_b8_out_path)).write_bytes(_np.ascontiguousarray(preds[:, : (int(num_obs) + 7) // 8]).tobytes())
+        shots, nd, nob = int(num_shots), (int(num_dets) + 7) // 8, (int(num_obs) + 7) // 8
+        try:
+            raw = _pathlib.Path(str(dets_b8_in_path)).read_bytes()[: shots * nd]
+        except OSError:
+            raise ValueError(f"Failed to open '{dets_b8_in_path}' for reading.") from None
+        if nd and len(raw) % nd:
+            raise ValueError(
+                f"b8 data ended in middle of record at byte position {len(raw) % nd}.\nExpected bytes per record was {nd} ({int(num_dets)} bits padded)."
+            )
+        # As Chromobius's: shots past the end of the file repeat its last record (none with an
+        # empty file), and each prediction is ``num_obs`` bits wide (zero past the model's
+        # observables).
+        rows = _np.zeros((shots, nd), _np.uint8)
+        read = len(raw) // nd if nd else 0
+        if read and shots:
+            rows[:read] = _np.frombuffer(raw, dtype=_np.uint8).reshape(-1, nd)
+            rows[read:] = rows[read - 1]
+        # (Each record is handed to the decoder whole: bits set past the model's detectors are
+        # refused, and a record narrower than the model is padded with zeros.)
+        _check_padding(rows, decoder._num_detectors)
+        width = decoder._num_detector_bytes
+        rows = _np.ascontiguousarray(rows[:, :width] if nd >= width else _np.pad(rows, ((0, 0), (0, width - nd))))
+        out = _np.zeros((shots, nob), _np.uint8)
+        if shots:
+            preds = decoder.predict_obs_flips_from_dets_bit_packed(rows)
+            k = min(nob, preds.shape[1])
+            out[:, :k] = preds[:, :k]
+        _pathlib.Path(str(obs_predictions_b8_out_path)).write_bytes(out.tobytes())
 
 
 def sinter_decoders() -> dict:

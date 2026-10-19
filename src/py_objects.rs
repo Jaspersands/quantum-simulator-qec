@@ -2635,6 +2635,26 @@ impl PyDemColorMatcher {
         let tied: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
         Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &tied), failed))
     }
+
+    /// One shot's lifting of a Möbius matching given as its edges, in a matcher's order (the
+    /// boundary as -1): the observables, None where no lifting explains the shot.
+    fn lift_edges(&self, defects: Vec<u32>, edges: Vec<(i64, i64)>) -> PyResult<Option<u64>> {
+        if let Some(&d) = defects.iter().find(|&&d| d as usize >= self.num_detectors) {
+            return Err(err(format!("detector {d} is beyond the model's {} detectors", self.num_detectors)));
+        }
+        let n = self.dec.num_mobius_nodes() as i64;
+        let mut given = Vec::with_capacity(edges.len());
+        for (a, b) in edges {
+            let node = |x: i64| if x == -1 { Ok(n as u32) } else if (0..n).contains(&x) { Ok(x as u32) } else { Err(err(format!("Möbius node {x} is beyond the {n} nodes"))) };
+            given.push((node(a)?, node(b)?));
+        }
+        let mut sorted = defects.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        let fired = |d: u32| sorted.binary_search(&d).is_ok();
+        let mut work = self.dec.work();
+        Ok(self.dec.decode_given_edges(&sorted, &given, &fired, &mut work).ok())
+    }
 }
 
 /// The search decoder (Tesseract's A*) on a model.

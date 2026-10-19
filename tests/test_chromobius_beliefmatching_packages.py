@@ -1,6 +1,6 @@
-"""stabilizer_qec.chromobius against Chromobius 1.1.1 (predictions but for ties between equally
-light matchings; weights, PyMatching's discretized Möbius matching weight as float32, bit for
-bit; the sinter decoder) and stabilizer_qec.beliefmatching against beliefmatching 0.2.0
+"""stabilizer_qec.chromobius against Chromobius 1.1.1 (predictions but where an equally light
+matching's edges come out in another order; weights, PyMatching's discretized Möbius matching
+weight as float32, bit for bit; the sinter decoder) and stabilizer_qec.beliefmatching against beliefmatching 0.2.0
 (predictions, check matrices and the sinter decoder), with BeliefMatching's constructors."""
 
 from __future__ import annotations
@@ -66,6 +66,106 @@ def test_chromobius_sinter_decoder(tmp_path):
     )
     assert (tmp_path / "o.b8").read_bytes() == b.tobytes()
 
+
+
+def raised(fn):
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001
+        return type(e).__name__, str(e)
+
+
+def test_chromobius_probabilities_above_one_half():
+    # A Möbius edge of probability above 1/2 has a negative weight: PyMatching, Chromobius's
+    # matcher, matches it at its absolute weight with the edge pre-applied. (These were refused.)
+    chromobius = reference("chromobius")
+    import stabilizer_qec.chromobius as ours
+
+    head = "detector(0,0,0,0) D0\ndetector(0,0,0,1) D1\n"
+    shots = np.array([[3], [0], [1], [2]], np.uint8)
+    for body in ("error(0.7) D0 D1 L0\nerror(0.1) D0\nerror(0.1) D1", "error(0.7) D0 D1 L0\nerror(0.7) D0 D1\nerror(0.1) D0\nerror(0.1) D1",
+                 "error(0.55) D0 L0\nerror(0.2) D0 D1\nerror(0.3) D1"):
+        dem = stim.DetectorErrorModel(head + body)
+        a = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(shots)
+        b = ours.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(shots)
+        assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
+    # At probability 1 PyMatching's weights, and Chromobius's, are NaN: refused here.
+    with pytest.raises(ValueError, match="probability 1"):
+        ours.compile_decoder_for_dem(stim.DetectorErrorModel(head + "error(1) D0 D1 L0\nerror(0.1) D0\nerror(0.1) D1"))
+
+
+def test_chromobius_refuses_as_chromobius_refuses():
+    chromobius = reference("chromobius")
+    import stabilizer_qec.chromobius as ours
+
+    dem = stim.DetectorErrorModel("detector(0,0,0,0) D0\ndetector(0,0,0,1) D1\ndetector(0,0,0,2) D2\nerror(0.1) D0 D1 D2 L0\nerror(0.1) D0\nerror(0.1) D1\nerror(0.1) D2")
+    a, b = chromobius.compile_decoder_for_dem(dem), ours.compile_decoder_for_dem(dem)
+    for dets in (np.array([[8]], np.uint8), np.array([[0], [0b10000]], np.uint8), np.zeros((0, 1), np.uint8)):
+        assert raised(lambda: a.predict_obs_flips_from_dets_bit_packed(dets)) == raised(lambda: b.predict_obs_flips_from_dets_bit_packed(dets))
+    sa = chromobius.sinter_decoders()["chromobius"].compile_decoder_for_dem(dem=dem)
+    sb = ours.sinter_decoders()["chromobius"].compile_decoder_for_dem(dem=dem)
+    for dets in (np.array([[1], [6], [7]], np.int64), np.array([[3], [5]], np.uint16), np.zeros((0, 1), np.uint8)):
+        ra, rb = raised(lambda: sa.decode_shots_bit_packed(bit_packed_detection_event_data=dets)), raised(lambda: sb.decode_shots_bit_packed(bit_packed_detection_event_data=dets))
+        assert (ra[0], ra[1]) == (rb[0], rb[1]) if isinstance(ra, tuple) else np.array_equal(ra, rb)
+
+
+def test_chromobius_decode_via_files(tmp_path):
+    chromobius = reference("chromobius")
+    import stabilizer_qec.chromobius as ours
+
+    # (Shots on which the two matchers list no equally light matching differently.)
+    c = stim.Circuit(str(sq.CssCode.color_code(3).memory_circuit(rounds=3, p=0.005, annotate_colors=True)))
+    dem = c.detector_error_model()
+    dets = c.compile_detector_sampler(seed=0).sample(64, bit_packed=True).tobytes()
+    dem.to_file(tmp_path / "m.dem")
+
+    def run(module, num_shots, data, num_obs=dem.num_observables, num_dets=dem.num_detectors):
+        (tmp_path / "d.b8").write_bytes(data)
+        (tmp_path / "o.b8").unlink(missing_ok=True)
+        r = raised(lambda: module.sinter_decoders()["chromobius"].decode_via_files(
+            num_shots=num_shots, num_dets=num_dets, num_obs=num_obs, dem_path=tmp_path / "m.dem",
+            dets_b8_in_path=tmp_path / "d.b8", obs_predictions_b8_out_path=tmp_path / "o.b8", tmp_dir=tmp_path))
+        return r if r is not None else (tmp_path / "o.b8").read_bytes()
+
+    # Shots past the end of the file repeat its last record; a partial record is refused;
+    # predictions are num_obs bits wide; records narrower than the model are padded.
+    cases = [(70, dets), (64, dets[:-3]), (64, dets, 9), (64, dets, 17), (64, dets, 0), (3, dets, 1, dem.num_detectors - 8),
+             (8, dets, 1, dem.num_detectors - 8), (0, b""), (2, b""), (3, dets, 1, dem.num_detectors + 8)]
+    for case in cases:
+        assert run(chromobius, *case) == run(ours, *case)
+    # Records wider than the model are handed over whole, and a set bit past its detectors is
+    # refused (the detector Chromobius names can differ).
+    a, b = run(chromobius, 8, dets, 1, dem.num_detectors + 8), run(ours, 8, dets, 1, dem.num_detectors + 8)
+    assert a[0] == b[0] == "ValueError" and "does not correspond to a node" in a[1] and "does not correspond to a node" in b[1]
+    (tmp_path / "d.b8").unlink()
+    missing = dict(num_shots=1, num_dets=dem.num_detectors, num_obs=1, dem_path=tmp_path / "m.dem", dets_b8_in_path=tmp_path / "d.b8",
+                   obs_predictions_b8_out_path=tmp_path / "o.b8", tmp_dir=tmp_path)
+    assert raised(lambda: chromobius.sinter_decoders()["chromobius"].decode_via_files(**missing)) == raised(lambda: ours.sinter_decoders()["chromobius"].decode_via_files(**missing))
+
+
+def test_chromobius_lifting_of_pymatchings_matching():
+    # Where predictions differ from Chromobius, the Möbius matchings have the same weight: the
+    # lifting depends on the order of the matched edges, and this package's matcher lists them
+    # in another order than PyMatching's. Handed PyMatching's edges in PyMatching's order, the
+    # lifting is Chromobius's.
+    chromobius = reference("chromobius")
+    pymatching = pytest.importorskip("pymatching")
+    import stabilizer_qec.chromobius as ours
+
+    c = stim.Circuit(str(sq.CssCode.color_code(3).memory_circuit(rounds=3, p=0.01, basis="z", annotate_colors=True)))
+    dem = c.detector_error_model()
+    dets = c.compile_detector_sampler(seed=12348).sample(2000, bit_packed=False)
+    theirs = chromobius.compile_decoder_for_dem(dem).predict_obs_flips_from_dets_bit_packed(np.packbits(dets, axis=1, bitorder="little"))
+    cm = ours.compile_decoder_for_dem(dem)._decoder
+    matching = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(str(cm.mobius_model)))
+    lifted = []
+    for shot in dets:
+        fired = np.flatnonzero(shot)
+        events = np.zeros(matching.num_detectors, np.uint8)
+        events[2 * fired] = events[2 * fired + 1] = 1
+        edges = [tuple(int(x) for x in e) for e in matching.decode_to_edges_array(events).tolist()] if fired.size else []
+        lifted.append(cm._x.lift_edges(fired.tolist(), edges))
+    assert lifted == [int.from_bytes(row.tobytes(), "little") for row in theirs]
 
 def test_beliefmatching_package(tmp_path):
     beliefmatching = pytest.importorskip("beliefmatching")
