@@ -152,8 +152,13 @@ def test_bad_appends_change_nothing():
         c.append(sq.Circuit("H 0"), 1)
     with pytest.raises(TypeError):
         c.append(3)
-    with pytest.raises(ValueError):
+    # Stim's repetitions are unsigned 64-bit: pybind11 refuses -1 with a TypeError.
+    with pytest.raises(TypeError, match=r"^__mul__\(\): incompatible function arguments"):
         c * -1
+    with pytest.raises(TypeError, match=r"^__rmul__\(\): incompatible function arguments"):
+        -1 * c
+    with pytest.raises(TypeError, match=r"^__imul__\(\): incompatible function arguments"):
+        c *= -1
     assert str(c) == before
     assert c.__add__(3) is NotImplemented and c.__mul__("2") is NotImplemented
 
