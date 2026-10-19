@@ -112,7 +112,7 @@ def test_z3_solver(
 ) -> None:
     """Test the Z3 solver."""
     ret = script_runner.run([
-        "stabilizer_qec.mqt_qecc.cc-decoder",
+        "mqt.qecc.cc-decoder",
         str(d3_hexcode.distance),
         str(p),
         "--nr_sims",
@@ -155,7 +155,7 @@ def test_external_solver(
     # mock the subprocess.run call in the `solve` method of the `LightsOut` class
     mocker.patch("subprocess.run", return_value=None)
     ret = script_runner.run([
-        "stabilizer_qec.mqt_qecc.cc-decoder",
+        "mqt.qecc.cc-decoder",
         str(d3_hexcode.distance),
         str(p),
         "--nr_sims",
@@ -197,7 +197,7 @@ def test_tn_decoder(script_runner: ScriptRunner, distance: int, p: float, nr_sim
     decoder = "tn"
 
     ret = script_runner.run([
-        "stabilizer_qec.mqt_qecc.cc-decoder",
+        "mqt.qecc.cc-decoder",
         str(distance),
         str(p),
         "--nr_sims",
@@ -231,7 +231,7 @@ def test_scenario_with_logical_errors(
 ) -> None:
     """Test the Z3 solver."""
     ret = script_runner.run([
-        "stabilizer_qec.mqt_qecc.cc-decoder",
+        "mqt.qecc.cc-decoder",
         str(d3_hexcode.distance),
         "0.2",
         "--nr_sims",

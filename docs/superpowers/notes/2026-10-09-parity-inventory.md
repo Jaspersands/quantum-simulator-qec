@@ -258,7 +258,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | M3 | Cat-state preparation (balanced tree, line, pruned, fused) and experiments | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 | M4 | Clifford synthesis (exact gate count and depth, SAT), CNOT-circuit synthesis (greedy and rollout) | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 | M5 | Code switching compiler (minimal switching, min cut) | done (2.0 W6: `stabilizer_qec.mqt_qecc.code_switching`) |
-| M6 | Colour-code MaxSAT decoder (LightsOut) | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC whole) |
+| M6 | Colour-code MaxSAT decoder (LightsOut) | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC whole; 2.1: its `mqt.qecc.cc-decoder` script as `stabilizer-qec mqt.qecc.cc-decoder` and `python -m stabilizer_qec.mqt_qecc.cc_decoder`, no console script of that name) |
 | M7 | Analog Tanner-graph decoding (soft syndromes), single-shot and quasi-single-shot simulators | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC whole) |
 | M8 | Codes: concatenated (CSS), quantum Hamming, iceberg, many-hypercube, 3D/4D (sparse) hypergraph product, hexagonal and square-octagon colour codes, rotated surface | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 | M9 | Stabilizer tableau objects (`StabilizerTableau`, `Pauli`, symplectic vectors and matrices), `CliffordIsometry` | done (= S3/S5, 2.0 W2) |

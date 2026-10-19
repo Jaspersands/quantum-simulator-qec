@@ -39,6 +39,7 @@ COMMANDS = {
     "sample": "Samples measurements from a circuit.",
     "sample_dem": "Samples detection events from a detector error model.",
     "serve": "Serve a decoder to clients over TCP or over stdin/stdout (stabilizer_qec.realtime.DecoderClient).",
+    "mqt.qecc.cc-decoder": "MQT QECC's colour-code decoder runs (`stabilizer-qec mqt.qecc.cc-decoder DISTANCE ERROR_RATE ...`).",
 }
 
 FORMATS = ["01", "b8", "r8", "ptb64", "hits", "dets"]
@@ -647,6 +648,14 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
         from .sinter._command._main import main as sinter_main
 
         return sinter_main(command_line_args=rest) or 0
+    if command == "mqt.qecc.cc-decoder":  # MQT QECC's console script, as a command (its flags, its help)
+        from .mqt_qecc.cc_decoder.cli import cli as cc_decoder_cli
+
+        try:
+            cc_decoder_cli(rest, prog=f"stabilizer-qec {command}")
+        except SystemExit as ex:  # argparse's --help and usage errors
+            return ex.code if isinstance(ex.code, int) else int(ex.code is not None)
+        return 0
     if command not in COMMANDS:
         print(f"Unrecognized command '{command}'. Use `stabilizer-qec help` for the commands.", file=sys.stderr)
         return 1
