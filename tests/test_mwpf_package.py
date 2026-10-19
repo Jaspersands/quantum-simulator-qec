@@ -249,6 +249,53 @@ def test_sinter_decoder_on_circuits(decoder):
         assert np.array_equal(predictions[0], predictions[1]), (task, distance)
 
 
+def test_stims_own_objects():
+    """Sinter, and MWPF's users, give its code Stim's own circuits and models: they are read as
+    this package's, so the predictions are MWPF's (not all zero, as when the observables of
+    Stim's targets went unseen) and the helpers take and give Stim's circuits."""
+    import numpy as np
+
+    real_stim = pytest.importorskip("stim")
+    if not hasattr(ref, "SinterMWPFDecoder"):
+        pytest.skip("MWPF's sinter decoders need its `stim` extra (frozendict, frozenlist)")
+    import stabilizer_qec
+    from test_mwpf_stim_objects import HERALDED
+
+    # MWPF's own test (tests/python/test_sinter.py): both detectors lit means L0 flipped.
+    dem = real_stim.DetectorErrorModel("error(0.02) D0\nerror(0.02) D0 D1 L0\nerror(0.1) D1\nerror(0.01) D1 L0\n")
+    lit = np.packbits(np.array([[1, 1]]), axis=-1, bitorder="little")
+    for lib in (ref, mw):
+        compiled = lib.SinterMWPFDecoder(panic_action=lib.PanicAction.RAISE).compile_decoder_for_dem(dem=dem)
+        assert compiled.predictor.get_observable_bits(compiled.decode_shots_bit_packed(bit_packed_detection_event_data=lit)) == [1]
+
+    circuit = real_stim.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
+    dem = circuit.detector_error_model(decompose_errors=False)
+    dets, obs = circuit.compile_detector_sampler(seed=3).sample(300, separate_observables=True, bit_packed=True)
+    real = ref.SinterMWPFDecoder().compile_decoder_for_dem(dem=dem).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
+    mine = mw.SinterMWPFDecoder().compile_decoder_for_dem(dem=dem).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
+    ours = mw.SinterMWPFDecoder().compile_decoder_for_dem(dem=stabilizer_qec.DetectorErrorModel(str(dem))).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
+    assert np.array_equal(real, mine) and np.array_equal(mine, ours)
+    assert np.any(mine != 0) and (mine != obs).any(axis=1).sum() < obs.any(axis=1).sum()
+
+    heralded = real_stim.Circuit(HERALDED)
+    hdem = heralded.detector_error_model(approximate_disjoint_errors=True)
+    hdets = heralded.compile_detector_sampler(seed=4).sample(200, bit_packed=True)
+    predictions = []
+    for lib in (ref, mw):
+        decoder = lib.SinterMWPFDecoder(pass_circuit=True).with_circuit(heralded)
+        predictions.append(decoder.compile_decoder_for_dem(dem=hdem).decode_shots_bit_packed(bit_packed_detection_event_data=hdets))
+    assert np.array_equal(predictions[0], predictions[1])
+    assert str(ref.heralded_dem.HeraldedDetectorErrorModel.of(heralded)) == str(mw.heralded_dem.HeraldedDetectorErrorModel.of(heralded))
+    assert str(ref.ref_circuit.RefCircuit.of(heralded)) == str(mw.ref_circuit.RefCircuit.of(heralded))
+    for helper in ("add_herald_detectors", "remove_herald_detectors"):
+        a, b = getattr(ref.heralded_dem, helper)(heralded), getattr(mw.heralded_dem, helper)(heralded)
+        assert isinstance(b, real_stim.Circuit) and a == b, helper
+    target = real_stim.GateTarget(0)
+    a = ref.ref_circuit.RefInstruction.new_heralded_erase((target,), 0.1)
+    b = mw.ref_circuit.RefInstruction.new_heralded_erase((target,), 0.1)
+    assert str(ref.ref_circuit.RefCircuit.of([a])) == str(mw.ref_circuit.RefCircuit.of([b]))
+
+
 def test_random_solver_inputs():
     rng = random.Random(5)
     for trial in range(40):

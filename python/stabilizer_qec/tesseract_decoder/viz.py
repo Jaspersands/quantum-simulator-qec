@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 __all__ = ["Visualizer"]
 
@@ -23,8 +23,16 @@ class Visualizer:
     def _add_errors(self, errors: Sequence[object]) -> None:
         self.lines.extend(str(e) for e in errors)
 
-    def write(self, fpath: str) -> None:
-        """Write the lines to ``fpath``."""
-        with open(fpath, "w") as f:
-            for line in self.lines:
-                f.write(line + "\n")
+    def write(self, fpath: Optional[str]) -> None:
+        """Write the lines to ``fpath``. As Tesseract's (a C++ file stream) does, this writes
+        nothing, and says nothing, when the file cannot be opened or ``fpath`` is None."""
+        if fpath is None:
+            return
+        if not isinstance(fpath, str):
+            raise TypeError(f"write(): incompatible function arguments; fpath must be a str, not {type(fpath).__name__}.")
+        try:
+            with open(fpath, "w") as f:
+                for line in self.lines:
+                    f.write(line + "\n")
+        except OSError:
+            pass

@@ -1234,7 +1234,11 @@ class ColorMatching(_DemDecoder):
     every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
     minimum-weight matching of it found by this package's matcher, and the matching lifted
     back to the code by carrying colour charge around its cycles. Predictions equal to the
-    ``chromobius`` package's but for ties between equally light matchings.
+    ``chromobius`` package's except on some shots where the matching has the same weight as
+    Chromobius's but its edges come out in another order (or, rarely, it is another matching
+    of that weight): the lifting depends on that order, and this package's matcher does not
+    list edges in PyMatching's order. Edges of probability above 1/2 are negative-weight edges,
+    as in Chromobius; probability 1 is refused.
 
     The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
     colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):

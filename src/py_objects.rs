@@ -2740,6 +2740,26 @@ impl PyDemColorMatcher {
         let tied: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
         Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &tied), failed))
     }
+
+    /// One shot's lifting of a Möbius matching given as its edges, in a matcher's order (the
+    /// boundary as -1): the observables, None where no lifting explains the shot.
+    fn lift_edges(&self, defects: Vec<u32>, edges: Vec<(i64, i64)>) -> PyResult<Option<u64>> {
+        if let Some(&d) = defects.iter().find(|&&d| d as usize >= self.num_detectors) {
+            return Err(err(format!("detector {d} is beyond the model's {} detectors", self.num_detectors)));
+        }
+        let n = self.dec.num_mobius_nodes() as i64;
+        let mut given = Vec::with_capacity(edges.len());
+        for (a, b) in edges {
+            let node = |x: i64| if x == -1 { Ok(n as u32) } else if (0..n).contains(&x) { Ok(x as u32) } else { Err(err(format!("Möbius node {x} is beyond the {n} nodes"))) };
+            given.push((node(a)?, node(b)?));
+        }
+        let mut sorted = defects.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        let fired = |d: u32| sorted.binary_search(&d).is_ok();
+        let mut work = self.dec.work();
+        Ok(self.dec.decode_given_edges(&sorted, &given, &fired, &mut work).ok())
+    }
 }
 
 /// The search decoder (Tesseract's A*) on a model.
@@ -2815,6 +2835,16 @@ impl PyDemSearch {
         let out = py.detach(|| crate::batch::search_shots(dec, packed, nd, shots, threads));
         let gave_up: Vec<u8> = out.iter().map(|x| u8::from(x.2)).collect();
         Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &gave_up)))
+    }
+
+    /// Change the settings a decode reads (Tesseract reads them from its decoder's config at
+    /// every decode): the beam, beam climbing, revisiting, the queue bound, the detector
+    /// orders and the detector penalty.
+    #[allow(clippy::too_many_arguments)]
+    fn reconfigure(&mut self, beam: Option<usize>, beam_climbing: bool, no_revisit: bool, queue_limit: Option<usize>, orders: Vec<Vec<u32>>, penalty: f64) -> PyResult<()> {
+        self.dec.reconfigure(beam, beam_climbing, no_revisit, queue_limit, orders.clone(), penalty).map_err(err)?;
+        self.orders = orders;
+        Ok(())
     }
 
     /// The model faults one shot's search found (by index in the flattened model).

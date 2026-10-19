@@ -138,6 +138,17 @@ pub(crate) type MergedEdges = (Vec<(u32, u32, f64, u64)>, usize);
 /// agree; those that disagree are counted. Stim's own decomposed colour codes
 /// have such pairs (`D2` and `D2 L0`).
 pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
+    let (out, conflicts) = merged_edges_any(dem)?;
+    for &(u, v, p, _) in &out {
+        if !(p > 0.0 && p <= 0.5) {
+            return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
+        }
+    }
+    Ok((out, conflicts))
+}
+
+/// The merged edges, whatever their probabilities (those above 0.5 have negative weights).
+pub(crate) fn merged_edges_any(dem: &Dem) -> Result<MergedEdges, String> {
     let boundary = dem.num_detectors as u32;
     let mut edges: HashMap<(u32, u32), (f64, u64)> = HashMap::new();
     let mut conflicts = 0usize;
@@ -181,11 +192,6 @@ pub(crate) fn merged_edges(dem: &Dem) -> Result<MergedEdges, String> {
     }
     let mut out: Vec<(u32, u32, f64, u64)> = edges.into_iter().map(|((u, v), (p, o))| (u, v, p, o)).collect();
     out.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
-    for &(u, v, p, _) in &out {
-        if !(p > 0.0 && p <= 0.5) {
-            return Err(format!("edge ({u}, {v}) has probability {p}; weights need 0 < p <= 0.5"));
-        }
-    }
     Ok((out, conflicts))
 }
 

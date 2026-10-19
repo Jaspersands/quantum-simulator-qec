@@ -1,7 +1,11 @@
 # Ported from fusion_blossom 0.2.13's helper.py (Yue Wu; MIT, see LICENSE here), modified for
 # stabilizer_qec: the website is served by the standard library's HTTP server (fusion_blossom
 # embedded bottle), and its files are read from this package's ``visualizer`` folder.
-"""The visualizer website, its server, and helpers for viewing a code or rendering a snapshot."""
+"""The visualizer website, its server, and helpers for viewing a code or rendering a snapshot.
+
+Not ported: ``helper.bottle``, the copy of the Bottle web framework (about 4,900 lines) that
+fusion_blossom vendors to serve the website. The server here is the standard library's, and
+code that imported ``fusion_blossom.helper.bottle`` itself has no counterpart."""
 
 import os
 import shutil

@@ -99,7 +99,9 @@ class TesseractSinterDecoder:
         self.det_penalty = float(det_penalty)
         self.create_visualization = bool(create_visualization)
         self.num_det_orders = int(num_det_orders)
-        self.det_order_method = DetectorOrderMethod(int(det_order_method))
+        if not isinstance(det_order_method, DetectorOrderMethod):
+            raise TypeError(f"__init__(): incompatible constructor arguments; det_order_method must be a DetectorOrderMethod, not {type(det_order_method).__name__}.")
+        self.det_order_method = det_order_method
         self.seed = int(seed)
         self.sparsify_errors = bool(sparsify_errors)
         self.sparsify_base_degree = int(sparsify_base_degree)
@@ -140,6 +142,8 @@ class TesseractSinterDecoder:
             raise RuntimeError("Invalid state for TesseractSinterDecoder!")
         if int(args[8]) == 0:
             args[8], args[9], args[10] = 1, DetectorOrderMethod.Index, 0
+        if not isinstance(args[9], DetectorOrderMethod):
+            args[9] = DetectorOrderMethod(args[9])
         self.__init__(*args)  # type: ignore[misc]
 
     def _config(self, dem: Any) -> TesseractConfig:

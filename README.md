@@ -1343,8 +1343,10 @@ arithmetic in its order so that its answers can be held to theirs shot for shot:
   than its own, each fault drawn as edges of the doubled graph, a matching of it found by this
   package's matcher, and the matching lifted back by carrying colour charge around its cycles.
   The detectors need Chromobius's colour annotation (`annotate_colors=True` on the colour-code
-  circuits). Where Chromobius's search for a way to drag charge would depend on `unordered_map`
-  order and two ways differ, the entry is marked and a shot using it counted as a tie.
+  circuits). The weight is Chromobius's bit for bit. The lifting depends on the order in which
+  the matcher lists the matched edges, and this package's matcher does not list them in
+  PyMatching's order, so on some shots (always at Chromobius's weight) the prediction differs;
+  handed PyMatching's edges in its order, the lifting gives Chromobius's predictions.
 - **A search decoder** (`SearchDecoder`; Beni, Higgott and Shutty, Google, 2025). Tesseract's A*
   over sets of faults, cheapest first by weight plus an admissible estimate of what the lit
   detectors still cost, under a beam and a queue bound, over several detector orders. Equally
@@ -1360,8 +1362,9 @@ strengths and no memory, correction, convergence and iteration count; colour-cod
 annotated colour codes (d = 3 to 9) and Chromobius's own test code, the Möbius matching's
 weight on every shot and the predictions; the search on surface, colour and gross-code models
 with Tesseract's defaults, literal orders and beam climbing, the faults found. "Ties" differ
-only where the reference's order is not reproducible (BP+LSD) or between two equally light
-matchings (colour codes):
+only where the reference's order is not reproducible: BP+LSD's, or for colour codes the order
+in which PyMatching lists an equally light matching's edges (almost always the same edges as
+this package's matcher finds):
 
 | decoder | against | cases | shots | equal | ties | otherwise | time (× theirs) |
 |---|---|---|---|---|---|---|---|
