@@ -30,6 +30,8 @@ Rust crate both at 2.1.0. Behaviour changes are under **Changed**.
   Relay-BP ports take Stim's own `Circuit`, `DetectorErrorModel` and `DemInstruction`, read
   exactly. Before, they raised errors, and sinter's Fusion Blossom and MWPF decoders silently
   dropped every error of a Stim model.
+  MWPF's `HeraldedDetectorErrorModel.of`, `RefCircuit.of` and `with_circuit` take them too, and
+  the Tesseract port gives Stim's models back where it was given Stim's.
 - **stimbposd.** `stabilizer_qec.stimbposd` is stimbposd 0.2.0 whole: `BPOSD`, `BPLSD`, the
   sinter decoders, `sinter_decoders()` (eight variants) and
   `detector_error_model_to_check_matrices`, bit-identical on ldpc 2.4.1. Use it with
@@ -94,6 +96,14 @@ Rust crate both at 2.1.0. Behaviour changes are under **Changed**.
   timing out.
 - **PECOS.** `SparseSim.print_stabs(print_destabs=, print_y=)`, `copy`, `refactor`, `find_stab`,
   `run_direct` and `'G2'`.
+- **Tesseract.** Its binding's behaviour: constructor overloads (`TesseractConfig(7)`),
+  pybind11's enums, the binding's exception types, and output where Tesseract's goes
+  (`ostream_redirect`, `Visualizer.write`). The decoder's config is read at every decode, as
+  Tesseract's is, except the sparsify settings.
+- **Chromobius.** Faults of probability above 1/2 decode as Chromobius's negative-weight
+  edges, with its predictions and weights; probability 1 is refused, as Chromobius's weights are
+  NaN there. The sinter decoder takes any integer data, and `decode_via_files` reads short
+  files, partial records and other record widths as Chromobius does.
 - **Deltakit.** `deltakit.decode` carries Deltakit's cloud decoders' names.
 - **Resource estimates.**
   - Azure: the report (`status`, the `jobParams` echo, `physicalCountsFormatted`, `reportData`),
@@ -163,6 +173,9 @@ Rust crate both at 2.1.0. Behaviour changes are under **Changed**.
   missing-argument message under click 8.2.
 - **PanQEC and qecsim.** `--version` names panqec and qecsim again.
 - **Relay-BP.** Check matrices with stored zeros or even entries decode as relay_bp's do.
+- **Tesseract.** The two-pass decoder on an annotated model ("DEM error index out of range"),
+  repeated detection events (a panic), merging zero-probability errors ("bad argument 'nan'") and
+  beam climbing with a negative beam now give Tesseract's answers.
 - **Python 3.9 and 3.10, and Windows.** Loom's operations ran only on 3.11+ (`zip(strict=)`);
   they now run everywhere. The tests read Windows' line endings and paths, Stim's Windows help
   pages and click 8.1, and skip a port's tests where its Python or extras are missing.
@@ -182,6 +195,13 @@ These remain, each listed in the README and the inventory:
   three rounds (fourteen generators) it moves the silent logical rate from 2.0's 0.00100 to
   0.00161 ± 0.00013, against the exact 0.00258. Part of the interference between rounds is
   still left out.
+- Chromobius's predictions differ on some shots, always at the same matching weight. Its
+  lifting depends on the order of the matched edges, and this package's matcher does not list
+  them in PyMatching's order. Handed PyMatching's edges, the lifting equals Chromobius's on all
+  but 1 of about 18,500 shots checked. The weights are bit for bit.
+- Fusion Blossom's `helper.bottle`, a vendored copy of the Bottle web framework (the
+  visualiser is served by the standard library). Tesseract and Chromobius have no command
+  line, and the Tesseract port's A* decoder takes at most 64 observables.
 - QUITS's distance search uses more memory and time than Stim's: 456 MB and 8.7 s against
   139 MB and 1.6 s on [[72, 8, 8]].
 
