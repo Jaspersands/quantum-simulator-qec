@@ -37,6 +37,20 @@ def load(path):
     return data
 
 
+def _optional(name, feature):
+    """Import ``name``, one of qsample's dependencies that this package does not install (qsample
+    requires latextools, matplotlib, networkx and pydot, and uses them only to draw and plot), or
+    raise an ImportError naming it and how to install it."""
+    import importlib
+
+    try:
+        return importlib.import_module(name)
+    except ImportError as e:
+        package = name.split(".")[0]
+        msg = f"{feature} requires the optional dependency '{package}'. Install with: pip install {package}"
+        raise ImportError(msg) from e
+
+
 def tqdm(iterable, **kwargs):
     """tqdm's progress bar when tqdm is installed (as qsample shows one), else the iterable."""
     try:

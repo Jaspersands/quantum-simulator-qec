@@ -280,7 +280,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | U9 | PECOS: fault-tolerance checks (`t_errors_check`, `fault_check`, `distance_check`), pseudo-threshold tools, error generators, 4.4.4.4 surface and 4.8.8 colour codes, density-matrix and process-matrix simulators | done (2.0 W7: `stabilizer_qec.pecos`, PECOS 0.2.0 whole, its C++ simulator in Rust; simulators, codes, runs and rates equal to PECOS's, its broken checks fixed. W8: its `DensityMatrix` and `ProcessMatrix` simulators, which PECOS declares and does not ship, checked against its stabilizer simulators and logical runs) |
 | U10 | Fusion Blossom: parallel MWPM by partitioned primal/dual, visualiser | done (2.0 W6: `stabilizer_qec.fusion_blossom`, Fusion Blossom whole in Rust) |
 | U11 | MWPF: hypergraph minimum-weight parity factor decoder, hypergraph union-find (HUF), heralded-erasure DEMs | done (2.0 W6: `stabilizer_qec.mwpf`, MWPF whole in Rust; not `QECPlaygroundCode`, an integration with QEC-Playground's simulator, see the spec's out of scope) |
-| U12 | qsample: dynamical subset sampling (importance sampling by fault count, upper and lower bounds), protocol graphs with feed-forward | done (2.0 W4: `stabilizer_qec.qsample`) |
+| U12 | qsample: dynamical subset sampling (importance sampling by fault count, upper and lower bounds), protocol graphs with feed-forward | done (2.0 W4: `stabilizer_qec.qsample`; 2.1: its drawing dependencies, which qsample requires and this package does not install (latextools, matplotlib, networkx, pydot), are named with their `pip install` when missing) |
 
 ## F — Fault-tolerant compilation and estimation (tqec, Loom, Qualtran, Azure RE, Plaquette)
 

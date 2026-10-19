@@ -124,3 +124,28 @@ def test_simulator_gates_are_qsamples():
     with pytest.raises(NotImplementedError):
         sim.T(0)
     assert isinstance(Tableau(1), Tableau)
+
+
+def _sampled_tree():
+    sampler = qs.SubsetSampler(protocol=ghz_protocol(), simulator=qs.StabilizerSimulator, p_max={"q": 0.1}, err_model=qs.noise.E1, err_params={"q": [0.01]}, L=1)
+    sampler.run(5)
+    return sampler.tree
+
+
+@pytest.mark.parametrize(
+    "missing, draw",
+    [
+        ("latextools", lambda: ghz_protocol().get_circuit("ghz").draw()),
+        ("networkx", lambda: ghz_protocol().draw()),
+        ("pydot", lambda: _sampled_tree().draw()),
+    ],
+)
+def test_drawing_names_the_missing_dependency(monkeypatch, missing, draw):
+    # qsample requires latextools, networkx and pydot to draw; this package does not install them,
+    # so a draw without one says which, and how to install it.
+    import sys
+
+    pytest.importorskip("matplotlib")
+    monkeypatch.setitem(sys.modules, missing, None)  # as if not installed
+    with pytest.raises(ImportError, match=rf"requires the optional dependency '{missing}'\. Install with: pip install {missing}$"):
+        draw()
