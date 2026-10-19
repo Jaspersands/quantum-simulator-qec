@@ -645,6 +645,134 @@ def test_tqecs_conventions_and_noise_model_objects_are_taken():
 
 
 # ---------------------------------------------------------------------------------------------
+# tqec.simulation on this package's sinter
+# ---------------------------------------------------------------------------------------------
+
+# tqec 0.2.0's heuristic_custom_error_key for the gallery's graphs (the same here). Not the three
+# CNOTs: two combinations tie there, and tqec breaks the tie by the order of a set of edges,
+# which follows the string hashes of the process.
+TQEC_ERROR_KEYS = {("cnot", None): "obs_mistake_mask=__E_", ("cnot", "Z"): "obs_mistake_mask=EE", ("cnot", "X"): "obs_mistake_mask=EE", ("steane_encoding", None): "obs_mistake_mask=_E___EE", ("move_rotation", None): "obs_mistake_mask=E_"}
+
+
+def _split_rows():
+    return [
+        dict(strong_id="a", decoder="pymatching", json_metadata={"d": 3, "r": 3, "p": 0.002}, shots=1000, errors=30, discards=0, seconds=1.0, custom_counts={"obs_mistake_mask=E_": 10, "obs_mistake_mask=EE": 5, "obs_mistake_mask=_E": 15, "detection_events": 7}),
+        dict(strong_id="a", decoder="pymatching", json_metadata={"d": 3, "r": 3, "p": 0.002}, shots=500, errors=12, discards=1, seconds=0.5, custom_counts={"obs_mistake_mask=E_": 4, "obs_mistake_mask=_E": 8}),
+        dict(strong_id="b", decoder="pymatching", json_metadata={"d": 5, "r": 5, "p": 0.002}, shots=2000, errors=3, discards=0, seconds=2.0, custom_counts={"obs_mistake_mask=EE": 3}),
+    ]
+
+
+def _our_stats():
+    import collections
+
+    return [sq.sinter.TaskStats(**{**r, "custom_counts": collections.Counter(r["custom_counts"])}) for r in _split_rows()]
+
+
+def _flat(split) -> list:
+    return [[(s.strong_id, s.shots, s.errors, s.discards, s.seconds, dict(s.custom_counts), s.json_metadata) for s in stats] for stats in split]
+
+
+def test_simulation_splits_the_observables_as_tqec_does():
+    from stabilizer_qec.tqec.simulation import heuristic_custom_error_key, split_stats_for_observables
+    from stabilizer_qec.tqec.simulation.split import split_counts_for_observables
+
+    for (name, basis), key in TQEC_ERROR_KEYS.items():
+        assert heuristic_custom_error_key(ours(name, basis).find_correlation_surfaces()) == key
+    assert split_counts_for_observables({"obs_mistake_mask=E_E": 3, "obs_mistake_mask=_EE": 2, "detection_events": 9}, 3) == [3, 2, 5]
+    assert _flat(split_stats_for_observables(_our_stats(), 2)) == [
+        [("a", 1500, 19, 1, 1.5, {"detection_events": 7}, {"d": 3, "r": 3, "p": 0.002}), ("b", 2000, 3, 0, 2.0, {}, {"d": 5, "r": 5, "p": 0.002})],
+        [("a", 1500, 28, 1, 1.5, {"detection_events": 7}, {"d": 3, "r": 3, "p": 0.002}), ("b", 2000, 3, 0, 2.0, {}, {"d": 5, "r": 5, "p": 0.002})],
+    ]
+
+
+def test_simulation_generates_tqecs_tasks_and_collects_them():
+    from stabilizer_qec.tqec.simulation import start_simulation_using_sinter
+    from stabilizer_qec.tqec.simulation.generation import generate_sinter_tasks, generate_stim_circuits_with_detectors
+    from stabilizer_qec.tqec.simulation.threshold import get_logical_error_rate_per_shot
+
+    g = gallery.cnot(Basis.Z)
+    computation = tqec.compile_block_graph(g)
+    tasks = list(generate_sinter_tasks(computation, [1, 2], [0.001, 0.002], tqec.NoiseModel.uniform_depolarizing, 2))
+    assert [t.json_metadata for t in tasks] == [{"d": d, "r": d, "p": p} for d in (3, 5) for p in (0.001, 0.002)]
+    assert [str(t.circuit) for t in tasks[:2]] == [str(computation.generate_stim_circuit(1, tqec.NoiseModel.uniform_depolarizing(p))) for p in (0.001, 0.002)]
+    assert [(k, p) for _, k, p in generate_stim_circuits_with_detectors(computation, [1], [0.001], tqec.NoiseModel.uniform_depolarizing, -1)] == [(1, 0.001)]
+    # One list of statistics per observable, the shots shared, the errors each observable's.
+    split = start_simulation_using_sinter(g, [1], [0.002], tqec.NoiseModel.uniform_depolarizing, 2, num_workers=1, max_shots=1000)
+    assert len(split) == 2 and [len(s) for s in split] == [1, 1]
+    (a,), (b,) = split
+    assert a.json_metadata == b.json_metadata == {"d": 3, "r": 3, "p": 0.002} and a.shots == b.shots >= 1000
+    assert not any(k.startswith("obs_mistake_mask=") for k in a.custom_counts)
+    (raw,) = start_simulation_using_sinter(g, [1], [0.002], tqec.NoiseModel.uniform_depolarizing, 2, num_workers=1, max_shots=1000, split_observable_stats=False)
+    assert len(raw) == 1 and all(k.startswith("obs_mistake_mask=") and len(k) == len("obs_mistake_mask=") + 2 for k in raw[0].custom_counts)
+    fit = get_logical_error_rate_per_shot(raw[0])
+    assert fit.low <= fit.best <= fit.high
+    nothing = get_logical_error_rate_per_shot(raw[0].with_edits(errors=0))
+    assert np.isnan(nothing.best) and nothing.low == 0
+
+
+def test_binary_search_threshold_brackets_the_memory_threshold():
+    from stabilizer_qec.tqec.simulation.threshold import binary_search_threshold
+
+    m = gallery.memory(Basis.Z)
+    threshold, fits = binary_search_threshold(m, m.find_correlation_surfaces()[0], tqec.NoiseModel.uniform_depolarizing, minp=0.001, maxp=0.03, atol=0.005, rtol=0.2, num_workers=1, max_shots=4000, max_errors=200)
+    assert 0.001 < threshold < 0.03
+    assert sorted(fits) == [1, 2] and len(fits[1]) == len(fits[2]) >= 1
+    assert [p for p, _ in fits[1]] == [p for p, _ in fits[2]] and fits[1][0][0] == pytest.approx(0.0155)
+
+
+def test_sinter_stats_csv_files(tmp_path: pathlib.Path):
+    from stabilizer_qec.tqec.simulation.io_utils.csv_files import write_sinter_stats_to_csv
+
+    stats = _our_stats()
+    path = tmp_path / "stats.csv"
+    write_sinter_stats_to_csv(path, stats[:1])
+    with pytest.raises(TQECError, match="already exists"):
+        write_sinter_stats_to_csv(path, stats)
+    write_sinter_stats_to_csv(path, stats[1:], if_file_exists="merge")
+    merged = sorted(sq.sinter.read_stats_from_csv_files(path), key=lambda s: s.strong_id)
+    assert [(s.strong_id, s.shots, s.errors) for s in merged] == [("a", 1500, 42), ("b", 2000, 3)]
+    write_sinter_stats_to_csv(path, stats[2:], if_file_exists="overwrite")
+    assert [s.strong_id for s in sq.sinter.read_stats_from_csv_files(path)] == ["b"]
+
+
+def test_simulation_plots():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from stabilizer_qec.tqec.simulation import plot_observable_as_inset
+    from stabilizer_qec.tqec.simulation.plotting.inset import plot_threshold_as_inset
+
+    g = gallery.cnot(Basis.Z)
+    fig, ax = plt.subplots()
+    plot_observable_as_inset(ax, g.to_zx_graph(), g.find_correlation_surfaces()[1])
+    plot_threshold_as_inset(ax, _our_stats(), zoom_bounds=(1e-3, 1e-1, 1e-2, 1e-3), threshold=5e-3)
+    assert len(ax.child_axes) == 2
+    fig2, ax2 = g.to_zx_graph().draw(title="CNOT")
+    assert ax2.get_title() == "CNOT"
+    plt.close(fig)
+    plt.close(fig2)
+
+
+@needs_tqec
+def test_simulation_agrees_with_tqec():
+    import collections
+
+    import sinter as real_sinter
+    from tqec.simulation import heuristic_custom_error_key as their_key
+    from tqec.simulation import split_stats_for_observables as their_split
+
+    from stabilizer_qec.tqec.simulation import heuristic_custom_error_key, split_stats_for_observables
+
+    for name, basis in TQEC_ERROR_KEYS:
+        assert heuristic_custom_error_key(ours(name, basis).find_correlation_surfaces()) == their_key(tqecs(name, basis).find_correlation_surfaces())
+    mine = split_stats_for_observables(_our_stats(), 2)
+    them = their_split([real_sinter.TaskStats(**{**r, "custom_counts": collections.Counter(r["custom_counts"])}) for r in _split_rows()], 2)
+    assert _flat(mine) == _flat(them)
+    assert [s.to_csv_line() for s in mine[1]] == [s.to_csv_line() for s in them[1]]
+
+
+# ---------------------------------------------------------------------------------------------
 # Small API: positions, LinearFunction, CZ flows, sq.tqec, find_correlation_surfaces' arguments
 # ---------------------------------------------------------------------------------------------
 
