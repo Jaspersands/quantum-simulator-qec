@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 import stabilizer_qec as sq
+from stabilizer_qec import tsim
 from stabilizer_qec.tsim import ColorEncoder5, SteaneEncoder, shorthand_to_stim, tsim_to_native
 
 ENCODERS = [SteaneEncoder, ColorEncoder5]
@@ -76,8 +77,8 @@ def test_initialize_prepares_the_logical_state(make, state, logical, value):
     enc.encode_transversally(("H 0\n" if logical == "X" else "") + "M 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]")
     c = enc.circuit
     assert c.num_qubits == enc.n and c.num_detectors == len(enc.stabilizer_generators)
-    # Measured in the logical's basis, its checks are deterministic and the logical is the
-    # prepared value (read from the measurements: the detector sampler reports flips).
+    # Measured in the logical's basis, its checks are deterministic (their values, which the
+    # tsim.Circuit's detector sampler reports, are 0) and the logical is the prepared value.
     assert not c.compile_detector_sampler(seed=3).sample(64).any()
     m = c.compile_sampler(seed=3).sample(64)
     assert (np.bitwise_xor.reduce(m[:, enc.observables[0]], axis=1) == value).all()
@@ -107,8 +108,10 @@ def test_encoded_t_is_this_packages_t():
     # Tsim's T (S[T] in its Stim) is this package's I[T], not S.
     enc = SteaneEncoder()
     enc.initialize("R 0\nH 0\nT 0")
-    text = str(enc.circuit)
+    text = str(sq.Circuit(enc.circuit))
     assert "I[T] 6" in text and "S[T]" not in text
+    # As Tsim's, the encoder's circuit is a tsim.Circuit, written in Tsim's shorthand.
+    assert isinstance(enc.circuit, tsim.Circuit) and "T 6" in str(enc.circuit).splitlines()
 
 
 # Tsim's definitions, as a state vector: R_P(a) = exp(-i a pi P / 2), T = diag(1, e^{i pi / 4}),

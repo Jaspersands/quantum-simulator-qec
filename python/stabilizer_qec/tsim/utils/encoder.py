@@ -1,13 +1,14 @@
 # Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5; Apache License 2.0; see LICENSE in this directory),
-# modified for stabilizer_qec: Stim and Tsim's circuits are this package's Circuit, Tsim's
-# shorthand (T, T_DAG, TPP, rotations, ...) read as this package's operations (tsim_to_native),
-# annotations postponed (Python 3.9).
+# modified for stabilizer_qec: Stim's circuits are this package's Circuit and Tsim's its
+# tsim.Circuit, Tsim's shorthand (T, T_DAG, TPP, rotations, ...) read as this package's operations
+# (tsim_to_native), annotations postponed (Python 3.9).
 """Transversal encoder utilities for QEC code experiments."""
 
 from __future__ import annotations
 
 import stabilizer_qec as stim
 from stabilizer_qec.tsim._native import tsim_to_native
+from stabilizer_qec.tsim.circuit import Circuit as _TsimCircuit
 from stabilizer_qec.tsim.utils.program_text import shorthand_to_stim
 
 
@@ -102,7 +103,7 @@ class TransversalEncoder:
         """Initialize the transversal encoder with code parameters."""
         self.n = n
         self.encoding_qubit = encoding_qubit
-        self.circuit = stim.Circuit()
+        self.circuit = _TsimCircuit()
         self.used_qubits: set[int] = set()
         self.encoding_program_text = encoding_program_text
         self.stabilizer_generators = stabilizer_generators

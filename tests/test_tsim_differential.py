@@ -82,7 +82,7 @@ def test_distillation_records():
     records = np.array([[(i >> k) & 1 for k in range(5)] for i in range(32)], dtype=bool)
     # With noise, probability_of averages over its draws; the exact probabilities come from
     # the distribution over every branch (five depolarizing channels: 4^5 of them).
-    dist = sq.Circuit(str(ours) + "\n" + "\n".join(f"DETECTOR rec[-{k}]" for k in range(5, 0, -1))).exact_distribution(method="stabilizer_rank")
+    dist = ours_tsim.Circuit(text + "\n" + "\n".join(f"DETECTOR rec[-{k}]" for k in range(5, 0, -1))).exact_distribution(method="stabilizer_rank")
     probs = np.array([dist.get((tuple(bool(b) for b in r), ()), 0.0) for r in records])
     assert abs(probs.sum() - 1) < 1e-9
     shots = 20_000

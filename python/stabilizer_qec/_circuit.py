@@ -216,7 +216,7 @@ class Circuit:
         reads that dialect too, as the tagged instructions Stim runs
         (``I_ERROR[LEAKAGE(p=…)]``, ``I_ERROR[RELAX(p=…)]``,
         ``MPAD[HERALD_LEAKAGE_EVENT(qubits=…)]``)."""
-        return call(_core.circuit_to_deltakit, str(self))
+        return call(_core.circuit_to_deltakit, Circuit.__str__(self))
 
     def inverse(self) -> "Circuit":
         """The unitary inverse: operations inverted and in reverse, the tagged gates too
