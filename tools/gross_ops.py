@@ -27,8 +27,9 @@ recorded as a bound.
 
 check: each logical-measurement circuit's error model equals Stim's fault for
 fault, Stim finds the noiseless circuit deterministic, and BP+OSD's
-corrections equal ldpc's BpOsdDecoder's on Stim's shots, but for shots where
-the two differ only by the order of tied BP posteriors (see bposd_matches).
+corrections equal ldpc's BpOsdDecoder's on Stim's shots (all of them; a shot
+that differs only by the order of tied BP posteriors would pass too, see
+bposd_matches).
 
 measure: the measurement against merged cycles T (the expanded system, and the
 minimal one for comparison), and the memory of the same length, sampled by
@@ -275,13 +276,17 @@ def bposd_matches(text, shots, seed):
     """BP+OSD-CS7 against ldpc's BpOsdDecoder on Stim's shots: (equal, ties, unexplained).
 
     OSD sorts the columns by BP's posteriors, and min-sum run long leaves many
-    exactly equal. ldpc sorts them with C++'s std::sort, whose order among
-    equals is the standard library's (libc++ and libstdc++ differ), so where
-    tied columns straddle the information set, OSD's answer depends on it:
-    ldpc's own answer changes when its columns are permuted. A shot whose
-    correction differs is a tie when BP's posteriors are bit-identical to
-    ldpc's and ldpc itself returns our exact correction for some permutation
-    of the columns; otherwise it is unexplained.
+    exactly equal. ldpc sorts them with C's qsort, whose order among equals is
+    the C library's (src/cpp_random.rs reproduces Apple's and glibc's), so
+    where tied columns straddle the information set, OSD's answer depends on
+    it: ldpc's own answer changes when its columns are permuted. Its search
+    then weighs each candidate by summing ln(1/p) over the candidate's bits in
+    bit order, and of equal weights keeps the first; sq.bposd_decode does both
+    as ldpc does, and every shot is equal. (13 of 3,072 differed while the sum
+    went in another order.) A shot whose correction differs is still a tie
+    when BP's posteriors are bit-identical to ldpc's and ldpc itself returns
+    our exact correction for some permutation of the columns, as on a C
+    library not reproduced; otherwise it is unexplained.
     """
     circuit = stim.Circuit(text)
     dem = stim.DetectorErrorModel(sq.dem_from_circuit(text, False))

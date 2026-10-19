@@ -192,15 +192,21 @@ impl BpOsd {
         };
         let non_pivots: Vec<usize> = (0..n).filter(|&c| !is_pivot[c]).collect();
         let get = |rows: &[u64], i: usize, col: usize| rows[i * words + col / 64] >> (col % 64) & 1 == 1;
-        let weight_of = |pos: usize| self.weight[w.order[pos] as usize];
 
         // A candidate: the non-pivot positions flipped. Its pivot bits are the
         // reduced syndrome XOR the reduced columns of the flips; only its
-        // weight is needed until it wins.
+        // weight is needed until it wins. ldpc adds a candidate's ln(1/p) up in
+        // fault order, in one pass from 0, and keeps the first of equal weights:
+        // summed in any other order, an equal-weight candidate can come out an
+        // ulp lighter and win, so the faults are put in that order first.
         let pivot_bit = |flips: &[usize], rows: &[u64], i: usize| flips.iter().fold(get(rows, i, n), |b, &f| b ^ get(rows, i, f));
-        let weigh = |flips: &[usize], rows: &[u64]| -> f64 {
-            let pivots_weight: f64 = (0..rank).filter(|&i| pivot_bit(flips, rows, i)).map(|i| weight_of(pivots[i])).sum();
-            pivots_weight + flips.iter().map(|&f| weight_of(f)).sum::<f64>()
+        let mut faults: Vec<u32> = Vec::with_capacity(n);
+        let mut weigh = |flips: &[usize], rows: &[u64]| -> f64 {
+            faults.clear();
+            faults.extend((0..rank).filter(|&i| pivot_bit(flips, rows, i)).map(|i| w.order[pivots[i]]));
+            faults.extend(flips.iter().map(|&f| w.order[f]));
+            faults.sort_unstable();
+            faults.iter().fold(0.0, |sum, &v| sum + self.weight[v as usize])
         };
         let mut best_w = weigh(&[], &w.rows);
         let mut best_flips: Vec<usize> = Vec::new();

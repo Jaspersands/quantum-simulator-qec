@@ -1,5 +1,5 @@
 # Ported from ldpc 2.4.1 (Copyright (c) 2022 Joschka Roffe, MIT License; see THIRD_PARTY_NOTICES.md),
-# modified for stabilizer_qec: imports are this package's; the v2 base is constructed first, as Cython does (ldpc is stabilizer_qec.ldpc).
+# modified for stabilizer_qec: imports are this package's; the v2 base is constructed first, as Cython does, in __new__ (ldpc is stabilizer_qec.ldpc).
 import numpy as np
 from stabilizer_qec.ldpc.bp_decoder import BpDecoder
 import warnings
@@ -34,14 +34,21 @@ class bp_decoder(BpDecoder):
         parity matrix is non-square the input vector type is inferred automatically from its length.
     """
 
-    def __init__(self, *args, **kwargs):
-        # In ldpc this is a Cython subclass: BpDecoder's __cinit__ runs first, with the same
-        # arguments, then this class's __init__.
+    # In ldpc this is a Python subclass of the Cython class, so ldpc's checks are Cython's: exact
+    # types (no int for a float, no NumPy scalar).
+    _strict = True
+
+    def __new__(cls, *args, **kwargs):
+        # BpDecoder's __cinit__ runs first, with the same arguments (its base class's takes
+        # exactly one positional argument, the matrix), then this class's __init__.
+        if len(args) != 1:
+            raise TypeError(f"__cinit__() takes exactly 1 positional argument ({len(args)} given)")
+        self = super().__new__(cls)
         BpDecoder.__init__(self, *args, **kwargs)
         self._made_from = (args, kwargs)
-        self._v1_init(*args, **kwargs)
+        return self
 
-    def _v1_init(
+    def __init__(
         self,
         parity_check_matrix,
         error_rate=None,

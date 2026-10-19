@@ -15,6 +15,17 @@ from typing import Tuple
 from ._util import b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
 
+def _repetitions(obj: Any, repetitions: Any, op: str) -> int:
+    """A repetition count as Stim's operators take one, an unsigned 64-bit integer: a negative
+    or larger one is pybind11's TypeError, as from Stim (``(n - 1) * circuit`` for n = 0,
+    say)."""
+    n = int(repetitions)
+    if n < 0 or n >= 1 << 64:
+        kind = type(obj).__name__
+        raise TypeError(f"{op}(): incompatible function arguments. The following argument types are supported:\n    1. (self: stabilizer_qec.{kind}, repetitions: int) -> stabilizer_qec.{kind}\n\nInvoked with: {obj!r}, {repetitions!r}")
+    return count(n, "repetitions")
+
+
 class Circuit:
     """A stabilizer circuit in Stim's circuit language.
 
@@ -532,18 +543,19 @@ class Circuit:
         out._c = call(self._c.twirled, bool(merge))
         return out
 
-    def __mul__(self, repetitions: object) -> "Circuit":
+    def __mul__(self, repetitions: object, op: str = "__mul__") -> "Circuit":
         """``REPEAT repetitions { self }``, as Stim's: nothing for 0, the circuit for 1."""
         if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):
             return NotImplemented
         out = type(self).__new__(type(self))
-        out._c = call(self._c.repeated, count(repetitions, "repetitions"))
+        out._c = call(self._c.repeated, _repetitions(self, repetitions, op))
         return out
 
-    __rmul__ = __mul__
+    def __rmul__(self, repetitions: object) -> "Circuit":
+        return self.__mul__(repetitions, "__rmul__")
 
     def __imul__(self, repetitions: object) -> "Circuit":
-        out = self.__mul__(repetitions)
+        out = self.__mul__(repetitions, "__imul__")
         if out is NotImplemented:
             return NotImplemented
         self._c = out._c
@@ -1389,11 +1401,11 @@ class DetectorErrorModel:
         self._set_items(self._items() + other._items())
         return self
 
-    def __mul__(self, repetitions: object) -> "DetectorErrorModel":
+    def __mul__(self, repetitions: object, op: str = "__mul__") -> "DetectorErrorModel":
         """``repeat repetitions { self }``: empty for 0, a copy for 1."""
         if isinstance(repetitions, bool) or not isinstance(repetitions, (int, np.integer)):
             return NotImplemented
-        n = count(repetitions, "repetitions")
+        n = _repetitions(self, repetitions, op)
         if n == 0:
             return DetectorErrorModel()
         if n == 1:
@@ -1401,10 +1413,11 @@ class DetectorErrorModel:
         body = _dem.items_exact_text(self._items())
         return DetectorErrorModel(f"repeat {n} {{\n{body}\n}}")
 
-    __rmul__ = __mul__
+    def __rmul__(self, repetitions: object) -> "DetectorErrorModel":
+        return self.__mul__(repetitions, "__rmul__")
 
     def __imul__(self, repetitions: object) -> "DetectorErrorModel":
-        out = self.__mul__(repetitions)
+        out = self.__mul__(repetitions, "__imul__")
         if out is NotImplemented:
             return NotImplemented
         self._d = out._d
