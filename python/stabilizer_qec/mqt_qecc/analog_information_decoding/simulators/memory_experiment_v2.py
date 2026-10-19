@@ -75,7 +75,7 @@ def get_updated_decoder(
     h3d: Any | None = None,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
     """Updates the decoder with the new channel information and returns the updated decoder object."""
-    if decoding_method == "stabilizer_qec.bposd":
+    if decoding_method == "bposd":
         decoder.update_channel_probs(new_channel)
         return decoder
     if decoding_method == "matching":
@@ -101,7 +101,7 @@ def decode_multiround(
     check_block_size: int = 0,
     sigma: float = 0.0,
     h3d: csr_matrix | None = None,  # needed for matching decoder
-    decoding_method: str = "stabilizer_qec.bposd",  # bposd or matching
+    decoding_method: str = "bposd",  # bposd or matching
 ) -> tuple[NDArray[np.int32], NDArray[np.int32], NDArray[np.float64] | None, int]:
     """Overlapping window decoding.
 
@@ -138,7 +138,7 @@ def decode_multiround(
 
     decoded = decoder.decode(diff_syndrome.flatten("F"))
 
-    if decoding_method == "stabilizer_qec.bposd":
+    if decoding_method == "bposd":
         bp_iter = decoder.iter
 
     # extract space correction, first repetitions * n entire
