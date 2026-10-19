@@ -253,12 +253,22 @@ ldpc, PyMatching, qecsim and bposd this package's.
 ## tqec
 
 `python/stabilizer_qec/tqec/` is a port of tqec's `computation` package (block graphs, cubes,
-pipes, correlation surfaces, port filling), its `utils` (positions, enums, rotations), its
-gallery and its Collada and JSON readers and writers (tqec/tqec 0.2.0,
+pipes, correlation surfaces, port filling), its `utils` (positions, enums, rotations, the
+`LinearFunction` of `scale`), its gallery, its Collada and JSON readers and writers, its
+`simulation` package (on this package's sinter) and its `interop.pyzx` package (positioned ZX
+graphs, block synthesis, plots; PyZX optional) (tqec/tqec 0.2.0,
 https://github.com/tqec/tqec), rewritten on the standard library without networkx, PyZX,
 pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data. tqec is the
 TQEC community's, licensed under the Apache License, Version 2.0; the licence is in
 `python/stabilizer_qec/tqec/LICENSE`.
+
+`python/stabilizer_qec/tqec/noise_model.py` is a port of tqec's `utils/noise_model.py`, which
+tqec recovered from Gidney, C. (2022), Data for "Inplace Access to the Surface Code Y Basis",
+https://doi.org/10.5281/zenodo.7487893, licensed under the Creative Commons Attribution 4.0
+International licence (https://creativecommons.org/licenses/by/4.0/legalcode). tqec modified it
+(formatting, typing, no depolarizing error after measurements in `uniform_depolarizing` and
+`si1000`, no two-body measurement noise, TICKs around REPEAT blocks). This port also changes it,
+writing this package's circuits in place of Stim's.
 
 ## Loom
 
