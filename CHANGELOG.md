@@ -4,6 +4,187 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
+## 2.1.0 — 2026-10-20
+
+An audit of every port against its original's own documented examples, and the gaps it found,
+closed. Each port was run on the examples, tutorials and command lines its original documents,
+on Stim's own objects as well as this package's, and on Python 3.9 to 3.14 and Windows; what
+differed or was missing is fixed below, and what is left is listed in the README and the
+inventory (`docs/superpowers/notes/2026-10-09-parity-inventory.md`). The Python package and the
+Rust crate both at 2.1.0. Behaviour changes are under **Changed**.
+
+### Added
+
+- **Stim.** `search_for_undetectable_logical_errors` now takes Stim's own steps, and finds Stim's
+  faults exactly: the same terms on 3,804 random models, the colour, surface and bivariate
+  bicycle codes and BPC72, and Stim's messages where both fail. It is also faster than Stim:
+  0.07 s on BPC72 against Stim's 0.25 s (2.0 took 8.1 s), and 0.6 s against 4.0 s on the d = 5
+  surface code at limits (6, 6). Limits of (2, 2) go to the graph-like search, as in Stim. The
+  CLI's `diagram` takes `--filter_coords`, and `help <topic>` prints Stim's pages (gates,
+  formats, commands, indexes, markdown). `matchgraph-svg` draws a model's undecomposed
+  hyperedges.
+- **PyMatching.** The CLI's `predict` reads b8 by default, as PyMatching's does.
+  `stabilizer_qec.pymatching.__version__` is "2.4.0".
+- **sinter.** `mw_parity_factor` and `hypergraph_union_find` run on this package's MWPF.
+- **Stim's objects in every port.** The qec-util, qLDPC, MQT QECC, MWPF, Deltakit, sinter and
+  Relay-BP ports take Stim's own `Circuit`, `DetectorErrorModel` and `DemInstruction`, read
+  exactly. Before, they raised errors, and sinter's Fusion Blossom and MWPF decoders silently
+  dropped every error of a Stim model.
+- **stimbposd.** `stabilizer_qec.stimbposd` is stimbposd 0.2.0 whole: `BPOSD`, `BPLSD`, the
+  sinter decoders, `sinter_decoders()` (eight variants) and
+  `detector_error_model_to_check_matrices`, bit-identical on ldpc 2.4.1. Use it with
+  `--custom_decoders_module_function stabilizer_qec.stimbposd:sinter_decoders`.
+- **Relay-BP.** `ObservableDecoderRunner(parallel=True)` and `SinterDecoder_RelayBP(parallel=True)`
+  decode on threads without the GIL: 4.5× serial on the gross code, where 2.0's parallel run
+  was slower than serial. Results are bit-identical to relay_bp. With `logging=True` the runner
+  and sinter decoders write `relay_logging.out`. `insert_uniform_academic_circuit_noise` takes
+  real Stim circuits with `REPEAT`.
+- **ldpc.** `BpOsdDecoder` and `BpLsdDecoder` take ldpc's `schedule=` and
+  `random_schedule_seed=`. `lsd_method` and `lsd_order` can be set after construction,
+  `OSD_OFF` included. `input_vector_type="received_vector"` on BP+OSD, BP+LSD and BeliefFind
+  matches ldpc's decodings and iteration counts. ldpc's exceptions match in type and message,
+  and the v1 classes enforce Cython's argument types.
+- **CUDA-Q QEC real-time decoding.**
+  - Configuration: `decoder_config`, `multi_decoder_config`, CUDA-Q's YAML (read without a new
+    dependency), `configure_decoders` (and `_from_file`, `_from_str`), `finalize_decoders` and
+    status codes.
+  - Decoding: `enqueue_syndromes(id, syndromes, tag)` and `get_corrections(id, return_size,
+    reset)`, sliding windows and `stim_dem_path`. The ticket API is kept.
+  - Schemas: `decoder_param_schema`, `registered_decoder_schemas`, `validate_custom_args`,
+    JSON Schema export, and the deprecated typed configuration classes.
+  - Decoders under CUDA-Q's names: nv-qldpc-decoder, chromobius and nv-fusion-decoder. A
+    setting that isn't supported is refused by name.
+  - Helpers: `dem_sampling` (bit for bit with CUDA-Q's CPU sampler), `relay_solutions`, `patch`,
+    `pcm_from_sparse_vec` and `generate_timelike_sparse_detector_matrix`.
+  - `KernelNotRunWarning` for Python `@code` with registered kernels.
+- **Tsim.** `tsim.Circuit` is a real subclass of `sq.Circuit`. It has:
+  - Tsim's `append` (in half-turns), `append_from_stim_program_text`, `from_file`, `+` with Stim's
+    circuits and this package's;
+  - `from_stim_program`, `stim_circuit`, `cast_to_stim` and `without_annotations`;
+  - `CompiledStateProbs`, and `to_matrix` by Tsim's rules;
+  - diagrams that label tagged gates, with Tsim's height, width and zoomable HTML wrapper.
+- **tqec.** tqec's call shape: `compile_block_graph(g, convention=...).generate_stim_circuit(k=...,
+  noise_model=NoiseModel.uniform_depolarizing(p))` at distance 2k + 1. `NoiseModel`
+  (`uniform_depolarizing`, `si1000`) gives tqec's noisy circuits instruction for instruction,
+  and `BlockGraph.compile` takes `k=` and `noise_model=`. Block graphs that reuse a tile at
+  different times now compile (two CNOTs in a row), and so do pass-through cubes drawn as
+  spatial. New: `stabilizer_qec.tqec.simulation` (`start_simulation_using_sinter`,
+  `binary_search_threshold`, plots, CSV) on this package's sinter, and
+  `stabilizer_qec.tqec.interop.pyzx` (PyZX graphs in and out, `PositionedZX`, `block_synthesis`,
+  Pauli webs; PyZX optional). `sq.tqec` loads on first use.
+- **Loom.** Loom's operations: transversal Hadamard, state injection, auxiliary CNOT, move
+  block, move corners, the Y-wall phase gate and rotate block. Its error models
+  (`CircuitErrorModel`, `HomogeneousTimeIndependentCEM`, `HomogeneousTimeDependentCEM`,
+  `AsymmetricDepolarizeCEM`) and their noise in the Stim export; the Mimiq and Guppy exporters.
+  The repetition, Shor, Steane and five-qubit code factories, with the repetition chain's grow,
+  shrink, merge and split. The `Executor` and `TargetLanguage`; the Mimiq, CUDA-Q and Guppy
+  run-outcome parsers; `stim_polygons` and the crumble printer; Loom's module paths. Each is
+  checked against fixtures recorded from Loom 0.4.0.
+- **MQT QECC.**
+  - The analog-information simulators take `decoding_method="bposd"` again.
+  - The colour-code decoder runs as `stabilizer-qec mqt.qecc.cc-decoder` or
+    `python -m stabilizer_qec.mqt_qecc.cc_decoder`.
+  - `NoisyDFTStatePrepSimulator` runs on this package's qsample at fault-tolerant rates. CNOTs
+    are read as (control, target), decoding measures each stabilizer, and a wrong verification
+    order is refused. Upstream's simulator never ran.
+- **PanQEC and qecsim.** `stabilizer-qec panqec ...` and `stabilizer-qec qecsim ...` run their
+  command lines; PanQEC's generated cluster scripts call them, and `stabilizer-qec qecsim run`
+  picks up qecsim extension packages' entry points. qecsim's Blossom V stand-in stays exact past
+  512 nodes by matching with Fusion Blossom: the 13×13 `run-ftp` example takes 40 s instead of
+  timing out.
+- **PECOS.** `SparseSim.print_stabs(print_destabs=, print_y=)`, `copy`, `refactor`, `find_stab`,
+  `run_direct` and `'G2'`.
+- **Deltakit.** `deltakit.decode` carries Deltakit's cloud decoders' names.
+- **Resource estimates.**
+  - Azure: the report (`status`, the `jobParams` echo, `physicalCountsFormatted`, `reportData`),
+    `format_metric_prefix`, `format_duration` and `LogicalCounts.estimate`.
+    `azure_estimate` returns an `EstimatorResult`; a frontier's `result["physicalCounts"]` is
+    its first entry's.
+  - Azure: `EstimatorError`, a `ValueError` with the QDK's `.code` and `.message`, for every
+    refusal, in the QDK's order. Unreadable input raises `QSharpError` with serde's reason and
+    column. Both match the QDK on 286 recorded inputs.
+  - Azure: `LogicalCounts({...})` takes the QDK's dictionary. A `qecScheme` without a name is a
+    custom scheme.
+  - Qualtran: `stabilizer_qec.estimate.qualtran` is a package with Qualtran's fifteen
+    submodules, so Qualtran's module paths work. Its UI helpers run without Dash, plotly or
+    pandas, with figures as plotly dictionaries. They equal Qualtran 0.7.0 on 448 recorded
+    inputs. `AlgorithmSummary.from_bloq`, `NoisyPauliRotation`, `storage_error`,
+    `GateCounts.to_legacy_t_complexity` and `TComplexity` are also in.
+- **The exact and stabilizer-rank samplers** have a `.device`.
+- **qsample.** Drawing and plotting raise an `ImportError` that names the missing optional
+  dependency.
+
+### Changed
+
+- **The coherent and joint samplers complete the circuit's spacetime kernel.** One elimination
+  over the rotations finds what the local search misses: a logical error at one time with the
+  same logical at another, whose amplitudes add.
+  - A d = 3 repetition memory with one over-rotation per round was read at the twirl's rate of
+    undetected logical errors: 0.00103 against the exact 0.00203, −44σ. It now reads
+    0.00206 ± 0.00005.
+  - With at most twelve generators the coherent sampler sums the whole class, so its weights
+    are exact (`exact_weights`). Past that, a shot whose faults reach a non-local generator
+    sums its elements; `num_nonlocal_generators` counts those generators.
+  - `compile_coherent_sampler(max_complete=50_000)` bounds the completion. Past it the sampler
+    warns that interference between distant faults is left out, and `kernel_complete` is False.
+  - Circuits with an over-rotation after every tick (the README's sweeps, d = 3 to 11) and the
+    distillation circuits already had complete local kernels. Their results are unchanged.
+- **ldpc's BP+OSD now equals ldpc's on every shot checked.** OSD weighs ln(1/p) in ldpc's order,
+  and macOS's qsort is emulated exactly. On the gross code, 13 of 3,072 shots differed; none do
+  now (the README paragraph and `tools/gross_ops.py` are corrected). The audit's tie hunt went
+  from 118 of 16,200 to none, and the QUITS sweep from 4 to none. One BP+LSD shot in 600 still
+  differs, from ldpc's cluster merge order, which follows hashed pointers.
+- **tqec.** `compile_block_graph(..., observables=None)` now means no observables, as in tqec.
+  The new default `"auto"` includes every correlation surface. A CZ flow error names the flow
+  as Stim writes it, and `gallery.cz` takes Stim's sparse flow syntax.
+- **Tsim.** `tsim.Circuit`'s detector sampler reports values as Tsim's does
+  (`use_detector_reference_sample` and `use_observable_reference_sample` give flips).
+  `str` and `repr` use Tsim's shorthand. `detector_error_model` reads T as S, as Tsim's does.
+- **PECOS.** `SparseSim.print_stabs()` alone prints and returns only the stabilizers, as PECOS
+  documents. `fault_tolerance_check` decodes an ideal round after the faulty one.
+- **Azure.** `jobParams` echoes the scheme's name as given, and a custom scheme's absent power
+  as null.
+
+### Fixed
+
+- **Stim.**
+  - `OBSERVABLE_INCLUDE` targets print in the order written (a Pauli before a record).
+  - `explain_detector_error_model_errors(dem_filter=)` lists in Stim's order.
+  - A search that finds no logical error raises Stim's message with its warnings.
+  - A negative repetition count on a circuit or model raises Stim's `TypeError`.
+- **Tsim.** Two adjacent identical `I[R_PAULI(...)]` lines were fused into one that didn't
+  parse.
+- **PECOS 0.2.0's own bugs.** Its phenomenological error models (`DepolarGen`, `XGen`,
+  `ZGen`, `XZGen`), mixed two-qubit error sets on NumPy 2, `TimingRunner.total_time` and
+  `run_gates`, `fault_tolerance_check` on the shipped codes, instruction plots on networkx 3,
+  and the Python simulator's `copy` and `refactor`. `'init |-i>'` prepares |−i>, and Y prints
+  with its sign.
+- **qecsim.** Centre-slice labels `lim=(0.2, 0.8, 0.0)` work under NumPy 2, and its
+  missing-argument message under click 8.2.
+- **PanQEC and qecsim.** `--version` names panqec and qecsim again.
+- **Relay-BP.** Check matrices with stored zeros or even entries decode as relay_bp's do.
+- **Python 3.9 and 3.10, and Windows.** Loom's operations ran only on 3.11+ (`zip(strict=)`);
+  they now run everywhere. The tests read Windows' line endings and paths, Stim's Windows help
+  pages and click 8.1, and skip a port's tests where its Python or extras are missing.
+
+### Not ported
+
+These remain, each listed in the README and the inventory:
+
+- tqec's Hadamard pipes, spatial junction cubes and Y cubes, and its plaquette templates and
+  detector search.
+- PyMatching's `animate`.
+- Tsim's PyZX diagrams and ZX graphs, its bit-for-bit (JAX) random numbers, and `to_matrix`
+  with measurements.
+- CUDA-Q QEC's `dem_chunks`, `expand_dem_chunks` and `trt_decoder`.
+- The QDK's parameter classes (their dictionaries are accepted), and Qualtran's Dash layout.
+- The coherent sampler's truncation past twelve generators. On a d = 3 surface-code memory over
+  three rounds (fourteen generators) it moves the silent logical rate from 2.0's 0.00100 to
+  0.00161 ± 0.00013, against the exact 0.00258. Part of the interference between rounds is
+  still left out.
+- QUITS's distance search uses more memory and time than Stim's: 456 MB and 8.7 s against
+  139 MB and 1.6 s on [[72, 8, 8]].
+
 ## 2.0.0 — 2026-10-18
 
 The features of twenty-five other QEC tools — inventoried, feature by feature, in
@@ -875,7 +1056,7 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   (`tests/estimate_port/qdk_estimates.json`, qdk 1.33.1): physical qubits, runtime, rqops,
   the required error rates, the factory's rounds, units, distances, qubits, durations and
   output error, every frontier entry in order; and live against the installed QDK. Not
-  ported: the report text and the profiling.
+  ported: the profiling.
 - **The lattice-surgery CNOT's threshold under leakage** (Plaquette's experiment;
   `tools/surgery_leakage.py` → `data/surgery/leakage.json`, a README table): SD6 noise at p
   with `LEAKAGE(f·p)` after every CX on both qubits and `RELAX(0.1)` seepage, d = 3, 5, 7,
