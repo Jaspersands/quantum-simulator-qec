@@ -4,8 +4,9 @@ random circuits of every gate, initialization and measurement (forced and on see
 C++ one against this package's Rust one; every instruction of every code; the fault-tolerance
 checks; error generators and the standard runner on seeds, with MWPM2D's recoveries; logical
 error rates. Equal, except where PECOS 0.2.0 raises and the port does not (each checked here),
-and where networkx 3 breaks a matching's ties otherwise than networkx 2 (an equal-weight recovery
-with the same syndrome)."""
+where networkx 3 breaks a matching's ties otherwise than networkx 2 (an equal-weight recovery
+with the same syndrome), and where the port fixes PECOS's C++ 'init |-i>' and TimingRunner's
+total_time (each run as PECOS's, or checked, here)."""
 
 import json
 import os
@@ -153,7 +154,9 @@ def test_runs(ours):
 def test_rates(ours):
     ref, got = REF["rates"], ours["rates"]
     for p in ("0.05", "0.1"):
-        assert ref[f"codecapacity {p}"] == got[f"codecapacity {p}"]
+        # (rate, total_time): PECOS's TimingRunner timed no gate, its total_time 0.0; the port's times them.
+        (rate_ref, time_ref), (rate_got, time_got) = ref[f"codecapacity {p}"], got[f"codecapacity {p}"]
+        assert rate_ref == rate_got and time_ref == 0.0 < time_got
     a, b = dict(ref["pseudo"]), dict(got["pseudo"])
     assert a["distance"] == b["distance"] and a["ps"] == b["ps"]
     # 30 runs a rate, on the same errors; matching's ties (networkx 3, not 2) move a few.

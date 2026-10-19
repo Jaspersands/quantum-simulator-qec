@@ -184,3 +184,37 @@ def test_error_gens_phenomenological(gen):
             assert {sym for sym, _, _ in circuit.items()} <= allowed
             seen.add(where)
     assert seen == {'after', 'before'}
+
+
+def test_timing_runner_total_time():
+    # PECOS's docs, api_guide/circuit_runners.rst (PECOS's total_time stayed 0.0: its run never timed a gate).
+    import stabilizer_qec.pecos as pc
+
+    circ_runner = pc.circuit_runners.TimingRunner()
+    state = pc.simulators.SparseSim(4)
+    qc = pc.circuits.QuantumCircuit()
+    qc.append('X', {0, 1, 2, 3})
+    assert circ_runner.run(state, qc) == ({}, {})
+    assert circ_runner.total_time > 0.0 and circ_runner.num_gates == 4
+    assert state.print_stabs(verbose=False) == [' -ZIII', ' -IZII', ' -IIZI', ' -IIIZ']
+    circ_runner.reset_time()
+    assert circ_runner.total_time == 0.0 and circ_runner.num_gates == 0
+
+    # On a clock that ticks once a call: a unit per circuit the state runs, the errors' too; outputs as Standard's.
+    ticks = iter(range(10 ** 6))
+    qecc = pc.qeccs.Surface4444(distance=3)
+    logic = pc.circuits.LogicalCircuit()
+    logic.append(qecc.gate('ideal init |0>'))
+    logic.append(qecc.gate('I'))
+    runs = []
+    for timing in (True, False):
+        state = pc.simulators.SparseSim(qecc.num_qudits)
+        # (each seeds NumPy's generator)
+        runner = pc.circuit_runners.TimingRunner(seed=3, timer=lambda: next(ticks)) if timing else pc.circuit_runners.Standard(seed=3)
+        timed = runner if timing else timed
+        calls = []
+        run_circuit = state.run_circuit
+        state.run_circuit = lambda circuit, removed_locations=None: calls.append(1) or run_circuit(circuit, removed_locations)
+        output, errors = runner.run(state, logic, error_gen=pc.error_gens.DepolarGen(), error_params={'p': 0.1})
+        runs.append((dict(output), state.print_stabs(verbose=False), len(calls)))
+    assert runs[0] == runs[1] and timed.total_time == runs[0][2] > 0
