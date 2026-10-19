@@ -4,7 +4,9 @@
 # Copyright (c) 2022 - 2026 NVIDIA Corporation & Affiliates, Apache License 2.0; see
 # THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: the decoders are this package's.
 """CUDA-Q QEC's decoder interface: results, the decoder registry and ``get_decoder``, and its
-decoders (``single_error_lut``, ``multi_error_lut``, ``pymatching``, the examples)."""
+decoders (``single_error_lut``, ``multi_error_lut``, ``pymatching``, ``sliding_window``,
+``nv-qldpc-decoder`` (``._qldpc``), ``chromobius`` and ``nv-fusion-decoder`` (``._matching``), the
+examples)."""
 
 from __future__ import annotations
 
@@ -636,12 +638,13 @@ def _no_cuda(params: dict) -> None:
         raise RuntimeError(f"cuda_device_id {params['cuda_device_id']} is out of range: 0 CUDA device(s) visible")
 
 
-def _native(name: str, inputs: _Inputs, options: dict) -> _NativeDecoder:
+def _native(name: str, inputs: _Inputs, options: dict, typed: bool = False) -> _NativeDecoder:
     output = _output_of(options)
     for reserved in ("H", "O", "D", "error_rate_vec"):
         if reserved in options:
             raise RuntimeError(f"'{reserved}' is framework model data; provide it through decoder_init instead of decoder custom parameters")
-    params = {k: _param(v) for k, v in options.items()}
+    # (``typed``: values already as a decoder's parameter schema types them, from a configuration.)
+    params = dict(options) if typed else {k: _param(v) for k, v in options.items()}
     factory = _NATIVE.get(name)
     if factory is None:
         raise _invalid(name)
@@ -650,9 +653,9 @@ def _native(name: str, inputs: _Inputs, options: dict) -> _NativeDecoder:
     return factory(inputs, output if getattr(factory, "_raw_output", False) else (output or "errors"), params)
 
 
-def _native_dem(name: str, dem_text: str, options: dict) -> _NativeDecoder:
+def _native_dem(name: str, dem_text: str, options: dict, typed: bool = False) -> _NativeDecoder:
     output = _output_of(options)
-    params = {k: _param(v) for k, v in options.items()}
+    params = dict(options) if typed else {k: _param(v) for k, v in options.items()}
     _no_cuda(params)
     return _NATIVE_DEM[name](dem_text, params, output)
 
@@ -662,8 +665,13 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
     or a Stim detector error model given as text. ``O`` (the observable matrix) and
     ``error_rate_vec`` describe the model; ``output`` ("errors" or "observables") chooses what
     a decode returns; the other keywords configure the decoder."""
+    return _get_decoder(name, H, options)
+
+
+def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     from ._dem import _parse_stim_dem, dem_from_stim_text
 
+    options = dict(options)
     if isinstance(H, str):
         if name in _PY_REGISTRY:
             dem = dem_from_stim_text(H)
@@ -673,13 +681,13 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
                 options["error_rate_vec"] = np.asarray(dem.error_rates)
             return _PY_REGISTRY[name](dem.detector_error_matrix, **options)
         if name in _NATIVE_DEM:
-            return _native_dem(name, H, dict(options))
+            return _native_dem(name, H, dict(options), typed)
         num_dets, num_obs, det_hits, obs_hits, rates = _parse_stim_dem(H, False)
         O_rows: List[List[int]] = [[] for _ in range(num_obs)]
         for e, hits in enumerate(obs_hits):
             for o in hits:
                 O_rows[o].append(e)
-        return _native(name, _Inputs(num_dets, len(det_hits), [list(h) for h in det_hits], O_rows, num_obs, list(rates)), dict(options))
+        return _native(name, _Inputs(num_dets, len(det_hits), [list(h) for h in det_hits], O_rows, num_obs, list(rates)), dict(options), typed)
     if name in _PY_REGISTRY:
         return _PY_REGISTRY[name](H, **options)
     m, n, cols = _columns(H)
@@ -693,7 +701,7 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
     rates: List[float] = []
     if "error_rate_vec" in options:
         rates = [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
-    return _native(name, _Inputs(m, n, cols, O, num_obs, rates), options)
+    return _native(name, _Inputs(m, n, cols, O, num_obs, rates), options, typed)
 
 
 def _register_plugins() -> None:
