@@ -23,10 +23,11 @@
   noiseless shot each call is the reference, as Tsim's; on a Clifford circuit Stim's events
   exactly). ``CompiledMeasurementSampler`` (``Circuit.compile_sampler``): the records.
   ``batch_size`` and ``postselection_mask`` are checked as Tsim checks them and ``strategy`` is
-  accepted (Tsim does not check it either); none changes a sample (they are performance knobs of
-  Tsim's JAX programs; every row is a full sample). The shots are this package's samplers' (the frame sampler on a Clifford circuit, the
-  stabilizer-rank sampler on a non-Clifford one), so they match Tsim's in distribution, not bit
-  for bit. ``stabilizer_qec.Circuit``'s own samplers keep Stim's conventions.
+  accepted (Tsim does not check it either); none changes a sample (they are performance knobs
+  of Tsim's JAX programs; every row is a full sample). The shots are this package's samplers'
+  (the frame sampler on a Clifford circuit, the stabilizer-rank sampler on a non-Clifford one),
+  so they match Tsim's in distribution, not bit for bit. ``stabilizer_qec.Circuit``'s own
+  samplers keep Stim's conventions.
 - ``sampler.CompiledStateProbs``: P(state | f) for each of a batch of noise draws f, of a
   measurement record or (``sample_detectors``) of the detectors' and observables' values.
 - ``Circuit.detector_error_model`` and ``get_detector_error_model``: Tsim's model, which allows
@@ -39,6 +40,20 @@
   (``stim_to_shorthand`` reads this package's tagged forms too), and ``tsim_to_native``: that
   Stim as this package's operations (Tsim's ``S[T]`` is ``I[T]`` here, its half-turn rotations
   radians of exp(−iθP)).
+
+Where it differs from Tsim:
+
+- Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
+  JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
+- ``R_PAULI(0.25)`` and ``R_XX(0.25)`` (any ±π/8 product rotation) print as ``TPP`` or
+  ``TPP_DAG``, the same gate; an angle appended as an int prints as a float (``R_Z(1.0)``,
+  Tsim ``R_Z(1)``); a tag on an appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept.
+- Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
+  them into one, which its shorthand misprints).
+- ``to_matrix`` of a circuit with a measurement or a reset after a qubit's first operation
+  raises ``ValueError`` (Tsim gives its ZX tensor, not a map of states).
+- ``circuit[i]`` is this package's instruction (``I[T] 0``), not a ``stim.CircuitInstruction``
+  in Tsim's tagged form (``S[T] 0``).
 
 Not ported: Tsim's ZX graphs (``get_graph``, ``get_sampling_graph``, the ``pyzx`` diagram
 types), which need pyzx.

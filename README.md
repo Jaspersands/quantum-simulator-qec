@@ -1522,8 +1522,14 @@ in every basis, resets and feedback. Against Tsim itself on Tsim's own demonstra
 Tsim's circuit surface came with it: `Circuit.tcount()`, `Circuit.is_clifford`,
 `Circuit.to_matrix()`, `Circuit.inverse()` of tagged gates,
 `detector_error_model(allow_non_deterministic_observables=True)`, and
-`stabilizer_qec.tsim.Circuit(text)`, which reads Tsim's shorthand (`T 0`, `TPP X0*Z1`,
-`R_Z(0.25) 0`, `CCZ 0 1 2`).
+`stabilizer_qec.tsim.Circuit`, Tsim's circuit class: a `Circuit` subclass that reads and prints
+Tsim's shorthand (`T 0`, `TPP X0*Z1`, `R_Z(0.25) 0`, `CCZ 0 1 2`), appends Tsim's gates in
+half-turns, and keeps Tsim's conventions where they differ from Stim's. Its detector sampler
+reports each detector's value (`X 0`, `M 0`, `DETECTOR rec[-1]` reads 1), and
+`use_detector_reference_sample=True` gives Stim's flips. Its model reads T as S, as Tsim's does,
+and its `to_matrix` drops unused qubits and gives a state column for the qubits reset first.
+`tsim.CompiledStateProbs` gives one exact probability per noise draw. A plain `Circuit` keeps
+Stim's conventions.
 
 **The joint sampler** is the release's new thing. Tsim's cost is exponential in every rotation,
 so coherent noise on every gate is out of its reach; the 1.9 coherent sampler above needs a
