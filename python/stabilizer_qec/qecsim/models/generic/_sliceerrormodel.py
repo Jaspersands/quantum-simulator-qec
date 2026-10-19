@@ -1,5 +1,6 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim; lim, ratio and neg_lim are Python floats, so the label and repr
+# read lim=(0.2, 0.8, 0.0) under NumPy 2 as under qecsim's NumPy 1 (not lim=(np.float64(0.2), ...)).
 import functools
 
 import numpy as np
@@ -113,7 +114,7 @@ class CenterSliceErrorModel(SimpleErrorModel):
 
         :rtype: 3-tuple of float
         """
-        return tuple(self._lim)
+        return tuple(float(x) for x in self._lim)
 
     @property
     def pos(self):
@@ -132,7 +133,7 @@ class CenterSliceErrorModel(SimpleErrorModel):
 
         :rtype: 3-tuple of float
         """
-        return tuple(self._ratio(self._lim, self._pos))
+        return tuple(float(x) for x in self._ratio(self._lim, self._pos))
 
     @property
     @functools.lru_cache()
@@ -142,7 +143,7 @@ class CenterSliceErrorModel(SimpleErrorModel):
 
         :rtype: 3-tuple of float
         """
-        return tuple(self._neg_lim(self._lim))
+        return tuple(float(x) for x in self._neg_lim(self._lim))
 
     @functools.lru_cache()
     def probability_distribution(self, probability):
@@ -154,7 +155,12 @@ class CenterSliceErrorModel(SimpleErrorModel):
     @property
     def label(self):
         """See :meth:`qecsim.model.ErrorModel.label`"""
-        return 'Center-slice (lim={!r}, pos={!r})'.format(self.lim, self.pos)
+        return 'Center-slice (lim={!r}, pos={!r})'.format(self.lim, _scalar(self.pos))
 
     def __repr__(self):
-        return '{}({!r}, {!r})'.format(type(self).__name__, self.lim, self.pos)
+        return '{}({!r}, {!r})'.format(type(self).__name__, self.lim, _scalar(self.pos))
+
+
+def _scalar(x):
+    # (stabilizer_qec: a NumPy number as NumPy 1 printed it)
+    return x.item() if isinstance(x, np.generic) else x
