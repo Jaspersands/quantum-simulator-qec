@@ -15,7 +15,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; model_level='phenomenological' works.
 
 """
 Simple error generator meant to demonstrate a basic error generator that produces errors.
@@ -84,7 +84,9 @@ class XGen(ParentErrorGen):
             self.has_idle_errors = False
 
             # Generate data errors
-            self.gen.set_default_error('data', xerror.error_func)
+            # (stabilizer_qec: PECOS's set_default_error('data', ...) made the error function the default's error
+            # parameter, a KeyError on the first gate.)
+            self.gen.set_gate_error('data', xerror.error_func)
 
             # Generate measurement errors
             self.gen.set_group_error('measurements', xerror_before.error_func)

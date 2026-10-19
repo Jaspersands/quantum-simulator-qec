@@ -133,3 +133,54 @@ def test_instruction_plot_on_networkx_3(code, monkeypatch, tmp_path):
     assert len(arrows) == len(edges) and labels == sorted(edges.values())
     assert (tmp_path / 'syn.png').stat().st_size > 10000
     plt.close('all')
+
+
+@pytest.mark.parametrize('after', [True, False])
+def test_gatewise_two_qubit_error_set_on_numpy_2(after):
+    # PECOS's docs, examples/gatewise_error_models.rst: a set of tuples of one-qubit errors and two-qubit gates, which
+    # NumPy 1.24 refuses as a ragged array (and, drawn before the gate, PECOS refused its tuples).
+    import numpy as np
+
+    import stabilizer_qec.pecos as pc
+
+    errors = pc.error_gens.GatewiseGen()
+    errors.set_gate_error('CNOT', {('I', 'X'), ('X', 'X'), 'CNOT'}, error_param='r', after=after)
+    np.random.seed(0)
+    locations = {(2 * i, 2 * i + 1) for i in range(40)}
+    circuits = errors.get_gate_error('CNOT', locations, error_params={'r': True})
+    drawn, other, replace = circuits if after else (circuits[1], circuits[0], circuits[2])
+    assert replace == set() and not list(other.items())
+    gates = {sym: locs for sym, locs, _ in drawn.items()}
+    assert set(gates) == {'CNOT', 'X'} and gates['CNOT'] <= locations
+    kinds = {'CNOT' if (a, b) in gates['CNOT'] else 'XX' if a in gates['X'] else 'IX' for a, b in locations}
+    assert kinds == {'CNOT', 'XX', 'IX'}
+    for a, b in locations:
+        assert ((a, b) in gates['CNOT']) != (b in gates['X'])
+        assert a not in gates['X'] or b in gates['X']
+
+
+@pytest.mark.parametrize('gen', ['DepolarGen', 'XGen', 'ZGen', 'XZGen'])
+def test_error_gens_phenomenological(gen):
+    # Data errors before each logical instruction and errors before measurements, nothing else (PECOS raised KeyError).
+    import stabilizer_qec.pecos as pc
+
+    qecc = pc.qeccs.Surface4444(distance=3)
+    logic = pc.circuits.LogicalCircuit()
+    logic.append(qecc.gate('ideal init |0>'))
+    logic.append(qecc.gate('I'))
+    state = pc.simulators.SparseSim(qecc.num_qudits)
+    error_gen = getattr(pc.error_gens, gen)(model_level='phenomenological')
+    _, errors = pc.circuit_runners.Standard(seed=3).run(state, logic, error_gen=error_gen, error_params={'p': 0.3})
+    instr = qecc.instruction('instr_syn_extract')
+    last = len(instr.circuit) - 1
+    measured = {q for sym, locs, _ in instr.circuit.items(tick=last) if sym == 'measure Z' for q in locs}
+    allowed = {'XGen': {'X'}, 'ZGen': {'Z'}}.get(gen, {'X', 'Y', 'Z'})
+    seen = set()
+    for (_, _, inner), faults in errors.items():
+        for where, circuit in faults.items():
+            qudits = {q for _, locs, _ in circuit.items() for q in locs}
+            assert (inner, where) in {(0, 'after'), (last, 'before')}
+            assert qudits <= (qecc.data_qudit_set if inner == 0 else measured)
+            assert {sym for sym, _, _ in circuit.items()} <= allowed
+            seen.add(where)
+    assert seen == {'after', 'before'}
