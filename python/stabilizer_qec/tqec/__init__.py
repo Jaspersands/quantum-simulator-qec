@@ -1,14 +1,31 @@
 """Block graphs of logical computations, as tqec draws them (`tqec/tqec <https://github.com/tqec/tqec>`_
-0.2.0's ``computation`` package, its gallery and its Collada and JSON files, ported; Apache License
-2.0, see ``LICENSE`` in this directory): cubes and pipes in a 3D spacetime diagram, ZX kinds,
-validation, port filling, composition, rotation, correlation surfaces (the logical observables)
-found on the graph's own ZX graph, and ``.dae`` files SketchUp and tqec exchange, read and
-written with the standard library.
+0.2.0's ``computation`` package, its gallery, its Collada and JSON files, its noise models, its
+``simulation`` package and its PyZX interop, ported; Apache License 2.0, see ``LICENSE`` in this
+directory): cubes and pipes in a 3D spacetime diagram, ZX kinds, validation, port filling,
+composition, rotation, correlation surfaces (the logical observables) found on the graph's own
+ZX graph, and ``.dae`` files SketchUp and tqec exchange, read and written with the standard
+library.
+
+Graphs compile as tqec compiles them, on this package's lattice-surgery engine in place of
+tqec's plaquette templates: ``compile_block_graph(graph, convention=...)`` and
+``generate_stim_circuit(k=..., noise_model=NoiseModel.uniform_depolarizing(p))``, at distance
+2k + 1, with the engine's detectors and the correlation surfaces as observables. The engine's
+patch layout is its own, so the qubit counts differ from tqec's (a CNOT at k = 1 is 113 qubits
+here, 81 in tqec), while the numbers of detectors and observables and the distance are tqec's
+(the CNOT's 256 detectors, 2 observables, distance 3).
+
+- ``simulation``: ``start_simulation_using_sinter``, ``binary_search_threshold`` and the plots,
+  on ``stabilizer_qec.sinter``;
+- ``interop.pyzx``: PyZX graphs read and written (``ZXGraph.g``, ``PositionedZX``,
+  ``block_synthesis``, ``CorrelationSurface.to_pauli_web``) when PyZX is installed.
 
 >>> from stabilizer_qec import tqec
 >>> g = tqec.gallery.cnot(tqec.Basis.Z)
 >>> [s.external_stabilizer_on_graph(g) for s in g.find_correlation_surfaces()]
 ['ZZII', 'IZZZ']
+>>> circuit = tqec.compile_block_graph(g).generate_stim_circuit(k=1, noise_model=tqec.NoiseModel.uniform_depolarizing(0.001))
+>>> circuit.num_detectors, circuit.num_observables
+(256, 2)
 """
 
 from . import gallery

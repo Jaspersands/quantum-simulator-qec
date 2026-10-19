@@ -253,8 +253,10 @@ ldpc, PyMatching, qecsim and bposd this package's.
 ## tqec
 
 `python/stabilizer_qec/tqec/` is a port of tqec's `computation` package (block graphs, cubes,
-pipes, correlation surfaces, port filling), its `utils` (positions, enums, rotations), its
-gallery and its Collada and JSON readers and writers (tqec/tqec 0.2.0,
+pipes, correlation surfaces, port filling), its `utils` (positions, enums, rotations, the
+`LinearFunction` of `scale`), its gallery, its Collada and JSON readers and writers, its
+`simulation` package (on this package's sinter) and its `interop.pyzx` package (positioned ZX
+graphs, block synthesis, plots; PyZX optional) (tqec/tqec 0.2.0,
 https://github.com/tqec/tqec), rewritten on the standard library without networkx, PyZX,
 pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data. tqec is the
 TQEC community's, licensed under the Apache License, Version 2.0; the licence is in

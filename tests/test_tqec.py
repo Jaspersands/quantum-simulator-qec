@@ -857,6 +857,12 @@ def test_find_correlation_surfaces_takes_tqecs_arguments():
         tqec.find_correlation_surfaces(zx, vertex_ordering=[{0}])
 
 
+def test_module_docstring_examples():
+    import doctest
+
+    assert doctest.testmod(tqec, verbose=False).failed == 0
+
+
 # ---------------------------------------------------------------------------------------------
 # PyZX interop (PyZX optional) and block synthesis
 # ---------------------------------------------------------------------------------------------
