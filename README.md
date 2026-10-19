@@ -212,8 +212,11 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   JSON files, every gallery graph equal to tqec's) compiled to circuits on the lattice-surgery
   engine where they fit; and Loom's Eka model (`stabilizer_qec.loom`: rotated-surface-code
   blocks, reset, syndrome rounds, logical measurements, grow, shrink, merge, split, conditional
-  Paulis) interpreted to circuits gate for gate as Loom writes them, with Loom's validator on
-  this package's tableau simulator and exporters to Stim, OpenQASM 3, PennyLane and CUDA-Q.
+  Paulis, move, rotate, move corners, the Y-wall phase gate, T and S state injection,
+  transversal Hadamard and the auxiliary CNOT; the repetition chain, Shor, Steane and
+  five-qubit codes) interpreted to circuits gate for gate as Loom writes them, with Loom's
+  validator on this package's tableau simulator, its circuit error models, and exporters to
+  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy.
 - **The other estimators, to the bit**: Qualtran's surface-code cost models
   (`stabilizer_qec.estimate`: Gidney–Fowler's and Beverland et al.'s schemes, the CCZ-to-2T
   and 15-to-1 factories with Litinski's density-matrix error model, Litinski's data blocks,
