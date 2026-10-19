@@ -2333,6 +2333,16 @@ impl PyMbp {
     }
 }
 
+/// One row of a batch: its correction, the checks that sets off, its posteriors (if asked
+/// for), how it went, and its log lines (if asked for).
+struct RelayRow {
+    correction: Vec<u8>,
+    decoded: Vec<u8>,
+    posteriors: Vec<f64>,
+    outcome: crate::relay::RelayOutcome,
+    log: Vec<String>,
+}
+
 /// One of IBM's decoders in one number type, behind a trait object.
 trait DynRelay: Send + Sync {
     fn run(&mut self, syndrome: &[u8], relay: bool) -> crate::relay::RelayOutcome;
@@ -2340,11 +2350,27 @@ trait DynRelay: Send + Sync {
     fn quality(&self, error: &[u8]) -> f64;
     fn log_lines(&self) -> Vec<String>;
     fn boxed_clone(&self) -> Box<dyn DynRelay>;
+    /// `count` rows of `rows` (one byte per check each): in turn, the state going on from row
+    /// to row; or with `fresh`, each from the state as it is now (left so), on `threads`
+    /// threads, each thread with one copy of the state that it resets before each row.
+    #[allow(clippy::too_many_arguments)]
+    fn batch(&mut self, rows: &[u8], count: usize, relay: bool, fresh: bool, threads: usize, posteriors: bool, logs: bool) -> Vec<RelayRow>;
 }
 
 struct RelayEngineN<N: crate::relay_num::RelayNum> {
     core: std::sync::Arc<crate::relay::RelayCore<N>>,
     work: crate::relay::RelayCoreWork<N>,
+}
+
+fn relay_row<N: crate::relay_num::RelayNum>(core: &crate::relay::RelayCore<N>, work: &mut crate::relay::RelayCoreWork<N>, syndrome: &[u8], relay: bool, posteriors: bool, logs: bool) -> RelayRow {
+    let outcome = if relay { core.decode(syndrome, work) } else { core.decode_min_sum(syndrome, work) };
+    RelayRow {
+        correction: work.correction.clone(),
+        decoded: work.decoded_detectors.clone(),
+        posteriors: if posteriors { work.posterior_ratios.clone() } else { Vec::new() },
+        outcome,
+        log: if logs { work.log_lines() } else { Vec::new() },
+    }
 }
 
 impl<N: crate::relay_num::RelayNum> DynRelay for RelayEngineN<N> {
@@ -2354,6 +2380,18 @@ impl<N: crate::relay_num::RelayNum> DynRelay for RelayEngineN<N> {
         } else {
             self.core.decode_min_sum(syndrome, &mut self.work)
         }
+    }
+    fn batch(&mut self, rows: &[u8], count: usize, relay: bool, fresh: bool, threads: usize, posteriors: bool, logs: bool) -> Vec<RelayRow> {
+        let m = self.core.num_checks;
+        if !fresh {
+            let (core, work) = (&*self.core, &mut self.work);
+            return (0..count).map(|i| relay_row(core, &mut *work, &rows[i * m..(i + 1) * m], relay, posteriors, logs)).collect();
+        }
+        let (core, start) = (&*self.core, &self.work);
+        crate::parallel::parallel_dynamic(count, threads, || start.clone(), |work: &mut crate::relay::RelayCoreWork<N>, i: usize| {
+            work.copy_from(start);
+            relay_row(core, work, &rows[i * m..(i + 1) * m], relay, posteriors, logs)
+        })
     }
     fn result(&self) -> (Vec<u32>, Vec<u32>, Vec<f64>) {
         (bits(&self.work.correction), bits(&self.work.decoded_detectors), self.work.posterior_ratios.clone())
@@ -2369,8 +2407,8 @@ impl<N: crate::relay_num::RelayNum> DynRelay for RelayEngineN<N> {
     }
 }
 
-fn relay_engine<N: crate::relay_num::RelayNum>(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], config: RelayConfig) -> PyResult<Box<dyn DynRelay>> {
-    let core = crate::relay::RelayCore::<N>::new(num_checks, columns, priors, config).map_err(err)?;
+fn relay_engine<N: crate::relay_num::RelayNum>(num_checks: usize, columns: &[Vec<u32>], values: Option<&[Vec<u8>]>, priors: &[f64], config: RelayConfig) -> PyResult<Box<dyn DynRelay>> {
+    let core = crate::relay::RelayCore::<N>::with_values(num_checks, columns, values, priors, config).map_err(err)?;
     let work = core.work();
     Ok(Box::new(RelayEngineN { core: std::sync::Arc::new(core), work }))
 }
@@ -2402,7 +2440,7 @@ impl PyRelayEngine {
 impl PyRelayEngine {
     #[new]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (num_checks, columns, priors, kind, frac_bits, relay, pre_iter, legs, leg_iter, solutions, stop_after_first, gamma0, gamma_range, gammas, alpha, alpha_scaling, data_scale, max_data, logging, seed))]
+    #[pyo3(signature = (num_checks, columns, priors, kind, frac_bits, relay, pre_iter, legs, leg_iter, solutions, stop_after_first, gamma0, gamma_range, gammas, alpha, alpha_scaling, data_scale, max_data, logging, seed, values=None))]
     fn new(
         num_checks: usize,
         columns: Vec<Vec<u32>>,
@@ -2424,25 +2462,26 @@ impl PyRelayEngine {
         max_data: Option<f64>,
         logging: bool,
         seed: u64,
+        values: Option<Vec<Vec<u8>>>,
     ) -> PyResult<Self> {
         use crate::relay_num::Fixed;
         let config = RelayConfig { pre_iter, legs, leg_iter, solutions, stop_after_first, gamma0, gamma_range, gammas, alpha, alpha_scaling, data_scale, max_data, logging: logging && relay, seed };
-        let (n, c, p) = (num_checks, &columns, &priors);
+        let (n, c, v, p) = (num_checks, &columns, values.as_deref(), &priors);
         macro_rules! fixed {
             ($($f:literal)*) => {
                 match frac_bits {
-                    $(Some($f) => relay_engine::<Fixed<$f>>(n, c, p, config)?,)*
+                    $(Some($f) => relay_engine::<Fixed<$f>>(n, c, v, p, config)?,)*
                     other => return Err(err(format!("Decoder does not support {other:?} fractional bits"))),
                 }
             };
         }
         let eng = match kind {
-            "f32" => relay_engine::<f32>(n, c, p, config)?,
-            "f64" => relay_engine::<f64>(n, c, p, config)?,
-            "i8" => relay_engine::<i8>(n, c, p, config)?,
-            "i16" => relay_engine::<i16>(n, c, p, config)?,
-            "i32" => relay_engine::<i32>(n, c, p, config)?,
-            "i64" => relay_engine::<i64>(n, c, p, config)?,
+            "f32" => relay_engine::<f32>(n, c, v, p, config)?,
+            "f64" => relay_engine::<f64>(n, c, v, p, config)?,
+            "i8" => relay_engine::<i8>(n, c, v, p, config)?,
+            "i16" => relay_engine::<i16>(n, c, v, p, config)?,
+            "i32" => relay_engine::<i32>(n, c, v, p, config)?,
+            "i64" => relay_engine::<i64>(n, c, v, p, config)?,
             "fixed" => fixed!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31),
             _ => return Err(err(format!("unknown number type {kind:?}"))),
         };
@@ -2459,23 +2498,35 @@ impl PyRelayEngine {
         Ok(self.one(&syndrome))
     }
 
-    /// Each row in turn; with `fresh`, each from the state the decoder has now (as IBM's
-    /// parallel batches decode, each row on a copy), leaving it unchanged.
-    fn decode_batch(&mut self, rows: Vec<Vec<u8>>, fresh: bool) -> PyResult<Vec<RelayResult>> {
-        for r in &rows {
-            checked_syndrome(r, self.num_checks)?;
-        }
-        Ok(rows
-            .iter()
-            .map(|r| {
-                if fresh {
-                    let mut c = self.copy();
-                    c.one(r)
-                } else {
-                    self.one(r)
-                }
-            })
-            .collect())
+    /// `count` rows of syndrome bytes (one per check), without the GIL: each in turn, the state
+    /// going on from row to row; or with `fresh`, each from the state the decoder has now (as
+    /// IBM's parallel batches decode, each row on a copy), leaving it unchanged, on `threads`
+    /// threads (0: every core). Returns the corrections (one byte per fault per row), the
+    /// checks they set off (one byte per check per row), the posteriors (little-endian f64 per
+    /// fault per row, if asked for, else empty), each row's (converged, iterations, iteration
+    /// limit, weight), and each row's log lines (if asked for, else none).
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
+    #[pyo3(signature = (rows, count, fresh, threads=0, posteriors=true, logs=false))]
+    fn decode_rows<'py>(
+        &mut self,
+        py: Python<'py>,
+        rows: &[u8],
+        count: usize,
+        fresh: bool,
+        threads: usize,
+        posteriors: bool,
+        logs: bool,
+    ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<(bool, usize, usize, f64)>, Vec<Vec<String>>)> {
+        check_rows(rows.len(), self.num_checks, count, self.num_checks, "syndrome bits")?;
+        let relay = self.relay;
+        let eng = &mut self.eng;
+        let out = py.detach(move || eng.batch(rows, count, relay, fresh, threads, posteriors, logs));
+        let corrections: Vec<u8> = out.iter().flat_map(|r| r.correction.iter().copied()).collect();
+        let decoded: Vec<u8> = out.iter().flat_map(|r| r.decoded.iter().copied()).collect();
+        let post = le_f64(out.iter().flat_map(|r| r.posteriors.iter().copied()));
+        let stats = out.iter().map(|r| (r.outcome.converged, r.outcome.iterations, r.outcome.max_iter, r.outcome.weight)).collect();
+        let lines = if logs { out.into_iter().map(|r| r.log).collect() } else { Vec::new() };
+        Ok((PyBytes::new(py, &corrections), PyBytes::new(py, &decoded), PyBytes::new(py, &post), stats, lines))
     }
 
     /// IBM's decoding quality of an error: Σ ln((1 − p)/p) over its faults (finite ones).
