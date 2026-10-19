@@ -1,5 +1,6 @@
 # Ported from tqec (tqec/tqec 0.2.0, src/tqec/utils/position.py; Apache License 2.0; see LICENSE in this directory),
-# modified for stabilizer_qec: the 3D classes only, numpy-free.
+# modified for stabilizer_qec: the 3D classes and Position2D only (not the 2D shapes and shifts of tqec's
+# templates), numpy imported only by FloatPosition3D.as_array.
 """3D integer positions, directions and signed directions of a spacetime diagram."""
 
 from __future__ import annotations
@@ -9,6 +10,22 @@ from dataclasses import astuple, dataclass
 from enum import Enum
 
 from ._errors import TQECError
+
+
+@dataclass(frozen=True, order=True)
+class Position2D:
+    """A 2D integer position (``Position3D.as_2d``)."""
+
+    x: int
+    y: int
+
+    def is_neighbour(self, other: Position2D) -> bool:
+        """Check if the other position is near to this position, i.e. Manhattan distance is 1."""
+        return abs(self.x - other.x) + abs(self.y - other.y) == 1
+
+    def to_3d(self, z: int = 0) -> Position3D:
+        """The 3D position with ``self``'s ``x`` and ``y``, at ``z``."""
+        return Position3D(self.x, self.y, z)
 
 
 @dataclass(frozen=True, order=True)
@@ -42,6 +59,10 @@ class Position3D:
 
     def __str__(self) -> str:
         return f"({self.x},{self.y},{self.z})"
+
+    def as_2d(self) -> Position2D:
+        """Return the position as a 2D position."""
+        return Position2D(self.x, self.y)
 
 
 class Direction3D(Enum):
@@ -131,6 +152,12 @@ class FloatPosition3D:
 
     def as_tuple(self) -> tuple[float, float, float]:
         return (self.x, self.y, self.z)
+
+    def as_array(self):
+        """Return the position as a numpy array (of float32, as tqec's)."""
+        import numpy as np
+
+        return np.asarray(astuple(self), dtype=np.float32)
 
 
 def round_or_fail(f: float, atol: float = 1e-8) -> int:

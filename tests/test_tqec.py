@@ -569,7 +569,8 @@ def test_noise_models_keep_tqecs_moments_and_repeat_blocks():
 @needs_tqec
 def test_noise_models_against_tqec():
     stim = pytest.importorskip("stim")
-    circuits = [_noiseless(name) for name in ("memory", "cnot", "two_cnots")]
+    # (The two CNOTs' noisy circuit is pinned by its fixture; tqec takes a minute over it.)
+    circuits = [_noiseless(name) for name in ("memory", "cnot")]
     circuits.append(sq.Circuit("TICK\nTICK\nR 0 1 2\nTICK\nREPEAT 2 {\n  TICK\n  H 0\n  CX 1 2\n  TICK\n  MPP X0*X1 Y2\n}\nCX rec[-1] 0\nTICK\nTICK\nMX 0 1\nDETECTOR rec[-1]\n"))
     for c in circuits:
         for model in ("uniform_depolarizing", "si1000"):
@@ -641,3 +642,80 @@ def test_tqecs_conventions_and_noise_model_objects_are_taken():
     pytest.importorskip("stim")
     # tqec's own NoiseModel works on Stim's circuits; it is given Stim's and read back.
     assert str(g.compile(3, noise_model=theirs.NoiseModel.uniform_depolarizing(0.001))) == str(g.compile(3, noise_model=tqec.NoiseModel.uniform_depolarizing(0.001)))
+
+
+# ---------------------------------------------------------------------------------------------
+# Small API: positions, LinearFunction, CZ flows, sq.tqec, find_correlation_surfaces' arguments
+# ---------------------------------------------------------------------------------------------
+
+
+def test_positions_and_linear_functions():
+    from stabilizer_qec.tqec import FloatPosition3D, LinearFunction, Position2D
+
+    assert Position3D(1, 2, 3).as_2d() == Position2D(1, 2) and Position2D(1, 2).to_3d(4) == Position3D(1, 2, 4)
+    assert Position2D(0, 0).is_neighbour(Position2D(0, 1)) and not Position2D(0, 0).is_neighbour(Position2D(1, 1))
+    a = FloatPosition3D(0.5, 1.0, -2.0).as_array()
+    assert a.dtype == np.float32 and a.tolist() == [0.5, 1.0, -2.0]
+    f = LinearFunction(2, -1)
+    assert (f(1), f.integer_eval(3), repr(f), repr(LinearFunction(0, 3)), repr(LinearFunction(2, 0))) == (1, 5, "2*x + -1", "3", "2*x")
+    assert f + 1 == LinearFunction(2, 0) and f - LinearFunction(1, 1) == LinearFunction(1, -2) and 3 * f == LinearFunction(6, -3)
+    assert f.intersection(LinearFunction(1, 0)) == 1 and f.intersection(LinearFunction(2, 5)) is None
+    assert LinearFunction(4, 2).exact_integer_div(2) == LinearFunction(2, 1)
+    with pytest.raises(TQECError, match="not a multiple of the offset"):
+        LinearFunction(4, 1).exact_integer_div(2)
+    assert LinearFunction.unambiguous_max_on_positives([LinearFunction(1, 0), LinearFunction(2, 1)]) == LinearFunction(2, 1)
+    with pytest.raises(TQECError, match="ambiguous"):
+        LinearFunction.unambiguous_max_on_positives([LinearFunction(1, 3), LinearFunction(2, 1)])
+    assert LinearFunction.safe_mul(LinearFunction(0, 2), f) == LinearFunction(4, -2)
+    # The block_temporal_height tqec passes; the default is 2k - 1.
+    m = gallery.memory(Basis.Z)
+    assert str(tqec.compile_block_graph(m, block_temporal_height=f).generate_stim_circuit(2)) == str(tqec.compile_block_graph(m).generate_stim_circuit(2))
+
+
+def test_cz_flows_in_stims_syntax():
+    import re
+
+    def ports(g):
+        return {label: str(g[pos].kind) for label, pos in (("In_1", Position3D(0, 0, 0)), ("In_2", Position3D(1, -1, 1)), ("Out_1", Position3D(0, 0, 2)), ("Out_2", Position3D(1, 1, 1)))}
+
+    dense = ports(gallery.cz("XI -> XZ"))
+    assert dense == {"In_1": "XZX", "In_2": "XZZ", "Out_1": "XZX", "Out_2": "XZZ"}
+    for same in ("X_ -> XZ", "X0 -> X0*Z1", "+XI -> +XZ", "-XI -> -XZ", "xi -> xz", "XZ -> XI"):
+        assert ports(gallery.cz(same)) == dense
+    assert ports(gallery.cz("X1 -> Z0*X1")) == ports(gallery.cz("_X -> ZX"))
+    assert ports(gallery.cz("1 -> 1")) == ports(gallery.cz("ZZ -> ZZ"))
+    # Errors name the flow as Stim writes it, as tqec's do.
+    for flow, text in (("XI -> XX", "X_ -> XX"), ("X0 -> X0", "X -> X"), ("-XI -> XZ", "-X_ -> XZ"), ("XI -> -XZ", "X_ -> -XZ"), ("X0 -> X0*Z1*Z2", "X -> XZZ")):
+        with pytest.raises(TQECError, match=f"^{re.escape(text)} is not a valid flow for the CZ gate.$"):
+            gallery.cz(flow)
+    with pytest.raises(TQECError, match="qubits are 0 and 1"):
+        gallery.cz("Z2 -> Z2")
+    with pytest.raises(TQECError, match="Port 0 fails to support both X and Z observable"):
+        gallery.cz(["X0 -> X0*Z1", "Z0 -> Z0"])
+    # The two sparse flows tqec joins into conflicting ports are compatible on the gate's qubits.
+    assert ports(gallery.cz(["X0 -> X0*Z1", "Z1 -> Z1"])) == dense
+
+
+@needs_tqec
+def test_cz_flows_agree_with_tqec():
+    def outcome(module, flows):
+        try:
+            return structure(module.cz(flows))
+        except Exception as e:  # noqa: BLE001
+            return f"{type(e).__name__}: {e}"
+
+    # tqec reads a sparse flow whose sides have different lengths into the wrong ports
+    # ("X0 -> X0*Z1"), and fails on flows beyond the two qubits; the others are the same.
+    for flows in ("XI -> XZ", "X_ -> XZ", "-XI -> -XZ", "X1 -> Z0*X1", "Z1 -> Z1", "1 -> 1", "XZ -> XI", "ZZ -> ZZ", ["ZI -> ZI", "IX -> ZX"], "XI -> XX", "X0 -> X0", "-XI -> XZ", "X0 -> X0*Z1*Z2", "XX -> YY", ["X_ -> XZ", "_Z -> _Z"]):
+        assert outcome(gallery, flows) == outcome(their_gallery, flows), flows
+
+
+def test_tqec_is_an_attribute_before_it_is_imported():
+    import os
+    import subprocess
+    import sys
+
+    code = "import stabilizer_qec as sq, sys; assert 'stabilizer_qec.tqec' not in sys.modules; print(sq.tqec.compile_block_graph(sq.tqec.gallery.memory()).generate_stim_circuit(1).num_detectors)"
+    env = {**os.environ, "PYTHONPATH": str(pathlib.Path(sq.__file__).parent.parent)}
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
+    assert out.stdout.strip() == "24"

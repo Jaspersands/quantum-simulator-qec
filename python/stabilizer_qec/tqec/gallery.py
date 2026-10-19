@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 from typing import Optional, Union
 
 from ._errors import TQECError
@@ -60,7 +61,11 @@ def cnot(observable_basis: Optional[Basis] = None) -> BlockGraph:
 
 def cz(support_flows: Union[str, list[str], None] = None) -> BlockGraph:
     """The logical CZ (its Hadamard pipe horizontal; ``rotate`` for a vertical one): ports open,
-    or filled to support the given stabilizer flows (``"XI -> XZ"``, or a list of them)."""
+    or filled to support the given stabilizer flows (``"XI -> XZ"``, or a list of them), in
+    Stim's syntax: dense (``"X_ -> XZ"``), sparse (``"X0 -> X0*Z1"``), signed, ``1`` for the
+    identity. An error names a flow as Stim writes it (``X_ -> XX is not a valid flow for the CZ
+    gate.``), as tqec's does. A sparse flow is placed on the gate's qubits by its indices (tqec
+    0.2.0 joins the two sides' letters, which misplaces the output ports of ``"X0 -> X0*Z1"``)."""
     g = BlockGraph("Logical CZ")
     nodes = [
         (Position3D(0, 0, 0), "P", "In_1"),
@@ -80,17 +85,34 @@ def cz(support_flows: Union[str, list[str], None] = None) -> BlockGraph:
     return g
 
 
-def _parse_pauli_pair(text: str) -> tuple[int, str]:
-    """A two-qubit Pauli string with an optional sign: ``(sign, letters)`` with ``_`` for I."""
+def _parse_flow_side(text: str) -> tuple[int, str]:
+    """One side of a stabilizer flow as Stim reads it: ``(sign, letters)``, the letters dense
+    with ``_`` for I (``"XI"``, ``"X_"``), from dense or sparse text (``"X0*Z1"``), ``""`` for
+    the identity ``"1"``."""
     text = text.strip().replace(" ", "")
     sign = 1
     if text[:1] in "+-":
         sign = -1 if text[0] == "-" else 1
         text = text[1:]
-    letters = text.replace("I", "_")
-    if len(letters) != 2 or any(c not in "_XYZ" for c in letters):
-        raise TQECError(f"{text!r} is not a two-qubit Pauli string.")
-    return sign, letters
+    if text == "1":
+        return sign, ""
+    if any(c.isdigit() for c in text):
+        letters: dict[int, str] = {}
+        for term in text.split("*"):
+            match = re.fullmatch(r"([XYZ])(\d+)", term)
+            if match is None or int(match.group(2)) in letters:
+                raise TQECError(f"{text!r} is not a Pauli string.")
+            letters[int(match.group(2))] = match.group(1)
+        return sign, "".join(letters.get(i, "_") for i in range(max(letters) + 1))
+    letters_text = text.replace("I", "_")
+    if not letters_text or any(c not in "_XYZ" for c in letters_text):
+        raise TQECError(f"{text!r} is not a Pauli string.")
+    return sign, letters_text
+
+
+def _flow_text(sign_in: int, p_in: str, sign_out: int, p_out: str) -> str:
+    """The flow as Stim writes it (``X_ -> XZ``): how tqec's errors name it."""
+    return f"{'-' if sign_in < 0 else ''}{p_in or '1'} -> {'-' if sign_out < 0 else ''}{p_out or '1'}"
 
 
 def _cz_conjugate(letters: str) -> str:
@@ -110,13 +132,19 @@ def _resolve_ports(flows: list[str]) -> list[ZXCube]:
         if "->" not in f:
             raise TQECError(f"{f} is not a valid flow for the CZ gate.")
         left, right = f.split("->", 1)
-        sign_in, p_in = _parse_pauli_pair(left)
-        sign_out, p_out = _parse_pauli_pair(right)
+        sign_in, p_in = _parse_flow_side(left)
+        sign_out, p_out = _parse_flow_side(right)
+        text = _flow_text(sign_in, p_in, sign_out, p_out)
+        # Both sides on the same qubits (a sparse side, "X0", is as short as its last qubit).
+        n = max(len(p_in), len(p_out), 2)
+        p_in, p_out = p_in.ljust(n, "_"), p_out.ljust(n, "_")
         # CZ maps every X/Z-only Pauli to its image with sign +, so a flow holds when the images
-        # agree and the signs do.
-        if _cz_conjugate(p_in) != p_out or sign_in != sign_out:
-            raise TQECError(f"{f} is not a valid flow for the CZ gate.")
-        parsed.append(p_in + p_out)
+        # agree on the gate's qubits, the other qubits are left alone, and the signs agree.
+        if _cz_conjugate(p_in[:2]) != p_out[:2] or p_in[2:] != p_out[2:] or sign_in != sign_out:
+            raise TQECError(f"{text} is not a valid flow for the CZ gate.")
+        if p_in[2:].strip("_"):
+            raise TQECError(f"{text} acts on qubits the CZ gate does not have (its qubits are 0 and 1).")
+        parsed.append(p_in[:2] + p_out[:2])
     ports = ["_"] * 4
     for p in parsed:
         for i, letter in enumerate(p):

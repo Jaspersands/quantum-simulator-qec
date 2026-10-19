@@ -22,7 +22,8 @@ from .enums import Basis, Pauli
 from .noise_model import NoiseModel, NoiseRule
 from .open_graph import FilledGraph, fill_ports_for_minimal_simulation
 from .pipe import Pipe, PipeKind
-from .position import Direction3D, FloatPosition3D, Position3D, SignedDirection3D
+from .position import Direction3D, FloatPosition3D, Position2D, Position3D, SignedDirection3D
+from .scale import LinearFunction
 
 __all__ = [
     "ALL_CONVENTIONS",
@@ -40,12 +41,14 @@ __all__ = [
     "FIXED_BULK_CONVENTION",
     "FilledGraph",
     "FloatPosition3D",
+    "LinearFunction",
     "NoiseModel",
     "NoiseRule",
     "Pauli",
     "Pipe",
     "PipeKind",
     "Port",
+    "Position2D",
     "Position3D",
     "SignedDirection3D",
     "TQECError",
