@@ -1242,14 +1242,22 @@ fn bsd_med3<T: Copy>(v: &[T], a: usize, b: usize, c: usize, cmp: &mut impl FnMut
     }
 }
 
-fn bsd_insertion<T: Copy>(v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+/// Insertion sort; with a `limit`, it gives up (false) on the swap that exceeds it, leaving the
+/// range part sorted.
+fn bsd_insertion<T: Copy>(v: &mut [T], limit: Option<usize>, cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) -> bool {
+    let mut swaps = 0;
     for pm in 1..v.len() {
         let mut pl = pm;
         while pl > 0 && cmp(&v[pl - 1], &v[pl]) == std::cmp::Ordering::Greater {
             v.swap(pl, pl - 1);
             pl -= 1;
+            swaps += 1;
+            if limit.is_some_and(|r| swaps > r) {
+                return false;
+            }
         }
     }
+    true
 }
 
 fn bsd_vecswap<T: Copy>(v: &mut [T], a: usize, b: usize, n: usize) {
@@ -1258,13 +1266,85 @@ fn bsd_vecswap<T: Copy>(v: &mut [T], a: usize, b: usize, n: usize) {
     }
 }
 
-fn bsd_qsort<T: Copy>(mut v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+/// FreeBSD's heapsort(3) (Knuth's, records numbered from 1, the displaced record `k` held aside
+/// and its place found from the bottom), which Apple's qsort falls back on.
+fn bsd_heapsort<T: Copy>(v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+    use std::cmp::Ordering::{Greater, Less};
+    let n = v.len();
+    if n <= 1 {
+        return;
+    }
+    // Record i (1-based) is v[i - 1].
+    for l in (1..=n / 2).rev() {
+        let mut par = l;
+        loop {
+            let mut child = par * 2;
+            if child > n {
+                break;
+            }
+            if child < n && cmp(&v[child - 1], &v[child]) == Less {
+                child += 1;
+            }
+            if cmp(&v[child - 1], &v[par - 1]) != Greater {
+                break;
+            }
+            v.swap(par - 1, child - 1);
+            par = child;
+        }
+    }
+    let mut m = n;
+    while m > 1 {
+        let k = v[m - 1];
+        v[m - 1] = v[0];
+        m -= 1;
+        let mut par = 1;
+        loop {
+            let mut child = par * 2;
+            if child > m {
+                break;
+            }
+            if child < m && cmp(&v[child - 1], &v[child]) == Less {
+                child += 1;
+            }
+            v[par - 1] = v[child - 1];
+            par = child;
+        }
+        loop {
+            let child = par;
+            par = child / 2;
+            if child == 1 || cmp(&k, &v[par - 1]) == Less {
+                v[child - 1] = k;
+                break;
+            }
+            v[child - 1] = v[par - 1];
+        }
+    }
+}
+
+/// Apple's qsort: FreeBSD's Bentley-McIlroy quicksort (ninther pivots above 40 elements, ranges
+/// of seven or fewer by insertion, the smaller part first) with Apple's two changes. When a
+/// partition swapped nothing, once the pivot is in place, an insertion sort over the whole range
+/// gives up after 1 + n/4 swaps, leaving what it moved, and the parts are sorted as usual; and
+/// past a depth of 2 (fls(n) - 1) a range is heapsorted. Unstable, so its order among equal
+/// elements is its own; checked against libc's qsort, its comparisons logged, on sorted,
+/// reversed and tied inputs (tools/c_qsort.c).
+fn bsd_qsort<T: Copy>(v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+    let fls = u32::BITS - (v.len() as u32).leading_zeros();
+    bsd_qsort_to(v, 2 * (fls as isize - 1), cmp);
+}
+
+fn bsd_qsort_to<T: Copy>(mut v: &mut [T], mut depth: isize, cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
     use std::cmp::Ordering::{Equal, Greater, Less};
     loop {
         let n = v.len();
+        depth -= 1;
+        if depth < 0 {
+            bsd_heapsort(v, cmp);
+            return;
+        }
         let mut swapped = false;
         if n <= 7 {
-            bsd_insertion(v, cmp);
+            bsd_insertion(v, None, cmp);
             return;
         }
         let mut pm = n / 2;
@@ -1315,16 +1395,18 @@ fn bsd_qsort<T: Copy>(mut v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp:
             pb += 1;
             pc -= 1;
         }
-        let _ = swapped;
         let pn = n;
         let d1 = pa.min(pb - pa);
         bsd_vecswap(v, 0, pb - d1, d1);
         let d1 = ((pd - pc) as usize).min(pn - pd as usize - 1);
         bsd_vecswap(v, pb, pn - d1, d1);
+        if !swapped && bsd_insertion(v, Some(1 + n / 4), cmp) {
+            return;
+        }
         let (d1, d2) = (pb - pa, (pd - pc) as usize);
         if d1 <= d2 {
             if d1 > 1 {
-                bsd_qsort(&mut v[..d1], cmp);
+                bsd_qsort_to(&mut v[..d1], depth, cmp);
             }
             if d2 > 1 {
                 v = &mut v[pn - d2..];
@@ -1332,7 +1414,7 @@ fn bsd_qsort<T: Copy>(mut v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp:
             }
         } else {
             if d2 > 1 {
-                bsd_qsort(&mut v[pn - d2..], cmp);
+                bsd_qsort_to(&mut v[pn - d2..], depth, cmp);
             }
             if d1 > 1 {
                 v = &mut v[..d1];
@@ -1712,6 +1794,48 @@ mod tests {
             CLibrary::Bsd.qsort(&mut o, &mut |a, b| a.0.partial_cmp(&b.0).unwrap());
             let idx: Vec<usize> = o.iter().map(|r| r.1).collect();
             assert_eq!(digest(&idx), digest_want, "n {n}, {distinct} distinct values");
+        }
+        // Input already in order, with ties (ascending, descending, up then down; a new value
+        // after runs of about `run`), where Apple's qsort tries its bounded insertion sort and
+        // can reach its depth limit and heapsort.
+        let want: &[(u8, usize, u64, i64)] = &[(1, 3, 2, 1026), (1, 3, 5, 1026), (1, 3, 20, 1026), (1, 6, 2, 30569571), (1, 6, 5, 30569571), (1, 6, 20, 30569571), (1, 7, 2, 947656708), (1, 7, 5, 947656708), (1, 7, 20, 947656708), (1, 8, 2, 3361724), (1, 8, 5, 720305427), (1, 8, 20, 965655179), (1, 12, 2, 807246916), (1, 12, 5, 711247338), (1, 12, 20, 711247338), (1, 20, 2, 25236232), (1, 20, 5, 761882470), (1, 20, 20, 260932022), (1, 40, 2, 444580843), (1, 40, 5, 95424716), (1, 40, 20, 562501321), (1, 41, 2, 357522956), (1, 41, 5, 111964051), (1, 41, 20, 239376672), (1, 64, 2, 535978528), (1, 64, 5, 996728406), (1, 64, 20, 930285739), (1, 100, 2, 809539486), (1, 100, 5, 453587567), (1, 100, 20, 795985928), (1, 500, 2, 145305241), (1, 500, 5, 889629404), (1, 500, 20, 715802555), (1, 3000, 2, 240938193), (1, 3000, 5, 812033351), (1, 3000, 20, 690853435), (2, 3, 2, 2016), (2, 3, 5, 1026), (2, 3, 20, 1026), (2, 6, 2, 89736321), (2, 6, 5, 172761021), (2, 6, 20, 172761021), (2, 7, 2, 530164893), (2, 7, 5, 947656708), (2, 7, 20, 947656708), (2, 8, 2, 629232051), (2, 8, 5, 716790458), (2, 8, 20, 520971189), (2, 12, 2, 400662643), (2, 12, 5, 635161825), (2, 12, 20, 711247338), (2, 20, 2, 195077721), (2, 20, 5, 855113876), (2, 20, 20, 137968104), (2, 40, 2, 40889836), (2, 40, 5, 360148926), (2, 40, 20, 780663942), (2, 41, 2, 325519866), (2, 41, 5, 713271896), (2, 41, 20, 311065091), (2, 64, 2, 728368538), (2, 64, 5, 680193345), (2, 64, 20, 843775391), (2, 100, 2, 74485761), (2, 100, 5, 293312535), (2, 100, 20, 379278393), (2, 500, 2, 317998825), (2, 500, 5, 441503923), (2, 500, 20, 8532652), (2, 3000, 2, 363871159), (2, 3000, 5, 54298338), (2, 3000, 20, 115631193), (3, 3, 2, 1026), (3, 3, 5, 1026), (3, 3, 20, 1026), (3, 6, 2, 34234761), (3, 6, 5, 30631011), (3, 6, 20, 30569571), (3, 7, 2, 950514688), (3, 7, 5, 947656708), (3, 7, 20, 947656708), (3, 8, 2, 702379798), (3, 8, 5, 702379798), (3, 8, 20, 965655179), (3, 12, 2, 489619753), (3, 12, 5, 554135340), (3, 12, 20, 711247338), (3, 20, 2, 787033432), (3, 20, 5, 879950170), (3, 20, 20, 715986168), (3, 40, 2, 515141394), (3, 40, 5, 64702858), (3, 40, 20, 810690891), (3, 41, 2, 319449711), (3, 41, 5, 847623407), (3, 41, 20, 915720172), (3, 64, 2, 102072375), (3, 64, 5, 877675227), (3, 64, 20, 796016749), (3, 100, 2, 721176979), (3, 100, 5, 565110371), (3, 100, 20, 644732344), (3, 500, 2, 452242602), (3, 500, 5, 969133863), (3, 500, 20, 431439243), (3, 3000, 2, 934330699), (3, 3000, 5, 560002293), (3, 3000, 20, 212150863)];
+        for &(shape, n, run, digest_want) in want {
+            let mut o: Vec<(f64, usize)> = Vec::with_capacity(n);
+            let mut v = 0.0;
+            for i in 0..n {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                if x % run == 0 {
+                    v += 1.0;
+                }
+                let value = if shape == 3 && n - 1 - i < i { o[n - 1 - i].0 } else if shape == 2 { -v } else { v };
+                o.push((value, i));
+            }
+            CLibrary::Bsd.qsort(&mut o, &mut |a, b| a.0.partial_cmp(&b.0).unwrap());
+            let idx: Vec<usize> = o.iter().map(|r| r.1).collect();
+            assert_eq!(digest(&idx), digest_want, "shape {shape}, n {n}, runs of {run}");
+        }
+    }
+
+    /// FreeBSD's heapsort, which Apple's qsort falls back on, sorts.
+    #[test]
+    fn bsd_heapsort_sorts() {
+        let mut x: u64 = 7;
+        for n in [0usize, 1, 2, 3, 10, 101] {
+            let mut o: Vec<(u64, usize)> = (0..n)
+                .map(|i| {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    (x % 7, i)
+                })
+                .collect();
+            bsd_heapsort(&mut o, &mut |a, b| a.0.cmp(&b.0));
+            assert!(o.windows(2).all(|w| w[0].0 <= w[1].0));
+            let mut idx: Vec<usize> = o.iter().map(|r| r.1).collect();
+            idx.sort_unstable();
+            assert!(idx.into_iter().eq(0..n));
         }
     }
 }

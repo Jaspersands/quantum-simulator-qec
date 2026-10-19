@@ -1253,12 +1253,14 @@ from a schedule they optimise; each system here measures one operator.
 - The error model equals Stim's fault for fault.
 - The cycle writer's plain memory equals `bb_memory_circuit`'s error model, mechanism for
   mechanism.
-- BP+OSD's corrections equal `ldpc`'s on Stim's shots, but for ties: 13 of 3,072 shots differed
-  over the twelve circuits (three operators, two systems, two bases), 10 of them for the
-  product's minimal system. BP's posteriors were bit-identical, but many are exactly equal, and
-  `ldpc` orders equal columns with C++'s `std::sort`, whose order among equals is the standard
-  library's. `ldpc` returns our exact correction once its columns are permuted, so those shots are
-  ties, and the check fails on any other difference.
+- BP+OSD's corrections equal `ldpc`'s on all 3,072 of Stim's shots over the twelve circuits
+  (three operators, two systems, two bases). In 2.0, 13 differed, 10 of them for the product's
+  minimal system, and were put down to ties in OSD's column sort. They were not: BP's posteriors
+  were bit-identical, and so was the sort, but OSD weighs a candidate by summing ln(1/p) over its
+  bits, and `ldpc` sums them in bit order and keeps the first of equal weights. Summed in another
+  order (the pivots first, then the flipped bits), a candidate of equal weight could come out an
+  ulp lighter and win. A shot that differs only by the order of equal posteriors (on a C library
+  whose `qsort` is not reproduced) would still pass, and the check fails on any other difference.
 
 **Measured** (`tools/gross_ops.py measure`): the data prepared, 6 memory cycles, T merged cycles, 6
 memory cycles, the data read. In the X basis the observables are the outcome and the 12 X
