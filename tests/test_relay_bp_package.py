@@ -173,3 +173,26 @@ def test_errors_and_types():
     r = d.decode_detailed(np.array([1, 0], dtype=np.uint8))
     assert r.decoding.dtype == np.uint8 and r.posterior_ratios.dtype == np.float64 and r.success
     assert os.path.basename(type(d).__module__) == "stabilizer_qec.relay_bp.bp"
+
+
+def test_noise_on_stim_circuits():
+    """insert_uniform_academic_circuit_noise takes Stim's circuits (REPEAT blocks too) and gives
+    back Stim's, as relay_bp's does, and this package's circuits back as this package's."""
+    stim = pytest.importorskip("stim")
+    from relay_bp.stim import noise as theirs
+
+    import stabilizer_qec as sq
+    from stabilizer_qec.relay_bp.stim import noise as mine
+
+    for circuit in (
+        stim.Circuit.generated("surface_code:rotated_memory_x", rounds=5, distance=3),
+        stim.Circuit.generated("repetition_code:memory", rounds=4, distance=5),
+        stim.Circuit.generated("color_code:memory_xyz", rounds=3, distance=3),
+        stim.Circuit.generated("surface_code:unrotated_memory_z", rounds=3, distance=3).flattened(),
+    ):
+        for kw in ({}, {"apply_to_final_data_qubit_measurement": True}):
+            expected = theirs.insert_uniform_academic_circuit_noise(circuit, 0.001, **kw)
+            got = mine.insert_uniform_academic_circuit_noise(circuit, 0.001, **kw)
+            assert isinstance(got, stim.Circuit) and got == expected
+            got = mine.insert_uniform_academic_circuit_noise(sq.Circuit(str(circuit)), 0.001, **kw)
+            assert isinstance(got, sq.Circuit) and str(got) == str(expected)
