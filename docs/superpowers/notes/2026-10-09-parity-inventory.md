@@ -254,7 +254,7 @@ deltakit-compile 0.1.0 and deltakit-visualise 0.4.0 (its xDSL compiler and visua
 | ID | Feature | Status |
 |---|---|---|
 | M1 | Encoding-circuit synthesis: Gottesman, heuristic, gate-optimal and depth-optimal (SAT), for CSS and non-CSS | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
-| M2 | Fault-tolerant state preparation: verification circuits (gate-optimal), deterministic verification with corrections, flags, hooks | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
+| M2 | Fault-tolerant state preparation: verification circuits (gate-optimal), deterministic verification with corrections, flags, hooks | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks; 2.1: `NoisyDFTStatePrepSimulator` on `stabilizer_qec.qsample`, with two faults of MQT's fixed (CNOTs as qsample's (control, target), and the final decoding measuring each stabilizer, where MQT's corrected nothing and gave slope 1), MQT's skipped simulation tests run and pass (slope ≈ 2), and verifications of the wrong Pauli type refused) |
 | M3 | Cat-state preparation (balanced tree, line, pruned, fused) and experiments | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 | M4 | Clifford synthesis (exact gate count and depth, SAT), CNOT-circuit synthesis (greedy and rollout) | done (2.0 W6: `stabilizer_qec.mqt_qecc`, MQT QECC 2.0.0 whole; W7 cross-checks) |
 | M5 | Code switching compiler (minimal switching, min cut) | done (2.0 W6: `stabilizer_qec.mqt_qecc.code_switching`) |

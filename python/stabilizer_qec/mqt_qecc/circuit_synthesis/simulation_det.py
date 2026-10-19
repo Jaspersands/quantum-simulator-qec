@@ -6,9 +6,17 @@
 # Licensed under the MIT License
 # Ported from MQT QECC 2.0.0 (munich-quantum-toolkit/qecc; Chair for Design Automation, TUM; MIT; see
 # THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: its Stim, sinter, ldpc, PyMatching, qecsim and bposd are this
-# package's, and mqt.qecc is stabilizer_qec.mqt_qecc.
+# package's, and mqt.qecc is stabilizer_qec.mqt_qecc. Its qsample is stabilizer_qec.qsample, and two faults of MQT's
+# (never run there: MQT's CI installs no qsample) are fixed: CNOTs reach qsample as (control, target) and the final
+# decoding measures each stabilizer.
 
-"""Simulation of deterministic state preparation circuits using qsample (https://github.com/dpwinter/qsample)."""
+"""Simulation of deterministic state preparation circuits using qsample (https://github.com/dpwinter/qsample).
+
+(stabilizer_qec: on this package's qsample, ``stabilizer_qec.qsample``. The first verification checks the errors
+that would flip the logical, X errors for |0> and Z errors for |+>: for a |+> preparation pass
+``DeterministicVerificationHelper.get_solution()`` reversed, as MQT's tests do. Verifications of the wrong type
+are refused, rather than giving rates near 1/2.)
+"""
 
 from __future__ import annotations
 
@@ -17,22 +25,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-try:
-    import qsample as qs  # ty: ignore[unresolved-import]
-except ImportError:
-    msg = (
-        "NoisyDFTStatePrepSimulator requires the optional dependency 'qsample'. "
-        "Install with: pip install mqt.qecc[qsample]"
-    )
-    raise ImportError(msg) from ImportError
-
+# stabilizer_qec: qsample is this package's port (stabilizer_qec.qsample), not an optional dependency.
+from stabilizer_qec import qsample as qs
+from stabilizer_qec.mqt_qecc import mod2
 
 from .simulation import LutDecoder
 
 if TYPE_CHECKING:
     import numpy.typing as npt
     from qiskit.circuit import QuantumCircuit
-    from qsample.callbacks import Callback, CallbackList  # ty: ignore[unresolved-import]
+    from stabilizer_qec.qsample.callbacks import Callback, CallbackList
 
     from ..codes.core.css_code import CSSCode
     from .state_prep_det import DeterministicCorrection, DeterministicVerification
@@ -95,6 +97,35 @@ def decode_failure(
     return bool(np.any(corrected @ observables.T % 2 != 0))
 
 
+def _check_verification_types(
+    verifications: tuple[DeterministicVerification, DeterministicVerification], code: CSSCode, zero_state: bool
+) -> None:
+    """stabilizer_qec's: refuse verifications that the protocol would measure as the wrong Pauli type.
+
+    The first layer measures Z stabilizers for |0> (X stabilizers for |+>), the second the other type.
+    A stabilizer measured as the wrong type is not one of the state's, so measuring it randomises the
+    logical state and the rates come out near 1/2 (a |+> preparation given ``get_solution()`` as it
+    comes, X-error verification first).
+    """
+    assert code.Hx is not None
+    assert code.Hz is not None
+    z_group = np.vstack((code.Hz, code.Lz)) if zero_state else code.Hz
+    x_group = code.Hx if zero_state else np.vstack((code.Hx, code.Lx))
+    groups = (z_group, x_group) if zero_state else (x_group, z_group)
+    for layer, (verification, group) in enumerate(zip(verifications, groups, strict=True)):
+        stabs = [*verification.stabs, *(s for stabs_, _ in verification.det_correction.values() for s in stabs_)]
+        rank = mod2.rank(group)
+        if any(mod2.rank(np.vstack((group, np.asarray(s).reshape(1, -1)))) != rank for s in stabs):
+            kind = "Z" if (layer == 0) == zero_state else "X"
+            msg = (
+                f"verification {layer} measures {kind} stabilizers, but its stabilizers are not {kind} stabilizers of the "
+                f"{'|0>' if zero_state else '|+>'} state: the first verification must check "
+                f"{'X' if zero_state else 'Z'} errors. For a |+> preparation pass "
+                "DeterministicVerificationHelper.get_solution() reversed, as MQT QECC's tests do."
+            )
+            raise ValueError(msg)
+
+
 class NoisyDFTStatePrepSimulator:
     """Class to simulate the state preparation circuits using qsample (https://github.com/dpwinter/qsample)."""
 
@@ -118,6 +149,8 @@ class NoisyDFTStatePrepSimulator:
         if code.distance >= 5:
             msg = "Only distance <5 CSS codes are supported."
             raise UnsupportedCodeError(msg)
+
+        _check_verification_types(verifications, code, zero_state)  # stabilizer_qec's
 
         self.code = code
         self.err_model = err_model
@@ -176,7 +209,11 @@ class NoisyDFTStatePrepSimulator:
 
         # create decoding circuit
         matrix = code.Hz if self.zero_state else code.Hx
-        decoding_circuit = self._create_stab_measurement_circuit(matrix, z_stabs=self.zero_state, noisy=False)
+        # stabilizer_qec: the rows, one stabilizer each. MQT passes the matrix, which
+        # _create_stab_measurement_circuit takes as one stabilizer whose support is the rows'
+        # indices, so the final syndrome was all zeros and no correction was made: one fault
+        # failed the preparation (slope 1, where the protocol is fault tolerant).
+        decoding_circuit = self._create_stab_measurement_circuit(list(matrix), z_stabs=self.zero_state, noisy=False)
         if not self.zero_state:
             decoding_circuit.append({"H": set(range(self.code.n))})
         decoding_circuit.append({"measure": set(range(self.code.n))})
@@ -433,6 +470,9 @@ def qiskit_to_qsample(qiskit_circuit: QuantumCircuit) -> qs.Circuit:
         if len(qargs) == 1:
             qubits = {qiskit_circuit.qubits.index(qargs[0])}
         else:
-            qubits = {qiskit_circuit.qubits.index(q) for q in qargs}
+            # stabilizer_qec: a (control, target) tuple, qsample's two-qubit format. MQT's
+            # `{control, target}` set made qsample apply CNOT to each qubit alone, which
+            # qsample 0.0.2 refuses (`CNOT() missing 1 required positional argument`).
+            qubits = {tuple(qiskit_circuit.qubits.index(q) for q in qargs)}
         custom_circuit.append({gate_name: qubits})
     return qs.Circuit(custom_circuit, noisy=True)
