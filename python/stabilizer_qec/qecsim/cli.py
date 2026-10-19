@@ -246,7 +246,7 @@ def _validate_measurement_error_probability(ctx, param, value):
 
 
 @click.group()
-@click.version_option(version=qecsim.__version__, prog_name='stabilizer_qec.qecsim')
+@click.version_option(version=qecsim.__version__, prog_name='qecsim')
 def cli():
     """
     qecsim - quantum error correction simulator using stabilizer codes.
