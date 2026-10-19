@@ -183,6 +183,273 @@ def test_grid_search_against_qualtran():
 
 
 # ---------------------------------------------------------------------------------------------
+# Qualtran's submodules, its ui, and the details of its classes
+# ---------------------------------------------------------------------------------------------
+
+# The names each of Qualtran 0.7.0's submodules of qualtran.surface_code holds that are Qualtran's own (defined
+# there or imported from Qualtran), as recorded from Qualtran; ui's Dash layout, inputs and app are not ported.
+QUALTRAN_SUBMODULES = {
+    "algorithm_summary": ["AlgorithmSummary", "GateCounts"],
+    "beverland_et_al_model": ["GateCounts", "code_distance", "minimum_time_steps", "n_discrete_logical_gates", "t_states"],
+    "ccz2t_factory": ["CCZ2TFactory", "MagicStateFactory"],
+    "data_block": ["CompactDataBlock", "DataBlock", "FastDataBlock", "IntermediateDataBlock", "SimpleDataBlock"],
+    "fifteen_to_one_factory": ["FifteenToOne", "MagicStateFactory", "NoisyPauliRotation", "storage_error"],
+    "gidney_fowler_model": ["AlgorithmSummary", "CCZ2TFactory", "DataBlock", "MagicStateFactory", "MultiFactory", "PhysicalCostModel", "PhysicalCostsSummary", "PhysicalParameters", "QECScheme", "SimpleDataBlock", "get_ccz2t_costs", "get_ccz2t_costs_from_error_budget", "get_ccz2t_costs_from_grid_search", "iter_ccz2t_factories", "iter_simple_data_blocks"],
+    "magic_state_factory": ["MagicStateFactory"],
+    "multi_factory": ["MagicStateFactory", "MultiFactory"],
+    "physical_cost_model": ["LogicalErrorModel", "PhysicalCostModel"],
+    "physical_cost_summary": ["PhysicalCostsSummary"],
+    "physical_parameters": ["PhysicalParameters"],
+    "qec_scheme": ["LogicalErrorModel", "QECScheme"],
+    "rotation_cost_model": ["BeverlandEtAlRotationCost", "ConstantWithOverheadRotationCost", "GateCounts", "RotationCostModel", "RotationLogarithmicModel", "SevenDigitsOfPrecisionConstantCost"],
+    "t_factory_utils": ["NoisyPauliRotation", "_rotation_unitary", "storage_error"],
+    "ui": ["AlgorithmSummary", "CCZ2TFactory", "FastDataBlock", "FifteenToOne", "GateCounts", "LogicalErrorModel", "MagicStateFactory", "MultiFactory", "PhysicalParameters", "QECScheme", "_BEVERLAND_MODEL", "_GIDNEY_FOWLER_MODEL", "_MAGIC_FACTORIES", "_QEC_SCHEMES", "_ROTATION_MODELS", "_SUPPORTED_ESTIMATION_MODELS", "beverland_et_al_model", "compute_duration", "create_qubit_pie_chart", "create_runtime_plot", "format_duration", "get_objects", "gidney_fowler_model", "min_num_factories", "rotation_cost_model", "total_magic", "update"],
+}
+# Qualtran's names not ported: the private helpers of its resource counting and Cirq circuit, and the Dash app.
+QUALTRAN_NOT_PORTED = {"QECGatesCost", "QubitCount", "get_cost_value", "_QEC_COUNT", "_QUBIT_COUNT", "_build_factory", "_ALGORITHM_INPUTS", "_ALL_INPUTS", "_ERROR_INPUTS", "_ESTIMATION_INPUTS", "_MAGIC_FACTORIES_INPUTS", "_QEC_INPUTS", "_ROTATION_MODELS_INPUTS", "_MAGIC_FACTORIES_components", "algorithm_summary_components", "qec_summary_components", "rotation_cost_model_components", "input_components", "create_ouputs", "app"}
+
+
+@pytest.mark.parametrize("name", sorted(QUALTRAN_SUBMODULES))
+def test_qualtran_submodules(name):
+    """Each of Qualtran's 15 submodules imports from ours under its name and holds Qualtran's names, the same
+    objects as the package's."""
+    import importlib
+
+    import stabilizer_qec.estimate.qualtran as pkg
+
+    mod = importlib.import_module(f"stabilizer_qec.estimate.qualtran.{name}")
+    for attr in QUALTRAN_SUBMODULES[name]:
+        assert hasattr(mod, attr), attr
+        if hasattr(pkg, attr) and not attr.startswith("_"):
+            assert getattr(mod, attr) is getattr(pkg, attr), attr
+    assert set(mod.__all__) <= set(dir(mod))
+
+
+def test_qualtran_package_keeps_its_names():
+    """The package holds every name the module had, its private helpers too, and the names stabilizer_qec.estimate
+    re-exports are the package's."""
+    import stabilizer_qec.estimate.qualtran as pkg
+    from stabilizer_qec.estimate.qualtran import _Density, _plain_count  # noqa: F401
+
+    assert pkg.GateCounts is est.GateCounts and pkg.FifteenToOne is est.FifteenToOne and pkg.TComplexity is est.TComplexity
+    assert {"AlgorithmSummary", "PauliFlipChannel", "TComplexity", "t_states"} <= set(pkg.__all__)
+    assert pkg.data_block.SimpleDataBlock is pkg.SimpleDataBlock and pkg.qec_scheme.QECScheme is pkg.QECScheme
+
+
+@needs_qualtran
+@pytest.mark.parametrize("name", sorted(QUALTRAN_SUBMODULES))
+def test_qualtran_submodules_against_qualtran(name):
+    """The names recorded above are all of Qualtran's own in that submodule, less those not ported."""
+    import importlib
+    import types
+
+    try:
+        theirs = importlib.import_module(f"qualtran.surface_code.{name}")
+    except ImportError:  # ui needs dash, plotly and pandas
+        pytest.skip(f"qualtran.surface_code.{name} does not import here")
+    own = set()
+    for attr, value in vars(theirs).items():
+        origin = value.__name__ if isinstance(value, types.ModuleType) else getattr(value, "__module__", None)
+        if not attr.startswith("__") and (origin or "").startswith("qualtran") or attr in ("_GIDNEY_FOWLER_MODEL", "_BEVERLAND_MODEL", "_SUPPORTED_ESTIMATION_MODELS", "_QEC_SCHEMES", "_MAGIC_FACTORIES", "_ROTATION_MODELS"):
+            own.add(attr)
+    assert sorted(own - QUALTRAN_NOT_PORTED) == sorted(QUALTRAN_SUBMODULES[name])
+
+
+QUALTRAN_UI = json.loads(gzip.decompress((pathlib.Path(__file__).parent / "estimate_port" / "qualtran_ui.json.gz").read_bytes()))
+
+
+def _plain(x):
+    if isinstance(x, dict):
+        return {k: _plain(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_plain(v) for v in x]
+    if isinstance(x, np.ndarray):
+        return _plain(x.tolist())
+    return x.item() if isinstance(x, np.generic) else x
+
+
+@pytest.mark.parametrize("model", ["GidneyFowler", "Beverland"])
+def test_qualtran_ui_against_recorded(model):
+    """Qualtran's `ui.update` (0.7.0, recorded in tests/estimate_port/qualtran_ui.json.gz with numpy's global seed
+    set before each call) on 448 inputs: both estimation models, both QEC schemes, the three factories, both
+    rotation models, 1 and 4 factories, four algorithms, two error rates and two budgets. Every output equals
+    Qualtran's: the pie chart's and the runtime plot's figure dicts (less plotly's template), the styles, the
+    magic-state count and its name, the factory count and the duration."""
+    from stabilizer_qec.estimate.qualtran import ui
+
+    cases = [c for c in QUALTRAN_UI["cases"] if c["args"][2].startswith(model)]
+    assert len(cases) == {"GidneyFowler": 64, "Beverland": 384}[model]
+    for case in cases:
+        np.random.seed(case["seed"])
+        out = list(ui.update(*case["args"]))
+        assert isinstance(out[0], ui.Figure) and isinstance(out[2], ui.Figure)
+        assert _plain(out) == case["out"], case["args"]
+
+
+def test_qualtran_ui_helpers():
+    from stabilizer_qec.estimate.qualtran import ui
+
+    with pytest.raises(ui.PreventUpdate):
+        ui.update(1e-3, None, ui._BEVERLAND_MODEL, [10] * 6, "GidneyFowler", "GidneyFowlerCCZ", 1, "BeverlandEtAlRotationCost")
+    with pytest.raises(ui.PreventUpdate):
+        ui.update(1e-3, 1e-2, ui._BEVERLAND_MODEL, [10, 10, None, 10, 10, 10], "GidneyFowler", "GidneyFowlerCCZ", 1, "BeverlandEtAlRotationCost")
+    assert ui.format_duration([5e11, 1e11]) == ("days", [5e11 / 86400_000_000, 1e11 / 86400_000_000])
+    assert ui.format_duration([999.0]) == ("us", [999.0]) and ui.format_duration([2e6])[0] == "s"
+    assert sorted(ui._ROTATION_MODELS) == ["BeverlandEtAlRotationCost", "SevenDigitsOfPrecisionConstantCost"]
+    assert ui.total_magic(ui._BEVERLAND_MODEL, GateCounts(t=10, toffoli=1)) == (["Total Number of T gates"], "14")
+    empty = ui.Figure()
+    assert empty == {"data": [], "layout": {}} and empty.data == [] and empty.layout == {}
+
+
+@needs_qualtran
+def test_qualtran_ui_against_qualtran():
+    """Qualtran's own ui (where dash, plotly and pandas are installed) on fresh inputs; our figures also make
+    plotly figures."""
+    try:
+        from qualtran.surface_code import ui as their_ui
+    except ImportError:
+        pytest.skip("Qualtran's ui needs dash, plotly and pandas")
+    import base64
+
+    from stabilizer_qec.estimate.qualtran import ui
+
+    def plain_theirs(fig):
+        d = fig.to_plotly_json()
+        d["layout"].pop("template", None)
+
+        def walk(x):
+            if isinstance(x, dict) and {"dtype", "bdata"} <= set(x):
+                return np.frombuffer(base64.b64decode(x["bdata"]), dtype=np.dtype(x["dtype"])).tolist()
+            if isinstance(x, dict):
+                return {k: walk(v) for k, v in x.items()}
+            if isinstance(x, (list, tuple)):
+                return [walk(v) for v in x]
+            return _plain(x)
+
+        return walk(d)
+
+    for seed, args in enumerate([(3e-4, 5e-3, ui._BEVERLAND_MODEL, [250, 77, 10**7, 10**6, 300, 40], "BeverlandEtAl", "FifteenToOne933", 3, "SevenDigitsOfPrecisionConstantCost"), (3e-4, 5e-3, ui._GIDNEY_FOWLER_MODEL, [250, 77, 10**7, 10**6, 300, 40], "BeverlandEtAl", "FifteenToOne933", 2, "BeverlandEtAlRotationCost")]):
+        np.random.seed(seed)
+        ours = list(ui.update(*args))
+        np.random.seed(seed)
+        theirs = list(their_ui.update(*args))
+        assert _plain(ours[0]) == plain_theirs(theirs[0]) and _plain(ours[2]) == plain_theirs(theirs[2])
+        assert _plain(ours[1:2] + ours[3:]) == _plain(theirs[1:2] + theirs[3:])
+        assert ours[0].to_plotly().data[0].type == "pie"
+
+
+def test_qualtran_abstract_classes():
+    """As Qualtran's, the data block, factory and rotation-model bases are abstract."""
+    from stabilizer_qec.estimate.qualtran import DataBlock, MagicStateFactory, RotationCostModel
+
+    for base in (DataBlock, MagicStateFactory, RotationCostModel):
+        with pytest.raises(TypeError, match="abstract"):
+            base()
+
+    class Half(MagicStateFactory):
+        def n_physical_qubits(self):
+            return 1
+
+    with pytest.raises(TypeError, match="abstract"):
+        Half()
+
+
+def test_qualtran_details():
+    """Qualtran's reprs (`:g` numbers), the 15-to-1 factory's numpy-float cycles, the private `_qec_scheme`, and
+    copies and pickles of the data blocks (whose `data_d` is a slot)."""
+    import copy
+    import dataclasses
+    import pickle
+
+    from stabilizer_qec.estimate.qualtran import CompactDataBlock, PhysicalCostModel, PhysicalParameters, SimpleDataBlock
+
+    assert repr(QECScheme(error_rate_scaler=0.123456789, error_rate_threshold=1e-2)) == "QECScheme(error_rate_scaler=0.123457, error_rate_threshold=0.01)"
+    model = LogicalErrorModel(qec_scheme=QECScheme.make_gidney_fowler(), physical_error=1e-3)
+    assert repr(model) == "LogicalErrorModel(physical_error=0.001, _qec_scheme=QECScheme(error_rate_scaler=0.1, error_rate_threshold=0.01))"
+    assert model.qec_scheme is model._qec_scheme
+    assert repr(PhysicalParameters(physical_error=1.23456789e-4, cycle_time_us=0.7)) == "PhysicalParameters(physical_error=0.000123457, cycle_time_us=0.7)"
+    assert repr(PhysicalParameters.make_beverland_et_al("ion")) == "PhysicalParameters(physical_error=0.001, cycle_time_us=600.0)"
+    assert repr(PhysicalCostModel.make_gidney_fowler(data_d=17)) == "PhysicalCostModel(physical_params=PhysicalParameters(physical_error=0.001, cycle_time_us=1.0), data_block=SimpleDataBlock(data_d=17, routing_overhead=0.5), factory=CCZ2TFactory(distillation_l1_d=15, distillation_l2_d=31), qec_scheme=QECScheme(error_rate_scaler=0.1, error_rate_threshold=0.01))"
+    cycles = FifteenToOne(7, 3, 3).n_cycles(GateCounts(t=1000), model)
+    assert type(cycles) is np.float64 and cycles == 22338.0
+    assert type(CCZ2TFactory().n_cycles(GateCounts(t=1000), model)) is int and type(MultiFactory(FifteenToOne(7, 3, 3), 2).n_cycles(GateCounts(t=1000), model)) is int
+    for block in (SimpleDataBlock(data_d=7, routing_overhead=0.25), CompactDataBlock(data_d=9), FastDataBlock(data_d=11)):
+        for clone in (copy.copy(block), copy.deepcopy(block), *(pickle.loads(pickle.dumps(block, protocol)) for protocol in range(pickle.HIGHEST_PROTOCOL + 1))):
+            assert clone == block and repr(clone) == repr(block) and hash(clone) == hash(block)
+        assert dataclasses.replace(block, data_d=13).data_d == 13
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            block.data_d = 3
+
+
+def test_qualtran_grid_search_one_shot_iterators():
+    """As Qualtran's, the grid search walks the data blocks again for each factory, so one-shot generators of
+    blocks are spent on the first factory: here none of its blocks fits, and the search fails as Qualtran's."""
+    from stabilizer_qec.estimate.qualtran import iter_simple_data_blocks
+
+    gates = GateCounts(t=10**8, toffoli=10**8)
+    with pytest.raises(ValueError, match="^No valid factories found!$"):
+        get_ccz2t_costs_from_grid_search(n_logical_gates=gates, n_algo_qubits=100, factory_iter=iter_ccz2t_factories(), data_block_iter=iter_simple_data_blocks())
+    with pytest.raises(ValueError, match="^No valid factories found!$"):
+        get_ccz2t_costs_from_grid_search(n_logical_gates=gates, n_algo_qubits=100, factory_iter=list(iter_ccz2t_factories()), data_block_iter=iter_simple_data_blocks())
+    cost, factory, block = get_ccz2t_costs_from_grid_search(n_logical_gates=gates, n_algo_qubits=100, factory_iter=iter_ccz2t_factories(), data_block_iter=list(iter_simple_data_blocks()))
+    assert (factory.distillation_l1_d, factory.distillation_l2_d, block.data_d, cost.footprint) == (15, 25, 29, 378700)
+
+
+@needs_qualtran
+def test_qualtran_details_against_qualtran():
+    """Reprs, cycle types, one-shot grid searches, and our models on Qualtran's own `GateCounts` and
+    `AlgorithmSummary` against Qualtran."""
+    from stabilizer_qec.estimate import qualtran as ours
+
+    def build(m, counts):
+        lem = m.LogicalErrorModel(qec_scheme=m.QECScheme.make_gidney_fowler(), physical_error=1e-3)
+        objs = [m.QECScheme.make_beverland_et_al(), m.QECScheme(error_rate_scaler=0.123456789, error_rate_threshold=1e-2), lem, m.PhysicalParameters.make_beverland_et_al("majorana", True), m.SimpleDataBlock(data_d=7), m.CompactDataBlock(data_d=9), m.IntermediateDataBlock(data_d=11), m.FastDataBlock(data_d=13), m.CCZ2TFactory(), m.FifteenToOne(7, 3, 3), m.MultiFactory(m.FifteenToOne(9, 3, 3), 2), m.BeverlandEtAlRotationCost, m.SevenDigitsOfPrecisionConstantCost, m.PhysicalCostModel.make_beverland_et_al(data_d=17, data_block_name="fast"), m.PhysicalCostsSummary(failure_prob=0.1, footprint=10, duration_hr=1.5), m.AlgorithmSummary(n_algo_qubits=10, n_logical_gates=counts(t=5, toffoli=3))]
+        return objs, lem
+
+    mine, my_lem = build(ours, GateCounts)
+    theirs, their_lem = build(their_sc, TheirGateCounts)
+    for a, b in zip(mine, theirs):
+        assert repr(a) == repr(b)
+        if isinstance(b, (their_sc.MagicStateFactory, their_sc.DataBlock)):
+            x, y = a.n_cycles(GateCounts(t=10**6, toffoli=10**5), my_lem), b.n_cycles(TheirGateCounts(t=10**6, toffoli=10**5), their_lem)
+            assert type(x) is type(y) and x == y
+    for kind in ("generators", "a list of factories", "a list of blocks"):
+        def args(m, counts):
+            factories, blocks = m.iter_ccz2t_factories(), m.iter_simple_data_blocks()
+            return dict(n_logical_gates=counts(t=10**8, toffoli=10**8), n_algo_qubits=100, factory_iter=list(factories) if kind == "a list of factories" else factories, data_block_iter=list(blocks) if kind == "a list of blocks" else blocks)
+
+        try:
+            expected = their_sc.get_ccz2t_costs_from_grid_search(**args(their_sc, TheirGateCounts))
+        except ValueError as ex:
+            with pytest.raises(ValueError, match=f"^{ex}$"):
+                ours.get_ccz2t_costs_from_grid_search(**args(ours, GateCounts))
+            continue
+        got = ours.get_ccz2t_costs_from_grid_search(**args(ours, GateCounts))
+        assert repr(got) == repr(expected), kind
+    their_alg = their_sc.AlgorithmSummary(n_algo_qubits=100, n_logical_gates=TheirGateCounts(t=10**4, toffoli=10, rotation=300, measurement=7), n_rotation_layers=20)
+    my_alg = AlgorithmSummary(n_algo_qubits=100, n_logical_gates=TheirGateCounts(t=10**4, toffoli=10, rotation=300, measurement=7), n_rotation_layers=20)
+    from qualtran.surface_code import beverland_et_al_model as their_bev
+
+    for alg in (their_alg, my_alg):
+        assert est.t_states(error_budget=1e-3, alg=alg, rotation_model=BeverlandEtAlRotationCost) == their_bev.t_states(error_budget=1e-3, alg=their_alg, rotation_model=their_sc.BeverlandEtAlRotationCost) == 14840
+        assert est.minimum_time_steps(error_budget=1e-3, alg=alg, rotation_model=BeverlandEtAlRotationCost) == their_bev.minimum_time_steps(error_budget=1e-3, alg=their_alg, rotation_model=their_sc.BeverlandEtAlRotationCost)
+    assert GateCounts(t=1) + TheirGateCounts(toffoli=2) == GateCounts(t=1, toffoli=2)
+
+
+def test_qualtran_duck_typed_counts():
+    """Counts that are not this module's `GateCounts` (Qualtran's own, say) are read by their seven fields."""
+    from types import SimpleNamespace
+
+    theirs = SimpleNamespace(t=10**4, toffoli=10, cswap=0, and_bloq=0, clifford=0, rotation=300, measurement=7)
+    alg = AlgorithmSummary(n_algo_qubits=100, n_logical_gates=theirs, n_rotation_layers=20)
+    assert est.t_states(error_budget=1e-3, alg=alg, rotation_model=BeverlandEtAlRotationCost) == 14840
+    assert est.n_discrete_logical_gates(eps_syn=1e-3 / 3, alg=alg, rotation_model=BeverlandEtAlRotationCost) == GateCounts(t=14800, toffoli=10, measurement=7)
+    assert GateCounts(t=1) + SimpleNamespace(t=1, toffoli=2, cswap=0, and_bloq=0, clifford=0, rotation=0, measurement=0) == GateCounts(t=2, toffoli=2)
+    with pytest.raises(TypeError, match="Can only add other `GateCounts` objects"):
+        GateCounts(t=1) + 5
+
+
+# ---------------------------------------------------------------------------------------------
 # Azure's Resource Estimator: the QDK's recorded results (qdk 1.33.1, tests/estimate_port/) and the QDK itself
 # ---------------------------------------------------------------------------------------------
 

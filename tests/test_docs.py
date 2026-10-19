@@ -8,10 +8,11 @@ import pytest
 
 import stabilizer_qec
 from stabilizer_qec import _circuit, _codes, _decoders, _density, _perturb, _predecoder, _process, clifford, estimate, realtime, surgery
-from stabilizer_qec.estimate import azure
+from stabilizer_qec.estimate import azure, qualtran
+from stabilizer_qec.estimate.qualtran import ui as qualtran_ui
 
 
-@pytest.mark.parametrize("module", [stabilizer_qec, _circuit, _codes, _decoders, _density, _perturb, _predecoder, _process, clifford, estimate, azure, realtime, surgery], ids=lambda m: m.__name__)
+@pytest.mark.parametrize("module", [stabilizer_qec, _circuit, _codes, _decoders, _density, _perturb, _predecoder, _process, clifford, estimate, azure, qualtran, qualtran_ui, realtime, surgery], ids=lambda m: m.__name__)
 def test_docstring_examples(module):
     result = doctest.testmod(module, optionflags=doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE)
     assert result.failed == 0

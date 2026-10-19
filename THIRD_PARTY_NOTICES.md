@@ -275,11 +275,14 @@ fixtures.json` records outputs of el-loom 0.4.0 the tests compare against.
 
 ## Qualtran
 
-`python/stabilizer_qec/estimate/qualtran.py` is a port of Qualtran's `qualtran.surface_code`
-package and the `GateCounts` of `qualtran.resource_counting` (quantumlib/Qualtran 0.7.0,
-https://github.com/quantumlib/Qualtran), rewritten on dataclasses, plain numbers and numpy
-without attrs, sympy or Cirq. Qualtran is Copyright 2023 Google LLC and licensed under the
-Apache License, Version 2.0; the licence is in `python/stabilizer_qec/estimate/LICENSE`.
+`python/stabilizer_qec/estimate/qualtran/` is a port of Qualtran's `qualtran.surface_code`
+package (its `ui` without Dash, plotly or pandas), the `GateCounts` of
+`qualtran.resource_counting` and the `TComplexity` of `qualtran.cirq_interop`
+(quantumlib/Qualtran 0.7.0, https://github.com/quantumlib/Qualtran), rewritten on
+dataclasses, plain numbers and numpy without attrs, sympy or Cirq. Qualtran is Copyright
+2023–2024 Google LLC and licensed under the Apache License, Version 2.0; the licence is in
+`python/stabilizer_qec/estimate/LICENSE`. `tests/estimate_port/qualtran_ui.json.gz` records
+outputs of Qualtran 0.7.0's `ui.update` the tests compare against.
 
 ## Azure Quantum Resource Estimator
 
