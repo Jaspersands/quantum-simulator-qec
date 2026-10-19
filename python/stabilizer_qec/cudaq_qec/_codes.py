@@ -12,6 +12,7 @@ samples)."""
 from __future__ import annotations
 
 import enum
+import warnings
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -625,12 +626,41 @@ _PYTHON: Dict[str, Callable[..., Code]] = {}
 _REQUIRED = ("get_num_data_qubits", "get_num_ancilla_qubits", "get_num_ancilla_x_qubits", "get_num_ancilla_z_qubits", "get_num_x_stabilizers", "get_num_z_stabilizers")
 
 
+class KernelNotRunWarning(UserWarning):
+    """A ``@code`` class's registered kernels were needed and not run: this package cannot run
+    CUDA-Q kernels, so a memory experiment on such a code runs this package's stand-ins (the
+    reset-based preparation and the scheduled stabilizer round) and whatever the kernels do
+    besides (``cudaq.apply_noise`` in a stabilizer round, say) is left out. Raise it with
+    ``warnings.simplefilter("error", KernelNotRunWarning)``; give per-qubit noise with
+    ``NoiseModel.add_channel`` instead."""
+
+
+def _warn_kernels_not_run(c: Code, ops: Sequence[operation], who: str) -> None:
+    enc = getattr(c, "operation_encodings", None)
+    if not isinstance(enc, dict):
+        return
+    registered = {operation(k): v for k, v in enc.items()}
+    names = [operation(op).name for op in ops if registered.get(operation(op)) is not None]
+    if not names:
+        return
+    label = getattr(type(c), "_qec_name", type(c).__name__)
+    warnings.warn(
+        f"{who}: the {' and '.join(names)} kernel{'s' if len(names) > 1 else ''} registered for code '{label}' "
+        f"{'are' if len(names) > 1 else 'is'} not run (stabilizer_qec cannot run CUDA-Q kernels); the memory circuit uses this package's "
+        "reset-based preparation and scheduled stabilizer round instead, so any gates or noise inside the registered kernels "
+        "(e.g. cudaq.apply_noise) are left out. Give per-qubit noise with NoiseModel.add_channel.",
+        KernelNotRunWarning,
+        stacklevel=4,
+    )
+
+
 def code(name: str) -> Callable[[type], type]:
     """Register a Python code class under ``name`` (a decorator): the class, made a subclass of
     ``Code``, sets ``self.stabilizers`` and ``self.pauli_observables`` (Pauli words,
     PauliStrings or spin operator terms) and ``self.operation_encodings`` (a dict from
-    ``operation`` to its kernels) and defines the ``get_num_*`` counts. Its memory circuits use
-    the scheduled stabilizer round and the reset-based preparations."""
+    ``operation`` to its kernels) and defines the ``get_num_*`` counts. Its kernels cannot run
+    here: its memory circuits use the scheduled stabilizer round and the reset-based
+    preparations in their place, with a ``KernelNotRunWarning`` each time."""
     if name in _BUILTIN:
         raise RuntimeError(f"Invalid Python QEC Code name. {name} is already used in the C++ Code registry.")
 
@@ -640,6 +670,7 @@ def code(name: str) -> Callable[[type], type]:
                 raise RuntimeError(f"Code class must implement {m} method")
         ns = {k: v for k, v in cls.__dict__.items() if k not in ("__dict__", "__weakref__")}
         new = type(cls.__name__, (Code,), ns)
+        new._qec_name = name
         _PYTHON[name] = new
         return new
 
@@ -838,6 +869,7 @@ def _memory(c: Code, op: operation, rounds: int, noise: Optional[NoiseModel], wh
         raise RuntimeError(f"{who}_error - invalid requested state prep kernel.")
     if not c.contains_operation(operation.stabilizer_round):
         raise RuntimeError(f"{who} error - no stabilizer round kernel for this code.")
+    _warn_kernels_not_run(c, (op, operation.stabilizer_round), who)
     in_x = op in (operation.prepp, operation.prepm)
     sx, sz = c.get_stabilizer_schedule_x(), c.get_stabilizer_schedule_z()
     obs = c.get_observables_x() if in_x else c.get_observables_z()
