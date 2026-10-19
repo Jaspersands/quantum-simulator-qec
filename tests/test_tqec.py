@@ -448,7 +448,12 @@ def test_two_cnots_in_a_row_reuse_the_ancillas_tile(basis):
     assert len(c.shortest_graphlike_error()) == 3
     d, o = g.compile(3).compile_detector_sampler(seed=1).sample(128, separate_observables=True)
     assert not d.any() and not o.any()
-    ours = _decoded_rates(c, 8000)
+    # Under tqec's own noise model, laid over the engine's circuit as tqec lays it over its own,
+    # the logical error rates are tqec's within a factor of two (about 1.3 times tqec's: the
+    # engine's rounds idle more moments).
+    noisy = tqec.compile_block_graph(g).generate_stim_circuit(k=1, noise_model=tqec.NoiseModel.uniform_depolarizing(0.001))
+    assert noisy.num_detectors == 464
+    ours = _decoded_rates(noisy, 8000)
     assert all(r / 2 < x < 2 * r for x, r in zip(ours, rates)), (ours, rates)
     assert len(tqec.compile_block_graph(g, 5, p=0.001).circuit.shortest_graphlike_error()) == 5
 
@@ -511,3 +516,128 @@ def test_two_cnots_agree_with_tqec():
         so, st = o.find_correlation_surfaces(), t.find_correlation_surfaces()
         assert spans(so) == spans(st)
         assert [s.external_stabilizer_on_graph(o) for s in so] == [s.external_stabilizer_on_graph(t) for s in st] == TQEC_TWO_CNOTS[basis][0]
+
+
+# tqec 0.2.0's NoiseModel laid over the engine's noiseless circuits at d = 3, p = 0.001: the
+# SHA-256 of the noisy circuit's text (as this package writes it) and the noise's targets.
+TQEC_NOISY = {
+    ("memory", "uniform_depolarizing"): ("e7e63978d3d29b2fb38397fac7bad2204ff0672b3d5a96f89e58b910e42b3d76", {"X_ERROR": 33, "DEPOLARIZE1": 440, "DEPOLARIZE2": 144, "M": 33}),
+    ("memory", "si1000"): ("d29d40c5d6a2f1b90c64f2a2cd2cf0739ddff8c997c9fe552c29a29aa1193038", {"X_ERROR": 33, "DEPOLARIZE1": 574, "DEPOLARIZE2": 144, "M": 33}),
+    ("cnot", "uniform_depolarizing"): ("0a60b1f7c7bb96371e505bde3216094c11343cfa6f20f702bbea6846b8a5e948", {"Z_ERROR": 30, "DEPOLARIZE1": 9413, "X_ERROR": 267, "DEPOLARIZE2": 1632, "M": 276, "MX": 21}),
+    ("two_cnots", "uniform_depolarizing"): ("eb88f05905b34fe3e9bfda4762481ae7fabe3c4fbca1d9edc5fc6e47bf761a22", {"X_ERROR": 504, "DEPOLARIZE1": 16308, "DEPOLARIZE2": 2976, "M": 522, "Z_ERROR": 24, "MX": 6}),
+}
+
+
+def _noiseless(name: str):
+    graph = {"memory": lambda: gallery.memory(Basis.Z), "cnot": lambda: gallery.cnot(Basis.X), "two_cnots": lambda: _two_cnots(tqec, "ZXZ")}[name]()
+    return tqec.compile_block_graph(graph, 3).circuit
+
+
+def _noise_targets(circuit) -> dict:
+    counts: dict = {}
+    for inst in circuit.flattened():
+        if inst.name in ("DEPOLARIZE1", "DEPOLARIZE2", "X_ERROR", "Z_ERROR") or (inst.name in ("M", "MX") and inst.gate_args_copy()):
+            counts[inst.name] = counts.get(inst.name, 0) + len(inst.targets_copy())
+    return counts
+
+
+@pytest.mark.parametrize("name,model", sorted(TQEC_NOISY))
+def test_noise_models_are_tqecs(name, model):
+    import hashlib
+
+    noisy = getattr(tqec.NoiseModel, model)(0.001).noisy_circuit(_noiseless(name))
+    digest, counts = TQEC_NOISY[(name, model)]
+    assert hashlib.sha256(str(noisy).encode()).hexdigest() == digest
+    assert _noise_targets(noisy) == counts
+    # si1000 has rules for Z-basis resets and measurements only, as in tqec.
+    with pytest.raises(ValueError, match="No noise"):
+        tqec.NoiseModel.si1000(0.001).noisy_circuit(_noiseless("cnot"))
+
+
+def test_noise_models_keep_tqecs_moments_and_repeat_blocks():
+    c = sq.Circuit("TICK\nTICK\nR 0 1 2\nTICK\nREPEAT 2 {\n  TICK\n  H 0\n  CX 1 2\n  TICK\n  MPP X0*X1 Y2\n}\nCX rec[-1] 0\nTICK\nTICK\nMX 0 1\nDETECTOR rec[-1]\n")
+    noisy = tqec.NoiseModel.uniform_depolarizing(0.01).noisy_circuit(c)
+    assert str(noisy) == (
+        "DEPOLARIZE1(0.01) 0 1 2\nTICK\nDEPOLARIZE1(0.01) 0 1 2\nTICK\nR 0 1 2\nX_ERROR(0.01) 0 1 2\n"
+        "REPEAT 2 {\n    DEPOLARIZE1(0.01) 0 1 2\n    TICK\n    H 0\n    CX 1 2\n    DEPOLARIZE1(0.01) 0\n    DEPOLARIZE2(0.01) 1 2\n    TICK\n    MPP(0.01) X0*X1 Y2\n}\n"
+        "CX rec[-1] 0\nDEPOLARIZE1(0.01) 0 1 2\nTICK\nDEPOLARIZE1(0.01) 0 1 2\nTICK\nMX(0.01) 0 1\nDETECTOR rec[-1]\nDEPOLARIZE1(0.01) 2"
+    )
+    with pytest.raises(ValueError, match="multiple times without a TICK"):
+        tqec.NoiseModel.uniform_depolarizing(0.01).noisy_circuit(sq.Circuit("H 0\nX 0"))
+
+
+@needs_tqec
+def test_noise_models_against_tqec():
+    stim = pytest.importorskip("stim")
+    circuits = [_noiseless(name) for name in ("memory", "cnot", "two_cnots")]
+    circuits.append(sq.Circuit("TICK\nTICK\nR 0 1 2\nTICK\nREPEAT 2 {\n  TICK\n  H 0\n  CX 1 2\n  TICK\n  MPP X0*X1 Y2\n}\nCX rec[-1] 0\nTICK\nTICK\nMX 0 1\nDETECTOR rec[-1]\n"))
+    for c in circuits:
+        for model in ("uniform_depolarizing", "si1000"):
+            try:
+                expected = str(getattr(theirs.NoiseModel, model)(0.001).noisy_circuit(stim.Circuit(str(c))))
+            except ValueError:
+                with pytest.raises(ValueError):
+                    getattr(tqec.NoiseModel, model)(0.001).noisy_circuit(c)
+                continue
+            assert str(stim.Circuit(str(getattr(tqec.NoiseModel, model)(0.001).noisy_circuit(c)))) == expected
+
+
+def test_tqecs_call_shape():
+    from stabilizer_qec.tqec import FIXED_BOUNDARY_CONVENTION, FIXED_BULK_CONVENTION, NoiseModel, TopologicalComputationGraph, compile_block_graph
+
+    g = gallery.cnot(Basis.Z)
+    computation = compile_block_graph(g)
+    assert isinstance(computation, TopologicalComputationGraph) and computation.num_observables == 2 and computation.stabilizers == ["ZZII", "IZZZ"]
+    noiseless = computation.generate_stim_circuit(k=1)
+    assert str(noiseless) == str(compile_block_graph(g, 3).circuit)
+    noise = NoiseModel.uniform_depolarizing(0.001)
+    noisy = computation.generate_stim_circuit(k=1, noise_model=noise)
+    assert str(noisy) == str(noise.noisy_circuit(noiseless))
+    assert (noisy.num_qubits, noisy.num_detectors, noisy.num_observables) == (113, 256, 2)
+    assert len(computation.generate_stim_circuit(2, noise).shortest_graphlike_error()) == 5
+    # tqec's arguments for its detector search are taken; a negative radius drops the detectors.
+    assert str(computation.generate_stim_circuit(1, None, 2, None, "db.pkl", True, False, True)) == str(noiseless)
+    assert computation.generate_stim_circuit(1, manhattan_radius=-1).num_detectors == 0
+    # The conventions: tqec's two, positional as tqec places it, by name; both are the engine's layout.
+    for convention in (FIXED_BULK_CONVENTION, FIXED_BOUNDARY_CONVENTION, "fixed_boundary"):
+        assert str(compile_block_graph(g, convention).generate_stim_circuit(1)) == str(noiseless)
+        assert compile_block_graph(g, convention=convention).convention.name == str(convention)
+    with pytest.raises(TQECError, match="not one of tqec's"):
+        compile_block_graph(g, convention="fixed_corners")
+    # block_temporal_height: tqec's rounds between the initialisation and measurement layers.
+    m = gallery.memory(Basis.Z)
+    assert compile_block_graph(m).generate_stim_circuit(1).num_detectors == 24  # 2k + 1 rounds, as tqec
+    assert compile_block_graph(m, block_temporal_height=5).generate_stim_circuit(1).num_detectors == 8 * 7
+    assert compile_block_graph(m, None, "auto", lambda k: 2 * k - 1).generate_stim_circuit(2).num_detectors == 120
+    with pytest.raises(TQECError, match="not both"):
+        compile_block_graph(m, block_temporal_height=3, rounds=4)
+    # The observables argument, the engine's p, and k.
+    assert compile_block_graph(g, observables=None).generate_stim_circuit(1).num_observables == 0
+    with pytest.raises(TQECError, match="give the distance"):
+        compile_block_graph(g, p=0.001)
+    with pytest.raises(TQECError, match="k must be a positive integer"):
+        computation.generate_stim_circuit(0)
+    # CompiledBlockGraph writes the same circuits; BlockGraph.compile takes k and noise_model.
+    compiled = compile_block_graph(g, 3, p=0.001)
+    assert str(compiled.generate_stim_circuit()) == str(noiseless) and str(compiled.generate_stim_circuit(1, noise)) == str(noisy)
+    assert str(g.compile(k=1)) == str(noiseless) and str(g.compile(3, noise_model=noise)) == str(noisy)
+    with pytest.raises(TQECError, match="one of them"):
+        g.compile(3, k=1)
+    with pytest.raises(TQECError, match="not both"):
+        g.compile(3, p=0.001, noise_model=noise)
+    # The checks are made when the graph is compiled, as tqec makes them.
+    with pytest.raises(TQECError, match="Hadamard"):
+        compile_block_graph(gallery.cz("XI -> XZ"))
+    with pytest.raises(TQECError, match="open ports"):
+        compile_block_graph(gallery.cnot())
+
+
+@needs_tqec
+def test_tqecs_conventions_and_noise_model_objects_are_taken():
+    from tqec.compile.convention import FIXED_BOUNDARY_CONVENTION as THEIR_FIXED_BOUNDARY
+
+    g = gallery.memory(Basis.Z)
+    assert tqec.compile_block_graph(g, THEIR_FIXED_BOUNDARY).convention == tqec.FIXED_BOUNDARY_CONVENTION
+    pytest.importorskip("stim")
+    # tqec's own NoiseModel works on Stim's circuits; it is given Stim's and read back.
+    assert str(g.compile(3, noise_model=theirs.NoiseModel.uniform_depolarizing(0.001))) == str(g.compile(3, noise_model=tqec.NoiseModel.uniform_depolarizing(0.001)))

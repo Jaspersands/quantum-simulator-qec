@@ -297,15 +297,25 @@ class BlockGraph:
                 self._edges[pos][other.position] = new_pipe
             self._ports.pop(label)
 
-    def compile(self, distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables="auto"):
+    def compile(self, distance: Optional[int] = None, *, k: Optional[int] = None, p: float = 0.0, noise_model=None, rounds: Optional[int] = None, merged: Optional[int] = None, observables="auto", convention="fixed_bulk", block_temporal_height=None):
         """The graph as a lattice-surgery circuit on this package's engine (``compile_block_graph``
         has the program too): patches for the cubes' lifetimes, merges and splits for the spatial
         pipes, the correlation surfaces as observables (``"auto"`` all of them, ``None`` none, or
-        a list, as tqec takes them). Graphs the engine cannot express (Hadamard pipes, spatial
-        cubes, Y cubes, open ports) are refused with tqec named."""
-        from .compile import compile_block_graph
+        a list, as tqec takes them). The size is ``distance`` or tqec's ``k`` (distance 2k + 1);
+        the noise the engine's SD6 noise ``p``, or a ``NoiseModel`` laid over the noiseless
+        circuit as tqec lays it. Graphs the engine cannot express (Hadamard pipes, spatial cubes,
+        Y cubes, open ports) are refused with tqec named."""
+        from .compile import TopologicalComputationGraph, _noisy, _scale
 
-        return compile_block_graph(self, distance, p=p, rounds=rounds, merged=merged, observables=observables).circuit
+        if (distance is None) == (k is None):
+            raise TQECError("give the distance or k (the distance is 2k + 1), one of them")
+        if k is not None:
+            distance = 2 * _scale(k) + 1
+        if noise_model is not None and p:
+            raise TQECError("give the engine's noise p or a noise_model, not both")
+        computation = TopologicalComputationGraph(self, convention=convention, observables=observables, block_temporal_height=block_temporal_height, rounds=rounds, merged=merged)
+        circuit = computation.compile(distance, p=p).circuit
+        return circuit if noise_model is None else _noisy(noise_model, circuit)
 
     def fill_ports_for_minimal_simulation(self) -> list["FilledGraph"]:
         """Fill the ports so that the fewest simulation runs cover every logical observable."""

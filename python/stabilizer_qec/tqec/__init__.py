@@ -15,26 +15,33 @@ from . import gallery
 from ._errors import TQECError, TQECWarning
 from .block_graph import BlockGraph, BlockKind, block_kind_from_str
 from .collada import read_block_graph_from_dae_file, read_block_graph_from_json, write_block_graph_to_dae_file
-from .compile import CompiledBlockGraph, compile_block_graph
+from .compile import ALL_CONVENTIONS, FIXED_BOUNDARY_CONVENTION, FIXED_BULK_CONVENTION, CompiledBlockGraph, Convention, TopologicalComputationGraph, compile_block_graph
 from .correlation import CorrelationSurface, ZXEdge, ZXGraph, ZXNode, find_correlation_surfaces, reduce_observables_to_minimal_generators
 from .cube import Cube, CubeKind, Port, YHalfCube, ZXCube, cube_kind_from_string
 from .enums import Basis, Pauli
+from .noise_model import NoiseModel, NoiseRule
 from .open_graph import FilledGraph, fill_ports_for_minimal_simulation
 from .pipe import Pipe, PipeKind
 from .position import Direction3D, FloatPosition3D, Position3D, SignedDirection3D
 
 __all__ = [
+    "ALL_CONVENTIONS",
     "Basis",
     "BlockGraph",
     "BlockKind",
     "CompiledBlockGraph",
+    "Convention",
     "CorrelationSurface",
     "compile_block_graph",
     "Cube",
     "CubeKind",
     "Direction3D",
+    "FIXED_BOUNDARY_CONVENTION",
+    "FIXED_BULK_CONVENTION",
     "FilledGraph",
     "FloatPosition3D",
+    "NoiseModel",
+    "NoiseRule",
     "Pauli",
     "Pipe",
     "PipeKind",
@@ -43,6 +50,7 @@ __all__ = [
     "SignedDirection3D",
     "TQECError",
     "TQECWarning",
+    "TopologicalComputationGraph",
     "YHalfCube",
     "ZXCube",
     "ZXEdge",

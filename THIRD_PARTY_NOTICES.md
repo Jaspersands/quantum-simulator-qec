@@ -260,6 +260,14 @@ pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data. t
 TQEC community's, licensed under the Apache License, Version 2.0; the licence is in
 `python/stabilizer_qec/tqec/LICENSE`.
 
+`python/stabilizer_qec/tqec/noise_model.py` is a port of tqec's `utils/noise_model.py`, which
+tqec recovered from Gidney, C. (2022), Data for "Inplace Access to the Surface Code Y Basis",
+https://doi.org/10.5281/zenodo.7487893, licensed under the Creative Commons Attribution 4.0
+International licence (https://creativecommons.org/licenses/by/4.0/legalcode). tqec modified it
+(formatting, typing, no depolarizing error after measurements in `uniform_depolarizing` and
+`si1000`, no two-body measurement noise, TICKs around REPEAT blocks). This port also changes it,
+writing this package's circuits in place of Stim's.
+
 ## Loom
 
 `python/stabilizer_qec/loom/` is a port of Loom's Eka model (`loom.eka`: lattice, Pauli
