@@ -37,7 +37,8 @@ from stabilizer_qec.qecsim.model import ATTR_CLI_DESCRIPTION
 
 
 # qecsim's entry points (setup.cfg [options.entry_points]), as a table: this package does not
-# register them with the installer.
+# register them with the installer. Installed distributions' entry points in the same groups
+# (qecsim's extensions, e.g. qecsimext's) are read too: see _constructors.
 _ENTRY_POINTS = {
     'qecsim.cli.run.codes': [
         ('color666', 'stabilizer_qec.qecsim.models.color', 'Color666Code'),
@@ -92,6 +93,36 @@ _ENTRY_POINTS = {
 }
 
 logger = logging.getLogger(__name__)
+
+
+def _installed_entry_points(group):
+    """Installed distributions' entry points in `group` (as qecsim's pkg_resources.iter_entry_points), but for
+    the real qecsim's own, which name its classes where the port's table names this package's."""
+    import importlib.metadata as md
+
+    eps = md.entry_points()
+    eps = eps.select(group=group) if hasattr(eps, 'select') else eps.get(group, [])  # (Python 3.9: a dict)
+    seen, out = set(), []
+    for ep in eps:
+        if ep.value.split(':')[0].split('.')[0] == 'qecsim' or (ep.name, ep.value) in seen:
+            continue
+        seen.add((ep.name, ep.value))
+        out.append(ep)
+    return out
+
+
+def _constructors(entry_point_id):
+    """Each name in the entry point group `entry_point_id` (e.g. qecsim.cli.run_ftp.codes) and its class: the
+    port's own and installed extensions' (whose name wins over the port's), sorted by name as qecsim's are. An
+    extension that does not load is skipped with a warning (qecsim would fail to start)."""
+    table = {name: (module, attr) for name, module, attr in _ENTRY_POINTS.get(entry_point_id, [])}
+    constructors = {name: getattr(importlib.import_module(module), attr) for name, (module, attr) in table.items()}
+    for ep in sorted(_installed_entry_points(entry_point_id), key=lambda ep: ep.name):
+        try:
+            constructors[ep.name] = ep.load()
+        except Exception as ex:  # noqa: BLE001 - a broken extension should not stop the others
+            logger.warning('SKIPPING ENTRY POINT {}: {} = {} ({!r}).'.format(entry_point_id, ep.name, ep.value, ex))
+    return dict(sorted(constructors.items()))
 
 
 class _ConstructorParamType(click.ParamType):
@@ -208,8 +239,7 @@ def _model_argument(model_type):
     def _decorator(func):
         # extract name and class from entry-point, e.g. {'five_qubit': FiveQubitCode, ...}
         entry_point_id = 'qecsim.cli.{}.{}s'.format(func.__name__, model_type)  # e.g. qecsim.cli.run_ftp.codes
-        entry_points = sorted(_ENTRY_POINTS.get(entry_point_id, []))
-        constructors = {name: getattr(importlib.import_module(module), attr) for name, module, attr in entry_points}
+        constructors = _constructors(entry_point_id)
         # add argument decorator
         func = click.argument(model_type, type=_ConstructorParamType(constructors), metavar=model_type.upper())(func)
         # extract name and cli_help, e.g. [('five_qubit', '5-qubit'), ...]
