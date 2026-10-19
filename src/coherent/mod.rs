@@ -20,6 +20,15 @@
 //! left of it is σ_G times Z on the outcomes in z_G. The shot's weight is 1 plus the cross terms
 //! (each pair counted from its likelier side), and the weighted shots are distributed as the
 //! coherent circuit's. `exact` checks that identity exhaustively on small circuits.
+//!
+//! The kernel holds elements of every size, and the sampler needs all of them: `kernel` finds
+//! the low-weight ones locally and completes them to a basis of the whole kernel by one
+//! elimination over the locations' residues (a logical error at one time with the same logical
+//! at another is the element no local search finds, and the one interference between rounds
+//! runs through). With a complete kernel of at most `kernel::SMALL_KERNEL` generators every shot
+//! sums the whole class, exactly; past that the sum is truncated to the products of a few
+//! generators the shot's faults touch, and past `CoherentOptions::max_complete` locations the
+//! kernel is the local one alone.
 
 pub mod exact;
 pub mod joint;
@@ -755,7 +764,8 @@ impl Program {
     /// A shot's weight: the coherent probability of its class (every fault set the kernel
     /// relates to it, which no record tells apart) over the twirl's, |1 + Σ r|² / (1 + Σ |r|²)
     /// for the ratios r of `kernel`'s elements. Never negative; exact (an unbiased weight) when
-    /// `kernel` is the whole kernel.
+    /// `kernel` is the whole kernel (every element, not a basis: `kernel::Kernel` sums every
+    /// product of its generators when they are few).
     pub fn weight(&self, shot: &Shot, kernel: &[Element]) -> f64 {
         let (mut sum, mut norm) = (C::ONE, 1.0);
         for e in kernel {
@@ -893,7 +903,8 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
     }
     let program = Program::new(circuit)?;
     let solver = GaugeSolver::new(&program);
-    let kernel = kernel::Kernel::new(&program, &solver, kernel::CoherentOptions::default());
+    // The groups only: no completion.
+    let kernel = kernel::Kernel::new(&program, &solver, kernel::CoherentOptions { max_complete: 0, ..kernel::CoherentOptions::default() });
     // Each location's probability: its own, or its group's merged angle at the group's last.
     let mut prob: Vec<Option<f64>> = program.locations.iter().map(|l| Some(l.theta.sin().powi(2))).collect();
     for g in &kernel.groups {
