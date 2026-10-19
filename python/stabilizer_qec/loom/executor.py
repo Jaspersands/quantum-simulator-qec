@@ -1,24 +1,32 @@
-# Ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/executor/{converter,eka_to_stim_converter,
+# Ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/executor/{executor,converter,eka_to_stim_converter,
 # eka_to_qasm_converter,eka_to_pennylane_converter,eka_to_cudaq_converter,eka_to_mimiq_converter,
 # eka_to_guppylang_converter,op_signature}.py; Copyright 2024 Entropica Labs Pte Ltd, Apache License 2.0; see
 # LICENSE in this directory), modified for stabilizer_qec: the Stim text becomes this package's Circuit (with
-# the noise of the error models in error_model.py), if-else circuits are left out (no operation Loom interprets
-# makes one), and neither the Executor factory nor the converters' run-outcome parsers are ported.
+# the noise of the error models in error_model.py) inside a StimProgram that unpacks as Loom's (circuit, qubits,
+# records), the qubit indices are ints rather than stim.GateTargets, the Executor is a plain class, and if-else
+# circuits are left out (no operation Loom interprets makes one).
 """Loom's executors: an interpreted Eka as a Stim circuit (this package's ``Circuit``, with
 detectors and observables, and the noise of Loom's circuit error models), or as OpenQASM 3,
-PennyLane, CUDA-Q, Mimiq or Guppy text."""
+PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outcome; and the
+``Executor`` that picks a converter by ``TargetLanguage``."""
 
 from __future__ import annotations
 
 import ast
+import enum
 import warnings
 from collections import deque
 from dataclasses import dataclass
+from enum import Enum
+from functools import cached_property, partial
 from typing import Any, Optional, Sequence, Union
 
 from .circuit import Channel, Circuit
-from .error_model import ApplicationMode, CircuitErrorModel, ErrorType
+from .error_model import ApplicationMode, AsymmetricDepolarizeCEM, CircuitErrorModel, ErrorProbProtocol, ErrorType, HomogeneousTimeIndependentCEM, noise_annotated_stim_circuit  # noqa: F401 (loom.executor exports them; Loom's docs import noise_annotated_stim_circuit from here)
 from .interpreter import InterpretationStep
+
+# An enum member whose value is a functools.partial (which Python 3.13 makes a descriptor).
+_enum_member = getattr(enum, "member", lambda value: value)
 
 SINGLE_QUBIT = frozenset({"i", "hadamard", "h", "phase", "phaseinv", "x", "y", "z", "t"})
 TWO_QUBIT = frozenset({"cnot", "cx", "cy", "cz", "swap"})
@@ -164,7 +172,9 @@ def _models_and_ticks(error_models: Any, with_ticks: bool) -> tuple[Optional[Seq
 @dataclass
 class StimProgram:
     """A Stim circuit text with its registers: quantum channels to (coordinates, qubit index),
-    classical channels to measurement record index."""
+    classical channels to measurement record index. It unpacks as Loom's converter's result,
+    ``circuit, qubits, records = program`` (the circuit this package's ``Circuit``, parsed when
+    first asked for)."""
 
     text: str
     qubits: dict[Channel, tuple[Any, int]]
@@ -177,8 +187,65 @@ class StimProgram:
 
         return SqCircuit(self.text)
 
+    def _as_tuple(self) -> tuple:
+        return (self.circuit, self.qubits, self.records)
 
-class EkaToStimConverter:
+    def __iter__(self):
+        return iter(self._as_tuple())
+
+    def __len__(self) -> int:
+        return 3
+
+    def __getitem__(self, index):
+        return self._as_tuple()[index]
+
+
+def _step_argument(interpreted_eka: Optional[InterpretationStep], step: Optional[InterpretationStep], owner: str = "Converter") -> InterpretationStep:
+    # Loom names the argument interpreted_eka; 2.0 named it step, which still works by keyword.
+    if interpreted_eka is None and step is None:
+        raise TypeError(f"{owner}.convert() missing 1 required positional argument: 'interpreted_eka'")
+    return interpreted_eka if interpreted_eka is not None else step
+
+
+class Converter:
+    """The converters' base (Stim's overrides it all); for the text converters, Loom's
+    depth-first emission: a composite circuit's gates in tick order, wrapped in ``Start of
+    circuit`` / ``End of circuit`` comments (circuits named ``wrapped_...`` excepted)."""
+
+    comment_prefix = "#"
+    ops: dict[str, Any] = {}
+    ALLOW_ERROR_MODELS = False
+
+    def emit_circuit_program(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+        lines: list[str] = []
+        stack = deque([circuit])
+        while stack:
+            current = stack.popleft()
+            if current.name == "empty_circuit":
+                continue
+            if current.name == "comment":
+                lines.append(f"{self.comment_prefix} {current.description}")
+            elif current.name in self.ops:
+                lines.extend(self.emit_leaf(current, qmap, cmap).splitlines())
+            else:
+                nested = [c for tick in current.circuit for c in tick]
+                if not current.name.startswith("wrapped_"):
+                    nested = [Circuit(name="comment", description=f"Start of circuit: {current.name}")] + nested + [Circuit(name="comment", description=f" End of circuit: {current.name}")]
+                for line in reversed(nested):
+                    stack.appendleft(line)
+        return "\n".join(lines)
+
+    def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+        raise NotImplementedError
+
+    def convert(self, interpreted_eka: Optional[InterpretationStep] = None, *, step: Optional[InterpretationStep] = None):
+        return self.convert_circuit(_step_argument(interpreted_eka, step).final_circuit)
+
+    def convert_circuit(self, circuit: Circuit):
+        raise NotImplementedError
+
+
+class EkaToStimConverter(Converter):
     """Loom's Stim converter: ``QUBIT_COORDS`` for the quantum channels sorted by label, each
     unrolled tick's gates grouped by operation (and noise) in order of first appearance, then
     the detectors (``DETECTOR(x, y, t)``) and ``OBSERVABLE_INCLUDE`` lines. With
@@ -279,9 +346,10 @@ class EkaToStimConverter:
         lines, qmap, records, counter = self.emit_circuit_program(circuit, error_models=error_models, with_ticks=with_ticks)
         return StimProgram("\n".join(_fuse(lines)), qmap, records, counter)
 
-    def convert(self, step: InterpretationStep, error_models: Optional[Sequence[CircuitErrorModel]] = None, with_ticks: bool = False) -> StimProgram:
+    def convert(self, interpreted_eka: Optional[InterpretationStep] = None, error_models: Optional[Sequence[CircuitErrorModel]] = None, with_ticks: bool = False, *, step: Optional[InterpretationStep] = None) -> StimProgram:
         """The interpreted Eka's final circuit, with its error models' noise, and its detectors
-        and observables."""
+        and observables; unpacks as ``circuit, qubits, records``."""
+        step = _step_argument(interpreted_eka, step, "EkaToStimConverter")
         error_models, with_ticks = _models_and_ticks(error_models, with_ticks)
         circuit = step.final_circuit
         if circuit is None or not circuit.circuit:
@@ -289,6 +357,47 @@ class EkaToStimConverter:
         lines, qmap, records, counter = self.emit_circuit_program(circuit, error_models=error_models, with_ticks=with_ticks)
         lines = _fuse(lines) + self.emit_detectors_and_observables(step, records, counter)
         return StimProgram("\n".join(lines), qmap, records, counter)
+
+    @staticmethod
+    def parse_target_run_outcome(output) -> dict[str, Union[int, list[int]]]:
+        """Loom's reading of a Stim run: ``(samples, records)``, a shots × measurements array
+        and the converter's classical channels to record index, to each channel's label and its
+        outcomes (a list, or one int for one shot)."""
+        import numpy as np
+
+        output, c_reg = output
+        output = np.asarray(output)
+        res: dict[str, Union[int, list[int]]] = {}
+        n_shots = output.shape[0]
+        for key, idx in c_reg.items():
+            values = output[:, idx].astype(int).tolist()
+            res[key.label] = values[0] if n_shots == 1 else values
+        return res
+
+    @staticmethod
+    def stim_polygons(interpreted_eka: InterpretationStep) -> str:
+        """Crumble's ``#!pragma POLYGON`` lines for the stabilizers of the blocks at the start:
+        red for X, green for Y, blue for Z, on the data qubits (the second half of the
+        stabilizer's qubits, then the first half reversed). As in Loom, the qubit indices count
+        the quantum channels in order of their Stim coordinates (the circuit's own indices count
+        them in label order), and only single-letter stabilizers are drawn."""
+        pauli_polyarg_map = {"X": "(1,0,0,0.5)", "Y": "(0,1,0,0.5)", "Z": "(0,0,1,0.5)"}
+        all_stabilizers = [stab for block_uuid in interpreted_eka.block_history.blocks_at(0) for stab in interpreted_eka.block_registry[block_uuid].stabilizers]
+        eka_channels = [ast.literal_eval(chan.label) for chan in interpreted_eka.final_circuit.channels if chan.is_quantum()]
+        index = {coords: i for i, coords in enumerate(sorted(eka_channels, key=eka_to_stim_coordinates))}
+        lines = []
+        for stab in all_stabilizers:
+            if len(set(stab.pauli)) != 1:
+                raise ValueError(f"Unsupported {stab.pauli}.Currently only CSS type codes are supported.")
+            data_qubits = [index[q] for q in stab.data_qubits]
+            half = int(len(data_qubits) / 2)
+            ordered = data_qubits[half:] + data_qubits[:half][::-1]
+            lines.append(f"#!pragma POLYGON{pauli_polyarg_map[stab.pauli[0]]} " + " ".join(str(q) for q in ordered))
+        return "\n".join(lines)
+
+    def print_stim_circuit_for_crumble(self, final_step: InterpretationStep) -> str:
+        """The polygons, then the Stim circuit (as Stim writes it), for pasting into Crumble."""
+        return self.stim_polygons(final_step) + "\n" + str(self.convert(final_step).circuit)
 
 
 def eka_to_circuit(step: InterpretationStep, error_models: Optional[Sequence[CircuitErrorModel]] = None):
@@ -302,44 +411,7 @@ def eka_to_circuit(step: InterpretationStep, error_models: Optional[Sequence[Cir
 # ---------------------------------------------------------------------------------------------
 
 
-class _TextConverter:
-    """Loom's depth-first emission: a composite circuit's gates in tick order, wrapped in
-    ``Start of circuit`` / ``End of circuit`` comments (circuits named ``wrapped_...`` excepted)."""
-
-    comment_prefix = "#"
-    ops: dict[str, Any] = {}
-    ALLOW_ERROR_MODELS = False
-
-    def emit_circuit_program(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
-        lines: list[str] = []
-        stack = deque([circuit])
-        while stack:
-            current = stack.popleft()
-            if current.name == "empty_circuit":
-                continue
-            if current.name == "comment":
-                lines.append(f"{self.comment_prefix} {current.description}")
-            elif current.name in self.ops:
-                lines.extend(self.emit_leaf(current, qmap, cmap).splitlines())
-            else:
-                nested = [c for tick in current.circuit for c in tick]
-                if not current.name.startswith("wrapped_"):
-                    nested = [Circuit(name="comment", description=f"Start of circuit: {current.name}")] + nested + [Circuit(name="comment", description=f" End of circuit: {current.name}")]
-                for line in reversed(nested):
-                    stack.appendleft(line)
-        return "\n".join(lines)
-
-    def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
-        raise NotImplementedError
-
-    def convert(self, step: InterpretationStep):
-        return self.convert_circuit(step.final_circuit)
-
-    def convert_circuit(self, circuit: Circuit):
-        raise NotImplementedError
-
-
-class EkaToQasmConverter(_TextConverter):
+class EkaToQasmConverter(Converter):
     """OpenQASM 3: ``qubit[n] q; bit[m] c;`` over the channels sorted by label."""
 
     comment_prefix = "//"
@@ -382,8 +454,23 @@ class EkaToQasmConverter(_TextConverter):
         program.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
         return "\n".join(program), qmap, cmap
 
+    @staticmethod
+    def parse_target_run_outcome(run_output) -> dict[str, list[int]]:
+        """Loom's reading of a Qiskit-style run: ``(counts, bits)``, bitstrings (the last bit
+        first) with their counts and the converter's classical channels to bit index, to each
+        channel's label and its outcome in every shot."""
+        bitstrings, channel_to_idx = run_output
+        bitstrings = [key for key, count in bitstrings.items() for _ in range(count)]
+        result: dict[str, list[int]] = {chan.label: [] for chan in channel_to_idx.keys()}
+        if bitstrings == []:
+            raise ValueError("No bitstrings found in the run output.")
+        width = len(bitstrings[0])
+        for channel, idx in channel_to_idx.items():
+            result[channel.label] = [int(b[width - 1 - idx]) for b in bitstrings]
+        return result
 
-class EkaToCudaqConverter(_TextConverter):
+
+class EkaToCudaqConverter(Converter):
     """CUDA-Q Python: ``q = cudaq.qvector(n)``, measurements into ``c<i>`` with the classical
     channel's label as the register name."""
 
@@ -422,8 +509,21 @@ class EkaToCudaqConverter(_TextConverter):
         lines.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
         return "\n".join(lines), qmap, cmap
 
+    @staticmethod
+    def parse_target_run_outcome(run_output, classical_reg_mapping: dict) -> dict[str, list[int]]:
+        """Loom's reading of a CUDA-Q ``SampleResult`` (its registers, named after the classical
+        channels' labels, and their sequential data), keyed through ``classical_reg_mapping``
+        (whose values' labels name the registers)."""
+        result_dict = {}
+        for register_name in run_output.register_names:
+            if register_name == "__global__":
+                continue
+            result_dict[register_name] = [int(bit) for bit in run_output.get_sequential_data(register_name)]
+        map_str_to_label = {v.label: k for k, v in classical_reg_mapping.items()}
+        return {map_str_to_label[k]: v for k, v in result_dict.items()}
 
-class EkaToPennylaneConverter(_TextConverter):
+
+class EkaToPennylaneConverter(Converter):
     """PennyLane Python: wires in label order (Loom keys its register dict by channel ids;
     here by labels, which is what a reader can use), measurements into ``measurements[label]``."""
 
@@ -475,8 +575,16 @@ class EkaToPennylaneConverter(_TextConverter):
         lines.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
         return "\n".join(lines), qmap, cmap
 
+    @staticmethod
+    def parse_target_run_outcome(outcome) -> dict[str, list[int]]:
+        """Loom's reading of a PennyLane or Catalyst run: each key's values, flattened, as
+        ints."""
+        import numpy as np
 
-class EkaToMimiqConverter(_TextConverter):
+        return {key: [int(v) for v in np.ravel(val)] for key, val in outcome.items()}
+
+
+class EkaToMimiqConverter(Converter):
     """Mimiq Python: ``circuit = mc.Circuit()`` and a ``circuit.push(mc.Gate..., targets)`` per
     gate, tick by tick (the circuit unrolled, so no comments), qubits and bits numbered in label
     order, a measurement's targets its qubit then its bit."""
@@ -527,6 +635,21 @@ class EkaToMimiqConverter(_TextConverter):
                 lines.append(self.emit_leaf(op, qmap, cmap))
         return "\n".join(lines), qmap, cmap
 
+    @staticmethod
+    def parse_target_run_outcome(run_output) -> dict[str, list[int]]:
+        """Loom's reading of a Mimiq run: ``(result, bits)``, the result's ``histogram()``
+        (bitstrings indexed by bit, with counts) and the converter's classical channels to bit
+        index, to each channel's label and its outcome in every shot."""
+        mimiq_result, channel_to_idx = run_output
+        histogram = mimiq_result.histogram()
+        bitstrings = [key for key, count in histogram.items() for _ in range(count)]
+        result: dict[str, list[int]] = {chan.label: [] for chan in channel_to_idx.keys()}
+        if bitstrings == []:
+            raise ValueError("No bitstrings found in the run output.")
+        for channel, idx in channel_to_idx.items():
+            result[channel.label] = [int(b[idx]) for b in bitstrings]
+        return result
+
 
 def _validate_import_prefix(import_prefix: str) -> None:
     if not isinstance(import_prefix, str):
@@ -535,7 +658,7 @@ def _validate_import_prefix(import_prefix: str) -> None:
         raise ValueError(f"import_prefix '{import_prefix}' must end with a dot (.)")
 
 
-class EkaToGuppylangConverter(_TextConverter):
+class EkaToGuppylangConverter(Converter):
     """Guppy (guppylang) code: ``q`` an array of qubits and ``c`` of booleans in label order,
     gates in tick order with Loom's start and end comments, a measurement a
     ``measure_and_reset`` into its bit and a ``result`` named after the bit's label, a SWAP three
@@ -590,3 +713,58 @@ class EkaToGuppylangConverter(_TextConverter):
         lines.append("for e in q:")
         lines.append(f"   {self.quantum_prefix}discard(e) ")
         return "\n".join(lines), qmap, cmap
+
+    @staticmethod
+    def parse_target_run_outcome(outcome) -> dict[str, list]:
+        """Loom's reading of a Guppy run (a ``QsysResult``, whose ``results`` are shots, or one
+        ``QsysShot``): each shot's ``entries`` ``(label, value)`` gathered by label."""
+        result_dict: dict[str, list] = {}
+        if hasattr(outcome, "results"):
+            for shot in outcome.results:
+                for label, value in shot.entries:
+                    result_dict.setdefault(label, []).append(value)
+        elif hasattr(outcome, "entries"):
+            for label, value in outcome.entries:
+                result_dict.setdefault(label, []).append(value)
+        return result_dict
+
+
+class TargetLanguage(Enum):
+    """Loom's target languages, each a converter (PennyLane twice, plain and Catalyst)."""
+
+    MIMIQ = EkaToMimiqConverter
+    OPEN_QASM3 = EkaToQasmConverter
+    GUPPYLANG = EkaToGuppylangConverter
+    STIM = EkaToStimConverter
+    PENNYLANE = _enum_member(partial(EkaToPennylaneConverter, is_catalyst=False))
+    PENNYLANE_CATALYST = _enum_member(partial(EkaToPennylaneConverter, is_catalyst=True))
+    CUDAQ = EkaToCudaqConverter
+
+
+class Executor:
+    """Loom's executor: a target language's converter (made once, when first used), its export
+    of an interpreted Eka or a circuit, and its reading of a run's outcome."""
+
+    def __init__(self, *, target_language: TargetLanguage) -> None:
+        if not isinstance(target_language, TargetLanguage):
+            try:
+                target_language = TargetLanguage(target_language)
+            except ValueError:
+                raise ValueError(f"target_language: Input should be one of {', '.join(m.name for m in TargetLanguage)}, not {target_language!r}.") from None
+        self.target_language = target_language
+
+    def __repr__(self) -> str:
+        return f"Executor(target_language={self.target_language})"
+
+    @cached_property
+    def converter(self):
+        return self.target_language.value()
+
+    def export_eka(self, input_data: InterpretationStep) -> Any:
+        return self.converter.convert(input_data)
+
+    def export_eka_circuit(self, input_data: Circuit) -> Any:
+        return self.converter.convert_circuit(input_data)
+
+    def parse_outcome(self, run_output: Any) -> dict[str, Union[int, list[int]]]:
+        return self.converter.parse_target_run_outcome(run_output)

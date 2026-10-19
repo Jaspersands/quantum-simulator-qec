@@ -1,9 +1,11 @@
-# Ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/eka/channel.py, circuit.py and syndrome_circuit.py;
-# Copyright 2024 Entropica Labs Pte Ltd, Apache License 2.0; see LICENSE in this directory), modified for
-# stabilizer_qec: plain dataclasses in place of pydantic, the if-else circuits left out.
+# Ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/eka/channel.py, circuit.py and syndrome_circuit.py, and
+# apply_to_nested from src/loom/eka/utilities/serialization.py; Copyright 2024 Entropica Labs Pte Ltd, Apache
+# License 2.0; see LICENSE in this directory), modified for stabilizer_qec: plain dataclasses in place of
+# pydantic, the if-else circuits left out.
 """Loom's circuit IR: channels (quantum or classical wires), gates (leaf circuits named after
 their operation) and composite circuits (time slices of sub-circuits, each slice one tick, a
-sub-circuit lasting its duration), with Loom's timing, unrolling and cloning."""
+sub-circuit lasting its duration), with Loom's timing, unrolling, cloning, padding and building
+from gates on relative channel indices."""
 
 from __future__ import annotations
 
@@ -129,6 +131,41 @@ class Circuit:
         ends = [op.duration + t for t, tick in enumerate(circuit) for op in tick]
         return max(ends + [len(circuit)])
 
+    @classmethod
+    def as_gate(cls, name: str, nr_qchannels: int, nr_cchannels: int = 0, duration: int = 1) -> "Circuit":
+        """A gate on new channels: ``nr_qchannels`` quantum ones, then ``nr_cchannels`` classical ones."""
+        qchannels = [Channel(type=ChannelType.QUANTUM) for _ in range(nr_qchannels)]
+        cchannels = [Channel(type=ChannelType.CLASSICAL) for _ in range(nr_cchannels)]
+        return cls(name, channels=qchannels + cchannels, duration=duration)
+
+    @classmethod
+    def from_circuits(cls, name: str, circuit=None) -> "Circuit":
+        """A circuit from a list of ``(circuit, channel indices)`` pairs (consecutive slices) or a
+        list of lists of them (one list a slice): each sub-circuit cloned onto the channels its
+        indices name, one new channel per index, the same index the same channel."""
+
+        def make_chan(cidx, ctype: ChannelType, cmap: dict) -> Channel:
+            if cidx in cmap:
+                if cmap[cidx].type != ctype:
+                    raise ValueError(f"Provided channel indices are not consistent with respect to their types. Offending channel {cidx} has type ChannelType.{ctype.name} but has previously been used with a channel of type ChannelType.{cmap[cidx].type.name}.")
+                return cmap[cidx]
+            new_chan = Channel(type=ctype)
+            cmap[cidx] = new_chan
+            return new_chan
+
+        def make_circ(circtup, cmap: dict) -> Circuit:
+            nr_prov_channels = len(circtup[1])
+            nr_circ_channels = len(circtup[0].channels)
+            if nr_prov_channels != nr_circ_channels:
+                raise ValueError(f"Provided number of channels {nr_prov_channels} does not match the number of channels {nr_circ_channels} in circuit {circtup[0].name}.")
+            return circtup[0].clone([make_chan(cidx, chan.type, cmap) for cidx, chan in zip(circtup[1], circtup[0].channels)])
+
+        if circuit is None:
+            circuit = []
+        if isinstance(circuit, tuple) or len(circuit) < 2:
+            raise ValueError("Error while creating circuit via from_circuit(): The circuit must be a list of circuits. If the intention is to copy a circuit to deal with Channel objects directly, use the clone() method instead.")
+        return cls(name, apply_to_nested(circuit, make_circ, {}))
+
     @property
     def is_gate(self) -> bool:
         return not self.circuit
@@ -220,6 +257,41 @@ class Circuit:
             lines.extend(f"{i}: {gate.name}" for gate in tick)
         return "\n".join(lines)
 
+    def detailed_str(self) -> str:
+        """The gates of each slice with the labels of their channels, one gate a line."""
+        tick_str = f"{self.name}\n"
+        for i, tick in enumerate(self.circuit):
+            tick_str += f"{i}: "
+            for gate in tick:
+                tick_str += f"{gate.name} - {' '.join(str(chan.label) for chan in gate.channels)}\n"
+        return tick_str
+
+    @staticmethod
+    def construct_padded_circuit_time_sequence(circuit_time_sequence: tuple[tuple["Circuit", ...], ...]) -> tuple[tuple["Circuit", ...], ...]:
+        """The slices with the empty slices the durations of their circuits need: a slice that
+        uses a channel (by label) still busy from an earlier slice waits, by the fewest empty
+        slices, and the last circuits' durations are filled at the end. Circuits of one slice
+        start together and may end apart."""
+        padded: tuple = ()
+        occupancy: dict = {}
+        for tick in circuit_time_sequence:
+            current = {channel.label: circuit.duration for circuit in tick for channel in circuit.channels}
+            conflicting = set(occupancy).intersection(current)
+            if conflicting:
+                duration = max(occupancy[channel] for channel in conflicting)
+                padded += ((),) * (duration - 1)
+            else:
+                duration = 1
+            padded += (tick,)
+            for channel in set(occupancy).difference(current):
+                new_duration = occupancy.pop(channel) - duration
+                if new_duration > 0:
+                    occupancy[channel] = new_duration
+            occupancy.update(current)
+        if occupancy:
+            padded += ((),) * (max(occupancy.values()) - 1)
+        return padded
+
     def asdict(self) -> dict:
         return {"name": self.name, "circuit": [[sub.asdict() for sub in tick] for tick in self.circuit], "channels": [c.asdict() for c in self.channels], "duration": self.duration, "description": self.description, "id": self.id}
 
@@ -238,6 +310,16 @@ class Circuit:
         if sub:
             return cls(data["name"], circuit=sub, channels=chans, description=data.get("description", ""), id=data.get("id"))
         return cls(data["name"], channels=chans, duration=data.get("duration", 1), description=data.get("description", ""), id=data.get("id"))
+
+
+def apply_to_nested(nested_list, func, param=None):
+    """``func`` applied to each element of a nested list (with ``param`` as its second argument
+    unless None), the nesting kept."""
+    if isinstance(nested_list, list):
+        return [apply_to_nested(elem, func, param) for elem in nested_list]
+    if param is not None:
+        return func(nested_list, param)
+    return func(nested_list)
 
 
 def default_circuit(pauli_str: str) -> Circuit:
