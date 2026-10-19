@@ -407,3 +407,107 @@ def theirs_position():
     from tqec.utils.position import Position3D as TheirPosition
 
     return TheirPosition
+
+
+def _two_cnots(module, fill: str):
+    g = module.gallery.cnot().compose(module.gallery.cnot(), "Out_Control", "In_Control")
+    g.fill_ports(module.ZXCube.from_str(fill) if module is tqec else _their_zx(fill))
+    return g
+
+
+def _their_zx(kind: str):
+    from tqec.computation.cube import ZXCube as TheirZXCube
+
+    return TheirZXCube.from_str(kind)
+
+
+def _decoded_rates(circuit, shots: int, seed: int = 7) -> list[float]:
+    d, o = circuit.compile_detector_sampler(seed=seed).sample(shots, separate_observables=True)
+    predicted = sq.Matching.from_detector_error_model(circuit.detector_error_model(decompose_errors=True)).decode_batch(d)
+    return [float(x) for x in (predicted != o).mean(axis=0)]
+
+
+# tqec 0.2.0 on the two CNOTs (cnot().compose(cnot(), "Out_Control", "In_Control"), ports filled
+# ZXZ or ZXX), k = 1, NoiseModel.uniform_depolarizing(0.001), PyMatching, 20 000 shots: 81 qubits,
+# 464 detectors, 2 observables, graphlike distance 3.
+TQEC_TWO_CNOTS = {"Z": (["ZIZI", "IZIZ"], [0.0163, 0.0402]), "X": (["XXXX", "XIXI"], [0.0451, 0.0423])}
+
+
+@pytest.mark.parametrize("basis", ["Z", "X"])
+def test_two_cnots_in_a_row_reuse_the_ancillas_tile(basis):
+    g = _two_cnots(tqec, "ZX" + basis)
+    compiled = tqec.compile_block_graph(g, 3, p=0.001)
+    # The ancilla's tile holds two patches, one per CNOT, the first read out before the second
+    # is prepared.
+    assert compiled.tiles == [(0, 0), (1, 0), (1, 0), (1, 1)] and compiled.num_merges == 4
+    stabilizers, rates = TQEC_TWO_CNOTS[basis]
+    assert compiled.stabilizers == stabilizers
+    c = compiled.circuit
+    # The engine's layout spends more qubits than tqec's (113, not 81); the detectors are tqec's.
+    assert (c.num_qubits, c.num_detectors, c.num_observables) == (113, 464, 2)
+    assert len(c.shortest_graphlike_error()) == 3
+    d, o = g.compile(3).compile_detector_sampler(seed=1).sample(128, separate_observables=True)
+    assert not d.any() and not o.any()
+    ours = _decoded_rates(c, 8000)
+    assert all(r / 2 < x < 2 * r for x, r in zip(ours, rates)), (ours, rates)
+    assert len(tqec.compile_block_graph(g, 5, p=0.001).circuit.shortest_graphlike_error()) == 5
+
+
+def _stacked(first: str, second: str, x2: int = 0) -> BlockGraph:
+    """A patch at (0, 0) for z = 0, 1, then one at (x2, 0) for z = 2, 3, not joined in time."""
+    g = BlockGraph("stacked")
+    for x, z, kind in ((0, 0, first), (0, 1, first), (x2, 2, second), (x2, 3, second)):
+        g.add_cube(Position3D(x, 0, z), kind)
+    g.add_pipe(Position3D(0, 0, 0), Position3D(0, 0, 1))
+    g.add_pipe(Position3D(x2, 0, 2), Position3D(x2, 0, 3))
+    return g
+
+
+@pytest.mark.parametrize("first,second", [("ZXZ", "ZXZ"), ("ZXZ", "ZXX"), ("ZXX", "ZXZ")])
+def test_a_tile_read_out_and_prepared_again_at_once(first, second):
+    # The second patch is prepared the slice after the first is read out, so its first round
+    # follows the first patch's last round on the same checks: it starts afresh, with every
+    # detector the two patches have on two tiles (comparing across the readout instead loses
+    # the first round's detectors when the basis changes, and the distance with them).
+    together = tqec.compile_block_graph(_stacked(first, second), 3, p=0.001)
+    apart = tqec.compile_block_graph(_stacked(first, second, x2=1), 3, p=0.001)
+    assert together.tiles == [(0, 0), (0, 0)] and apart.tiles == [(0, 0), (0, 1)]
+    assert together.circuit.num_detectors == apart.circuit.num_detectors == 96
+    assert len(together.circuit.shortest_graphlike_error()) == 3
+    d, o = tqec.compile_block_graph(_stacked(first, second), 3).circuit.compile_detector_sampler(seed=1).sample(64, separate_observables=True)
+    assert not d.any() and not o.any()
+
+
+def test_the_python_writer_is_the_engines_on_programs_the_engine_takes():
+    from stabilizer_qec import _core
+    from stabilizer_qec._circuit import Circuit
+    from stabilizer_qec.tqec._program import program_text
+
+    graphs = [gallery.memory(Basis.Z), gallery.memory(Basis.X), gallery.cnot(Basis.Z), gallery.cnot(Basis.X), gallery.cnot(Basis.Z).rotate(Direction3D.Z)]
+    graphs += [_row_of_patches(3, [1], 3), _row_of_patches(2, [1, 3], 5), _row_of_patches(2, [0], 1), _passthrough(BlockGraph, Position3D, "ZXZ")]
+    graphs += [f.graph for f in gallery.cnot().fill_ports_for_minimal_simulation()]
+    for g in graphs:
+        for d, p in ((3, 0.0), (3, 0.001), (5, 1e-5)):
+            c = tqec.compile_block_graph(g, d, p=p)
+            engine = _core.surgery_program(d, p, c.tiles, c.steps, c.observables)
+            assert str(Circuit(program_text(d, p, c.tiles, c.steps, c.observables))) == str(Circuit(engine)), (g.name, d, p)
+    # Its refusals are the engine's.
+    c = tqec.compile_block_graph(gallery.cnot(Basis.Z), 3)
+    for steps in ([("rounds", 3)], [("prepare", [0, 0], "z")], [("split",)], [("prepare", [0], "z"), ("measure", [0], "z"), ("prepare", [0], "z")]):
+        with pytest.raises(ValueError) as python:
+            program_text(3, 0.0, c.tiles, steps, [])
+        with pytest.raises(ValueError) as engine:
+            _core.surgery_program(3, 0.0, c.tiles, steps, [])
+        assert str(python.value) == str(engine.value)
+    with pytest.raises(ValueError, match="which patch 0 still holds"):
+        program_text(3, 0.0, [(0, 0), (0, 0)], [("prepare", [0], "z"), ("prepare", [1], "z")], [])
+
+
+@needs_tqec
+def test_two_cnots_agree_with_tqec():
+    for basis in ("Z", "X"):
+        o, t = _two_cnots(tqec, "ZX" + basis), _two_cnots(theirs, "ZX" + basis)
+        assert structure(o) == structure(t)
+        so, st = o.find_correlation_surfaces(), t.find_correlation_surfaces()
+        assert spans(so) == spans(st)
+        assert [s.external_stabilizer_on_graph(o) for s in so] == [s.external_stabilizer_on_graph(t) for s in st] == TQEC_TWO_CNOTS[basis][0]

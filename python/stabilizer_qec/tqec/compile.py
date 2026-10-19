@@ -2,18 +2,22 @@
 
 A block graph whose cubes are all logical patches of one orientation, joined by time pipes
 (memory rounds) and spatial pipes (merges and splits), is a *surgery program* (``src/surgery.rs``):
-each cube's tile holds one patch for the cube's lifetime, prepared in the first cube's temporal
-basis and read out in the last's; each time slice runs ``rounds`` rounds of syndrome extraction,
-with the slice's spatial pipes merged for ``merged`` rounds and split; each correlation surface
-of the graph is an observable, its records the final logicals it touches, the outcomes of the
-merges it passes along and the seam readouts it crosses.
+each run of cubes on a tile joined by time pipes is one patch, prepared in the first cube's
+temporal basis and read out in the last's, and a tile can hold several such patches one after
+another (two CNOTs in a row reuse the ancilla's tile); each time slice runs ``rounds`` rounds of
+syndrome extraction, with the slice's spatial pipes merged for ``merged`` rounds and split; each
+correlation surface of the graph is an observable, its records the final logicals it touches,
+the outcomes of the merges it passes along and the seam readouts it crosses. The engine keeps
+one patch per tile, so a program that reuses a tile is written by the engine's writer in Python
+(``_program``), which is the engine's text on every program the engine takes.
 
-The engine's patches face their horizontal neighbours with X-type walls (a horizontal merge
-measures Z⊗Z) and their vertical neighbours with Z-type walls (X⊗X), so a graph's cubes must
-all be of one of the two kinds ``?X?``/``?Z?`` patterns with the X walls along one axis, which
-becomes the engine's column axis. What the engine cannot express is refused with tqec named:
-Hadamard pipes (CZ), spatial cubes (two spatial directions at one cube: the three CNOTs, move
-and rotation, the Steane encoding), Y half cubes, open ports, and two patches on one tile."""
+The graph's shadowed faces are fixed first, as tqec does. The engine's patches face their
+horizontal neighbours with X-type walls (a horizontal merge measures Z⊗Z) and their vertical
+neighbours with Z-type walls (X⊗X), so a graph's cubes must all be of one of the two kinds
+``?X?``/``?Z?`` patterns with the X walls along one axis, which becomes the engine's column
+axis. What the engine cannot express is refused with tqec named: Hadamard pipes (CZ), spatial
+cubes (junctions of two spatial directions and one-basis walls: the stability experiment, the
+three CNOTs, move and rotation, the Steane encoding), Y half cubes and open ports."""
 
 from __future__ import annotations
 
@@ -34,9 +38,10 @@ _REFUSED = "tqec (pip install tqec) compiles it"
 
 @dataclass
 class CompiledBlockGraph:
-    """A block graph's surgery program and circuit: the patches' tiles (engine column, row) per
-    cube lifetime, the steps, the observables' terms, and the stabilizers (Pauli strings on the
-    graph's leaf cubes, in tqec's order) each observable measures."""
+    """A block graph's surgery program and circuit: the patches' tiles (engine column, row), one
+    per run of cubes joined in time (a tile appears once per patch it holds), the steps, the
+    observables' terms, and the stabilizers (Pauli strings on the graph's leaf cubes, in tqec's
+    order) each observable measures."""
 
     circuit: object
     distance: int
@@ -121,7 +126,9 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
         col, row = tile_of(pos)
         return (col - min_col, row - min_row)
 
-    # Lifetimes: the cubes of a tile, consecutive in time and joined by time pipes.
+    # Lifetimes: the runs of a tile's cubes joined by time pipes, one patch each. A tile can hold
+    # several patches one after another (two CNOTs in a row reuse the ancilla's tile): each is
+    # read out before the next is prepared there.
     by_tile: dict[tuple[int, int], list] = {}
     for cube in cubes:
         by_tile.setdefault(shifted_tile(cube.position), []).append(cube)
@@ -130,14 +137,18 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
     lifetimes: list[list] = []
     for tile in sorted(by_tile):
         column = sorted(by_tile[tile], key=lambda c: c.position.z)
+        runs = [[column[0]]]
         for a, b in zip(column, column[1:]):
-            if b.position.z != a.position.z + 1 or not graph.has_pipe_between(a.position, b.position):
-                raise TQECError(f"the tile at {a.position.x, a.position.y} holds two patches (cubes at z = {a.position.z} and {b.position.z} not joined by a time pipe); the surgery engine keeps one patch per tile")
-        patch = len(tiles)
-        tiles.append(tile)
-        lifetimes.append(column)
-        for cube in column:
-            patch_of[cube.position] = patch
+            if b.position.z == a.position.z + 1 and graph.has_pipe_between(a.position, b.position):
+                runs[-1].append(b)
+            else:
+                runs.append([b])
+        for run in runs:
+            patch = len(tiles)
+            tiles.append(tile)
+            lifetimes.append(run)
+            for cube in run:
+                patch_of[cube.position] = patch
 
     # The time slices: merges (lines of spatially joined patches) and the steps.
     zs = sorted({c.position.z for c in cubes})
@@ -308,6 +319,13 @@ def compile_block_graph(graph: "BlockGraph", distance: int, *, p: float = 0.0, r
     from .._circuit import Circuit
     from .._util import call
 
-    text = call(_core.surgery_program, distance, float(p), tiles, steps, terms_per_surface)
+    if len(set(tiles)) == len(tiles):
+        text = call(_core.surgery_program, distance, float(p), tiles, steps, terms_per_surface)
+    else:
+        # The engine keeps one patch per tile; its writer in Python takes patches one after
+        # another on a tile (and is the engine's text on every program the engine takes).
+        from ._program import program_text
+
+        text = program_text(distance, float(p), tiles, steps, terms_per_surface)
     circuit = Circuit(text)
     return CompiledBlockGraph(circuit, distance, tiles, steps, terms_per_surface, [s.external_stabilizer_on_graph(graph) for s in surfaces], surfaces, patch_of)
