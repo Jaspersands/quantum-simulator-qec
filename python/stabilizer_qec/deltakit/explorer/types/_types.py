@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from stabilizer_qec import deltakit_stim as stim
+from stabilizer_qec._util import ours
 import numpy as np
 import numpy.typing as npt
 
@@ -700,6 +701,7 @@ class Measurements(BinaryDataType):
             Tuple[DetectionEvents, ObservableFlips]:
                 Detector and observable data.
         """
+        stim_circuit = ours(stim_circuit, stim.Circuit)  # a Stim object too
         if isinstance(stim_circuit, stim.Circuit):
             stim_circuit = str(stim_circuit)
         circuit_without_leakage = self._deinstrument_leakage_circuit(stim_circuit)

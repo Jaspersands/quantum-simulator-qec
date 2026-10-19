@@ -12,6 +12,7 @@ from itertools import chain
 from typing import Generic, Literal, Protocol, get_args, no_type_check
 
 from stabilizer_qec import deltakit_stim as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.deltakit.circuit._annotations._detector import Detector
 from stabilizer_qec.deltakit.circuit._annotations._observable import Observable
@@ -629,6 +630,7 @@ class Circuit(Generic[T]):  # pylint: disable=too-many-public-methods
             ])
         ], iterations=1)
         """
+        stim_circuit = ours(stim_circuit, stim.Circuit)  # a Stim object too
         qubit_mapping = (
             {
                 index: Qubit(Coordinate(*coords), index)

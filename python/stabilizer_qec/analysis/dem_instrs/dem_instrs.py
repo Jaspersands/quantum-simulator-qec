@@ -5,12 +5,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from .util import xor_lists, xor_probs
 
 
 def get_detectors(dem_instr: stim.DemInstruction) -> tuple[int, ...]:
     """Returns the detector indices that are flipped in the given DEM instruction."""
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -30,6 +32,7 @@ def get_detectors(dem_instr: stim.DemInstruction) -> tuple[int, ...]:
 
 def get_observables(dem_instr: stim.DemInstruction) -> tuple[int, ...]:
     """Returns the logical observable indices that are flipped in the given DEM instruction."""
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -49,6 +52,7 @@ def get_observables(dem_instr: stim.DemInstruction) -> tuple[int, ...]:
 
 def has_separator(dem_instr: stim.DemInstruction) -> bool:
     """Returns if the given DEM instruction has a separator."""
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -63,6 +67,7 @@ def decomposed_detectors(dem_instr: stim.DemInstruction) -> list[tuple[int, ...]
     """Returns a list of the detector indices triggered for each fault that the DEM
     instruction is decomposed into.
     """
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -90,6 +95,7 @@ def decomposed_observables(dem_instr: stim.DemInstruction) -> list[tuple[int, ..
     """Returns a list of the logical observable indices triggered for each fault that the DEM
     instruction is decomposed into.
     """
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -128,6 +134,7 @@ def decomposed_instrs(
         the decomposed error mechansisms as the one in ``dem_instr``.
         The other option is ``'zero'`` which sets the probability to ``0``.
     """
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -161,6 +168,7 @@ def remove_detectors(
     dem_instr: stim.DemInstruction, dets: Iterable[int]
 ) -> stim.DemInstruction:
     """Removes the specified detector indices from the given DEM instruction."""
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -207,6 +215,7 @@ def sorted_dem_instr(
     prob
         If specified, it replaces the error probability in ``dem_instr``.
     """
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
@@ -303,6 +312,7 @@ def detectors_to_observables(
     det_to_obs
         Dictionary mapping detector targets to the corresponding observable targets.
     """
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."

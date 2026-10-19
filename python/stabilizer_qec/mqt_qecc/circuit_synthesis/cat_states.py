@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, cast
 import matplotlib.pyplot as plt
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 import z3
 
 from .circuit_utils import compact_stim_circuit, relabel_qubits
@@ -386,6 +387,7 @@ def fault_gens_from_circuit(circ: stim.Circuit) -> list[int]:
     Returns:
         sorted list of int bit strings representing the propagated errors
     """
+    circ = ours(circ)  # a Stim object too
     w = circ.num_qubits
     ops: list[tuple[int, int]] = []
     for op in circ:

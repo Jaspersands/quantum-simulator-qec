@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc.circuits.bookkeeping import DetectorRecord, MeasurementRecord, QubitIDs
 from stabilizer_qec.qldpc.circuits.memory.syndrome_measurement import EdgeColoring
@@ -93,6 +94,7 @@ def keep_only_observable(circuit: stim.Circuit, keep_idx: int) -> stim.Circuit:
     part of any physical protocol, so an LER run that kept it would sample the wrong distribution.
     sinter also expects exactly one observable per task.
     """
+    circuit = ours(circuit)  # a Stim object too
     out = stim.Circuit()
     for op in circuit:
         if isinstance(op, stim.CircuitRepeatBlock):

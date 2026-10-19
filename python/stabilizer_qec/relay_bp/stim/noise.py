@@ -11,6 +11,7 @@
 # that they have been altered from the originals.
 
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 
 def detect_data_qubits(circuit: stim.Circuit) -> list[int]:
@@ -60,6 +61,7 @@ def insert_uniform_academic_circuit_noise(
     Returns:
         A new stim circuit with noise inserted to the original.
     """
+    circuit = ours(circuit)  # a Stim object too
     assert 0 <= p <= 1
 
     noisy_circuit = stim.Circuit()

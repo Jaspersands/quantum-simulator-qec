@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from stabilizer_qec.deltakit import circuit as deltakit_circuit
 from stabilizer_qec import deltakit_stim as stim
+from stabilizer_qec._util import ours
 import numpy as np
 import numpy.typing as npt
 from stabilizer_qec.deltakit.decode._abstract_matching_decoders import DecoderProtocol
@@ -65,6 +66,7 @@ class _CloudDecoder(DecoderProtocol):
         # circuit must be a string
         if isinstance(circuit, deltakit_circuit.Circuit):
             circuit = circuit.as_stim_circuit()
+        circuit = ours(circuit, stim.Circuit)  # a Stim object too
         if isinstance(circuit, stim.Circuit):
             self.stim_circuit = circuit
             self.num_observables = self.stim_circuit.num_observables

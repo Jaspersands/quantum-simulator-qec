@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 SQ_MEASUREMENTS = ["M", "MX", "MY", "MZ"]
 SQ_RESETS = ["R", "RX", "RY", "RZ"]
@@ -101,6 +102,7 @@ def move_first_resets_to_beginning(circuit: stim.Circuit) -> stim.Circuit:
     """Moves (backwards in time) the first resets for each qubit to appear
     as the first (layer of) operations in the circuit.
     This is a workaround for issue 971 in Stim."""
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -165,6 +167,7 @@ def move_first_resets_to_beginning(circuit: stim.Circuit) -> stim.Circuit:
 
 def remove_gauge_detectors(circuit: stim.Circuit) -> stim.Circuit:
     """Removes the gauge detectors from the given circuit."""
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -211,6 +214,7 @@ def remove_detectors(
     new_circuit
         Stim circuit without detectors except the ones in ``det_ids_exception``.
     """
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -256,6 +260,7 @@ def remove_observables(
     new_circuit
         Stim circuit without observables except the ones in ``obs_ids_exception``.
     """
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -307,6 +312,7 @@ def observables_to_detectors(
         This is useful for reverting this conversion with
         ``qec_util.dems.detectors_to_observables``.
     """
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -374,6 +380,7 @@ def redefine_observables(
         The indices of the new observables and their corresponding definition
         in terms of list of current observables to XOR.
     """
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -419,6 +426,7 @@ def merge_observable_definitions(
 ) -> stim.Circuit:
     """Merges the observable definitions so that there is a unique circuit
     instruction for each (given) observable index."""
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -532,6 +540,7 @@ def move_observables_to_end(circuit: stim.Circuit) -> stim.Circuit:
     Move all the observable definition to the end of the circuit
     while keeping their relative order.
     """
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -610,6 +619,7 @@ def format_rec_targets(
 
     See ``format_to_rec_targets`` for the inverse functionality.
     """
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."

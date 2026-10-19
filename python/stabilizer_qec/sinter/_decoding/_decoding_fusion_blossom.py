@@ -7,6 +7,7 @@ from typing import Callable, List, Tuple
 
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.sinter._decoding._decoding_decoder_class import Decoder, CompiledDecoder
 
@@ -78,6 +79,7 @@ class FusionBlossomDecoder(Decoder):
 def iter_flatten_model(model: stim.DetectorErrorModel,
                        handle_error: Callable[[float, List[int], List[int]], None],
                        handle_detector_coords: Callable[[int, np.ndarray], None]):
+    model = ours(model)  # a Stim object too
     det_offset = 0
     coords_offset = np.zeros(100, dtype=np.float64)
 

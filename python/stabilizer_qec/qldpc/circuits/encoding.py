@@ -12,6 +12,7 @@ from collections.abc import Sequence
 import galois
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc import codes, math
 from stabilizer_qec.qldpc.objects import Pauli
@@ -86,6 +87,7 @@ def get_encoder_and_decoder(
     encoder = get_encoding_tableau(code)
     if deformation is None:
         return encoder, encoder.inverse()
+    deformation = ours(deformation)  # a Stim object too
     deformation = deformation if isinstance(deformation, stim.Circuit) else deformation.to_circuit()
     deformed_code = code.deformed(deformation, preserve_logicals=True)
     decoder = get_encoding_tableau(deformed_code).inverse()
@@ -107,6 +109,7 @@ def get_logical_tableau(
 
         code.deformed(physical_circuit, preserve_logicals=True)
     """
+    physical_circuit_or_tableau = ours(physical_circuit_or_tableau)  # a Stim object too
     physical_circuit = (
         physical_circuit_or_tableau
         if isinstance(physical_circuit_or_tableau, stim.Circuit)

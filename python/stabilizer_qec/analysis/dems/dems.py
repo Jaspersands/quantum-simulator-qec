@@ -6,6 +6,7 @@ from collections.abc import Collection, Sequence
 
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from ..dem_instrs import detectors_to_observables as detectors_to_observables_instr
 from ..dem_instrs import (
@@ -21,6 +22,7 @@ from ..dem_instrs import (
 
 def remove_gauge_detectors(dem: stim.DetectorErrorModel) -> stim.DetectorErrorModel:
     """Remove the gauge detectors from a DEM."""
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(f"'dem' is not a stim.DetectorErrorModel, but a {type(dem)}.")
 
@@ -70,10 +72,12 @@ def dem_difference(
     diff_2
         DEM instructions present in ``dem_2`` that are not present in ``dem_1``.
     """
+    dem_1 = ours(dem_1)  # a Stim DetectorErrorModel too
     if not isinstance(dem_1, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem_1' is not a stim.DetectorErrorModel, but a {type(dem_1)}."
         )
+    dem_2 = ours(dem_2)  # a Stim DetectorErrorModel too
     if not isinstance(dem_2, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem_2' is not a stim.DetectorErrorModel, but a {type(dem_2)}."
@@ -112,12 +116,14 @@ def is_instr_in_dem(
     """Checks if the DEM error instruction and its undecomposed form are present
     in the given DEM.
     """
+    dem_instr = ours(dem_instr)  # a Stim DemInstruction too
     if not isinstance(dem_instr, stim.DemInstruction):
         raise TypeError(
             f"'dem_instr' must be a stim.DemInstruction, but {type(dem_instr)} was given."
         )
     if dem_instr.type != "error":
         raise TypeError(f"'dem_instr' is not an error, but a {dem_instr.type}.")
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -152,6 +158,7 @@ def get_max_weight_hyperedge(
     hyperedge
         Hyperedge with the max-weight in ``dem``.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -180,6 +187,7 @@ def disjoint_graphs(dem: stim.DetectorErrorModel) -> list[list[int]]:
     Components are listed, and their nodes ordered, as networkx's
     ``connected_components`` lists them (which qec-util uses; it isn't needed here).
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -227,6 +235,7 @@ def get_flippable_detectors(dem: stim.DetectorErrorModel) -> set[int]:
     """Returns a the detector indices present in the given DEM
     that are triggered by some errors.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -244,6 +253,7 @@ def get_flippable_observables(dem: stim.DetectorErrorModel) -> set[int]:
     """Returns a the logical observable indices present in the given DEM
     that are triggered by some errors.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -289,6 +299,7 @@ def observables_to_detectors(
     new_dem
         Detector error model with ``obs_inds`` converted to ``det_inds``.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -370,6 +381,7 @@ def get_errors_triggering_detectors(
         the errors that flip the given detector. The errors are repesented as
         indices, corresponding to ``dem.flattened()[i]``.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -396,6 +408,7 @@ def get_errors_triggering_detectors(
 
 def only_errors(dem: stim.DetectorErrorModel) -> stim.DetectorErrorModel:
     """Returns the corresponding dem with only error instructions."""
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -444,10 +457,12 @@ def remove_fake_errors(
     issue in Stim (issue 971 in GitHub) regarding the location of the anticommuting resets
     in the circuit. See ``qec_util.circuits.move_first_resets_to_beginning``.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
         )
+    circuit = ours(circuit)  # a Stim Circuit too
     if not isinstance(circuit, stim.Circuit):
         raise TypeError(
             f"'circuit' must be a stim.Circuit, but {type(circuit)} was given."
@@ -498,6 +513,7 @@ def remove_fake_errors(
 
 def remove_hyperedges(dem: stim.DetectorErrorModel) -> stim.DetectorErrorModel:
     """Removes the hyperedges from the given DEM."""
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -519,6 +535,7 @@ def separate_edges_and_hyperedges(
     dem: stim.DetectorErrorModel,
 ) -> tuple[stim.DetectorErrorModel, stim.DetectorErrorModel]:
     """Separates the edges and hyperedges in the given DEM."""
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -552,6 +569,7 @@ def prepare_distance2_dem_for_pymatching(
 
     This avoids a problem with pymatching as it does handle this situation correctly.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -611,6 +629,7 @@ def detectors_to_observables(
         i.e., ``detector[num_dets - n]`` will correspond to observable ``0``
         and ``detector[num_dets - 1]`` will correspond to observable ``n-1``.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -643,6 +662,7 @@ def get_dem_subgraph(
 ) -> stim.DetectorErrorModel:
     """Returns the DEM subgraph corresponding to only taking the specified
     detectors from the given DEM. Does not shift the detector indices."""
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."

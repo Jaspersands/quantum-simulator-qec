@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from ..dem_instrs import (
     decompose_hyperedge_to_edges,
@@ -48,6 +49,7 @@ def decompose_hyperedges_to_edges(
     If hyperedges contains decompositions with ``stim.target_separator``s,
     they are going to be overwritten.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."
@@ -55,6 +57,7 @@ def decompose_hyperedges_to_edges(
     if dem_edges is None:
         dem_edges = only_errors(dem)
         dem_edges = remove_hyperedges(dem_edges)
+    dem_edges = ours(dem_edges)  # a Stim DetectorErrorModel too
     if not isinstance(dem_edges, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem_edges' must be a stim.DetectorErrorModel, but {type(dem_edges)} was given."
@@ -91,6 +94,7 @@ def decomposed_graphlike_dem(
         By default, the same probability of the hyperedge is used for each
         of its associated edges.
     """
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     if not isinstance(dem, stim.DetectorErrorModel):
         raise TypeError(
             f"'dem' must be a stim.DetectorErrorModel, but {type(dem)} was given."

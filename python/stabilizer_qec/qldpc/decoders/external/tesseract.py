@@ -15,6 +15,7 @@ import numpy as np
 import numpy.typing as npt
 import scipy.sparse
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 
 from stabilizer_qec.qldpc._util import format_docstring
 from stabilizer_qec.qldpc.math import IntegerArray
@@ -118,6 +119,7 @@ class TesseractDecoder(ErrorDecoder, BatchObservableDecoder):
             error_rate: Deprecated i.i.d. matrix error probability. Use ``error_channel`` instead.
         """
         backend = _get_tesseract()
+        pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
         is_dem = isinstance(pcm_or_dem, stim.DetectorErrorModel)
         dem, num_errors = _get_dem_and_num_errors(pcm_or_dem, error_channel, error_rate)
         backend_order_method = (
@@ -348,6 +350,7 @@ def _get_dem_and_num_errors(
     error_rate: float | None,
 ) -> tuple[stim.DetectorErrorModel, int]:
     """Convert an input to Tesseract's DEM while preserving its error indexing."""
+    pcm_or_dem = ours(pcm_or_dem)  # a Stim object too
     if isinstance(pcm_or_dem, stim.DetectorErrorModel):
         _reject_dem_error_probabilities(error_channel, error_rate)
         return pcm_or_dem, pcm_or_dem.num_errors

@@ -50,6 +50,33 @@ def text_of(obj: Any, kind: str, ours: type) -> str:
     raise TypeError(f"expected a str, stabilizer_qec.{ours.__name__} or stim.{kind}, not {type(obj).__name__}")
 
 
+def ours(obj: Any, circuit: Any = None, dem: Any = None) -> Any:
+    """A Stim (or deltakit_stim) ``Circuit``, ``DetectorErrorModel`` or ``DemInstruction`` as this
+    package's, read from its text with its arguments exact, or as ``circuit`` / ``dem`` where a
+    port has its own classes; anything else as given.
+
+    For the ports: where their originals check ``isinstance(x, stim.Circuit)``, their ``stim`` is
+    this package, so a real Stim object would fail the check. They call this first."""
+    t = type(obj)
+    root = t.__module__.split(".")[0]
+    if root not in ("stim", "deltakit_stim") or t.__name__ not in ("Circuit", "DetectorErrorModel", "DemInstruction"):
+        return obj
+    if t.__name__ == "Circuit":
+        from ._circuit import _stim_object_exact_text
+
+        if circuit is None:
+            from ._circuit import Circuit as circuit
+        return circuit(_stim_object_exact_text(obj))  # Stim's own text rounds arguments to 6 digits
+    if dem is None:
+        from ._circuit import DetectorErrorModel as dem
+    if t.__name__ == "DemInstruction":
+        # An instruction's text rounds its probabilities to 6 digits, a model's does not.
+        model = sys.modules[root].DetectorErrorModel()
+        model.append(obj)
+        return dem(str(model))[0]
+    return dem(str(obj))
+
+
 def count(value: Any, name: str, least: int = 0) -> int:
     """A non-negative integer argument (shots, threads, ...)."""
     if isinstance(value, bool) or not isinstance(value, (int, np.integer)):

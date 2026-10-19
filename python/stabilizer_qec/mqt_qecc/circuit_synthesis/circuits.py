@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import stabilizer_qec as stim
+from stabilizer_qec._util import ours
 from qiskit import QuantumCircuit
 from qiskit.transpiler.passes import RemoveResetInZeroState
 
@@ -146,6 +147,7 @@ class CliffordIsometry:
         Returns:
             Clifford isometry.
         """
+        circ = ours(circ)  # a Stim object too
         iso = CliffordIsometry()
         n = circ.num_qubits
         iso._outputs = list(range(n))
@@ -476,6 +478,7 @@ class CNOTCircuit(CliffordIsometry):
         Returns:
             CNOTCircuit representation of the input circuit.
         """
+        circ = ours(circ)  # a Stim object too
         cnot_circuit = cls()
         initialized = [False for _ in range(circ.num_qubits)]
         for gate in circ:
