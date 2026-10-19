@@ -258,8 +258,8 @@ def test_panqec_and_qecsim_command_lines(tmp_path, capsys):
     # The commands its cluster scripts call.
     run("panqec", "run-parallel", "--help")
     run("panqec", "monitor-usage", "--help")
-    page = run("panqec", "--help").out
-    assert page.startswith("Usage: stabilizer-qec panqec [OPTIONS]") and run("help", "panqec").out == page
+    page = run("panqec", "--help").out.replace("\r\n", "\n")
+    assert page.startswith("Usage: stabilizer-qec panqec [OPTIONS]") and run("help", "panqec").out.replace("\r\n", "\n") == page
 
 
 @needs_stim
