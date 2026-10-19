@@ -375,6 +375,9 @@ pub struct BpLsd {
     /// Whether a zero syndrome is answered at once (on by default; `ldpc`'s BpLsdDecoder runs
     /// BP on it).
     pub zero_shortcut: bool,
+    /// `ldpc`'s `OSD_OFF` (its `lsd_method` setter's `"lsd_off"`): the clusters grow for
+    /// `lsd`'s order as they would for a search, and each is solved at order 0.
+    pub off: bool,
 }
 
 /// One decode's state; one per thread.
@@ -498,7 +501,7 @@ impl BpLsd {
             }
         }
         let bits_per_step = if bits_per_step == 0 { columns.len().max(1) } else { bits_per_step };
-        Ok(BpLsd { bp, columns, rows, method, max_iter, lsd, bits_per_step, always_run, schedule: Schedule::Parallel, zero_shortcut: true })
+        Ok(BpLsd { bp, columns, rows, method, max_iter, lsd, bits_per_step, always_run, schedule: Schedule::Parallel, zero_shortcut: true, off: false })
     }
 
     pub fn work(&self) -> BpLsdWork {
@@ -610,6 +613,7 @@ impl BpLsd {
         if order > 0 {
             w.stats.lsd_order = order;
             w.stats.lsd_method = match self.lsd {
+                _ if self.off => 0,
                 OsdMethod::Osd0 => 1,
                 OsdMethod::Exhaustive(_) => 2,
                 OsdMethod::CombinationSweep(_) => 3,
@@ -677,7 +681,7 @@ impl BpLsd {
             }
             s.sort_non_pivot_cols(cl, weights);
             let c = &s.clusters[cl];
-            let solution = dense_osd(c, self.lsd, order);
+            let solution = dense_osd(c, if self.off { OsdMethod::Osd0 } else { self.lsd }, order);
             for (i, &x) in solution.iter().enumerate() {
                 if x == 1 {
                     w.correction[c.local_to_bit[i] as usize] = 1;

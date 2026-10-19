@@ -3,9 +3,12 @@
 every BP schedule (parallel, serial, serial-relative, random serial) and input type (a syndrome
 or a received vector), bit for bit.
 
-A few things are looser than ldpc: positional ``error_rate``/``error_channel`` and integer
-values are taken where ldpc's typed signatures refuse them, and ``BpOsdDecoder.decoding``
-returns the OSD decoding (in ldpc it raises ``AttributeError``)."""
+Errors are ldpc's, type and message (its messages' runs of spaces included). A few things are
+looser than ldpc 2's classes: positional ``error_rate``/``error_channel``, integers where a float
+is typed, NumPy scalars, and sequences where a list is typed are taken where ldpc's Cython
+signatures refuse them. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
+exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns the OSD decoding
+(in ldpc it raises ``AttributeError``)."""
 
 from __future__ import annotations
 
@@ -15,8 +18,8 @@ from typing import Any, List, Optional, Union
 import numpy as np
 
 from . import _core
-from ._decoders import _bp_method, _columns, _lsd_method, _rebuild
-from ._util import call
+from ._decoders import _bp_method, _columns, _rebuild
+from ._util import call, count
 
 __all__ = ["BpDecoder", "BpDecoderBase", "BpFlipDecoder", "BpLsdDecoder", "BpOsdDecoder", "LsdDecoder", "SoftInfoBpDecoder"]
 
@@ -45,12 +48,58 @@ class _Default:
         return repr(self.value)
 
 
-def _typed(value: Any, kind: str) -> None:
+# ldpc's messages keep the indentation of the source lines they continue onto: runs of spaces.
+_S12, _S16, _S21, _S28 = " " * 12, " " * 16, " " * 21, " " * 28
+
+
+def _tname(value: Any) -> str:
+    """A value's type as Cython's messages name it (``int``, ``numpy.int64``)."""
+    t = type(value)
+    return t.__name__ if t.__module__ == "builtins" else f"{t.__module__}.{t.__name__}"
+
+
+def _typed(value: Any, kind: str, name: str = "value", strict: bool = False) -> None:
     """ldpc's typed arguments: a value of the wrong kind is a TypeError with Cython's message.
-    (NumPy's scalars, and ints where a float is wanted, are taken, which ldpc refuses.)"""
-    ok = (float, int, np.floating, np.integer) if kind == "float" else (int, np.integer)
-    if isinstance(value, bool) or not isinstance(value, ok):
-        raise TypeError(f"Argument 'value' has incorrect type (expected {kind}, got {type(value).__name__})")
+    Cython's check is exact (no bool for an int, no NumPy scalar, no int for a float); unless
+    ``strict``, NumPy's scalars, and ints where a float is wanted, are taken."""
+    if strict:
+        ok = type(value) is (float if kind == "float" else int)
+    else:
+        ok = not isinstance(value, bool) and isinstance(value, (float, int, np.floating, np.integer) if kind == "float" else (int, np.integer))
+    if not ok:
+        raise TypeError(f"Argument '{name}' has incorrect type (expected {kind}, got {_tname(value)})")
+
+
+# The arguments ldpc's constructors declare as str, Optional[str] or Optional[List[int]], which
+# Cython checks once the base class has set BP up: (types, None allowed). Unless strict (ldpc's
+# v1 classes, which are its v2 classes), an integer is taken for a str and any sequence for a
+# list, as this package's setters read them.
+_CINIT_ARGS = {"bp_method": (str, True), "schedule": (str, True), "serial_schedule_order": (list, True), "input_vector_type": (str, False)}
+
+
+def _arg_typed(value: Any, name: str, want: type, optional: bool, strict: bool) -> None:
+    if value is None and optional:
+        return
+    if strict:
+        ok = isinstance(value, want)
+    elif want is str:
+        ok = isinstance(value, (str, int, np.integer)) and not isinstance(value, bool)
+    else:
+        ok = value is not None
+    if not ok:
+        raise TypeError(f"Argument '{name}' has incorrect type (expected {want.__name__}, got {_tname(value)})")
+
+
+def _cinit_args(strict: bool, **given: Any) -> None:
+    for name, value in given.items():
+        if not isinstance(value, _Default):
+            _arg_typed(value, name, *_CINIT_ARGS[name], strict)
+
+
+def _osd_order_arg(order: Any) -> None:
+    """The constructors' ``osd_order: int``, which Cython takes from any number."""
+    if not isinstance(order, (int, float, np.integer, np.floating)):
+        raise TypeError(f"Argument 'osd_order' has incorrect type (expected int, got {_tname(order)})")
 
 
 def _probability(p: Any) -> float:
@@ -82,6 +131,8 @@ class BpDecoderBase:
 
     _core_factory: Any = None
     _defaults: dict = {}
+    # ldpc's v1 classes check their arguments' types as ldpc's Cython does, exactly.
+    _strict = False
 
     def _setup(self, pcm: Any, error_rate: Any, error_channel: Any, max_iter: Any, bp_method: Any, ms_scaling_factor: Any, schedule: Any, omp_thread_count: Any, random_schedule_seed: Any, serial_schedule_order: Any, random_serial_schedule: Any, channel_probs: Any, core_args: tuple) -> None:
         error_rate, error_channel, max_iter = _base("error_rate", error_rate), _base("error_channel", error_channel), _base("max_iter", max_iter)
@@ -89,7 +140,7 @@ class BpDecoderBase:
         omp_thread_count, random_schedule_seed = _base("omp_thread_count", omp_thread_count), _base("random_schedule_seed", random_schedule_seed)
         serial_schedule_order, random_serial_schedule = _base("serial_schedule_order", serial_schedule_order), _base("random_serial_schedule", random_serial_schedule)
         if not _is_matrix(pcm) and not isinstance(pcm, (list, tuple)):
-            raise TypeError(f"The input matrix is of an invalid type. Please input a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
+            raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
         self.m, self.n, self._cols = _columns(pcm)
         self._channel = np.full(self.n, 0.5)
         self._method, self._scale, self._max_iter = "product_sum", 1.0, 0
@@ -117,7 +168,8 @@ class BpDecoderBase:
         elif error_rate is not None:
             self.error_rate = error_rate
         else:
-            raise ValueError(f"Please specify the error channel. Either: 1) error_rate: float or 2) error_channel: list of floats of length equal to the block length of the code {self.n}.")
+            # (ldpc's message, not an f-string there.)
+            raise ValueError("Please specify the error channel. Either: 1) error_rate: float or 2) error_channel:" + _S12 + "list of floats of length equal to the block length of the code {self.n}.")
 
     # -- The channel ----------------------------------------------------------------------
 
@@ -128,7 +180,7 @@ class BpDecoderBase:
     @error_rate.setter
     def error_rate(self, value: Optional[float]) -> None:
         if value is not None:
-            _typed(value, "float")
+            _typed(value, "float", strict=self._strict)
             self._channel = np.full(self.n, _probability(value))
             call(self._x.set_priors, list(self._channel))
 
@@ -159,17 +211,18 @@ class BpDecoderBase:
 
     @input_vector_type.setter
     def input_vector_type(self, input_type: str) -> None:
+        _arg_typed(input_type, "input_type", str, False, self._strict)
         t = str(input_type).lower()
         if t in ("auto", "a", "2"):
             if self.m == self.n:
-                raise ValueError("Please specify the input vector type. Either: 1) input_vector_type: 'syndrome' or 2) input_vector_type: 'received_vector'.")
+                raise ValueError(f"Please specify the input vector type. Either: 1) input_vector_type: 'syndrome' or 2) input_vector_type:{_S16}'received_vector'.")
             self._input = "auto"
         elif t in ("syndrome", "s", "0"):
             self._input = "syndrome"
         elif t in ("received_vector", "r", "1"):
             self._input = "received_vector"
         else:
-            raise ValueError(f"The input vector type '{input_type}' is invalid. Please choose from the following methods: 'input_vector_type=syndrome', 'input_vector_type=received_vector'")
+            raise ValueError(f"The input vector type '{input_type}' is invalid.{_S21}Please choose from the following methods:{_S21}'input_vector_type=syndrome', 'input_vector_type=received_vector'")
 
     # -- The last run ---------------------------------------------------------------------
 
@@ -201,7 +254,7 @@ class BpDecoderBase:
 
     @max_iter.setter
     def max_iter(self, value: int) -> None:
-        _typed(value, "int")
+        _typed(value, "int", strict=self._strict)
         if value < 0:
             raise ValueError(f"max_iter input parameter must be a positive int. Not {value}.")
         self._max_iter = int(value) if value != 0 else self.n
@@ -219,7 +272,7 @@ class BpDecoderBase:
         elif v in ("min_sum", "minimum_sum", "ms", "1", "minimum sum", "min sum"):
             self._method = "minimum_sum"
         else:
-            raise ValueError(f"BP method '{value}' is invalid. Please choose from the following methods: 'product_sum', 'minimum_sum'")
+            raise ValueError(f"BP method '{value}' is invalid.{_S21}Please choose from the following methods:{_S21}'product_sum', 'minimum_sum'")
         call(self._x.set_method, self._method, float(self._scale))
 
     @property
@@ -230,7 +283,7 @@ class BpDecoderBase:
     def schedule(self, value: Union[str, int]) -> None:
         v = _SCHEDULES.get(str(value).lower())
         if v is None:
-            raise ValueError(f"The BP schedule method '{value}' is invalid. Please choose from the following methods: 'schedule=parallel', 'schedule=serial', 'schedule=serial_relative'")
+            raise ValueError(f"The BP schedule method '{value}' is invalid.{_S21}Please choose from the following methods:{_S21}'schedule=parallel', 'schedule=serial', 'schedule=serial_relative'")
         self._schedule = v
         call(self._x.set_schedule, v)
 
@@ -256,8 +309,10 @@ class BpDecoderBase:
 
     @ms_scaling_factor.setter
     def ms_scaling_factor(self, value: float) -> None:
-        if not isinstance(value, (float, int, np.floating, np.integer)):
-            raise TypeError("The ms_scaling factor must be specified as a float")
+        # ldpc's is a C double: any real number (its own "must be specified as a float" is
+        # never reached).
+        if isinstance(value, (str, bytes)) or not hasattr(value, "__float__"):
+            raise TypeError(f"must be real number, not {type(value).__name__}")
         self._scale = value
         call(self._x.set_method, self._method, float(value))
 
@@ -269,8 +324,9 @@ class BpDecoderBase:
 
     @omp_thread_count.setter
     def omp_thread_count(self, value: int) -> None:
-        if not isinstance(value, int) or value < 1:
-            raise TypeError("The omp_thread_count must be specified as a positive integer.")
+        _typed(value, "int", strict=self._strict)
+        if value < 1:
+            raise TypeError(f"The omp_thread_count must be specified as a{_S12}positive integer.")
         self._omp = value
         if value != 1:
             warnings.warn("The OpenMP functionality is not yet implemented")
@@ -281,10 +337,10 @@ class BpDecoderBase:
 
     @random_schedule_seed.setter
     def random_schedule_seed(self, value: int) -> None:
-        if not isinstance(value, bool):
-            _typed(value, "int")
+        if self._strict or not isinstance(value, bool):
+            _typed(value, "int", strict=self._strict)
         if value < -2:
-            raise ValueError("The value of random_schedule_seed must be a positive integer. Set as -1 to disable to the random schedule. Set as 0 to use the system clock.")
+            raise ValueError(f"The value of random_schedule_seed must{_S12}be a positive integer. Set as -1 to disable to the random{_S12}schedule. Set as 0 to use the system clock.")
         self._seed = int(value)
         self.random_serial_schedule = True
         self._x.seed(int(value) & 0xFFFFFFFF)
@@ -316,17 +372,23 @@ class BpDecoderBase:
                 s[r] ^= 1
         return s
 
-    def _decode_received(self, input_vector: Any, decode_syndrome: Any) -> Any:
-        """``input_vector_type`` set to ``"received_vector"`` after construction (ldpc's BP+OSD,
-        BP+LSD and BeliefFind honour it): the codeword nearest the received vector, the error
-        its syndrome decodes to taken off it. None for a syndrome."""
+    def _received(self, input_vector: Any) -> Optional[tuple]:
+        """``input_vector_type`` set to ``"received_vector"`` after construction, which ldpc's
+        BP+OSD, BP+LSD and BeliefFind honour as their BP does: BP decodes the vector's syndrome,
+        and where it converges the answer is the codeword, BP's error taken off the vector. Where
+        it does not, ldpc hands OSD, LSD or union-find the vector itself, read as a syndrome, with
+        BP's posteriors, so the answer is then an error whose syndrome is the vector. The vector's
+        length is checked as a syndrome's, so the matrix must be square. None for a syndrome;
+        else (the vector's bits, their syndrome, the vector's dtype)."""
         if self._input != "received_vector":
             return None
         v = np.asarray(input_vector)
-        self._check_length(v)
+        if not len(v) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(v)}.")
+        if self.m != self.n:
+            raise ValueError(f"decoding a received vector here needs a square check matrix, not {self.m} by {self.n} (ldpc checks the vector's length against the checks and reads it as a word of the columns)")
         bits = (v != 0).astype(np.uint8)
-        error = np.asarray(decode_syndrome(np.array(self._syndrome_of(bits), dtype=np.uint8)), dtype=np.uint8)
-        return (error ^ bits).astype(v.dtype)
+        return bits, self._syndrome_of(bits), v.dtype
 
     def __reduce__(self) -> tuple:
         # Rebuilt from its matrix and options; the settings and last results come along.
@@ -365,9 +427,6 @@ class BpDecoder(BpDecoderBase):
         device: str = "cpu",
         **kwargs: Any,
     ) -> None:
-        for key in kwargs:
-            if key not in ("channel_probs",):
-                raise ValueError(f"Unknown parameter '{key}' passed to the BpDecoder constructor.")
         if device not in ("cpu", "cpu-f32", "gpu"):
             raise ValueError(f"device must be 'cpu', 'cpu-f32' or 'gpu', not {device!r}")
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type, random_serial_schedule=random_serial_schedule, device=device, **kwargs))
@@ -376,7 +435,12 @@ class BpDecoder(BpDecoderBase):
             # The single-precision executors are min-sum; a device without a method asks for it
             # (ldpc's base default, product_sum, is what an unset method otherwise means).
             bp_method = "minimum_sum"
+        # In ldpc's order: the base class's setup, the typed arguments, then the rest.
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, random_serial_schedule, kwargs.get("channel_probs", [None]), ())
+        _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type)
+        for key in kwargs:
+            if key not in ("channel_probs",):
+                raise ValueError(f"Unknown parameter '{key}' passed to the BpDecoder constructor.")
         self.input_vector_type = input_vector_type
         self.device = device
         if device != "cpu":  # the single-precision executors are min-sum, parallel schedule only
@@ -559,18 +623,24 @@ class BpOsdDecoder(BpDecoderBase):
         input_vector_type: str = "syndrome",
         **kwargs: Any,
     ) -> None:
+        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, osd_method=osd_method, osd_order=osd_order, **kwargs))
+        # In ldpc's order: the base class's setup, the typed arguments, the unknown ones, then
+        # the OSD method and order (OSD-0 until they are known good).
+        name = _osd_name(osd_method)
+        order = int(osd_order) if isinstance(osd_order, (int, float, np.integer, np.floating)) else 0
+        good = name is not None and order >= 0 and (name != "osd_0" or order == 0)
+        core_name = "osd_0" if not good or name in ("osd_0", "osd_off") else name
+        self._input = "syndrome"
+        self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, False, kwargs.get("channel_probs", [None]), (core_name, order if good else 0))
+        _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order)
+        _osd_order_arg(osd_order)
+        _cinit_args(self._strict, input_vector_type=input_vector_type)
         for key in kwargs:
             if key not in ("channel_probs",):
                 raise ValueError(f"Unknown parameter '{key}' passed to the BpDecoder constructor.")
-        self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, osd_method=osd_method, osd_order=osd_order, **kwargs))
-        name = _osd_name(osd_method)
         if name is None:
-            raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods: 'OSD_0', 'OSD_E' or 'OSD_CS'.")
-        order = int(osd_order)
+            raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods:{_S16}'OSD_0', 'OSD_E' or 'OSD_CS'.")
         self._check_order(name, order)
-        self._input = "syndrome"
-        core_name = "osd_0" if name in ("osd_0", "osd_off") else name
-        self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, False, kwargs.get("channel_probs", [None]), (core_name, order))
         self._osd, self._order = name, order
         self._bp_decoding = np.zeros(self.n, dtype=np.uint8)
         self._osd0 = np.zeros(self.n, dtype=np.uint8)
@@ -586,10 +656,21 @@ class BpOsdDecoder(BpDecoderBase):
             warnings.warn("WARNING: Running the 'OSD_E' (Exhaustive method) with search depth greater than 15 is not recommended. Use the 'osd_cs' method instead.")
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
-        codeword = self._decode_received(syndrome, self._decode_syndrome)
-        if codeword is not None:
-            return codeword
-        return self._decode_syndrome(syndrome)
+        received = self._received(syndrome)
+        if received is None:
+            return self._decode_syndrome(syndrome)
+        bits, bits_syndrome, dtype = received
+        if not bits.any():
+            self._converge = True
+            return np.zeros(self.n, dtype=dtype)
+        _, converged, iterations, hard, llr, _ = call(self._x.decode, bits_syndrome)
+        self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
+        self._bp_decoding = np.asarray(hard, dtype=np.uint8) ^ bits
+        if converged:
+            return self._bp_decoding.astype(dtype)
+        osdw, osd0 = call(self._x.osd_on, [int(x) for x in bits], list(self._llr))
+        self._osd0, self._osdw = np.asarray(osd0, dtype=np.uint8), np.asarray(osdw, dtype=np.uint8)
+        return self._osdw.astype(dtype)
 
     def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         syndrome = np.asarray(syndrome)
@@ -614,7 +695,7 @@ class BpOsdDecoder(BpDecoderBase):
     def osd_method(self, method: Union[str, int, float]) -> None:
         name = _osd_name(method)
         if name is None:
-            raise ValueError(f"ERROR: OSD method '{method}' invalid. Please choose from the following methods: 'OSD_0', 'OSD_E' or 'OSD_CS'.")
+            raise ValueError(f"ERROR: OSD method '{method}' invalid. Please choose from the following methods:{_S16}'OSD_0', 'OSD_E' or 'OSD_CS'.")
         self._osd = name
         if name == "osd_0":
             self._order = 0
@@ -626,6 +707,7 @@ class BpOsdDecoder(BpDecoderBase):
 
     @osd_order.setter
     def osd_order(self, order: int) -> None:
+        _typed(order, "int", "order", self._strict)
         self._check_order(self._osd, order)
         self._order = int(order)
         self._x.set_osd_order(int(order))
@@ -647,7 +729,74 @@ class BpOsdDecoder(BpDecoderBase):
         return (self._bp_decoding if self._converge else self._osdw).astype(int)
 
 
-class BpLsdDecoder(BpDecoderBase):
+# ldpc's lsd_method setter (which its constructors call): spellings of each method; OSD_OFF is
+# the setter's alone.
+_LSD_SPELLINGS = (("osd_0", ("osd_0", "0", "osd0", "lsd_0", "lsd0")), ("osd_e", ("osd_e", "e", "exhaustive", "lsd_e", "lsde")), ("osd_cs", ("osd_cs", "1", "cs", "combination_sweep", "lsd_cs")), ("osd_off", ("off", "osd_off", "deactivated", "lsd_off")))
+
+
+def _lsd_setter_name(method: Any) -> str:
+    m = str(method).lower()
+    for name, spellings in _LSD_SPELLINGS:
+        if m in spellings:
+            return name
+    raise ValueError(f"ERROR: OSD method '{method}' invalid. Please choose from the following methods:{_S16}'LSD_0', 'LSD_E' or 'LSD_CS'.")
+
+
+def _lsd_ctor(lsd_method: Any, lsd_order: Any) -> tuple:
+    """(method, order) as ldpc's LSD constructors read them: their own checks, then the
+    ``lsd_method`` setter, which refuses some spellings the checks let through (``2``,
+    ``"osde"``, ``"osdcs"``, ``"lsdcs"``) and sets the order to 0 for LSD-0."""
+    if lsd_order < 0:
+        raise ValueError(f"lsd_order must be greater than or equal to 0. Not {lsd_order}.")
+    if isinstance(lsd_method, str):
+        if lsd_method.lower() not in ("osd_0", "osd_e", "osd_cs", "osde", "osdcs", "osd0", "lsd_0", "lsd_e", "lsd_cs", "lsd0", "lsdcs", "lsde"):
+            raise ValueError(f"lsd_method must be one of 'LSD_0', 'LSD_E', 'LSD_CS'. Not {lsd_method}.")
+    elif isinstance(lsd_method, int):
+        if lsd_method not in (0, 1, 2):
+            raise ValueError(f"lsd_method must be one of 0, 1, 2. Not {lsd_method}.")
+    else:
+        raise ValueError(f"lsd_method must be one of 'LSD_0' (0), 'LSD_E' (1), 'LSD_CS' (2). Not {lsd_method}.")
+    name = _lsd_setter_name(lsd_method)
+    return name, 0 if name == "osd_0" else count(lsd_order, "lsd_order")
+
+
+class _LsdOptions:
+    """``lsd_method`` and ``lsd_order``, read and set as ldpc's (the next decode uses them)."""
+
+    _lsd_method: str
+    _lsd_order: int
+    _x: Any
+
+    @property
+    def lsd_method(self) -> Optional[str]:
+        return {"osd_0": "lSD_0", "osd_e": "LSD_E", "osd_cs": "LSD_CS", "osd_off": "LSD_OFF"}.get(self._lsd_method)
+
+    @lsd_method.setter
+    def lsd_method(self, method: Union[str, int, float]) -> None:
+        name = _lsd_setter_name(method)
+        self._lsd_method = name
+        if name == "osd_0":
+            self._lsd_order = 0
+        call(self._x.set_lsd, name, self._lsd_order)
+
+    @property
+    def lsd_order(self) -> int:
+        return self._lsd_order
+
+    @lsd_order.setter
+    def lsd_order(self, order: int) -> None:
+        _typed(order, "int", "order")
+        if order < 0:
+            raise ValueError(f"ERROR: OSD order '{order}' invalid. Please choose a positive integer.")
+        if self._lsd_method == "osd_0" and order != 0:
+            raise ValueError(f"ERROR: OSD order '{order}' invalid. The 'osd_method' is set to 'OSD_0'. The osd order must therefore be set to 0.")
+        if self._lsd_method == "osd_e" and order > 15:
+            warnings.warn("WARNING: Running the 'OSD_E' (Exhaustive method) with search depth greater than 15 is not recommended. Use the 'osd_cs' method instead.")
+        self._lsd_order = int(order)
+        call(self._x.set_lsd, self._lsd_method, self._lsd_order)
+
+
+class BpLsdDecoder(_LsdOptions, BpDecoderBase):
     """BP+LSD on a check matrix, as ldpc's ``BpLsdDecoder``: BP, and where it does not converge
     (or always, with ``always_run_lsd``), localised statistics decoding: clusters grown from
     the syndrome by BP's posteriors, ``bits_per_step`` at a time, each solved by OSD of
@@ -677,20 +826,11 @@ class BpLsdDecoder(BpDecoderBase):
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, bits_per_step=bits_per_step, lsd_order=lsd_order, lsd_method=lsd_method, always_run_lsd=always_run_lsd, **kwargs))
         lsd_method = kwargs.pop("osd_method", lsd_method)
         lsd_order = kwargs.pop("osd_order", lsd_order)
-        if lsd_order < 0:
-            raise ValueError(f"lsd_order must be greater than or equal to 0. Not {lsd_order}.")
-        if isinstance(lsd_method, str):
-            if lsd_method.lower() not in ("osd_0", "osd_e", "osd_cs", "osde", "osdcs", "osd0", "lsd_0", "lsd_e", "lsd_cs", "lsd0", "lsdcs", "lsde"):
-                raise ValueError(f"lsd_method must be one of 'LSD_0', 'LSD_E', 'LSD_CS'. Not {lsd_method}.")
-        elif isinstance(lsd_method, int):
-            if lsd_method not in (0, 1, 2):
-                raise ValueError(f"lsd_method must be one of 0, 1, 2. Not {lsd_method}.")
-        else:
-            raise ValueError(f"lsd_method must be one of 'LSD_0' (0), 'LSD_E' (1), 'LSD_CS' (2). Not {lsd_method}.")
-        method, order = _lsd_method(lsd_method, lsd_order)
+        method, order = _lsd_ctor(lsd_method, lsd_order)
         bits = pcm.shape[1] if bits_per_step == 0 else int(bits_per_step)
         self._input = "syndrome"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, kwargs.get("random_serial_schedule", _Default(False)), kwargs.get("channel_probs", [None]), (method, order, bits, bool(always_run_lsd)))
+        _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type)
         self._lsd_method, self._lsd_order = method, order
         self.always_run_lsd = bool(always_run_lsd)
         self.bits_per_step = bits
@@ -699,10 +839,22 @@ class BpLsdDecoder(BpDecoderBase):
         self._stat_fields: dict = {}
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
-        codeword = self._decode_received(syndrome, self._decode_syndrome)
-        if codeword is not None:
-            return codeword
-        return self._decode_syndrome(syndrome)
+        received = self._received(syndrome)
+        if received is None:
+            return self._decode_syndrome(syndrome)
+        bits, bits_syndrome, dtype = received
+        _, converged, iterations, _, _, _, hard, llr = call(self._x.decode, bits_syndrome)
+        self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
+        self._bp_decoding = np.asarray(hard, dtype=np.uint8) ^ bits
+        self._stat_fields = {}
+        self.last_tied = False
+        if converged and not self.always_run_lsd:
+            return self._bp_decoding.astype(dtype)
+        correction, solved, ties, _ = call(self._x.decode_lsd, [int(x) for x in bits], list(self._llr))
+        if not solved:
+            raise ValueError("no correction explains the syndrome")
+        self.last_tied = ties > 0
+        return np.asarray(correction, dtype=dtype)
 
     def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         """The correction. ``last_tied`` says whether this decode made a choice ldpc might
@@ -767,13 +919,6 @@ class BpLsdDecoder(BpDecoderBase):
     def bp_decoding(self) -> np.ndarray:
         return self._bp_decoding.astype(int)
 
-    @property
-    def lsd_method(self) -> Optional[str]:
-        return {"osd_0": "lSD_0", "osd_e": "LSD_E", "osd_cs": "LSD_CS"}.get(self._lsd_method)
-
-    @property
-    def lsd_order(self) -> int:
-        return self._lsd_order
 
 
 class BpFlipDecoder(BpDecoderBase):
@@ -830,7 +975,7 @@ class BpFlipDecoder(BpDecoderBase):
         return self._decoding.astype(int)
 
 
-class LsdDecoder:
+class LsdDecoder(_LsdOptions):
     """Localised statistics decoding alone, given each bit's weight (lower: likelier), as
     ldpc's ``LsdDecoder``: clusters grown from the syndrome ``bits_per_step`` bits at a time,
     lightest first, each solved by OSD of ``lsd_order`` (``osd_method``/``osd_order`` accepted for
@@ -840,20 +985,11 @@ class LsdDecoder:
         self._made_from = ((pcm,), dict(bits_per_step=bits_per_step, lsd_order=lsd_order, lsd_method=lsd_method, **kwargs))
         lsd_method = kwargs.get("osd_method", lsd_method)
         lsd_order = kwargs.get("osd_order", lsd_order)
-        if lsd_order < 0:
-            raise ValueError(f"lsd_order must be greater than or equal to 0. Not {lsd_order}.")
-        if isinstance(lsd_method, str):
-            if lsd_method.lower() not in ("osd_0", "osd_e", "osd_cs", "osde", "osdcs", "osd0", "lsd_0", "lsd_e", "lsd_cs", "lsd0", "lsdcs", "lsde"):
-                raise ValueError(f"lsd_method must be one of 'LSD_0', 'LSD_E', 'LSD_CS'. Not {lsd_method}.")
-        elif isinstance(lsd_method, int):
-            if lsd_method not in (0, 1, 2):
-                raise ValueError(f"lsd_method must be one of 0, 1, 2. Not {lsd_method}.")
-        else:
-            raise ValueError(f"lsd_method must be one of 'LSD_0' (0), 'LSD_E' (1), 'LSD_CS' (2). Not {lsd_method}.")
+        _lsd_ctor(lsd_method, lsd_order)  # (its checks come before the matrix's)
         if not _is_matrix(pcm) and not isinstance(pcm, (list, tuple)):
-            raise TypeError(f"The input matrix is of an invalid type. Please input a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
+            raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
         self.m, self.n, cols = _columns(pcm)
-        method, order = _lsd_method(lsd_method, lsd_order)
+        method, order = _lsd_ctor(lsd_method, lsd_order)
         self.bits_per_step = self.n if bits_per_step == 0 else int(bits_per_step)
         self._lsd_method, self._lsd_order = method, order
         self._x = call(_core.BpLsd, self.m, cols, [0.5] * self.n, 1, "product_sum", 1.0, method, order, self.bits_per_step, True)
@@ -884,13 +1020,6 @@ class LsdDecoder:
     def decoding(self) -> np.ndarray:
         return self._decoding.copy()
 
-    @property
-    def lsd_method(self) -> Optional[str]:
-        return {"osd_0": "lSD_0", "osd_e": "LSD_E", "osd_cs": "LSD_CS"}.get(self._lsd_method)
-
-    @property
-    def lsd_order(self) -> int:
-        return self._lsd_order
 
 
 def _per_step(bits_per_step: int, n: int) -> int:
@@ -901,19 +1030,26 @@ def _per_step(bits_per_step: int, n: int) -> int:
 class UnionFindDecoder:
     """Union-find decoding of any check matrix, as ldpc's ``UnionFindDecoder``: a cluster grows
     around each fired check until it can explain its checks, then each is solved alone, by
-    elimination (``uf_method`` true: any matrix) or by peeling (false: columns of at most two
-    checks, a column with one check touching the boundary). Given ``llrs``, growth takes the
-    ``bits_per_step`` lowest first (0: all). ``uf_method`` may also be a name, ``"inversion"`` or
-    ``"peeling"``. (ldpc's own takes any non-empty string as inversion, ``"peeling"`` too, and its
-    declared default ``False`` is refused.) Corrections are ldpc's but where ``last_stuck`` says
-    the last decode left its algorithm: where ldpc's peeling goes round forever, or (ldpc 2.4.1
-    peels the boundary through a bit its spanning tree may not have taken) peels to a correction
-    that does not explain the syndrome, as on 78 of the distance-5 rotated surface code's 4096;
-    there a cluster is peeled through the tree's boundary bit, or solved by inversion."""
+    elimination (``uf_method`` true: any matrix) or by peeling (false, the default: columns of at
+    most two checks, a column with one check touching the boundary). Given ``llrs``, growth takes
+    the ``bits_per_step`` lowest first (0: all). ``uf_method`` may also be a name,
+    ``"inversion"`` or ``"peeling"``, and the name is what runs. ldpc's own differs here: its
+    argument is typed ``str`` but kept in a C ``bool``, so any non-empty string is inversion
+    there, ``"peeling"`` included; its only peeling is ``uf_method=""``; and it refuses a
+    ``bool`` with a TypeError, its own default ``False`` included, so ``UnionFindDecoder(H)``
+    fails there and peels here. So ldpc's ``UnionFindDecoder(H, uf_method="peeling")`` is this
+    one's ``uf_method="inversion"``, shot for shot; against ldpc's ``uf_method=""``, this one's
+    ``"peeling"`` differs only where flagged, with or without ``llrs``.
+    Corrections are ldpc's but where ``last_tied`` says the last decode merged three or more
+    clusters at once (ldpc's order there comes from hashed pointers), or ``last_stuck`` says it
+    left ldpc's algorithm: where ldpc's peeling goes round forever, or (ldpc 2.4.1 peels the
+    boundary through a bit its spanning tree may not have taken) peels to a correction that does
+    not explain the syndrome, as on 78 of the distance-5 rotated surface code's 4096; there a
+    cluster is peeled through the tree's boundary bit, or solved by inversion."""
 
     def __init__(self, pcm: Any, uf_method: Union[bool, str] = False) -> None:
         if not _is_matrix(pcm):
-            raise TypeError(f"The input matrix is of an invalid type. Please input a np.ndarray or spmatrix object, not {type(pcm)}")
+            raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or spmatrix object, not {type(pcm)}")
         self._made_from = ((pcm,), dict(uf_method=uf_method))
         self.m, self.n, cols = _columns(pcm)
         self._x = call(_core.LdpcUf, self.m, cols)
@@ -986,8 +1122,10 @@ class BeliefFindDecoder(BpDecoderBase):
         self._input = "syndrome"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, _Default(False), [None], ())
         self._uf = call(_core.LdpcUf, self.m, self._cols)
+        _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order)
         if not isinstance(uf_method, str):
-            raise TypeError(f"Argument 'uf_method' has incorrect type (expected str, got {type(uf_method).__name__})")
+            raise TypeError(f"Argument 'uf_method' has incorrect type (expected str, got {_tname(uf_method)})")
+        _cinit_args(self._strict, input_vector_type=input_vector_type)
         if uf_method.lower() in ("inversion", "invert", "matrix"):
             self._uf_method = "inversion"
         elif uf_method.lower() in ("peeling", "peel"):
@@ -1002,10 +1140,21 @@ class BeliefFindDecoder(BpDecoderBase):
         self.last_tied = self.last_stuck = False
 
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
-        codeword = self._decode_received(syndrome, self._decode_syndrome)
-        if codeword is not None:
-            return codeword
-        return self._decode_syndrome(syndrome)
+        received = self._received(syndrome)
+        if received is None:
+            return self._decode_syndrome(syndrome)
+        bits, bits_syndrome, dtype = received
+        hard, llr, converged, iterations = call(self._x.decode, bits_syndrome)
+        self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
+        self._decoding = np.asarray(hard, dtype=np.uint8) ^ bits
+        self.last_tied = self.last_stuck = False
+        if self._converge:
+            return self._decoding.astype(dtype)
+        correction, solved, ties, stuck = call(self._uf.decode, [int(x) for x in bits], list(self._llr), _per_step(self.bits_per_step, self.n), self._uf_method == "peeling")
+        if not solved:
+            raise ValueError("no correction explains the syndrome")
+        self.last_tied, self.last_stuck = ties > 0, stuck > 0
+        return np.asarray(correction, dtype=dtype)
 
     def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         syndrome = np.asarray(syndrome)
@@ -1109,7 +1258,7 @@ class MbpDecoder:
         elif str(bp_method).lower() in ["min_sum", "minimum_sum", "ms", "1", "minimum sum", "min sum"]:
             self.bp_method = 1
         else:
-            raise ValueError(f"BP method '{bp_method}' is invalid. Please choose from the following methods:'product_sum', 'minimum_sum' or 'product_sum'")
+            raise ValueError(f"BP method '{bp_method}' is invalid.{_S28}Please choose from the following methods:'product_sum',{_S28}'minimum_sum' or 'product_sum'")
         self._beta, self.gamma_parameter = float(beta_parameter), float(gamma_parameter)
         self._x = call(_core.Mbp, self.stab_count, n, entries, channel.tolist(), self._alpha.tolist(), self._beta, self.gamma_parameter, self.bp_method == 1, self.max_iter)
         self._syndrome = np.zeros(self.stab_count, dtype=np.uint8)
@@ -1262,7 +1411,7 @@ class SoftInfoBpOsdDecoder(SoftInfoBpDecoder):
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_serial_schedule=random_serial_schedule, serial_schedule_order=serial_schedule_order, osd_method=osd_method, osd_order=osd_order, cutoff=cutoff, sigma=sigma))
         name = _osd_name(osd_method)
         if name is None:
-            raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods: 'OSD_0', 'OSD_E' or 'OSD_CS'.")
+            raise ValueError(f"ERROR: OSD method '{osd_method}' invalid. Please choose from the following methods:{_S16}'OSD_0', 'OSD_E' or 'OSD_CS'.")
         order = int(osd_order)
         BpOsdDecoder._check_order(name, order)
         self._osd, self._order = name, order

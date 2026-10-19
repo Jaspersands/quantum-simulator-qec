@@ -2036,7 +2036,10 @@ impl PyBpOsd {
     #[new]
     #[allow(clippy::too_many_arguments)]
     fn new(num_checks: usize, columns: Vec<Vec<u32>>, priors: Vec<f64>, max_iter: usize, method: &str, scale: f64, osd: &str, order: usize) -> PyResult<Self> {
-        let dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?).map_err(err)?;
+        let mut dec = BpOsd::new(num_checks, columns, &priors, bp_method(method, scale)?, max_iter, osd_method(osd, order)?).map_err(err)?;
+        // As ldpc's BpDecoder: BP runs on a zero syndrome too (a received codeword's), its
+        // iterations and posteriors that run's. (BpOsdDecoder answers a zero syndrome itself.)
+        dec.bp.zero_shortcut = false;
         let work = dec.work();
         Ok(PyBpOsd { dec, num_checks, work })
     }
@@ -2157,6 +2160,15 @@ impl PyBpLsd {
 
     fn seed(&mut self, seed: u32) {
         self.work.serial.seed(seed);
+    }
+
+    /// The LSD method and order now (`ldpc`'s `lsd_method` and `lsd_order` setters, which the
+    /// next decode reads); `"osd_off"` is `ldpc`'s `OSD_OFF`.
+    fn set_lsd(&mut self, lsd: &str, order: usize) -> PyResult<()> {
+        let off = lsd == "osd_off";
+        self.dec.lsd = if off { OsdMethod::Exhaustive(order) } else { osd_method(lsd, order)? };
+        self.dec.off = off;
+        Ok(())
     }
 
     fn set_do_stats(&mut self, on: bool) {
