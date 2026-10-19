@@ -616,20 +616,44 @@ _NATIVE: Dict[str, Callable[[_Inputs, str, dict], _NativeDecoder]] = {
 }
 
 
-def _native(name: str, inputs: _Inputs, options: dict) -> _NativeDecoder:
+# Decoders built from a Stim model's text itself (``get_decoder(name, dem_text)``), not its matrices.
+_NATIVE_DEM: Dict[str, Callable[[str, dict, Optional[str]], _NativeDecoder]] = {}
+
+
+def _output_of(options: dict) -> Optional[str]:
     output = options.pop("output", None)
     if output is not None and output not in ("errors", "observables"):
         raise RuntimeError(f"output must be 'errors' or 'observables', not {output!r}")
+    return output
+
+
+def _invalid(name: str) -> RuntimeError:
+    return RuntimeError(f"invalid decoder requested: {name}. Run with CUDAQ_LOG_LEVEL=info (environment variable) to see additional plugin diagnostics at startup.")
+
+
+def _no_cuda(params: dict) -> None:
+    if "cuda_device_id" in params:
+        raise RuntimeError(f"cuda_device_id {params['cuda_device_id']} is out of range: 0 CUDA device(s) visible")
+
+
+def _native(name: str, inputs: _Inputs, options: dict) -> _NativeDecoder:
+    output = _output_of(options)
     for reserved in ("H", "O", "D", "error_rate_vec"):
         if reserved in options:
             raise RuntimeError(f"'{reserved}' is framework model data; provide it through decoder_init instead of decoder custom parameters")
     params = {k: _param(v) for k, v in options.items()}
     factory = _NATIVE.get(name)
     if factory is None:
-        raise RuntimeError(f"invalid decoder requested: {name}. Run with CUDAQ_LOG_LEVEL=info (environment variable) to see additional plugin diagnostics at startup.")
-    if "cuda_device_id" in params:
-        raise RuntimeError(f"cuda_device_id {params['cuda_device_id']} is out of range: 0 CUDA device(s) visible")
+        raise _invalid(name)
+    _no_cuda(params)
     return factory(inputs, output or "errors", params)
+
+
+def _native_dem(name: str, dem_text: str, options: dict) -> _NativeDecoder:
+    output = _output_of(options)
+    params = {k: _param(v) for k, v in options.items()}
+    _no_cuda(params)
+    return _NATIVE_DEM[name](dem_text, params, output)
 
 
 def get_decoder(name: str, H: Any, **options: Any) -> Any:
@@ -647,6 +671,8 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
             if "error_rate_vec" not in options and dem.error_rates:
                 options["error_rate_vec"] = np.asarray(dem.error_rates)
             return _PY_REGISTRY[name](dem.detector_error_matrix, **options)
+        if name in _NATIVE_DEM:
+            return _native_dem(name, H, dict(options))
         num_dets, num_obs, det_hits, obs_hits, rates = _parse_stim_dem(H, False)
         O_rows: List[List[int]] = [[] for _ in range(num_obs)]
         for e, hits in enumerate(obs_hits):
@@ -667,3 +693,15 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
     if "error_rate_vec" in options:
         rates = [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
     return _native(name, _Inputs(m, n, cols, O, num_obs, rates), options)
+
+
+def _register_plugins() -> None:
+    from . import _matching
+
+    _NATIVE["chromobius"] = _matching._chromobius_from_matrix
+    _NATIVE_DEM["chromobius"] = _matching._Chromobius
+    _NATIVE["nv-fusion-decoder"] = _matching._fusion_from_matrix
+    _NATIVE_DEM["nv-fusion-decoder"] = lambda text, params, output: _matching._fusion_dem(text, params, output=output)
+
+
+_register_plugins()
