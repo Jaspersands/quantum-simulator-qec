@@ -18,6 +18,15 @@ The circuit holds Deltakit's instructions as tagged lines Stim reads (``I_ERROR[
 and the rest, see ``Circuit.to_deltakit_text``), so ``stabilizer_qec.Circuit(c)`` is the same
 circuit to Stim, where nothing leaks.
 
+The transport gates follow deltakit_stim's documentation: spreading, then mobility each way.
+deltakit_stim 0.2.7's simulator departs from it when one gate is given spreading and mobility
+together, applying only the spreading (``CX(0.1, 0.2, 0.3, 0.4)`` with the control leaked at
+0.2 leaves the target leaked with probability 0.020 there, 0.057 by the documented rule, and
+here); with one kind of argument, and in every detector error model, the two agree. Decoded
+by matching without leakage awareness, Deltakit's bundled leakage circuits get other answers
+than PyMatching's on 6–31% of shots, every one a tie between equally light corrections (the
+heralds' edges weigh nothing), and logical error rates 4–5% apart either way.
+
 >>> import stabilizer_qec.deltakit_stim as stim
 >>> c = stim.Circuit("R 0\\nLEAKAGE(0.1) 0\\nHERALD_LEAKAGE_EVENT(0.01) 0\\nM 0\\nDETECTOR rec[-1]\\nDETECTOR rec[-2]")
 >>> c[1]

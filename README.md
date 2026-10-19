@@ -461,10 +461,13 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 | `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte | examples, command-line comparisons |
 
 Where Stim's output depends on its random number generator, results agree in distribution, not
-bit for bit. Two differences are deliberate and documented: products Stim parses but cannot run
-(anti-Hermitian Pauli products, writes to the measurement record) are refused when the circuit
-is built rather than when it runs; and `diagram("interactive")` opens the circuit in Crumble
-from algassert.com rather than embedding Crumble's code. The SVG diagrams are this package's
+bit for bit. Three differences are deliberate and documented: products Stim parses but cannot
+run (anti-Hermitian Pauli products, writes to the measurement record) are refused when the
+circuit is built rather than when it runs; `diagram("interactive")` opens the circuit in Crumble
+from algassert.com rather than embedding Crumble's code; and with `decompose_errors=True`, a
+fault Stim would split into pieces of its channel whose observables do not add up to its own is
+left whole (Stim's split changes what the fault does to the observables: on ldpc's [[4,2,2]]
+memory in the X basis, 1.3e-4 of probability moves from `D1 D2 L0` to `D1 D2`, and so on). The SVG diagrams are this package's
 own drawings. Where several answers are equally good, the one returned can differ:
 `search_for_undetectable_logical_errors` returns a shortest error, not always Stim's, and the
 matcher grows its regions in its own order, so among equally light matchings it can pick another
