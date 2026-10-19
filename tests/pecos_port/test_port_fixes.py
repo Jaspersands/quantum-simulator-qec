@@ -218,3 +218,35 @@ def test_timing_runner_total_time():
         output, errors = runner.run(state, logic, error_gen=pc.error_gens.DepolarGen(), error_params={'p': 0.1})
         runs.append((dict(output), state.print_stabs(verbose=False), len(calls)))
     assert runs[0] == runs[1] and timed.total_time == runs[0][2] > 0
+
+
+@pytest.mark.parametrize('code', ['Surface4444', 'SurfaceMedial4444'])
+def test_fault_tolerance_check(code):
+    # PECOS's check decoded the faulty round's own syndrome and failed every code (when it did not raise first); the
+    # port's decodes an ideal round after it, as the check of input errors does.
+    import stabilizer_qec.pecos as pc
+    from stabilizer_qec.pecos.tools import _tool_collection
+
+    qecc = getattr(pc.qeccs, code)(distance=3)
+    assert pc.tools.fault_tolerance_check(qecc, pc.decoders.MWPM2D(qecc)) is None
+
+    class NoDecoder:
+        def decode(self, syndrome):
+            return pc.circuits.QuantumCircuit()
+
+    with pytest.raises(Exception, match='Decoder failed to correct error'):
+        pc.tools.fault_tolerance_check(qecc, NoDecoder())
+
+    # Still a check: two X faults on a logical X's support, past t = 1, flip the logical Z.
+    logical = qecc.instruction('instr_syn_extract').final_logical_ops[0]
+    support = sorted(q for sym, locs, _ in logical['X'].items() for q in locs)
+    init_zero = pc.circuits.LogicalCircuit(layout=qecc.layout)
+    init_zero.append(qecc.gate('ideal init |0>'))
+    syn_extract = pc.circuits.LogicalCircuit(layout=qecc.layout)
+    syn_extract.append(qecc.gate('I', num_syn_extract=1))
+    signs = []
+    for faults in [support[:1], support[:2]]:
+        state = pc.simulators.pySparseSim(qecc.num_qudits)
+        signs.append(_tool_collection._apply_err_spacetime(state, pc.circuit_runners.Standard(seed=1), init_zero, syn_extract,
+                                                           {0: {'X': set(faults)}}, pc.decoders.MWPM2D(qecc), logical['Z'], qecc))
+    assert signs == [0, 1]

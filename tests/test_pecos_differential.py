@@ -116,10 +116,10 @@ def test_fault_tolerance_checks(ours):
             assert raises(a, "AttributeError"), key
             assert b == [True, 1], key  # every weight-1 error corrected
         elif key.startswith("tool collection"):
-            # PECOS raises on the decoder's input; the port finds what this one-round check
-            # cannot pass, a fault within the round (a measurement's, or a data qudit's).
+            # PECOS raises (on the decoder's input, on a random measurement's -1); the port, which
+            # decodes an ideal round after each faulty one, finds every weight-1 fault corrected.
             assert raises(a), key
-            assert raises(b, "Exception") and b[2].startswith("Decoder failed to correct error: {"), key
+            assert b is None, key
         else:
             assert a == b, key  # MWPM2D, built or not (on the 4.8.8 code it raises in both)
 

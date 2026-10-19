@@ -15,7 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; fault_tolerance_check decodes an ideal round after
+# the faulty one (see _apply_err_spacetime), and so passes the shipped codes.
 
 from itertools import combinations, product
 import numpy as np
@@ -123,8 +124,8 @@ def form_errors(xs, zs):
 def _apply_err_spacetime(state, circ_runner, init_circ, syn_circ, err_dict, decoder, logical_op, QECC):
     circ_runner.run(state, init_circ)
 
-    syn_circ = QECC.instruction('instr_syn_extract', num_syn_extract=1)
-    num_ticks = len(syn_circ.circuit)
+    syn_instr = QECC.instruction('instr_syn_extract', num_syn_extract=1)  # (stabilizer_qec: syn_circ is kept, below)
+    num_ticks = len(syn_instr.circuit)
 
     syn = set()
     for t in range(num_ticks):
@@ -134,7 +135,7 @@ def _apply_err_spacetime(state, circ_runner, init_circ, syn_circ, err_dict, deco
         xerrs = set(err_dict.get(t, {}).get('X', set()))
         zerrs = set(err_dict.get(t, {}).get('Z', set()))
 
-        for gate_sym, locations, _ in syn_circ.circuit.items(tick=t):
+        for gate_sym, locations, _ in syn_instr.circuit.items(tick=t):
 
             if 'measure' in gate_sym and t in err_dict:
                 before_xerrs = locations & xerrs
@@ -156,6 +157,12 @@ def _apply_err_spacetime(state, circ_runner, init_circ, syn_circ, err_dict, deco
         if zerrs:
             state.run_gate('Z', zerrs)
 
+    # (stabilizer_qec: PECOS decoded the faulty round's syndrome, `syn`, which a fault within the round, a
+    # measurement's or a data qudit's between its gates, leaves inconsistent for a decoder of one ideal round such as
+    # MWPM2D: the check failed on every shipped code, besides raising on the syndrome's type. As for the input errors,
+    # an ideal round follows and its syndrome is decoded: t faults in a round must leave an error it corrects.)
+    output, _ = circ_runner.run(state, syn_circ)
+    syn = output.simplified(True)
     if syn:
         recovery = decoder.decode(syn)
         circ_runner.run(state, recovery)
