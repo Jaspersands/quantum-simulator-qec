@@ -1,0 +1,108 @@
+# stabilizer_qec's fixes to PECOS 0.2.0 and its additions to its C++ SparseSim, against PECOS's docs and its
+# Python SparseSim (see stabilizer_qec.pecos's docstring).
+import pytest
+
+from stabilizer_qec.pecos.circuits import QuantumCircuit
+from stabilizer_qec.pecos.simulators import SparseSim, cySparseSim, pySparseSim
+
+SIMS = [cySparseSim, pySparseSim]
+
+
+def test_sparsesim_is_the_cpp_one():
+    assert SparseSim is cySparseSim
+
+
+def test_sparsesim_print_stabs_docs_example(capsys):
+    # PECOS's docs, api_guide/simulators.rst, on its default SparseSim.
+    state = SparseSim(3)
+    assert state.run_gate('CNOT', {(0, 1)}) == {}
+    assert state.run_gate('X', {0}) == {}
+    assert state.print_stabs(print_destabs=True) == ([' -ZII', ' -ZZI', '  IIZ'], ['  XXI', '  IXI', '  IIX'])
+    assert capsys.readouterr().out == ' -ZII\n -ZZI\n  IIZ\n-------------------------------\n  XXI\n  IXI\n  IIX\n'
+    assert state.logical_sign(QuantumCircuit([{'Z': {0, 1}}])) == 1
+    assert state.logical_sign(QuantumCircuit([{'Z': {2}}])) == 0
+    assert state.print_stabs(verbose=False) == [' -ZII', ' -ZZI', '  IIZ']
+    assert capsys.readouterr().out == ''
+
+
+@pytest.mark.parametrize('sim', SIMS)
+def test_sparsesim_inits_and_y_signs(sim):
+    # Each init's stabilizer, Y printed with its sign (W = XZ = -iY), and the Y measurement it determines.
+    expected = {'init |0>': '  Z', 'init |1>': ' -Z', 'init |+>': '  X', 'init |->': ' -X',
+                'init |+i>': '  Y', 'init |-i>': ' -Y'}
+    for init, stab in expected.items():
+        state = sim(1)
+        state.run_gate(init, {0})
+        assert state.print_stabs(verbose=False) == [stab], init
+    for init, raw, outcome in [('init |+i>', ' iW', 0), ('init |-i>', '-iW', 1)]:
+        state = sim(1)
+        state.run_gate(init, {0})
+        assert state.print_stabs(verbose=False, print_y=False) == [raw]
+        assert state.run_gate('measure Y', {0}, forced_outcome=0) == ({0: 1} if outcome else {})
+    # Y on two qubits: S on both halves of a Bell pair takes XX to YY (-WW) and ZZ to ZZ.
+    state = sim(2)
+    state.run_gate('H', {0})
+    state.run_gate('CNOT', {(0, 1)})
+    state.run_gate('S', {0, 1})
+    assert state.print_stabs(verbose=False) == ['  YY', '  ZZ']
+    assert state.print_stabs(verbose=False, print_y=False) == [' -WW', '  ZZ']
+    state.run_gate('Z', {0})
+    assert state.print_stabs(verbose=False) == [' -YY', '  ZZ']
+
+
+@pytest.mark.parametrize('sim', SIMS)
+def test_sparsesim_copy(sim):
+    state = sim(3)
+    state.run_gate('H', {0})
+    state.run_gate('CNOT', {(0, 1)})
+    state.run_gate('S', {2})
+    before = state.print_stabs(verbose=False, print_destabs=True)
+    copied = state.copy()
+    assert type(copied) is sim and copied.print_stabs(verbose=False, print_destabs=True) == before
+    copied.run_gate('X', {0, 2})
+    assert state.print_stabs(verbose=False, print_destabs=True) == before
+    assert copied.print_stabs(verbose=False) == ['  XXI', ' -ZZI', ' -IIZ']
+
+
+def _ghz(sim):
+    state = sim(4)
+    state.run_gate('H', {0})
+    for pair in [(0, 1), (1, 2), (2, 3)]:
+        state.run_gate('CNOT', {pair})
+    state.run_gate('X', {3})
+    return state
+
+
+def test_cysparsesim_find_stab_refactor_run_direct_as_pysparsesim():
+    cy, py = _ghz(cySparseSim), _ghz(pySparseSim)
+    assert cy.print_stabs(verbose=False, print_destabs=True) == py.print_stabs(verbose=False, print_destabs=True)
+    for xs, zs in [(set(), {0, 3}), (set(), {0, 2}), ({0, 1, 2, 3}, set()), ({0}, set()), (set(), {1, 2})]:
+        assert cy.find_stab(xs, zs) == py.find_stab(xs, zs), (xs, zs)
+    assert cy.find_stab(set(), {0, 3}) == (True, {1, 2, 3})
+    assert cy.find_stab({0}, set())[0] is False
+    # (With neither choose nor prefer, PECOS's refactor raised KeyError; the port's picks a generator.)
+    for args, picked in [(((set(), {0, 3}), {}), 1), (((set(), {1, 3}), {'choose': 0}), 2),
+                         ((({0, 1, 2, 3}, set()), {'protected': {1}}), 0), (((set(), {0, 2}), {'prefer': [2], 'protected': {1}}), 3)]:
+        assert cy.refactor(*args[0], **args[1]) == py.refactor(*args[0], **args[1]) == (True, picked), args
+        assert cy.print_stabs(verbose=False, print_destabs=True) == py.print_stabs(verbose=False, print_destabs=True), args
+    assert cy.print_stabs(verbose=False) == ['  XXXX', ' -ZIIZ', ' -IZIZ', '  ZIZI']
+    assert cy.refactor({0}, set()) == py.refactor({0}, set()) == (False, None)
+    for state in (cy, py):  # every generator it could pick protected: as PECOS's
+        with pytest.raises(KeyError):
+            state.refactor({0, 1, 2, 3}, set(), protected={0})
+    for state in (cy, py):
+        assert state.run_direct('X', 0) is None
+        assert state.run_direct('measure Z', 1, forced_outcome=0) is None
+    assert cy.print_stabs(verbose=False, print_destabs=True) == py.print_stabs(verbose=False, print_destabs=True)
+
+
+def test_cysparsesim_g2_is_g():
+    for gate in ['G', 'G2']:
+        cy, py = cySparseSim(2), pySparseSim(2)
+        for state in (cy, py):
+            state.run_gate('H', {0})
+            state.run_gate('S', {1})
+            state.run_gate('H', {1})
+            state.run_gate(gate if state is cy else 'G2', {(0, 1)})
+        assert cy.print_stabs(verbose=False, print_destabs=True) == py.print_stabs(verbose=False, print_destabs=True)
+    assert cySparseSim(2).bindings['G2'].__name__ == 'G2'

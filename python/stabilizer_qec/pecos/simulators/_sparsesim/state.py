@@ -15,7 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; copy returns the copy, and print_y prints Y's sign
+# right (see col_string).
 
 """
 :file: state_data_structure.py
@@ -161,6 +162,8 @@ class SparseSim(Stabilizer):
                 new_gen.col_x[j].update(gen.col_x[j])
                 new_gen.col_z[j].update(gen.col_z[j])
 
+        return new  # (stabilizer_qec: PECOS's copy made the copy and returned None)
+
     @staticmethod
     def _pauli_sign(gen,
                     i_gen: int) -> str:
@@ -244,32 +247,10 @@ class SparseSim(Stabilizer):
                         num_minus_is += 1
 
                 if print_signs:
-                    # 1, i, -1, -i  ... i
-                    # 1, -i, -1, i
-                    has_i = num_minus_is % 2
-                    has_minus = int(num_minus_is % 4 == 1 or num_minus_is % 4 == 2)
-
-                    if sign == ' -':
-                        has_minus += 1
-                    elif sign == ' i':
-                        has_i += 1
-                    elif sign == '-i':
-                        has_minus += 1
-                        has_i += 1
-
-                    has_i %= 2
-                    has_minus %= 2
-
-                    if has_i:
-                        if has_minus:
-                            stab_letters[0] = '-i'
-                        else:
-                            stab_letters[0] = ' i'
-                    else:
-                        if has_minus:
-                            stab_letters[0] = ' -'
-                        else:
-                            stab_letters[0] = '  '
+                    # (stabilizer_qec: each W = XZ is -iY, so k of them take i^p to i^(p + 3k). PECOS added the
+                    # i's bit and the minus's bit apart, dropping the -1 of i*i: it printed -Y for |+i>'s +Y.)
+                    phases = ('  ', ' i', ' -', '-i')
+                    stab_letters[0] = phases[(phases.index(sign) + 3 * num_minus_is) % 4]
 
             # print(''.join(stab_letters))
             result.append(''.join(stab_letters))
@@ -387,32 +368,10 @@ class SparseSim(Stabilizer):
                         num_minus_is += 1
 
                 if print_signs:
-                    # 1, i, -1, -i  ... i
-                    # 1, -i, -1, i
-                    has_i = num_minus_is % 2
-                    has_minus = int(num_minus_is % 4 == 1 or num_minus_is % 4 == 2)
-
-                    if sign == ' -':
-                        has_minus += 1
-                    elif sign == ' i':
-                        has_i += 1
-                    elif sign == '-i':
-                        has_minus += 1
-                        has_i += 1
-
-                    has_i %= 2
-                    has_minus %= 2
-
-                    if has_i:
-                        if has_minus:
-                            stab_letters[0] = '-i'
-                        else:
-                            stab_letters[0] = ' i'
-                    else:
-                        if has_minus:
-                            stab_letters[0] = ' -'
-                        else:
-                            stab_letters[0] = '  '
+                    # (stabilizer_qec: each W = XZ is -iY, so k of them take i^p to i^(p + 3k). PECOS added the
+                    # i's bit and the minus's bit apart, dropping the -1 of i*i: it printed -Y for |+i>'s +Y.)
+                    phases = ('  ', ' i', ' -', '-i')
+                    stab_letters[0] = phases[(phases.index(sign) + 3 * num_minus_is) % 4]
 
             # print(''.join(stab_letters))
             result.append(''.join(stab_letters))

@@ -25,12 +25,28 @@ REF = json.loads((ROOT / "tests" / "data" / "pecos_reference.json").read_text())
 
 # Run as the reference was: PECOS draws Paulis from sets of strings, in the order of the strings'
 # hashes, so on a fixed hash seed (in a fresh interpreter; Python 3.11's string hash on).
+# The port's C++ SparseSim prepares |-i> for 'init |-i>'; PECOS's C++ (|1> then H6) prepares |+i>,
+# so against the C++'s record it runs the C++'s composition (test_cysparsesim_init_minusi checks the fix).
 SCRIPT = """
 import json, sys
 sys.path.insert(0, sys.argv[1])
 import pecos_reference
 from stabilizer_qec import pecos
-print(json.dumps(pecos_reference.compute(pecos, pecos.simulators.cySparseSim)))
+from stabilizer_qec.pecos.simulators import _cysparsesim as cy
+
+
+def cpp_init_minusi(sim, qubit, **params):
+    sim.initone(qubit)
+    sim._state.gate([qubit], cy.IMAGES['H6'])
+
+
+class CppSparseSim(cy.SparseSim):
+    def __init__(self, num_qubits):
+        super().__init__(num_qubits)
+        self.bindings = dict(self.bindings, **{'init |-i>': cpp_init_minusi})
+
+
+print(json.dumps(pecos_reference.compute(pecos, CppSparseSim)))
 """
 
 
