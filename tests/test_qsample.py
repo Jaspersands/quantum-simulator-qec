@@ -57,8 +57,9 @@ def test_subset_sampling_agrees_with_direct_sampling(make):
         assert abs(a - b) < 4.5 * np.hypot(sa, sb) + 1e-4, (a, b)
         assert up >= b
     # One run gives every rate below p_max: the low rates are far more precise than direct
-    # sampling's, which sees few failures there.
-    assert std_s[0] < std_d[0] / 2
+    # sampling's, which sees few failures there (its spread taken as 6000 shots' at the rate, not
+    # as estimated from those few failures, which has come out at half that).
+    assert std_s[0] < np.sqrt(p_s[0] * (1 - p_s[0]) / 6000) / 2
 
 
 def test_agrees_with_qsample():

@@ -1527,6 +1527,9 @@ def test_prebuilt_decoders_rejected_for_internal_matrices() -> None:
 
 def test_decoding_failures_and_erasure_in_decoder_searches() -> None:
     """Distance bounds and logical-operator reduction handle erasure and give up on failure."""
+    # stabilizer_qec: seeded; the searches draw from numpy's global generator, and on rare draws
+    # the erasing decoder's 100 retries all erase (seen once on CI)
+    np.random.seed(0)
     # an erasure bit is stripped from decoded errors, and an erased decoding is retried
     erasing_decoder = decoders.lookup(max_weight=3, add_erasure_bit=True)
     classical_code = codes.ClassicalCode(codes.HammingCode(3).matrix)  # distance not yet known
