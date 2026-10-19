@@ -304,3 +304,53 @@ def pcm_to_sparse_vec(pcm: Any) -> List[int]:
         out.extend(int(c) for c in np.flatnonzero(row))
         out.append(-1)
     return out
+
+
+def pcm_from_sparse_vec(sparse_vec: Any, num_rows: int, num_cols: int) -> np.ndarray:
+    """The dense ``num_rows`` x ``num_cols`` uint8 matrix of a sparse vector (each row's columns,
+    each row ended by a negative entry): ``pcm_to_sparse_vec``'s inverse."""
+    rows, cols = int(num_rows), int(num_cols)
+    if rows < 0 or cols < 0:
+        raise TypeError("pcm_from_sparse_vec(): num_rows and num_cols must be non-negative")
+    pcm = np.zeros((rows, cols), dtype=np.uint8)
+    row = 0
+    for v in sparse_vec:
+        col = int(v)
+        if col < 0:
+            row += 1
+            continue
+        if row >= rows or col >= cols:
+            raise RuntimeError(f"Invalid tensor indices: {row}, {col}")
+        pcm[row, col] = 1
+    return pcm
+
+
+def _uint32(v: Any, what: str) -> int:
+    if isinstance(v, (bool, np.bool_)) or not isinstance(v, (int, np.integer)) or not 0 <= int(v) <= _MAX32:
+        raise TypeError(f"generate_timelike_sparse_detector_matrix(): incompatible function arguments: {what} must be an unsigned 32-bit integer")
+    return int(v)
+
+
+def generate_timelike_sparse_detector_matrix(num_syndromes_per_round: int, num_rounds: int, include_first_round: Any) -> List[int]:
+    """The sparse detector matrix (each row's measurements, each row ended by -1) of
+    ``num_rounds`` rounds of ``num_syndromes_per_round`` measurements: each detector XORs a
+    measurement with the same one of the round before. With ``include_first_round`` the first
+    round's measurements are detectors on their own, first. ``include_first_round`` may instead
+    be the first round's rows (one measurement per row, as C++'s overload takes)."""
+    S, R = _uint32(num_syndromes_per_round, "num_syndromes_per_round"), _uint32(num_rounds, "num_rounds")
+    if isinstance(include_first_round, (bool, np.bool_)):
+        out: List[int] = []
+        if include_first_round:
+            for i in range(S):
+                out += [i, -1]
+    else:
+        out = [int(v) for v in include_first_round]
+        if not out:
+            raise ValueError("generate_timelike_sparse_detector_matrix: first_round_matrix must be non-empty")
+        for i, v in enumerate(out):
+            if (i % 2 == 0 and v < 0) or (i % 2 == 1 and v != -1):
+                raise ValueError("generate_timelike_sparse_detector_matrix: first_round_matrix should have one index per row (row end indicated by -1)")
+    for i in range(1, R):
+        for j in range(S):
+            out += [(i - 1) * S + j, i * S + j, -1]
+    return out
