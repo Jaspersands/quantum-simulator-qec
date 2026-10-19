@@ -74,8 +74,41 @@
 
             </li>
             <li>
+                    <a class="class" href="#Converter">Converter</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#Converter.comment_prefix">comment_prefix</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Converter.ops">ops</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Converter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Converter.emit_circuit_program">emit_circuit_program</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Converter.emit_leaf">emit_leaf</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Converter.convert">convert</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Converter.convert_circuit">convert_circuit</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#EkaToStimConverter">EkaToStimConverter</a>
                             <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#EkaToStimConverter.SUPPORTED_ERROR_TYPES">SUPPORTED_ERROR_TYPES</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToStimConverter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a>
+                        </li>
                         <li>
                                 <a class="function" href="#EkaToStimConverter.emit_init_instructions">emit_init_instructions</a>
                         </li>
@@ -90,6 +123,15 @@
                         </li>
                         <li>
                                 <a class="function" href="#EkaToStimConverter.convert">convert</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToStimConverter.parse_target_run_outcome">parse_target_run_outcome</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToStimConverter.stim_polygons">stim_polygons</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToStimConverter.print_stim_circuit_for_crumble">print_stim_circuit_for_crumble</a>
                         </li>
                 </ul>
 
@@ -115,6 +157,9 @@
                         <li>
                                 <a class="function" href="#EkaToQasmConverter.convert_circuit">convert_circuit</a>
                         </li>
+                        <li>
+                                <a class="function" href="#EkaToQasmConverter.parse_target_run_outcome">parse_target_run_outcome</a>
+                        </li>
                 </ul>
 
             </li>
@@ -135,6 +180,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#EkaToCudaqConverter.convert_circuit">convert_circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToCudaqConverter.parse_target_run_outcome">parse_target_run_outcome</a>
                         </li>
                 </ul>
 
@@ -166,13 +214,127 @@
                         <li>
                                 <a class="function" href="#EkaToPennylaneConverter.convert_circuit">convert_circuit</a>
                         </li>
+                        <li>
+                                <a class="function" href="#EkaToPennylaneConverter.parse_target_run_outcome">parse_target_run_outcome</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EkaToMimiqConverter">EkaToMimiqConverter</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EkaToMimiqConverter.__init__">EkaToMimiqConverter</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToMimiqConverter.comment_prefix">comment_prefix</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToMimiqConverter.mimiq_import_prefix">mimiq_import_prefix</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToMimiqConverter.circuit_varname">circuit_varname</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToMimiqConverter.ops">ops</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToMimiqConverter.emit_init_instructions">emit_init_instructions</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToMimiqConverter.emit_leaf">emit_leaf</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToMimiqConverter.convert_circuit">convert_circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToMimiqConverter.parse_target_run_outcome">parse_target_run_outcome</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EkaToGuppylangConverter">EkaToGuppylangConverter</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EkaToGuppylangConverter.__init__">EkaToGuppylangConverter</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToGuppylangConverter.comment_prefix">comment_prefix</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EkaToGuppylangConverter.ops">ops</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToGuppylangConverter.emit_init_instructions">emit_init_instructions</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToGuppylangConverter.emit_leaf">emit_leaf</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToGuppylangConverter.convert_circuit">convert_circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EkaToGuppylangConverter.parse_target_run_outcome">parse_target_run_outcome</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#TargetLanguage">TargetLanguage</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#TargetLanguage.MIMIQ">MIMIQ</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TargetLanguage.OPEN_QASM3">OPEN_QASM3</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TargetLanguage.GUPPYLANG">GUPPYLANG</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TargetLanguage.STIM">STIM</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TargetLanguage.PENNYLANE">PENNYLANE</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TargetLanguage.PENNYLANE_CATALYST">PENNYLANE_CATALYST</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TargetLanguage.CUDAQ">CUDAQ</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#Executor">Executor</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Executor.__init__">Executor</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Executor.target_language">target_language</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Executor.converter">converter</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Executor.export_eka">export_eka</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Executor.export_eka_circuit">export_eka_circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Executor.parse_outcome">parse_outcome</a>
+                        </li>
                 </ul>
 
             </li>
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -187,7 +349,9 @@
 <a href="./../../stabilizer_qec.html">stabilizer_qec</a><wbr>.<a href="./../loom.html">loom</a><wbr>.executor    </h1>
 
                         <div class="docstring"><p>Loom's executors: an interpreted Eka as a Stim circuit (this package's <code>Circuit</code>, with
-detectors and observables), or as OpenQASM 3, PennyLane or CUDA-Q text.</p>
+detectors and observables, and the noise of Loom's circuit error models), or as OpenQASM 3,
+PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outcome; and the
+<code><a href="#Executor">Executor</a></code> that picks a converter by <code><a href="#TargetLanguage">TargetLanguage</a></code>.</p>
 </div>
 
                 
@@ -197,7 +361,7 @@ detectors and observables), or as OpenQASM 3, PennyLane or CUDA-Q text.</p>
                 <section id="SINGLE_QUBIT">
                     <div class="attr variable">
             <span class="name">SINGLE_QUBIT</span>        =
-<span class="default_value">frozenset({&#39;x&#39;, &#39;phase&#39;, &#39;phaseinv&#39;, &#39;y&#39;, &#39;z&#39;, &#39;hadamard&#39;, &#39;h&#39;, &#39;i&#39;, &#39;t&#39;})</span>
+<span class="default_value">frozenset({&#39;h&#39;, &#39;i&#39;, &#39;z&#39;, &#39;phase&#39;, &#39;hadamard&#39;, &#39;t&#39;, &#39;phaseinv&#39;, &#39;x&#39;, &#39;y&#39;})</span>
 
         
     </div>
@@ -209,7 +373,7 @@ detectors and observables), or as OpenQASM 3, PennyLane or CUDA-Q text.</p>
                 <section id="TWO_QUBIT">
                     <div class="attr variable">
             <span class="name">TWO_QUBIT</span>        =
-<span class="default_value">frozenset({&#39;cnot&#39;, &#39;cx&#39;, &#39;cy&#39;, &#39;cz&#39;, &#39;swap&#39;})</span>
+<span class="default_value">frozenset({&#39;cnot&#39;, &#39;cy&#39;, &#39;cz&#39;, &#39;cx&#39;, &#39;swap&#39;})</span>
 
         
     </div>
@@ -221,7 +385,7 @@ detectors and observables), or as OpenQASM 3, PennyLane or CUDA-Q text.</p>
                 <section id="RESETS">
                     <div class="attr variable">
             <span class="name">RESETS</span>        =
-<span class="default_value">frozenset({&#39;reset_-i&#39;, &#39;reset_+&#39;, &#39;reset_1&#39;, &#39;reset_-&#39;, &#39;reset_+i&#39;, &#39;reset&#39;, &#39;reset_0&#39;})</span>
+<span class="default_value">frozenset({&#39;reset&#39;, &#39;reset_0&#39;, &#39;reset_+&#39;, &#39;reset_-i&#39;, &#39;reset_+i&#39;, &#39;reset_-&#39;, &#39;reset_1&#39;})</span>
 
         
     </div>
@@ -233,7 +397,7 @@ detectors and observables), or as OpenQASM 3, PennyLane or CUDA-Q text.</p>
                 <section id="MEASUREMENTS">
                     <div class="attr variable">
             <span class="name">MEASUREMENTS</span>        =
-<span class="default_value">frozenset({&#39;measure_z&#39;, &#39;measure_y&#39;, &#39;measure_x&#39;, &#39;measurement&#39;})</span>
+<span class="default_value">frozenset({&#39;measure_y&#39;, &#39;measure_z&#39;, &#39;measurement&#39;, &#39;measure_x&#39;})</span>
 
         
     </div>
@@ -246,7 +410,7 @@ detectors and observables), or as OpenQASM 3, PennyLane or CUDA-Q text.</p>
                     <div class="attr variable">
             <span class="name">CLIFFORD_OPS</span>        =
 <input id="CLIFFORD_OPS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="CLIFFORD_OPS-view-value"></label><span class="default_value">frozenset({&#39;measure_z&#39;, &#39;reset_-i&#39;, &#39;cnot&#39;, &#39;cx&#39;, &#39;phase&#39;, &#39;phaseinv&#39;, &#39;reset_+i&#39;, &#39;y&#39;, &#39;measure_x&#39;, &#39;measurement&#39;, &#39;z&#39;, &#39;reset_1&#39;, &#39;reset_-&#39;, &#39;h&#39;, &#39;reset&#39;, &#39;cy&#39;, &#39;swap&#39;, &#39;t&#39;, &#39;x&#39;, &#39;measure_y&#39;, &#39;cz&#39;, &#39;reset_0&#39;, &#39;reset_+&#39;, &#39;hadamard&#39;, &#39;i&#39;})</span>
+            <label class="view-value-button pdoc-button" for="CLIFFORD_OPS-view-value"></label><span class="default_value">frozenset({&#39;reset_0&#39;, &#39;measure_x&#39;, &#39;h&#39;, &#39;i&#39;, &#39;z&#39;, &#39;cx&#39;, &#39;t&#39;, &#39;measure_y&#39;, &#39;reset_-i&#39;, &#39;phaseinv&#39;, &#39;x&#39;, &#39;reset_+i&#39;, &#39;cz&#39;, &#39;reset_-&#39;, &#39;reset&#39;, &#39;cnot&#39;, &#39;measure_z&#39;, &#39;reset_+&#39;, &#39;phase&#39;, &#39;hadamard&#39;, &#39;reset_1&#39;, &#39;measurement&#39;, &#39;cy&#39;, &#39;y&#39;, &#39;swap&#39;})</span>
 
         
     </div>
@@ -284,7 +448,9 @@ ancilla <code>(x, y, 1)</code> at <code>(x, y)</code>, a second ancilla <code>(x
     <a class="headerlink" href="#StimProgram"></a>
     
             <div class="docstring"><p>A Stim circuit text with its registers: quantum channels to (coordinates, qubit index),
-classical channels to measurement record index.</p>
+classical channels to measurement record index. It unpacks as Loom's converter's result,
+<code>circuit, qubits, records = program</code> (the circuit this package's <code>Circuit</code>, parsed when
+first asked for).</p>
 </div>
 
 
@@ -356,22 +522,158 @@ classical channels to measurement record index.</p>
 
                             </div>
                 </section>
+                <section id="Converter">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">Converter</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#Converter"></a>
+    
+            <div class="docstring"><p>The converters' base (Stim's overrides it all); for the text converters, Loom's
+depth-first emission: a composite circuit's gates in tick order, wrapped in <code>Start of
+circuit</code> / <code>End of circuit</code> comments (circuits named <code>wrapped_...</code> excepted).</p>
+</div>
+
+
+                            <div id="Converter.comment_prefix" class="classattr">
+                                <div class="attr variable">
+            <span class="name">comment_prefix</span>        =
+<span class="default_value">&#39;#&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.comment_prefix"></a>
+    
+    
+
+                            </div>
+                            <div id="Converter.ops" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ops</span><span class="annotation">: dict[str, typing.Any]</span>        =
+<span class="default_value">{}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.ops"></a>
+    
+    
+
+                            </div>
+                            <div id="Converter.ALLOW_ERROR_MODELS" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ALLOW_ERROR_MODELS</span>        =
+<span class="default_value">False</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.ALLOW_ERROR_MODELS"></a>
+    
+    
+
+                            </div>
+                            <div id="Converter.emit_circuit_program" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">emit_circuit_program</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">qmap</span><span class="p">:</span> <span class="nb">dict</span>,</span><span class="param">	<span class="n">cmap</span><span class="p">:</span> <span class="nb">dict</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.emit_circuit_program"></a>
+    
+    
+
+                            </div>
+                            <div id="Converter.emit_leaf" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">emit_leaf</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">qmap</span><span class="p">:</span> <span class="nb">dict</span>,</span><span class="param">	<span class="n">cmap</span><span class="p">:</span> <span class="nb">dict</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.emit_leaf"></a>
+    
+    
+
+                            </div>
+                            <div id="Converter.convert" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">convert</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">interpreted_eka</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">step</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.convert"></a>
+    
+    
+
+                            </div>
+                            <div id="Converter.convert_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Converter.convert_circuit"></a>
+    
+    
+
+                            </div>
+                </section>
                 <section id="EkaToStimConverter">
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">EkaToStimConverter</span>:
+    <span class="name">EkaToStimConverter</span><wbr>(<span class="base"><a href="#Converter">Converter</a></span>):
 
         
     </div>
     <a class="headerlink" href="#EkaToStimConverter"></a>
     
             <div class="docstring"><p>Loom's Stim converter: <code>QUBIT_COORDS</code> for the quantum channels sorted by label, each
-unrolled tick's gates grouped by operation in order of first appearance, then the detectors
-(<code>DETECTOR(x, y, t)</code>) and <code>OBSERVABLE_INCLUDE</code> lines.</p>
+unrolled tick's gates grouped by operation (and noise) in order of first appearance, then
+the detectors (<code>DETECTOR(x, y, t)</code>) and <code>OBSERVABLE_INCLUDE</code> lines. With
+<code>error_models</code> (Loom's circuit error models, made on the circuit converted), each model's
+noise goes before or after the gates it gives a probability, on the group's targets (a later
+model's before-noise first), and the tick-wise models' noise after each tick's gates, on
+every qubit, or on the qubits idle for equal times together. The text is Loom's: what Stim
+refuses (a tick-wise model at probability zero writes its channel with no arguments) this
+package's parser refuses when the circuit is made.</p>
 </div>
 
 
+                            <div id="EkaToStimConverter.SUPPORTED_ERROR_TYPES" class="classattr">
+                                <div class="attr variable">
+            <span class="name">SUPPORTED_ERROR_TYPES</span>        =
+<input id="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;ErrorType.PAULI_X: (&#39;pauli_x&#39;, 1)&gt;, &lt;ErrorType.BIT_FLIP: (&#39;bit-flip&#39;, 1)&gt;, &lt;ErrorType.PHASE_FLIP: (&#39;phase-flip&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING1: (&#39;depolarizing1&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING2: (&#39;depolarizing2&#39;, 1)&gt;, &lt;ErrorType.PAULI_CHANNEL: (&#39;pauli_channel&#39;, 3)&gt;, &lt;ErrorType.PAULI_Y: (&#39;pauli_y&#39;, 1)&gt;, &lt;ErrorType.PAULI_Z: (&#39;pauli_z&#39;, 1)&gt;})</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToStimConverter.SUPPORTED_ERROR_TYPES"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToStimConverter.ALLOW_ERROR_MODELS" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ALLOW_ERROR_MODELS</span>        =
+<span class="default_value">True</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToStimConverter.ALLOW_ERROR_MODELS"></a>
+    
+    
+
+                            </div>
                             <div id="EkaToStimConverter.emit_init_instructions" class="classattr">
                                 <div class="attr function">
             
@@ -389,7 +691,7 @@ unrolled tick's gates grouped by operation in order of first appearance, then th
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">emit_circuit_program</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">typing</span><span class="o">.</span><span class="n">Any</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span>:</span></span>
+        <span class="name">emit_circuit_program</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">error_models</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#CircuitErrorModel">stabilizer_qec.loom.CircuitErrorModel</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">typing</span><span class="o">.</span><span class="n">Any</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span>:</span></span>
 
         
     </div>
@@ -416,7 +718,7 @@ unrolled tick's gates grouped by operation in order of first appearance, then th
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#StimProgram">StimProgram</a></span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">error_models</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#CircuitErrorModel">stabilizer_qec.loom.CircuitErrorModel</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#StimProgram">StimProgram</a></span>:</span></span>
 
         
     </div>
@@ -429,29 +731,95 @@ unrolled tick's gates grouped by operation in order of first appearance, then th
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">step</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#StimProgram">StimProgram</a></span>:</span></span>
+        <span class="name">convert</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">interpreted_eka</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_models</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#CircuitErrorModel">stabilizer_qec.loom.CircuitErrorModel</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">step</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#StimProgram">StimProgram</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#EkaToStimConverter.convert"></a>
     
-            <div class="docstring"><p>The interpreted Eka's final circuit with its detectors and observables.</p>
+            <div class="docstring"><p>The interpreted Eka's final circuit, with its error models' noise, and its detectors
+and observables; unpacks as <code>circuit, qubits, records</code>.</p>
 </div>
 
 
+                            </div>
+                            <div id="EkaToStimConverter.parse_target_run_outcome" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">parse_target_run_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">output</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">typing</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToStimConverter.parse_target_run_outcome"></a>
+    
+            <div class="docstring"><p>Loom's reading of a Stim run: <code>(samples, records)</code>, a shots × measurements array
+and the converter's classical channels to record index, to each channel's label and its
+outcomes (a list, or one int for one shot).</p>
+</div>
+
+
+                            </div>
+                            <div id="EkaToStimConverter.stim_polygons" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">stim_polygons</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">interpreted_eka</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToStimConverter.stim_polygons"></a>
+    
+            <div class="docstring"><p>Crumble's <code>#!pragma POLYGON</code> lines for the stabilizers of the blocks at the start:
+red for X, green for Y, blue for Z, on the data qubits (the second half of the
+stabilizer's qubits, then the first half reversed). As in Loom, the qubit indices count
+the quantum channels in order of their Stim coordinates (the circuit's own indices count
+them in label order), and only single-letter stabilizers are drawn.</p>
+</div>
+
+
+                            </div>
+                            <div id="EkaToStimConverter.print_stim_circuit_for_crumble" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">print_stim_circuit_for_crumble</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">final_step</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToStimConverter.print_stim_circuit_for_crumble"></a>
+    
+            <div class="docstring"><p>The polygons, then the Stim circuit (as Stim writes it), for pasting into Crumble.</p>
+</div>
+
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#Converter">Converter</a></dt>
+                                <dd id="EkaToStimConverter.comment_prefix" class="variable"><a href="#Converter.comment_prefix">comment_prefix</a></dd>
+                <dd id="EkaToStimConverter.ops" class="variable"><a href="#Converter.ops">ops</a></dd>
+                <dd id="EkaToStimConverter.emit_leaf" class="function"><a href="#Converter.emit_leaf">emit_leaf</a></dd>
+
+            </div>
+                                </dl>
                             </div>
                 </section>
                 <section id="eka_to_circuit">
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">eka_to_circuit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">step</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span></span><span class="return-annotation">):</span></span>
+        <span class="name">eka_to_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">step</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span>,</span><span class="param">	<span class="n">error_models</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#CircuitErrorModel">stabilizer_qec.loom.CircuitErrorModel</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
     <a class="headerlink" href="#eka_to_circuit"></a>
     
-            <div class="docstring"><p>An interpreted Eka as this package's <code>Circuit</code> (with its detectors and observables).</p>
+            <div class="docstring"><p>An interpreted Eka as this package's <code>Circuit</code>, with its detectors and observables and
+the noise of <code>error_models</code> (Loom's circuit error models, made on <code>step.final_circuit</code>).</p>
 </div>
 
 
@@ -460,7 +828,7 @@ unrolled tick's gates grouped by operation in order of first appearance, then th
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">EkaToQasmConverter</span><wbr>(<span class="base"><a href="#_TextConverter">_TextConverter</a></span>):
+    <span class="name">EkaToQasmConverter</span><wbr>(<span class="base"><a href="#Converter">Converter</a></span>):
 
         
     </div>
@@ -534,12 +902,31 @@ unrolled tick's gates grouped by operation in order of first appearance, then th
     
 
                             </div>
+                            <div id="EkaToQasmConverter.parse_target_run_outcome" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">parse_target_run_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">run_output</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToQasmConverter.parse_target_run_outcome"></a>
+    
+            <div class="docstring"><p>Loom's reading of a Qiskit-style run: <code>(counts, bits)</code>, bitstrings (the last bit
+first) with their counts and the converter's classical channels to bit index, to each
+channel's label and its outcome in every shot.</p>
+</div>
+
+
+                            </div>
                             <div class="inherited">
                                 <h5>Inherited Members</h5>
                                 <dl>
-                                    <div><dt><a href="#_TextConverter">_TextConverter</a></dt>
-                                <dd id="EkaToQasmConverter.emit_circuit_program" class="function"><a href="#_TextConverter.emit_circuit_program">emit_circuit_program</a></dd>
-                <dd id="EkaToQasmConverter.convert" class="function"><a href="#_TextConverter.convert">convert</a></dd>
+                                    <div><dt><a href="#Converter">Converter</a></dt>
+                                <dd id="EkaToQasmConverter.ALLOW_ERROR_MODELS" class="variable"><a href="#Converter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a></dd>
+                <dd id="EkaToQasmConverter.emit_circuit_program" class="function"><a href="#Converter.emit_circuit_program">emit_circuit_program</a></dd>
+                <dd id="EkaToQasmConverter.convert" class="function"><a href="#Converter.convert">convert</a></dd>
 
             </div>
                                 </dl>
@@ -549,7 +936,7 @@ unrolled tick's gates grouped by operation in order of first appearance, then th
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">EkaToCudaqConverter</span><wbr>(<span class="base"><a href="#_TextConverter">_TextConverter</a></span>):
+    <span class="name">EkaToCudaqConverter</span><wbr>(<span class="base"><a href="#Converter">Converter</a></span>):
 
         
     </div>
@@ -624,12 +1011,31 @@ channel's label as the register name.</p>
     
 
                             </div>
+                            <div id="EkaToCudaqConverter.parse_target_run_outcome" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">parse_target_run_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">run_output</span>, </span><span class="param"><span class="n">classical_reg_mapping</span><span class="p">:</span> <span class="nb">dict</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToCudaqConverter.parse_target_run_outcome"></a>
+    
+            <div class="docstring"><p>Loom's reading of a CUDA-Q <code>SampleResult</code> (its registers, named after the classical
+channels' labels, and their sequential data), keyed through <code>classical_reg_mapping</code>
+(whose values' labels name the registers).</p>
+</div>
+
+
+                            </div>
                             <div class="inherited">
                                 <h5>Inherited Members</h5>
                                 <dl>
-                                    <div><dt><a href="#_TextConverter">_TextConverter</a></dt>
-                                <dd id="EkaToCudaqConverter.emit_circuit_program" class="function"><a href="#_TextConverter.emit_circuit_program">emit_circuit_program</a></dd>
-                <dd id="EkaToCudaqConverter.convert" class="function"><a href="#_TextConverter.convert">convert</a></dd>
+                                    <div><dt><a href="#Converter">Converter</a></dt>
+                                <dd id="EkaToCudaqConverter.ALLOW_ERROR_MODELS" class="variable"><a href="#Converter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a></dd>
+                <dd id="EkaToCudaqConverter.emit_circuit_program" class="function"><a href="#Converter.emit_circuit_program">emit_circuit_program</a></dd>
+                <dd id="EkaToCudaqConverter.convert" class="function"><a href="#Converter.convert">convert</a></dd>
 
             </div>
                                 </dl>
@@ -639,7 +1045,7 @@ channel's label as the register name.</p>
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">EkaToPennylaneConverter</span><wbr>(<span class="base"><a href="#_TextConverter">_TextConverter</a></span>):
+    <span class="name">EkaToPennylaneConverter</span><wbr>(<span class="base"><a href="#Converter">Converter</a></span>):
 
         
     </div>
@@ -747,15 +1153,489 @@ here by labels, which is what a reader can use), measurements into <code>measure
     
 
                             </div>
+                            <div id="EkaToPennylaneConverter.parse_target_run_outcome" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">parse_target_run_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">outcome</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToPennylaneConverter.parse_target_run_outcome"></a>
+    
+            <div class="docstring"><p>Loom's reading of a PennyLane or Catalyst run: each key's values, flattened, as
+ints.</p>
+</div>
+
+
+                            </div>
                             <div class="inherited">
                                 <h5>Inherited Members</h5>
                                 <dl>
-                                    <div><dt><a href="#_TextConverter">_TextConverter</a></dt>
-                                <dd id="EkaToPennylaneConverter.emit_circuit_program" class="function"><a href="#_TextConverter.emit_circuit_program">emit_circuit_program</a></dd>
-                <dd id="EkaToPennylaneConverter.convert" class="function"><a href="#_TextConverter.convert">convert</a></dd>
+                                    <div><dt><a href="#Converter">Converter</a></dt>
+                                <dd id="EkaToPennylaneConverter.ALLOW_ERROR_MODELS" class="variable"><a href="#Converter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a></dd>
+                <dd id="EkaToPennylaneConverter.emit_circuit_program" class="function"><a href="#Converter.emit_circuit_program">emit_circuit_program</a></dd>
+                <dd id="EkaToPennylaneConverter.convert" class="function"><a href="#Converter.convert">convert</a></dd>
 
             </div>
                                 </dl>
+                            </div>
+                </section>
+                <section id="EkaToMimiqConverter">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EkaToMimiqConverter</span><wbr>(<span class="base"><a href="#Converter">Converter</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter"></a>
+    
+            <div class="docstring"><p>Mimiq Python: <code>circuit = mc.Circuit()</code> and a <code>circuit.push(mc.Gate..., targets)</code> per
+gate, tick by tick (the circuit unrolled, so no comments), qubits and bits numbered in label
+order, a measurement's targets its qubit then its bit.</p>
+</div>
+
+
+                            <div id="EkaToMimiqConverter.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EkaToMimiqConverter</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">mimiq_import_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'mc.'</span>, </span><span class="param"><span class="n">circuit_varname</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'circuit'</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.comment_prefix" class="classattr">
+                                <div class="attr variable">
+            <span class="name">comment_prefix</span>        =
+<span class="default_value">&#39;#&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.comment_prefix"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.mimiq_import_prefix" class="classattr">
+                                <div class="attr variable">
+            <span class="name">mimiq_import_prefix</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.mimiq_import_prefix"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.circuit_varname" class="classattr">
+                                <div class="attr variable">
+            <span class="name">circuit_varname</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.circuit_varname"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.ops" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ops</span>        =
+<span class="default_value">{}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.ops"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.emit_init_instructions" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">emit_init_instructions</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.emit_init_instructions"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.emit_leaf" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">emit_leaf</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">qmap</span><span class="p">:</span> <span class="nb">dict</span>,</span><span class="param">	<span class="n">cmap</span><span class="p">:</span> <span class="nb">dict</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.emit_leaf"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.convert_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.convert_circuit"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToMimiqConverter.parse_target_run_outcome" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">parse_target_run_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">run_output</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToMimiqConverter.parse_target_run_outcome"></a>
+    
+            <div class="docstring"><p>Loom's reading of a Mimiq run: <code>(result, bits)</code>, the result's <code>histogram()</code>
+(bitstrings indexed by bit, with counts) and the converter's classical channels to bit
+index, to each channel's label and its outcome in every shot.</p>
+</div>
+
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#Converter">Converter</a></dt>
+                                <dd id="EkaToMimiqConverter.ALLOW_ERROR_MODELS" class="variable"><a href="#Converter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a></dd>
+                <dd id="EkaToMimiqConverter.emit_circuit_program" class="function"><a href="#Converter.emit_circuit_program">emit_circuit_program</a></dd>
+                <dd id="EkaToMimiqConverter.convert" class="function"><a href="#Converter.convert">convert</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
+                <section id="EkaToGuppylangConverter">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EkaToGuppylangConverter</span><wbr>(<span class="base"><a href="#Converter">Converter</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter"></a>
+    
+            <div class="docstring"><p>Guppy (guppylang) code: <code>q</code> an array of qubits and <code>c</code> of booleans in label order,
+gates in tick order with Loom's start and end comments, a measurement a
+<code>measure_and_reset</code> into its bit and a <code>result</code> named after the bit's label, a SWAP three
+CXs, and the qubits discarded at the end. The prefixes (default <code>guppyQ.</code> for
+<code>guppylang.std.quantum</code>, <code>guppyQSys.</code> for <code>guppylang.std.qsystem</code>, <code>builtins.</code> for
+<code>guppylang.std.builtins</code>) must be empty or end with a dot; <code>array</code> is used bare.</p>
+</div>
+
+
+                            <div id="EkaToGuppylangConverter.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EkaToGuppylangConverter</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">quantum_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'guppyQ.'</span>,</span><span class="param">	<span class="n">qsystem_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'guppyQSys.'</span>,</span><span class="param">	<span class="n">builtins_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'builtins.'</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToGuppylangConverter.comment_prefix" class="classattr">
+                                <div class="attr variable">
+            <span class="name">comment_prefix</span>        =
+<span class="default_value">&#39;#&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.comment_prefix"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToGuppylangConverter.ops" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ops</span>        =
+<span class="default_value">{}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.ops"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToGuppylangConverter.emit_init_instructions" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">emit_init_instructions</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.emit_init_instructions"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToGuppylangConverter.emit_leaf" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">emit_leaf</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">qmap</span><span class="p">:</span> <span class="nb">dict</span>,</span><span class="param">	<span class="n">cmap</span><span class="p">:</span> <span class="nb">dict</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.emit_leaf"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToGuppylangConverter.convert_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.convert_circuit"></a>
+    
+    
+
+                            </div>
+                            <div id="EkaToGuppylangConverter.parse_target_run_outcome" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">parse_target_run_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">outcome</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EkaToGuppylangConverter.parse_target_run_outcome"></a>
+    
+            <div class="docstring"><p>Loom's reading of a Guppy run (a <code>QsysResult</code>, whose <code>results</code> are shots, or one
+<code>QsysShot</code>): each shot's <code>entries</code> <code>(label, value)</code> gathered by label.</p>
+</div>
+
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#Converter">Converter</a></dt>
+                                <dd id="EkaToGuppylangConverter.ALLOW_ERROR_MODELS" class="variable"><a href="#Converter.ALLOW_ERROR_MODELS">ALLOW_ERROR_MODELS</a></dd>
+                <dd id="EkaToGuppylangConverter.emit_circuit_program" class="function"><a href="#Converter.emit_circuit_program">emit_circuit_program</a></dd>
+                <dd id="EkaToGuppylangConverter.convert" class="function"><a href="#Converter.convert">convert</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
+                <section id="TargetLanguage">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">TargetLanguage</span><wbr>(<span class="base">enum.Enum</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage"></a>
+    
+            <div class="docstring"><p>Loom's target languages, each a converter (PennyLane twice, plain and Catalyst).</p>
+</div>
+
+
+                            <div id="TargetLanguage.MIMIQ" class="classattr">
+                                <div class="attr variable">
+            <span class="name">MIMIQ</span>        =
+<span class="default_value">&lt;<a href="#TargetLanguage.MIMIQ">TargetLanguage.MIMIQ</a>: &lt;class &#39;<a href="#EkaToMimiqConverter">EkaToMimiqConverter</a>&#39;&gt;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.MIMIQ"></a>
+    
+    
+
+                            </div>
+                            <div id="TargetLanguage.OPEN_QASM3" class="classattr">
+                                <div class="attr variable">
+            <span class="name">OPEN_QASM3</span>        =
+<span class="default_value">&lt;<a href="#TargetLanguage.OPEN_QASM3">TargetLanguage.OPEN_QASM3</a>: &lt;class &#39;<a href="#EkaToQasmConverter">EkaToQasmConverter</a>&#39;&gt;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.OPEN_QASM3"></a>
+    
+    
+
+                            </div>
+                            <div id="TargetLanguage.GUPPYLANG" class="classattr">
+                                <div class="attr variable">
+            <span class="name">GUPPYLANG</span>        =
+<span class="default_value">&lt;<a href="#TargetLanguage.GUPPYLANG">TargetLanguage.GUPPYLANG</a>: &lt;class &#39;<a href="#EkaToGuppylangConverter">EkaToGuppylangConverter</a>&#39;&gt;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.GUPPYLANG"></a>
+    
+    
+
+                            </div>
+                            <div id="TargetLanguage.STIM" class="classattr">
+                                <div class="attr variable">
+            <span class="name">STIM</span>        =
+<span class="default_value">&lt;<a href="#TargetLanguage.STIM">TargetLanguage.STIM</a>: &lt;class &#39;<a href="#EkaToStimConverter">EkaToStimConverter</a>&#39;&gt;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.STIM"></a>
+    
+    
+
+                            </div>
+                            <div id="TargetLanguage.PENNYLANE" class="classattr">
+                                <div class="attr variable">
+            <span class="name">PENNYLANE</span>        =
+<input id="TargetLanguage.PENNYLANE-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="TargetLanguage.PENNYLANE-view-value"></label><span class="default_value">&lt;<a href="#TargetLanguage.PENNYLANE">TargetLanguage.PENNYLANE</a>: functools.partial(&lt;class &#39;<a href="#EkaToPennylaneConverter">EkaToPennylaneConverter</a>&#39;&gt;, is_catalyst=False)&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.PENNYLANE"></a>
+    
+    
+
+                            </div>
+                            <div id="TargetLanguage.PENNYLANE_CATALYST" class="classattr">
+                                <div class="attr variable">
+            <span class="name">PENNYLANE_CATALYST</span>        =
+<input id="TargetLanguage.PENNYLANE_CATALYST-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="TargetLanguage.PENNYLANE_CATALYST-view-value"></label><span class="default_value">&lt;<a href="#TargetLanguage.PENNYLANE_CATALYST">TargetLanguage.PENNYLANE_CATALYST</a>: functools.partial(&lt;class &#39;<a href="#EkaToPennylaneConverter">EkaToPennylaneConverter</a>&#39;&gt;, is_catalyst=True)&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.PENNYLANE_CATALYST"></a>
+    
+    
+
+                            </div>
+                            <div id="TargetLanguage.CUDAQ" class="classattr">
+                                <div class="attr variable">
+            <span class="name">CUDAQ</span>        =
+<span class="default_value">&lt;<a href="#TargetLanguage.CUDAQ">TargetLanguage.CUDAQ</a>: &lt;class &#39;<a href="#EkaToCudaqConverter">EkaToCudaqConverter</a>&#39;&gt;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TargetLanguage.CUDAQ"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="Executor">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">Executor</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#Executor"></a>
+    
+            <div class="docstring"><p>Loom's executor: a target language's converter (made once, when first used), its export
+of an interpreted Eka or a circuit, and its reading of a run's outcome.</p>
+</div>
+
+
+                            <div id="Executor.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Executor</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">target_language</span><span class="p">:</span> <span class="n"><a href="#TargetLanguage">TargetLanguage</a></span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Executor.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Executor.target_language" class="classattr">
+                                <div class="attr variable">
+            <span class="name">target_language</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Executor.target_language"></a>
+    
+    
+
+                            </div>
+                            <div id="Executor.converter" class="classattr">
+                                <div class="attr variable">
+            <span class="name">converter</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Executor.converter"></a>
+    
+    
+
+                            </div>
+                            <div id="Executor.export_eka" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">export_eka</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_data</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Executor.export_eka"></a>
+    
+    
+
+                            </div>
+                            <div id="Executor.export_eka_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">export_eka_circuit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">input_data</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Executor.export_eka_circuit"></a>
+    
+    
+
+                            </div>
+                            <div id="Executor.parse_outcome" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">parse_outcome</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">run_output</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">typing</span><span class="o">.</span><span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Executor.parse_outcome"></a>
+    
+    
+
                             </div>
                 </section>
     </main>

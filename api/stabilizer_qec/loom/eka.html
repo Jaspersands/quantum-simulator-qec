@@ -28,6 +28,9 @@
                    pattern=".+" required>
 
 
+            <h2>Submodules</h2>
+            <ul>
+            </ul>
 
             <h2>API Documentation</h2>
                 <ul class="memberlist">
@@ -203,6 +206,12 @@
                                 <a class="variable" href="#LatticeType.HEX_2D">HEX_2D</a>
                         </li>
                         <li>
+                                <a class="variable" href="#LatticeType.OCT_2D">OCT_2D</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LatticeType.POLY_2D">POLY_2D</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#LatticeType.CUBE_3D">CUBE_3D</a>
                         </li>
                 </ul>
@@ -258,6 +267,15 @@
                         </li>
                         <li>
                                 <a class="function" href="#Lattice.cairo_pent_2d">cairo_pent_2d</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Lattice.oct_2d">oct_2d</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Lattice.poly_2d">poly_2d</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Lattice.cube_3d">cube_3d</a>
                         </li>
                         <li>
                                 <a class="function" href="#Lattice.asdict">asdict</a>
@@ -811,6 +829,9 @@
                         <li>
                                 <a class="variable" href="#RotateBlock.input_block_name">input_block_name</a>
                         </li>
+                        <li>
+                                <a class="variable" href="#RotateBlock.grow_direction">grow_direction</a>
+                        </li>
                 </ul>
 
             </li>
@@ -961,7 +982,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -1684,6 +1705,30 @@ errors defaults to 'strict'.</p>
     
 
                             </div>
+                            <div id="LatticeType.OCT_2D" class="classattr">
+                                <div class="attr variable">
+            <span class="name">OCT_2D</span>        =
+<span class="default_value">&lt;<a href="#LatticeType.OCT_2D">LatticeType.OCT_2D</a>: &#39;oct_2d&#39;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LatticeType.OCT_2D"></a>
+    
+    
+
+                            </div>
+                            <div id="LatticeType.POLY_2D" class="classattr">
+                                <div class="attr variable">
+            <span class="name">POLY_2D</span>        =
+<span class="default_value">&lt;<a href="#LatticeType.POLY_2D">LatticeType.POLY_2D</a>: &#39;poly_2D&#39;&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LatticeType.POLY_2D"></a>
+    
+    
+
+                            </div>
                             <div id="LatticeType.CUBE_3D" class="classattr">
                                 <div class="attr variable">
             <span class="name">CUBE_3D</span>        =
@@ -1796,26 +1841,32 @@ errors defaults to 'strict'.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">all_unit_cells</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>:</span></span>
+        <span class="name">all_unit_cells</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#Lattice.all_unit_cells"></a>
     
-    
+            <div class="docstring"><p>The unit cells of the lattice, or of <code><a href="#Lattice.size">size</a></code> (whose <code>None</code> entries take the
+lattice's size).</p>
+</div>
+
 
                             </div>
                             <div id="Lattice.all_qubits" class="classattr">
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">all_qubits</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>:</span></span>
+        <span class="name">all_qubits</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">force_including_basis</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#Lattice.all_qubits"></a>
     
-    
+            <div class="docstring"><p>The qubits <code>cell + (basis index,)</code>; on a one-site lattice the cells alone, unless
+<code>force_including_basis</code>.</p>
+</div>
+
 
                             </div>
                             <div id="Lattice.linear" class="classattr">
@@ -1823,13 +1874,16 @@ errors defaults to 'strict'.</p>
                     <div class="decorator decorator-classmethod">@classmethod</div>
 
         <span class="def">def</span>
-        <span class="name">linear</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">lattice_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Lattice">Lattice</a></span>:</span></span>
+        <span class="name">linear</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">lattice_size</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">int</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Lattice">Lattice</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#Lattice.linear"></a>
     
-    
+            <div class="docstring"><p>A chain: a data site and an ancilla half a cell to its right (in the plane, as in
+Loom). The size is a 1-tuple, <code>(n,)</code>; a bare int is taken as <code>(n,)</code>.</p>
+</div>
+
 
                             </div>
                             <div id="Lattice.triangle_2d" class="classattr">
@@ -1919,6 +1973,56 @@ the ancilla half a cell up and left — the rotated surface code's lattice.</p>
     
 
                             </div>
+                            <div id="Lattice.oct_2d" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">oct_2d</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">lattice_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">r</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>,</span><span class="param">	<span class="n">anc</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="n"><a href="#Lattice">Lattice</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Lattice.oct_2d"></a>
+    
+            <div class="docstring"><p>Octagons of radius <code>r</code> with squares between them; <code>anc</code> ancillas on a small
+circle at the octagon's centre and at the three square centres of the cell.</p>
+</div>
+
+
+                            </div>
+                            <div id="Lattice.poly_2d" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">poly_2d</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">lattice_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">n</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">poly_radius</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span>,</span><span class="param">	<span class="n">poly_offset</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.5707963267948966</span>,</span><span class="param">	<span class="n">cell_dist_factor</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mf">2.732050807568877</span>,</span><span class="param">	<span class="n">anc</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">anc_radius</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.2</span>,</span><span class="param">	<span class="n">anc_offset</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.5707963267948966</span>,</span><span class="param">	<span class="n">anc_disp</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n"><a href="#Lattice">Lattice</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Lattice.poly_2d"></a>
+    
+            <div class="docstring"><p>A regular <code>n</code>-gon of data sites per cell, with <code>anc</code> ancillas on a circle inside
+it (the five-qubit code's lattice with <code>n=5</code>).</p>
+</div>
+
+
+                            </div>
+                            <div id="Lattice.cube_3d" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">cube_3d</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">lattice_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Lattice">Lattice</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Lattice.cube_3d"></a>
+    
+            <div class="docstring"><p>The cubic lattice, one site per cell.</p>
+</div>
+
+
+                            </div>
                             <div id="Lattice.asdict" class="classattr">
                                 <div class="attr function">
             
@@ -1958,7 +2062,8 @@ the ancilla half a cell up and left — the rotated surface code's lattice.</p>
     <a class="headerlink" href="#PauliOperator"></a>
     
             <div class="docstring"><p>A Pauli string on data qubits named by their lattice coordinates. Equality and hashing
-ignore the uuid and the order of the qubits.</p>
+ignore the uuid and the order of the qubits. As in Loom, the letters are upper-case X, Y
+and Z.</p>
 </div>
 
 
@@ -4060,7 +4165,7 @@ key under which the interpreter files the outcome's classical bits.</p>
                             <div id="RotateBlock.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">RotateBlock</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">input_block_name</span><span class="p">:</span> <span class="nb">str</span></span>)</span>
+        <span class="name">RotateBlock</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">input_block_name</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">grow_direction</span><span class="p">:</span> <span class="n"><a href="#Direction">Direction</a></span></span>)</span>
 
         
     </div>
@@ -4076,6 +4181,17 @@ key under which the interpreter files the outcome's classical bits.</p>
         
     </div>
     <a class="headerlink" href="#RotateBlock.input_block_name"></a>
+    
+    
+
+                            </div>
+                            <div id="RotateBlock.grow_direction" class="classattr">
+                                <div class="attr variable">
+            <span class="name">grow_direction</span><span class="annotation">: <a href="#Direction">Direction</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#RotateBlock.grow_direction"></a>
     
     
 

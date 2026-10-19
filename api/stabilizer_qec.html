@@ -613,12 +613,6 @@
                         <li>
                                 <a class="variable" href="#BpLsdDecoder.bp_decoding">bp_decoding</a>
                         </li>
-                        <li>
-                                <a class="variable" href="#BpLsdDecoder.lsd_method">lsd_method</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#BpLsdDecoder.lsd_order">lsd_order</a>
-                        </li>
                 </ul>
 
             </li>
@@ -732,12 +726,6 @@
                         </li>
                         <li>
                                 <a class="variable" href="#LsdDecoder.decoding">decoding</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#LsdDecoder.lsd_method">lsd_method</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#LsdDecoder.lsd_order">lsd_order</a>
                         </li>
                 </ul>
 
@@ -933,6 +921,15 @@
                         </li>
                         <li>
                                 <a class="variable" href="#Circuit.is_clifford">is_clifford</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Circuit.stim_circuit">stim_circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.cast_to_stim">cast_to_stim</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.without_annotations">without_annotations</a>
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.to_file">to_file</a>
@@ -1175,6 +1172,9 @@
                                 <a class="function" href="#ExactSampler.__init__">ExactSampler</a>
                         </li>
                         <li>
+                                <a class="variable" href="#ExactSampler.device">device</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#ExactSampler.num_qubits">num_qubits</a>
                         </li>
                 </ul>
@@ -1185,6 +1185,9 @@
                             <ul class="memberlist">
                         <li>
                                 <a class="function" href="#StabilizerRankSampler.__init__">StabilizerRankSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#StabilizerRankSampler.device">device</a>
                         </li>
                         <li>
                                 <a class="variable" href="#StabilizerRankSampler.num_measurements">num_measurements</a>
@@ -1362,6 +1365,15 @@
                         </li>
                         <li>
                                 <a class="variable" href="#CoherentSampler.num_generators">num_generators</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.num_nonlocal_generators">num_nonlocal_generators</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.kernel_complete">kernel_complete</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CoherentSampler.exact_weights">exact_weights</a>
                         </li>
                         <li>
                                 <a class="function" href="#CoherentSampler.sample">sample</a>
@@ -2482,7 +2494,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -5105,14 +5117,15 @@ detection event by BP's posteriors and solves each cluster alone. Corrections eq
 <code>ldpc</code>'s <code><a href="#BpLsdDecoder">BpLsdDecoder</a></code> on the same matrix but for ties among equally likely columns.
 For codes whose faults flip three or more detectors: give it the undecomposed model. The
 defaults are <code>ldpc</code>'s sinter decoder's but for <code>max_iter</code>: 30 iterations, where its
-0 means one per fault (thousands on the gross code, and most of the time).</p>
+0 means one per fault (thousands on the gross code, and most of the time). <code>schedule</code>
+and <code>random_schedule_seed</code> are <code>ldpc</code>'s (see <code>_schedule</code>).</p>
 </div>
 
 
                             <div id="BpLsd.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">BpLsd</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>,</span><span class="param">	<span class="n">bp_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'minimum_sum'</span>,</span><span class="param">	<span class="n">ms_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.625</span>,</span><span class="param">	<span class="n">lsd_method</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s1">'lsd_0'</span>,</span><span class="param">	<span class="n">lsd_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">bits_per_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span>)</span>
+        <span class="name">BpLsd</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>,</span><span class="param">	<span class="n">bp_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'minimum_sum'</span>,</span><span class="param">	<span class="n">ms_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.625</span>,</span><span class="param">	<span class="n">lsd_method</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="s1">'lsd_0'</span>,</span><span class="param">	<span class="n">lsd_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">bits_per_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">schedule</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">random_schedule_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
 
         
     </div>
@@ -5142,7 +5155,7 @@ BP converged before LSD.</p>
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">BpLsdDecoder</span><wbr>(<span class="base">stabilizer_qec._ldpc.BpDecoderBase</span>):
+    <span class="name">BpLsdDecoder</span><wbr>(<span class="base">stabilizer_qec._ldpc._LsdOptions</span>, <span class="base">stabilizer_qec._ldpc.BpDecoderBase</span>):
 
         
     </div>
@@ -5294,28 +5307,6 @@ while <code><a href="#BpLsdDecoder.do_stats">do_stats</a></code> is on.</p>
     
 
                             </div>
-                            <div id="BpLsdDecoder.lsd_method" class="classattr">
-                                <div class="attr variable">
-            <span class="name">lsd_method</span><span class="annotation">: Optional[str]</span>
-
-        
-    </div>
-    <a class="headerlink" href="#BpLsdDecoder.lsd_method"></a>
-    
-    
-
-                            </div>
-                            <div id="BpLsdDecoder.lsd_order" class="classattr">
-                                <div class="attr variable">
-            <span class="name">lsd_order</span><span class="annotation">: int</span>
-
-        
-    </div>
-    <a class="headerlink" href="#BpLsdDecoder.lsd_order"></a>
-    
-    
-
-                            </div>
                 </section>
                 <section id="BpOsd">
                     <div class="attr class">
@@ -5330,14 +5321,15 @@ while <code><a href="#BpLsdDecoder.do_stats">do_stats</a></code> is on.</p>
             <div class="docstring"><p>BP+OSD on a detector error model (Roffe et al.), each fault a column with its prior,
 corrections equal to <code>ldpc</code>'s <code><a href="#BpOsdDecoder">BpOsdDecoder</a></code> on the same matrix but for ties among
 equally likely columns. For codes whose faults flip three or more detectors, such as
-IBM's bivariate bicycle codes: give it the undecomposed model.</p>
+IBM's bivariate bicycle codes: give it the undecomposed model. <code>schedule</code> and
+<code>random_schedule_seed</code> are <code>ldpc</code>'s (see <code>_schedule</code>).</p>
 </div>
 
 
                             <div id="BpOsd.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">BpOsd</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span>,</span><span class="param">	<span class="n">bp_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'minimum_sum'</span>,</span><span class="param">	<span class="n">ms_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">osd_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'osd_cs'</span>,</span><span class="param">	<span class="n">osd_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">7</span></span>)</span>
+        <span class="name">BpOsd</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">max_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10000</span>,</span><span class="param">	<span class="n">bp_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'minimum_sum'</span>,</span><span class="param">	<span class="n">ms_scaling_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">osd_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'osd_cs'</span>,</span><span class="param">	<span class="n">osd_order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">7</span>,</span><span class="param">	<span class="n">schedule</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'parallel'</span>,</span><span class="param">	<span class="n">random_schedule_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
 
         
     </div>
@@ -5661,7 +5653,7 @@ remaining syndrome. <code>osd_method</code> and <code>osd_order</code> are accep
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">LsdDecoder</span>:
+    <span class="name">LsdDecoder</span><wbr>(<span class="base">stabilizer_qec._ldpc._LsdOptions</span>):
 
         
     </div>
@@ -5732,28 +5724,6 @@ lightest first, each solved by OSD of <code><a href="#LsdDecoder.lsd_order">lsd_
     
 
                             </div>
-                            <div id="LsdDecoder.lsd_method" class="classattr">
-                                <div class="attr variable">
-            <span class="name">lsd_method</span><span class="annotation">: Optional[str]</span>
-
-        
-    </div>
-    <a class="headerlink" href="#LsdDecoder.lsd_method"></a>
-    
-    
-
-                            </div>
-                            <div id="LsdDecoder.lsd_order" class="classattr">
-                                <div class="attr variable">
-            <span class="name">lsd_order</span><span class="annotation">: int</span>
-
-        
-    </div>
-    <a class="headerlink" href="#LsdDecoder.lsd_order"></a>
-    
-    
-
-                            </div>
                 </section>
                 <section id="UnionFindDecoder">
                     <div class="attr class">
@@ -5767,15 +5737,22 @@ lightest first, each solved by OSD of <code><a href="#LsdDecoder.lsd_order">lsd_
     
             <div class="docstring"><p>Union-find decoding of any check matrix, as ldpc's <code><a href="#UnionFindDecoder">UnionFindDecoder</a></code>: a cluster grows
 around each fired check until it can explain its checks, then each is solved alone, by
-elimination (<code>uf_method</code> true: any matrix) or by peeling (false: columns of at most two
-checks, a column with one check touching the boundary). Given <code>llrs</code>, growth takes the
-<code><a href="#UnionFindDecoder.bits_per_step">bits_per_step</a></code> lowest first (0: all). <code>uf_method</code> may also be a name, <code>"inversion"</code> or
-<code>"peeling"</code>. (ldpc's own takes any non-empty string as inversion, <code>"peeling"</code> too, and its
-declared default <code>False</code> is refused.) Corrections are ldpc's but where <code>last_stuck</code> says
-the last decode left its algorithm: where ldpc's peeling goes round forever, or (ldpc 2.4.1
-peels the boundary through a bit its spanning tree may not have taken) peels to a correction
-that does not explain the syndrome, as on 78 of the distance-5 rotated surface code's 4096;
-there a cluster is peeled through the tree's boundary bit, or solved by inversion.</p>
+elimination (<code>uf_method</code> true: any matrix) or by peeling (false, the default: columns of at
+most two checks, a column with one check touching the boundary). Given <code>llrs</code>, growth takes
+the <code><a href="#UnionFindDecoder.bits_per_step">bits_per_step</a></code> lowest first (0: all). <code>uf_method</code> may also be a name,
+<code>"inversion"</code> or <code>"peeling"</code>, and the name is what runs. ldpc's own differs here: its
+argument is typed <code>str</code> but kept in a C <code>bool</code>, so any non-empty string is inversion
+there, <code>"peeling"</code> included; its only peeling is <code>uf_method=""</code>; and it refuses a
+<code>bool</code> with a TypeError, its own default <code>False</code> included, so <code>UnionFindDecoder(H)</code>
+fails there and peels here. So ldpc's <code>UnionFindDecoder(H, uf_method="peeling")</code> is this
+one's <code>uf_method="inversion"</code>, shot for shot; against ldpc's <code>uf_method=""</code>, this one's
+<code>"peeling"</code> differs only where flagged, with or without <code>llrs</code>.
+Corrections are ldpc's but where <code>last_tied</code> says the last decode merged three or more
+clusters at once (ldpc's order there comes from hashed pointers), or <code>last_stuck</code> says it
+left ldpc's algorithm: where ldpc's peeling goes round forever, or (ldpc 2.4.1 peels the
+boundary through a bit its spanning tree may not have taken) peels to a correction that does
+not explain the syndrome, as on 78 of the distance-5 rotated surface code's 4096; there a
+cluster is peeled through the tree's boundary bit, or solved by inversion.</p>
 </div>
 
 
@@ -6643,6 +6620,54 @@ and leakage are not gates and do not count.</p>
 
 
                             </div>
+                            <div id="Circuit.stim_circuit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stim_circuit</span><span class="annotation">: <a href="#Circuit">Circuit</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.stim_circuit"></a>
+    
+            <div class="docstring"><p>The circuit with its tagged gates at Clifford angles written as the Clifford gates
+they are (<code>I[R_Z(theta=0.7853981633974483)] 0</code> as <code>S 0</code>; a <code>U3</code> only when all
+three of its rotations are Clifford), <code>REPEAT</code> blocks kept; as Tsim's
+<code><a href="#Circuit.stim_circuit">stim_circuit</a></code>, the form Stim itself runs correctly.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.cast_to_stim" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">cast_to_stim</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.cast_to_stim"></a>
+    
+            <div class="docstring"><p>The circuit itself, as Tsim's <code><a href="#Circuit.cast_to_stim">cast_to_stim</a></code> (a cast for code that wants a
+<code>stim.Circuit</code>; this package's circuits are Stim's).</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.without_annotations" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">without_annotations</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.without_annotations"></a>
+    
+            <div class="docstring"><p>A copy without its <code>DETECTOR</code> and <code>OBSERVABLE_INCLUDE</code> instructions, loops kept,
+as Tsim's <code><a href="#Circuit.without_annotations">without_annotations</a></code>.</p>
+</div>
+
+
+                            </div>
                             <div id="Circuit.to_file" class="classattr">
                                 <div class="attr function">
             
@@ -7268,7 +7293,8 @@ skipping), <code>"cpu-lanes"</code> (32 shots a word, every random number an int
 the program a GPU runs, on the CPU — the same seed gives the same bytes on either) or
 <code>"gpu"</code> (the same program on a GPU through wgpu, in a build with the <code>gpu</code>
 feature). The devices sample the same distribution; <code>"cpu"</code> and the lane devices draw
-different shots from the same seed.</p>
+different shots from the same seed. The GPU device is opened once per process and is
+not inherited by a forked child (use <code>multiprocessing</code>'s spawn start method).</p>
 </div>
 
 
@@ -7348,7 +7374,7 @@ trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
+        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_complete</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50000</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
 
         
     </div>
@@ -7358,8 +7384,21 @@ trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
 <code>II_ERROR[R_ZZ(theta=0.01)] 0 1</code>, any Pauli rotation) at any size: shots of the
 Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
 back the interference the twirl leaves out. Weighted, the shots are distributed as the
-coherent circuit's: estimate a rate as <code>(w * hit).sum() / w.sum()</code>. <code>order</code> is how
-many of the circuit's local interference generators a shot's sum multiplies together.</p>
+coherent circuit's: estimate a rate as <code>(w * hit).sum() / w.sum()</code>.</p>
+
+<p>The interference runs between fault sets no record tells apart, a linear space (the
+circuit's spacetime kernel). Its generators are found locally (a fault either side of a
+gate, a stabiliser's worth of faults) and then completed to a basis of the whole kernel
+by one elimination over the rotations' effects: the completion holds what no local
+search finds, above all a logical error at one time with the same logical at another,
+whose amplitudes add (coherent logical errors accumulate across rounds).
+<code>num_nonlocal_generators</code> counts them. With at most twelve generators (besides groups
+of rotations that are one fault in several places) every shot sums the whole kernel and
+the weights are exact (<code>exact_weights</code>); past that a shot sums the products of up to
+<code>order</code> generators its faults touch, a truncation. <code>max_complete</code> is the most
+rotations whose kernel is completed; past it the generators are the local ones only,
+interference between distant faults is left out, <code>kernel_complete</code> is False and the
+sampler warns.</p>
 
 <p>A circuit with non-Clifford <em>gates</em> too (<code>I[T] 0</code>, <code>I[R_Z(theta=…)] 0</code>,
 <code>I[U3(…)] 0</code>: Clifford+T circuits, magic-state injection, a cultivation check) gets
@@ -7370,9 +7409,9 @@ with the member's errors inserted and the shot's outcomes forced. Neither the co
 sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
 exponential in the errors) covers this. <code>pairs</code> has the joint sampler sum the
 products of every two of its generators besides (quadratic in their number: a check
-on small circuits). A coherent error at a Clifford angle
-(<code>I_ERROR[R_Z(theta=0.7853981633974483)] 0</code>) is the Clifford gate it is (<code>S 0</code>) to
-both samplers, not a twirl.</p>
+on small circuits; the coherent sampler of a Clifford circuit ignores it). A coherent error at a Clifford angle
+(<code>I_ERROR[R_Z(theta=0.7853981633974483)] 0</code>, a fixed S) is run as the gate it is, not
+drawn as a twirl: such a circuit gets the joint sampler too.</p>
 </div>
 
 
@@ -7541,7 +7580,11 @@ each detector doubled into the two sub-graphs leaving out a colour other than it
 every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
 minimum-weight matching of it found by this package's matcher, and the matching lifted
 back to the code by carrying colour charge around its cycles. Predictions equal to the
-<code>chromobius</code> package's but for ties between equally light matchings.</p>
+<code>chromobius</code> package's except on some shots where the matching has the same weight as
+Chromobius's but its edges come out in another order (or, rarely, it is another matching
+of that weight): the lifting depends on that order, and this package's matcher does not
+list edges in PyMatching's order. Edges of probability above 1/2 are negative-weight edges,
+as in Chromobius; probability 1 is refused.</p>
 
 <p>The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
 colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):
@@ -8055,6 +8098,19 @@ own random stream, so threads never change the shots and calls continue shot by 
     
 
                             </div>
+                            <div id="ExactSampler.device" class="classattr">
+                                <div class="attr variable">
+            <span class="name">device</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExactSampler.device"></a>
+    
+            <div class="docstring"><p><code>"cpu"</code>: the state vector runs on the CPU.</p>
+</div>
+
+
+                            </div>
                             <div id="ExactSampler.num_qubits" class="classattr">
                                 <div class="attr variable">
             <span class="name">num_qubits</span><span class="annotation">: int</span>
@@ -8096,6 +8152,19 @@ own random stream, so threads never change the shots and calls continue shot by 
     <a class="headerlink" href="#StabilizerRankSampler.__init__"></a>
     
     
+
+                            </div>
+                            <div id="StabilizerRankSampler.device" class="classattr">
+                                <div class="attr variable">
+            <span class="name">device</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#StabilizerRankSampler.device"></a>
+    
+            <div class="docstring"><p><code>"cpu"</code>: the stabilizer-rank engine runs on the CPU.</p>
+</div>
+
 
                             </div>
                             <div id="StabilizerRankSampler.num_measurements" class="classattr">
@@ -8994,7 +9063,7 @@ Smolin 2014), on <code>padded_n</code> qubits (the Pauli's own by default, the P
                             <div id="CoherentSampler.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span>)</span>
+        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_complete</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50000</span></span>)</span>
 
         
     </div>
@@ -9060,8 +9129,55 @@ Clifford circuit's errors).</p>
     </div>
     <a class="headerlink" href="#CoherentSampler.num_generators"></a>
     
-            <div class="docstring"><p>The local generators of the circuit's interference (sets of rotations no record
-tells apart) the sampler found.</p>
+            <div class="docstring"><p>The generators of the circuit's interference (sets of rotations no record tells
+apart) whose products the sampler sums: the local ones, found by hashing, and the
+<code><a href="#CoherentSampler.num_nonlocal_generators">num_nonlocal_generators</a></code> that complete them to a basis of the whole kernel.</p>
+</div>
+
+
+                            </div>
+                            <div id="CoherentSampler.num_nonlocal_generators" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_nonlocal_generators</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.num_nonlocal_generators"></a>
+    
+            <div class="docstring"><p>The generators no local search finds, which complete the local ones to a basis of the
+kernel. The commonest is a logical error at one time with the same logical at another
+(2d rotations on a distance-d memory, no syndrome, no logical effect): its halves give
+the same outcome, so their amplitudes add.</p>
+</div>
+
+
+                            </div>
+                            <div id="CoherentSampler.kernel_complete" class="classattr">
+                                <div class="attr variable">
+            <span class="name">kernel_complete</span><span class="annotation">: bool</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.kernel_complete"></a>
+    
+            <div class="docstring"><p>Whether the generators (with the groups of rotations that are one fault in several
+places) span the whole kernel. False past <code>max_complete</code> rotations: interference
+between distant faults is then left out, and the sampler warns when it is made.</p>
+</div>
+
+
+                            </div>
+                            <div id="CoherentSampler.exact_weights" class="classattr">
+                                <div class="attr variable">
+            <span class="name">exact_weights</span><span class="annotation">: bool</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.exact_weights"></a>
+    
+            <div class="docstring"><p>Whether every shot sums every element of the kernel (complete, at most twelve
+generators): the weighted shots are then distributed exactly as the coherent circuit's.
+Otherwise a shot sums the products of up to <code>order</code> generators its faults touch.</p>
 </div>
 
 
@@ -10855,7 +10971,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;2.0.0&#39;</span>
+<span class="default_value">&#39;2.1.0&#39;</span>
 
         
     </div>

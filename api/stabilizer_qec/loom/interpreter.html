@@ -28,6 +28,9 @@
                    pattern=".+" required>
 
 
+            <h2>Submodules</h2>
+            <ul>
+            </ul>
 
             <h2>API Documentation</h2>
                 <ul class="memberlist">
@@ -334,10 +337,13 @@
             <li>
                     <a class="function" href="#interpret_eka">interpret_eka</a>
             </li>
+            <li>
+                    <a class="variable" href="#OTHER_CODE_APPLICATORS">OTHER_CODE_APPLICATORS</a>
+            </li>
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -1496,7 +1502,7 @@ the checks across it, and part the block in two with their logicals.</p>
                     <div class="attr variable">
             <span class="name">ROTATED_SURFACE_CODE_APPLICATORS</span><span class="annotation">: dict[str, typing.Callable[[<a href="#InterpretationStep">InterpretationStep</a>, typing.Any, bool, bool], <a href="#InterpretationStep">InterpretationStep</a>]]</span>        =
 <input id="ROTATED_SURFACE_CODE_APPLICATORS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="ROTATED_SURFACE_CODE_APPLICATORS-view-value"></label><span class="default_value">{&#39;MeasureBlockSyndromes&#39;: &lt;function measureblocksyndromes&gt;, &#39;MeasureLogicalX&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalY&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalZ&#39;: &lt;function measurelogicalpauli&gt;, &#39;ResetAllDataQubits&#39;: &lt;function reset_all_data_qubits&gt;, &#39;LogicalX&#39;: &lt;function logical_pauli&gt;, &#39;LogicalY&#39;: &lt;function logical_pauli&gt;, &#39;LogicalZ&#39;: &lt;function logical_pauli&gt;, &#39;ResetAllAncillaQubits&#39;: &lt;function reset_all_ancilla_qubits&gt;, &#39;ConditionalLogicalX&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalY&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalZ&#39;: &lt;function conditional_logical_pauli&gt;, &#39;Grow&#39;: &lt;function grow&gt;, &#39;Shrink&#39;: &lt;function shrink&gt;, &#39;Merge&#39;: &lt;function merge&gt;, &#39;Split&#39;: &lt;function split&gt;}</span>
+            <label class="view-value-button pdoc-button" for="ROTATED_SURFACE_CODE_APPLICATORS-view-value"></label><span class="default_value">{&#39;MeasureBlockSyndromes&#39;: &lt;function measureblocksyndromes&gt;, &#39;MeasureLogicalX&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalY&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalZ&#39;: &lt;function measurelogicalpauli&gt;, &#39;ResetAllDataQubits&#39;: &lt;function reset_all_data_qubits&gt;, &#39;LogicalX&#39;: &lt;function logical_pauli&gt;, &#39;LogicalY&#39;: &lt;function logical_pauli&gt;, &#39;LogicalZ&#39;: &lt;function logical_pauli&gt;, &#39;ResetAllAncillaQubits&#39;: &lt;function reset_all_ancilla_qubits&gt;, &#39;ConditionalLogicalX&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalY&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalZ&#39;: &lt;function conditional_logical_pauli&gt;, &#39;Grow&#39;: &lt;function grow&gt;, &#39;Shrink&#39;: &lt;function shrink&gt;, &#39;Merge&#39;: &lt;function merge&gt;, &#39;Split&#39;: &lt;function split&gt;, &#39;AuxCNOT&#39;: &lt;function auxcnot&gt;, &#39;TransversalHadamard&#39;: &lt;function transversalhadamard&gt;, &#39;StateInjection&#39;: &lt;function state_injection&gt;, &#39;MoveBlock&#39;: &lt;function move_block&gt;, &#39;LogicalPhaseViaYwall&#39;: &lt;function logical_phase_via_ywall&gt;, &#39;RotateBlock&#39;: &lt;function rotate_block&gt;}</span>
 
         
     </div>
@@ -1548,6 +1554,19 @@ label.</p>
 then the final circuit.</p>
 </div>
 
+
+                </section>
+                <section id="OTHER_CODE_APPLICATORS">
+                    <div class="attr variable">
+            <span class="name">OTHER_CODE_APPLICATORS</span><span class="annotation">: dict[type, tuple[str, dict[str, typing.Callable[[<a href="#InterpretationStep">InterpretationStep</a>, typing.Any, bool, bool], <a href="#InterpretationStep">InterpretationStep</a>]]]]</span>        =
+<input id="OTHER_CODE_APPLICATORS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+            <label class="view-value-button pdoc-button" for="OTHER_CODE_APPLICATORS-view-value"></label><span class="default_value">{&lt;class &#39;<a href="../loom.html#RepetitionCode">stabilizer_qec.loom.RepetitionCode</a>&#39;&gt;: (&#39;RepetitionCodeApplicator&#39;, {&#39;MeasureBlockSyndromes&#39;: &lt;function measureblocksyndromes&gt;, &#39;MeasureLogicalX&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalY&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalZ&#39;: &lt;function measurelogicalpauli&gt;, &#39;ResetAllDataQubits&#39;: &lt;function reset_all_data_qubits&gt;, &#39;LogicalX&#39;: &lt;function logical_pauli&gt;, &#39;LogicalY&#39;: &lt;function logical_pauli&gt;, &#39;LogicalZ&#39;: &lt;function logical_pauli&gt;, &#39;ResetAllAncillaQubits&#39;: &lt;function reset_all_ancilla_qubits&gt;, &#39;ConditionalLogicalX&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalY&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalZ&#39;: &lt;function conditional_logical_pauli&gt;, &#39;Grow&#39;: &lt;function grow&gt;, &#39;Shrink&#39;: &lt;function shrink&gt;, &#39;Split&#39;: &lt;function split&gt;, &#39;Merge&#39;: &lt;function merge&gt;}), &lt;class &#39;<a href="../loom.html#ShorCode">stabilizer_qec.loom.ShorCode</a>&#39;&gt;: (&#39;ShorCodeApplicator&#39;, {&#39;MeasureBlockSyndromes&#39;: &lt;function measureblocksyndromes&gt;, &#39;MeasureLogicalX&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalY&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalZ&#39;: &lt;function measurelogicalpauli&gt;, &#39;ResetAllDataQubits&#39;: &lt;function reset_all_data_qubits&gt;, &#39;LogicalX&#39;: &lt;function logical_pauli&gt;, &#39;LogicalY&#39;: &lt;function logical_pauli&gt;, &#39;LogicalZ&#39;: &lt;function logical_pauli&gt;, &#39;ResetAllAncillaQubits&#39;: &lt;function reset_all_ancilla_qubits&gt;, &#39;ConditionalLogicalX&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalY&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalZ&#39;: &lt;function conditional_logical_pauli&gt;}), &lt;class &#39;<a href="../loom.html#SteaneCode">stabilizer_qec.loom.SteaneCode</a>&#39;&gt;: (&#39;SteaneCodeApplicator&#39;, {&#39;MeasureBlockSyndromes&#39;: &lt;function measureblocksyndromes&gt;, &#39;MeasureLogicalX&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalY&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalZ&#39;: &lt;function measurelogicalpauli&gt;, &#39;ResetAllDataQubits&#39;: &lt;function reset_all_data_qubits&gt;, &#39;LogicalX&#39;: &lt;function logical_pauli&gt;, &#39;LogicalY&#39;: &lt;function logical_pauli&gt;, &#39;LogicalZ&#39;: &lt;function logical_pauli&gt;, &#39;ResetAllAncillaQubits&#39;: &lt;function reset_all_ancilla_qubits&gt;, &#39;ConditionalLogicalX&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalY&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalZ&#39;: &lt;function conditional_logical_pauli&gt;}), &lt;class &#39;<a href="../loom.html#FiveQubitPerfectCode">stabilizer_qec.loom.FiveQubitPerfectCode</a>&#39;&gt;: (&#39;FiveQubitPerfectCodeApplicator&#39;, {&#39;MeasureBlockSyndromes&#39;: &lt;function measureblocksyndromes&gt;, &#39;MeasureLogicalX&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalY&#39;: &lt;function measurelogicalpauli&gt;, &#39;MeasureLogicalZ&#39;: &lt;function measurelogicalpauli&gt;, &#39;ResetAllDataQubits&#39;: &lt;function reset_all_data_qubits&gt;, &#39;LogicalX&#39;: &lt;function logical_pauli&gt;, &#39;LogicalY&#39;: &lt;function logical_pauli&gt;, &#39;LogicalZ&#39;: &lt;function logical_pauli&gt;, &#39;ResetAllAncillaQubits&#39;: &lt;function reset_all_ancilla_qubits&gt;, &#39;ConditionalLogicalX&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalY&#39;: &lt;function conditional_logical_pauli&gt;, &#39;ConditionalLogicalZ&#39;: &lt;function conditional_logical_pauli&gt;})}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#OTHER_CODE_APPLICATORS"></a>
+    
+    
 
                 </section>
     </main>

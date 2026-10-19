@@ -36,6 +36,9 @@
             <h2>API Documentation</h2>
                 <ul class="memberlist">
             <li>
+                    <a class="variable" href="#ALL_CONVENTIONS">ALL_CONVENTIONS</a>
+            </li>
+            <li>
                     <a class="class" href="#Basis">Basis</a>
                             <ul class="memberlist">
                         <li>
@@ -222,10 +225,28 @@
                                 <a class="variable" href="#CompiledBlockGraph.patch_of">patch_of</a>
                         </li>
                         <li>
+                                <a class="variable" href="#CompiledBlockGraph.computation">computation</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#CompiledBlockGraph.num_patches">num_patches</a>
                         </li>
                         <li>
                                 <a class="variable" href="#CompiledBlockGraph.num_merges">num_merges</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CompiledBlockGraph.generate_stim_circuit">generate_stim_circuit</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#Convention">Convention</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Convention.__init__">Convention</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Convention.name">name</a>
                         </li>
                 </ul>
 
@@ -241,6 +262,15 @@
                         </li>
                         <li>
                                 <a class="function" href="#CorrelationSurface.bases_at">bases_at</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CorrelationSurface.half_edge_paulis">half_edge_paulis</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CorrelationSurface.to_pauli_web">to_pauli_web</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CorrelationSurface.from_pauli_web">from_pauli_web</a>
                         </li>
                         <li>
                                 <a class="variable" href="#CorrelationSurface.is_single_node">is_single_node</a>
@@ -336,6 +366,12 @@
 
             </li>
             <li>
+                    <a class="variable" href="#FIXED_BOUNDARY_CONVENTION">FIXED_BOUNDARY_CONVENTION</a>
+            </li>
+            <li>
+                    <a class="variable" href="#FIXED_BULK_CONVENTION">FIXED_BULK_CONVENTION</a>
+            </li>
+            <li>
                     <a class="class" href="#FilledGraph">FilledGraph</a>
                             <ul class="memberlist">
                         <li>
@@ -379,6 +415,99 @@
                         </li>
                         <li>
                                 <a class="function" href="#FloatPosition3D.as_tuple">as_tuple</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#FloatPosition3D.as_array">as_array</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#LinearFunction">LinearFunction</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#LinearFunction.__init__">LinearFunction</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LinearFunction.slope">slope</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LinearFunction.offset">offset</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.intersection">intersection</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.integer_eval">integer_eval</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.exact_integer_div">exact_integer_div</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.is_constant">is_constant</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.is_scalable">is_scalable</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.is_close_to">is_close_to</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.unambiguous_max_on_positives">unambiguous_max_on_positives</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LinearFunction.safe_mul">safe_mul</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#NoiseModel">NoiseModel</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#NoiseModel.__init__">NoiseModel</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseModel.idle_depolarization">idle_depolarization</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseModel.additional_depolarization_waiting_for_m_or_r">additional_depolarization_waiting_for_m_or_r</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseModel.gate_rules">gate_rules</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseModel.measure_rules">measure_rules</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseModel.any_clifford_1q_rule">any_clifford_1q_rule</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseModel.any_clifford_2q_rule">any_clifford_2q_rule</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoiseModel.si1000">si1000</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoiseModel.uniform_depolarizing">uniform_depolarizing</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoiseModel.noisy_circuit">noisy_circuit</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#NoiseRule">NoiseRule</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#NoiseRule.__init__">NoiseRule</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseRule.after">after</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoiseRule.flip_result">flip_result</a>
                         </li>
                 </ul>
 
@@ -495,6 +624,27 @@
 
             </li>
             <li>
+                    <a class="class" href="#Position2D">Position2D</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Position2D.__init__">Position2D</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Position2D.x">x</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Position2D.y">y</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Position2D.is_neighbour">is_neighbour</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Position2D.to_3d">to_3d</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#Position3D">Position3D</a>
                             <ul class="memberlist">
                         <li>
@@ -520,6 +670,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#Position3D.as_tuple">as_tuple</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Position3D.as_2d">as_2d</a>
                         </li>
                 </ul>
 
@@ -551,6 +704,36 @@
             <li>
                     <a class="class" href="#TQECWarning">TQECWarning</a>
                             <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#TopologicalComputationGraph">TopologicalComputationGraph</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#TopologicalComputationGraph.__init__">TopologicalComputationGraph</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TopologicalComputationGraph.convention">convention</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TopologicalComputationGraph.surfaces">surfaces</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TopologicalComputationGraph.stabilizers">stabilizers</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TopologicalComputationGraph.block_graph">block_graph</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TopologicalComputationGraph.num_observables">num_observables</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TopologicalComputationGraph.compile">compile</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TopologicalComputationGraph.generate_stim_circuit">generate_stim_circuit</a>
+                        </li>
                 </ul>
 
             </li>
@@ -681,6 +864,18 @@
                                 <a class="function" href="#ZXGraph.leaves">leaves</a>
                         </li>
                         <li>
+                                <a class="function" href="#ZXGraph.from_pyzx">from_pyzx</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ZXGraph.g">g</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ZXGraph.to_block_graph">to_block_graph</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ZXGraph.draw">draw</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#ZXGraph.from_block_graph">from_block_graph</a>
                         </li>
                         <li>
@@ -731,7 +926,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -746,17 +941,36 @@
 <a href="./../stabilizer_qec.html">stabilizer_qec</a><wbr>.tqec    </h1>
 
                         <div class="docstring"><p>Block graphs of logical computations, as tqec draws them (<code>tqec/tqec &lt;https://github.com/tqec/tqec&gt;</code>_
-0.2.0's <code>computation</code> package, its gallery and its Collada and JSON files, ported; Apache License
-2.0, see <code>LICENSE</code> in this directory): cubes and pipes in a 3D spacetime diagram, ZX kinds,
-validation, port filling, composition, rotation, correlation surfaces (the logical observables)
-found on the graph's own ZX graph, and <code>.dae</code> files SketchUp and tqec exchange, read and
-written with the standard library.</p>
+0.2.0's <code>computation</code> package, its gallery, its Collada and JSON files, its noise models, its
+<code>simulation</code> package and its PyZX interop, ported; Apache License 2.0, see <code>LICENSE</code> in this
+directory): cubes and pipes in a 3D spacetime diagram, ZX kinds, validation, port filling,
+composition, rotation, correlation surfaces (the logical observables) found on the graph's own
+ZX graph, and <code>.dae</code> files SketchUp and tqec exchange, read and written with the standard
+library.</p>
+
+<p>Graphs compile as tqec compiles them, on this package's lattice-surgery engine in place of
+tqec's plaquette templates: <code>compile_block_graph(graph, convention=...)</code> and
+<code>generate_stim_circuit(k=..., noise_model=NoiseModel.uniform_depolarizing(p))</code>, at distance
+2k + 1, with the engine's detectors and the correlation surfaces as observables. The engine's
+patch layout is its own, so the qubit counts differ from tqec's (a CNOT at k = 1 is 113 qubits
+here, 81 in tqec), while the numbers of detectors and observables and the distance are tqec's
+(the CNOT's 256 detectors, 2 observables, distance 3).</p>
+
+<ul>
+<li><code>simulation</code>: <code>start_simulation_using_sinter</code>, <code>binary_search_threshold</code> and the plots,
+on <code><a href="sinter.html">stabilizer_qec.sinter</a></code>;</li>
+<li><code>interop.pyzx</code>: PyZX graphs read and written (<code><a href="#ZXGraph.g">ZXGraph.g</a></code>, <code>PositionedZX</code>,
+<code>block_synthesis</code>, <code><a href="#CorrelationSurface.to_pauli_web">CorrelationSurface.to_pauli_web</a></code>) when PyZX is installed.</li>
+</ul>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">stabilizer_qec</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqec</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">tqec</span><span class="o">.</span><span class="n">gallery</span><span class="o">.</span><span class="n">cnot</span><span class="p">(</span><span class="n">tqec</span><span class="o">.</span><span class="n">Basis</span><span class="o">.</span><span class="n">Z</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">external_stabilizer_on_graph</span><span class="p">(</span><span class="n">g</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">find_correlation_surfaces</span><span class="p">()]</span>
 <span class="go">['ZZII', 'IZZZ']</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">circuit</span> <span class="o">=</span> <span class="n">tqec</span><span class="o">.</span><span class="n">compile_block_graph</span><span class="p">(</span><span class="n">g</span><span class="p">)</span><span class="o">.</span><span class="n">generate_stim_circuit</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">noise_model</span><span class="o">=</span><span class="n">tqec</span><span class="o">.</span><span class="n">NoiseModel</span><span class="o">.</span><span class="n">uniform_depolarizing</span><span class="p">(</span><span class="mf">0.001</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">circuit</span><span class="o">.</span><span class="n">num_detectors</span><span class="p">,</span> <span class="n">circuit</span><span class="o">.</span><span class="n">num_observables</span>
+<span class="go">(256, 2)</span>
 </code></pre>
 </div>
 </div>
@@ -765,6 +979,18 @@ written with the standard library.</p>
                 
                 
             </section>
+                <section id="ALL_CONVENTIONS">
+                    <div class="attr variable">
+            <span class="name">ALL_CONVENTIONS</span>        =
+<span class="default_value">{&#39;fixed_bulk&#39;: Convention(name=&#39;fixed_bulk&#39;), &#39;fixed_boundary&#39;: Convention(name=&#39;fixed_boundary&#39;)}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ALL_CONVENTIONS"></a>
+    
+    
+
+                </section>
                 <section id="Basis">
                     <div class="attr class">
             
@@ -1277,7 +1503,7 @@ edge, a Hadamard pipe a Hadamard edge.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">compile</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">observables</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+        <span class="name">compile</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">k</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">noise_model</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">observables</span><span class="o">=</span><span class="s1">'auto'</span>,</span><span class="param">	<span class="n">convention</span><span class="o">=</span><span class="s1">'fixed_bulk'</span>,</span><span class="param">	<span class="n">block_temporal_height</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -1285,8 +1511,11 @@ edge, a Hadamard pipe a Hadamard edge.</p>
     
             <div class="docstring"><p>The graph as a lattice-surgery circuit on this package's engine (<code><a href="#compile_block_graph">compile_block_graph</a></code>
 has the program too): patches for the cubes' lifetimes, merges and splits for the spatial
-pipes, the correlation surfaces as observables. Graphs the engine cannot express
-(Hadamard pipes, spatial cubes, Y cubes, open ports) are refused with tqec named.</p>
+pipes, the correlation surfaces as observables (<code>"auto"</code> all of them, <code>None</code> none, or
+a list, as tqec takes them). The size is <code>distance</code> or tqec's <code>k</code> (distance 2k + 1);
+the noise the engine's SD6 noise <code>p</code>, or a <code><a href="#NoiseModel">NoiseModel</a></code> laid over the noiseless
+circuit as tqec lays it. Graphs the engine cannot express (Hadamard pipes, spatial cubes,
+Y cubes, open ports) are refused with tqec named.</p>
 </div>
 
 
@@ -1479,16 +1708,17 @@ pipes in their plane (a spatial pass-through made a non-spatial cube).</p>
     </div>
     <a class="headerlink" href="#CompiledBlockGraph"></a>
     
-            <div class="docstring"><p>A block graph's surgery program and circuit: the patches' tiles (engine column, row) per
-cube lifetime, the steps, the observables' terms, and the stabilizers (Pauli strings on the
-graph's leaf cubes, in tqec's order) each observable measures.</p>
+            <div class="docstring"><p>A block graph's surgery program and circuit: the patches' tiles (engine column, row), one
+per run of cubes joined in time (a tile appears once per patch it holds), the steps, the
+observables' terms, and the stabilizers (Pauli strings on the graph's leaf cubes, in tqec's
+order) each observable measures.</p>
 </div>
 
 
                             <div id="CompiledBlockGraph.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">CompiledBlockGraph</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="nb">object</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">tiles</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>,</span><span class="param">	<span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]</span>,</span><span class="param">	<span class="n">observables</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]]</span>,</span><span class="param">	<span class="n">stabilizers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>,</span><span class="param">	<span class="n">surfaces</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">patch_of</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="#Position3D">Position3D</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">factory</span><span class="o">&gt;</span></span>)</span>
+        <span class="name">CompiledBlockGraph</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="nb">object</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">tiles</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>,</span><span class="param">	<span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]</span>,</span><span class="param">	<span class="n">observables</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]]</span>,</span><span class="param">	<span class="n">stabilizers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>,</span><span class="param">	<span class="n">surfaces</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">patch_of</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="#Position3D">Position3D</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">factory</span><span class="o">&gt;</span>,</span><span class="param">	<span class="n">computation</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#TopologicalComputationGraph">TopologicalComputationGraph</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -1585,6 +1815,18 @@ graph's leaf cubes, in tqec's order) each observable measures.</p>
     
 
                             </div>
+                            <div id="CompiledBlockGraph.computation" class="classattr">
+                                <div class="attr variable">
+            <span class="name">computation</span><span class="annotation">: Optional[<a href="#TopologicalComputationGraph">TopologicalComputationGraph</a>]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledBlockGraph.computation"></a>
+    
+    
+
+                            </div>
                             <div id="CompiledBlockGraph.num_patches" class="classattr">
                                 <div class="attr variable">
             <span class="name">num_patches</span><span class="annotation">: int</span>
@@ -1603,6 +1845,67 @@ graph's leaf cubes, in tqec's order) each observable measures.</p>
         
     </div>
     <a class="headerlink" href="#CompiledBlockGraph.num_merges"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledBlockGraph.generate_stim_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">generate_stim_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">k</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">noise_model</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">manhattan_radius</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>,</span><span class="param">	<span class="o">**</span><span class="n">ignored</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledBlockGraph.generate_stim_circuit"></a>
+    
+            <div class="docstring"><p>The noiseless circuit at scale <code>k</code> (distance 2k + 1; default this one's distance),
+with <code>noise_model</code> laid over it, as <code><a href="#TopologicalComputationGraph">TopologicalComputationGraph</a></code> writes it.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="Convention">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">Convention</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#Convention"></a>
+    
+            <div class="docstring"><p>tqec's conventions for laying blocks out in plaquettes: <code>fixed_bulk</code> (the bulk's
+stabilizers fixed, each cube's boundaries by its kind; tqec's default) and
+<code>fixed_boundary</code>. The surgery engine has one layout (the bulk's checks fixed across the
+grid, each patch's boundaries by its tile) and compiles only graphs of one patch orientation,
+where every cube has the same boundaries: there the two conventions make the same choice,
+and both compile to the engine's layout. Where tqec's conventions part (temporal Hadamard
+pipes, whose observables only the fixed-bulk convention follows), the engine refuses.</p>
+</div>
+
+
+                            <div id="Convention.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Convention</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">name</span><span class="p">:</span> <span class="nb">str</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Convention.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Convention.name" class="classattr">
+                                <div class="attr variable">
+            <span class="name">name</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Convention.name"></a>
     
     
 
@@ -1660,6 +1963,55 @@ kept). An edge between two Z nodes is a correlation between the logical Z operat
     <a class="headerlink" href="#CorrelationSurface.bases_at"></a>
     
             <div class="docstring"><p>The bases of the surface at a vertex.</p>
+</div>
+
+
+                            </div>
+                            <div id="CorrelationSurface.half_edge_paulis" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">half_edge_paulis</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">str</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CorrelationSurface.half_edge_paulis"></a>
+    
+            <div class="docstring"><p>The Pauli (<code>"X"</code>, <code>"Y"</code> or <code>"Z"</code>) on each half edge <code>(u, v)</code> the surface
+covers, the half at <code>u</code>: the half edges of tqec's Pauli web for it.</p>
+</div>
+
+
+                            </div>
+                            <div id="CorrelationSurface.to_pauli_web" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_pauli_web</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">g</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CorrelationSurface.to_pauli_web"></a>
+    
+            <div class="docstring"><p>The surface as a PyZX <code>PauliWeb</code> on <code>g</code> (a PyZX graph, or this package's ZX graph,
+given as its <code>g</code>; PyZX needed), as tqec converts it.</p>
+</div>
+
+
+                            </div>
+                            <div id="CorrelationSurface.from_pauli_web" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_pauli_web</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">pauli_web</span></span><span class="return-annotation">) -> <span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CorrelationSurface.from_pauli_web"></a>
+    
+            <div class="docstring"><p>The surface of a PyZX <code>PauliWeb</code>, as tqec reads it (and the one-node surface of a
+one-node graph, its self loop, which tqec's reading fails on).</p>
 </div>
 
 
@@ -1748,16 +2100,32 @@ has no ports.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">compile_block_graph</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">graph</span><span class="p">:</span> <span class="n"><a href="#BlockGraph">BlockGraph</a></span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">observables</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#CompiledBlockGraph">CompiledBlockGraph</a></span>:</span></span>
+        <span class="name">compile_block_graph</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">graph</span><span class="p">:</span> <span class="n"><a href="#BlockGraph">BlockGraph</a></span>,</span><span class="param">	<span class="n">distance</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">observables</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">],</span> <span class="nb">str</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'auto'</span>,</span><span class="param">	<span class="n">block_temporal_height</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">convention</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">Convention</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'fixed_bulk'</span><span class="p">)</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
     <a class="headerlink" href="#compile_block_graph"></a>
     
-            <div class="docstring"><p>The graph as a lattice-surgery circuit at <code>distance</code> under SD6 noise <code>p</code> (the engine's
-noise model), <code>rounds</code> rounds per time slice (default <code>distance</code>) and <code>merged</code> rounds
-per merge (default <code>rounds</code>); <code>observables</code> the correlation surfaces to include (default
-all the graph has, as <code><a href="#find_correlation_surfaces">find_correlation_surfaces</a></code> orders them).</p>
+            <div class="docstring"><p>A block graph compiled to circuits on this package's lattice-surgery engine, in either of
+two shapes.</p>
+
+<p>tqec's: <code>compile_block_graph(graph, convention=..., observables=...,
+block_temporal_height=...)</code> (the second argument may be the convention, as tqec places it)
+is a <code><a href="#TopologicalComputationGraph">TopologicalComputationGraph</a></code>, whose <code>generate_stim_circuit(k=..., noise_model=...)</code>
+writes the circuit at distance 2k + 1.</p>
+
+<p>This package's: <code>compile_block_graph(graph, distance, p=..., rounds=..., merged=...)</code> is
+the <code><a href="#CompiledBlockGraph">CompiledBlockGraph</a></code> at that distance under SD6 noise <code>p</code> (the engine's noise model),
+with <code>rounds</code> rounds per time slice (default <code>distance</code>) and <code>merged</code> rounds per merge
+(default <code>rounds</code>): its circuit, tiles, steps and observables' terms.</p>
+
+<p><code>observables</code> are the correlation surfaces to include, as in tqec: <code>"auto"</code> (the
+default) all the graph has, as <code><a href="#find_correlation_surfaces">find_correlation_surfaces</a></code> orders them, <code>None</code> none, or a
+list (each must be a surface of this graph). The graph's shadowed faces are fixed first
+(<code>fix_shadowed_faces</code>), as tqec does, so a pass-through drawn as a spatial cube compiles as
+the patch it is. A surface that runs one patch's logical along two of its lines (it passes
+two seams of that patch) is refused: the surgery engine's observables take one line, and
+the difference of two lines is a band of checks whose signs are random.</p>
 </div>
 
 
@@ -2039,6 +2407,30 @@ its kind, and a label (a port's must be non-empty and unique in its graph).</p>
 
                             </div>
                 </section>
+                <section id="FIXED_BOUNDARY_CONVENTION">
+                    <div class="attr variable">
+            <span class="name">FIXED_BOUNDARY_CONVENTION</span>        =
+<span class="default_value">Convention(name=&#39;fixed_boundary&#39;)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#FIXED_BOUNDARY_CONVENTION"></a>
+    
+    
+
+                </section>
+                <section id="FIXED_BULK_CONVENTION">
+                    <div class="attr variable">
+            <span class="name">FIXED_BULK_CONVENTION</span>        =
+<span class="default_value">Convention(name=&#39;fixed_bulk&#39;)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#FIXED_BULK_CONVENTION"></a>
+    
+    
+
+                </section>
                 <section id="FilledGraph">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
@@ -2213,6 +2605,402 @@ and the correlation surfaces that are its logical observables.</p>
         
     </div>
     <a class="headerlink" href="#FloatPosition3D.as_tuple"></a>
+    
+    
+
+                            </div>
+                            <div id="FloatPosition3D.as_array" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">as_array</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#FloatPosition3D.as_array"></a>
+    
+            <div class="docstring"><p>Return the position as a numpy array (of float32, as tqec's).</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="LinearFunction">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">LinearFunction</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction"></a>
+    
+            <div class="docstring"><p>A linear function, described by its slope and offset.</p>
+</div>
+
+
+                            <div id="LinearFunction.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">LinearFunction</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">slope</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>, </span><span class="param"><span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="LinearFunction.slope" class="classattr">
+                                <div class="attr variable">
+            <span class="name">slope</span><span class="annotation">: float</span>        =
+<span class="default_value">1.0</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.slope"></a>
+    
+    
+
+                            </div>
+                            <div id="LinearFunction.offset" class="classattr">
+                                <div class="attr variable">
+            <span class="name">offset</span><span class="annotation">: float</span>        =
+<span class="default_value">0.0</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.offset"></a>
+    
+    
+
+                            </div>
+                            <div id="LinearFunction.intersection" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">intersection</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">other</span><span class="p">:</span> <span class="n"><a href="#LinearFunction">LinearFunction</a></span></span><span class="return-annotation">) -> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.intersection"></a>
+    
+            <div class="docstring"><p>The x where <code>self(x) == other(x)</code>, or None for parallel functions.</p>
+</div>
+
+
+                            </div>
+                            <div id="LinearFunction.integer_eval" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">integer_eval</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">x</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.integer_eval"></a>
+    
+            <div class="docstring"><p><code>self(x)</code> as an integer (a TQECError if it is not one).</p>
+</div>
+
+
+                            </div>
+                            <div id="LinearFunction.exact_integer_div" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">exact_integer_div</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">div</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n"><a href="#LinearFunction">LinearFunction</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.exact_integer_div"></a>
+    
+            <div class="docstring"><p><code>self / div</code>, when <code>div</code> divides the slope and the offset.</p>
+</div>
+
+
+                            </div>
+                            <div id="LinearFunction.is_constant" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_constant</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">atol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-08</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.is_constant"></a>
+    
+    
+
+                            </div>
+                            <div id="LinearFunction.is_scalable" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_scalable</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">atol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-08</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.is_scalable"></a>
+    
+    
+
+                            </div>
+                            <div id="LinearFunction.is_close_to" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_close_to</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">other</span><span class="p">:</span> <span class="n"><a href="#LinearFunction">LinearFunction</a></span>,</span><span class="param">	<span class="n">atol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-08</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.is_close_to"></a>
+    
+    
+
+                            </div>
+                            <div id="LinearFunction.unambiguous_max_on_positives" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">unambiguous_max_on_positives</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">fs</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#LinearFunction">LinearFunction</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">default</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#LinearFunction">LinearFunction</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#LinearFunction">LinearFunction</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.unambiguous_max_on_positives"></a>
+    
+            <div class="docstring"><p>The function of <code>fs</code> at least every other on the positive numbers (a TQECError when
+there is none).</p>
+</div>
+
+
+                            </div>
+                            <div id="LinearFunction.safe_mul" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">safe_mul</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">lhs</span><span class="p">:</span> <span class="n"><a href="#LinearFunction">LinearFunction</a></span>,</span><span class="param">	<span class="n">rhs</span><span class="p">:</span> <span class="n"><a href="#LinearFunction">LinearFunction</a></span></span><span class="return-annotation">) -> <span class="n"><a href="#LinearFunction">LinearFunction</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LinearFunction.safe_mul"></a>
+    
+            <div class="docstring"><p><code>lhs * rhs</code>, when it is linear (one of them constant).</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="NoiseModel">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">NoiseModel</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel"></a>
+    
+            <div class="docstring"><p>A noise model applied to a circuit moment by moment (tqec's, after Gidney's): a rule per
+gate or measurement basis, a rule for any one- and any two-qubit Clifford, and depolarizing
+noise on the qubits each moment leaves idle.</p>
+</div>
+
+
+                            <div id="NoiseModel.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">NoiseModel</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">idle_depolarization</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">additional_depolarization_waiting_for_m_or_r</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">gate_rules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n"><a href="#NoiseRule">NoiseRule</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">measure_rules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n"><a href="#NoiseRule">NoiseRule</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">any_clifford_1q_rule</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#NoiseRule">NoiseRule</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">any_clifford_2q_rule</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#NoiseRule">NoiseRule</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.idle_depolarization" class="classattr">
+                                <div class="attr variable">
+            <span class="name">idle_depolarization</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.idle_depolarization"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.additional_depolarization_waiting_for_m_or_r" class="classattr">
+                                <div class="attr variable">
+            <span class="name">additional_depolarization_waiting_for_m_or_r</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.additional_depolarization_waiting_for_m_or_r"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.gate_rules" class="classattr">
+                                <div class="attr variable">
+            <span class="name">gate_rules</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.gate_rules"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.measure_rules" class="classattr">
+                                <div class="attr variable">
+            <span class="name">measure_rules</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.measure_rules"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.any_clifford_1q_rule" class="classattr">
+                                <div class="attr variable">
+            <span class="name">any_clifford_1q_rule</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.any_clifford_1q_rule"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.any_clifford_2q_rule" class="classattr">
+                                <div class="attr variable">
+            <span class="name">any_clifford_2q_rule</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.any_clifford_2q_rule"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseModel.si1000" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">si1000</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">p</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#NoiseModel">NoiseModel</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.si1000"></a>
+    
+            <div class="docstring"><p>Superconducting-inspired noise, as "A Fault-Tolerant Honeycomb Memory"
+(arXiv:2108.10457) defines it, with the measurement result flipped instead of the qubit
+before it. Only Z-basis measurements and resets have a rule, as in tqec: a circuit that
+prepares or reads a patch in X is refused.</p>
+</div>
+
+
+                            </div>
+                            <div id="NoiseModel.uniform_depolarizing" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">uniform_depolarizing</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">p</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#NoiseModel">NoiseModel</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.uniform_depolarizing"></a>
+    
+            <div class="docstring"><p>Near-standard circuit depolarizing noise, everything with strength <code>p</code>: one-qubit
+depolarization after one-qubit Cliffords and on idle qubits, two-qubit depolarization
+after two-qubit Cliffords, resets followed by a bit (or phase) flip, and measurement
+results flipped.</p>
+</div>
+
+
+                            </div>
+                            <div id="NoiseModel.noisy_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">noisy_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">system_qubits</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">immune_qubits</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseModel.noisy_circuit"></a>
+    
+            <div class="docstring"><p>The circuit with this model's noise laid over it.</p>
+
+<p>Args:
+    circuit: the circuit (or its Stim text) to layer noise over.
+    system_qubits: every qubit the circuit uses, the qubits eligible for idling noise
+        (default all of <code>range(circuit.num_qubits)</code>).
+    immune_qubits: qubits to not apply noise to, even if they are operated on.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="NoiseRule">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">NoiseRule</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseRule"></a>
+    
+            <div class="docstring"><p>How to add noise to an operation.</p>
+</div>
+
+
+                            <div id="NoiseRule.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">NoiseRule</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">after</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>, </span><span class="param"><span class="n">flip_result</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseRule.__init__"></a>
+    
+            <div class="docstring"><p>Noise for an operation.</p>
+
+<p>Args:
+    after: noise channel names to their probability argument, for example
+        <code>{"DEPOLARIZE2": 0.01, "X_ERROR": 0.02}</code>: these channels occur after all other
+        operations in the moment, on the operation's targets.
+    flip_result: the probability that a measurement result is reported wrong; only
+        valid for operations that produce measurement results.</p>
+</div>
+
+
+                            </div>
+                            <div id="NoiseRule.after" class="classattr">
+                                <div class="attr variable">
+            <span class="name">after</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseRule.after"></a>
+    
+    
+
+                            </div>
+                            <div id="NoiseRule.flip_result" class="classattr">
+                                <div class="attr variable">
+            <span class="name">flip_result</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoiseRule.flip_result"></a>
     
     
 
@@ -2664,6 +3452,86 @@ computation, invisible in a drawing.</p>
 
 
                 </section>
+                <section id="Position2D">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True, order=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">Position2D</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#Position2D"></a>
+    
+            <div class="docstring"><p>A 2D integer position (<code><a href="#Position3D.as_2d">Position3D.as_2d</a></code>).</p>
+</div>
+
+
+                            <div id="Position2D.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Position2D</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">x</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">y</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Position2D.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Position2D.x" class="classattr">
+                                <div class="attr variable">
+            <span class="name">x</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Position2D.x"></a>
+    
+    
+
+                            </div>
+                            <div id="Position2D.y" class="classattr">
+                                <div class="attr variable">
+            <span class="name">y</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Position2D.y"></a>
+    
+    
+
+                            </div>
+                            <div id="Position2D.is_neighbour" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_neighbour</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">other</span><span class="p">:</span> <span class="n"><a href="#Position2D">Position2D</a></span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Position2D.is_neighbour"></a>
+    
+            <div class="docstring"><p>Check if the other position is near to this position, i.e. Manhattan distance is 1.</p>
+</div>
+
+
+                            </div>
+                            <div id="Position2D.to_3d" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_3d</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">z</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="n"><a href="#Position3D">Position3D</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Position2D.to_3d"></a>
+    
+            <div class="docstring"><p>The 3D position with <code>self</code>'s <code><a href="#Position2D.x">x</a></code> and <code><a href="#Position2D.y">y</a></code>, at <code>z</code>.</p>
+</div>
+
+
+                            </div>
+                </section>
                 <section id="Position3D">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass(frozen=True, order=True)</div>
@@ -2784,6 +3652,21 @@ computation, invisible in a drawing.</p>
 
 
                             </div>
+                            <div id="Position3D.as_2d" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">as_2d</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#Position2D">Position2D</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Position3D.as_2d"></a>
+    
+            <div class="docstring"><p>Return the position as a 2D position.</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="SignedDirection3D">
                     <div class="attr class">
@@ -2880,6 +3763,132 @@ computation, invisible in a drawing.</p>
 </div>
 
 
+                </section>
+                <section id="TopologicalComputationGraph">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">TopologicalComputationGraph</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph"></a>
+    
+            <div class="docstring"><p>A block graph compiled as tqec's <code><a href="#compile_block_graph">compile_block_graph</a></code> returns it, ready to be written
+at any scale: <code>generate_stim_circuit(k, noise_model=...)</code> is the circuit at distance
+2k + 1 on the surgery engine, noiseless or with a <code><a href="#NoiseModel">NoiseModel</a></code> laid over it, and
+<code>compile(distance, p=...)</code> the program and circuit under the engine's own SD6 noise.</p>
+
+<p>Every check is made when the graph is compiled (open ports, validity, what the engine
+cannot express, the observables), as tqec makes its own; each time slice has
+<code>block_temporal_height(k) + 2</code> rounds (tqec's layers: an initialisation layer, the
+repeated rounds and a measurement layer), <code>2k + 1</code> by default as in tqec.</p>
+</div>
+
+
+                            <div id="TopologicalComputationGraph.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">TopologicalComputationGraph</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">block_graph</span><span class="p">:</span> <span class="n"><a href="#BlockGraph">BlockGraph</a></span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">convention</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">Convention</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'fixed_bulk'</span><span class="p">)</span>,</span><span class="param">	<span class="n">observables</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">],</span> <span class="nb">str</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'auto'</span>,</span><span class="param">	<span class="n">block_temporal_height</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">rounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">merged</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="TopologicalComputationGraph.convention" class="classattr">
+                                <div class="attr variable">
+            <span class="name">convention</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.convention"></a>
+    
+    
+
+                            </div>
+                            <div id="TopologicalComputationGraph.surfaces" class="classattr">
+                                <div class="attr variable">
+            <span class="name">surfaces</span><span class="annotation">: list[<a href="#CorrelationSurface">CorrelationSurface</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.surfaces"></a>
+    
+    
+
+                            </div>
+                            <div id="TopologicalComputationGraph.stabilizers" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stabilizers</span><span class="annotation">: list[str]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.stabilizers"></a>
+    
+    
+
+                            </div>
+                            <div id="TopologicalComputationGraph.block_graph" class="classattr">
+                                <div class="attr variable">
+            <span class="name">block_graph</span><span class="annotation">: <a href="#BlockGraph">BlockGraph</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.block_graph"></a>
+    
+    
+
+                            </div>
+                            <div id="TopologicalComputationGraph.num_observables" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_observables</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.num_observables"></a>
+    
+    
+
+                            </div>
+                            <div id="TopologicalComputationGraph.compile" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">distance</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">p</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span></span><span class="return-annotation">) -> <span class="n"><a href="#CompiledBlockGraph">CompiledBlockGraph</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.compile"></a>
+    
+            <div class="docstring"><p>The program and circuit at <code>distance</code> under the engine's SD6 noise <code>p</code>.</p>
+</div>
+
+
+                            </div>
+                            <div id="TopologicalComputationGraph.generate_stim_circuit" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">generate_stim_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">k</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">noise_model</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">manhattan_radius</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>,</span><span class="param">	<span class="n">detector_database</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">database_path</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">do_not_use_database</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">only_use_database</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">reschedule_measurements</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TopologicalComputationGraph.generate_stim_circuit"></a>
+    
+            <div class="docstring"><p>The circuit at scale <code>k</code> (distance 2k + 1), with <code>noise_model</code> (a <code><a href="#NoiseModel">NoiseModel</a></code>)
+laid over the noiseless circuit, as tqec lays its own. The detectors are the engine's,
+written with the circuit, so tqec's detector search and its database
+(<code>detector_database</code>, <code>database_path</code>, <code>do_not_use_database</code>,
+<code>only_use_database</code>) have nothing to do; a negative <code>manhattan_radius</code> leaves the
+detectors out, as it does in tqec. <code>reschedule_measurements</code> is tqec's: the engine
+measures every check of a round at once already.</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="YHalfCube">
                     <div class="attr class">
@@ -3406,6 +4415,71 @@ insertion order, as PyZX numbers them.</p>
     
 
                             </div>
+                            <div id="ZXGraph.from_pyzx" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_pyzx</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">g</span>,</span><span class="param">	<span class="n">positions</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n"><a href="#Position3D">Position3D</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#ZXGraph">ZXGraph</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ZXGraph.from_pyzx"></a>
+    
+            <div class="docstring"><p>This package's ZX graph for a PyZX graph (tqec's kind: phase-free Z and X spiders, S
+spiders and boundaries), its vertex numbers and adjacency order kept, so the correlation
+surfaces found on it are tqec's; with 3D positions if given (tqec's <code>PositionedZX</code>).</p>
+</div>
+
+
+                            </div>
+                            <div id="ZXGraph.g" class="classattr">
+                                <div class="attr variable">
+            <span class="name">g</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ZXGraph.g"></a>
+    
+            <div class="docstring"><p>The graph as a PyZX graph (<code>pyzx.graph.graph_s.GraphS</code>; PyZX needed), as tqec's
+<code>PositionedZX.g</code>: the same vertex numbers, spiders and edges, added in the same order
+(the PyZX graph it was read from, when it was).</p>
+</div>
+
+
+                            </div>
+                            <div id="ZXGraph.to_block_graph" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_block_graph</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#BlockGraph">BlockGraph</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ZXGraph.to_block_graph"></a>
+    
+            <div class="docstring"><p>The block graph of the positioned graph, as tqec's <code>PositionedZX.to_block_graph</code>
+synthesises it (<code>positioned_block_synthesis</code>).</p>
+</div>
+
+
+                            </div>
+                            <div id="ZXGraph.draw" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">draw</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">figsize</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>,</span><span class="param">	<span class="n">title</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">node_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">400</span>,</span><span class="param">	<span class="n">hadamard_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">200</span>,</span><span class="param">	<span class="n">edge_width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ZXGraph.draw"></a>
+    
+            <div class="docstring"><p>A matplotlib figure of the positioned graph, <code>(figure, axes)</code>, as tqec's
+<code>PositionedZX.draw</code> (matplotlib needed).</p>
+</div>
+
+
+                            </div>
                             <div id="ZXGraph.from_block_graph" class="classattr">
                                 <div class="attr function">
                     <div class="decorator decorator-staticmethod">@staticmethod</div>
@@ -3547,7 +4621,7 @@ runs; each run's ports are filled in the bases its stabilizers need (Z where non
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">find_correlation_surfaces</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">g</span><span class="p">:</span> <span class="n"><a href="#ZXGraph">ZXGraph</a></span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">]</span>:</span></span>
+        <span class="name">find_correlation_surfaces</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">g</span><span class="p">:</span> <span class="n"><a href="#ZXGraph">ZXGraph</a></span>,</span><span class="param">	<span class="n">vertex_ordering</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">parallel</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="n"><a href="#CorrelationSurface">CorrelationSurface</a></span><span class="p">]</span>:</span></span>
 
         
     </div>
@@ -3561,7 +4635,10 @@ invalid candidates; dependent ones pruned), then reform the generators to satisf
 ports (an X or Z leaf supports only the opposite operator, a Y leaf only Y, a boundary any)
 and to keep few Y-terminating surfaces; the components' generators combined.</p>
 
-<p>The result is sorted by span.</p>
+<p>The result is sorted by span. <code>g</code> is this package's ZX graph or a PyZX graph (tqec's
+argument). <code>vertex_ordering</code> is reserved, as in tqec; <code>parallel</code> is tqec's
+multiprocessing of the independent parts, which gives the same surfaces (here they run in
+one process).</p>
 </div>
 
 

@@ -104,22 +104,64 @@
 
             </li>
             <li>
+                    <a class="class" href="#CodeStabilizerCheckOutput">CodeStabilizerCheckOutput</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CodeStabilizerCheckOutput.__init__">CodeStabilizerCheckOutput</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CodeStabilizerCheckOutput.missing_stabilizers">missing_stabilizers</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CodeStabilizerCheckOutput.stabilizers_with_incorrect_parity">stabilizers_with_incorrect_parity</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#LogicalOperatorCheckOutput">LogicalOperatorCheckOutput</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#LogicalOperatorCheckOutput.__init__">LogicalOperatorCheckOutput</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LogicalOperatorCheckOutput.input_vs_expected_vs_actual_logicals_multi">input_vs_expected_vs_actual_logicals_multi</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LogicalOperatorCheckOutput.input_vs_expected_vs_actual_logicals_with_parity">input_vs_expected_vs_actual_logicals_with_parity</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#StabilizerMeasurementCheckOutput">StabilizerMeasurementCheckOutput</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#StabilizerMeasurementCheckOutput.__init__">StabilizerMeasurementCheckOutput</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#StabilizerMeasurementCheckOutput.expected_vs_measured_stabs">expected_vs_measured_stabs</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#StabilizerMeasurementCheckOutput.probabilistic_measurements">probabilistic_measurements</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#CodeStabilizerCheck">CodeStabilizerCheck</a>
                             <ul class="memberlist">
                         <li>
                                 <a class="function" href="#CodeStabilizerCheck.__init__">CodeStabilizerCheck</a>
                         </li>
                         <li>
+                                <a class="variable" href="#CodeStabilizerCheck.message">message</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#CodeStabilizerCheck.missing_stabilizers">missing_stabilizers</a>
                         </li>
                         <li>
                                 <a class="variable" href="#CodeStabilizerCheck.stabilizers_with_incorrect_parity">stabilizers_with_incorrect_parity</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#CodeStabilizerCheck.valid">valid</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#CodeStabilizerCheck.message">message</a>
                         </li>
                 </ul>
 
@@ -131,16 +173,13 @@
                                 <a class="function" href="#LogicalOperatorCheck.__init__">LogicalOperatorCheck</a>
                         </li>
                         <li>
+                                <a class="variable" href="#LogicalOperatorCheck.message">message</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#LogicalOperatorCheck.failed_transformations">failed_transformations</a>
                         </li>
                         <li>
                                 <a class="variable" href="#LogicalOperatorCheck.failed_transformations_with_parity">failed_transformations_with_parity</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#LogicalOperatorCheck.valid">valid</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#LogicalOperatorCheck.message">message</a>
                         </li>
                 </ul>
 
@@ -152,16 +191,13 @@
                                 <a class="function" href="#StabilizerMeasurementCheck.__init__">StabilizerMeasurementCheck</a>
                         </li>
                         <li>
+                                <a class="variable" href="#StabilizerMeasurementCheck.message">message</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#StabilizerMeasurementCheck.expected_vs_measured_stabs">expected_vs_measured_stabs</a>
                         </li>
                         <li>
                                 <a class="variable" href="#StabilizerMeasurementCheck.probabilistic_measurements">probabilistic_measurements</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#StabilizerMeasurementCheck.valid">valid</a>
-                        </li>
-                        <li>
-                                <a class="variable" href="#StabilizerMeasurementCheck.message">message</a>
                         </li>
                 </ul>
 
@@ -177,6 +213,9 @@
                         </li>
                         <li>
                                 <a class="variable" href="#AllChecks.logical_operators">logical_operators</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#AllChecks.stabilizers_measured">stabilizers_measured</a>
                         </li>
                         <li>
                                 <a class="variable" href="#AllChecks.stabilizer_measurements">stabilizer_measurements</a>
@@ -232,7 +271,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -477,8 +516,8 @@ when its phase is ±i.</p>
     </div>
     <a class="headerlink" href="#LogicalState"></a>
     
-            <div class="docstring"><p>A logical state by the logical Paulis that stabilize it (sparse strings on the logical
-qubits, <code>("+Z0", "+X1")</code>), one per logical qubit, independent.</p>
+            <div class="docstring"><p>A logical state by the logical Paulis that stabilize it (signed sparse strings on the
+logical qubits, <code>("+Z0", "+X1")</code>), one per logical qubit, independent.</p>
 </div>
 
 
@@ -545,27 +584,184 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
 
                             </div>
                 </section>
-                <section id="CodeStabilizerCheck">
+                <section id="CodeStabilizerCheckOutput">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
 
     <span class="def">class</span>
-    <span class="name">CodeStabilizerCheck</span>:
+    <span class="name">CodeStabilizerCheckOutput</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CodeStabilizerCheckOutput"></a>
+    
+    
+
+                            <div id="CodeStabilizerCheckOutput.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CodeStabilizerCheckOutput</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">missing_stabilizers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>,</span><span class="param">	<span class="n">stabilizers_with_incorrect_parity</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CodeStabilizerCheckOutput.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CodeStabilizerCheckOutput.missing_stabilizers" class="classattr">
+                                <div class="attr variable">
+            <span class="name">missing_stabilizers</span><span class="annotation">: tuple[<a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a>, ...]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CodeStabilizerCheckOutput.missing_stabilizers"></a>
+    
+    
+
+                            </div>
+                            <div id="CodeStabilizerCheckOutput.stabilizers_with_incorrect_parity" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stabilizers_with_incorrect_parity</span><span class="annotation">: tuple[<a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a>, ...]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CodeStabilizerCheckOutput.stabilizers_with_incorrect_parity"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="LogicalOperatorCheckOutput">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">LogicalOperatorCheckOutput</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalOperatorCheckOutput"></a>
+    
+    
+
+                            <div id="LogicalOperatorCheckOutput.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">LogicalOperatorCheckOutput</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">input_vs_expected_vs_actual_logicals_multi</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">typing</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span>,</span><span class="param">	<span class="n">input_vs_expected_vs_actual_logicals_with_parity</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]],</span> <span class="n">typing</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalOperatorCheckOutput.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalOperatorCheckOutput.input_vs_expected_vs_actual_logicals_multi" class="classattr">
+                                <div class="attr variable">
+            <span class="name">input_vs_expected_vs_actual_logicals_multi</span><span class="annotation">: tuple[tuple[<a href="#LogicalState">LogicalState</a>, tuple[<a href="#LogicalState">LogicalState</a>, ...], typing.Optional[<a href="#LogicalState">LogicalState</a>]], ...]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalOperatorCheckOutput.input_vs_expected_vs_actual_logicals_multi"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalOperatorCheckOutput.input_vs_expected_vs_actual_logicals_with_parity" class="classattr">
+                                <div class="attr variable">
+            <span class="name">input_vs_expected_vs_actual_logicals_with_parity</span><span class="annotation">: tuple[tuple[<a href="#LogicalState">LogicalState</a>, tuple[<a href="#LogicalState">LogicalState</a>, tuple[int, ...]], typing.Optional[<a href="#LogicalState">LogicalState</a>]], ...]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalOperatorCheckOutput.input_vs_expected_vs_actual_logicals_with_parity"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="StabilizerMeasurementCheckOutput">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">StabilizerMeasurementCheckOutput</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#StabilizerMeasurementCheckOutput"></a>
+    
+    
+
+                            <div id="StabilizerMeasurementCheckOutput.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">StabilizerMeasurementCheckOutput</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">expected_vs_measured_stabs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span>,</span><span class="param">	<span class="n">probabilistic_measurements</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#StabilizerMeasurementCheckOutput.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="StabilizerMeasurementCheckOutput.expected_vs_measured_stabs" class="classattr">
+                                <div class="attr variable">
+            <span class="name">expected_vs_measured_stabs</span><span class="annotation">: tuple[tuple[str, <a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a>, tuple[<a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a>, ...]], ...]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#StabilizerMeasurementCheckOutput.expected_vs_measured_stabs"></a>
+    
+    
+
+                            </div>
+                            <div id="StabilizerMeasurementCheckOutput.probabilistic_measurements" class="classattr">
+                                <div class="attr variable">
+            <span class="name">probabilistic_measurements</span><span class="annotation">: tuple[str, ...]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#StabilizerMeasurementCheckOutput.probabilistic_measurements"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="CodeStabilizerCheck">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CodeStabilizerCheck</span><wbr>(<span class="base"><a href="#_ValidityCheck">_ValidityCheck</a></span>):
 
         
     </div>
     <a class="headerlink" href="#CodeStabilizerCheck"></a>
     
-    
+            <div class="docstring"><p>Are the output code's stabilizers on the final state, with the right parity? The output
+is a <code><a href="#CodeStabilizerCheckOutput">CodeStabilizerCheckOutput</a></code> (2.0's two tuples are accepted too).</p>
+</div>
+
 
                             <div id="CodeStabilizerCheck.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">CodeStabilizerCheck</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">missing_stabilizers</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>,</span><span class="param">	<span class="n">stabilizers_with_incorrect_parity</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]</span></span>)</span>
+        <span class="name">CodeStabilizerCheck</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">output</span>,</span><span class="param">	<span class="n">stabilizers_with_incorrect_parity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
     <a class="headerlink" href="#CodeStabilizerCheck.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="CodeStabilizerCheck.message" class="classattr">
+                                <div class="attr variable">
+            <span class="name">message</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CodeStabilizerCheck.message"></a>
     
     
 
@@ -592,83 +788,40 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
     
 
                             </div>
-                            <div id="CodeStabilizerCheck.valid" class="classattr">
-                                <div class="attr variable">
-            <span class="name">valid</span><span class="annotation">: bool</span>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#_ValidityCheck">_ValidityCheck</a></dt>
+                                <dd id="CodeStabilizerCheck.output" class="variable"><a href="#_ValidityCheck.output">output</a></dd>
+                <dd id="CodeStabilizerCheck.valid" class="variable"><a href="#_ValidityCheck.valid">valid</a></dd>
 
-        
-    </div>
-    <a class="headerlink" href="#CodeStabilizerCheck.valid"></a>
-    
-    
-
-                            </div>
-                            <div id="CodeStabilizerCheck.message" class="classattr">
-                                <div class="attr variable">
-            <span class="name">message</span><span class="annotation">: str</span>
-
-        
-    </div>
-    <a class="headerlink" href="#CodeStabilizerCheck.message"></a>
-    
-    
-
+            </div>
+                                </dl>
                             </div>
                 </section>
                 <section id="LogicalOperatorCheck">
                     <div class="attr class">
-                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
-
+            
     <span class="def">class</span>
-    <span class="name">LogicalOperatorCheck</span>:
+    <span class="name">LogicalOperatorCheck</span><wbr>(<span class="base"><a href="#_ValidityCheck">_ValidityCheck</a></span>):
 
         
     </div>
     <a class="headerlink" href="#LogicalOperatorCheck"></a>
     
-    
+            <div class="docstring"><p>Do the logical states transform as declared? The output is a
+<code><a href="#LogicalOperatorCheckOutput">LogicalOperatorCheckOutput</a></code>.</p>
+</div>
+
 
                             <div id="LogicalOperatorCheck.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">LogicalOperatorCheck</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">failed_transformations</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">typing</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span>,</span><span class="param">	<span class="n">failed_transformations_with_parity</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]],</span> <span class="n">typing</span><span class="o">.</span><span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#LogicalState">LogicalState</a></span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span></span>)</span>
+        <span class="name">LogicalOperatorCheck</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">output</span>,</span><span class="param">	<span class="n">input_vs_expected_vs_actual_logicals_with_parity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
     <a class="headerlink" href="#LogicalOperatorCheck.__init__"></a>
-    
-    
-
-                            </div>
-                            <div id="LogicalOperatorCheck.failed_transformations" class="classattr">
-                                <div class="attr variable">
-            <span class="name">failed_transformations</span><span class="annotation">: tuple[tuple[<a href="#LogicalState">LogicalState</a>, tuple[<a href="#LogicalState">LogicalState</a>, ...], typing.Optional[<a href="#LogicalState">LogicalState</a>]], ...]</span>
-
-        
-    </div>
-    <a class="headerlink" href="#LogicalOperatorCheck.failed_transformations"></a>
-    
-    
-
-                            </div>
-                            <div id="LogicalOperatorCheck.failed_transformations_with_parity" class="classattr">
-                                <div class="attr variable">
-            <span class="name">failed_transformations_with_parity</span><span class="annotation">: tuple[tuple[<a href="#LogicalState">LogicalState</a>, tuple[<a href="#LogicalState">LogicalState</a>, tuple[int, ...]], typing.Optional[<a href="#LogicalState">LogicalState</a>]], ...]</span>
-
-        
-    </div>
-    <a class="headerlink" href="#LogicalOperatorCheck.failed_transformations_with_parity"></a>
-    
-    
-
-                            </div>
-                            <div id="LogicalOperatorCheck.valid" class="classattr">
-                                <div class="attr variable">
-            <span class="name">valid</span><span class="annotation">: bool</span>
-
-        
-    </div>
-    <a class="headerlink" href="#LogicalOperatorCheck.valid"></a>
     
     
 
@@ -684,24 +837,58 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
     
 
                             </div>
+                            <div id="LogicalOperatorCheck.failed_transformations" class="classattr">
+                                <div class="attr variable">
+            <span class="name">failed_transformations</span><span class="annotation">: tuple</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalOperatorCheck.failed_transformations"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalOperatorCheck.failed_transformations_with_parity" class="classattr">
+                                <div class="attr variable">
+            <span class="name">failed_transformations_with_parity</span><span class="annotation">: tuple</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalOperatorCheck.failed_transformations_with_parity"></a>
+    
+    
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#_ValidityCheck">_ValidityCheck</a></dt>
+                                <dd id="LogicalOperatorCheck.output" class="variable"><a href="#_ValidityCheck.output">output</a></dd>
+                <dd id="LogicalOperatorCheck.valid" class="variable"><a href="#_ValidityCheck.valid">valid</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
                 </section>
                 <section id="StabilizerMeasurementCheck">
                     <div class="attr class">
-                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
-
+            
     <span class="def">class</span>
-    <span class="name">StabilizerMeasurementCheck</span>:
+    <span class="name">StabilizerMeasurementCheck</span><wbr>(<span class="base"><a href="#_ValidityCheck">_ValidityCheck</a></span>):
 
         
     </div>
     <a class="headerlink" href="#StabilizerMeasurementCheck"></a>
     
-    
+            <div class="docstring"><p>Do the named measurements measure the named input stabilizers, deterministically? The
+output is a <code><a href="#StabilizerMeasurementCheckOutput">StabilizerMeasurementCheckOutput</a></code>.</p>
+</div>
+
 
                             <div id="StabilizerMeasurementCheck.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">StabilizerMeasurementCheck</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">expected_vs_measured_stabs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]],</span> <span class="o">...</span><span class="p">]</span>,</span><span class="param">	<span class="n">probabilistic_measurements</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span></span>)</span>
+        <span class="name">StabilizerMeasurementCheck</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">output</span>, </span><span class="param"><span class="n">probabilistic_measurements</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -710,9 +897,20 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
     
 
                             </div>
+                            <div id="StabilizerMeasurementCheck.message" class="classattr">
+                                <div class="attr variable">
+            <span class="name">message</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#StabilizerMeasurementCheck.message"></a>
+    
+    
+
+                            </div>
                             <div id="StabilizerMeasurementCheck.expected_vs_measured_stabs" class="classattr">
                                 <div class="attr variable">
-            <span class="name">expected_vs_measured_stabs</span><span class="annotation">: tuple[tuple[str, <a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a>, tuple[<a href="../loom.html#Stabilizer">stabilizer_qec.loom.Stabilizer</a>, ...]], ...]</span>
+            <span class="name">expected_vs_measured_stabs</span><span class="annotation">: tuple</span>
 
         
     </div>
@@ -732,27 +930,15 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
     
 
                             </div>
-                            <div id="StabilizerMeasurementCheck.valid" class="classattr">
-                                <div class="attr variable">
-            <span class="name">valid</span><span class="annotation">: bool</span>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#_ValidityCheck">_ValidityCheck</a></dt>
+                                <dd id="StabilizerMeasurementCheck.output" class="variable"><a href="#_ValidityCheck.output">output</a></dd>
+                <dd id="StabilizerMeasurementCheck.valid" class="variable"><a href="#_ValidityCheck.valid">valid</a></dd>
 
-        
-    </div>
-    <a class="headerlink" href="#StabilizerMeasurementCheck.valid"></a>
-    
-    
-
-                            </div>
-                            <div id="StabilizerMeasurementCheck.message" class="classattr">
-                                <div class="attr variable">
-            <span class="name">message</span><span class="annotation">: str</span>
-
-        
-    </div>
-    <a class="headerlink" href="#StabilizerMeasurementCheck.message"></a>
-    
-    
-
+            </div>
+                                </dl>
                             </div>
                 </section>
                 <section id="AllChecks">
@@ -766,12 +952,14 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
     </div>
     <a class="headerlink" href="#AllChecks"></a>
     
-    
+            <div class="docstring"><p>The three checks, iterable in this order.</p>
+</div>
+
 
                             <div id="AllChecks.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">AllChecks</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">code_stabilizers</span><span class="p">:</span> <span class="n"><a href="#CodeStabilizerCheck">CodeStabilizerCheck</a></span>,</span><span class="param">	<span class="n">logical_operators</span><span class="p">:</span> <span class="n"><a href="#LogicalOperatorCheck">LogicalOperatorCheck</a></span>,</span><span class="param">	<span class="n">stabilizer_measurements</span><span class="p">:</span> <span class="n"><a href="#StabilizerMeasurementCheck">StabilizerMeasurementCheck</a></span></span>)</span>
+        <span class="name">AllChecks</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">code_stabilizers</span><span class="p">:</span> <span class="n"><a href="#CodeStabilizerCheck">CodeStabilizerCheck</a></span>,</span><span class="param">	<span class="n">logical_operators</span><span class="p">:</span> <span class="n"><a href="#LogicalOperatorCheck">LogicalOperatorCheck</a></span>,</span><span class="param">	<span class="n">stabilizers_measured</span><span class="p">:</span> <span class="n"><a href="#StabilizerMeasurementCheck">StabilizerMeasurementCheck</a></span></span>)</span>
 
         
     </div>
@@ -798,6 +986,17 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
         
     </div>
     <a class="headerlink" href="#AllChecks.logical_operators"></a>
+    
+    
+
+                            </div>
+                            <div id="AllChecks.stabilizers_measured" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stabilizers_measured</span><span class="annotation">: <a href="#StabilizerMeasurementCheck">StabilizerMeasurementCheck</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#AllChecks.stabilizers_measured"></a>
     
     
 
@@ -836,7 +1035,8 @@ block's logical X and Z operators it names (Y_i = i X_i Z_i).</p>
     </div>
     <a class="headerlink" href="#DebugData"></a>
     
-            <div class="docstring"><p>The validator's verdict: <code><a href="#DebugData.valid">valid</a></code> and the three checks.</p>
+            <div class="docstring"><p>The validator's verdict: <code><a href="#DebugData.valid">valid</a></code> (all checks valid) and the <code><a href="#DebugData.checks">checks</a></code>; its text names
+each failed check, after a separator.</p>
 </div>
 
 

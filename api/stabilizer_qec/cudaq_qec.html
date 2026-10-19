@@ -28,6 +28,12 @@
                    pattern=".+" required>
 
 
+            <h2>Submodules</h2>
+            <ul>
+                    <li><a href="cudaq_qec/dem_sampling.html">dem_sampling</a></li>
+                    <li><a href="cudaq_qec/patch.html">patch</a></li>
+                    <li><a href="cudaq_qec/relay_solutions.html">relay_solutions</a></li>
+            </ul>
 
             <h2>API Documentation</h2>
                 <ul class="memberlist">
@@ -45,6 +51,180 @@
             </li>
             <li>
                     <a class="function" href="#decoder_stats">decoder_stats</a>
+            </li>
+            <li>
+                    <a class="function" href="#configure_decoders_from_file">configure_decoders_from_file</a>
+            </li>
+            <li>
+                    <a class="function" href="#configure_decoders_from_str">configure_decoders_from_str</a>
+            </li>
+            <li>
+                    <a class="function" href="#finalize_decoders">finalize_decoders</a>
+            </li>
+            <li>
+                    <a class="function" href="#enqueue_syndromes_test">enqueue_syndromes_test</a>
+            </li>
+            <li>
+                    <a class="variable" href="#qecrt">qecrt</a>
+            </li>
+            <li>
+                    <a class="class" href="#decoder_config">decoder_config</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#decoder_config.id">id</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.type">type</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.stim_dem_path">stim_dem_path</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.block_size">block_size</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.syndrome_size">syndrome_size</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.H_sparse">H_sparse</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.O_sparse">O_sparse</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.D_sparse">D_sparse</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.dispatch">dispatch</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.cuda_device_id">cuda_device_id</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.dem_chunks">dem_chunks</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_config.decoder_custom_args">decoder_custom_args</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#decoder_config.set_decoder_custom_args">set_decoder_custom_args</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#decoder_config.validate_custom_args">validate_custom_args</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#decoder_config.to_yaml_str">to_yaml_str</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#decoder_config.from_yaml_str">from_yaml_str</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#multi_decoder_config">multi_decoder_config</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#multi_decoder_config.decoders">decoders</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#multi_decoder_config.transport">transport</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#multi_decoder_config.validate_custom_args">validate_custom_args</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#multi_decoder_config.to_yaml_str">to_yaml_str</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#multi_decoder_config.from_yaml_str">from_yaml_str</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#decoder_dispatch">decoder_dispatch</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#decoder_dispatch.host">host</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#decoder_dispatch.device_graph">device_graph</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#transport_config">transport_config</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#transport_config.provider">provider</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#transport_config.args">args</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#transport_config.device_graph">device_graph</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#transport_shape_override">transport_shape_override</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#transport_shape_override.provider">provider</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#transport_shape_override.args">args</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="function" href="#expand_dem_chunks">expand_dem_chunks</a>
+            </li>
+            <li>
+                    <a class="function" href="#decoder_param_schema">decoder_param_schema</a>
+            </li>
+            <li>
+                    <a class="function" href="#registered_decoder_schemas">registered_decoder_schemas</a>
+            </li>
+            <li>
+                    <a class="function" href="#decoder_config_json_schema">decoder_config_json_schema</a>
+            </li>
+            <li>
+                    <a class="class" href="#nv_qldpc_decoder_config">nv_qldpc_decoder_config</a>
+                            <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#multi_error_lut_config">multi_error_lut_config</a>
+                            <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#trt_decoder_config">trt_decoder_config</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#trt_decoder_config.to_heterogeneous_map">to_heterogeneous_map</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#pymatching_config">pymatching_config</a>
+                            <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#chromobius_config">chromobius_config</a>
+                            <ul class="memberlist">
+                </ul>
+
             </li>
             <li>
                     <a class="class" href="#BitFlipChannel">BitFlipChannel</a>
@@ -643,10 +823,43 @@
             <li>
                     <a class="function" href="#sort_pcm_columns">sort_pcm_columns</a>
             </li>
+            <li>
+                    <a class="class" href="#KernelNotRunWarning">KernelNotRunWarning</a>
+                            <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
+                    <a class="function" href="#dem_sampling">dem_sampling</a>
+            </li>
+            <li>
+                    <a class="class" href="#patch">patch</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#patch.__init__">patch</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#patch.data">data</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#patch.ancx">ancx</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#patch.ancz">ancz</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="function" href="#pcm_from_sparse_vec">pcm_from_sparse_vec</a>
+            </li>
+            <li>
+                    <a class="function" href="#generate_timelike_sparse_detector_matrix">generate_timelike_sparse_detector_matrix</a>
+            </li>
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -663,13 +876,17 @@
                         <div class="docstring"><p>CUDA-Q QEC under its names (<code>import <a href="">stabilizer_qec.cudaq_qec</a> as qec</code>): the decoder
 interface (<code><a href="#get_decoder">get_decoder</a></code>, <code><a href="#Decoder">Decoder</a></code>, <code><a href="#DecoderResult">DecoderResult</a></code>, <code><a href="#BatchDecoderResult">BatchDecoderResult</a></code>, the
 <code>@decoder</code> registry), its decoders (single- and multi-error lookup tables, PyMatching, the sliding
-window, the tensor-network decoder, the examples), its detector error model and its parity-check-matrix tools;
-its codes (<code><a href="#get_code">get_code</a></code>: the surface code in its orientations XV, XH, ZV and ZH, with its
+window, nv-qldpc-decoder, Chromobius, nv-fusion-decoder, the tensor-network decoder, the
+examples), its detector error model, <code><a href="#dem_sampling">dem_sampling</a></code> and its parity-check-matrix tools; its codes
+(<code><a href="#get_code">get_code</a></code>: the surface code in its orientations XV, XH, ZV and ZH, with its
 <code><a href="#stabilizer_grid">stabilizer_grid</a></code> and CNOT schedules, Steane's and the repetition code, <code>@code</code> for Python
 ones) and its experiments on them (memory circuits sampled or made detector error models, under
-its noise models; code-capacity samples). Its kernels are this package's circuits
-(<code><a href="#memory_circuit">memory_circuit</a></code>); CUDA-Q's own kernels, GPU decoders and real-time decoding need CUDA-Q itself
-and are not here.</p>
+its noise models; code-capacity samples); and its real-time decoding host library
+(<code><a href="#decoder_config">decoder_config</a></code> / <code><a href="#multi_decoder_config">multi_decoder_config</a></code> and their YAML, the decoder parameter schemas,
+<code><a href="#configure_decoders">configure_decoders</a></code>, <code><a href="#enqueue_syndromes">enqueue_syndromes</a></code>, <code><a href="#get_corrections">get_corrections</a></code>, <code><a href="#reset_decoder">reset_decoder</a></code>,
+<code><a href="#finalize_decoders">finalize_decoders</a></code>). Its kernels are this package's circuits (<code><a href="#memory_circuit">memory_circuit</a></code>; kernels
+registered for a Python code are not run, and say so); CUDA-Q's own kernels and GPU decoders
+need CUDA-Q itself and are not here.</p>
 </div>
 
                 
@@ -680,15 +897,17 @@ and are not here.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">configure_decoders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoders</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+        <span class="name">configure_decoders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoders</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
     <a class="headerlink" href="#configure_decoders"></a>
     
-            <div class="docstring"><p>CUDA-Q QEC's real-time host API: registers decoders (a dict <code>{id: decoder}</code> or a list,
-numbered from 0) behind queues; returns their ids. Any decoder with <code>decode_batch</code> or
-<code>decode</code> (this package's, or a <code><a href="#Decoder">Decoder</a></code>).</p>
+            <div class="docstring"><p>Configure real-time decoders. From a <code><a href="#multi_decoder_config">multi_decoder_config</a></code>, as CUDA-Q: the decoders it
+describes replace those configured before, and the status (0 when all were built) is
+returned. Or this package's queue form: <code>decoders</code> a dict <code>{id: decoder}</code> or a list
+(numbered from 0) of any decoders with <code>decode_batch</code> or <code>decode</code> (this package's, or a
+<code><a href="#Decoder">Decoder</a></code>), each put behind a queue of <code>workers</code> threads; returns their ids.</p>
 </div>
 
 
@@ -697,13 +916,16 @@ numbered from 0) behind queues; returns their ids. Any decoder with <code>decode
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">enqueue_syndromes</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoder_id</span>, </span><span class="param"><span class="n">syndromes</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+        <span class="name">enqueue_syndromes</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoder_id</span>, </span><span class="param"><span class="n">syndromes</span>, </span><span class="param"><span class="n">tag</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
     <a class="headerlink" href="#enqueue_syndromes"></a>
     
-            <div class="docstring"><p>Queues a batch of syndromes to a configured decoder; returns the batch's ticket.</p>
+            <div class="docstring"><p>Send a decoder syndromes. A decoder configured from a <code><a href="#multi_decoder_config">multi_decoder_config</a></code> takes a
+round of measurement bits (<code>tag</code> labels the call), decoding once its shot's have all
+arrived. A queued decoder takes a batch of detector syndromes and returns the batch's
+ticket.</p>
 </div>
 
 
@@ -712,13 +934,17 @@ numbered from 0) behind queues; returns their ids. Any decoder with <code>decode
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_corrections</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoder_id</span>, </span><span class="param"><span class="n">ticket</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="n">timeout</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+        <span class="name">get_corrections</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoder_id</span>, </span><span class="param"><span class="o">*</span><span class="n">args</span>, </span><span class="param"><span class="o">**</span><span class="n">kwargs</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
     <a class="headerlink" href="#get_corrections"></a>
     
-            <div class="docstring"><p>The corrections of the oldest batch not yet collected (or of <code>ticket</code>), waited for.</p>
+            <div class="docstring"><p>A decoder's corrections. <code>get_corrections(id, return_size, reset)</code> for a decoder
+configured from a <code><a href="#multi_decoder_config">multi_decoder_config</a></code>: its accumulated observable corrections, as
+bools, cleared afterwards with <code>reset</code>. <code>get_corrections(id, ticket=None, timeout=None)</code>
+for a queued decoder: the corrections of the oldest batch not yet collected (or of
+<code>ticket</code>), waited for.</p>
 </div>
 
 
@@ -733,7 +959,8 @@ numbered from 0) behind queues; returns their ids. Any decoder with <code>decode
     </div>
     <a class="headerlink" href="#reset_decoder"></a>
     
-            <div class="docstring"><p>Drops the decoder's queued batches and its statistics.</p>
+            <div class="docstring"><p>Clear a decoder's partial shot and accumulated corrections (configured from a
+<code><a href="#multi_decoder_config">multi_decoder_config</a></code>), or drop a queued decoder's batches and statistics.</p>
 </div>
 
 
@@ -748,7 +975,665 @@ numbered from 0) behind queues; returns their ids. Any decoder with <code>decode
     </div>
     <a class="headerlink" href="#decoder_stats"></a>
     
-            <div class="docstring"><p>The decoder's <code><a href="realtime.html#DecoderStats">stabilizer_qec.realtime.DecoderStats</a></code>.</p>
+            <div class="docstring"><p>A queued decoder's <code><a href="realtime.html#DecoderStats">stabilizer_qec.realtime.DecoderStats</a></code>.</p>
+</div>
+
+
+                </section>
+                <section id="configure_decoders_from_file">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">configure_decoders_from_file</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">config_file</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#configure_decoders_from_file"></a>
+    
+            <div class="docstring"><p>Configure the real-time decoders from a YAML file; returns the status (1 when the file
+does not exist).</p>
+</div>
+
+
+                </section>
+                <section id="configure_decoders_from_str">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">configure_decoders_from_str</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">config_str</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#configure_decoders_from_str"></a>
+    
+            <div class="docstring"><p>Configure the real-time decoders from a YAML string; returns the status.</p>
+</div>
+
+
+                </section>
+                <section id="finalize_decoders">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">finalize_decoders</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#finalize_decoders"></a>
+    
+            <div class="docstring"><p>Release every configured decoder (of either form).</p>
+</div>
+
+
+                </section>
+                <section id="enqueue_syndromes_test">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">enqueue_syndromes_test</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoder_id</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">syndromes</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="n">tag</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#enqueue_syndromes_test"></a>
+    
+            <div class="docstring"><p>Send a decoder measurement bits (a round's, or the final data readout): once a shot's
+have all arrived, the decoder decodes them and folds its observable flips into its
+corrections. <code>tag</code> labels the call (CUDA-Q logs it).</p>
+</div>
+
+
+                </section>
+                <section id="qecrt">
+                    <div class="attr variable">
+            <span class="name">qecrt</span>        =
+<span class="default_value">&lt;qecrt (stabilizer_qec&#39;s CUDA-Q QEC port)&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#qecrt"></a>
+    
+    
+
+                </section>
+                <section id="decoder_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">decoder_config</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config"></a>
+    
+            <div class="docstring"><p>One decoder of a real-time decoding configuration: its <code><a href="#decoder_config.id">id</a></code> and <code><a href="#decoder_config.type">type</a></code>, its DEM
+(flat: <code><a href="#decoder_config.block_size">block_size</a></code>, <code><a href="#decoder_config.syndrome_size">syndrome_size</a></code>, <code><a href="#decoder_config.H_sparse">H_sparse</a></code>, <code><a href="#decoder_config.O_sparse">O_sparse</a></code> and <code><a href="#decoder_config.D_sparse">D_sparse</a></code>, each
+matrix as <code><a href="#pcm_to_sparse_vec">pcm_to_sparse_vec</a></code> writes it; or a Stim model file, <code><a href="#decoder_config.stim_dem_path">stim_dem_path</a></code>, with
+<code><a href="#decoder_config.D_sparse">D_sparse</a></code>), and its parameters, <code><a href="#decoder_config.decoder_custom_args">decoder_custom_args</a></code> (a dict, set after <code><a href="#decoder_config.type">type</a></code>).</p>
+</div>
+
+
+                            <div id="decoder_config.id" class="classattr">
+                                <div class="attr variable">
+            <span class="name">id</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.id"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.type" class="classattr">
+                                <div class="attr variable">
+            <span class="name">type</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.type"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.stim_dem_path" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stim_dem_path</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.stim_dem_path"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.block_size" class="classattr">
+                                <div class="attr variable">
+            <span class="name">block_size</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.block_size"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.syndrome_size" class="classattr">
+                                <div class="attr variable">
+            <span class="name">syndrome_size</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.syndrome_size"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.H_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">H_sparse</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.H_sparse"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.O_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">O_sparse</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.O_sparse"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.D_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">D_sparse</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.D_sparse"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.dispatch" class="classattr">
+                                <div class="attr variable">
+            <span class="name">dispatch</span><span class="annotation">: <a href="#decoder_dispatch">decoder_dispatch</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.dispatch"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.cuda_device_id" class="classattr">
+                                <div class="attr variable">
+            <span class="name">cuda_device_id</span><span class="annotation">: Optional[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.cuda_device_id"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_config.dem_chunks" class="classattr">
+                                <div class="attr variable">
+            <span class="name">dem_chunks</span><span class="annotation">: None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.dem_chunks"></a>
+    
+            <div class="docstring"><p>Always None here: the chunk form is not supported (see the module notes).</p>
+</div>
+
+
+                            </div>
+                            <div id="decoder_config.decoder_custom_args" class="classattr">
+                                <div class="attr variable">
+            <span class="name">decoder_custom_args</span><span class="annotation">: dict</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.decoder_custom_args"></a>
+    
+            <div class="docstring"><p>The decoder's parameter dict (a copy: assign a changed dict back). Keys are those of
+the schema the decoder registered (<code><a href="#decoder_param_schema">decoder_param_schema</a></code>); set <code><a href="#decoder_config.type">type</a></code> first so the
+values convert to its kinds.</p>
+</div>
+
+
+                            </div>
+                            <div id="decoder_config.set_decoder_custom_args" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">set_decoder_custom_args</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">custom_args</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.set_decoder_custom_args"></a>
+    
+            <div class="docstring"><p>Set the parameter dict (as assigning <code><a href="#decoder_config.decoder_custom_args">decoder_custom_args</a></code>; set <code><a href="#decoder_config.type">type</a></code> first).</p>
+</div>
+
+
+                            </div>
+                            <div id="decoder_config.validate_custom_args" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">validate_custom_args</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.validate_custom_args"></a>
+    
+            <div class="docstring"><p>Check <code><a href="#decoder_config.decoder_custom_args">decoder_custom_args</a></code> against the decoder's schema: unknown keys, values of the
+wrong kind, missing required keys and the schema's own checks. Raises RuntimeError.</p>
+</div>
+
+
+                            </div>
+                            <div id="decoder_config.to_yaml_str" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_yaml_str</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">column_wrap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.to_yaml_str"></a>
+    
+            <div class="docstring"><p>This decoder as a YAML document (CUDA-Q's format).</p>
+</div>
+
+
+                            </div>
+                            <div id="decoder_config.from_yaml_str" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_yaml_str</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">yaml_str</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="n"><a href="#decoder_config">decoder_config</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.from_yaml_str"></a>
+    
+            <div class="docstring"><p>A decoder from a YAML document.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="multi_decoder_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">multi_decoder_config</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#multi_decoder_config"></a>
+    
+            <div class="docstring"><p>A real-time decoding configuration: its <code><a href="#multi_decoder_config.decoders">decoders</a></code> (a list of <code><a href="#decoder_config">decoder_config</a></code>,
+copied in and out) and a decoding server's <code><a href="#multi_decoder_config.transport">transport</a></code> section.</p>
+</div>
+
+
+                            <div id="multi_decoder_config.decoders" class="classattr">
+                                <div class="attr variable">
+            <span class="name">decoders</span><span class="annotation">: List[<a href="#decoder_config">decoder_config</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#multi_decoder_config.decoders"></a>
+    
+    
+
+                            </div>
+                            <div id="multi_decoder_config.transport" class="classattr">
+                                <div class="attr variable">
+            <span class="name">transport</span><span class="annotation">: <a href="#transport_config">transport_config</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#multi_decoder_config.transport"></a>
+    
+    
+
+                            </div>
+                            <div id="multi_decoder_config.validate_custom_args" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">validate_custom_args</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#multi_decoder_config.validate_custom_args"></a>
+    
+            <div class="docstring"><p>Check every decoder's <code>decoder_custom_args</code> against its schema.</p>
+</div>
+
+
+                            </div>
+                            <div id="multi_decoder_config.to_yaml_str" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_yaml_str</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">column_wrap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#multi_decoder_config.to_yaml_str"></a>
+    
+            <div class="docstring"><p>The configuration as a YAML document (CUDA-Q's format).</p>
+</div>
+
+
+                            </div>
+                            <div id="multi_decoder_config.from_yaml_str" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_yaml_str</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">yaml_str</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="n"><a href="#multi_decoder_config">multi_decoder_config</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#multi_decoder_config.from_yaml_str"></a>
+    
+            <div class="docstring"><p>A configuration from a YAML document.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="decoder_dispatch">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">decoder_dispatch</span><wbr>(<span class="base">enum.Enum</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_dispatch"></a>
+    
+            <div class="docstring"><p>How a decoder's RPCs are executed (a decoding server's choice; the host decoders of
+<code><a href="#configure_decoders">configure_decoders</a></code> run on the caller's thread either way).</p>
+</div>
+
+
+                            <div id="decoder_dispatch.host" class="classattr">
+                                <div class="attr variable">
+            <span class="name">host</span>        =
+<span class="default_value">&lt;<a href="#decoder_dispatch.host">decoder_dispatch.host</a>: 0&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_dispatch.host"></a>
+    
+    
+
+                            </div>
+                            <div id="decoder_dispatch.device_graph" class="classattr">
+                                <div class="attr variable">
+            <span class="name">device_graph</span>        =
+<span class="default_value">&lt;<a href="#decoder_dispatch.device_graph">decoder_dispatch.device_graph</a>: 1&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_dispatch.device_graph"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="transport_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">transport_config</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#transport_config"></a>
+    
+            <div class="docstring"><p>A decoding server's transport section (the wire is deployment configuration, so it lives
+beside the decoders list, not in it).</p>
+</div>
+
+
+                            <div id="transport_config.provider" class="classattr">
+                                <div class="attr variable">
+            <span class="name">provider</span>
+
+        
+    </div>
+    <a class="headerlink" href="#transport_config.provider"></a>
+    
+    
+
+                            </div>
+                            <div id="transport_config.args" class="classattr">
+                                <div class="attr variable">
+            <span class="name">args</span>
+
+        
+    </div>
+    <a class="headerlink" href="#transport_config.args"></a>
+    
+    
+
+                            </div>
+                            <div id="transport_config.device_graph" class="classattr">
+                                <div class="attr variable">
+            <span class="name">device_graph</span><span class="annotation">: <a href="#transport_shape_override">transport_shape_override</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#transport_config.device_graph"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="transport_shape_override">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">transport_shape_override</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#transport_shape_override"></a>
+    
+            <div class="docstring"><p>The wire override for one dispatch shape's rings (<code><a href="#transport_config.device_graph">transport_config.device_graph</a></code>).</p>
+</div>
+
+
+                            <div id="transport_shape_override.provider" class="classattr">
+                                <div class="attr variable">
+            <span class="name">provider</span>
+
+        
+    </div>
+    <a class="headerlink" href="#transport_shape_override.provider"></a>
+    
+    
+
+                            </div>
+                            <div id="transport_shape_override.args" class="classattr">
+                                <div class="attr variable">
+            <span class="name">args</span>
+
+        
+    </div>
+    <a class="headerlink" href="#transport_shape_override.args"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="expand_dem_chunks">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">expand_dem_chunks</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">config</span><span class="p">:</span> <span class="n"><a href="#decoder_config">decoder_config</a></span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#expand_dem_chunks"></a>
+    
+            <div class="docstring"><p>CUDA-Q's chunk-form expansion: a no-op on a flat configuration (the only kind here),
+returning None.</p>
+</div>
+
+
+                </section>
+                <section id="decoder_param_schema">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decoder_param_schema</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoder_name</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_param_schema"></a>
+    
+            <div class="docstring"><p>The parameter schema a decoder registered (a list of {key, kind, required[, subschema]
+[, discriminator]}), or None.</p>
+</div>
+
+
+                </section>
+                <section id="registered_decoder_schemas">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">registered_decoder_schemas</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#registered_decoder_schemas"></a>
+    
+            <div class="docstring"><p>Names of all decoders (and nested sections) with registered parameter schemas.</p>
+</div>
+
+
+                </section>
+                <section id="decoder_config_json_schema">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">decoder_config_json_schema</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config_json_schema"></a>
+    
+            <div class="docstring"><p>A JSON Schema (draft 2020-12), as text, that validates <code><a href="#multi_decoder_config">multi_decoder_config</a></code> YAML
+documents, generated from the registered parameter schemas. (Schemas' own checks, such as
+the sliding window's, are not expressible in it.)</p>
+</div>
+
+
+                </section>
+                <section id="nv_qldpc_decoder_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">nv_qldpc_decoder_config</span><wbr>(<span class="base">stabilizer_qec.cudaq_qec._compat._deprecated_typed_config</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#nv_qldpc_decoder_config"></a>
+    
+            <div class="docstring"><p>Deprecated: nv-qldpc-decoder's parameters.</p>
+</div>
+
+
+                </section>
+                <section id="multi_error_lut_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">multi_error_lut_config</span><wbr>(<span class="base">stabilizer_qec.cudaq_qec._compat._deprecated_typed_config</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#multi_error_lut_config"></a>
+    
+            <div class="docstring"><p>Deprecated: multi_error_lut's parameters.</p>
+</div>
+
+
+                </section>
+                <section id="trt_decoder_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">trt_decoder_config</span><wbr>(<span class="base">stabilizer_qec.cudaq_qec._compat._deprecated_typed_config</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#trt_decoder_config"></a>
+    
+            <div class="docstring"><p>Deprecated: trt_decoder's parameters (this package has no trt_decoder, nor its schema:
+the values are kept as given).</p>
+</div>
+
+
+                            <div id="trt_decoder_config.to_heterogeneous_map" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_heterogeneous_map</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#trt_decoder_config.to_heterogeneous_map"></a>
+    
+            <div class="docstring"><p>The parameters set, as a dict.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="pymatching_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">pymatching_config</span><wbr>(<span class="base">stabilizer_qec.cudaq_qec._compat._deprecated_typed_config</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#pymatching_config"></a>
+    
+            <div class="docstring"><p>Deprecated: pymatching's parameters.</p>
+</div>
+
+
+                </section>
+                <section id="chromobius_config">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">chromobius_config</span><wbr>(<span class="base">stabilizer_qec.cudaq_qec._compat._deprecated_typed_config</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#chromobius_config"></a>
+    
+            <div class="docstring"><p>Deprecated: chromobius's parameters.</p>
 </div>
 
 
@@ -1603,8 +2488,9 @@ probabilities.</p>
             <div class="docstring"><p>Register a Python code class under <code>name</code> (a decorator): the class, made a subclass of
 <code><a href="#Code">Code</a></code>, sets <code>self.stabilizers</code> and <code>self.pauli_observables</code> (Pauli words,
 PauliStrings or spin operator terms) and <code>self.operation_encodings</code> (a dict from
-<code><a href="#operation">operation</a></code> to its kernels) and defines the <code>get_num_*</code> counts. Its memory circuits use
-the scheduled stabilizer round and the reset-based preparations.</p>
+<code><a href="#operation">operation</a></code> to its kernels) and defines the <code>get_num_*</code> counts. Its kernels cannot run
+here: its memory circuits use the scheduled stabilizer round and the reset-based
+preparations in their place, with a <code><a href="#KernelNotRunWarning">KernelNotRunWarning</a></code> each time.</p>
 </div>
 
 
@@ -3111,6 +3997,168 @@ columns merged (their probabilities composed as independent errors).</p>
     <a class="headerlink" href="#sort_pcm_columns"></a>
     
             <div class="docstring"><p><code>H</code> with its columns sorted.</p>
+</div>
+
+
+                </section>
+                <section id="KernelNotRunWarning">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">KernelNotRunWarning</span><wbr>(<span class="base">builtins.UserWarning</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#KernelNotRunWarning"></a>
+    
+            <div class="docstring"><p>A <code>@code</code> class's registered kernels were needed and not run: this package cannot run
+CUDA-Q kernels, so a memory experiment on such a code runs this package's stand-ins (the
+reset-based preparation and the scheduled stabilizer round) and whatever the kernels do
+besides (<code>cudaq.apply_noise</code> in a stabilizer round, say) is left out. Raise it with
+<code>warnings.simplefilter("error", KernelNotRunWarning)</code>; give per-qubit noise with
+<code><a href="#NoiseModel.add_channel">NoiseModel.add_channel</a></code> instead.</p>
+</div>
+
+
+                </section>
+                <section id="dem_sampling">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_sampling</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">check_matrix</span>,</span><span class="param">	<span class="n">num_shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">error_probabilities</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">backend</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'auto'</span></span><span class="return-annotation">) -> <span class="n">Tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_sampling"></a>
+    
+            <div class="docstring"><p>Sample errors and syndromes from a Detector Error Model.</p>
+
+<p>Args:
+    check_matrix: Binary matrix [num_checks x num_error_mechanisms], as a
+        NumPy array (entries are read as uint8 and binarized, <code>H &amp; 1</code>).
+    num_shots: Number of independent Monte-Carlo shots.
+    error_probabilities: 1-D array of length num_error_mechanisms with
+        independent Bernoulli probabilities for each mechanism.
+    seed: Optional RNG seed (unsigned 32-bit) for reproducibility; the
+        draws then equal CUDA-Q's CPU sampler's.
+    backend: "auto" (default) or "cpu" run the CPU sampler; "gpu"
+        raises, since this package has no GPU sampler.</p>
+
+<p>Returns:
+    (syndromes, errors) where
+      syndromes: uint8 array [num_shots x num_checks]
+      errors:    uint8 array [num_shots x num_error_mechanisms]</p>
+</div>
+
+
+                </section>
+                <section id="patch">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(slots=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">patch</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#patch"></a>
+    
+            <div class="docstring"><p>A logical qubit patch representation for surface code quantum error correction.</p>
+
+<p>This class represents a logical qubit encoded in a 2D patch, containing
+data qubits and both X and Z ancilla qubits arranged in a 2D lattice pattern.
+In CUDA-Q each field is a <code>qvector</code>; here each is a sequence of qubit
+indices (a memory circuit lays out the data qubits first, then the X
+ancillas, then the Z ancillas).</p>
+
+<h2 id="attributes">Attributes</h2>
+
+<p>data : sequence of int
+    The data qubits that encode the logical qubit state.
+ancx : sequence of int
+    The X-basis ancilla qubits used for syndrome measurement.
+ancz : sequence of int
+    The Z-basis ancilla qubits used for syndrome measurement.</p>
+</div>
+
+
+                            <div id="patch.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">patch</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">data</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>, </span><span class="param"><span class="n">ancx</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>, </span><span class="param"><span class="n">ancz</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#patch.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="patch.data" class="classattr">
+                                <div class="attr variable">
+            <span class="name">data</span><span class="annotation">: Sequence[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#patch.data"></a>
+    
+    
+
+                            </div>
+                            <div id="patch.ancx" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ancx</span><span class="annotation">: Sequence[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#patch.ancx"></a>
+    
+    
+
+                            </div>
+                            <div id="patch.ancz" class="classattr">
+                                <div class="attr variable">
+            <span class="name">ancz</span><span class="annotation">: Sequence[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#patch.ancz"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="pcm_from_sparse_vec">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">pcm_from_sparse_vec</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">sparse_vec</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="n">num_rows</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">num_cols</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#pcm_from_sparse_vec"></a>
+    
+            <div class="docstring"><p>The dense <code>num_rows</code> x <code>num_cols</code> uint8 matrix of a sparse vector (each row's columns,
+each row ended by a negative entry): <code><a href="#pcm_to_sparse_vec">pcm_to_sparse_vec</a></code>'s inverse.</p>
+</div>
+
+
+                </section>
+                <section id="generate_timelike_sparse_detector_matrix">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">generate_timelike_sparse_detector_matrix</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">num_syndromes_per_round</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">num_rounds</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">include_first_round</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#generate_timelike_sparse_detector_matrix"></a>
+    
+            <div class="docstring"><p>The sparse detector matrix (each row's measurements, each row ended by -1) of
+<code>num_rounds</code> rounds of <code>num_syndromes_per_round</code> measurements: each detector XORs a
+measurement with the same one of the round before. With <code>include_first_round</code> the first
+round's measurements are detectors on their own, first. <code>include_first_round</code> may instead
+be the first round's rows (one measurement per row, as C++'s overload takes).</p>
 </div>
 
 

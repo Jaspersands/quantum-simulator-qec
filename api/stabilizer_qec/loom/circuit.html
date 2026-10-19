@@ -95,6 +95,12 @@
                                 <a class="variable" href="#Circuit.id">id</a>
                         </li>
                         <li>
+                                <a class="function" href="#Circuit.as_gate">as_gate</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.from_circuits">from_circuits</a>
+                        </li>
+                        <li>
                                 <a class="variable" href="#Circuit.is_gate">is_gate</a>
                         </li>
                         <li>
@@ -113,6 +119,12 @@
                                 <a class="function" href="#Circuit.clone">clone</a>
                         </li>
                         <li>
+                                <a class="function" href="#Circuit.detailed_str">detailed_str</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.construct_padded_circuit_time_sequence">construct_padded_circuit_time_sequence</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#Circuit.asdict">asdict</a>
                         </li>
                         <li>
@@ -123,6 +135,9 @@
                         </li>
                 </ul>
 
+            </li>
+            <li>
+                    <a class="function" href="#apply_to_nested">apply_to_nested</a>
             </li>
             <li>
                     <a class="function" href="#default_circuit">default_circuit</a>
@@ -157,7 +172,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -173,7 +188,8 @@
 
                         <div class="docstring"><p>Loom's circuit IR: channels (quantum or classical wires), gates (leaf circuits named after
 their operation) and composite circuits (time slices of sub-circuits, each slice one tick, a
-sub-circuit lasting its duration), with Loom's timing, unrolling and cloning.</p>
+sub-circuit lasting its duration), with Loom's timing, unrolling, cloning, padding and building
+from gates on relative channel indices.</p>
 </div>
 
                 
@@ -429,6 +445,40 @@ the same gates on the same wires, tick by tick (labels and ids aside).</p>
     
 
                             </div>
+                            <div id="Circuit.as_gate" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">as_gate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">name</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">nr_qchannels</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">nr_cchannels</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">duration</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.as_gate"></a>
+    
+            <div class="docstring"><p>A gate on new channels: <code>nr_qchannels</code> quantum ones, then <code>nr_cchannels</code> classical ones.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.from_circuits" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_circuits</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">cls</span>, </span><span class="param"><span class="n">name</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">circuit</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.from_circuits"></a>
+    
+            <div class="docstring"><p>A circuit from a list of <code>(circuit, channel indices)</code> pairs (consecutive slices) or a
+list of lists of them (one list a slice): each sub-circuit cloned onto the channels its
+indices name, one new channel per index, the same index the same channel.</p>
+</div>
+
+
+                            </div>
                             <div id="Circuit.is_gate" class="classattr">
                                 <div class="attr variable">
             <span class="name">is_gate</span><span class="annotation">: bool</span>
@@ -512,6 +562,40 @@ the same gates on the same wires, tick by tick (labels and ids aside).</p>
 
 
                             </div>
+                            <div id="Circuit.detailed_str" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">detailed_str</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.detailed_str"></a>
+    
+            <div class="docstring"><p>The gates of each slice with the labels of their channels, one gate a line.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.construct_padded_circuit_time_sequence" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">construct_padded_circuit_time_sequence</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit_time_sequence</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#Circuit">Circuit</a></span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#Circuit">Circuit</a></span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.construct_padded_circuit_time_sequence"></a>
+    
+            <div class="docstring"><p>The slices with the empty slices the durations of their circuits need: a slice that
+uses a channel (by label) still busy from an earlier slice waits, by the fewest empty
+slices, and the last circuits' durations are filled at the end. Circuits of one slice
+start together and may end apart.</p>
+</div>
+
+
+                            </div>
                             <div id="Circuit.asdict" class="classattr">
                                 <div class="attr function">
             
@@ -552,6 +636,22 @@ the same gates on the same wires, tick by tick (labels and ids aside).</p>
     
 
                             </div>
+                </section>
+                <section id="apply_to_nested">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">apply_to_nested</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">nested_list</span>, </span><span class="param"><span class="n">func</span>, </span><span class="param"><span class="n">param</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#apply_to_nested"></a>
+    
+            <div class="docstring"><p><code>func</code> applied to each element of a nested list (with <code>param</code> as its second argument
+unless None), the nesting kept.</p>
+</div>
+
+
                 </section>
                 <section id="default_circuit">
                     <div class="attr function">

@@ -53,6 +53,27 @@
                     <a class="variable" href="#NUM_TS_PER_ROTATION_B_COEFFICIENT">NUM_TS_PER_ROTATION_B_COEFFICIENT</a>
             </li>
             <li>
+                    <a class="class" href="#EstimatorError">EstimatorError</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EstimatorError.__init__">EstimatorError</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorError.message">message</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorError.of">of</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#QSharpError">QSharpError</a>
+                            <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
                     <a class="function" href="#evaluate_expression">evaluate_expression</a>
             </li>
             <li>
@@ -305,6 +326,15 @@
                                 <a class="variable" href="#LogicalCounts.measurement_count">measurement_count</a>
                         </li>
                         <li>
+                                <a class="variable" href="#LogicalCounts.num_compute_qubits">num_compute_qubits</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LogicalCounts.read_from_memory_count">read_from_memory_count</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LogicalCounts.write_to_memory_count">write_to_memory_count</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#LogicalCounts.fromdict">fromdict</a>
                         </li>
                         <li>
@@ -327,6 +357,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#LogicalCounts.has_rotations">has_rotations</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LogicalCounts.estimate">estimate</a>
                         </li>
                 </ul>
 
@@ -680,6 +713,12 @@
 
             </li>
             <li>
+                    <a class="function" href="#format_metric_prefix">format_metric_prefix</a>
+            </li>
+            <li>
+                    <a class="function" href="#format_duration">format_duration</a>
+            </li>
+            <li>
                     <a class="class" href="#EstimationResult">EstimationResult</a>
                             <ul class="memberlist">
                         <li>
@@ -725,6 +764,12 @@
                                 <a class="function" href="#EstimationResult.physical_counts">physical_counts</a>
                         </li>
                         <li>
+                                <a class="function" href="#EstimationResult.formatted_counts">formatted_counts</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimationResult.report_data">report_data</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#EstimationResult.asdict">asdict</a>
                         </li>
                         <li>
@@ -759,6 +804,12 @@
                         </li>
                         <li>
                                 <a class="variable" href="#AzureEstimator.estimate_type">estimate_type</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#AzureEstimator.unit_specifications">unit_specifications</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#AzureEstimator.profiling">profiling</a>
                         </li>
                         <li>
                                 <a class="function" href="#AzureEstimator.job_params">job_params</a>
@@ -817,10 +868,37 @@
             <li>
                     <a class="function" href="#azure_estimate">azure_estimate</a>
             </li>
+            <li>
+                    <a class="class" href="#EstimatorResult">EstimatorResult</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#EstimatorResult.MAX_DEFAULT_ITEMS_IN_TABLE">MAX_DEFAULT_ITEMS_IN_TABLE</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.data">data</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.error">error</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.logical_counts">logical_counts</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.json">json</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.summary">summary</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.summary_data_frame">summary_data_frame</a>
+                        </li>
+                </ul>
+
+            </li>
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -836,7 +914,13 @@
 
                         <div class="docstring"><p>Azure's Resource Estimator: from logical counts (qubits, T, rotations, CCZ, measurements) to physical
 qubits and runtime on a chosen qubit model and QEC scheme, with the T factories found by the QDK's exhaustive
-search over distillation rounds and code distances.</p>
+search over distillation rounds and code distances, and the QDK's report: the counts formatted as it formats
+them and its groups of labelled, explained entries.</p>
+
+<p>Two differences from the QDK are accepted. The QDK's counts are u64 and wrap silently when a product
+overflows (a runtime past 1.8e19 ns, a count past 2^64), where the integers here keep growing. And a float
+reaches the QDK through its JSON round trip, which keeps 15 significant digits exactly, so an input written with
+16 or 17 may land one ulp away from the value used here.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn"><a href="../estimate.html">stabilizer_qec.estimate</a></span><span class="w"> </span><span class="kn">import</span> <span class="n">LogicalCounts</span><span class="p">,</span> <span class="n">azure_estimate</span>
@@ -845,6 +929,11 @@ search over distillation rounds and code distances.</p>
 <span class="go">(400060, 1064000000, 19)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">r</span><span class="p">[</span><span class="s2">"tfactory"</span><span class="p">][</span><span class="s2">"numUnitsPerRound"</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="s2">"tfactory"</span><span class="p">][</span><span class="s2">"codeDistancePerRound"</span><span class="p">]</span>
 <span class="go">([18, 1], [5, 15])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">r</span><span class="p">[</span><span class="s2">"physicalCountsFormatted"</span><span class="p">][</span><span class="s2">"runtime"</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="s2">"physicalCountsFormatted"</span><span class="p">][</span><span class="s2">"physicalQubits"</span><span class="p">]</span>
+<span class="go">('1 secs', '400.06k')</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span> <span class="o">=</span> <span class="n">LogicalCounts</span><span class="p">(</span><span class="n">num_qubits</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">t_count</span><span class="o">=</span><span class="mi">100_000</span><span class="p">)</span><span class="o">.</span><span class="n">estimate</span><span class="p">({</span><span class="s2">"qubitParams"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"qubit_gate_ns_e4"</span><span class="p">}})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">res</span><span class="p">[</span><span class="s2">"reportData"</span><span class="p">][</span><span class="s2">"groups"</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s2">"title"</span><span class="p">],</span> <span class="n">res</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+<span class="go">('Physical resource estimates', ['Runtime', '360', 'millisecs', 'Total', 'runtime'])</span>
 </code></pre>
 </div>
 </div>
@@ -937,6 +1026,81 @@ search over distillation rounds and code distances.</p>
     
 
                 </section>
+                <section id="EstimatorError">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EstimatorError</span><wbr>(<span class="base">builtins.ValueError</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#EstimatorError">EstimatorError</a></code>: an estimate the QDK refuses, with its <code>code</code> (<code>Qdk.Qsc.Estimates.</code> and the
+error's name, as <code>Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget</code>) and its <code><a href="#EstimatorError.message">message</a></code>, <code>Error
+estimating resources (&lt;code&gt;):</code> with the QDK's reason on the next line, which is also the error's string.
+<code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. A ValueError here (the
+QDK's derives from BaseException).</p>
+</div>
+
+
+                            <div id="EstimatorError.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EstimatorError</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">code</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">reason</span><span class="p">:</span> <span class="nb">str</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorError.message" class="classattr">
+                                <div class="attr variable">
+            <span class="name">message</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError.message"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorError.of" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">of</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">name</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">reason</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="n"><a href="#EstimatorError">EstimatorError</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError.of"></a>
+    
+            <div class="docstring"><p>The QDK's error <code>name</code> (<code>InvalidErrorBudget</code>, <code>MaxDurationTooSmall</code>, …) with its code.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="QSharpError">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">QSharpError</span><wbr>(<span class="base">builtins.ValueError</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#QSharpError"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#QSharpError">QSharpError</a></code> as its <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code> raises it when the logical counts or the job
+parameters do not read: <code>cannot parse JSON: '&lt;serde's reason&gt; at line 1 column &lt;n&gt;'</code>, the column counted
+in the JSON text the QDK's Python sends (<code>json.dumps</code> of the counts, of the list of items).</p>
+</div>
+
+
+                </section>
                 <section id="evaluate_expression">
                     <div class="attr function">
             
@@ -947,10 +1111,17 @@ search over distillation rounds and code distances.</p>
     </div>
     <a class="headerlink" href="#evaluate_expression"></a>
     
-            <div class="docstring"><p>A QEC scheme's or distillation unit's formula evaluated as the QDK's <code>fasteval</code> evaluates it: <code>+ - * / % ^</code>,
-numbers, the named variables, parentheses; unary minus binds tighter than <code>^</code> (<code>-2^2</code> is 4); a division by
-zero is infinite, a negative base to a fractional power NaN. Python's own spellings (<code>**</code>, <code>1_000</code>, <code>0x10</code>)
-are refused, as the QDK refuses them.</p>
+            <div class="docstring"><p>A QEC scheme's or distillation unit's formula evaluated as the QDK's <code>fasteval</code> evaluates it. The grammar
+is fasteval 0.2.4's: <code>+ - * / % ^</code>, each its own precedence level from lowest to highest and <code>^</code>
+right-associative (so <code>7 * 3 % 2</code> is 7 and <code>2^3^2</code> is 512); unary minus binds tighter than every binary
+operator (<code>-2^2</code> is 4, <code>-(codeDistance^2)</code> at distance 3 is −9); comparisons, <code>and</code>/<code>&amp;&amp;</code>, <code>or</code>/<code>||</code>, <code>!</code>;
+the functions min, max, abs, log, int, ceil, floor, round, sign, the trigonometric and hyperbolic ones,
+pi(), e(); <code>inf</code> and <code>NaN</code>. Constants fold at compile time as fasteval folds them (every constant of a
+<code>+</code>/<code>*</code> chain is combined first, so <code>codeDistance + 0.1 + 0.2</code> is 3.3 and a NaN constant vanishes).
+Division by zero is infinite, a negative base to a fractional power NaN. Formulas over 4096 bytes or nested
+over 32 deep are refused, as are Python's own spellings (<code>**</code>, <code>1_000</code>, <code>0x10</code>). A formula that does not
+parse, or names a variable the context lacks, raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code> <code>CannotEvaluateExpression</code>
+with fasteval's error (<code>cannot evaluate expression: 'EofWhileParsing("value")'</code>, <code>'Undefined("d")'</code>).</p>
 </div>
 
 
@@ -959,14 +1130,16 @@ are refused, as the QDK refuses them.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">parse_time</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">value</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>:</span></span>
+        <span class="name">parse_time</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">value</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#parse_time"></a>
     
             <div class="docstring"><p>A duration in nanoseconds: a string such as <code>"100 ns"</code>, <code>"1 µs"</code>, <code>"2 ms"</code>, <code>"1 s"</code> (the QDK's
-form), or, beyond the QDK, a number of nanoseconds.</p>
+form, no surrounding spaces, the value rounded and saturated to u64 as the QDK's), or, beyond the QDK, a
+number of nanoseconds. Anything else is refused with serde's reason (<code>invalid value: string "fast",
+expected cannot parse time</code>).</p>
 </div>
 
 
@@ -1437,8 +1610,9 @@ the one-qubit gate's time and error, and idling inherits the measurement error.<
     <a class="headerlink" href="#physical_qubit"></a>
     
             <div class="docstring"><p>A qubit model from a preset name (<code><a href="#QUBIT_NAMES">QUBIT_NAMES</a></code>), a QDK <code>qubitParams</code> dict (camelCase keys, times as
-ints in ns or strings with units, Majorana measurement errors as numbers or <code>{process, readout}</code>), or a
-model object; normalized.</p>
+strings with units or, beyond the QDK, ints in ns, Majorana measurement errors as numbers or
+<code>{process, readout}</code>), a QDK <code>EstimatorQubitParams</code>, or a model object; normalized. A dict the QDK
+refuses raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>cannot parse JSON: 'missing fields `oneQubitGateTime`'</code>).</p>
 </div>
 
 
@@ -1618,7 +1792,11 @@ a qubit-count formula in the code distance.</p>
     </div>
     <a class="headerlink" href="#QECScheme.physical_qubits"></a>
     
-    
+            <div class="docstring"><p>The formula's value <code>as u64</code>, as the QDK casts it: a NaN passes its non-positive check and becomes 0,
+an infinity 2^64 − 1. A formula that fails, or is not positive, raises the QDK's
+<code>PhysicalQubitComputationFailed</code>.</p>
+</div>
+
 
                             </div>
                             <div id="QECScheme.cycle_time" class="classattr">
@@ -1631,7 +1809,9 @@ a qubit-count formula in the code distance.</p>
     </div>
     <a class="headerlink" href="#QECScheme.cycle_time"></a>
     
-    
+            <div class="docstring"><p>The formula's value rounded, as the QDK's; a failure is its <code>LogicalCycleTimeComputationFailed</code>.</p>
+</div>
+
 
                             </div>
                             <div id="QECScheme.logical_error_rate" class="classattr">
@@ -1644,7 +1824,11 @@ a qubit-count formula in the code distance.</p>
     </div>
     <a class="headerlink" href="#QECScheme.logical_error_rate"></a>
     
-    
+            <div class="docstring"><p>The QDK raises the distance to the coefficient power in u64 arithmetic, which wraps (50^12 already
+overflows); <code>pow(d, k, 2^64)</code> is that wrap, and cheap for any <code>k &lt; 2^32</code>. A physical error rate above
+the threshold is the QDK's <code>LogicalErrorRateComputationFailed</code>.</p>
+</div>
+
 
                             </div>
                             <div id="QECScheme.code_distance_range" class="classattr">
@@ -1702,7 +1886,8 @@ polynomial prefactor, as the QDK's).</p>
     
             <div class="docstring"><p>A scheme from a name (<code>surface_code</code>, <code>floquet_code</code>; the surface code picks its gate-based or
 measurement-based variant from the qubit), a QDK <code>qecScheme</code> dict (a name with overrides, or a full custom
-scheme), or a <code><a href="#QECScheme">QECScheme</a></code>; validated against the qubit as the QDK does.</p>
+scheme, whose name may be absent), a QDK <code>EstimatorQecScheme</code>, or a <code><a href="#QECScheme">QECScheme</a></code>; checked against the qubit
+as the QDK checks it, its errors the QDK's (<code><a href="#EstimatorError">EstimatorError</a></code>, <code><a href="#QSharpError">QSharpError</a></code> for a dict it cannot read).</p>
 </div>
 
 
@@ -1873,7 +2058,7 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
                             <div id="LogicalCounts.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">LogicalCounts</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">num_qubits</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">t_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccz_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccix_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">measurement_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
+        <span class="name">LogicalCounts</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">num_qubits</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">t_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccz_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccix_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">measurement_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">num_compute_qubits</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">read_from_memory_count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">write_to_memory_count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -1884,7 +2069,8 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
                             </div>
                             <div id="LogicalCounts.num_qubits" class="classattr">
                                 <div class="attr variable">
-            <span class="name">num_qubits</span><span class="annotation">: int</span>
+            <span class="name">num_qubits</span><span class="annotation">: int</span>        =
+<span class="default_value">0</span>
 
         
     </div>
@@ -1965,6 +2151,42 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     
 
                             </div>
+                            <div id="LogicalCounts.num_compute_qubits" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_compute_qubits</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.num_compute_qubits"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalCounts.read_from_memory_count" class="classattr">
+                                <div class="attr variable">
+            <span class="name">read_from_memory_count</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.read_from_memory_count"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalCounts.write_to_memory_count" class="classattr">
+                                <div class="attr variable">
+            <span class="name">write_to_memory_count</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.write_to_memory_count"></a>
+    
+    
+
+                            </div>
                             <div id="LogicalCounts.fromdict" class="classattr">
                                 <div class="attr function">
                     <div class="decorator decorator-staticmethod">@staticmethod</div>
@@ -1976,7 +2198,10 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     </div>
     <a class="headerlink" href="#LogicalCounts.fromdict"></a>
     
-    
+            <div class="docstring"><p>The counts of a QDK <code>logicalCounts</code> dict (camelCase keys; the snake_case field names too), as the
+QDK's <code><a href="#LogicalCounts">LogicalCounts</a></code> takes them: missing counts are 0, unknown keys dropped.</p>
+</div>
+
 
                             </div>
                             <div id="LogicalCounts.asdict" class="classattr">
@@ -2070,6 +2295,25 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     
 
                             </div>
+                            <div id="LogicalCounts.estimate" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">estimate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#EstimatorResult">EstimatorResult</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.estimate"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code>: the estimate for a dict of job parameters (<code>qubitParams</code>,
+<code>qecScheme</code>, <code>errorBudget</code>, <code>constraints</code>, <code>distillationUnitSpecifications</code>, <code>estimateType</code>), or
+a batch for a list of them (an item that fails holds the QDK's <code>code</code> and <code>message</code>; a single estimate
+that fails raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code>, parameters it cannot read its <code><a href="#QSharpError">QSharpError</a></code>). The
+<code>EstimatorParams</code> here and the QDK's own are taken too, through their <code>as_dict</code>.</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="ErrorBudget">
                     <div class="attr class">
@@ -2143,7 +2387,8 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     <a class="headerlink" href="#ErrorBudget.partition"></a>
     
             <div class="docstring"><p>A total is split in thirds; in halves when there are no rotations; all to logical when there are
-no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is.</p>
+no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is. A budget the QDK refuses raises its
+<code><a href="#EstimatorError">EstimatorError</a></code> <code>InvalidErrorBudget</code>, with the value it names.</p>
 </div>
 
 
@@ -3323,7 +3568,11 @@ sorted as the QDK sorts it (descending).</p>
     </div>
     <a class="headerlink" href="#Constraints.fromspec"></a>
     
-    
+            <div class="docstring"><p>The QDK's <code>constraints</code> (camelCase keys, or the field names; <code>maxDuration</code> a time string or, beyond
+the QDK, a number of ns), a QDK <code>EstimatorConstraints</code>, or a <code><a href="#Constraints">Constraints</a></code>. A dict the QDK refuses
+raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>unknown field `foo`, expected one of …</code>).</p>
+</div>
+
 
                             </div>
                             <div id="Constraints.asdict" class="classattr">
@@ -3437,6 +3686,39 @@ sorted as the QDK sorts it (descending).</p>
 
                             </div>
                 </section>
+                <section id="format_metric_prefix">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">format_metric_prefix</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">value</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#format_metric_prefix"></a>
+    
+            <div class="docstring"><p>The QDK's count with a metric prefix: as it is below 1000, else to two decimals with k, M, G, T, P, E, Z,
+Y, R or Q (<code>400.06k</code>, <code>38.33M</code>).</p>
+</div>
+
+
+                </section>
+                <section id="format_duration">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">format_duration</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">nanos</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#format_duration"></a>
+    
+            <div class="docstring"><p>The QDK's duration in words: the largest unit the value reaches, rounded half up by the remainder in the
+unit below (<code>1500</code> ns is <code>2 microsecs</code>, <code>1064000000</code> is <code>1 secs</code>). As the QDK's, a value below a
+microsecond reads one nanosecond high (<code>500</code> is <code>501 nanosecs</code>).</p>
+</div>
+
+
+                </section>
                 <section id="EstimationResult">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass</div>
@@ -3448,8 +3730,9 @@ sorted as the QDK sorts it (descending).</p>
     </div>
     <a class="headerlink" href="#EstimationResult"></a>
     
-            <div class="docstring"><p>What the QDK reports for one estimate; <code><a href="#EstimationResult.asdict">asdict</a></code> gives its JSON shape (<code>physicalCounts</code>,
-<code>logicalQubit</code>, <code>tfactory</code>, <code>errorBudget</code>, <code>logicalCounts</code>, <code>jobParams</code>).</p>
+            <div class="docstring"><p>What the QDK reports for one estimate; <code><a href="#EstimationResult.asdict">asdict</a></code> gives its JSON shape (<code>status</code>, <code>jobParams</code>,
+<code>physicalCounts</code>, <code>physicalCountsFormatted</code>, <code>logicalQubit</code>, <code>tfactory</code>, <code>errorBudget</code>,
+<code>logicalCounts</code>, <code>reportData</code>).</p>
 </div>
 
 
@@ -3620,6 +3903,38 @@ sorted as the QDK sorts it (descending).</p>
     
 
                             </div>
+                            <div id="EstimationResult.formatted_counts" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">formatted_counts</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimationResult.formatted_counts"></a>
+    
+            <div class="docstring"><p>The QDK's <code>physicalCountsFormatted</code>: the counts as its report shows them, as strings (<code>1 secs</code>,
+<code>400.06k</code>, <code>1.55e-11</code>, <code>18, 1</code>, <code>No T states in algorithm</code>).</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimationResult.report_data" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">report_data</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">formatted</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimationResult.report_data"></a>
+    
+            <div class="docstring"><p>The QDK's <code>reportData</code>: <code>groups</code> (a <code>title</code>, <code>alwaysVisible</code>, <code>entries</code> of <code>path</code>,
+<code>label</code>, <code>description</code> and <code>explanation</code>) and <code>assumptions</code>.</p>
+</div>
+
+
+                            </div>
                             <div id="EstimationResult.asdict" class="classattr">
                                 <div class="attr function">
             
@@ -3668,7 +3983,7 @@ units, the logical counts and the constraints. <code>estimate(budget)</code> run
                             <div id="AzureEstimator.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">AzureEstimator</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n"><a href="#LogicalCounts">LogicalCounts</a></span>,</span><span class="param">	<span class="n">qubit</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">scheme</span><span class="p">:</span> <span class="n"><a href="#QECScheme">QECScheme</a></span>,</span><span class="param">	<span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n"><a href="#Constraints">Constraints</a></span>,</span><span class="param">	<span class="n">error_budget_spec</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span></span>)</span>
+        <span class="name">AzureEstimator</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n"><a href="#LogicalCounts">LogicalCounts</a></span>,</span><span class="param">	<span class="n">qubit</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">scheme</span><span class="p">:</span> <span class="n"><a href="#QECScheme">QECScheme</a></span>,</span><span class="param">	<span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n"><a href="#Constraints">Constraints</a></span>,</span><span class="param">	<span class="n">error_budget_spec</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span>,</span><span class="param">	<span class="n">unit_specifications</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">profiling</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -3754,6 +4069,28 @@ units, the logical counts and the constraints. <code>estimate(budget)</code> run
     
 
                             </div>
+                            <div id="AzureEstimator.unit_specifications" class="classattr">
+                                <div class="attr variable">
+            <span class="name">unit_specifications</span>
+
+        
+    </div>
+    <a class="headerlink" href="#AzureEstimator.unit_specifications"></a>
+    
+    
+
+                            </div>
+                            <div id="AzureEstimator.profiling" class="classattr">
+                                <div class="attr variable">
+            <span class="name">profiling</span>
+
+        
+    </div>
+    <a class="headerlink" href="#AzureEstimator.profiling"></a>
+    
+    
+
+                            </div>
                             <div id="AzureEstimator.job_params" class="classattr">
                                 <div class="attr function">
             
@@ -3777,7 +4114,8 @@ units, the logical counts and the constraints. <code>estimate(budget)</code> run
     </div>
     <a class="headerlink" href="#AzureEstimator.result_dict"></a>
     
-            <div class="docstring"><p>The QDK's JSON: the single point's sections, or <code>frontierEntries</code> for the frontier estimate.</p>
+            <div class="docstring"><p>The QDK's JSON: the single point's sections, or <code>frontierEntries</code> (and the report of the first, the
+shortest) for the frontier estimate.</p>
 </div>
 
 
@@ -3993,7 +4331,8 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#azure_estimator"></a>
     
-            <div class="docstring"><p>An <code><a href="#AzureEstimator">AzureEstimator</a></code> from QDK-style parameters (see <code><a href="#azure_estimate">azure_estimate</a></code>).</p>
+            <div class="docstring"><p>An <code><a href="#AzureEstimator">AzureEstimator</a></code> from QDK-style parameters (see <code><a href="#azure_estimate">azure_estimate</a></code>), read and checked as the QDK reads
+and checks them (the error budget is checked when it is partitioned).</p>
 </div>
 
 
@@ -4002,24 +4341,139 @@ stay within <code>max_qubits</code>.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">azure_estimate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#LogicalCounts">LogicalCounts</a></span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span>,</span><span class="param">	<span class="n">qubit_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">qec_scheme</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#QECScheme">QECScheme</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#ErrorBudget">ErrorBudget</a></span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.001</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#Constraints">Constraints</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">distillation_unit_specifications</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+        <span class="name">azure_estimate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#LogicalCounts">LogicalCounts</a></span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span>,</span><span class="param">	<span class="n">qubit_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">qec_scheme</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#QECScheme">QECScheme</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#ErrorBudget">ErrorBudget</a></span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.001</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#Constraints">Constraints</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">distillation_unit_specifications</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span></span><span class="return-annotation">) -> <span class="n"><a href="#EstimatorResult">EstimatorResult</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#azure_estimate"></a>
     
-            <div class="docstring"><p>The QDK's physical resource estimate from logical counts, as its result dict: <code>physicalCounts</code>
-(<code>physicalQubits</code>, <code>runtime</code> in ns, <code>rqops</code>, a <code>breakdown</code>), <code>logicalQubit</code>, <code>tfactory</code>,
-<code>errorBudget</code>, <code>logicalCounts</code>, <code>jobParams</code>; with <code>estimate_type="frontier"</code>, <code>frontierEntries</code>
-(each with those sections) along the qubits–runtime Pareto frontier instead. Parameters are the QDK's: a
+            <div class="docstring"><p>The QDK's physical resource estimate from logical counts, as its <code><a href="#EstimatorResult">EstimatorResult</a></code>: <code>status</code>,
+<code>jobParams</code>, <code>physicalCounts</code> (<code>physicalQubits</code>, <code>runtime</code> in ns, <code>rqops</code>, a <code>breakdown</code>),
+<code>physicalCountsFormatted</code> (the same as the report's strings), <code>logicalQubit</code>, <code>tfactory</code>,
+<code>errorBudget</code>, <code>logicalCounts</code> and <code>reportData</code> (the report's groups of labelled, explained entries);
+with <code>estimate_type="frontier"</code>, <code>frontierEntries</code> (each with those sections) along the qubits–runtime
+Pareto frontier instead, and the report of the first, whose sections the result's keys reach
+(<code>result["physicalCounts"]</code> is the first entry's). Parameters are the QDK's: a
 qubit preset name (<code>qubit_gate_ns_e3</code>, <code>qubit_gate_ns_e4</code>, <code>qubit_gate_us_e3</code>, <code>qubit_gate_us_e4</code>,
 <code>qubit_maj_ns_e4</code>, <code>qubit_maj_ns_e6</code>) or <code>qubitParams</code> dict; <code>surface_code</code> or <code>floquet_code</code> or a
 <code>qecScheme</code> dict; a total error budget or <code>{logical, tStates, rotations}</code>; <code>constraints</code>
 (<code>logicalDepthFactor</code>, <code>maxTFactories</code>, <code>maxDuration</code>, <code>maxPhysicalQubits</code>,
-<code>maxDistillationRounds</code>); <code>distillationUnitSpecifications</code>.</p>
+<code>maxDistillationRounds</code>); <code>distillationUnitSpecifications</code>; or the objects here and the QDK's parameter
+objects. An estimate the QDK refuses raises its <code><a href="#EstimatorError">EstimatorError</a></code> (with its <code>code</code>), parameters it cannot
+read its <code><a href="#QSharpError">QSharpError</a></code>, each with the QDK's message.</p>
 </div>
 
 
+                </section>
+                <section id="EstimatorResult">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EstimatorResult</span><wbr>(<span class="base">builtins.dict</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#EstimatorResult">EstimatorResult</a></code>, its data: one estimate's result dict (as <code><a href="#azure_estimate">azure_estimate</a></code> gives it), or a
+batch's, indexed 0, 1, … by the items' results (a failed item holds the QDK's <code>code</code> and <code>message</code>, and
+its <code><a href="#EstimatorError">EstimatorError</a></code> in <code><a href="#EstimatorResult.error">error</a></code>; a list of one failed item raises it, as the QDK's does). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
+is. <code><a href="#EstimatorResult.summary">summary</a></code> is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
+<code>_repr_html_</code>, the diagrams and the plot are not ported.</p>
+</div>
+
+
+                            <div id="EstimatorResult.MAX_DEFAULT_ITEMS_IN_TABLE" class="classattr">
+                                <div class="attr variable">
+            <span class="name">MAX_DEFAULT_ITEMS_IN_TABLE</span>        =
+<span class="default_value">5</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.MAX_DEFAULT_ITEMS_IN_TABLE"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.data" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">data</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">idx</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.data"></a>
+    
+            <div class="docstring"><p>The raw result (a dict, or a batch's list of them); with <code>idx</code>, a batch's item.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.error" class="classattr">
+                                <div class="attr variable">
+            <span class="name">error</span><span class="annotation">: Optional[BaseException]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.error"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.logical_counts" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical_counts</span><span class="annotation">: <a href="#LogicalCounts">LogicalCounts</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.logical_counts"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.json" class="classattr">
+                                <div class="attr variable">
+            <span class="name">json</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.json"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.summary" class="classattr">
+                                <div class="attr variable">
+            <span class="name">summary</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.summary"></a>
+    
+            <div class="docstring"><p>The summary table as text: each report group's entries as label, value and description; for a batch,
+the items side by side (the first five; slice the result, <code>result[:]</code>, for all).</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.summary_data_frame" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">summary_data_frame</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">labels</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.summary_data_frame"></a>
+    
+            <div class="docstring"><p>The QDK's batch overview as a pandas DataFrame (pandas needed), a row per item: logical qubits,
+logical depth, T states, code distance, T factories, T factory fraction, physical qubits, rQOPS and
+runtime, as the report writes them (a frontier item's first entry; a failed one "No solution found").</p>
+</div>
+
+
+                            </div>
                 </section>
     </main>
 <script>

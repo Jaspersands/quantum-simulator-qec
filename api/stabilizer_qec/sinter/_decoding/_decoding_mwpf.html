@@ -97,7 +97,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -153,7 +153,7 @@ efficiency.</p>
                             <div id="MwpfCompiledDecoder.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">MwpfCompiledDecoder</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">solver</span><span class="p">:</span> <span class="s1">'mwpf.SolverSerialJointSingleHair'</span>,</span><span class="param">	<span class="n">fault_masks</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>,</span><span class="param">	<span class="n">num_dets</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">num_obs</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
+        <span class="name">MwpfCompiledDecoder</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">solver</span><span class="p">:</span> <span class="n">stabilizer_qec</span><span class="o">.</span><span class="n">mwpf</span><span class="o">.</span><span class="n">SolverSerialJointSingleHair</span>,</span><span class="param">	<span class="n">fault_masks</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>,</span><span class="param">	<span class="n">num_dets</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">num_obs</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
 
         
     </div>
@@ -442,7 +442,7 @@ overall efficiency.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">detector_error_model_to_mwpf_solver_and_fault_masks</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n"><a href="../../../stabilizer_qec.html#DetectorErrorModel">stabilizer_qec.DetectorErrorModel</a></span>,</span><span class="param">	<span class="n">decoder_cls</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">cluster_node_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span></span><span class="return-annotation">) -> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">ForwardRef</span><span class="p">(</span><span class="s1">'mwpf.SolverSerialJointSingleHair'</span><span class="p">)],</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span>:</span></span>
+        <span class="name">detector_error_model_to_mwpf_solver_and_fault_masks</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">model</span><span class="p">:</span> <span class="n"><a href="../../../stabilizer_qec.html#DetectorErrorModel">stabilizer_qec.DetectorErrorModel</a></span>,</span><span class="param">	<span class="n">decoder_cls</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">cluster_node_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span></span><span class="return-annotation">) -> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">stabilizer_qec</span><span class="o">.</span><span class="n">mwpf</span><span class="o">.</span><span class="n">SolverSerialJointSingleHair</span><span class="p">],</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span>:</span></span>
 
         
     </div>

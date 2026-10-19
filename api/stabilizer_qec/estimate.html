@@ -51,6 +51,9 @@
                         <li>
                                 <a class="variable" href="#AlgorithmSummary.n_rotation_layers">n_rotation_layers</a>
                         </li>
+                        <li>
+                                <a class="function" href="#AlgorithmSummary.from_bloq">from_bloq</a>
+                        </li>
                 </ul>
 
             </li>
@@ -80,6 +83,12 @@
                         </li>
                         <li>
                                 <a class="variable" href="#AzureEstimator.estimate_type">estimate_type</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#AzureEstimator.unit_specifications">unit_specifications</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#AzureEstimator.profiling">profiling</a>
                         </li>
                         <li>
                                 <a class="function" href="#AzureEstimator.job_params">job_params</a>
@@ -466,10 +475,58 @@
                                 <a class="function" href="#EstimationResult.physical_counts">physical_counts</a>
                         </li>
                         <li>
+                                <a class="function" href="#EstimationResult.formatted_counts">formatted_counts</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimationResult.report_data">report_data</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#EstimationResult.asdict">asdict</a>
                         </li>
                         <li>
                                 <a class="function" href="#EstimationResult.frontier_entry">frontier_entry</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EstimatorError">EstimatorError</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EstimatorError.__init__">EstimatorError</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorError.message">message</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorError.of">of</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EstimatorResult">EstimatorResult</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#EstimatorResult.MAX_DEFAULT_ITEMS_IN_TABLE">MAX_DEFAULT_ITEMS_IN_TABLE</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.data">data</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.error">error</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.logical_counts">logical_counts</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.json">json</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.summary">summary</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.summary_data_frame">summary_data_frame</a>
                         </li>
                 </ul>
 
@@ -652,6 +709,9 @@
                                 <a class="function" href="#GateCounts.total_toffoli_only">total_toffoli_only</a>
                         </li>
                         <li>
+                                <a class="function" href="#GateCounts.to_legacy_t_complexity">to_legacy_t_complexity</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#GateCounts.total_beverland_count">total_beverland_count</a>
                         </li>
                 </ul>
@@ -703,6 +763,15 @@
                                 <a class="variable" href="#LogicalCounts.measurement_count">measurement_count</a>
                         </li>
                         <li>
+                                <a class="variable" href="#LogicalCounts.num_compute_qubits">num_compute_qubits</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LogicalCounts.read_from_memory_count">read_from_memory_count</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#LogicalCounts.write_to_memory_count">write_to_memory_count</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#LogicalCounts.fromdict">fromdict</a>
                         </li>
                         <li>
@@ -725,6 +794,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#LogicalCounts.has_rotations">has_rotations</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#LogicalCounts.estimate">estimate</a>
                         </li>
                 </ul>
 
@@ -874,6 +946,57 @@
 
             </li>
             <li>
+                    <a class="class" href="#NoisyPauliRotation">NoisyPauliRotation</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#NoisyPauliRotation.__init__">NoisyPauliRotation</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#NoisyPauliRotation.pauli_string">pauli_string</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoisyPauliRotation.num_qubits">num_qubits</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoisyPauliRotation.mixture">mixture</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoisyPauliRotation.kraus">kraus</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#NoisyPauliRotation.apply">apply</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#PauliFlipChannel">PauliFlipChannel</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#PauliFlipChannel.__init__">PauliFlipChannel</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PauliFlipChannel.kind">kind</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PauliFlipChannel.p">p</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PauliFlipChannel.qubit">qubit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#PauliFlipChannel.mixture">mixture</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#PauliFlipChannel.kraus">kraus</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#PauliFlipChannel.apply">apply</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#PhysicalCostModel">PhysicalCostModel</a>
                             <ul class="memberlist">
                         <li>
@@ -991,6 +1114,12 @@
 
             </li>
             <li>
+                    <a class="class" href="#QSharpError">QSharpError</a>
+                            <ul class="memberlist">
+                </ul>
+
+            </li>
+            <li>
                     <a class="variable" href="#QUBIT_NAMES">QUBIT_NAMES</a>
             </li>
             <li>
@@ -1049,6 +1178,33 @@
                         </li>
                         <li>
                                 <a class="variable" href="#SimpleDataBlock.n_steps_to_consume_a_magic_state">n_steps_to_consume_a_magic_state</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#TComplexity">TComplexity</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#TComplexity.__init__">TComplexity</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TComplexity.t">t</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TComplexity.clifford">clifford</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TComplexity.rotations">rotations</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TComplexity.rotation_cost">rotation_cost</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TComplexity.t_incl_rotations">t_incl_rotations</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TComplexity.asdict">asdict</a>
                         </li>
                 </ul>
 
@@ -1138,6 +1294,12 @@
                     <a class="function" href="#find_nondominated_tfactories">find_nondominated_tfactories</a>
             </li>
             <li>
+                    <a class="function" href="#format_duration">format_duration</a>
+            </li>
+            <li>
+                    <a class="function" href="#format_metric_prefix">format_metric_prefix</a>
+            </li>
+            <li>
                     <a class="function" href="#get_ccz2t_costs">get_ccz2t_costs</a>
             </li>
             <li>
@@ -1165,12 +1327,15 @@
                     <a class="function" href="#qec_scheme">qec_scheme</a>
             </li>
             <li>
+                    <a class="function" href="#storage_error">storage_error</a>
+            </li>
+            <li>
                     <a class="function" href="#t_states">t_states</a>
             </li>
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -1188,7 +1353,7 @@
 surface-code cost models (<code>quantumlib/Qualtran &lt;https://github.com/quantumlib/Qualtran&gt;</code>_ 0.7.0,
 <code>qualtran.surface_code</code>; Apache 2.0, see <code>LICENSE</code> in this directory) and Azure's Resource
 Estimator (<code>microsoft/qdk &lt;https://github.com/microsoft/qdk&gt;</code>_'s <code>resource_estimator</code>: the
-physical estimate from logical counts with its exhaustive T-factory search; MIT, see
+physical estimate from logical counts with its exhaustive T-factory search, and its report; MIT, see
 <code>LICENSE-qdk</code>).</p>
 
 <div class="pdoc-code codehilite">
@@ -1270,6 +1435,24 @@ of layers with a rotation in them (the rotations themselves by default).</p>
     
 
                             </div>
+                            <div id="AlgorithmSummary.from_bloq" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_bloq</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">bloq</span></span><span class="return-annotation">) -> <span class="n"><a href="#AlgorithmSummary">AlgorithmSummary</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#AlgorithmSummary.from_bloq"></a>
+    
+            <div class="docstring"><p>The summary of a Qualtran Bloq: its qubits (Qualtran's <code>QubitCount</code>) and its gate counts (its
+<code>QECGatesCost</code>), counted by Qualtran's resource counting, so Qualtran must be installed. The counts must
+come out as numbers; a symbolic one raises ValueError.</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="AzureEstimator">
                     <div class="attr class">
@@ -1289,7 +1472,7 @@ units, the logical counts and the constraints. <code>estimate(budget)</code> run
                             <div id="AzureEstimator.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">AzureEstimator</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n"><a href="#LogicalCounts">LogicalCounts</a></span>,</span><span class="param">	<span class="n">qubit</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">scheme</span><span class="p">:</span> <span class="n"><a href="estimate/azure.html#QECScheme">stabilizer_qec.estimate.azure.QECScheme</a></span>,</span><span class="param">	<span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n"><a href="#Constraints">Constraints</a></span>,</span><span class="param">	<span class="n">error_budget_spec</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span></span>)</span>
+        <span class="name">AzureEstimator</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n"><a href="#LogicalCounts">LogicalCounts</a></span>,</span><span class="param">	<span class="n">qubit</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">scheme</span><span class="p">:</span> <span class="n"><a href="estimate/azure.html#QECScheme">stabilizer_qec.estimate.azure.QECScheme</a></span>,</span><span class="param">	<span class="n">templates</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n"><a href="#Constraints">Constraints</a></span>,</span><span class="param">	<span class="n">error_budget_spec</span><span class="o">=</span><span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span>,</span><span class="param">	<span class="n">unit_specifications</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">profiling</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -1375,6 +1558,28 @@ units, the logical counts and the constraints. <code>estimate(budget)</code> run
     
 
                             </div>
+                            <div id="AzureEstimator.unit_specifications" class="classattr">
+                                <div class="attr variable">
+            <span class="name">unit_specifications</span>
+
+        
+    </div>
+    <a class="headerlink" href="#AzureEstimator.unit_specifications"></a>
+    
+    
+
+                            </div>
+                            <div id="AzureEstimator.profiling" class="classattr">
+                                <div class="attr variable">
+            <span class="name">profiling</span>
+
+        
+    </div>
+    <a class="headerlink" href="#AzureEstimator.profiling"></a>
+    
+    
+
+                            </div>
                             <div id="AzureEstimator.job_params" class="classattr">
                                 <div class="attr function">
             
@@ -1398,7 +1603,8 @@ units, the logical counts and the constraints. <code>estimate(budget)</code> run
     </div>
     <a class="headerlink" href="#AzureEstimator.result_dict"></a>
     
-            <div class="docstring"><p>The QDK's JSON: the single point's sections, or <code>frontierEntries</code> for the frontier estimate.</p>
+            <div class="docstring"><p>The QDK's JSON: the single point's sections, or <code>frontierEntries</code> (and the report of the first, the
+shortest) for the frontier estimate.</p>
 </div>
 
 
@@ -1795,7 +2001,9 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#CCZ2TFactory.n_physical_qubits"></a>
     
-    
+            <div class="docstring"><p>The physical qubits of the factory.</p>
+</div>
+
 
                             </div>
                             <div id="CCZ2TFactory.factory_error" class="classattr">
@@ -1808,7 +2016,9 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#CCZ2TFactory.factory_error"></a>
     
-    
+            <div class="docstring"><p>The error the factory leaves in those magic states.</p>
+</div>
+
 
                             </div>
                             <div id="CCZ2TFactory.n_cycles" class="classattr">
@@ -1821,7 +2031,9 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#CCZ2TFactory.n_cycles"></a>
     
-    
+            <div class="docstring"><p>The cycles to make the magic states the gates need.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -1860,7 +2072,9 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#CompactDataBlock.data_d"></a>
     
-    
+            <div class="docstring"><p>The code distance of the data block's tiles.</p>
+</div>
+
 
                             </div>
                             <div id="CompactDataBlock.n_tiles" class="classattr">
@@ -1873,7 +2087,9 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#CompactDataBlock.n_tiles"></a>
     
-    
+            <div class="docstring"><p>The surface-code tiles that hold <code>n_algo_qubits</code> algorithm qubits.</p>
+</div>
+
 
                             </div>
                             <div id="CompactDataBlock.n_steps_to_consume_a_magic_state" class="classattr">
@@ -1884,19 +2100,10 @@ stay within <code>max_qubits</code>.</p>
     </div>
     <a class="headerlink" href="#CompactDataBlock.n_steps_to_consume_a_magic_state"></a>
     
-    
+            <div class="docstring"><p>The steps (of <code><a href="#CompactDataBlock.data_d">data_d</a></code> cycles each) a magic state takes to consume.</p>
+</div>
 
-                            </div>
-                            <div class="inherited">
-                                <h5>Inherited Members</h5>
-                                <dl>
-                                    <div><dt><a href="#DataBlock">DataBlock</a></dt>
-                                <dd id="CompactDataBlock.n_cycles" class="function"><a href="#DataBlock.n_cycles">n_cycles</a></dd>
-                <dd id="CompactDataBlock.n_physical_qubits" class="function"><a href="#DataBlock.n_physical_qubits">n_physical_qubits</a></dd>
-                <dd id="CompactDataBlock.data_error" class="function"><a href="#DataBlock.data_error">data_error</a></dd>
 
-            </div>
-                                </dl>
                             </div>
                 </section>
                 <section id="ConstantWithOverheadRotationCost">
@@ -1953,26 +2160,30 @@ rotations cost <code><a href="#ConstantWithOverheadRotationCost.overhead_rotatio
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">rotation_cost</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
+        <span class="name">rotation_cost</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#ConstantWithOverheadRotationCost.rotation_cost"></a>
     
-    
+            <div class="docstring"><p>The gates one rotation costs within <code>error_budget</code>.</p>
+</div>
+
 
                             </div>
                             <div id="ConstantWithOverheadRotationCost.preparation_overhead" class="classattr">
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">preparation_overhead</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
+        <span class="name">preparation_overhead</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#ConstantWithOverheadRotationCost.preparation_overhead"></a>
     
-    
+            <div class="docstring"><p>The gates paid once, before the rotations.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -2075,7 +2286,11 @@ rotations cost <code><a href="#ConstantWithOverheadRotationCost.overhead_rotatio
     </div>
     <a class="headerlink" href="#Constraints.fromspec"></a>
     
-    
+            <div class="docstring"><p>The QDK's <code>constraints</code> (camelCase keys, or the field names; <code>maxDuration</code> a time string or, beyond
+the QDK, a number of ns), a QDK <code>EstimatorConstraints</code>, or a <code><a href="#Constraints">Constraints</a></code>. A dict the QDK refuses
+raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>unknown field `foo`, expected one of …</code>).</p>
+</div>
+
 
                             </div>
                             <div id="Constraints.asdict" class="classattr">
@@ -2103,7 +2318,8 @@ rotations cost <code><a href="#ConstantWithOverheadRotationCost.overhead_rotatio
     <a class="headerlink" href="#DataBlock"></a>
     
             <div class="docstring"><p>How the algorithm's qubits are laid out in surface-code tiles: the tiles for a number of
-algorithm qubits and the steps (of <code><a href="#DataBlock.data_d">data_d</a></code> cycles) a magic state takes to consume.</p>
+algorithm qubits and the steps (of <code><a href="#DataBlock.data_d">data_d</a></code> cycles) a magic state takes to consume. Abstract, as
+Qualtran's: a block defines <code><a href="#DataBlock.data_d">data_d</a></code>, <code><a href="#DataBlock.n_tiles">n_tiles</a></code> and <code><a href="#DataBlock.n_steps_to_consume_a_magic_state">n_steps_to_consume_a_magic_state</a></code>.</p>
 </div>
 
 
@@ -2115,12 +2331,15 @@ algorithm qubits and the steps (of <code><a href="#DataBlock.data_d">data_d</a><
     </div>
     <a class="headerlink" href="#DataBlock.data_d"></a>
     
-    
+            <div class="docstring"><p>The code distance of the data block's tiles.</p>
+</div>
+
 
                             </div>
                             <div id="DataBlock.n_tiles" class="classattr">
                                 <div class="attr function">
-            
+                    <div class="decorator decorator-abc.abstractmethod">@abc.abstractmethod</div>
+
         <span class="def">def</span>
         <span class="name">n_tiles</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">n_algo_qubits</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
 
@@ -2128,7 +2347,9 @@ algorithm qubits and the steps (of <code><a href="#DataBlock.data_d">data_d</a><
     </div>
     <a class="headerlink" href="#DataBlock.n_tiles"></a>
     
-    
+            <div class="docstring"><p>The surface-code tiles that hold <code>n_algo_qubits</code> algorithm qubits.</p>
+</div>
+
 
                             </div>
                             <div id="DataBlock.n_steps_to_consume_a_magic_state" class="classattr">
@@ -2139,7 +2360,9 @@ algorithm qubits and the steps (of <code><a href="#DataBlock.data_d">data_d</a><
     </div>
     <a class="headerlink" href="#DataBlock.n_steps_to_consume_a_magic_state"></a>
     
-    
+            <div class="docstring"><p>The steps (of <code><a href="#DataBlock.data_d">data_d</a></code> cycles each) a magic state takes to consume.</p>
+</div>
+
 
                             </div>
                             <div id="DataBlock.n_cycles" class="classattr">
@@ -2718,7 +2941,8 @@ and qubit cycles) on physical qubits and on logical qubits. <code><a href="#Dist
     <a class="headerlink" href="#ErrorBudget.partition"></a>
     
             <div class="docstring"><p>A total is split in thirds; in halves when there are no rotations; all to logical when there are
-no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is.</p>
+no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is. A budget the QDK refuses raises its
+<code><a href="#EstimatorError">EstimatorError</a></code> <code>InvalidErrorBudget</code>, with the value it names.</p>
 </div>
 
 
@@ -2748,8 +2972,9 @@ no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is.</p
     </div>
     <a class="headerlink" href="#EstimationResult"></a>
     
-            <div class="docstring"><p>What the QDK reports for one estimate; <code><a href="#EstimationResult.asdict">asdict</a></code> gives its JSON shape (<code>physicalCounts</code>,
-<code>logicalQubit</code>, <code>tfactory</code>, <code>errorBudget</code>, <code>logicalCounts</code>, <code>jobParams</code>).</p>
+            <div class="docstring"><p>What the QDK reports for one estimate; <code><a href="#EstimationResult.asdict">asdict</a></code> gives its JSON shape (<code>status</code>, <code>jobParams</code>,
+<code>physicalCounts</code>, <code>physicalCountsFormatted</code>, <code>logicalQubit</code>, <code>tfactory</code>, <code>errorBudget</code>,
+<code>logicalCounts</code>, <code>reportData</code>).</p>
 </div>
 
 
@@ -2920,6 +3145,38 @@ no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is.</p
     
 
                             </div>
+                            <div id="EstimationResult.formatted_counts" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">formatted_counts</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimationResult.formatted_counts"></a>
+    
+            <div class="docstring"><p>The QDK's <code>physicalCountsFormatted</code>: the counts as its report shows them, as strings (<code>1 secs</code>,
+<code>400.06k</code>, <code>1.55e-11</code>, <code>18, 1</code>, <code>No T states in algorithm</code>).</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimationResult.report_data" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">report_data</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">formatted</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimationResult.report_data"></a>
+    
+            <div class="docstring"><p>The QDK's <code>reportData</code>: <code>groups</code> (a <code>title</code>, <code>alwaysVisible</code>, <code>entries</code> of <code>path</code>,
+<code>label</code>, <code>description</code> and <code>explanation</code>) and <code>assumptions</code>.</p>
+</div>
+
+
+                            </div>
                             <div id="EstimationResult.asdict" class="classattr">
                                 <div class="attr function">
             
@@ -2945,6 +3202,174 @@ no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is.</p
     
             <div class="docstring"><p>One of the QDK's <code>frontierEntries</code> (whose budget, unlike the single point's, names the T-state
 part <code>magic_states</code>).</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="EstimatorError">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EstimatorError</span><wbr>(<span class="base">builtins.ValueError</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#EstimatorError">EstimatorError</a></code>: an estimate the QDK refuses, with its <code>code</code> (<code>Qdk.Qsc.Estimates.</code> and the
+error's name, as <code>Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget</code>) and its <code><a href="#EstimatorError.message">message</a></code>, <code>Error
+estimating resources (&lt;code&gt;):</code> with the QDK's reason on the next line, which is also the error's string.
+<code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. A ValueError here (the
+QDK's derives from BaseException).</p>
+</div>
+
+
+                            <div id="EstimatorError.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EstimatorError</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">code</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">reason</span><span class="p">:</span> <span class="nb">str</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorError.message" class="classattr">
+                                <div class="attr variable">
+            <span class="name">message</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError.message"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorError.of" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">of</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">name</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">reason</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="n"><a href="#EstimatorError">EstimatorError</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorError.of"></a>
+    
+            <div class="docstring"><p>The QDK's error <code>name</code> (<code>InvalidErrorBudget</code>, <code>MaxDurationTooSmall</code>, …) with its code.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="EstimatorResult">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EstimatorResult</span><wbr>(<span class="base">builtins.dict</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#EstimatorResult">EstimatorResult</a></code>, its data: one estimate's result dict (as <code><a href="#azure_estimate">azure_estimate</a></code> gives it), or a
+batch's, indexed 0, 1, … by the items' results (a failed item holds the QDK's <code>code</code> and <code>message</code>, and
+its <code><a href="#EstimatorError">EstimatorError</a></code> in <code><a href="#EstimatorResult.error">error</a></code>; a list of one failed item raises it, as the QDK's does). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
+is. <code><a href="#EstimatorResult.summary">summary</a></code> is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
+<code>_repr_html_</code>, the diagrams and the plot are not ported.</p>
+</div>
+
+
+                            <div id="EstimatorResult.MAX_DEFAULT_ITEMS_IN_TABLE" class="classattr">
+                                <div class="attr variable">
+            <span class="name">MAX_DEFAULT_ITEMS_IN_TABLE</span>        =
+<span class="default_value">5</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.MAX_DEFAULT_ITEMS_IN_TABLE"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.data" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">data</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">idx</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.data"></a>
+    
+            <div class="docstring"><p>The raw result (a dict, or a batch's list of them); with <code>idx</code>, a batch's item.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.error" class="classattr">
+                                <div class="attr variable">
+            <span class="name">error</span><span class="annotation">: Optional[BaseException]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.error"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.logical_counts" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical_counts</span><span class="annotation">: <a href="#LogicalCounts">LogicalCounts</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.logical_counts"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.json" class="classattr">
+                                <div class="attr variable">
+            <span class="name">json</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.json"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorResult.summary" class="classattr">
+                                <div class="attr variable">
+            <span class="name">summary</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.summary"></a>
+    
+            <div class="docstring"><p>The summary table as text: each report group's entries as label, value and description; for a batch,
+the items side by side (the first five; slice the result, <code>result[:]</code>, for all).</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.summary_data_frame" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">summary_data_frame</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">labels</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.summary_data_frame"></a>
+    
+            <div class="docstring"><p>The QDK's batch overview as a pandas DataFrame (pandas needed), a row per item: logical qubits,
+logical depth, T states, code distance, T factories, T factory fraction, physical qubits, rQOPS and
+runtime, as the report writes them (a frontier item's first entry; a failed one "No solution found").</p>
 </div>
 
 
@@ -3071,7 +3496,9 @@ part <code>magic_states</code>).</p>
     </div>
     <a class="headerlink" href="#FastDataBlock.data_d"></a>
     
-    
+            <div class="docstring"><p>The code distance of the data block's tiles.</p>
+</div>
+
 
                             </div>
                             <div id="FastDataBlock.get_n_tiles" class="classattr">
@@ -3098,7 +3525,9 @@ part <code>magic_states</code>).</p>
     </div>
     <a class="headerlink" href="#FastDataBlock.n_tiles"></a>
     
-    
+            <div class="docstring"><p>The surface-code tiles that hold <code>n_algo_qubits</code> algorithm qubits.</p>
+</div>
+
 
                             </div>
                             <div id="FastDataBlock.n_steps_to_consume_a_magic_state" class="classattr">
@@ -3109,7 +3538,9 @@ part <code>magic_states</code>).</p>
     </div>
     <a class="headerlink" href="#FastDataBlock.n_steps_to_consume_a_magic_state"></a>
     
-    
+            <div class="docstring"><p>The steps (of <code><a href="#FastDataBlock.data_d">data_d</a></code> cycles each) a magic state takes to consume.</p>
+</div>
+
 
                             </div>
                             <div id="FastDataBlock.from_error_budget" class="classattr">
@@ -3126,17 +3557,6 @@ part <code>magic_states</code>).</p>
     
 
                             </div>
-                            <div class="inherited">
-                                <h5>Inherited Members</h5>
-                                <dl>
-                                    <div><dt><a href="#DataBlock">DataBlock</a></dt>
-                                <dd id="FastDataBlock.n_cycles" class="function"><a href="#DataBlock.n_cycles">n_cycles</a></dd>
-                <dd id="FastDataBlock.n_physical_qubits" class="function"><a href="#DataBlock.n_physical_qubits">n_physical_qubits</a></dd>
-                <dd id="FastDataBlock.data_error" class="function"><a href="#DataBlock.data_error">data_error</a></dd>
-
-            </div>
-                                </dl>
-                            </div>
                 </section>
                 <section id="FifteenToOne">
                     <div class="attr class">
@@ -3152,6 +3572,12 @@ part <code>magic_states</code>).</p>
             <div class="docstring"><p>Litinski's 15-to-1 T factory (arXiv:1905.06903): <code><a href="#FifteenToOne.d_X">d_X</a></code> and <code><a href="#FifteenToOne.d_Z">d_Z</a></code> the patch sides,
 <code><a href="#FifteenToOne.d_m">d_m</a></code> the measurement rounds per surgery; its failure and output error from the paper's
 density-matrix error model of the eleven π/8 rotations.</p>
+
+<p>The density matrix is evolved here with numpy, not with Cirq's simulator as in Qualtran, so the last bits
+of <code><a href="#FifteenToOne.p_fail">p_fail</a></code> and <code><a href="#FifteenToOne.p_out">p_out</a></code> can differ from Qualtran's: <code><a href="#FifteenToOne.p_fail">p_fail</a></code> agrees to about 1e-11 relative, and <code><a href="#FifteenToOne.p_out">p_out</a></code>
+(one minus a trace near 1) to about 1e-16 absolute, which is a large relative difference when <code><a href="#FifteenToOne.p_out">p_out</a></code> is
+itself near 1e-14 (a few percent at <code>d_X=9, d_Z=5, d_m=3</code> and a 1e-5 physical error). Everything else
+here, <code><a href="#FifteenToOne.n_cycles">n_cycles</a></code> included, has given Qualtran's numbers exactly.</p>
 </div>
 
 
@@ -3210,7 +3636,9 @@ density-matrix error model of the eleven π/8 rotations.</p>
     </div>
     <a class="headerlink" href="#FifteenToOne.n_physical_qubits"></a>
     
-    
+            <div class="docstring"><p>The physical qubits of the factory.</p>
+</div>
+
 
                             </div>
                             <div id="FifteenToOne.p_fail" class="classattr">
@@ -3243,13 +3671,14 @@ density-matrix error model of the eleven π/8 rotations.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">n_cycles</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">n_logical_gates</span><span class="p">:</span> <span class="n"><a href="#GateCounts">GateCounts</a></span>,</span><span class="param">	<span class="n">logical_error_model</span><span class="p">:</span> <span class="n"><a href="#LogicalErrorModel">LogicalErrorModel</a></span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+        <span class="name">n_cycles</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">n_logical_gates</span><span class="p">:</span> <span class="n"><a href="#GateCounts">GateCounts</a></span>,</span><span class="param">	<span class="n">logical_error_model</span><span class="p">:</span> <span class="n"><a href="#LogicalErrorModel">LogicalErrorModel</a></span></span><span class="return-annotation">) -> <span class="nb">float</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#FifteenToOne.n_cycles"></a>
     
-            <div class="docstring"><p>The expected cycles, failures included (page 11 of the paper).</p>
+            <div class="docstring"><p>The expected cycles, failures included (page 11 of the paper), as Qualtran gives them: a numpy float
+(<code>np.ceil</code>).</p>
 </div>
 
 
@@ -3264,7 +3693,9 @@ density-matrix error model of the eleven π/8 rotations.</p>
     </div>
     <a class="headerlink" href="#FifteenToOne.factory_error"></a>
     
-    
+            <div class="docstring"><p>The error the factory leaves in those magic states.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -3661,6 +4092,22 @@ Clifford, single-qubit rotations and measurements.</p>
     
 
                             </div>
+                            <div id="GateCounts.to_legacy_t_complexity" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_legacy_t_complexity</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">ts_per_toffoli</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>,</span><span class="param">	<span class="n">ts_per_cswap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">7</span>,</span><span class="param">	<span class="n">ts_per_and_bloq</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>,</span><span class="param">	<span class="n">cliffords_per_and_bloq</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">9</span>,</span><span class="param">	<span class="n">cliffords_per_cswap</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span></span><span class="return-annotation">) -> <span class="n"><a href="#TComplexity">TComplexity</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#GateCounts.to_legacy_t_complexity"></a>
+    
+            <div class="docstring"><p>The counts coalesced into a legacy <code><a href="#TComplexity">TComplexity</a></code> of T gates, rotations and Cliffords (measurements
+among the Cliffords). As Qualtran's, a CSWAP costs 7 T gates here but 4 in <code><a href="#GateCounts.total_t_count">total_t_count</a></code>.</p>
+</div>
+
+
+                            </div>
                             <div id="GateCounts.total_beverland_count" class="classattr">
                                 <div class="attr function">
             
@@ -3713,7 +4160,9 @@ rotations).</p>
     </div>
     <a class="headerlink" href="#IntermediateDataBlock.data_d"></a>
     
-    
+            <div class="docstring"><p>The code distance of the data block's tiles.</p>
+</div>
+
 
                             </div>
                             <div id="IntermediateDataBlock.n_tiles" class="classattr">
@@ -3726,7 +4175,9 @@ rotations).</p>
     </div>
     <a class="headerlink" href="#IntermediateDataBlock.n_tiles"></a>
     
-    
+            <div class="docstring"><p>The surface-code tiles that hold <code>n_algo_qubits</code> algorithm qubits.</p>
+</div>
+
 
                             </div>
                             <div id="IntermediateDataBlock.n_steps_to_consume_a_magic_state" class="classattr">
@@ -3737,19 +4188,10 @@ rotations).</p>
     </div>
     <a class="headerlink" href="#IntermediateDataBlock.n_steps_to_consume_a_magic_state"></a>
     
-    
+            <div class="docstring"><p>The steps (of <code><a href="#IntermediateDataBlock.data_d">data_d</a></code> cycles each) a magic state takes to consume.</p>
+</div>
 
-                            </div>
-                            <div class="inherited">
-                                <h5>Inherited Members</h5>
-                                <dl>
-                                    <div><dt><a href="#DataBlock">DataBlock</a></dt>
-                                <dd id="IntermediateDataBlock.n_cycles" class="function"><a href="#DataBlock.n_cycles">n_cycles</a></dd>
-                <dd id="IntermediateDataBlock.n_physical_qubits" class="function"><a href="#DataBlock.n_physical_qubits">n_physical_qubits</a></dd>
-                <dd id="IntermediateDataBlock.data_error" class="function"><a href="#DataBlock.data_error">data_error</a></dd>
 
-            </div>
-                                </dl>
                             </div>
                 </section>
                 <section id="LogicalCounts">
@@ -3772,7 +4214,7 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
                             <div id="LogicalCounts.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">LogicalCounts</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">num_qubits</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">t_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccz_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccix_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">measurement_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
+        <span class="name">LogicalCounts</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">num_qubits</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">t_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">rotation_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccz_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">ccix_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">measurement_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>,</span><span class="param">	<span class="n">num_compute_qubits</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">read_from_memory_count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">write_to_memory_count</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -3783,7 +4225,8 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
                             </div>
                             <div id="LogicalCounts.num_qubits" class="classattr">
                                 <div class="attr variable">
-            <span class="name">num_qubits</span><span class="annotation">: int</span>
+            <span class="name">num_qubits</span><span class="annotation">: int</span>        =
+<span class="default_value">0</span>
 
         
     </div>
@@ -3864,6 +4307,42 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     
 
                             </div>
+                            <div id="LogicalCounts.num_compute_qubits" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_compute_qubits</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.num_compute_qubits"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalCounts.read_from_memory_count" class="classattr">
+                                <div class="attr variable">
+            <span class="name">read_from_memory_count</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.read_from_memory_count"></a>
+    
+    
+
+                            </div>
+                            <div id="LogicalCounts.write_to_memory_count" class="classattr">
+                                <div class="attr variable">
+            <span class="name">write_to_memory_count</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.write_to_memory_count"></a>
+    
+    
+
+                            </div>
                             <div id="LogicalCounts.fromdict" class="classattr">
                                 <div class="attr function">
                     <div class="decorator decorator-staticmethod">@staticmethod</div>
@@ -3875,7 +4354,10 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     </div>
     <a class="headerlink" href="#LogicalCounts.fromdict"></a>
     
-    
+            <div class="docstring"><p>The counts of a QDK <code>logicalCounts</code> dict (camelCase keys; the snake_case field names too), as the
+QDK's <code><a href="#LogicalCounts">LogicalCounts</a></code> takes them: missing counts are 0, unknown keys dropped.</p>
+</div>
+
 
                             </div>
                             <div id="LogicalCounts.asdict" class="classattr">
@@ -3969,10 +4451,29 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     
 
                             </div>
+                            <div id="LogicalCounts.estimate" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">estimate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#EstimatorResult">EstimatorResult</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#LogicalCounts.estimate"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code>: the estimate for a dict of job parameters (<code>qubitParams</code>,
+<code>qecScheme</code>, <code>errorBudget</code>, <code>constraints</code>, <code>distillationUnitSpecifications</code>, <code>estimateType</code>), or
+a batch for a list of them (an item that fails holds the QDK's <code>code</code> and <code>message</code>; a single estimate
+that fails raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code>, parameters it cannot read its <code><a href="#QSharpError">QSharpError</a></code>). The
+<code>EstimatorParams</code> here and the QDK's own are taken too, through their <code>as_dict</code>.</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="LogicalErrorModel">
                     <div class="attr class">
-                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True, init=False)</div>
 
     <span class="def">class</span>
     <span class="name">LogicalErrorModel</span>:
@@ -3981,7 +4482,8 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     </div>
     <a class="headerlink" href="#LogicalErrorModel"></a>
     
-            <div class="docstring"><p>A QEC scheme at one physical error rate: callable on a code distance.</p>
+            <div class="docstring"><p>A QEC scheme at one physical error rate: callable on a code distance. As Qualtran's, the scheme is the
+private <code>_qec_scheme</code> (given as <code><a href="#LogicalErrorModel.qec_scheme">qec_scheme</a></code>; <code><a href="#LogicalErrorModel.qec_scheme">qec_scheme</a></code> reads it too).</p>
 </div>
 
 
@@ -4177,13 +4679,14 @@ synthesis T gates; a T state per T, four per CCZ/CCiX, <code>⌈0.53·log₂(rot
     <a class="headerlink" href="#MagicStateFactory"></a>
     
             <div class="docstring"><p>A factory's physical qubits, the cycles to make the magic states the gates need, and the
-error it leaves in them.</p>
+error it leaves in them. Abstract, as Qualtran's.</p>
 </div>
 
 
                             <div id="MagicStateFactory.n_physical_qubits" class="classattr">
                                 <div class="attr function">
-            
+                    <div class="decorator decorator-abc.abstractmethod">@abc.abstractmethod</div>
+
         <span class="def">def</span>
         <span class="name">n_physical_qubits</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
 
@@ -4191,12 +4694,15 @@ error it leaves in them.</p>
     </div>
     <a class="headerlink" href="#MagicStateFactory.n_physical_qubits"></a>
     
-    
+            <div class="docstring"><p>The physical qubits of the factory.</p>
+</div>
+
 
                             </div>
                             <div id="MagicStateFactory.n_cycles" class="classattr">
                                 <div class="attr function">
-            
+                    <div class="decorator decorator-abc.abstractmethod">@abc.abstractmethod</div>
+
         <span class="def">def</span>
         <span class="name">n_cycles</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">n_logical_gates</span><span class="p">:</span> <span class="n"><a href="#GateCounts">GateCounts</a></span>,</span><span class="param">	<span class="n">logical_error_model</span><span class="p">:</span> <span class="n"><a href="#LogicalErrorModel">LogicalErrorModel</a></span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
 
@@ -4204,12 +4710,15 @@ error it leaves in them.</p>
     </div>
     <a class="headerlink" href="#MagicStateFactory.n_cycles"></a>
     
-    
+            <div class="docstring"><p>The cycles to make the magic states the gates need.</p>
+</div>
+
 
                             </div>
                             <div id="MagicStateFactory.factory_error" class="classattr">
                                 <div class="attr function">
-            
+                    <div class="decorator decorator-abc.abstractmethod">@abc.abstractmethod</div>
+
         <span class="def">def</span>
         <span class="name">factory_error</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">n_logical_gates</span><span class="p">:</span> <span class="n"><a href="#GateCounts">GateCounts</a></span>,</span><span class="param">	<span class="n">logical_error_model</span><span class="p">:</span> <span class="n"><a href="#LogicalErrorModel">LogicalErrorModel</a></span></span><span class="return-annotation">) -> <span class="nb">float</span>:</span></span>
 
@@ -4217,7 +4726,9 @@ error it leaves in them.</p>
     </div>
     <a class="headerlink" href="#MagicStateFactory.factory_error"></a>
     
-    
+            <div class="docstring"><p>The error the factory leaves in those magic states.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -4483,7 +4994,9 @@ stays.</p>
     </div>
     <a class="headerlink" href="#MultiFactory.n_physical_qubits"></a>
     
-    
+            <div class="docstring"><p>The physical qubits of the factory.</p>
+</div>
+
 
                             </div>
                             <div id="MultiFactory.n_cycles" class="classattr">
@@ -4496,7 +5009,9 @@ stays.</p>
     </div>
     <a class="headerlink" href="#MultiFactory.n_cycles"></a>
     
-    
+            <div class="docstring"><p>The cycles to make the magic states the gates need.</p>
+</div>
+
 
                             </div>
                             <div id="MultiFactory.factory_error" class="classattr">
@@ -4509,7 +5024,210 @@ stays.</p>
     </div>
     <a class="headerlink" href="#MultiFactory.factory_error"></a>
     
+            <div class="docstring"><p>The error the factory leaves in those magic states.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="NoisyPauliRotation">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">NoisyPauliRotation</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation"></a>
     
+            <div class="docstring"><p>Qualtran's channel (<code>t_factory_utils.NoisyPauliRotation</code>, a Cirq gate there) as matrices: the π/8
+rotation <code>exp(i π/8 P)</code> about a Pauli string (its first letter the most significant qubit, as Cirq orders
+them) that overshoots to 5π/8, −π/8 or 3π/8 with probabilities p1, p2, p3 (each in [0, 1], their sum at
+most 1). <code><a href="#NoisyPauliRotation.mixture">mixture</a></code> is Cirq's <code>_mixture_</code>, <code><a href="#NoisyPauliRotation.kraus">kraus</a></code> its Kraus operators, <code><a href="#NoisyPauliRotation.apply">apply</a></code> the channel on a density
+matrix.</p>
+</div>
+
+
+                            <div id="NoisyPauliRotation.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">NoisyPauliRotation</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">pauli_string</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">p1</span><span class="p">:</span> <span class="nb">float</span>, </span><span class="param"><span class="n">p2</span><span class="p">:</span> <span class="nb">float</span>, </span><span class="param"><span class="n">p3</span><span class="p">:</span> <span class="nb">float</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="NoisyPauliRotation.pauli_string" class="classattr">
+                                <div class="attr variable">
+            <span class="name">pauli_string</span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation.pauli_string"></a>
+    
+    
+
+                            </div>
+                            <div id="NoisyPauliRotation.num_qubits" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">num_qubits</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation.num_qubits"></a>
+    
+    
+
+                            </div>
+                            <div id="NoisyPauliRotation.mixture" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">mixture</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation.mixture"></a>
+    
+            <div class="docstring"><p>The (probability, unitary) pairs: the rotation by π/8, 5π/8, −π/8 and 3π/8.</p>
+</div>
+
+
+                            </div>
+                            <div id="NoisyPauliRotation.kraus" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">kraus</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation.kraus"></a>
+    
+    
+
+                            </div>
+                            <div id="NoisyPauliRotation.apply" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">apply</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">rho</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#NoisyPauliRotation.apply"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="PauliFlipChannel">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">PauliFlipChannel</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel"></a>
+    
+            <div class="docstring"><p>One of <code><a href="#storage_error">storage_error</a></code>'s channels (Cirq's <code>AsymmetricDepolarizingChannel</code> with only <code>p_x</code> or
+<code>p_z</code> there): an X or Z flip with probability <code><a href="#PauliFlipChannel.p">p</a></code> on qubit <code><a href="#PauliFlipChannel.qubit">qubit</a></code>, <code>ρ → (1 − p) ρ + p E ρ E†</code>.</p>
+</div>
+
+
+                            <div id="PauliFlipChannel.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">PauliFlipChannel</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">p</span><span class="p">:</span> <span class="nb">float</span>, </span><span class="param"><span class="n">qubit</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="PauliFlipChannel.kind" class="classattr">
+                                <div class="attr variable">
+            <span class="name">kind</span><span class="annotation">: str</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.kind"></a>
+    
+    
+
+                            </div>
+                            <div id="PauliFlipChannel.p" class="classattr">
+                                <div class="attr variable">
+            <span class="name">p</span><span class="annotation">: float</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.p"></a>
+    
+    
+
+                            </div>
+                            <div id="PauliFlipChannel.qubit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">qubit</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.qubit"></a>
+    
+    
+
+                            </div>
+                            <div id="PauliFlipChannel.mixture" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">mixture</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.mixture"></a>
+    
+            <div class="docstring"><p>The single-qubit (probability, unitary) pairs: nothing, or the flip.</p>
+</div>
+
+
+                            </div>
+                            <div id="PauliFlipChannel.kraus" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">kraus</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">tuple</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.kraus"></a>
+    
+    
+
+                            </div>
+                            <div id="PauliFlipChannel.apply" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">apply</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">rho</span><span class="p">:</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PauliFlipChannel.apply"></a>
+    
+            <div class="docstring"><p>The flip on qubit <code><a href="#PauliFlipChannel.qubit">qubit</a></code> of an n-qubit density matrix (qubit 0 the most significant).</p>
+</div>
+
 
                             </div>
                 </section>
@@ -4667,7 +5385,7 @@ of the factory's and the data block's over those cycles.</p>
                     <div class="decorator decorator-classmethod">@classmethod</div>
 
         <span class="def">def</span>
-        <span class="name">make_gidney_fowler</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">cls</span>, </span><span class="param"><span class="n">data_d</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n"><a href="#PhysicalCostModel">PhysicalCostModel</a></span>:</span></span>
+        <span class="name">make_gidney_fowler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">data_d</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n"><a href="#PhysicalCostModel">PhysicalCostModel</a></span>:</span></span>
 
         
     </div>
@@ -4959,6 +5677,23 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
 
                             </div>
                 </section>
+                <section id="QSharpError">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">QSharpError</span><wbr>(<span class="base">builtins.ValueError</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#QSharpError"></a>
+    
+            <div class="docstring"><p>The QDK's <code><a href="#QSharpError">QSharpError</a></code> as its <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code> raises it when the logical counts or the job
+parameters do not read: <code>cannot parse JSON: '&lt;serde's reason&gt; at line 1 column &lt;n&gt;'</code>, the column counted
+in the JSON text the QDK's Python sends (<code>json.dumps</code> of the counts, of the list of items).</p>
+</div>
+
+
+                </section>
                 <section id="QUBIT_NAMES">
                     <div class="attr variable">
             <span class="name">QUBIT_NAMES</span>        =
@@ -4982,32 +5717,41 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
     </div>
     <a class="headerlink" href="#RotationCostModel"></a>
     
-    
+            <div class="docstring"><p>The gates a single-qubit rotation costs within an error budget, and the gates to prepare whatever
+the rotations share. Abstract, as Qualtran's.</p>
+</div>
+
 
                             <div id="RotationCostModel.rotation_cost" class="classattr">
                                 <div class="attr function">
-            
+                    <div class="decorator decorator-abc.abstractmethod">@abc.abstractmethod</div>
+
         <span class="def">def</span>
-        <span class="name">rotation_cost</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
+        <span class="name">rotation_cost</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#RotationCostModel.rotation_cost"></a>
     
-    
+            <div class="docstring"><p>The gates one rotation costs within <code>error_budget</code>.</p>
+</div>
+
 
                             </div>
                             <div id="RotationCostModel.preparation_overhead" class="classattr">
                                 <div class="attr function">
-            
+                    <div class="decorator decorator-abc.abstractmethod">@abc.abstractmethod</div>
+
         <span class="def">def</span>
-        <span class="name">preparation_overhead</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
+        <span class="name">preparation_overhead</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#RotationCostModel.preparation_overhead"></a>
     
-    
+            <div class="docstring"><p>The gates paid once, before the rotations.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -5076,26 +5820,30 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">rotation_cost</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
+        <span class="name">rotation_cost</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#RotationLogarithmicModel.rotation_cost"></a>
     
-    
+            <div class="docstring"><p>The gates one rotation costs within <code>error_budget</code>.</p>
+</div>
+
 
                             </div>
                             <div id="RotationLogarithmicModel.preparation_overhead" class="classattr">
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">preparation_overhead</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
+        <span class="name">preparation_overhead</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="n"><a href="#GateCounts">GateCounts</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#RotationLogarithmicModel.preparation_overhead"></a>
     
-    
+            <div class="docstring"><p>The gates paid once, before the rotations.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -5147,7 +5895,9 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
     </div>
     <a class="headerlink" href="#SimpleDataBlock.data_d"></a>
     
-    
+            <div class="docstring"><p>The code distance of the data block's tiles.</p>
+</div>
+
 
                             </div>
                             <div id="SimpleDataBlock.routing_overhead" class="classattr">
@@ -5172,7 +5922,9 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
     </div>
     <a class="headerlink" href="#SimpleDataBlock.n_tiles"></a>
     
-    
+            <div class="docstring"><p>The surface-code tiles that hold <code>n_algo_qubits</code> algorithm qubits.</p>
+</div>
+
 
                             </div>
                             <div id="SimpleDataBlock.n_steps_to_consume_a_magic_state" class="classattr">
@@ -5183,19 +5935,118 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
     </div>
     <a class="headerlink" href="#SimpleDataBlock.n_steps_to_consume_a_magic_state"></a>
     
+            <div class="docstring"><p>The steps (of <code><a href="#SimpleDataBlock.data_d">data_d</a></code> cycles each) a magic state takes to consume.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="TComplexity">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
+    <span class="def">class</span>
+    <span class="name">TComplexity</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity"></a>
+    
+            <div class="docstring"><p>Qualtran's legacy count of T gates, Clifford gates and single-qubit rotations.</p>
+</div>
+
+
+                            <div id="TComplexity.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">TComplexity</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">t</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>, </span><span class="param"><span class="n">clifford</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>, </span><span class="param"><span class="n">rotations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.__init__"></a>
+    
     
 
                             </div>
-                            <div class="inherited">
-                                <h5>Inherited Members</h5>
-                                <dl>
-                                    <div><dt><a href="#DataBlock">DataBlock</a></dt>
-                                <dd id="SimpleDataBlock.n_cycles" class="function"><a href="#DataBlock.n_cycles">n_cycles</a></dd>
-                <dd id="SimpleDataBlock.n_physical_qubits" class="function"><a href="#DataBlock.n_physical_qubits">n_physical_qubits</a></dd>
-                <dd id="SimpleDataBlock.data_error" class="function"><a href="#DataBlock.data_error">data_error</a></dd>
+                            <div id="TComplexity.t" class="classattr">
+                                <div class="attr variable">
+            <span class="name">t</span><span class="annotation">: int</span>        =
+<span class="default_value">0</span>
 
-            </div>
-                                </dl>
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.t"></a>
+    
+    
+
+                            </div>
+                            <div id="TComplexity.clifford" class="classattr">
+                                <div class="attr variable">
+            <span class="name">clifford</span><span class="annotation">: int</span>        =
+<span class="default_value">0</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.clifford"></a>
+    
+    
+
+                            </div>
+                            <div id="TComplexity.rotations" class="classattr">
+                                <div class="attr variable">
+            <span class="name">rotations</span><span class="annotation">: int</span>        =
+<span class="default_value">0</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.rotations"></a>
+    
+    
+
+                            </div>
+                            <div id="TComplexity.rotation_cost" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">rotation_cost</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">eps</span><span class="p">:</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.rotation_cost"></a>
+    
+            <div class="docstring"><p>T gates per rotation synthesised to within <code>eps</code>: <code>⌈1.149 log₂(1/ε) + 9.2⌉</code>.</p>
+</div>
+
+
+                            </div>
+                            <div id="TComplexity.t_incl_rotations" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">t_incl_rotations</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-11</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.t_incl_rotations"></a>
+    
+            <div class="docstring"><p>The T gates with every rotation synthesised to within <code>eps</code>.</p>
+</div>
+
+
+                            </div>
+                            <div id="TComplexity.asdict" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">asdict</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TComplexity.asdict"></a>
+    
+    
+
                             </div>
                 </section>
                 <section id="TFactory">
@@ -5497,21 +6348,26 @@ one output state. Raises <code><a href="#FactoryBuildError">FactoryBuildError</a
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">azure_estimate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#LogicalCounts">LogicalCounts</a></span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span>,</span><span class="param">	<span class="n">qubit_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">qec_scheme</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="estimate/azure.html#QECScheme">stabilizer_qec.estimate.azure.QECScheme</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#ErrorBudget">ErrorBudget</a></span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.001</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#Constraints">Constraints</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">distillation_unit_specifications</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+        <span class="name">azure_estimate</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">counts</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n"><a href="#LogicalCounts">LogicalCounts</a></span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span>,</span><span class="param">	<span class="n">qubit_params</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#GateBasedQubit">GateBasedQubit</a></span><span class="p">,</span> <span class="n"><a href="#MajoranaQubit">MajoranaQubit</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">qec_scheme</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="estimate/azure.html#QECScheme">stabilizer_qec.estimate.azure.QECScheme</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#ErrorBudget">ErrorBudget</a></span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.001</span>,</span><span class="param">	<span class="n">constraints</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#Constraints">Constraints</a></span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">distillation_unit_specifications</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n"><a href="#DistillationUnitTemplate">DistillationUnitTemplate</a></span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">estimate_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'singlePoint'</span></span><span class="return-annotation">) -> <span class="n"><a href="#EstimatorResult">EstimatorResult</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#azure_estimate"></a>
     
-            <div class="docstring"><p>The QDK's physical resource estimate from logical counts, as its result dict: <code>physicalCounts</code>
-(<code>physicalQubits</code>, <code>runtime</code> in ns, <code>rqops</code>, a <code>breakdown</code>), <code>logicalQubit</code>, <code>tfactory</code>,
-<code>errorBudget</code>, <code>logicalCounts</code>, <code>jobParams</code>; with <code>estimate_type="frontier"</code>, <code>frontierEntries</code>
-(each with those sections) along the qubits–runtime Pareto frontier instead. Parameters are the QDK's: a
+            <div class="docstring"><p>The QDK's physical resource estimate from logical counts, as its <code><a href="#EstimatorResult">EstimatorResult</a></code>: <code>status</code>,
+<code>jobParams</code>, <code>physicalCounts</code> (<code>physicalQubits</code>, <code>runtime</code> in ns, <code>rqops</code>, a <code>breakdown</code>),
+<code>physicalCountsFormatted</code> (the same as the report's strings), <code>logicalQubit</code>, <code>tfactory</code>,
+<code>errorBudget</code>, <code>logicalCounts</code> and <code>reportData</code> (the report's groups of labelled, explained entries);
+with <code>estimate_type="frontier"</code>, <code>frontierEntries</code> (each with those sections) along the qubits–runtime
+Pareto frontier instead, and the report of the first, whose sections the result's keys reach
+(<code>result["physicalCounts"]</code> is the first entry's). Parameters are the QDK's: a
 qubit preset name (<code>qubit_gate_ns_e3</code>, <code>qubit_gate_ns_e4</code>, <code>qubit_gate_us_e3</code>, <code>qubit_gate_us_e4</code>,
 <code>qubit_maj_ns_e4</code>, <code>qubit_maj_ns_e6</code>) or <code>qubitParams</code> dict; <code>surface_code</code> or <code>floquet_code</code> or a
 <code>qecScheme</code> dict; a total error budget or <code>{logical, tStates, rotations}</code>; <code>constraints</code>
 (<code>logicalDepthFactor</code>, <code>maxTFactories</code>, <code>maxDuration</code>, <code>maxPhysicalQubits</code>,
-<code>maxDistillationRounds</code>); <code>distillationUnitSpecifications</code>.</p>
+<code>maxDistillationRounds</code>); <code>distillationUnitSpecifications</code>; or the objects here and the QDK's parameter
+objects. An estimate the QDK refuses raises its <code><a href="#EstimatorError">EstimatorError</a></code> (with its <code>code</code>), parameters it cannot
+read its <code><a href="#QSharpError">QSharpError</a></code>, each with the QDK's message.</p>
 </div>
 
 
@@ -5526,7 +6382,8 @@ qubit preset name (<code>qubit_gate_ns_e3</code>, <code>qubit_gate_ns_e4</code>,
     </div>
     <a class="headerlink" href="#azure_estimator"></a>
     
-            <div class="docstring"><p>An <code><a href="#AzureEstimator">AzureEstimator</a></code> from QDK-style parameters (see <code><a href="#azure_estimate">azure_estimate</a></code>).</p>
+            <div class="docstring"><p>An <code><a href="#AzureEstimator">AzureEstimator</a></code> from QDK-style parameters (see <code><a href="#azure_estimate">azure_estimate</a></code>), read and checked as the QDK reads
+and checks them (the error budget is checked when it is partitioned).</p>
 </div>
 
 
@@ -5560,6 +6417,39 @@ qubit preset name (<code>qubit_gate_ns_e3</code>, <code>qubit_gate_ns_e4</code>,
 <code>output_t_error_rate</code>, over every sequence of up to <code>max_distillation_rounds</code> units (one more round at a
 time, up to four, when none is found) and non-decreasing odd code distances up to <code>max_code_distance</code>;
 sorted as the QDK sorts it (descending).</p>
+</div>
+
+
+                </section>
+                <section id="format_duration">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">format_duration</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">nanos</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#format_duration"></a>
+    
+            <div class="docstring"><p>The QDK's duration in words: the largest unit the value reaches, rounded half up by the remainder in the
+unit below (<code>1500</code> ns is <code>2 microsecs</code>, <code>1064000000</code> is <code>1 secs</code>). As the QDK's, a value below a
+microsecond reads one nanosecond high (<code>500</code> is <code>501 nanosecs</code>).</p>
+</div>
+
+
+                </section>
+                <section id="format_metric_prefix">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">format_metric_prefix</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">value</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="nb">str</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#format_metric_prefix"></a>
+    
+            <div class="docstring"><p>The QDK's count with a metric prefix: as it is below 1000, else to two decimals with k, M, G, T, P, E, Z,
+Y, R or Q (<code>400.06k</code>, <code>38.33M</code>).</p>
 </div>
 
 
@@ -5599,13 +6489,15 @@ the data distance is chosen from the budget that remains.</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_ccz2t_costs_from_grid_search</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">n_logical_gates</span><span class="p">:</span> <span class="n"><a href="#GateCounts">GateCounts</a></span>,</span><span class="param">	<span class="n">n_algo_qubits</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">phys_err</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>,</span><span class="param">	<span class="n">cycle_time_us</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>,</span><span class="param">	<span class="n">factory_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#MagicStateFactory">MagicStateFactory</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">data_block_iter</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#DataBlock">DataBlock</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">cost_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n"><a href="#PhysicalCostsSummary">PhysicalCostsSummary</a></span><span class="p">],</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">function</span> <span class="o">&lt;</span><span class="k">lambda</span><span class="o">&gt;&gt;</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#PhysicalCostsSummary">PhysicalCostsSummary</a></span><span class="p">,</span> <span class="n"><a href="#MagicStateFactory">MagicStateFactory</a></span><span class="p">,</span> <span class="n"><a href="#DataBlock">DataBlock</a></span><span class="p">]</span>:</span></span>
+        <span class="name">get_ccz2t_costs_from_grid_search</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">n_logical_gates</span><span class="p">:</span> <span class="n"><a href="#GateCounts">GateCounts</a></span>,</span><span class="param">	<span class="n">n_algo_qubits</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">phys_err</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span>,</span><span class="param">	<span class="n">error_budget</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>,</span><span class="param">	<span class="n">cycle_time_us</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>,</span><span class="param">	<span class="n">factory_iter</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#MagicStateFactory">MagicStateFactory</a></span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">7</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">9</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">11</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">13</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">15</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">17</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">9</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">11</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">13</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">15</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">17</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">11</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">13</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">15</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">17</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">13</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">15</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">17</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">15</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">17</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">17</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">19</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">21</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">23</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">25</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">27</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">29</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">31</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">33</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">35</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">37</span><span class="p">),</span> <span class="n">CCZ2TFactory</span><span class="p">(</span><span class="n">distillation_l1_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">distillation_l2_d</span><span class="o">=</span><span class="mi">39</span><span class="p">))</span>,</span><span class="param">	<span class="n">data_block_iter</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#DataBlock">DataBlock</a></span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">9</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">17</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">19</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">21</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">23</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">27</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">29</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">31</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span> <span class="n">SimpleDataBlock</span><span class="p">(</span><span class="n">data_d</span><span class="o">=</span><span class="mi">33</span><span class="p">,</span> <span class="n">routing_overhead</span><span class="o">=</span><span class="mf">0.5</span><span class="p">))</span>,</span><span class="param">	<span class="n">cost_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n"><a href="#PhysicalCostsSummary">PhysicalCostsSummary</a></span><span class="p">],</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">function</span> <span class="o">&lt;</span><span class="k">lambda</span><span class="o">&gt;&gt;</span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#PhysicalCostsSummary">PhysicalCostsSummary</a></span><span class="p">,</span> <span class="n"><a href="#MagicStateFactory">MagicStateFactory</a></span><span class="p">,</span> <span class="n"><a href="#DataBlock">DataBlock</a></span><span class="p">]</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#get_ccz2t_costs_from_grid_search"></a>
     
-            <div class="docstring"><p>The factory and data block that minimise <code>cost_function</code> within the error budget.</p>
+            <div class="docstring"><p>The factory and data block that minimise <code>cost_function</code> within the error budget. As Qualtran's, the
+blocks are iterated again for each factory, so a one-shot iterator of blocks is used up by the first factory
+(and <code>ValueError: No valid factories found!</code> follows when none of its blocks fits).</p>
 </div>
 
 
@@ -5662,7 +6554,8 @@ rotation at ε/(3 M_R).</p>
     </div>
     <a class="headerlink" href="#n_discrete_logical_gates"></a>
     
-            <div class="docstring"><p>The counts with every rotation synthesised into T and Toffoli gates.</p>
+            <div class="docstring"><p>The counts with every rotation synthesised into T and Toffoli gates (Qualtran's own <code><a href="#GateCounts">GateCounts</a></code> in the
+summary is read as this module's).</p>
 </div>
 
 
@@ -5678,8 +6571,9 @@ rotation at ε/(3 M_R).</p>
     <a class="headerlink" href="#physical_qubit"></a>
     
             <div class="docstring"><p>A qubit model from a preset name (<code><a href="#QUBIT_NAMES">QUBIT_NAMES</a></code>), a QDK <code>qubitParams</code> dict (camelCase keys, times as
-ints in ns or strings with units, Majorana measurement errors as numbers or <code>{process, readout}</code>), or a
-model object; normalized.</p>
+strings with units or, beyond the QDK, ints in ns, Majorana measurement errors as numbers or
+<code>{process, readout}</code>), a QDK <code>EstimatorQubitParams</code>, or a model object; normalized. A dict the QDK
+refuses raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>cannot parse JSON: 'missing fields `oneQubitGateTime`'</code>).</p>
 </div>
 
 
@@ -5696,7 +6590,24 @@ model object; normalized.</p>
     
             <div class="docstring"><p>A scheme from a name (<code>surface_code</code>, <code>floquet_code</code>; the surface code picks its gate-based or
 measurement-based variant from the qubit), a QDK <code>qecScheme</code> dict (a name with overrides, or a full custom
-scheme), or a <code><a href="#QECScheme">QECScheme</a></code>; validated against the qubit as the QDK does.</p>
+scheme, whose name may be absent), a QDK <code>EstimatorQecScheme</code>, or a <code><a href="#QECScheme">QECScheme</a></code>; checked against the qubit
+as the QDK checks it, its errors the QDK's (<code><a href="#EstimatorError">EstimatorError</a></code>, <code><a href="#QSharpError">QSharpError</a></code> for a dict it cannot read).</p>
+</div>
+
+
+                </section>
+                <section id="storage_error">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">storage_error</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">probabilities</span>, </span><span class="param"><span class="n">qubits</span><span class="o">=</span><span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#storage_error"></a>
+    
+            <div class="docstring"><p>Qualtran's storage errors (<code>t_factory_utils.storage_error</code>): a <code><a href="#PauliFlipChannel">PauliFlipChannel</a></code> of the kind (Z or X)
+on each qubit with its probability, the qubits 0, 1, … unless given (as many as the probabilities).</p>
 </div>
 
 

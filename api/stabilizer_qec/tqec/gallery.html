@@ -61,7 +61,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -152,7 +152,11 @@
     <a class="headerlink" href="#cz"></a>
     
             <div class="docstring"><p>The logical CZ (its Hadamard pipe horizontal; <code>rotate</code> for a vertical one): ports open,
-or filled to support the given stabilizer flows (<code>"XI -&gt; XZ"</code>, or a list of them).</p>
+or filled to support the given stabilizer flows (<code>"XI -&gt; XZ"</code>, or a list of them), in
+Stim's syntax: dense (<code>"X_ -&gt; XZ"</code>), sparse (<code>"X0 -&gt; X0*Z1"</code>), signed, <code>1</code> for the
+identity. An error names a flow as Stim writes it (<code>X_ -&gt; XX is not a valid flow for the CZ
+gate.</code>), as tqec's does. A sparse flow is placed on the gate's qubits by its indices (tqec
+0.2.0 joins the two sides' letters, which misplaces the output ports of <code>"X0 -&gt; X0*Z1"</code>).</p>
 </div>
 
 

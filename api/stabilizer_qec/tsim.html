@@ -28,17 +28,126 @@
                    pattern=".+" required>
 
 
+            <h2>Submodules</h2>
+            <ul>
+                    <li><a href="tsim/sampler.html">sampler</a></li>
+            </ul>
 
             <h2>API Documentation</h2>
                 <ul class="memberlist">
             <li>
-                    <a class="function" href="#Circuit">Circuit</a>
+                    <a class="class" href="#Circuit">Circuit</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#Circuit.__init__">Circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.from_stim_program">from_stim_program</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.from_file">from_file</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.to_file">to_file</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#Circuit.stim_circuit">stim_circuit</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.cast_to_stim">cast_to_stim</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.append_from_stim_program_text">append_from_stim_program_text</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.append">append</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.insert">insert</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.detector_error_model">detector_error_model</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.compile_sampler">compile_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.compile_detector_sampler">compile_detector_sampler</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.to_matrix">to_matrix</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.to_tensor">to_tensor</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.diagram">diagram</a>
+                        </li>
+                </ul>
+
             </li>
             <li>
                     <a class="class" href="#ColorEncoder5">ColorEncoder5</a>
                             <ul class="memberlist">
                         <li>
                                 <a class="function" href="#ColorEncoder5.__init__">ColorEncoder5</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CompiledDetectorSampler">CompiledDetectorSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CompiledDetectorSampler.__init__">CompiledDetectorSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledDetectorSampler.circuit">circuit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledDetectorSampler.num_detectors">num_detectors</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledDetectorSampler.num_observables">num_observables</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CompiledDetectorSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CompiledMeasurementSampler">CompiledMeasurementSampler</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CompiledMeasurementSampler.__init__">CompiledMeasurementSampler</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledMeasurementSampler.circuit">circuit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledMeasurementSampler.num_measurements">num_measurements</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CompiledMeasurementSampler.sample">sample</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CompiledStateProbs">CompiledStateProbs</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#CompiledStateProbs.__init__">CompiledStateProbs</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledStateProbs.circuit">circuit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CompiledStateProbs.num_outputs">num_outputs</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#CompiledStateProbs.probability_of">probability_of</a>
                         </li>
                 </ul>
 
@@ -109,7 +218,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.0.0</footer>
+            <footer>stabilizer-qec 2.1.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -123,14 +232,67 @@
                     <h1 class="modulename">
 <a href="./../stabilizer_qec.html">stabilizer_qec</a><wbr>.tsim    </h1>
 
-                        <div class="docstring"><p>Tsim's encoders on this package's circuits: <code><a href="#TransversalEncoder">TransversalEncoder</a></code> and its [[7, 1, 3]] Steane
-(<code><a href="#SteaneEncoder">SteaneEncoder</a></code>) and [[17, 1, 5]] colour-code (<code><a href="#ColorEncoder5">ColorEncoder5</a></code>) instances, which encode a
-state-preparation program into code blocks and a program into its transversal form (detectors and
-observables onto the code's stabilizers and logicals); Tsim's shorthand (<code>T</code>, <code>T_DAG</code>,
-<code>TPP</code>, rotations, <code>CCZ</code>, ...) to and from its tagged Stim (<code><a href="#shorthand_to_stim">shorthand_to_stim</a></code>,
-<code><a href="#stim_to_shorthand">stim_to_shorthand</a></code>), and that Stim as this package's operations (<code><a href="#tsim_to_native">tsim_to_native</a></code>: Tsim's
-<code>S[T]</code> is <code>I[T]</code> here, its half-turn rotations radians); <code>Circuit(text)</code> reads either
-form; <code><a href="#get_detector_error_model">get_detector_error_model</a></code> is Tsim's model with non-deterministic observables.</p>
+                        <div class="docstring"><p>Tsim's interface on this package's circuits and samplers, with Tsim's conventions.</p>
+
+<ul>
+<li><code><a href="#Circuit">Circuit</a></code>: Tsim's circuit, a subclass of <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> (<code>isinstance</code> holds
+for both), read from Tsim's program text (<code>T 0</code>, <code>T_DAG 1</code>, <code>TPP X0*Z1</code>, <code>R_Z(0.25) 0</code>
+in half-turns, <code>R_ZZ(0.5) 0 1</code>, <code>R_PAULI(0.3) X0*Y1</code>, <code>U3(0.3, 0.2, 0.1) 0</code>,
+<code>CCZ 0 1 2</code>, Tsim's tagged <code>S[T] 0</code> and <code>I[R_X(theta=0.25*pi)] 0</code>, and this package's
+<code>I[T] 0</code> and radians), <code>from_stim_program</code> and <code>from_file</code> (shorthand too); <code>append</code>
+takes Tsim's gates with their arguments in half-turns and <code>append_from_stim_program_text</code>
+its text; <code>str()</code> and <code>repr()</code> are Tsim's shorthand; <code>+</code> and <code>+=</code> take a
+<code>stim.Circuit</code> or <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> (Tsim's tagged Stim read as its gates); what
+Tsim's methods return is a <code>tsim.Circuit</code> (<code>copy</code>, slices, <code>*</code>, <code>flattened</code>,
+<code>without_noise</code>, <code>inverse</code>, ...), and <code>stim_circuit</code> a plain <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>.
+<code>tcount</code>, <code>is_clifford</code> and <code>inverse</code> are Tsim's; <code>to_matrix</code> is Tsim's map on the
+qubits the circuit names, a state column when every qubit is reset first; <code>diagram</code> defaults
+to the timeline SVG, its tagged gates labelled, with Tsim's <code>height</code>, <code>width</code> and
+<code>zoomable</code> for the notebook view (the pyzx ZX-graph diagrams are not drawn).</li>
+<li><code><a href="#CompiledDetectorSampler">CompiledDetectorSampler</a></code> (<code><a href="#Circuit.compile_detector_sampler">Circuit.compile_detector_sampler</a></code>): Tsim's convention, each
+detector's and observable's <em>value</em>, the parity of its measurements (<code>X 0</code>, <code>M 0</code>,
+<code>DETECTOR rec[-1]</code> reads True), not Stim's flip from a reference run;
+<code>use_detector_reference_sample</code> / <code>use_observable_reference_sample</code> give the flips (one
+noiseless shot each call is the reference, as Tsim's; on a Clifford circuit Stim's events
+exactly). <code><a href="#CompiledMeasurementSampler">CompiledMeasurementSampler</a></code> (<code><a href="#Circuit.compile_sampler">Circuit.compile_sampler</a></code>): the records.
+<code>batch_size</code> and <code>postselection_mask</code> are checked as Tsim checks them and <code>strategy</code> is
+accepted (Tsim does not check it either); none changes a sample (they are performance knobs
+of Tsim's JAX programs; every row is a full sample). The shots are this package's samplers'
+(the frame sampler on a Clifford circuit, the stabilizer-rank sampler on a non-Clifford one),
+so they match Tsim's in distribution, not bit for bit. <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>'s own
+samplers keep Stim's conventions.</li>
+<li><code>sampler.CompiledStateProbs</code>: P(state | f) for each of a batch of noise draws f, of a
+measurement record or (<code>sample_detectors</code>) of the detectors' and observables' values.</li>
+<li><code><a href="#Circuit.detector_error_model">Circuit.detector_error_model</a></code> and <code><a href="#get_detector_error_model">get_detector_error_model</a></code>: Tsim's model, which allows
+non-deterministic observables (<code>error(0.5) D0 L0</code>); with it <code>decompose_errors</code> raises.</li>
+<li>Tsim's encoders, <code><a href="#TransversalEncoder">TransversalEncoder</a></code> and its [[7, 1, 3]] Steane (<code><a href="#SteaneEncoder">SteaneEncoder</a></code>) and
+[[17, 1, 5]] colour-code (<code><a href="#ColorEncoder5">ColorEncoder5</a></code>) instances, which encode a state-preparation
+program into code blocks and a program into its transversal form (detectors and observables
+onto the code's stabilizers and logicals); their <code>circuit</code> is a <code>tsim.Circuit</code>.</li>
+<li><code><a href="#shorthand_to_stim">shorthand_to_stim</a></code> and <code><a href="#stim_to_shorthand">stim_to_shorthand</a></code>: Tsim's shorthand to and from its tagged Stim
+(<code><a href="#stim_to_shorthand">stim_to_shorthand</a></code> reads this package's tagged forms too), and <code><a href="#tsim_to_native">tsim_to_native</a></code>: that
+Stim as this package's operations (Tsim's <code>S[T]</code> is <code>I[T]</code> here, its half-turn rotations
+radians of exp(−iθP)).</li>
+</ul>
+
+<p>Where it differs from Tsim:</p>
+
+<ul>
+<li>Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
+JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.</li>
+<li><code>R_PAULI(0.25)</code> and <code>R_XX(0.25)</code> (any ±π/8 product rotation) print as <code>TPP</code> or
+<code>TPP_DAG</code>, the same gate; an angle appended as an int prints as a float (<code>R_Z(1.0)</code>,
+Tsim <code>R_Z(1)</code>); a tag on an appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept.</li>
+<li>Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
+them into one, which its shorthand misprints).</li>
+<li><code>to_matrix</code> of a circuit with a measurement or a reset after a qubit's first operation
+raises <code>ValueError</code> (Tsim gives its ZX tensor, not a map of states).</li>
+<li><code>circuit[i]</code> is this package's instruction (<code>I[T] 0</code>), not a <code>stim.CircuitInstruction</code>
+in Tsim's tagged form (<code>S[T] 0</code>).</li>
+</ul>
+
+<p>Not ported: Tsim's ZX graphs (<code>get_graph</code>, <code>get_sampling_graph</code>, the <code>pyzx</code> diagram
+types), which need pyzx.</p>
 </div>
 
                 
@@ -138,23 +300,389 @@ form; <code><a href="#get_detector_error_model">get_detector_error_model</a></co
                 
             </section>
                 <section id="Circuit">
-                    <div class="attr function">
+                    <div class="attr class">
             
-        <span class="def">def</span>
-        <span class="name">Circuit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span><span class="return-annotation">):</span></span>
+    <span class="def">class</span>
+    <span class="name">Circuit</span><wbr>(<span class="base">stabilizer_qec._circuit.Circuit</span>):
 
         
     </div>
     <a class="headerlink" href="#Circuit"></a>
     
-            <div class="docstring"><p>A <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> from Tsim's program text, shorthand or tagged: <code>T 0</code>,
-<code>T_DAG 1</code>, <code>TPP X0*Z1</code>, <code>R_Z(0.25) 0</code> (half-turns), <code>U3(0.3, 0.2, 0.1) 0</code>,
-<code>CCZ 0 1 2</code>, <code>S[T] 0</code>, <code>I[R_X(theta=0.25*pi)] 0</code>; the rest Stim's. Its samplers run
-the non-Clifford gates (the stabilizer-rank sampler); <code>tcount</code>, <code>is_clifford</code>,
-<code>to_matrix</code> and <code>inverse</code> are Tsim's.</p>
+            <div class="docstring"><p>Tsim's circuit: a <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> (so <code>isinstance(c, <a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a>)</code>
+and every method of this package's circuits) that reads and writes Tsim's program text.</p>
+
+<p>It is built from Tsim's shorthand or its tagged Stim (<code>T 0</code>, <code>T_DAG 1</code>, <code>TPP X0*Z1</code>,
+<code>R_Z(0.25) 0</code> in half-turns, <code>R_ZZ(0.5) 0 1</code>, <code>R_PAULI(0.3) X0*Y1</code>,
+<code>U3(0.3, 0.2, 0.1) 0</code>, <code>CCZ 0 1 2</code>, <code>S[T] 0</code>, <code>I[R_X(theta=0.25*pi)] 0</code>), from this
+package's form (<code>I[T] 0</code>, <code>I[R_X(theta=0.39269908169872414)] 0</code> in radians), or from a
+<code>stim.Circuit</code> or <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> in either; it holds this package's form, and
+<code>str()</code> and <code>repr()</code> give Tsim's shorthand (<code>T 0</code>, <code>R_X(0.1) 0</code>). What Tsim's
+methods return is a <code>tsim.Circuit</code> here too (<code><a href="#Circuit.copy">copy</a></code>, slices, <code>+</code>, <code>*</code>,
+<code><a href="#Circuit.flattened">flattened</a></code>, <code><a href="#Circuit.without_noise">without_noise</a></code>, <code><a href="#Circuit.inverse">inverse</a></code>, ...); <code><a href="#Circuit.stim_circuit">stim_circuit</a></code> is a plain
+<code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>.</p>
+
+<p>Its samplers are Tsim's: <code><a href="#Circuit.compile_detector_sampler">compile_detector_sampler</a></code> reports each detector's and
+observable's value (the parity of its measurements), not its flip from a reference run as
+Stim's does (<code>use_detector_reference_sample</code> / <code>use_observable_reference_sample</code> give
+the flips); <code><a href="#Circuit.detector_error_model">detector_error_model</a></code> allows non-deterministic observables. A
+<code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> keeps Stim's conventions.</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">stabilizer_qec</span><span class="w"> </span><span class="kn">import</span> <span class="n">tsim</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">tsim</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="s2">"R 0</span><span class="se">\n</span><span class="s2">H 0</span><span class="se">\n</span><span class="s2">T 0</span><span class="se">\n</span><span class="s2">H 0</span><span class="se">\n</span><span class="s2">M 0"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+<span class="go">R 0</span>
+<span class="go">H 0</span>
+<span class="go">T 0</span>
+<span class="go">H 0</span>
+<span class="go">M 0</span>
+</code></pre>
+</div>
 </div>
 
 
+                            <div id="Circuit.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">Circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">stim_program_text</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="s1">''</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">text</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="Circuit.from_stim_program" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_stim_program</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">cls</span>, </span><span class="param"><span class="n">stim_circuit</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.from_stim_program"></a>
+    
+            <div class="docstring"><p>Create a Circuit from a stim.Circuit object (or a <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>, or
+text), in Tsim's tagged form or this package's.</p>
+
+<p>Args:
+    stim_circuit: The stim circuit to wrap.</p>
+
+<p>Returns:
+    A new Circuit instance.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.from_file" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-classmethod">@classmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">from_file</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">cls</span>,</span><span class="param">	<span class="n">filename</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">file</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.from_file"></a>
+    
+            <div class="docstring"><p>Create a Circuit from a file of Tsim's program text (shorthand or tagged Stim).</p>
+
+<p>Args:
+    filename: The filename to read the circuit from (a path, or an open text file;
+        <code>file=</code> is this package's keyword for it).</p>
+
+<p>Returns:
+    A new Circuit instance.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.to_file" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_file</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">file</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.to_file"></a>
+    
+            <div class="docstring"><p>Write the circuit's Stim text (this package's tagged form, which Stim and
+<code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> read, and <code>tsim.Circuit.from_file</code> too) to a path or an open
+text file. <code>str()</code> is Tsim's shorthand.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.stim_circuit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">stim_circuit</span><span class="annotation">: <a href="#Circuit">Circuit</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.stim_circuit"></a>
+    
+            <div class="docstring"><p>Return the underlying stim circuit: a <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> (which runs the
+non-Clifford gates, as this package's circuits do).</p>
+
+<p>Parametric rotation instructions whose angles are all half-π multiples
+are expanded into their equivalent Clifford gates. <code>REPEAT</code> blocks are
+preserved structurally; their bodies are expanded recursively.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.cast_to_stim" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">cast_to_stim</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#Circuit">Circuit</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.cast_to_stim"></a>
+    
+            <div class="docstring"><p>Return self, as Tsim's <code><a href="#Circuit.cast_to_stim">cast_to_stim</a></code> (a cast for code that wants a
+<code>stim.Circuit</code>; this circuit is this package's <code>stim.Circuit</code>).</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.append_from_stim_program_text" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">append_from_stim_program_text</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">stim_program_text</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">text</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.append_from_stim_program_text"></a>
+    
+            <div class="docstring"><p>Append operations described by a Stim format program into the circuit.</p>
+
+<p>Supports the same shorthand syntax as the constructor.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.append" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">append</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">name</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="n">targets</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">arg</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">tag</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.append"></a>
+    
+            <div class="docstring"><p>Append an operation into the circuit, as Tsim's <code><a href="#Circuit.append">Circuit.append</a></code>.</p>
+
+<p>Args:
+    name: The name of the operation's gate (e.g. "H" or "M" or "CNOT"), Tsim's
+        gates among them: <code>"T"</code>, <code>"T_DAG"</code>, <code>"TPP"</code>, <code>"TPP_DAG"</code> (Pauli-product
+        targets), <code>"R_X"</code>, <code>"R_Y"</code>, <code>"R_Z"</code> (<code>arg</code> the angle in half-turns),
+        <code>"R_XX"</code>, <code>"R_YY"</code>, <code>"R_ZZ"</code> (two distinct qubits), <code>"R_PAULI"</code> (a
+        Pauli product), <code>"U3"</code> (three angles in half-turns), <code>"CCZ"</code>, <code>"CCX"</code>
+        (qubits in threes). Tsim's tagged Stim (<code>"S"</code> with <code>tag="T"</code>, <code>"I"</code> with
+        <code>tag="R_Z(theta=0.25*pi)"</code>) is read as those gates.</p>
+
+<pre><code>    This argument can also be set to a `stim.CircuitInstruction` or
+    `stim.CircuitInstructionBlock`, which results in the instruction or
+    block being appended to the circuit. The other arguments (targets
+    and arg) can't be specified when doing so.
+
+targets: The objects operated on by the gate. This can be either a
+    single target or an iterable of multiple targets.
+arg: The "parens arguments" for the gate, such as the probability for a
+    noise operation, or a rotation's angle in half-turns.
+tag: A customizable string attached to the instruction (Tsim keeps it on T,
+    T_DAG, TPP and TPP_DAG; this package does not, and Tsim drops it on rotations).
+</code></pre>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.insert" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">insert</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">index</span><span class="p">:</span> <span class="nb">int</span>, </span><span class="param"><span class="n">operation</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.insert"></a>
+    
+            <div class="docstring"><p>Insert an instruction, REPEAT block or circuit before <code>index</code> (Tsim's tagged Stim
+read as Tsim's gates).</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.detector_error_model" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">detector_error_model</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">decompose_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">flatten_loops</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">allow_gauge_detectors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">approximate_disjoint_errors</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">ignore_decomposition_failures</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">block_decomposition_from_introducing_remnant_edges</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">allow_non_deterministic_observables</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></span><span class="return-annotation">) -> <span class="n"><a href="../stabilizer_qec.html#DetectorErrorModel">stabilizer_qec.DetectorErrorModel</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.detector_error_model"></a>
+    
+            <div class="docstring"><p>Return a stim.DetectorErrorModel describing the error processes in the circuit.</p>
+
+<p>Unlike the stim.Circuit.detector_error_model() method, this method allows for
+non-deterministic observables (an observable a non-Clifford gate leaves random): the
+observables become detectors, the model is built with <code>allow_gauge_detectors</code>, and
+they become observables again, gauge errors on observables alone dropped
+(<code>tsim.get_detector_error_model</code>). <code>decompose_errors=True</code> is not supported with it
+and raises <code>ValueError</code>, as Tsim's; <code>allow_non_deterministic_observables=False</code>
+(this package's keyword) gives Stim's model. As Tsim's, the model is Stim's analysis
+of Tsim's tagged form of the circuit: T is read as <code>S</code>, a rotation or <code>U3</code> as <code>I</code>,
+a Pauli-product rotation as <code>SPP</code> (so <code>R 0</code>, <code>H 0</code>, <code>T 0</code>, <code>H 0</code>, <code>M 0</code>
+measures a random bit).</p>
+
+<p>The other arguments are Stim's.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.compile_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'cat5'</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.compile_sampler"></a>
+    
+            <div class="docstring"><p>Compile circuit into a measurement sampler (<code>tsim.CompiledMeasurementSampler</code>):
+each shot's measurement record.</p>
+
+<p>Args:
+    strategy: Stabilizer rank decomposition strategy: "cat5", "bss" or "cutting".
+        Accepted and unused: this package's stabilizer-rank engine has one
+        decomposition (Tsim does not check it either).
+    seed: Random seed for the sampler. The same seed gives the same shots here
+        whatever the batch size.</p>
+
+<p>This package's keywords (<code>skip_reference_sample</code>, <code><a href="#Circuit.reference_sample">reference_sample</a></code>, <code>device</code>)
+give its Stim sampler instead, <code><a href="../stabilizer_qec.html#Circuit.compile_sampler">stabilizer_qec.Circuit.compile_sampler</a></code>'s.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.compile_detector_sampler" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">compile_detector_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'cat5'</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.compile_detector_sampler"></a>
+    
+            <div class="docstring"><p>Compile circuit into a detector sampler (<code>tsim.CompiledDetectorSampler</code>): each
+detector's and observable's value, the parity of its measurements (not its flip from a
+reference run, which <code>use_detector_reference_sample</code> and
+<code>use_observable_reference_sample</code> give).</p>
+
+<p>Args:
+    strategy: Stabilizer rank decomposition strategy: "cat5", "bss" or "cutting".
+        Accepted and unused, as <code><a href="#Circuit.compile_sampler">compile_sampler</a></code>'s.
+    seed: Random seed for the sampler.</p>
+
+<p>This package's <code>device</code> keyword gives its Stim sampler instead,
+<code><a href="../stabilizer_qec.html#Circuit.compile_detector_sampler">stabilizer_qec.Circuit.compile_detector_sampler</a></code>'s.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.to_matrix" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_matrix</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">endian</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'big'</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.to_matrix"></a>
+    
+            <div class="docstring"><p>Convert circuit to matrix representation, as Tsim's <code><a href="#Circuit.to_matrix">to_matrix</a></code>: the map the
+circuit's gates apply to the qubits it names (a qubit no instruction names is dropped,
+so <code>R_ZZ(0.5) 0 2</code> is 4 × 4), qubit 0 the most significant bit of an index
+(<code>endian="little"</code>: the least). A qubit whose first operation is a reset (<code>R</code>,
+<code>RX</code>, <code>RY</code>) starts in that state and has no input: a circuit that resets every qubit
+first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets some a
+2^n × 2^k matrix. Noise channels are skipped (no error drawn), and detectors,
+observables, coordinates and <code>TICK</code> are nothing. A measurement, a reset after a
+qubit's first operation, or feedback raises <code>ValueError</code> (Tsim's ZX tensor of those
+is not a map of states). At most 2^22 entries (a unitary of 11 qubits).</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.to_tensor" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">to_tensor</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">endian</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'big'</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.to_tensor"></a>
+    
+            <div class="docstring"><p><code><a href="#Circuit.to_matrix">to_matrix</a></code> as a tensor: one index of size 2 per output qubit, then one per input
+qubit, in the order of <code>endian</code>.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.diagram" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">diagram</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="nb">type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'timeline-svg'</span>,</span><span class="param">	<span class="n">tick</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">NoneType</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">filter_coords</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="p">((),)</span>,</span><span class="param">	<span class="n">rows</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">height</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">width</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">zoomable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.diagram"></a>
+    
+            <div class="docstring"><p>Return a diagram of the circuit, from a variety of options.</p>
+
+<p>Args:
+    type: The type of diagram: "timeline-svg" (the default) or "timeslice-svg", whose
+        tagged gates are labelled (<code>T</code>, <code>R_X(0.1π)</code>, <code>TPP[XY]</code>, ...), or any of
+        Stim's types (<code>"timeline-text"</code>, <code>"detslice-svg"</code>, ...), as
+        <code><a href="../stabilizer_qec.html#Circuit.diagram">stabilizer_qec.Circuit.diagram</a></code>'s. Tsim's ZX-graph types ("pyzx",
+        "pyzx-dets", "pyzx-meas") need pyzx and raise <code>NotImplementedError</code>.
+    tick: Required for time slice diagrams. Specifies which TICK instruction, or
+        range of TICK instructions, to slice at.
+    filter_coords: A list of things to include in the diagram (detslice diagrams).
+    rows: In diagrams that have multiple separate pieces, how many rows of pieces.
+    height: Optional height for the rendered diagram in pixels. Only applied
+        to timeline-svg and timeslice-svg diagram types. For
+        timeline-svg, when both height and width are None, the height is
+        automatically determined based on the number of qubits. When only
+        one dimension is given, the other is computed from the SVG aspect
+        ratio.
+    width: Optional width for the rendered diagram in pixels. Only applied
+        to timeline-svg and timeslice-svg diagram types.
+    zoomable: If True (default), wraps SVG diagrams in an interactive
+        container with pan and Ctrl/Cmd+wheel zoom. Only applies to
+        timeline-svg and timeslice-svg diagram types.
+    **kwargs: Additional keyword arguments passed to the underlying diagram renderer.</p>
+
+<p>Returns:
+    An object whose <code>__str__</code> method returns the diagram (for the SVG types, the raw
+    SVG), and whose <code>_repr_html_</code> shows it in a notebook at the given size.</p>
+</div>
+
+
+                            </div>
                 </section>
                 <section id="ColorEncoder5">
                     <div class="attr class">
@@ -180,6 +708,313 @@ the non-Clifford gates (the stabilizer-rank sampler); <code>tcount</code>, <code
     <a class="headerlink" href="#ColorEncoder5.__init__"></a>
     
             <div class="docstring"><p>Initialize the color code encoder.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="CompiledDetectorSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CompiledDetectorSampler</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledDetectorSampler"></a>
+    
+            <div class="docstring"><p>Samples detector and observable outcomes from a quantum circuit, as Tsim's
+<code><a href="#CompiledDetectorSampler">CompiledDetectorSampler</a></code>: by default each detector's and observable's value, the parity
+of its measurements (<code>X 0; M 0; DETECTOR rec[-1]</code> reads True), not Stim's flip from a
+noiseless reference run; <code>use_detector_reference_sample</code> / <code>use_observable_reference_sample</code>
+give the flips. The shots are this package's samplers': the frame sampler on a Clifford
+circuit, the stabilizer-rank sampler on a non-Clifford one.</p>
+</div>
+
+
+                            <div id="CompiledDetectorSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CompiledDetectorSampler</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">circuit</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'cat5'</span>, </span><span class="param"><span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledDetectorSampler.__init__"></a>
+    
+            <div class="docstring"><p>Create a detector sampler.</p>
+
+<p>Args:
+    circuit: The quantum circuit to compile.
+    strategy: Stabilizer rank decomposition strategy.
+        "cat5", "bss" or "cutting": accepted and unused (one engine here; Tsim does not check it).
+    seed: Random seed for the sampler. The same seed gives the same shots whatever
+        the batch size.</p>
+</div>
+
+
+                            </div>
+                            <div id="CompiledDetectorSampler.circuit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">circuit</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledDetectorSampler.circuit"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledDetectorSampler.num_detectors" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_detectors</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledDetectorSampler.num_detectors"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledDetectorSampler.num_observables" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_observables</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledDetectorSampler.num_observables"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledDetectorSampler.sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">sample</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">batch_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">prepend_observables</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">append_observables</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">separate_observables</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">use_detector_reference_sample</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">use_observable_reference_sample</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">postselection_mask</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledDetectorSampler.sample"></a>
+    
+            <div class="docstring"><p>Return detector samples from the circuit.</p>
+
+<p>The circuit must define the detectors using DETECTOR instructions. Observables
+defined by OBSERVABLE_INCLUDE instructions can also be included in the results
+as honorary detectors.</p>
+
+<p>Args:
+    shots: The number of times to sample every detector in the circuit.
+    batch_size: Tsim's batch size: checked (at least 1) and otherwise unused; this
+        package's samplers draw shot by shot from their seed.
+    separate_observables: Defaults to False. When set to True, the return value
+        is a (detection_events, observable_flips) tuple instead of a flat
+        detection_events array.
+    prepend_observables: Defaults to false. When set, observables are included
+        with the detectors and are placed at the start of the results.
+    append_observables: Defaults to false. When set, observables are included
+        with the detectors and are placed at the end of the results.
+    bit_packed: Defaults to false. When set, results are bit-packed.
+    use_detector_reference_sample: Defaults to False. When True, a noiseless
+        reference sample is computed and XORed with detector outcomes so that
+        results represent deviations from the noiseless baseline (Stim's detection
+        events). This should only be used when detectors are deterministic: as in
+        Tsim, the reference is one noiseless shot drawn for each call, so a detector
+        a non-Clifford gate leaves random changes with it. On a Clifford circuit the
+        result is Stim's events exactly (its reference run's).
+    use_observable_reference_sample: Defaults to False. The same for the
+        observables.
+    postselection_mask: Optional boolean array of length <code><a href="#CompiledDetectorSampler.num_detectors">num_detectors</a></code>, checked
+        as Tsim checks it. Tsim uses it to skip sampling shots a masked detector
+        discards (returning those rows with their other columns False); here every
+        row is a full sample, so re-applying the mask to the returned detector
+        columns gives the surviving shots, as in Tsim.
+    threads: (this package's) worker threads; the shots do not depend on it.</p>
+
+<p>Returns:
+    A numpy array or tuple of numpy arrays containing the samples.</p>
+
+<p>Raises:
+    ValueError: If <code>separate_observables</code> is combined with
+        <code>prepend_observables</code> or <code>append_observables</code>.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="CompiledMeasurementSampler">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CompiledMeasurementSampler</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledMeasurementSampler"></a>
+    
+            <div class="docstring"><p>Samples measurement outcomes from a quantum circuit: each shot's record, as Tsim's
+<code><a href="#CompiledMeasurementSampler">CompiledMeasurementSampler</a></code> (this package's sampler of raw records: the frame sampler on a
+Clifford circuit, the stabilizer-rank sampler on a non-Clifford one).</p>
+</div>
+
+
+                            <div id="CompiledMeasurementSampler.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CompiledMeasurementSampler</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">circuit</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'cat5'</span>, </span><span class="param"><span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledMeasurementSampler.__init__"></a>
+    
+            <div class="docstring"><p>Create a measurement sampler.</p>
+
+<p>Args:
+    circuit: The quantum circuit to compile.
+    strategy: Stabilizer rank decomposition strategy.
+        "cat5", "bss" or "cutting": accepted and unused (one engine here; Tsim does not check it).
+    seed: Random seed for the sampler. The same seed gives the same shots whatever
+        the batch size.</p>
+</div>
+
+
+                            </div>
+                            <div id="CompiledMeasurementSampler.circuit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">circuit</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledMeasurementSampler.circuit"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledMeasurementSampler.num_measurements" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_measurements</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledMeasurementSampler.num_measurements"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledMeasurementSampler.sample" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">sample</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">batch_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">bit_packed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">threads</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledMeasurementSampler.sample"></a>
+    
+            <div class="docstring"><p>Sample measurement outcomes from the circuit.</p>
+
+<p>Args:
+    shots: The number of times to sample every measurement in the circuit.
+    batch_size: Tsim's batch size: checked (at least 1) and otherwise unused; this
+        package's samplers draw shot by shot from their seed.
+    bit_packed: (this package's) the records bit-packed, 8 to a byte, little-endian.
+    threads: (this package's) worker threads; the shots do not depend on it.</p>
+
+<p>Returns:
+    A numpy array containing the measurement samples.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="CompiledStateProbs">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CompiledStateProbs</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledStateProbs"></a>
+    
+            <div class="docstring"><p>Computes measurement probabilities for a given state, as Tsim's <code><a href="#CompiledStateProbs">CompiledStateProbs</a></code>:
+for each of a batch of noise draws f, the exact probability P(state | f) of an outcome (a
+measurement record, or with <code>sample_detectors</code> the detectors' and observables' values),
+from this package's stabilizer-rank engine. Their mean estimates P(state).</p>
+
+<p>With <code>sample_detectors</code>, P(state | f) sums the probabilities of the measurement records
+whose parities are the state: at most 2^16 of them (a state's records are 2^k, k the
+measurements no detector or observable pins down, a reset-free circuit's unread
+measurements among them). A reset of a qubit left in superposition (<code>H 0</code> then <code>R 0</code>)
+draws its unread outcome along with the noise, so a draw's probability is given that outcome
+too; the mean is unchanged.</p>
+</div>
+
+
+                            <div id="CompiledStateProbs.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">CompiledStateProbs</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">sample_detectors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'cat5'</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledStateProbs.__init__"></a>
+    
+            <div class="docstring"><p>Create a probability estimator.</p>
+
+<p>Args:
+    circuit: The quantum circuit to compile.
+    sample_detectors: If True, compute detector/observable probabilities.
+    strategy: Stabilizer rank decomposition strategy.
+        "cat5", "bss" or "cutting": accepted and unused (one engine here; Tsim does not check it).
+    seed: Random seed. The same seed gives the same draws.</p>
+</div>
+
+
+                            </div>
+                            <div id="CompiledStateProbs.circuit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">circuit</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledStateProbs.circuit"></a>
+    
+    
+
+                            </div>
+                            <div id="CompiledStateProbs.num_outputs" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_outputs</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledStateProbs.num_outputs"></a>
+    
+            <div class="docstring"><p>The state's length: the measurements, or the detectors then the observables.</p>
+</div>
+
+
+                            </div>
+                            <div id="CompiledStateProbs.probability_of" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">probability_of</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">state</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#CompiledStateProbs.probability_of"></a>
+    
+            <div class="docstring"><p>Compute probabilities for a batch of error samples given a measurement state.</p>
+
+<p>Args:
+    state: The measurement outcome state to compute probability for: a bool array of
+        shape (num_measurements,), or (num_detectors + num_observables,) with
+        <code>sample_detectors</code>.
+    batch_size: Number of error samples to use for estimation.</p>
+
+<p>Returns:
+    Array of probabilities P(state | error_sample) for each error sample.</p>
 </div>
 
 
@@ -407,12 +1242,17 @@ circuit to encode the state into n qubits.</p>
     </div>
     <a class="headerlink" href="#get_detector_error_model"></a>
     
-            <div class="docstring"><p>The circuit's detector error model, as Tsim's <code>Circuit.detector_error_model</code>: unlike
+            <div class="docstring"><p>The circuit's detector error model, as Tsim's <code><a href="#Circuit.detector_error_model">Circuit.detector_error_model</a></code>: unlike
 Stim's, it allows non-deterministic observables (a logical observable a non-Clifford gate
 leaves random) when <code>allow_non_deterministic_observables</code> is set, by converting the
 observables into detectors, building the model with <code>allow_gauge_detectors=True</code>, and
 converting those detectors back into observables; gauge errors on observables alone
 (<code>error(0.5) L0</code>) are dropped. With <code>decompose_errors</code> that conversion is not supported.</p>
+
+<p>A <code>tsim.Circuit</code>'s model is Tsim's: Stim's analysis of Tsim's tagged form, which reads T
+as <code>S</code>, a rotation or <code>U3</code> as <code>I</code> and a Pauli-product rotation as <code>SPP</code> (so
+<code>R 0</code>, <code>H 0</code>, <code>T 0</code>, <code>H 0</code>, <code>M 0</code> has a random observable, <code>error(0.5) D0 L0</code>);
+a <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>'s reads <code>I[T]</code> and the rotations as the identity.</p>
 
 <p>WARNING: if the circuit has distance one (an error flips an observable alone), the model is
 wrong, as Tsim's is.</p>
@@ -474,6 +1314,20 @@ wrong, as Tsim's is.</p>
 <li>SPP_DAG[T] → TPP_DAG</li>
 <li>S[T] → T</li>
 <li>S_DAG[T] → T_DAG</li>
+</ul>
+
+<p>and this package's tagged forms (stabilizer_qec's addition), angles in radians of
+exp(−iθP) written back in half-turns:</p>
+
+<ul>
+<li>I[T] / I[T_DAG] → T / T_DAG</li>
+<li>I[R_X(theta=t)] → R_X(2t/π), and R_Y, R_Z</li>
+<li>I[U3(theta=a, phi=b, lambda=c)] → U3(a/π, b/π, c/π)</li>
+<li>I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0*Y1 (the same gate as
+R_PAULI(±0.25), which prints so)</li>
+<li>I[R_PAULI(theta=t, pauli=ZZ)] 0 1 → R_ZZ(2t/π) 0 1; any other product
+R_PAULI(2t/π) X0*Y1</li>
+<li>II[R_XX(theta=t)] 0 1 2 3 → R_XX(2t/π) 0 1 and R_XX(2t/π) 2 3, a line a pair</li>
 </ul>
 </div>
 
