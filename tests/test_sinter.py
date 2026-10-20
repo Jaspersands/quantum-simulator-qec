@@ -48,7 +48,8 @@ def test_decoders_and_samplers_agree_with_pymatching_in_a_sweep():
     for name in ("sq_matching", "sq_sim_matching"):
         rate, s = r[name]
         assert s.shots >= 40_000 and abs(rate - ref) < 5 * np.sqrt(2) * sigma, (name, rate, ref)
-    assert r["sq_correlated_matching"][0] < ref + 5 * sigma
+    # (Each rate from its own shots: their difference spreads by sqrt(2) sigma.)
+    assert r["sq_correlated_matching"][0] < ref + 5 * np.sqrt(2) * sigma
 
 
 def test_belief_matching_and_bposd_run_under_sinter():

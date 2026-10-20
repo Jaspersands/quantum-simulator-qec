@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import math
 import os
+import platform
 import re
 import sys
 from typing import Any, Iterable, Iterator, List, Sequence, Tuple
@@ -237,7 +238,10 @@ def _preserve(out: "_sq.DetectorErrorModel", num_detectors: int, num_observables
         out.append("logical_observable", [], [_sq.target_logical_observable_id(num_observables - 1)])
 
 
-_NAN_ARGUMENT = "Parens arguments for 'detector error model instruction' didn't end with a ')'."
+# Tesseract's NaN reaches Python as text, which Stim refuses: "nan" where the default NaN is
+# positive (ARM64), "-nan" from Linux's C++ library on x86, where its sign bit is set.
+_NAN_ARGUMENT = ("Not a real number: -" if sys.platform.startswith("linux") and platform.machine().lower() in ("x86_64", "amd64")
+                 else "Parens arguments for 'detector error model instruction' didn't end with a ')'.")
 
 
 def _probability_argument(p: float) -> float:

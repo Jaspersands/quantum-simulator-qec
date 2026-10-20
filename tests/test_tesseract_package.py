@@ -358,13 +358,18 @@ def test_decoder_config_assignment_and_orders():
             bad.config.det_orders = [[0] * d.num_detectors]
             with pytest.raises(ValueError, match="more than once"):
                 bad.decode_to_errors(shots[0])
+        # (Without an order Tesseract indexes an empty vector: refused on macOS, undefined
+        # elsewhere. This package refuses it everywhere.)
+        checked = mod is O or sys.platform == "darwin"
         dec.config.det_orders = []
-        with pytest.raises(RuntimeError, match="not been resolved"):
-            dec.decode_to_errors(shots[0])
+        if checked:
+            with pytest.raises(RuntimeError, match="not been resolved"):
+                dec.decode_to_errors(shots[0])
         dec = mod.tesseract.TesseractConfig(d).compile_decoder()
         dec.config = mod.tesseract.TesseractConfig(d, det_beam=0)
-        with pytest.raises(RuntimeError, match="not been resolved"):
-            dec.decode_to_errors(shots[0])
+        if checked:
+            with pytest.raises(RuntimeError, match="not been resolved"):
+                dec.decode_to_errors(shots[0])
         dec.config = mod.tesseract.TesseractConfig(d, det_beam=0, det_orders=rev)
         out.append(decodes(dec, shots))
         other = mod.tesseract.TesseractConfig(d, det_beam=2).compile_decoder()

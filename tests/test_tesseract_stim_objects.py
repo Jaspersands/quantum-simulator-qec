@@ -63,7 +63,7 @@ def test_demutil_keeps_the_kind_of_model():
 
 def test_decoder_config_is_read_at_every_decode():
     dem = sq.DetectorErrorModel(str(CIRCUIT.detector_error_model()))
-    shots = CIRCUIT.compile_detector_sampler(seed=11).sample(40)
+    shots = sq.Circuit(str(CIRCUIT)).compile_detector_sampler(seed=11).sample(40)  # (the same shots everywhere: Stim's vary by version)
     # (Beam climbing finds the same errors on this model; tests/test_tesseract_package.py
     # checks it live against Tesseract.)
     for field, value, base in (("det_beam", 0, {}), ("pqlimit", 3, {}), ("det_penalty", 5.0, {})):
