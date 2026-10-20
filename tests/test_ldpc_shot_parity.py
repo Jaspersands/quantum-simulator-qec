@@ -13,8 +13,10 @@ import warnings
 import numpy as np
 import pytest
 
-import stabilizer_qec.ldpc as S
-import stabilizer_qec.ldpc.lsd_decoder
+pytest.importorskip("scipy")
+
+import stabilizer_qec.ldpc as S  # noqa: E402
+import stabilizer_qec.ldpc.lsd_decoder  # noqa: E402
 
 DATA = pathlib.Path(__file__).parent / "data"
 

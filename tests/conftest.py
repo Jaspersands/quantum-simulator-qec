@@ -110,11 +110,11 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip)
 
 
-# ldpc's own tests (tests/ldpc_port) need scipy, as stabilizer_qec.ldpc does, and so do Tesseract's
-# GARI tests: without it they are not collected.
+# ldpc's and stimbposd's own tests (tests/ldpc_port, tests/stimbposd_port) need scipy, as their ports
+# do, and so do Tesseract's GARI tests: without it they are not collected.
 import importlib.util as _importlib_util  # noqa: E402
 
-collect_ignore_glob = [] if _importlib_util.find_spec("scipy") else ["ldpc_port/test_*.py", "tesseract_port/test_tesseract_gari.py", "tesseract_port/test_tesseract_demutil.py"]
+collect_ignore_glob = [] if _importlib_util.find_spec("scipy") else ["ldpc_port/test_*.py", "stimbposd_port/test_*.py", "tesseract_port/test_tesseract_gari.py", "tesseract_port/test_tesseract_demutil.py"]
 
 # qLDPC's own tests (tests/qldpc_port) need what stabilizer_qec.qldpc does: Python 3.11 and the
 # `qldpc` extra.
