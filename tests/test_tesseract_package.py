@@ -467,9 +467,10 @@ def test_errors_raised_as_tesseracts_binding_raises_them(tmp_path):
         "orders of None": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "det_orders", None),
         "a model of None": lambda m, d: setattr(m.tesseract.TesseractConfig(d), "dem", None),
     }
-    # (Tesseract hands None to fopen as a null path: macOS's fopen fails quietly, as the port
-    # does; glibc's crashes, so Tesseract is called for it only on macOS.)
-    crashes = set() if sys.platform == "darwin" else {"a visualizer file of None"}
+    # (Tesseract hands None to fopen as a null path, and writes to the null file fopen returns
+    # for a path it cannot open: macOS's C library fails quietly, as the port does; glibc's
+    # crashes, so Tesseract is called for those only on macOS.)
+    crashes = set() if sys.platform == "darwin" else {"a visualizer file of None", "a visualizer file that cannot be opened"}
     for label, case in cases.items():
         if label in crashes:
             assert raised(lambda: case(O, ours(dem))) is None, label
