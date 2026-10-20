@@ -12,6 +12,7 @@ import ctypes
 import io
 import os
 import pickle
+import platform
 import random
 import subprocess
 import sys
@@ -381,8 +382,13 @@ def test_beam_climbing_with_a_negative_beam(beam):
     dem, shots = surface()
     for climbing in (True, False):
         # (A negative beam is no beam: the queue bound keeps the search short.)
-        td = T.tesseract.TesseractConfig(dem, det_beam=beam, beam_climbing=climbing, pqlimit=2000).compile_decoder()
         od = O.tesseract.TesseractConfig(ours(dem), det_beam=beam, beam_climbing=climbing, pqlimit=2000).compile_decoder()
+        if climbing and beam == -1 and platform.machine().lower() not in ("arm64", "aarch64"):
+            # A remainder by zero, which traps (SIGFPE) in Tesseract off ARM64: the port climbs
+            # as on ARM64, where Tesseract runs.
+            decodes(od, shots[:6])
+            continue
+        td = T.tesseract.TesseractConfig(dem, det_beam=beam, beam_climbing=climbing, pqlimit=2000).compile_decoder()
         assert decodes(td, shots[:6]) == decodes(od, shots[:6])
 
 

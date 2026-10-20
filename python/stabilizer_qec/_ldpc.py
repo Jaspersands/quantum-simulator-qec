@@ -12,6 +12,7 @@ exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns t
 
 from __future__ import annotations
 
+import sys
 import warnings
 from typing import Any, List, Optional, Union
 
@@ -58,6 +59,18 @@ def _tname(value: Any) -> str:
     return t.__name__ if t.__module__ == "builtins" else f"{t.__module__}.{t.__name__}"
 
 
+def _type_error(name: str, expected: str, value: Any) -> TypeError:
+    """Cython's TypeError for an argument of the wrong type. ldpc's wheels for Python 3.10
+    and 3.11 were built by a Cython that adds a note when the value's type subclasses the builtin
+    expected."""
+    message = f"Argument '{name}' has incorrect type (expected {expected}, got {_tname(value)})"
+    builtin = {"int": int, "float": float, "str": str, "list": list}.get(expected)
+    if sys.version_info < (3, 12) and builtin is not None and isinstance(value, builtin):
+        message += (". Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types."
+                    " If you need to pass subclasses then set the 'annotation_typing' directive to False.")
+    return TypeError(message)
+
+
 def _typed(value: Any, kind: str, name: str = "value", strict: bool = False) -> None:
     """ldpc's typed arguments: a value of the wrong kind is a TypeError with Cython's message.
     Cython's check is exact (no bool for an int, no NumPy scalar, no int for a float); unless
@@ -67,7 +80,7 @@ def _typed(value: Any, kind: str, name: str = "value", strict: bool = False) -> 
     else:
         ok = not isinstance(value, bool) and isinstance(value, (float, int, np.floating, np.integer) if kind == "float" else (int, np.integer))
     if not ok:
-        raise TypeError(f"Argument '{name}' has incorrect type (expected {kind}, got {_tname(value)})")
+        raise _type_error(name, kind, value)
 
 
 # The arguments ldpc's constructors declare as str, Optional[str] or Optional[List[int]], which
@@ -87,7 +100,7 @@ def _arg_typed(value: Any, name: str, want: type, optional: bool, strict: bool) 
     else:
         ok = value is not None
     if not ok:
-        raise TypeError(f"Argument '{name}' has incorrect type (expected {want.__name__}, got {_tname(value)})")
+        raise _type_error(name, want.__name__, value)
 
 
 def _cinit_args(strict: bool, **given: Any) -> None:
@@ -99,7 +112,7 @@ def _cinit_args(strict: bool, **given: Any) -> None:
 def _osd_order_arg(order: Any) -> None:
     """The constructors' ``osd_order: int``, which Cython takes from any number."""
     if not isinstance(order, (int, float, np.integer, np.floating)):
-        raise TypeError(f"Argument 'osd_order' has incorrect type (expected int, got {_tname(order)})")
+        raise _type_error("osd_order", "int", order)
 
 
 def _probability(p: Any) -> float:
@@ -1124,7 +1137,7 @@ class BeliefFindDecoder(BpDecoderBase):
         self._uf = call(_core.LdpcUf, self.m, self._cols)
         _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order)
         if not isinstance(uf_method, str):
-            raise TypeError(f"Argument 'uf_method' has incorrect type (expected str, got {_tname(uf_method)})")
+            raise _type_error("uf_method", "str", uf_method)
         _cinit_args(self._strict, input_vector_type=input_vector_type)
         if uf_method.lower() in ("inversion", "invert", "matrix"):
             self._uf_method = "inversion"

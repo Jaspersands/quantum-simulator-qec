@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 
-@dataclass(slots=True)
+@dataclass
 class patch:
     """A logical qubit patch representation for surface code quantum error correction.
 
@@ -26,6 +26,9 @@ class patch:
     ancz : sequence of int
         The Z-basis ancilla qubits used for syndrome measurement.
     """
+
+    # CUDA-Q's dataclass(slots=True), written out: slots= needs Python 3.10.
+    __slots__ = ("data", "ancx", "ancz")
 
     data: Sequence[int]
     ancx: Sequence[int]
