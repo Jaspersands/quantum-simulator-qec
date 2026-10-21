@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from stabilizer_qec import _stim
 from stabilizer_qec.tsim.core.tags import is_t_tag
-from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _is_tpp_radians, _native_args, _no_args, _product_rotation, _read_turns
+from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _native_args, _no_args, _pair_rotation, _product_rotation, _read_turns
 from stabilizer_qec.tsim.zx.graph import ZXGraph
 from stabilizer_qec.tsim.zx.instructions import (
     GATE_TABLE,
@@ -144,15 +144,6 @@ def _pauli_targets(factors: List[Tuple[bool, str, int]]) -> List[int]:
     return raw
 
 
-def _spp_of_rotation(theta: str, factors: List[Tuple[bool, str, int]]) -> TsimInstruction:
-    """A product rotation exp(-i theta P), ``theta`` its stored radians, as Tsim's ``SPP[T]`` (+-pi/8
-    as ``repr`` writes it, ``TPP``) or ``SPP[R_PAULI(theta=a*pi)]`` (any other, ``R_PAULI(+-0.25)``
-    among them: +-pi/8 with further digits)."""
-    if _is_tpp_radians(theta):
-        return TsimInstruction("SPP" if float(theta) > 0 else "SPP_DAG", "T", [], _pauli_targets(factors))
-    return TsimInstruction("SPP", f"R_PAULI(theta={_read_turns(theta, 0.5)}*pi)", [], _pauli_targets(factors))
-
-
 def tsim_instructions(circuit: Any) -> Iterator[Any]:
     """The instructions of a circuit (loops unrolled, coordinate shifts folded in) in Tsim's tagged-Stim
     form, as ``parse_stim_circuit`` reads them.
@@ -218,10 +209,14 @@ def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Op
                 return []
             tag = "T" if turns is None else f"R_PAULI(theta={turns}*pi)"
             return [TsimInstruction("SPP_DAG" if dagger else "SPP", tag, [], _pauli_targets(factors))]
-        if name == "II" and gate in ("R_XX", "R_YY", "R_ZZ") and set(params) == {"theta"} and len(targets) % 2 == 0:
-            qubits = [_stim.GateTarget._raw(v).value for v in targets]
-            p = gate[2]
-            return [_spp_of_rotation(params["theta"], [(False, p, qubits[i]), (False, p, qubits[i + 1])]) for i in range(0, len(qubits), 2)]
+        if name == "II":
+            # A pair rotation, Tsim's SPP[R_PAULI(theta=a*pi)] of its pairs (SPP[T] or SPP_DAG[T] at +-pi/8 as
+            # ``repr`` writes it, its SPP_DAG with an empty argument first), fused as Stim fuses them.
+            pair = _pair_rotation(gate, body, params, [_stim.GateTarget._raw(v).value for v in targets])
+            if pair is not None:
+                dagger, turns, products = pair
+                tag = "T" if turns is None else f"R_PAULI(theta={turns}*pi)"
+                return [TsimInstruction("SPP_DAG" if dagger else "SPP", tag, [], _pauli_targets(factors)) for factors in products]
     except ValueError:
         return None
     return None

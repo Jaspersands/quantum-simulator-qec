@@ -65,14 +65,25 @@ def _product_rotation_or_none(args: dict, targets: List[str]):
         return None
 
 
+def _pair_rotation_or_none(name: str, body: Optional[str], args: dict, targets: List[str]):
+    """``program_text._pair_rotation``, ``None`` for an argument that is not a number."""
+    from stabilizer_qec.tsim.utils.program_text import _pair_rotation
+
+    try:
+        return _pair_rotation(name, body, args, targets)
+    except ValueError:
+        return None
+
+
 def stim_reading(text: str) -> str:
     """This package's tagged operations as Stim reads Tsim's tagged form of them, the gate
     carrying the tag and the tag dropped: T is ``S`` (``S[T]``), T_DAG ``S_DAG``, a rotation or
     ``U3`` ``I`` (``I[R_Z(theta=a*pi)]``), a Pauli-product rotation (on ``I`` or ``II``) its Tsim
     instruction's gate on its product (``SPP[R_PAULI(theta=a*pi)] !X0`` is ``SPP !X0``,
-    ``SPP_DAG[T] X0`` ``SPP_DAG X0``), a pair rotation (``II[R_ZZ(theta=t)] 0 1``) ``SPP Z0*Z1``.
+    ``SPP_DAG[T] X0`` ``SPP_DAG X0``), a pair rotation (``II[R_ZZ(theta=t)] 0 1``) ``SPP Z0*Z1``
+    (its ``SPP_DAG``, ``II[R_ZZ(, theta=t)]`` or ``TPP_DAG``, ``SPP_DAG Z0*Z1``).
     Tsim builds its detector error model of that reading; every other line is as it is."""
-    from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _no_args, _product_text
+    from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _no_args, _pair_rotation, _product_text
 
     lines = []
     for line in text.split("\n"):
@@ -87,6 +98,7 @@ def stim_reading(text: str) -> str:
         args = _native_args(body) if body else {}
         # A product rotation on I or II alike, one product over the targets, as the core reads it.
         product = _product_rotation_or_none(args, targets) if name == "R_PAULI" and args and set(args) == {"theta", "pauli"} else None
+        pair = _pair_rotation_or_none(name, body, args, targets) if gate == "II" and args else None
         if gate == "I" and _no_args(body) and name in ("T", "T_DAG"):
             lines.append(f"{indent}{'S' if name == 'T' else 'S_DAG'} {' '.join(targets)}")
         elif gate == "I" and name in ("R_X", "R_Y", "R_Z", "U3") and args:
@@ -95,10 +107,9 @@ def stim_reading(text: str) -> str:
             dagger, _, factors = product
             if factors:
                 lines.append(f"{indent}{'SPP_DAG' if dagger else 'SPP'} {_product_text(factors)}")
-        elif gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and args and len(targets) % 2 == 0:
-            p = name[2]
-            products = " ".join(f"{p}{targets[i]}*{p}{targets[i + 1]}" for i in range(0, len(targets), 2))
-            lines.append(f"{indent}SPP {products}")
+        elif pair is not None:
+            dagger, _, products = pair
+            lines.append(f"{indent}{'SPP_DAG' if dagger else 'SPP'} {' '.join(_product_text(factors) for factors in products)}")
         else:
             lines.append(line)
     return "\n".join(lines)

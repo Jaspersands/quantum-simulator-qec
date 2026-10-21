@@ -80,12 +80,23 @@ Where it differs from Tsim:
   ``TPP !X0``), and it fuses with its neighbours, counts towards ``R_PAULI``'s 64 qubits and is
   quoted in errors as in Tsim. Text in this form is read as the core reads it: ``_`` and ``I`` are
   identity letters (``I[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2`` is Tsim's ``R_PAULI(...) X0*Z2``),
-  spaces and empty arguments in a tag are skipped, ``I[T()]`` is ``I[T]``, ``R_PAULI`` on ``II`` is
+  spaces and empty arguments in a tag are skipped (but a pair rotation's empty first argument,
+  its ``SPP_DAG``, below), ``I[T()]`` is ``I[T]``, ``R_PAULI`` on ``II`` is
   the product rotation it is on ``I`` (``II[R_PAULI(theta=0.1, pauli=XZ)] 0 1`` is Tsim's
-  ``R_PAULI(...) X0*Z1``, its inverse that of the ``I`` form), and on ``I_ERROR`` or ``II_ERROR``
-  it is a coherent error, no gate.
+  ``R_PAULI(...) X0*Z1``, its inverse that of the ``I`` form on ``II``), and on ``I_ERROR`` or
+  ``II_ERROR`` it is a coherent error, no gate. A product rotation whose letters are all identities
+  (``pauli=__``) is no operation and is left out of the print, as the core, the graph and the model
+  read it (Tsim would read ``II[R_PAULI(...)] 1 2`` as a plain ``II`` naming qubits 1 and 2). A pair
+  rotation ``II[R_ZZ(theta=t)] 0 1 2 3`` (``R_XX``, ``R_YY``) is Tsim's ``R_ZZ(a) 0 1`` and
+  ``R_ZZ(a) 2 3``; its ``SPP_DAG`` is written with an empty argument first,
+  ``II[R_ZZ(, theta=-t)] 3 2 1 0``, as a product rotation's has its arguments in the other order,
+  and prints as Tsim's ``SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2 Z1*Z0``: so the inverse of a pair
+  rotation, or of a product rotation on ``II``, is one instruction, as Tsim's, and its inverse the
+  circuit again.
 - Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
-  them into one, which its shorthand misprints), and a product naming one qubit twice prints as
+  them into one, which its shorthand misprints), as do a pair rotation's ``TPP``s on several pairs
+  (``TPP_DAG X0*X1`` then ``TPP_DAG X2*X3``, the inverse ``TPP X3*X2`` then ``TPP X1*X0``, where
+  Tsim prints ``TPP X3*X2 X1*X0``), and a product naming one qubit twice prints as
   ``R_PAULI(0.3) X0*X0`` (Tsim's shorthand ``R_XX(0.3) 0 0`` does not read back). They are one
   instruction to the ZX graph, as in Tsim, so ``R_PAULI``'s limit of 64 qubits is counted over
   them (33 ``R_ZZ(0.3)`` lines in a row are Tsim's error, "got 66").
@@ -113,7 +124,8 @@ Where it differs from Tsim:
   (``TPP X0*Y0*X0``, whose sign the engine does not keep): then it raises that error, as Tsim's.
   Where a product leaves a qubit out of Tsim's graph (an identity letter's, ``pauli=X_``, or one
   ``SPP X0*X0`` cancels on), that matrix is Tsim's of the circuit without the instruction up to
-  a global phase, as the engine's.
+  a global phase, as the engine's: its qubits are those Tsim's graph of that circuit has lanes
+  for, as every ``to_matrix`` is.
 """
 
 from . import sampler, zx

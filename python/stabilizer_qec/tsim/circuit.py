@@ -20,6 +20,7 @@ from stabilizer_qec.tsim._native import tsim_to_native
 from stabilizer_qec.tsim.utils.program_text import (
     _NATIVE_LINE,
     _NATIVE_TAG,
+    _is_daggered_pair,
     _is_tpp_radians,
     _native_args,
     controlled_gate_decomposition_lines,
@@ -82,6 +83,9 @@ def _of_native_text(cls: type, text: str) -> "Circuit":
 # (with TPP's and R_PAULI's I[R_PAULI(...)] and the pair rotations' II[R_ZZ(...)], ``_lane_scan``).
 _PRODUCT_GATES = frozenset({"SPP", "SPP_DAG", "MPP"})
 _PAIR_ROTATIONS = frozenset({"R_XX", "R_YY", "R_ZZ"})
+# The gates Tsim's builders write through the output qubit -2 (a reset, the operation, a measurement): the
+# measurements of products and pads, and heralded noise.
+_OUTPUT_QUBIT_GATES = frozenset({"MPP", "MXX", "MYY", "MZZ", "MPAD", "HERALDED_ERASE", "HERALDED_PAULI_CHANNEL_1"})
 # The builders' messages for an instruction they cannot read (Tsim's ``parse_parametric_tag`` and gate
 # dispatch), as opposed to their refusals of products and sweep bits.
 _UNREAD_BY_TSIMS_BUILDERS = ("Could not parse instruction ", "Unknown gate: ")
@@ -114,6 +118,12 @@ def _inverted_product(theta: str, letters: str, dagger: bool) -> str:
     return f"pauli={letters}, theta={negated}" if dagger else f"theta={negated}, pauli={letters}"
 
 
+def _pairs_turned(targets: list) -> str:
+    """An ``II``'s targets with each pair's two exchanged (`` 1 0 3 2`` for ``0 1 2 3``): the core's inverse,
+    which reverses an ``II``'s pairs and keeps each pair's order, then reverses them all."""
+    return "".join(f" {targets[i + 1]} {targets[i]}" for i in range(0, len(targets), 2))
+
+
 def _rotations_inverted(text: str) -> Union[str, None]:
     """This package's text of a circuit with each rotation's tag (``I[R_Z(theta=t)]``,
     ``I[R_PAULI(theta=t, pauli=XZ)]``, ``II[R_ZZ(theta=t)]``, ``I[U3(...)]``) replaced by its
@@ -122,10 +132,12 @@ def _rotations_inverted(text: str) -> Union[str, None]:
     reversed (the inverse reverses the targets) and its ``SPP`` and ``SPP_DAG`` exchanged (Tsim's
     inverse of ``R_PAULI(0.3) X0`` is ``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``), and ``U3(θ, φ, λ)`` as
     ``U3(−θ, −λ, −φ)``, under names the core's inverse leaves alone; ``None`` if the text already has
-    such a name. A product rotation on ``II`` (one product over its targets, as on ``I``) is inverted
-    as on ``I``, and a pair rotation ``II[R_ZZ(theta=t)] 0 1`` as the product rotation it prints as
-    (``R_ZZ(...) 0 1``, ``I[R_PAULI(theta=t, pauli=ZZ)] 0 1``), a line a pair: so each inverse is
-    Tsim's inverse of the print (``SPP_DAG[R_PAULI(theta=a*pi)] Z1*Z0``)."""
+    such a name. A product rotation on ``II`` (one product over its targets, as on ``I``) and a pair
+    rotation (``II[R_ZZ(theta=t)] 0 1 2 3``) keep their gate, their targets all reversed as an ``I``'s
+    are (each pair's two exchanged here, the core reversing the pairs), so each inverse is one
+    instruction, Tsim's inverse of the print (``SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2 Z1*Z0``, a pair
+    rotation's ``SPP_DAG`` written with an empty argument first, ``II[R_ZZ(, theta=-t)] 3 2 1 0``), and
+    the inverse of the inverse is the circuit."""
     if _AS_INVERTED in text:
         return None
     out = []
@@ -140,14 +152,18 @@ def _rotations_inverted(text: str) -> Union[str, None]:
         name, targets = t.group(1), rest.split()
         if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"}:
             tag = f"theta={_negated(args['theta'])}"
-        elif gate == "II" and name in _PAIR_ROTATIONS and set(args) == {"theta"} and len(targets) % 2 == 0:
-            inverse = _inverted_product(args["theta"], name[2] * 2, False)
-            out.extend(f"{indent}I[R_PAULI{_AS_INVERTED}({inverse})] {targets[i]} {targets[i + 1]}" for i in range(0, len(targets), 2))
-            continue
+        elif gate == "II" and name in _PAIR_ROTATIONS and set(args) == {"theta"} and targets and len(targets) % 2 == 0:
+            # Its SPP and SPP_DAG exchanged (the empty first argument; a TPP's dagger is its sign), as
+            # ``_inverted_product`` exchanges a product rotation's.
+            dagger = _is_daggered_pair(t.group(2)) != (not _is_tpp_radians(args["theta"]))
+            tag = f"{', ' if dagger else ''}theta={_negated(args['theta'], zero=None)}"
+            rest = _pairs_turned(targets)
         elif name == "R_PAULI" and set(args) == {"theta", "pauli"}:
-            # Written on I, whose inverse reverses the targets (an II's reverses its pairs, each pair's
-            # order kept), the letters reversed with them.
-            gate, tag = "I", _inverted_product(args["theta"], args["pauli"][::-1], list(args) == ["pauli", "theta"])
+            # The targets all reversed (an I's by the core, an II's turned pair by pair here first), the
+            # letters reversed with them.
+            tag = _inverted_product(args["theta"], args["pauli"][::-1], list(args) == ["pauli", "theta"])
+            if gate == "II":
+                rest = _pairs_turned(targets)
         elif gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
             tag = f"theta={_negated(args['theta'])}, phi={_negated(args['lambda'])}, lambda={_negated(args['phi'])}"
         else:
@@ -157,39 +173,62 @@ def _rotations_inverted(text: str) -> Union[str, None]:
     return "\n".join(out)
 
 
-def _qubits_named(circuit: Any) -> set:
-    """The qubits a circuit's instructions target (a loop's body read once)."""
-    out: set = set()
-    for item in circuit:
-        if isinstance(item, _stim.CircuitRepeatBlock):
-            out |= _qubits_named(item.body_copy())
+def _product_lanes(factors: Iterable) -> set:
+    """The qubits a Pauli product's factors ``(letter, qubit)`` leave in it after Tsim's cancellations
+    (``parse._iter_pauli_products``: a letter twice on a qubit cancels, two different are the third), the
+    qubits Tsim's builders give it lanes on: ``X0*Z1*Z1`` is qubit 0, ``Z0*Z0`` none."""
+    held: dict = {}
+    for letter, qubit in factors:
+        if qubit not in held:
+            held[qubit] = letter
+        elif held[qubit] == letter:
+            del held[qubit]
+        else:
+            held[qubit] = ({"X", "Y", "Z"} - {held[qubit], letter}).pop()
+    return set(held)
+
+
+def _products_of(targets: list) -> list:
+    """An ``SPP``'s or ``MPP``'s raw targets as its products, each a list of ``(letter, qubit)``."""
+    products: list = []
+    joined = False
+    for v in targets:
+        t = _stim.GateTarget._raw(v)
+        if t.is_combiner:
+            joined = True
             continue
-        for t in item.targets_copy():
-            q = t.qubit_value
-            if q is not None:
-                out.add(q)
-    return out
+        if products and joined:
+            products[-1].append((t.pauli_type, t.value))
+        else:
+            products.append([(t.pauli_type, t.value)])
+        joined = False
+    return products
 
 
 def _lane_scan(circuit: Any) -> tuple:
-    """``(needs_zx, pair_identity_qubits, products, repeated)``: whether a measurement-free circuit's
-    matrix still needs Tsim's ZX tensor, the qubits an ``II`` names (which the unitary engine does not
-    see), whether it has what Tsim's graph builders can refuse where the engine does not, and whether a
+    """``(needs_zx, lanes, targeted, products, repeated)``: whether a measurement-free circuit's matrix
+    still needs Tsim's ZX tensor, the qubits Tsim's ZX graph of the circuit has a lane for (its
+    ``first_vertex``, the qubits of ``to_matrix`` either way), the qubits its instructions target,
+    whether it has what Tsim's graph builders can refuse where the engine does not, and whether a
     product rotation names a qubit twice.
 
     It needs the ZX tensor when a reset follows the first instruction that names a qubit and that
     instruction is not a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the
-    qubit an input, where the engine counts only an operation as one), or when there is a ``DETECTOR``
+    qubit an input, where the engine counts only an operation as one), when there is a ``DETECTOR``
     or an ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no
-    measurement: a factor of 2 the engine has no part for; one of Pauli targets is Tsim's error). What
-    the builders can refuse is read from the instructions: a Pauli product (``SPP``, ``SPP_DAG``,
-    ``MPP``, a product rotation ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation
-    ``II[R_ZZ(...)]``) or a sweep bit; a tag that only names one (``H[SPP]``, the coherent error
-    ``I_ERROR[R_PAULI(...)]``) is not one. A loop's body is read twice (its second pass shows a reset
-    after the first pass's operations)."""
+    measurement: a factor of 2 the engine has no part for; one of Pauli targets is Tsim's error), or a
+    measurement through Tsim's output qubit -2 (``MPP``, ``MPAD``, heralded noise). The lanes are read
+    as Tsim's builders read the instructions: each qubit an instruction targets, but a Pauli product's
+    are those its product leaves after the builders' cancellations (``SPP X0*Z1*Z1`` names qubit 0,
+    ``TPP Z0*Z0`` none) and a product rotation's identity letters name none (``pauli=X_``, ``I`` or
+    ``_``), an ``MPAD``'s targets are bits, and -2 is the output qubit. What the builders can refuse
+    is read from the instructions: a Pauli product (``SPP``, ``SPP_DAG``, ``MPP``, a product rotation
+    ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``) or a sweep bit; a
+    tag that only names one (``H[SPP]``, the coherent error ``I_ERROR[R_PAULI(...)]``) is not one. A
+    loop's body is read twice (its second pass shows a reset after the first pass's operations)."""
     first_is_reset: dict = {}
     flags: dict = {}
-    pair_identity: set = set()
+    lanes: set = set()
     found = [False, False, False]  # needs_zx, products, repeated
 
     def visit(items: list) -> None:
@@ -202,23 +241,28 @@ def _lane_scan(circuit: Any) -> tuple:
             if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
                 found[0] = True
                 continue
-            pair_identity_here = name == "II"
+            named = None  # the instruction's lanes, when they are not the qubits it targets
             if name in _PRODUCT_GATES:
                 found[1] = True
+                named = set().union(*(_product_lanes(p) for p in _products_of(targets)))
             elif tag and name in ("I", "II"):
                 t = _NATIVE_TAG.match(tag)
                 if t and t.group(1) == "R_PAULI":
-                    # One product over the targets on I or II alike, as the core reads it: an II's qubits are
-                    # its product's, not the identity lanes of a plain II. It names a qubit twice when two of
-                    # its X, Y and Z letters are on it (an identity letter, ``I`` or ``_``, names none).
+                    # One product over the targets on I or II alike, as the core reads it. It names a qubit
+                    # twice when two of its X, Y and Z letters are on it (an identity letter, ``I`` or ``_``,
+                    # names none).
                     found[1] = True
                     args = _native_args(t.group(2)) if t.group(2) else None
                     letters = args.get("pauli") if args else None
-                    named = [q for p, q in zip(letters, targets) if p not in "Ii_"] if letters is not None and len(letters) == len(targets) else list(targets)
-                    found[2] = found[2] or len(set(named)) < len(named)
-                    pair_identity_here = False
+                    qubits = [_stim.GateTarget._raw(v).value for v in targets]
+                    acted = [(p.upper(), q) for p, q in zip(letters, qubits) if p not in "Ii_"] if letters is not None and len(letters) == len(qubits) else [("Z", q) for q in qubits]
+                    found[2] = found[2] or len({q for _, q in acted}) < len(acted)
+                    named = _product_lanes(acted)
                 elif t and t.group(1) in _PAIR_ROTATIONS and name == "II":
                     found[1] = True
+            if name in _OUTPUT_QUBIT_GATES:
+                found[0] = True
+                named = (set() if name == "MPAD" else named if named is not None else {_stim.GateTarget._raw(v).value for v in targets}) | ({-2} if targets else set())
             if name not in flags:
                 flags[name] = bool(_stim.GateData(name).is_reset)
             reset = flags[name]
@@ -228,15 +272,17 @@ def _lane_scan(circuit: Any) -> tuple:
                 q = _stim.GateTarget._raw(v).qubit_value
                 if q is None:
                     continue
-                if pair_identity_here:
-                    pair_identity.add(q)
+                if named is None:
+                    lanes.add(q)
                 if q not in first_is_reset:
                     first_is_reset[q] = reset
                 elif reset and not first_is_reset[q]:
                     found[0] = True
+            if named is not None:
+                lanes.update(named)
 
     visit(circuit._items())
-    return found[0], pair_identity, found[1], found[2]
+    return found[0], lanes, set(first_is_reset), found[1], found[2]
 
 
 class Circuit(_Base):
@@ -602,9 +648,11 @@ class Circuit(_Base):
 
     def to_matrix(self, *, endian: str = "big") -> np.ndarray:
         """Convert circuit to matrix representation, as Tsim's ``to_matrix``: the map the
-        circuit's gates apply to the qubits it names (a qubit no instruction names is dropped,
-        so ``R_ZZ(0.5) 0 2`` is 4 × 4, and so is one only a product that cancels on it names,
-        ``TPP Z0*Z0`` being [[1]] as in Tsim), qubit 0 the most significant bit of an index
+        circuit's gates apply to the qubits Tsim's ZX graph has a lane for, those its instructions
+        name, noise, identities and coordinates among them (a qubit no instruction names is dropped,
+        so ``R_ZZ(0.5) 0 2`` is 4 × 4, and so is one that only a product that cancels on it names,
+        ``TPP Z0*Z0`` being [[1]] as in Tsim and ``SPP X0*Z1*Z1`` 2 × 2, or only a product
+        rotation's identity letter, ``pauli=X_``), qubit 0 the most significant bit of an index
         (``endian="little"``: the least). A qubit whose first operation is a reset (``R``,
         ``RX``, ``RY``) starts in that state and has no input: a circuit that resets every qubit
         first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets some a
@@ -639,17 +687,17 @@ class Circuit(_Base):
         circuit without that instruction up to the engine's global phase."""
         if endian not in ("big", "little"):
             raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
-        needs_zx, pair_identity, products, repeated = _lane_scan(self)
+        needs_zx, lanes, targeted, products, repeated = _lane_scan(self)
         if needs_zx:
             return self._zx_matrix(endian)
         built = None
         if products:
             # Tsim's matrix is of its ZX graph, whose builders refuse what the unitary engine runs: an
             # R_PAULI's repeated qubit or more than 64, an anti-Hermitian product, a sweep bit. Built for
-            # those errors, Tsim's, raised first as in Tsim. A product that cancels on a qubit no other
-            # instruction names (``TPP Z0*Z0``, or an identity letter's qubit, ``pauli=X_Z``) leaves it
-            # out of the graph, so out of Tsim's matrix, and one that names a qubit twice
-            # (``TPP X0*Y0*X0``, -Y) is a sign the engine does not keep: both are the ZX tensor.
+            # those errors, Tsim's, raised first as in Tsim. A product that leaves out of the graph a qubit
+            # no other instruction names (one it cancels on, ``TPP Z0*Z0``, or an identity letter's,
+            # ``pauli=X_Z``) is the ZX tensor, Tsim's exactly, and so is a product rotation naming a qubit
+            # twice (``TPP X0*Y0*X0``, -Y, a sign the engine does not keep).
             from stabilizer_qec.tsim.zx import parse_stim_circuit
 
             try:
@@ -657,24 +705,26 @@ class Circuit(_Base):
             except ValueError as exc:
                 # An instruction the builders cannot read (a tag of someone else's, ``I[foo(x)]``, which
                 # the core leaves inert) is left to the engine, as in a circuit without products, unless a
-                # product rotation names a qubit twice: that is the ZX tensor's (the engine drops the sign
-                # of ``TPP X0*Y0*X0`` and keeps the qubit ``TPP Z0*Z0`` cancels on), and there is no graph,
-                # so Tsim's error, as Tsim's ``to_matrix`` raises it.
+                # product rotation names a qubit twice: that is the ZX tensor's, and there is no graph, so
+                # Tsim's error, as Tsim's ``to_matrix`` raises it.
                 if not str(exc).startswith(_UNREAD_BY_TSIMS_BUILDERS) or repeated:
                     raise
             else:
-                if set(built.first_vertex) != _qubits_named(self) or repeated:
+                if repeated or lanes != targeted or set(built.first_vertex) != lanes:
                     return self._zx_matrix(endian, built)
+        # The engine's qubits are those its operations act on; each lane of Tsim's graph is one too (a qubit
+        # only noise, an identity, an II or an identity letter names is an input the circuit leaves alone,
+        # Tsim's identity), so the two give the matrix of the same qubits.
         ideal = self.without_noise()
-        # A qubit only noise names (or an II) stays, as an input the circuit leaves alone (Tsim's identity).
-        lanes = sorted((_qubits_named(self) - _qubits_named(ideal)) | pair_identity)
         if lanes:
-            ideal = type(self)._of_native(f"I {' '.join(map(str, lanes))}\n{ideal._stim_exact_text()}")
+            ideal = type(self)._of_native(f"I {' '.join(map(str, sorted(lanes)))}\n{ideal._stim_exact_text()}")
         try:
             n, k, data = call(ideal._c.tsim_matrix, endian == "little")
         except ValueError as exc:
             if "has no matrix" not in str(exc):
                 raise
+            return self._zx_matrix(endian, built)
+        if n != len(lanes):  # the engine acts on a qubit Tsim's graph has no lane for
             return self._zx_matrix(endian, built)
         return np.frombuffer(data, dtype="<c16").reshape(1 << n, 1 << k).copy()
 

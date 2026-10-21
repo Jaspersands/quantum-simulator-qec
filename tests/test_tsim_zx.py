@@ -1361,7 +1361,8 @@ def test_random_product_rotations_against_tsim(seed):
 
 # The stored forms the core reads (src/nonpauli.rs ``parse``) and the spelling this package writes of
 # each: an ``R_PAULI``'s ``_`` letter is an identity, as ``I`` is; empty arguments (``theta=0.1,``) are
-# skipped; spaces around the name, the brackets, the commas and the ``=`` are read past; ``T()`` is T.
+# skipped, but a pair rotation's first (its ``SPP_DAG``); spaces around the name, the brackets, the commas
+# and the ``=`` are read past; ``T()`` is T.
 STORED_SPELLINGS = {
     "I[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2": "I[R_PAULI(theta=0.1, pauli=XIZ)] 0 1 2",
     "I[R_PAULI(theta=0.1, pauli=x_Z)] 0 1 2": "I[R_PAULI(theta=0.1, pauli=xIZ)] 0 1 2",
@@ -1386,6 +1387,11 @@ STORED_SPELLINGS = {
     "II[R_PAULI(theta=-0.39269908169872414, pauli=ZxY_)] 1 0 2 1": "I[R_PAULI(theta=-0.39269908169872414, pauli=ZxYI)] 1 0 2 1",
     "II[ R_PAULI ( theta = +.1 ,, pauli = XzyX ) ] 0 1 2 0": "I[R_PAULI(theta=+.1, pauli=XzyX)] 0 1 2 0",
     "II[R_PAULI(theta=0.1, pauli=__)] 0 1": "I[R_PAULI(theta=0.1, pauli=II)] 0 1",
+    # A pair rotation's ``SPP_DAG`` is written with an empty argument first (as a product rotation's has
+    # its arguments in the other order), whatever the spaces around it.
+    "II[R_ZZ( ,theta = -0.1 )] 1 0": "II[R_ZZ(, theta=-0.1)] 1 0",
+    "II[ R_XX (,,theta=0.3,)] 0 1 2 3": "II[R_XX(, theta=0.3)] 0 1 2 3",
+    "II[R_YY(\t, theta=-0.39269908169872414)] 0 1": "II[R_YY(, theta=-0.39269908169872414)] 0 1",
 }
 
 
@@ -1413,9 +1419,7 @@ def assert_read_as_spelled(stored: str, spelled: str) -> None:
         assert str(a) == str(b) if len(a) == len(b) else str(tsim.Circuit(str(a))) == str(b), stored
 
     mine, theirs = tsim.Circuit(sq.Circuit(stored)), tsim.Circuit(sq.Circuit(spelled))
-    printed = "I[R_PAULI" not in str(theirs)  # an all-identity product prints as stored
-    if printed:
-        same_print(mine, theirs)
+    same_print(mine, theirs)
     # Stim's reading, as the model reads it (a circuit, consecutive lines of one gate fused).
     assert str(sq.Circuit(stim_reading(mine._stim_exact_text()))) == str(sq.Circuit(stim_reading(theirs._stim_exact_text()))), stored
     for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
@@ -1431,8 +1435,7 @@ def assert_read_as_spelled(stored: str, spelled: str) -> None:
         u = undone[1]
         assert abs(abs(u.flat[0]) - 1) < 1e-9 and np.allclose(u, u.flat[0] * np.eye(len(u)), atol=1e-9, rtol=0), stored
     if a[0] == "ok" and len(mine) == len(theirs):
-        if printed:
-            same_print(a[1], b[1])
+        same_print(a[1], b[1])
         assert outcome(lambda: record(a[1].get_graph(backend="own"))) == outcome(lambda: record(b[1].get_graph(backend="own"))), stored
         same_matrix(a[1], b[1])
     elif a[0] == "ok":  # the core inverts lines it did not fuse in another order (``T_DAG 0 1``, not ``1 0``)
@@ -1445,7 +1448,7 @@ def test_a_stored_form_the_core_reads_is_read_as_its_spelling(stored):
     (Tsim reading this package's printing of it) as Tsim's instruction."""
     for mine, theirs in zip(stored_circuits(stored), stored_circuits(STORED_SPELLINGS[stored])):
         assert_read_as_spelled(mine, theirs)
-        if importlib.util.find_spec("tsim") is not None and "pauli=__" not in stored:
+        if importlib.util.find_spec("tsim") is not None:
             import tsim as real
 
             c = tsim.Circuit(sq.Circuit(mine))
@@ -1456,7 +1459,10 @@ def test_a_stored_form_the_core_reads_is_read_as_its_spelling(stored):
                 assert_matrix_is_tsims(c, ref)
             inverse = outcome(ref.inverse)
             if inverse[0] == "ok" and outcome(inverse[1].to_matrix)[0] == "ok":
-                assert str(c.inverse()) == str(inverse[1]), stored
+                # Tsim's print, or (a product a line here, PRINTED_HERE: Tsim's shorthand of one rotation of
+                # two products, ``R_XX(a) 3 2 X1*X0``, does not read back) one Tsim reads as its inverse.
+                ours = str(c.inverse())
+                assert ours == str(inverse[1]) or (str(real.Circuit(ours)) == str(inverse[1]) and ours.count("\n") > str(inverse[1]).count("\n")), stored
                 assert record(c.inverse().get_graph(backend="own")) == record(inverse[1].get_graph()), stored
                 assert_matrix_is_tsims(c.inverse(), inverse[1])
 
@@ -1485,8 +1491,10 @@ def test_an_ii_r_pauli_is_one_product_as_in_the_core():
     assert got.shape == (4, 4) and np.allclose(got, got.flat[i] / want.flat[i] * want, atol=1e-12, rtol=0)
     four = tsim.Circuit(sq.Circuit("H 0 1 2 3\nII[R_PAULI(theta=0.1, pauli=XZYy)] 0 1 2 3"))
     assert str(four) == "H 0 1 2 3\nR_PAULI(-0.06366197723675814) X0*Z1*Y2*!Y3"
-    # Inverted as I's (the targets reversed, not II's pairs): the core's inverse of the I spelling.
-    assert four.inverse()._stim_exact_text() == "I[R_PAULI(pauli=yYZX, theta=-0.1)] 3 2 1 0\nH 3 2 1 0"
+    # Inverted as I's (the targets all reversed, not II's pairs: the core's inverse of the I spelling),
+    # its gate kept, so the inverse of the inverse is the circuit.
+    assert four.inverse()._stim_exact_text() == "II[R_PAULI(pauli=yYZX, theta=-0.1)] 3 2 1 0\nH 3 2 1 0"
+    assert four.inverse().inverse() == four and len(four.inverse()) == len(four)
     assert str(four.inverse()) == "SPP_DAG[R_PAULI(theta=-0.06366197723675814*pi)] !Y3*Y2*Z1*X0\nH 3 2 1 0"
     undone = (four + four.inverse()).to_matrix()
     assert np.allclose(undone, undone[0, 0] * np.eye(16), atol=1e-12, rtol=0) and abs(abs(undone[0, 0]) - 1) < 1e-12
@@ -1583,6 +1591,9 @@ def random_stored_form(rng, n: int) -> tuple:
         for _ in range(int(rng.integers(0, 3))):  # empty arguments, which the core skips
             parts.insert(int(rng.integers(0, len(parts) + 1)), ws())
         spelled = f"{name}({', '.join(f'{k}={v}' for k, v in spelled_args)})" if args else name
+        if name in ("R_XX", "R_YY", "R_ZZ") and not parts[0].strip():
+            # A pair rotation's empty first argument is its SPP_DAG, as a product rotation's order is.
+            spelled = f"{name}(, {', '.join(f'{k}={v}' for k, v in spelled_args)})"
         if not args and rng.random() < 0.5:
             return f"{ws()}{name}{ws()}", spelled
         return f"{ws()}{name}{ws()}({','.join(parts)}){ws()}", spelled
@@ -1674,7 +1685,7 @@ def test_random_stored_forms_are_read_as_the_core_reads_them(seed):
         assert_read_as_spelled(prefix + stored, prefix + spelled)
         measured = f"R {' '.join(map(str, range(n)))}\nX_ERROR(0.1) 0\n{prefix}{{}}\nM {' '.join(map(str, range(n)))}\nDETECTOR rec[-1]"
         assert_read_as_spelled(measured.format(stored), measured.format(spelled))
-        if importlib.util.find_spec("tsim") is not None and "I[R_PAULI" not in str(tsim.Circuit(sq.Circuit(prefix + spelled))):
+        if importlib.util.find_spec("tsim") is not None:
             import tsim as real
 
             for text in (prefix + stored, measured.format(stored)):
@@ -1819,7 +1830,7 @@ def test_to_matrix_of_a_qubit_left_out_with_an_instruction_tsims_builders_cannot
     assert got.shape == want.shape and abs(abs(phase) - 1) < 1e-9 and np.allclose(got, phase * want, atol=1e-9, rtol=0), text
     with pytest.raises(ValueError, match="^Could not parse instruction "):
         c.get_graph(backend="own")
-    if importlib.util.find_spec("tsim") is not None and "pauli=__" not in text:
+    if importlib.util.find_spec("tsim") is not None:
         import tsim as real
 
         assert_matrix_is_tsims(plain, real.Circuit(str(plain)))
@@ -1846,3 +1857,326 @@ def test_to_matrix_of_a_repeated_qubit_with_an_instruction_tsims_builders_cannot
             assert_matrix_is_tsims(plain, ref)
         else:
             assert outcome(plain.to_matrix) == outcome(ref.to_matrix)
+
+
+# The qubits of ``to_matrix`` are the lanes of Tsim's graph of the circuit (its builders' ``first_vertex``),
+# read by one scan (``_lane_scan``) whichever path gives the matrix: each qubit an instruction names (noise,
+# an identity, coordinates and ``II`` among them), but a Pauli product's are those its product leaves after
+# the builders' cancellations and a product rotation's identity letter names none. None of these starts
+# with H on every qubit: a qubit only noise or an identity names is an input the matrix leaves alone.
+LANE_CIRCUITS = [
+    "I 0\nX_ERROR(0.1) 1\nT 2",
+    "T 0\nX_ERROR(0.1) 1",
+    "T 0\nDEPOLARIZE2(0.1) 1 2",
+    "T 0\nI_ERROR(0.1) 2",
+    "T 0\nII_ERROR(0.1) 1 2",
+    "T 0\nPAULI_CHANNEL_1(0.1, 0.1, 0.1) 1\nZ_ERROR(0.1) 3",
+    "T 0\nE(0.1) X1 Z2\nELSE_CORRELATED_ERROR(0.1) Y3",
+    "T 1\nREPEAT 2 {\n    X_ERROR(0.1) 0\n}",
+    "QUBIT_COORDS(1, 2) 1\nT 0",
+    "II 0 1\nT 0",
+    "T 0\nI 2",
+    "SPP X0*Z1*Z1",
+    "SPP X0*Z1*Z1\nX_ERROR(0.1) 1",
+    "SPP X0*Z1*Z1\nDEPOLARIZE1(0.1) 2",
+    "SPP_DAG X0*Y1*Y1\nI 1\nS 2",
+    "TPP X0*Z1*Z1\nX_ERROR(0.1) 1",
+    "TPP Z1*Z1\nX_ERROR(0.1) 1\nT 0",
+    "TPP Z1*Z1\nT 0",
+    "TPP X1*Y1*X1\nX_ERROR(0.1) 2\nT 0",
+    "SPP X0*X0\nT 1",
+    "R_PAULI(0.3) X0*Z2\nY_ERROR(0.1) 1",
+    "TPP_DAG X0*Y2*Y2\nY_ERROR(0.1) 1",
+    "R_ZZ(0.3) 0 2",
+    "R_ZZ(0.3) 0 2\nX_ERROR(0.1) 1",
+    "R_XX(0.25) 0 1\nDEPOLARIZE1(0.1) 3",
+    # This package's product rotations, an identity letter (``I``, ``i``, ``_``) naming no qubit.
+    "T 0\nI[R_PAULI(theta=0.1, pauli=XI)] 0 1\nX_ERROR(0.1) 1",
+    "I[R_PAULI(theta=0.1, pauli=X_)] 0 1\nY_ERROR(0.1) 2",
+    "I[R_PAULI(theta=0.1, pauli=_Z)] 0 1",
+    "I[R_PAULI(theta=0.1, pauli=XI)] 0 1\nI 1",
+    "II[R_PAULI(theta=0.1, pauli=X_Z_)] 0 1 2 3\nZ_ERROR(0.1) 3",
+    "I[R_PAULI(theta=0.1, pauli=II)] 0 1\nT 2",
+    "I[R_PAULI(theta=0.39269908169872414, pauli=Xi)] 0 1\nDEPOLARIZE1(0.1) 1",
+    "I[R_PAULI(theta=0.1, pauli=XZ)] 0 1\nI[R_PAULI(theta=0.1, pauli=_Y)] 1 2\nX_ERROR(0.1) 2",
+]
+
+
+@pytest.mark.parametrize("text", LANE_CIRCUITS)
+def test_to_matrix_has_a_qubit_for_each_lane_of_tsims_graph(text):
+    """``to_matrix``'s qubits are the lanes of Tsim's graph on either path: the engine's matrix (up to its
+    global phase) is the ZX tensor, of its shape, and both are Tsim's."""
+    from stabilizer_qec.tsim.circuit import _lane_scan
+
+    c = tsim.Circuit(text)
+    lanes = _lane_scan(c)[1]
+    assert lanes == set(zx.parse_stim_circuit(c, backend="own").first_vertex), text
+    got, want = c.to_matrix(), c._zx_matrix("big")
+    assert got.shape == want.shape == (1 << len(lanes), 1 << len(lanes)), text
+    i = np.argmax(np.abs(want))
+    phase = got.flat[i] / want.flat[i]
+    assert abs(abs(phase) - 1) < 1e-9 and np.allclose(got, phase * want, atol=1e-9, rtol=0), text
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        assert_matrix_is_tsims(c, real.Circuit(str(c)))
+
+
+def test_the_review_examples_of_a_lane_left_out():
+    """The review's examples: a qubit only an identity letter and noise name is a lane (the noise's), and
+    ``SPP X0*Z1*Z1`` names qubit 0 alone, so with noise on qubit 2 the matrix is of qubits 0 and 2."""
+    a = tsim.Circuit("T 0\nI[R_PAULI(theta=0.1, pauli=XI)] 0 1\nX_ERROR(0.1) 1")
+    assert str(a) == "T 0\nR_PAULI(0.06366197723675814) X0\nX_ERROR(0.1) 1" and a.to_matrix().shape == (4, 4)
+    b = tsim.Circuit("SPP X0*Z1*Z1\nDEPOLARIZE1(0.1) 2")
+    assert b.to_matrix().shape == (4, 4) and tsim.Circuit("SPP X0*Z1*Z1").to_matrix().shape == (2, 2)
+    got, one = b.to_matrix(), tsim.Circuit("SPP X0").to_matrix()
+    assert np.allclose(got, np.kron(one, np.eye(2)) * (got[0, 0] / one[0, 0]), atol=1e-12, rtol=0)
+
+
+def random_lane_circuit(rng, n: int, length: int) -> str:
+    """A circuit without measurements (Tsim's text with this package's product rotations) whose qubits
+    are often named only by noise, an identity, coordinates, a product that cancels on them or a product
+    rotation's identity letter, not H on every qubit first. Its products are Hermitian: a qubit named
+    twice in one is named by one letter, or by ``X Y X``."""
+
+    def product() -> str:
+        k = int(rng.integers(1, min(n, 3) + 1))
+        factors = [(str(rng.choice(list("XYZ"))), int(q)) for q in rng.choice(n, k, replace=False)]
+        u = rng.random()
+        if u < 0.4:  # a factor again later: the two cancel
+            factors.append(factors[int(rng.integers(len(factors)))])
+        elif u < 0.6:  # X Y X on a qubit: -Y
+            letter, q = factors[-1]
+            other = str(rng.choice([p for p in "XYZ" if p != letter]))
+            factors += [(other, q), (letter, q)]
+        return "*".join(f"{p}{q}" for p, q in factors)
+
+    lines = []
+    for _ in range(length):
+        u, q = rng.random(), int(rng.integers(n))
+        a, b = (int(x) for x in rng.choice(n, 2, replace=False)) if n > 1 else (0, 0)
+        if u < 0.15:
+            lines.append(f"{rng.choice(['H', 'S', 'T', 'T_DAG', 'SQRT_X', 'R_Z(0.3)', 'R_X(-0.7)'])} {q}")
+        elif u < 0.22 and n > 1:
+            lines.append(f"{rng.choice(['CX', 'CZ', 'ISWAP', 'R_ZZ(0.3)', 'R_XX(0.25)'])} {a} {b}")
+        elif u < 0.4:
+            lines.append(f"{rng.choice(['X_ERROR', 'Y_ERROR', 'Z_ERROR', 'DEPOLARIZE1', 'I_ERROR'])}({round(float(rng.uniform(0, 0.3)), 3)}) {q}")
+        elif u < 0.47 and n > 1:
+            lines.append(str(rng.choice([f"DEPOLARIZE2(0.1) {a} {b}", f"II {a} {b}", f"II_ERROR(0.1) {a} {b}", f"E(0.1) X{a} Z{b}"])))
+        elif u < 0.55:
+            lines.append(f"{rng.choice(['I', 'QUBIT_COORDS(1, 2)'])} {q}")
+        elif u < 0.75:
+            lines.append(f"{rng.choice(['SPP', 'SPP_DAG', 'TPP', 'TPP_DAG'])} {product()}")
+        elif u < 0.9:
+            k = int(rng.integers(1, min(n, 3) + 1))
+            qubits = " ".join(str(int(x)) for x in rng.choice(n, k, replace=False))
+            letters = "".join(str(rng.choice(list("XYZxI_i"))) for _ in range(k))
+            lines.append(f"I[R_PAULI(theta={rng.choice(['0.1', '-0.3', '0.39269908169872414'])}, pauli={letters})] {qubits}")
+        elif n > 1:
+            c, d = (int(x) for x in rng.choice(n, 2, replace=False))
+            letters = "".join(str(rng.choice(list("XYZI_"))) for _ in range(4))
+            lines.append(f"II[R_PAULI(theta=0.1, pauli={letters})] {a} {b} {c} {d}" if {a, b}.isdisjoint({c, d}) else f"II[R_PAULI(theta=0.1, pauli={letters[:2]})] {a} {b}")
+    return "\n".join(lines)
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_random_lanes_against_tsim(seed):
+    """Qubits named only by noise, identities, coordinates, cancelling products or identity letters: the
+    lanes read are the graph's, and ``to_matrix`` is Tsim's (or its error)."""
+    real = pytest.importorskip("tsim")
+    from stabilizer_qec.tsim.circuit import _lane_scan
+
+    rng = np.random.default_rng(8000 + seed)
+    n = int(rng.integers(1, 5))
+    c = tsim.Circuit(random_lane_circuit(rng, n, int(rng.integers(1, 8))))
+    ref = real.Circuit(str(c))
+    built = outcome(lambda: zx.parse_stim_circuit(c, backend="own"))
+    if built[0] == "ok":
+        assert _lane_scan(c)[1] == set(built[1].first_vertex), str(c)
+    theirs = outcome(lambda: np.asarray(ref.to_matrix()))
+    if theirs[0] == "ok":
+        assert_matrix_is_tsims(c, ref)
+    else:
+        assert outcome(c.to_matrix) == theirs, str(c)
+
+
+def test_the_lanes_read_are_those_of_tsims_graph():
+    """``_lane_scan``'s lanes are the builders' ``first_vertex`` on each circuit they build: the fixtures
+    and this module's random circuits, measured or not, with stored forms."""
+    from stabilizer_qec.tsim.circuit import _lane_scan
+
+    circuits = [tsim.Circuit(CIRCUITS[name]["text"]) for name in NAMES] + [tsim.Circuit(text) for text in LANE_CIRCUITS]
+    for seed in range(30):
+        rng = np.random.default_rng(7000 + seed)
+        n = int(rng.integers(1, 5))
+        texts = [random_circuit(rng, n, 12), random_unmeasured_annotated_circuit(rng, n, 8), random_product_circuit(rng, n, 6, distinct=seed % 2 == 0, measure=seed % 3 == 0), random_lane_circuit(rng, n, 8)]
+        circuits += [tsim.Circuit(text) for text in texts]
+        stored = "\n".join(random_stored_form(rng, n)[0] for _ in range(3))
+        if outcome(lambda: sq.Circuit(stored))[0] == "ok":
+            circuits.append(tsim.Circuit(sq.Circuit(stored)))
+    checked = 0
+    for c in circuits:
+        built = outcome(lambda: zx.parse_stim_circuit(c, backend="own"))
+        if built[0] == "ok":
+            assert _lane_scan(c)[1] == set(built[1].first_vertex), str(c)
+            checked += 1
+    assert checked > 150
+
+
+# An all-identity product rotation (every letter ``I``, ``i`` or ``_``) is the identity, which Tsim's graph
+# and model leave out: left out of the print too (a loop it empties printed as Stim prints one), so Tsim
+# reads the print as this package reads the circuit.
+ALL_IDENTITY_PRODUCTS = {
+    "H 0\nI[R_PAULI(theta=0.1, pauli=II)] 0 1\nS 0": "H 0\nS 0",
+    "H 0\nII[R_PAULI(theta=0.1, pauli=__)] 0 1\nS 0": "H 0\nS 0",
+    "H 0\nI[R_PAULI(pauli=_i, theta=-0.3)] 1 0\nS 0": "H 0\nS 0",
+    "H 0\nI[R_PAULI(theta=0.39269908169872414, pauli=I)] 1\nI[T] 0": "H 0\nT 0",
+    "H 0\nI[R_PAULI(theta=-0.39269908169872414, pauli=i_)] 0 1\nI[T] 0": "H 0\nT 0",
+    "H 0\nREPEAT 2 {\n    I[R_PAULI(theta=0.1, pauli=II)] 0 1\n}\nS 0": "H 0\nREPEAT 2 {\n\n}\nS 0",
+    "H 0\nREPEAT 2 {\n    I[R_PAULI(theta=0.1, pauli=II)] 0 1\n    I[T] 0\n}": "H 0\nREPEAT 2 {\n    T 0\n}",
+    "R 0 1\nH 0\nI[R_PAULI(theta=0.1, pauli=II)] 0 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]": "R 0 1\nH 0\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]",
+    # Between two equal rotations, which print as two lines (same-angle product rotations in a row stay
+    # lines of their own here: PRINTED_HERE) and Tsim reads as one instruction of two products.
+    "H 0 1\nI[R_PAULI(theta=0.1, pauli=XZ)] 0 1\nI[R_PAULI(theta=0.1, pauli=II)] 0 1\nI[R_PAULI(theta=0.1, pauli=XZ)] 0 1": "H 0 1\nR_PAULI(0.06366197723675814) X0*Z1\nR_PAULI(0.06366197723675814) X0*Z1",
+}
+
+
+@pytest.mark.parametrize("text", list(ALL_IDENTITY_PRODUCTS))
+def test_an_all_identity_product_is_left_out_of_the_print(text):
+    """The print leaves the all-identity product out, and Tsim reading the print has this package's
+    graph, T-count, matrix, model and inverse."""
+    c = tsim.Circuit(sq.Circuit(text))
+    printed = ALL_IDENTITY_PRODUCTS[text]
+    assert str(c) == printed
+    assert record(tsim.Circuit(printed).get_graph(backend="own")) == record(c.get_graph(backend="own"))
+    measured = "M" in printed
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit(printed)
+        fused = printed.count("R_PAULI") > 1  # Tsim fuses the two rotations' lines
+        assert str(ref) == (printed if not fused else "H 0 1\nR_PAULI(0.06366197723675814) X0*Z1 X0*Z1")
+        assert record(ref.get_graph()) == record(c.get_graph(backend="own"))
+        assert ref.tcount() == c.tcount()
+        assert_matrix_is_tsims(c, ref)
+        if measured:
+            assert str(c.detector_error_model(allow_gauge_detectors=True)) == str(ref.detector_error_model(allow_gauge_detectors=True))
+        else:
+            assert str(real.Circuit(str(c.inverse()))) == str(ref.inverse())
+            assert str(c.inverse()) == str(ref.inverse()) or fused
+            assert record(c.inverse().get_graph(backend="own")) == record(ref.inverse().get_graph())
+            assert_matrix_is_tsims(c.inverse(), ref.inverse())
+
+
+# A pair rotation's inverse is one instruction, its gate and pairs kept, its ``SPP_DAG`` written with an
+# empty argument first (``II[R_ZZ(, theta=-t)] 3 2 1 0``; a TPP's dagger is its sign): its print is Tsim's
+# inverse of the print (``SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2 Z1*Z0``; a TPP of two products two lines here,
+# PRINTED_HERE), and the inverse of the inverse is the circuit.
+PAIR_ROTATION_INVERSES = {
+    "H 0 1 2 3\nII[R_ZZ(theta=0.1)] 0 1 2 3": ("II[R_ZZ(, theta=-0.1)] 3 2 1 0\nH 3 2 1 0", "SPP_DAG[R_PAULI(theta=0.06366197723675814*pi)] Z3*Z2 Z1*Z0\nH 3 2 1 0"),
+    "H 0 1 2\nII[R_XX(theta=-0.7)] 0 1 1 2": ("II[R_XX(, theta=0.7)] 2 1 1 0\nH 2 1 0", "SPP_DAG[R_PAULI(theta=-0.44563384065730693*pi)] X2*X1 X1*X0\nH 2 1 0"),
+    "H 0 1\nII[R_ZZ(theta=0)] 0 1": ("II[R_ZZ(, theta=-0)] 1 0\nH 1 0", "SPP_DAG[R_PAULI(theta=0.0*pi)] Z1*Z0\nH 1 0"),
+    "H 0 1\nII[R_ZZ(theta=-0)] 0 1": ("II[R_ZZ(, theta=0)] 1 0\nH 1 0", "SPP_DAG[R_PAULI(theta=-0.0*pi)] Z1*Z0\nH 1 0"),
+    "H 0 1\nII[R_ZZ(, theta=-0.1)] 1 0": ("II[R_ZZ(theta=0.1)] 0 1\nH 1 0", "R_ZZ(0.06366197723675814) 0 1\nH 1 0"),
+    "H 0 1 2 3\nII[R_ZZ(, theta=0.1)] 0 1 2 3": ("II[R_ZZ(theta=-0.1)] 3 2 1 0\nH 3 2 1 0", "R_ZZ(-0.06366197723675814) 3 2\nR_ZZ(-0.06366197723675814) 1 0\nH 3 2 1 0"),
+    "H 0 1\nII[R_ZZ(, theta=0.0)] 0 1": ("II[R_ZZ(theta=-0.0)] 1 0\nH 1 0", "R_ZZ(-0.0) 1 0\nH 1 0"),
+    "H 0 1 2 3\nII[R_YY(theta=0.39269908169872414)] 0 1 2 3": ("II[R_YY(theta=-0.39269908169872414)] 3 2 1 0\nH 3 2 1 0", "TPP_DAG Y3*Y2\nTPP_DAG Y1*Y0\nH 3 2 1 0"),
+    "H 0 1 2 3\nII[R_XX(, theta=0.39269908169872414)] 0 1 2 3": ("II[R_XX(, theta=-0.39269908169872414)] 3 2 1 0\nH 3 2 1 0", "TPP_DAG X3*X2\nTPP_DAG X1*X0\nH 3 2 1 0"),
+    "H 0 1 2 3\nII[R_PAULI(theta=0.1, pauli=XZYy)] 0 1 2 3": ("II[R_PAULI(pauli=yYZX, theta=-0.1)] 3 2 1 0\nH 3 2 1 0", "SPP_DAG[R_PAULI(theta=-0.06366197723675814*pi)] !Y3*Y2*Z1*X0\nH 3 2 1 0"),
+    "H 0 1 2 3\nII[R_PAULI(pauli=X_Z_, theta=0.1)] 0 1 2 3": ("II[R_PAULI(theta=-0.1, pauli=_Z_X)] 3 2 1 0\nH 3 2 1 0", "R_PAULI(-0.06366197723675814) Z2*X0\nH 3 2 1 0"),
+    "H 0 1 2 3\nREPEAT 2 {\n    II[R_ZZ(theta=0.1)] 0 1 2 3\n    I[T] 0\n}": ("REPEAT 2 {\n    I[T_DAG] 0\n    II[R_ZZ(, theta=-0.1)] 3 2 1 0\n}\nH 3 2 1 0", "REPEAT 2 {\n    T_DAG 0\n    SPP_DAG[R_PAULI(theta=0.06366197723675814*pi)] Z3*Z2 Z1*Z0\n}\nH 3 2 1 0"),
+}
+
+
+@pytest.mark.parametrize("text", list(PAIR_ROTATION_INVERSES))
+def test_a_pair_rotations_inverse_is_one_instruction_as_in_tsim(text):
+    c = tsim.Circuit(sq.Circuit(text))
+    stored, printed = PAIR_ROTATION_INVERSES[text]
+    inverse = c.inverse()
+    assert inverse._stim_exact_text() == stored and str(inverse) == printed
+    assert inverse.inverse() == c and len(inverse) == len(c)
+    assert record(tsim.Circuit(printed).get_graph(backend="own")) == record(inverse.get_graph(backend="own"))
+    undone = (c + inverse).to_matrix()
+    assert abs(abs(undone[0, 0]) - 1) < 1e-12 and np.allclose(undone, undone[0, 0] * np.eye(len(undone)), atol=1e-12, rtol=0)
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit(str(c)).inverse()
+        assert len(ref) == len(inverse)
+        # Tsim reads the print as its inverse, which it prints so (or, a product a line here, PRINTED_HERE,
+        # it prints on one line: ``TPP X3*X2 X1*X0``, or ``R_ZZ(a) 3 2 Z1*Z0``, which does not read back).
+        assert str(real.Circuit(printed)) == str(ref)
+        assert str(ref) == printed or printed.count("\n") > str(ref).count("\n")
+        assert record(ref.get_graph()) == record(inverse.get_graph(backend="own"))
+        assert_matrix_is_tsims(inverse, ref)
+
+
+@pytest.mark.parametrize("text", ["H 0 1\nR_ZZ(0.3) 0 1", "H 0 1\nR_YY(0.25) 0 1", "H 0 1 2 3\nR_ZZ(0.3) 0 1\nT 0\nR_XX(-0.3) 2 3", "H 0 1\nREPEAT 2 {\n    R_YY(0.3) 0 1\n    T 0\n}"])
+def test_a_pair_rotation_in_tsims_shorthand_inverts_as_in_tsim(text):
+    """Tsim's shorthand of a pair rotation (one pair) is a product rotation: its inverse is Tsim's, and the
+    inverse of the inverse is the circuit."""
+    c = tsim.Circuit(text)
+    assert c.inverse().inverse() == c and len(c.inverse()) == len(c)
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit(text).inverse()
+        assert str(c.inverse()) == str(ref) and len(ref) == len(c.inverse())
+        assert record(ref.get_graph()) == record(c.inverse().get_graph(backend="own"))
+
+
+# The core's inverse reverses an ``II``'s pairs (each pair's order kept) and a product rotation's letters
+# with them (``nonpauli::inverse_tag``), so each letter stays on its qubit.
+def test_the_cores_inverse_keeps_a_product_rotations_letters_on_their_qubits():
+    assert str(sq.Circuit("II[R_PAULI(theta=0.1, pauli=XZYY)] 0 1 2 3").inverse()) == "II[R_PAULI(theta=-0.1, pauli=YYXZ)] 2 3 0 1"
+    assert str(sq.Circuit("I[R_PAULI(theta=0.1, pauli=XZYY)] 0 1 2 3").inverse()) == "I[R_PAULI(theta=-0.1, pauli=YYZX)] 3 2 1 0"
+    assert str(sq.Circuit("II[R_PAULI(pauli=X_Z_Yx, theta=0.1)] 0 1 2 3 4 5").inverse()) == "II[R_PAULI(pauli=YxZ_X_, theta=-0.1)] 4 5 2 3 0 1"
+
+
+def assert_undone(c) -> None:
+    """``c + c.inverse()`` is the identity (up to a global phase)."""
+    m = (c + c.inverse()).to_matrix()
+    assert abs(abs(m[0, 0]) - 1) < 1e-9 and np.allclose(m, m[0, 0] * np.eye(len(m)), atol=1e-9, rtol=0), str(c)
+
+
+def inverted_by_the_core(c):
+    """``c`` as a ``tsim.Circuit`` whose inverse is the core's throughout (a tag already under the name this
+    package inverts its rotations under leaves them all to the core)."""
+    return tsim.Circuit(sq.Circuit(f"{c._stim_exact_text()}\nI[x~stabilizer_qec_inverted] 0"))
+
+
+STORED_PRODUCT_FORMS = [line for line in STORED_SPELLINGS if re.match(r"II?\[ *R_(PAULI|XX|YY|ZZ) *\(", line)]
+
+
+@pytest.mark.parametrize("line", STORED_PRODUCT_FORMS)
+def test_a_stored_product_form_and_its_inverse_are_the_identity(line):
+    """Each stored product form on ``I`` and ``II`` is undone by its inverse: the core's (a
+    ``stabilizer_qec.Circuit``, and a ``tsim.Circuit`` left to it) and this package's."""
+    base = sq.Circuit(f"H 0 1 2\nI[T] 1\nCX 2 0\n{line}\nS 0")
+    assert_undone(base)
+    for c in (tsim.Circuit(base), inverted_by_the_core(tsim.Circuit(base))):
+        if outcome(c.to_matrix)[0] == "ok":  # Tsim's builders refuse a product naming a qubit twice
+            assert_undone(c)
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_random_stored_product_forms_and_their_inverses_are_the_identity(seed):
+    rng = np.random.default_rng(9500 + seed)
+    checked = 0
+    for _ in range(25):
+        line = random_stored_form(rng, 4)[0]
+        if "_ERROR" in line or "R_PAULI" not in line and "R_XX" not in line and "R_YY" not in line and "R_ZZ" not in line:
+            continue
+        text = f"H 0 1 2 3\nI[T] 1\nCX 2 3\n{line}\nS 0"
+        base = outcome(lambda: sq.Circuit(text))
+        if base[0] != "ok":
+            continue
+        m = base[1].to_matrix()
+        if not np.allclose(m @ m.conj().T, np.eye(len(m)), atol=1e-9, rtol=0):  # an anti-Hermitian product: no rotation
+            continue
+        assert_undone(base[1])
+        for c in (tsim.Circuit(base[1]), inverted_by_the_core(tsim.Circuit(base[1]))):
+            if outcome(c.to_matrix)[0] == "ok":
+                assert_undone(c)
+        checked += 1
+    assert checked >= 5

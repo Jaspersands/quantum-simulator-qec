@@ -380,6 +380,46 @@ def _product_text(factors: list) -> str:
     return "*".join(f"{'!' if inverted else ''}{p}{q}" for inverted, p, q in factors)
 
 
+# A pair rotation ``II[R_ZZ(theta=t)] 0 1 2 3`` (and ``R_XX``, ``R_YY``) is Tsim's ``R_ZZ(a) 0 1`` and
+# ``R_ZZ(a) 2 3``, one ``SPP[R_PAULI(theta=a*pi)] Z0*Z1 Z2*Z3`` (``SPP[T]``, or ``SPP_DAG[T]``, at +-pi/8 as
+# ``repr`` writes it). Its ``SPP_DAG``, which Tsim's inverse of it is (``SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2
+# Z1*Z0``), is written with an empty argument first (``II[R_ZZ(, theta=-t)] 3 2 1 0``), as a product
+# rotation's ``SPP_DAG`` has its arguments in the other order: the core reads past it, and so the inverse of
+# a pair rotation is one instruction, as Tsim's is, and its inverse the pair rotation again.
+_PAIR_ROTATION_NAMES = ("R_XX", "R_YY", "R_ZZ")
+
+
+def _is_daggered_pair(body: str) -> bool:
+    """Whether a pair rotation's tag arguments (``, theta=-0.1``) are its ``SPP_DAG``'s: an empty argument
+    first."""
+    return body.split(",", 1)[0].strip() == ""
+
+
+def _pair_rotation(name: str, body: str | None, args: dict, qubits: list) -> tuple | None:
+    """Tsim's instruction of this package's ``II[R_ZZ(theta=t)] q1 q2 ...`` (or ``R_XX``, ``R_YY``; ``body``
+    its tag's argument text, ``args`` its arguments): ``(dagger, turns, products)`` as ``_product_rotation``
+    gives them, the instruction ``SPP_DAG`` when ``dagger`` else ``SPP``, its tag ``T`` when ``turns`` is
+    ``None`` else ``R_PAULI(theta=<turns>*pi)``, ``products`` each pair's factors ``(inverted, letter,
+    qubit)``. ``None`` if it is not one (another tag, arguments other than ``theta``, an odd number of
+    targets)."""
+    if name not in _PAIR_ROTATION_NAMES or body is None or set(args) != {"theta"} or not qubits or len(qubits) % 2:
+        return None
+    p = name[2]
+    products = [[(False, p, qubits[i]), (False, p, qubits[i + 1])] for i in range(0, len(qubits), 2)]
+    theta = args["theta"]
+    if _is_tpp_radians(theta):
+        return float(theta) < 0, None, products
+    dagger = _is_daggered_pair(body)
+    turns = _read_turns(theta, 0.5)
+    return dagger, (repr(-float(turns)) if dagger else turns), products
+
+
+# What ``_native_to_shorthand_line`` gives for a line Tsim's shorthand has nothing for: a product rotation
+# whose letters are all identities (``pauli=__``), which the core reads as no operation, as the graph and the
+# model read it. Tsim would read it otherwise (an ``II[...]`` as a plain ``II``, naming its qubits).
+_DROPPED = ""
+
+
 def _native_to_shorthand_line(line: str) -> str | None:
     m = _NATIVE_LINE.match(line)
     if not m:
@@ -401,20 +441,26 @@ def _native_to_shorthand_line(line: str) -> str | None:
         if gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
             a, b, c = (_read_turns(args[k], 1.0) for k in ("theta", "phi", "lambda"))
             return f"{indent}U3({a}, {b}, {c}) {' '.join(targets)}"
-        if gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and set(args) == {"theta"} and len(targets) % 2 == 0:
-            pairs = [(targets[i], targets[i + 1]) for i in range(0, len(targets), 2)]
-            if _is_tpp_radians(args["theta"]):
+        found = _pair_rotation(name, body, args, targets) if gate == "II" else None
+        if found is not None:
+            dagger, angle, products = found
+            if angle is None:
                 # +-pi/8 as ``repr`` writes it is ``TPP``, as the graph reads it (``R_ZZ(0.25)`` is Tsim's R_PAULI).
-                p, head = name[2], "TPP" if float(args["theta"]) > 0 else "TPP_DAG"
-                return "\n".join(f"{indent}{head} {p}{a}*{p}{b}" for a, b in pairs)
-            angle = _read_turns(args["theta"], 0.5)
-            return "\n".join(f"{indent}{name}({angle}) {a} {b}" for a, b in pairs)
+                return "\n".join(f"{indent}{'TPP_DAG' if dagger else 'TPP'} {_product_text(factors)}" for factors in products)
+            if dagger:
+                # The ``SPP_DAG`` of a pair rotation, one instruction as Tsim's inverse writes it.
+                return f"{indent}SPP_DAG[R_PAULI(theta={angle}*pi)] {' '.join(_product_text(factors) for factors in products)}"
+            return "\n".join(f"{indent}{name}({angle}) {factors[0][2]} {factors[1][2]}" for factors in products)
         if name == "R_PAULI" and set(args) == {"theta", "pauli"}:  # on I or II, one product as the core reads it
             if not all(q.isdecimal() for q in targets):
                 return None
             found = _product_rotation(args, targets)
-            if found is None or not found[2]:
+            if found is None:
                 return None
+            if not found[2]:
+                # All identity letters: no operation, as the core, the graph and the model read it (Tsim would
+                # read the line as written otherwise: ``II[...]`` a plain ``II`` on its qubits, ``I[...]`` an error).
+                return _DROPPED
             dagger, angle, factors = found
             product = _product_text(factors)
             if angle is None:
@@ -434,10 +480,19 @@ def _native_to_shorthand_line(line: str) -> str | None:
 
 def _native_to_shorthand(text: str) -> str:
     """This package's tagged forms (``I[T]``, ``I[R_X(theta=<radians>)]``, ``I[U3(...)]``,
-    ``I[R_PAULI(theta=..., pauli=...)]`` or ``II[...]``, ``II[R_ZZ(theta=...)]``) as Tsim's shorthand."""
-    out = []
+    ``I[R_PAULI(theta=..., pauli=...)]`` or ``II[...]``, ``II[R_ZZ(theta=...)]``) as Tsim's shorthand; a
+    product rotation whose letters are all identities is left out (a loop it leaves empty is written as
+    Stim writes an empty loop, its body an empty line)."""
+    out: list[str] = []
+    dropped = False
     for line in text.split("\n"):
         converted = _native_to_shorthand_line(line)
+        if converted == _DROPPED:
+            dropped = True
+            continue
+        if dropped and line.strip() == "}" and out and out[-1].rstrip().endswith("{"):
+            out.append("")
+        dropped = False
         out.append(line if converted is None else converted)
     return "\n".join(out)
 
@@ -465,13 +520,15 @@ def stim_to_shorthand(text: str) -> str:
       written with further digits it is R_PAULI(±0.25) X0*Y1)
     - I[R_PAULI(theta=t, pauli=ZZ)] 0 1 → R_ZZ(2t/π) 0 1; any other product
       R_PAULI(2t/π) X0*Y1 (II[R_PAULI(...)] as I[R_PAULI(...)], one product over its targets, as
-      the core reads it)
+      the core reads it); one whose letters are all identities (``pauli=__``) is left out, no
+      operation as the core reads it
     - a product with a ``!`` (a lower-case letter, ``pauli=xY``) or the ``SPP_DAG`` of a rotation
       (its arguments in the other order, ``pauli=X, theta=t``) → Tsim's tagged form, as its
       shorthand writes it: SPP[R_PAULI(theta=α*pi)] !X0*Y1, SPP_DAG[R_PAULI(theta=α*pi)] X0,
       TPP !X0 (see ``_product_rotation``)
     - II[R_XX(theta=t)] 0 1 2 3 → R_XX(2t/π) 0 1 and R_XX(2t/π) 2 3, a line a pair (TPP / TPP_DAG
-      X0*X1 at ±π/8 as ``repr`` writes it)
+      X0*X1 at ±π/8 as ``repr`` writes it); with an empty argument first, II[R_XX(, theta=-t)] 3 2 1 0,
+      its SPP_DAG, one line as Tsim's inverse of it writes it: SPP_DAG[R_PAULI(theta=2t/π*pi)] X3*X2 X1*X0
     """
     text = _native_to_shorthand(text)
 
