@@ -25,10 +25,11 @@ Sections (each skipped, and said so, when its reference is not installed):
 
   color   ColorMatching against chromobius on annotated colour-code memories (d = 3 to 9, both
           bases, two noise strengths) and Chromobius's own colour repetition code: the Möbius
-          matching's weight equal on every shot (a check of the whole Möbius graph), and the
-          predictions equal except where they differ at that equal weight, which is a tie:
-          the matched edges listed in another order than PyMatching's (or, rarely, another
-          minimum-weight matching), on which Chromobius's lifting depends.
+          matching's weight equal on every shot (PyMatching's, as float32, bit for bit: a check
+          of the whole Möbius graph), and on macOS the predictions equal on every shot (the
+          Möbius matching is PyMatching 2.2.2's, edge for edge and in its order). Elsewhere
+          Chromobius walks some tables in another C++ library's std::unordered_map order, so a
+          shot may be lifted another way at the same weight; those are counted as ties.
 
   search  SearchDecoder against tesseract_decoder (Tesseract's defaults: 20 index orders; two
           literal orders; beam 8 with beam climbing) on surface, colour and gross-code models:
@@ -212,10 +213,10 @@ def check_color(quick):
         ours, w = our_decoder.decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
         t2 = time.perf_counter()
         same = np.all(ours == theirs, axis=1)
-        wsame = np.isclose(w, tw, rtol=1e-4, atol=1e-3)
+        wsame = w.astype(np.float32) == tw
         row = dict(case=name, shots=n, agree=int(same.sum()), tied=int(np.sum(~same & wsame)), untied=int(np.sum(~same & ~wsame)),
                    weights_differ=int(np.sum(~wsame)), ours_s=t2 - t1, chromobius_s=t1 - t0)
-        good = row["untied"] == 0 and row["weights_differ"] == 0
+        good = row["untied"] == 0 and row["weights_differ"] == 0 and (row["tied"] == 0 or sys.platform != "darwin")
         ok &= good
         rows.append(row)
         print(f"  {name:48} agree {row['agree']:6}  tied {row['tied']:4}  untied {row['untied']}  weights differ {row['weights_differ']}  "
