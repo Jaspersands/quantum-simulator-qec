@@ -817,12 +817,26 @@ class Circuit:
         dont_explore_edges_with_degree_above: int,
         dont_explore_edges_increasing_symptom_degree: bool,
         canonicalize_circuit_errors: bool = False,
+        max_memory_bytes: Union[int, None] = None,
     ) -> list:
         """The circuit's distance through hyperedges too, as Stim's method of the same name
         finds it: a breadth-first search over sets of fired detectors in its (undecomposed)
         error model, a fault added at the set's lowest detector each step, within the limits
         given. The faults found, each explained (by one location with
-        ``canonicalize_circuit_errors``); their number bounds the distance from above."""
+        ``canonicalize_circuit_errors``); their number bounds the distance from above.
+
+        Stim's search keeps every set it visits for as long as it runs. This one keeps them
+        within ``max_memory_bytes`` (``None``: half the machine's physical memory; on Linux, half
+        the cgroup's memory limit if that is less) even while its store grows. A set of k
+        detectors takes 24 + 4k bytes and (past the first few) 5 to 11 bytes of the table. When
+        the sets fill the budget they hold more than half of it, the rest being room the store
+        keeps for growing, so a set takes one to two times its bytes in budget: about 40 to 90
+        bytes for the usual sets of two to four detectors. A larger budget never keeps fewer
+        sets. When the sets fill it (or the allocator refuses them), the search raises Stim's
+        message for one that finds nothing, then "(memory budget of N bytes reached after M
+        states)". Limits of two and two (``dont_explore_detection_event_sets_with_size_above=2``
+        and ``dont_explore_edges_with_degree_above=2``) take Stim's graph-like search instead,
+        which keeps no such sets: the budget does not cover it."""
         from . import _explain
 
         raw = call(
@@ -831,6 +845,7 @@ class Circuit:
             count(dont_explore_edges_with_degree_above, "dont_explore_edges_with_degree_above"),
             bool(dont_explore_edges_increasing_symptom_degree),
             bool(canonicalize_circuit_errors),
+            None if max_memory_bytes is None else count(max_memory_bytes, "max_memory_bytes"),
         )
         return _explain.build(raw)
 
@@ -1665,16 +1680,19 @@ class DetectorErrorModel:
         dont_explore_detection_event_sets_with_size_above: int,
         dont_explore_edges_with_degree_above: int,
         dont_explore_edges_increasing_symptom_degree: bool,
+        max_memory_bytes: Union[int, None] = None,
     ) -> "DetectorErrorModel":
         """Stim's search for undetectable logical errors on the model (see
-        ``Circuit.search_for_undetectable_logical_errors``): the faults found, as a model with
-        each at probability 1."""
+        ``Circuit.search_for_undetectable_logical_errors``, whose ``max_memory_bytes`` this
+        takes too; limits of two and two take the graph-like search, which it does not cover):
+        the faults found, as a model with each at probability 1."""
         return DetectorErrorModel._wrap(
             call(
                 self._d.search_undetectable,
                 count(dont_explore_detection_event_sets_with_size_above, "dont_explore_detection_event_sets_with_size_above"),
                 count(dont_explore_edges_with_degree_above, "dont_explore_edges_with_degree_above"),
                 bool(dont_explore_edges_increasing_symptom_degree),
+                None if max_memory_bytes is None else count(max_memory_bytes, "max_memory_bytes"),
             )
         )
 
