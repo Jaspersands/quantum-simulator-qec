@@ -1,13 +1,15 @@
 # ============================================================================ #
-# Copyright (c) 2024 - 2026 NVIDIA Corporation & Affiliates.                   #
+# Copyright (c) 2024 - 2025 NVIDIA Corporation & Affiliates.                   #
 # All rights reserved.                                                         #
 #                                                                              #
 # This source code and the accompanying materials are made available under     #
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
-# Ported from CUDA-Q QEC 0.8.1's libs/qec/python/tests/test_trt_decoder.py and
-# unittests/decoders/trt_decoder/test_trt_decoder.cpp (NVIDIA/cudaqx, now NVIDIA/cudaq-qec; Apache
-# License 2.0); modified for stabilizer_qec: cudaq_qec is stabilizer_qec.cudaq_qec, and trt_decoder
+# Ported from CUDA-Q QEC 0.8.1's libs/qec/python/tests/test_trt_decoder.py (the notice above),
+# unittests/decoders/trt_decoder/test_trt_decoder.cpp (Copyright (c) 2024 - 2026 NVIDIA Corporation
+# & Affiliates) and unittests/test_ai_decoder_quantized_onnx.cpp (Copyright (c) 2026 NVIDIA
+# Corporation & Affiliates) (NVIDIA/cudaqx, now NVIDIA/cudaq-qec; Apache License 2.0); modified
+# for stabilizer_qec: cudaq_qec is stabilizer_qec.cudaq_qec, and trt_decoder
 # runs its ONNX model on the CPU (._onnx), so the tests CUDA-Q skips without a GPU run here. The C++
 # fixtures are rebuilt by tools/cudaq_trt_models.py, and the surface-code model is CUDA-Q's own
 # (models/surface_code_decoder.onnx, its git-lfs object). A TensorRT engine is a GPU binary, so
@@ -17,12 +19,14 @@
 import hashlib
 import os
 import re
+import sys
 import warnings
 
 import numpy as np
 import pytest
 
 from stabilizer_qec import cudaq_qec as qec
+from stabilizer_qec.cudaq_qec import _trt
 from stabilizer_qec.cudaq_qec._onnx import OnnxModel, load_onnx
 
 MODELS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -69,7 +73,7 @@ def no_warnings():
 
 # -- ONNX models written here (protobuf by hand) --------------------------------------------------
 
-FLOAT, UINT8, INT8, INT32, INT64 = 1, 2, 3, 6, 7
+FLOAT, UINT8, INT8, INT32, INT64, FP8 = 1, 2, 3, 6, 7, 17
 
 
 def _uvarint(v):
@@ -146,6 +150,22 @@ def mlas_matmul(x, W):
     return acc
 
 
+def mlas_blocks(x, W, block, alpha=1.0, y=None):
+    """alpha (x @ W) + y in float32, summed as MLAS sums it for any K: by fused multiply-adds in
+    order over k within each block of `block` rows of W, each block folded into the output as
+    alpha * block + output (fused; with no output yet, alpha * block)."""
+    a = np.float32(alpha)
+    for start in range(0, W.shape[0], block):
+        acc = np.zeros((x.shape[0], W.shape[1]), dtype=np.float32)
+        for k in range(start, min(W.shape[0], start + block)):
+            acc = (x[:, k : k + 1].astype(np.float64) * W[k].astype(np.float64) + acc).astype(np.float32)
+        if y is None:
+            y = acc if alpha == 1.0 else acc * a
+        else:
+            y = (acc.astype(np.float64) * np.float64(a) + y).astype(np.float32)
+    return y
+
+
 # -- The fixtures ---------------------------------------------------------------------------------
 
 
@@ -207,6 +227,61 @@ def test_run_checks_its_input():
         m.run(np.zeros(3))
     # (Values are converted to the input's type, as onnxruntime would need them given.)
     assert m.run(np.array([[1.0, 2.0, 3.0]])).dtype == np.uint8
+
+
+def test_products_past_one_block_of_k():
+    # The K = 600 fixtures: onnxruntime summed each product in MLAS's blocks of 256 (256 + 256 +
+    # 88, each folded into the output), and a product by a vector B in one block. Summed in the
+    # other order, the same products round otherwise on these inputs: the recordings tell the
+    # two apart.
+    def init(stem, name):
+        return load_onnx(model_path(stem + ".onnx"))._inits[name][0]
+
+    W, v, B, B2, C = init("matmul_k600", "W"), init("matmul_vector_k600", "v"), init("gemm_k600", "B"), init("gemm_alpha_k600", "B"), init("gemm_k600", "C")
+    assert W.shape == (600, 4) and v.shape == (600,) and B.shape == (4, 600) and B2.shape == (600, 4)
+    products = {
+        "matmul_k600": (256, lambda x, block: mlas_blocks(x, W, block)),
+        "matmul_vector_k600": (600, lambda x, block: mlas_blocks(x, v[:, None], block)[:, 0]),
+        # Gemm: transB, alpha 1.5 and beta 0.5 (the output starts as beta C); and alpha without C.
+        "gemm_k600": (256, lambda x, block: mlas_blocks(x, B.T, block, 1.5, np.broadcast_to(np.float32(0.5) * C, (x.shape[0], 4)).astype(np.float32))),
+        "gemm_alpha_k600": (256, lambda x, block: mlas_blocks(x, B2, block, 1.5)),
+    }
+    for stem, (block, product) in products.items():
+        other = 600 if block == 256 else 256
+        k, told_apart = 0, 0
+        while f"{stem}__{k}__x" in RECORDED.files:
+            x, want = RECORDED[f"{stem}__{k}__x"], RECORDED[f"{stem}__{k}__y"]
+            assert x.shape[1] == 600
+            np.testing.assert_array_equal(product(x, block), want, err_msg=f"{stem} case {k}")
+            told_apart += not np.array_equal(product(x, other), want)
+            k += 1
+        assert k > 0 and told_apart == k, stem
+
+
+def test_dequantizing_float8_takes_no_zero_point_but_zero():
+    # qdq_fp8_zp quantizes with a float8 zero point of 1.0, which onnxruntime ignores (recorded)
+    # as TensorRT does; its DequantizeLinear's zero point is 0, the only one onnxruntime takes.
+    m = load_onnx(model_path("qdq_fp8_zp.onnx"))
+    assert [(n, t, z.tolist()) for n, (z, t) in m._inits.items() if n.startswith("zero_point")] == [("zero_point_q", FP8, [0x38]), ("zero_point_dq", FP8, [0])]
+    x = [-4.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+    assert m.run(np.array(x, dtype=np.float32)).tolist() == x
+
+
+@pytest.mark.parametrize("bits", [0x38, 0x80, 0x7F, 0x01])
+def test_dequantizing_float8_with_a_nonzero_zero_point(tmp_path, bits):
+    # onnxruntime 1.31.0 refuses it, comparing bit patterns (so -0.0, 0x80, too), with this
+    # message (quantize_linear.cc); TensorRT ignores a float8 zero point.
+    s = tensor("s", np.array([1.0], dtype=np.float32), FLOAT)
+    zeros = tensor("z0", np.array([0], dtype=np.uint8), FP8)
+    zp = tensor("z", np.array([bits], dtype=np.uint8), FP8)
+    data = onnx_model([node("QuantizeLinear", ["x", "s", "z0"], ["q"]), node("DequantizeLinear", ["q", "s", "z"], ["y"])], [value_info("x", FLOAT, [8])], [value_info("y", FLOAT, [8])], [s, zeros, zp])
+    path = write(tmp_path, "dq_fp8_zero_point.onnx", data)
+    x = [-4.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+    with pytest.raises(ValueError) as e:
+        load_onnx(path).run(np.array(x, dtype=np.float32))
+    assert str(e.value) == "DequantizeLinear: DequantizeLinear with type float8 should have no zero point or all zero points should be 0"
+    d = qec.get_decoder("trt_decoder", np.eye(1, dtype=np.uint8), onnx_load_path=path)
+    assert d.decode_batch([[v] for v in x]).result[:, 0].tolist() == x
 
 
 # -- Inference: the surface-code model (TestTRTDecoderInference) ------------------------------------
@@ -356,6 +431,35 @@ def test_precision_warnings(H):
     assert [str(w.message) for w in rec] == ["Unknown precision 'unknown_precision', using default (best)"]
 
 
+def test_warnings_are_the_callers_and_said_on_every_construction():
+    # CUDA-Q logs its warnings on every construction. They are the caller's warnings here (its
+    # file, line and module, which filters match), shown each time even under the "default"
+    # action, which otherwise shows a line's warning once; the caller's filters still apply.
+    H3 = np.eye(3, dtype=np.uint8)
+    path, dynamic = model_path("identity_uint8.onnx"), model_path("identity_dynamic.onnx")
+    here = os.path.realpath(__file__)
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter("default")
+        lines = []
+        for _ in range(2):
+            lines.append(sys._getframe().f_lineno + 1)
+            qec.get_decoder("trt_decoder", H3, onnx_load_path=path, precision="fp16")
+        lines.append(sys._getframe().f_lineno + 1)
+        qec.get_decoder("trt_decoder", H3, onnx_load_path=dynamic, batch_size=1)
+    assert [(w.category, os.path.realpath(w.filename), w.lineno) for w in rec] == [(RuntimeWarning, here, line) for line in lines]
+    assert [str(w.message) for w in rec] == [str(rec[0].message)] * 2 + [CUDA_GRAPH_WARNING]
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter("always")
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module=re.escape(__name__) + "$")
+        qec.get_decoder("trt_decoder", H3, onnx_load_path=path, precision="fp16")
+    assert rec == []
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter("once")
+        for _ in range(2):
+            qec.get_decoder("trt_decoder", H3, onnx_load_path=path, precision="said-once")
+    assert [str(w.message) for w in rec] == ["Unknown precision 'said-once', using default (best)"]
+
+
 # -- Models' I/O (test_trt_decoder.cpp: dynamic batch, uint8, mixed types) --------------------------
 
 CUDA_GRAPH_WARNING = "Model has dynamic shapes or multiple profiles, CUDA graphs not supported. Using traditional execution."
@@ -403,6 +507,61 @@ def test_dynamic_dimensions_beyond_the_batch(tmp_path):
     with pytest.raises(RuntimeError) as e:
         qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=2)
     assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+
+
+def identity_of(tmp_path, dims, name="big.onnx"):
+    data = onnx_model([node("Identity", ["x"], ["y"])], [value_info("x", FLOAT, dims)], [value_info("y", FLOAT, dims)])
+    return write(tmp_path, name, data)
+
+
+def test_engine_io_past_an_int_fails_the_build(tmp_path):
+    # CUDA-Q counts the engine's input and output elements in ints (input_size, output_size): a
+    # model whose input has more than 2**31 - 1 fails the build, before anything is allocated.
+    H3 = np.eye(3, dtype=np.uint8)
+    for dims, why in (
+        ([1, 2**34], "input 'x' of shape (1, 17179869184) has 17179869184 elements: dimension 1 (17179869184) takes it past 2147483647, the most CUDA-Q's int input_size holds"),
+        ([2**16, 2**16], "input 'x' of shape (65536, 65536) has 4294967296 elements: dimension 1 (65536) takes it past 2147483647, the most CUDA-Q's int input_size holds"),
+    ):
+        path = identity_of(tmp_path, dims)
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", H3, onnx_load_path=path)
+        assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+        assert type(e.value.__cause__) is ValueError and str(e.value.__cause__) == why
+    # A dynamic batch: the input at batch_size.
+    path = identity_of(tmp_path, ["batch", 2**30])
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", H3, onnx_load_path=path, batch_size=2)
+    assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+    assert str(e.value.__cause__) == "input 'x' of shape (2, 1073741824) at batch_size 2 has 2147483648 elements: dimension 1 (1073741824) takes it past 2147483647, the most CUDA-Q's int input_size holds"
+
+
+def test_engine_io_limit_at_its_edge(tmp_path, monkeypatch):
+    # (The limit lowered, to see its edges without gigabytes.)
+    monkeypatch.setattr(_trt, "_MAX_VOLUME", 6)
+    H = np.eye(3, dtype=np.uint8)
+    assert qec.get_decoder("trt_decoder", H, onnx_load_path=identity_of(tmp_path, [2, 3])).decode([1.0, 0.0, 0.5]).result.tolist() == [1.0, 0.0, 0.5]
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", H, onnx_load_path=identity_of(tmp_path, [7]))
+    assert str(e.value.__cause__) == "input 'x' of shape (7,) has 7 elements: dimension 0 (7) takes it past 6, the most CUDA-Q's int input_size holds"
+    # The output, as the engine has it.
+    W = tensor("W", np.ones((3, 7), dtype=np.float32), FLOAT)
+    data = onnx_model([node("MatMul", ["x", "W"], ["y"])], [value_info("x", FLOAT, [1, 3])], [value_info("y", FLOAT, [1, 7])], [W])
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=write(tmp_path, "wide.onnx", data))
+    assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+    assert str(e.value.__cause__) == "output 'y' of shape (1, 7) has 7 elements: dimension 1 (7) takes it past 6, the most CUDA-Q's int output_size holds"
+    # A dynamic batch at batch_size 2 fits; at 3 it does not.
+    path = model_path("identity_dynamic.onnx")
+    d = qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=2, use_cuda_graph=False)
+    assert d.decode_batch([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]).result.tolist() == [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=3, use_cuda_graph=False)
+    assert str(e.value.__cause__) == "input 'input' of shape (3, 3) at batch_size 3 has 9 elements: dimension 1 (3) takes it past 6, the most CUDA-Q's int input_size holds"
+    # At batch_size 1, the dry run at batch 2 that tells which output dimensions follow the batch
+    # would pass the limit: it is not run, and the output is the one at batch 1.
+    monkeypatch.setattr(_trt, "_MAX_VOLUME", 5)
+    d = qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=1, use_cuda_graph=False)
+    assert d.decode_batch([[1.0, 0.5, 0.0], [0.0, 1.0, 0.25]]).result.tolist() == [[1.0, 0.5, 0.0], [0.0, 1.0, 0.25]]
 
 
 def test_uint8_identity_model_binarizes_input_and_output():
@@ -472,6 +631,29 @@ def test_global_decoder_needs_its_params_and_a_name():
     assert str(e.value) == PREFIX + "invalid decoder requested: nope. Run with CUDAQ_LOG_LEVEL=info (environment variable) to see additional plugin diagnostics at startup."
 
 
+def test_a_failed_construction_keeps_what_failed(monkeypatch):
+    # The message is CUDA-Q's ("TensorRT initialization failed: " and what failed); the
+    # exception that failed is its cause, with its traceback: a parse or build failure's reason,
+    # or the failure itself.
+    kw = dict(onnx_load_path=model_path("identity_dynamic.onnx"), batch_size=1, use_cuda_graph=False)
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), global_decoder="nope", global_decoder_params={}, **kw)
+    cause = e.value.__cause__
+    assert type(cause) is RuntimeError and PREFIX + str(cause) == str(e.value) and cause.__traceback__ is not None
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8))
+    assert str(e.value.__cause__) == "TensorRT decoder requires either 'onnx_load_path' or 'engine_load_path' parameter"
+
+    def broken(precision):
+        raise TypeError("an internal failure")
+
+    monkeypatch.setattr(_trt, "_precision", broken)
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), **kw)
+    assert str(e.value) == PREFIX + "an internal failure"
+    assert type(e.value.__cause__) is TypeError and e.value.__cause__.__traceback__ is not None
+
+
 def test_o_without_global_decoder_returns_pre_l():
     H = np.array([[1, 0], [0, 1], [1, 1]], dtype=np.uint8)
     O = np.array([[1, 1]], dtype=np.uint8)
@@ -493,6 +675,26 @@ def test_o_is_checked():
     with pytest.raises(RuntimeError) as e:
         qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), O=np.ones((1, 3), dtype=np.uint8), global_decoder="single_error_lut", global_decoder_params={}, **kw)
     assert str(e.value) == PREFIX + "trt_decoder: TRT output_size_per_sample (3) must equal num_observables + global_decoder.syndrome_size (4) for the [pre_L, residual_dets] split."
+
+
+def test_o_must_be_a_matrix():
+    H3 = np.eye(3, dtype=np.uint8)
+    kw = dict(onnx_load_path=model_path("identity_dynamic.onnx"), batch_size=1, use_cuda_graph=False)
+    for O in (np.ones(3, dtype=np.uint8), np.ones((1, 1, 3), dtype=np.uint8), [1, 0, 1]):
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", H3, O=O, **kw)
+        assert str(e.value) == PREFIX + "trt_decoder: O must be a 2-dimensional tensor (num_observables x block_size)"
+    # (Checked where CUDA-Q checks it: after the model is built and the global decoder made.)
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", H3, O=np.ones(3, dtype=np.uint8), onnx_load_path="/no/such/model.onnx")
+    assert str(e.value) == PREFIX + "Failed to open file: /no/such/model.onnx"
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", H3, O=np.ones(3, dtype=np.uint8), global_decoder="nope", global_decoder_params={}, **kw)
+    assert str(e.value).startswith(PREFIX + "invalid decoder requested: nope.")
+    # (The other decoders keep get_decoder's own message.)
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("single_error_lut", H3, O=np.ones(3, dtype=np.uint8))
+    assert str(e.value) == "get_decoder: H must be a two-dimensional matrix"
 
 
 def test_o_from_a_detector_error_model():
@@ -585,9 +787,10 @@ def test_a_model_of_rank_one_is_a_batch_of_single_values():
 
 
 def test_qdq_models_are_identity_on_small_integers():
-    # (test_ai_decoder_quantized_onnx.cpp: Q/DQ with scale 1 is the identity on -4..4.)
+    # (test_ai_decoder_quantized_onnx.cpp: Q/DQ with scale 1 is the identity on -4..4; and with
+    # qdq_fp8_zp's float8 zero point of 1.0, which TensorRT ignores.)
     inputs = [[-4.0], [-2.0], [-1.0], [0.0], [1.0], [2.0], [3.0], [4.0]]
-    for name in ("qdq_int8.onnx", "qdq_fp8.onnx"):
+    for name in ("qdq_int8.onnx", "qdq_fp8.onnx", "qdq_fp8_zp.onnx"):
         d = qec.get_decoder("trt_decoder", np.eye(1, dtype=np.uint8), onnx_load_path=model_path(name))
         assert d.decode_batch(inputs).result.tolist() == inputs
 
@@ -616,6 +819,37 @@ def test_tensorrt_refuses_asymmetric_quantization(tmp_path):
         qec.get_decoder("trt_decoder", np.eye(4, dtype=np.uint8), onnx_load_path=path)
     assert str(e.value) == PREFIX + "Failed to parse ONNX model: " + path
     assert "Scale coefficients must all be positive" in str(e.value.__cause__)
+
+
+def test_tensorrt_refuses_uint8_dequantization_and_integer_products(tmp_path):
+    # onnx-tensorrt (onnxOpImporters.cpp) does not import DequantizeLinear of UINT8 unless
+    # asymmetric quantization is enabled for DLA (cpp:2027-2030), nor MatMul or Gemm of INT32 or
+    # INT64 (cpp:4376, 2750): the parse fails. onnxruntime runs them, and so does the evaluator.
+    half = tensor("s", np.array(0.5, dtype=np.float32), FLOAT)
+    f13, f11, f12 = value_info("x", FLOAT, [1, 3]), value_info("y", FLOAT, [1, 1]), value_info("y", FLOAT, [1, 2])
+    i3 = tensor("W", np.array([[1, 0], [0, 1], [1, 1]], dtype=np.int32), INT32)
+    cases = [
+        # A uint8 input dequantized.
+        ("dq_uint8_input", [node("DequantizeLinear", ["x", "s"], ["y"])], [value_info("x", UINT8, [1, 3])], [value_info("y", FLOAT, [1, 3])], [half], np.array([[1, 1, 0]], dtype=np.uint8), [[0.5, 0.5, 0.0]], 0, "DequantizeLinear", "UINT8"),
+        # uint8 weights dequantized, then multiplied.
+        ("dq_uint8_weights", [node("DequantizeLinear", ["w", "s"], ["wf"]), node("MatMul", ["x", "wf"], ["y"])], [f13], [f11], [half, tensor("w", np.full((3, 1), 200, dtype=np.uint8), UINT8)], np.array([[1, 0, 0]], dtype=np.float32), [[100.0]], 0, "DequantizeLinear", "UINT8"),
+        # A value cast to uint8, then dequantized (its type followed through the graph).
+        ("dq_uint8_cast", [node("Cast", ["x"], ["xu"], to=UINT8), node("Identity", ["xu"], ["xi"]), node("DequantizeLinear", ["xi", "s"], ["y"])], [f13], [value_info("y", FLOAT, [1, 3])], [half], np.array([[2, 4, 0]], dtype=np.float32), [[1.0, 2.0, 0.0]], 2, "DequantizeLinear", "UINT8"),
+        # int32 and int64 products.
+        ("matmul_int32", [node("Cast", ["x"], ["xi"], to=INT32), node("MatMul", ["xi", "W"], ["yi"]), node("Cast", ["yi"], ["y"], to=FLOAT)], [f13], [f12], [i3], np.array([[1, 2, 3]], dtype=np.float32), [[4.0, 5.0]], 1, "MatMul", "INT32"),
+        ("matmul_int64_io", [node("MatMul", ["x", "W"], ["y"])], [value_info("x", INT64, [1, 3])], [value_info("y", INT64, [1, 1])], [tensor("W", np.ones((3, 1), dtype=np.int64), INT64)], np.array([[1, 2, 3]], dtype=np.int64), [[6]], 0, "MatMul", "INT64"),
+        ("gemm_int32", [node("Cast", ["x"], ["xi"], to=INT32), node("Gemm", ["xi", "W"], ["yi"]), node("Cast", ["yi"], ["y"], to=FLOAT)], [f13], [f12], [i3], None, None, 1, "Gemm", "INT32"),
+    ]
+    for name, nodes, ins, outs, inits, x, want, at, op, kind in cases:
+        path = write(tmp_path, name + ".onnx", onnx_model(nodes, ins, outs, inits))
+        if x is not None:
+            assert load_onnx(path).run(x).tolist() == want, name
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path)
+        assert str(e.value) == PREFIX + "Failed to parse ONNX model: " + path, name
+        suffix = " without kENABLE_UINT8_AND_ASYMMETRIC_QUANTIZATION_DLA" if op == "DequantizeLinear" else ""
+        assert str(e.value.__cause__) == f"In node {at} with name:  and operator: {op}: input 0 of type {kind} is not supported{suffix}", name
+    # (A quantized uint8 is TensorRT's int8, which DequantizeLinear takes: qdq_uint8 above.)
 
 
 # -- Malformed models (Review Focus 3) -----------------------------------------------------------------

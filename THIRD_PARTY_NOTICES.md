@@ -226,7 +226,8 @@ matrices (`_css.py`) are ported from `include/cudaq/qec/extended_dem.h`,
 (this package's reader of ONNX models, by the messages and field numbers of `onnx/onnx.proto`,
 Copyright (c) ONNX Project Contributors, Apache License 2.0, https://github.com/onnx/onnx, and its
 evaluator, whose float32 arithmetic and float8 conversion follow onnxruntime's, below); how
-TensorRT's ONNX parser imports quantization (and the messages it refuses with) follows
+TensorRT's ONNX parser imports quantization (and the messages it refuses with), and the input
+types it refuses (uint8 to DequantizeLinear, int32 and int64 to MatMul and Gemm), follow
 onnx-tensorrt (Copyright (c) NVIDIA Corporation, Apache License 2.0,
 https://github.com/onnx/onnx-tensorrt). `tests/cudaq_qec_port/models/surface_code_decoder.onnx`
 is CUDA-Q's own model (`assets/tests/`, a git-lfs object of https://github.com/NVIDIA/cudaq-qec,

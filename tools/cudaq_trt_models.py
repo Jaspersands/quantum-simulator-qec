@@ -1,8 +1,9 @@
 """The ONNX models tests/cudaq_qec_port/test_trt_decoder.py runs, and onnxruntime's outputs on them.
 
 CUDA-Q QEC 0.8.1's (NVIDIA/cudaqx, now NVIDIA/cudaq-qec; Apache License 2.0) trt_decoder tests
-build their small models at test time, or keep them in git-lfs. Their generators are mirrored
-here, so the models are those bytes: `qdq_int8.onnx` and `qdq_fp8.onnx` are
+build their small models at test time, or keep them in git-lfs. Their generators (Copyright (c)
+2026 NVIDIA Corporation & Affiliates) are mirrored here, so the models are those bytes:
+`qdq_int8.onnx` and `qdq_fp8.onnx` are
 `unittests/realtime/generate_ai_decoder_quantized_onnx.py`'s (their sha256 equal to the LFS
 pointers' oids, checked below), and `identity_dynamic.onnx`, `identity_uint8.onnx` and
 `cast_uint8_float.onnx` are `unittests/decoders/trt_decoder/generate_trt_decoder_onnx.py`'s
@@ -10,8 +11,13 @@ pointers' oids, checked below), and `identity_dynamic.onnx`, `identity_uint8.onn
 are this package's, so that every operator the evaluator (`stabilizer_qec.cudaq_qec._onnx`) runs is
 checked against onnxruntime: `ops_chain` (Flatten, MatMul, Add, Relu, Reshape with 0 and -1, Gemm with transB,
 alpha and beta, Sigmoid, Identity), `gemm_trans` (Gemm with transA and a broadcast C), `qdq_axis`
-(per-axis int8 and per-tensor uint8 with a zero point), `qdq_uint8` (no zero point: ONNX's uint8)
-and `cast_fp8_sat` / `cast_fp8_nosat` (float8e4m3fn by Cast, saturating and not).
+(per-axis int8 and per-tensor uint8 with a zero point), `qdq_uint8` (no zero point: ONNX's uint8),
+`qdq_fp8_zp` (float8e4m3fn quantized with a nonzero zero point, which onnxruntime ignores),
+`cast_fp8_sat` / `cast_fp8_nosat` (float8e4m3fn by Cast, saturating and not), and the products
+of K = 600, past MLAS's blocks of 256: `matmul_k600` (by a matrix), `matmul_vector_k600` (by a
+vector, one block), `gemm_k600` (transB, alpha, beta and C) and `gemm_alpha_k600` (alpha, no C).
+The inputs of the models added since the first recording draw on their own generators, so the
+earlier models' recorded inputs stay as they were.
 
 `surface_code_decoder.onnx` is CUDA-Q's own (`assets/tests/surface_code_decoder.onnx`, a git-lfs
 file, 191,673 bytes), fetched read-only from
@@ -159,6 +165,36 @@ def cast_fp8(name, saturate):
     model(name, nodes, [i], [o], [])
 
 
+def qdq_fp8_zp():
+    # qdq_fp8 with a float8 zero point of 1.0 where onnxruntime takes a nonzero one, in
+    # QuantizeLinear (which ignores it); DequantizeLinear's is 0, as onnxruntime refuses any
+    # other for float8.
+    scale = numpy_helper.from_array(np.array([1.0], dtype=np.float32), "scale")
+    zq = helper.make_tensor("zero_point_q", TensorProto.FLOAT8E4M3FN, [1], vals=[1.0])
+    zd = helper.make_tensor("zero_point_dq", TensorProto.FLOAT8E4M3FN, [1], vals=[0])
+    nodes = [helper.make_node("QuantizeLinear", ["input", "scale", "zero_point_q"], ["quantized"]), helper.make_node("DequantizeLinear", ["quantized", "scale", "zero_point_dq"], ["output"])]
+    i = helper.make_tensor_value_info("input", TensorProto.FLOAT, [8])
+    o = helper.make_tensor_value_info("output", TensorProto.FLOAT, [8])
+    model("qdq_fp8_zp.onnx", nodes, [i], [o], [scale, zq, zd])
+
+
+def products_k600():
+    # K = 600: MLAS sums 256 + 256 + 88, each block folded into the output; by a vector, one block.
+    rng = np.random.default_rng(14)
+    i = helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 600])
+    W = numpy_helper.from_array(rng.standard_normal((600, 4)).astype(np.float32), "W")
+    model("matmul_k600.onnx", [helper.make_node("MatMul", ["input", "W"], ["output"])], [i], [helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 4])], [W])
+    v = numpy_helper.from_array(rng.standard_normal(600).astype(np.float32), "v")
+    model("matmul_vector_k600.onnx", [helper.make_node("MatMul", ["input", "v"], ["output"])], [i], [helper.make_tensor_value_info("output", TensorProto.FLOAT, [2])], [v])
+    B = numpy_helper.from_array(rng.standard_normal((4, 600)).astype(np.float32), "B")
+    C = numpy_helper.from_array(rng.standard_normal(4).astype(np.float32), "C")
+    gemm = helper.make_node("Gemm", ["input", "B", "C"], ["output"], alpha=1.5, beta=0.5, transB=1)
+    model("gemm_k600.onnx", [gemm], [i], [helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 4])], [B, C])
+    B2 = numpy_helper.from_array(rng.standard_normal((600, 4)).astype(np.float32), "B")
+    gemm = helper.make_node("Gemm", ["input", "B"], ["output"], alpha=1.5)
+    model("gemm_alpha_k600.onnx", [gemm], [i], [helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 4])], [B2])
+
+
 # -- Inputs ----------------------------------------------------------------------------------------
 
 
@@ -195,17 +231,28 @@ def fp8_sweep():
     return [x]
 
 
+QDQ_CASES = [
+    [-4, -2, -1, 0, 1, 2, 3, 4],
+    [0.5, 1.5, 2.5, -0.5, -1.5, -2.5, 126.5, -127.5],
+    [127.4, 127.5, 128, -128.4, -128.5, -129, 300, -300],
+    [254.5, 255.5, 256, 1e30, -1e30, 1e-30, -1e-30, 0.0],
+    [0.001, 0.0019, 500.0, -1000.0, 13.0, 0.3, 449.0, 1e-9],
+]
+
+
 def inputs_for(name, rng):
+    # (Models added after the first recording draw on their own generators, not on rng.)
+    if name == "qdq_fp8_zp.onnx":
+        own = np.random.default_rng(13)
+        cases = QDQ_CASES + list(own.standard_normal((8, 8)) * 60) + [[np.inf, -np.inf, np.nan, 464, 464.5, 480, 496, -0.0]]
+        return [np.asarray(c, dtype=np.float32) for c in cases]
+    if name in ("matmul_k600.onnx", "matmul_vector_k600.onnx", "gemm_k600.onnx", "gemm_alpha_k600.onnx"):
+        own = np.random.default_rng(15)
+        return [(own.standard_normal((2, 600)) * s).astype(np.float32) for s in (0.1, 1.0, 10.0)]
     if name == "surface_code_decoder.onnx":
         return surface_inputs()
     if name in ("qdq_int8.onnx", "qdq_fp8.onnx", "qdq_uint8.onnx"):
-        cases = [
-            [-4, -2, -1, 0, 1, 2, 3, 4],
-            [0.5, 1.5, 2.5, -0.5, -1.5, -2.5, 126.5, -127.5],
-            [127.4, 127.5, 128, -128.4, -128.5, -129, 300, -300],
-            [254.5, 255.5, 256, 1e30, -1e30, 1e-30, -1e-30, 0.0],
-            [0.001, 0.0019, 500.0, -1000.0, 13.0, 0.3, 449.0, 1e-9],
-        ]
+        cases = list(QDQ_CASES)
         cases += list(rng.standard_normal((8, 8)) * 60)
         if name == "qdq_fp8.onnx":
             cases.append([np.inf, -np.inf, np.nan, 464, 464.5, 480, 496, -0.0])
@@ -240,6 +287,8 @@ def main() -> None:
     qdq_uint8()
     cast_fp8("cast_fp8_sat.onnx", 1)
     cast_fp8("cast_fp8_nosat.onnx", 0)
+    qdq_fp8_zp()
+    products_k600()
 
     print("onnx", onnx.__version__, "onnxruntime", ort.__version__)
     names = sorted(p.name for p in OUT.glob("*.onnx"))

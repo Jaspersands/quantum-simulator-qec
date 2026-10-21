@@ -238,12 +238,14 @@ def _columns(H: Any) -> Tuple[int, int, List[List[int]]]:
 
 class _Inputs:
     """``decoder_init``: H as columns, the observable matrix (rows of faults) if any, and the
-    error rates; ``obs_cols``, the column count of an O given as a matrix (None otherwise)."""
+    error rates; ``obs_cols``, the column count of an O given as a matrix (None otherwise);
+    ``obs_rank``, the rank of an O given that is not a matrix, for a decoder that refuses it
+    itself (trt_decoder; None otherwise)."""
 
-    def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float], obs_cols: Optional[int] = None) -> None:
+    def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float], obs_cols: Optional[int] = None, obs_rank: Optional[int] = None) -> None:
         self.num_rows, self.num_cols, self.columns = num_rows, num_cols, columns
         self.O, self.num_observables, self.rates = O, num_obs, rates
-        self.obs_cols = obs_cols
+        self.obs_cols, self.obs_rank = obs_cols, obs_rank
 
     def has_observable_model(self) -> bool:
         return self.O is not None
@@ -696,14 +698,20 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     O = None
     num_obs = 0
     o_cols: Optional[int] = None
+    o_rank: Optional[int] = None
     if "O" in options:
-        num_obs, o_cols, O = _rows_of(options.pop("O"))
+        given = options.pop("O")
+        if name == "trt_decoder" and not hasattr(given, "tocsc") and np.ndim(given) != 2:
+            # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does.)
+            o_rank = int(np.ndim(given))
+        else:
+            num_obs, o_cols, O = _rows_of(given)
         if o_cols != n and name == "pymatching" and options.get("output") == "observables":
             raise RuntimeError("Observable matrix column count must equal block_size")
     rates: List[float] = []
     if "error_rate_vec" in options:
         rates = [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
-    return _native(name, _Inputs(m, n, cols, O, num_obs, rates, o_cols), options, typed)
+    return _native(name, _Inputs(m, n, cols, O, num_obs, rates, o_cols, o_rank), options, typed)
 
 
 def _register_plugins() -> None:

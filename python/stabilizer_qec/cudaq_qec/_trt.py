@@ -1,7 +1,8 @@
 # Ported from CUDA-Q QEC (NVIDIA/cudaqx 0.8.1, now NVIDIA/cudaq-qec; libs/qec:
-# lib/decoders/plugins/trt_decoder/trt_decoder.cpp and include/cudaq/qec/trt_decoder_internal.h;
-# Copyright (c) 2024 - 2026 NVIDIA Corporation & Affiliates, Apache License 2.0; see
-# THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: the ONNX model runs on the CPU in numpy
+# lib/decoders/plugins/trt_decoder/trt_decoder.cpp, Copyright (c) 2025 - 2026 NVIDIA Corporation &
+# Affiliates, and include/cudaq/qec/trt_decoder_internal.h, Copyright (c) 2024 - 2025 NVIDIA
+# Corporation & Affiliates; Apache License 2.0; see THIRD_PARTY_NOTICES.md), modified for
+# stabilizer_qec: the ONNX model runs on the CPU in numpy
 # (._onnx) where CUDA-Q builds a TensorRT engine; how TensorRT's ONNX parser imports quantization
 # follows onnx-tensorrt (NVIDIA, Apache License 2.0).
 """CUDA-Q QEC's ``trt_decoder``: a neural-network decoder given as an ONNX model
@@ -16,12 +17,18 @@ CUDA-Q builds a TensorRT engine from the model, strongly typed: the model's own 
 types computed in, so ``precision`` (other than ``best``, ``tf32`` and ``noTF32``) only warns, as
 there. TensorRT's quantization is what runs: QuantizeLinear to int8 where ONNX says uint8 (or
 names no zero point), a float8 zero point ignored, and a nonzero integer zero point or a scale
-that is not positive refused. A TensorRT engine is a GPU binary: ``engine_load_path`` and
-``engine_save_path`` are refused. ``memory_workspace`` and ``use_cuda_graph`` are read and
-checked as CUDA-Q reads them, and change nothing else. CUDA-Q's warnings are RuntimeWarnings."""
+that is not positive refused, as are DequantizeLinear of uint8 and MatMul or Gemm of int32 or
+int64. An engine's input and output have at most 2**31 - 1 elements, which CUDA-Q counts in ints.
+A TensorRT engine is a GPU binary: ``engine_load_path`` and ``engine_save_path`` are refused.
+``memory_workspace`` and ``use_cuda_graph`` are read and checked as CUDA-Q reads them, and change
+nothing else. CUDA-Q's warnings are RuntimeWarnings, the caller's (at the line that made the
+decoder), and are given on every construction, as CUDA-Q logs them: the "default" and "module"
+actions do not show them only once per line or module, though the caller's filters ("ignore",
+"once", "error", ...) apply."""
 
 from __future__ import annotations
 
+import sys
 import warnings
 from typing import Any, List, Optional, Tuple
 
@@ -35,10 +42,44 @@ _INIT_FAILED = "TensorRT initialization failed: "
 # TensorRT's types for the ONNX types it imports as network inputs and outputs, named as CUDA-Q
 # names them (dataTypeName; "unknown" for those it does not name).
 _TRT_NAMES = {1: "float32", 10: "float16", 3: "int8", 6: "int32", 9: "bool", 2: "uint8", 17: "fp8", 16: "bfloat16", 7: "int64", 22: "unknown"}
+# The names onnx-tensorrt's importers give the types they refuse.
+_TRT_TYPES = {2: "UINT8", 6: "INT32", 7: "INT64"}
+
+
+# The most elements an engine's input or output has: CUDA-Q holds input_size and output_size in ints.
+_MAX_VOLUME = 2**31 - 1
 
 
 def _warn(message: str) -> None:
-    warnings.warn(message, RuntimeWarning, stacklevel=4)
+    """CUDA-Q's log warning, as a RuntimeWarning of the caller: of the first frame outside this
+    package, its file, line and module (for filters). It is shown on every construction, as
+    CUDA-Q logs it: no registry keeps the "default" or "module" action from showing it again
+    (nothing is written to the caller's); the filters, and "once"'s registry, are Python's own."""
+    frame = sys._getframe(1)
+    while frame.f_back is not None and str(frame.f_globals.get("__name__", "")).split(".")[0] == "stabilizer_qec":
+        frame = frame.f_back
+    g = frame.f_globals
+    warnings.warn_explicit(message, RuntimeWarning, frame.f_code.co_filename, frame.f_lineno, module=g.get("__name__", "<string>"), registry=None, module_globals=g)
+
+
+def _volume(dims: Any) -> int:
+    n = 1
+    for d in dims:
+        n *= int(d)
+    return n
+
+
+def _too_large(kind: str, name: str, dims: Tuple[int, ...], batch: int = 0) -> Optional[ValueError]:
+    """Why an engine input or output of these dimensions (a dynamic batch's at ``batch``) is more
+    than CUDA-Q's int count of its elements holds, naming the dimension that takes it past; None
+    when it fits."""
+    n = 1
+    for j, d in enumerate(dims):
+        n *= d
+        if n > _MAX_VOLUME:
+            at = f" at batch_size {batch}" if batch else ""
+            return ValueError(f"{kind} '{name}' of shape {tuple(dims)}{at} has {_volume(dims)} elements: dimension {j} ({d}) takes it past {_MAX_VOLUME}, the most CUDA-Q's int {kind}_size holds")
+    return None
 
 
 def _get(params: dict, key: str, kind: str) -> Any:
@@ -71,10 +112,31 @@ def _tensorrt_import(model: _onnx.OnnxModel) -> None:
     for name, _t, shape in model._in:
         if shape is None:
             raise ValueError(f"input '{name}' has no shape, and TensorRT needs at least its rank")
+    # Each value's type as TensorRT has it: its first input's for most operators.
+    types = {name: t for name, (_a, t) in model._inits.items()}
+    types.update((name, t) for name, t, _s in model._in)
     for i, node in enumerate(model._nodes):
+        where = f"In node {i} with name: {node.name} and operator: {node.op}: "
+        t = types[node.inputs[0]]
+        if node.op == "Cast":
+            types[node.outputs[0]] = node.attrs["to"]
+        elif node.op == "QuantizeLinear":
+            # (To float8 when the zero point or output_dtype says so; to int8 otherwise, uint8 included.)
+            target = types[node.inputs[2]] if len(node.inputs) > 2 and node.inputs[2] else node.attrs.get("output_dtype", 0)
+            types[node.outputs[0]] = _onnx.FP8 if target == _onnx.FP8 else _onnx.INT8
+        elif node.op == "DequantizeLinear":
+            types[node.outputs[0]] = types[node.inputs[1]]
+        else:
+            types[node.outputs[0]] = t
+        # onnx-tensorrt's checkNotInvalidType (onnxOpImporters.cpp): MatMul and Gemm do not take
+        # INT32 or INT64 (cpp:4376, 2750); DequantizeLinear does not take UINT8 unless asymmetric
+        # quantization is enabled for DLA (cpp:2027-2030), checked before its scale.
+        if node.op in ("MatMul", "Gemm") and t in (_onnx.INT32, _onnx.INT64):
+            raise ValueError(where + f"input 0 of type {_TRT_TYPES[t]} is not supported")
+        if node.op == "DequantizeLinear" and t == _onnx.UINT8:
+            raise ValueError(where + "input 0 of type UINT8 is not supported without kENABLE_UINT8_AND_ASYMMETRIC_QUANTIZATION_DLA")
         if node.op not in ("QuantizeLinear", "DequantizeLinear"):
             continue
-        where = f"In node {i} with name: {node.name} and operator: {node.op}: "
         scale = model._inits.get(node.inputs[1])
         if scale is not None:
             if scale[0].size == 0:
@@ -115,8 +177,8 @@ class _TrtDecoder(_NativeDecoder):
         try:
             self._construct(inputs, params)
         except Exception as e:
-            # (A parse failure keeps what failed as its cause.)
-            raise RuntimeError(_INIT_FAILED + str(e)) from e.__cause__
+            # (The cause is what failed: a parse or build failure's reason, or the failure itself.)
+            raise RuntimeError(_INIT_FAILED + str(e)) from (e.__cause__ or e)
 
     def _construct(self, inputs: _Inputs, params: dict) -> None:
         has_onnx, has_engine = "onnx_load_path" in params, "engine_load_path" in params
@@ -175,6 +237,8 @@ class _TrtDecoder(_NativeDecoder):
                 self._global = _global_decoder(name, inputs, gparams)
 
         # The observables: the model's output is [pre_L, residual detectors].
+        if inputs.obs_rank is not None:
+            raise RuntimeError("trt_decoder: O must be a 2-dimensional tensor (num_observables x block_size)")
         self._num_obs = 0
         self._to_obs = inputs.O is not None and (inputs.obs_cols is not None or inputs.num_observables > 0)
         if self._to_obs:
@@ -207,8 +271,9 @@ class _TrtDecoder(_NativeDecoder):
             in_shape = model._in[0][2] if model._in else ()
             static = not any(_dynamic(d) for _n, _t, s in model._in for d in s)
             in_dims = out_dims = None
-            if runnable and static:
-                # (The parser infers every static shape: one that does not fit fails the parse.)
+            # (The parser infers every static shape: one that does not fit fails the parse. An
+            # input too large to count is not run: it fails the build, below.)
+            if runnable and static and _too_large("input", "", tuple(in_shape)) is None:
                 in_dims = tuple(in_shape)
                 out_dims = model.run(_zeros(model, in_dims)).shape
         except ValueError as e:
@@ -233,26 +298,43 @@ class _TrtDecoder(_NativeDecoder):
                     raise RuntimeError("Failed to build TensorRT engine") from ValueError("no optimization profile covers a dynamic input: " + why)
         if not model._out:
             raise RuntimeError("Failed to build TensorRT engine") from ValueError("Network must have at least one output")
-        if runnable and not static:
-            in_dims, out_dims = self._profile_dims(model, in_shape, batch)
+        if runnable:
+            # The engine's input and output must each be countable in an int, as CUDA-Q counts
+            # them (a dynamic batch's at batch_size); the input is checked before it is made.
+            too_large = _too_large("input", model._in[0][0], tuple(batch if _dynamic(d) else d for d in in_shape), 0 if static else batch)
+            if too_large is None and not static:
+                in_dims, out_dims = self._profile_dims(model, in_shape, batch)
+            if too_large is None:
+                # (The output as CUDA-Q sizes it: its dimensions when its batch is static, else the
+                # model's batch times its other dimensions, a dynamic one counted as 1.)
+                assert out_dims is not None
+                if len(out_dims) > 0 and out_dims[0] > 0:
+                    too_large = _too_large("output", model._out[0][0], tuple(out_dims))
+                else:
+                    model_batch = batch if not static else (in_shape[0] if len(in_shape) > 0 and in_shape[0] > 0 else 1)
+                    too_large = _too_large("output", model._out[0][0], (model_batch,) + tuple(d if d > 0 else 1 for d in out_dims[1:]), 0 if static else batch)
+            if too_large is not None:
+                raise RuntimeError("Failed to build TensorRT engine") from too_large
         return model, in_dims, out_dims, batch
 
     @staticmethod
     def _profile_dims(model: _onnx.OnnxModel, in_shape: tuple, batch: int) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
         """A dynamic batch's engine dimensions: the output's found at batches 1 and 2, those that
         change being dynamic (-1). Batch 1 is in every profile; batch 2 is beyond a profile of
-        one, so there it only tells the shape and may fail."""
+        one, so there it only tells the shape and may fail (or, too large to count, is not
+        run)."""
         rest = tuple(in_shape[1:])
         try:
             first = model.run(_zeros(model, (1,) + rest)).shape
         except ValueError as e:
             raise RuntimeError("Failed to build TensorRT engine") from e
-        try:
-            second: Optional[tuple] = model.run(_zeros(model, (2,) + rest)).shape
-        except ValueError as e:
-            if batch >= 2:
-                raise RuntimeError("Failed to build TensorRT engine") from e
-            second = None
+        second: Optional[tuple] = None
+        if 2 * _volume(rest) <= _MAX_VOLUME:  # (always so for a batch_size of 2 or more, checked)
+            try:
+                second = model.run(_zeros(model, (2,) + rest)).shape
+            except ValueError as e:
+                if batch >= 2:
+                    raise RuntimeError("Failed to build TensorRT engine") from e
         if second is not None and len(second) != len(first):
             raise RuntimeError("Failed to build TensorRT engine")
         out = tuple(-1 if second is not None and a != b else a for a, b in zip(first, second or first))

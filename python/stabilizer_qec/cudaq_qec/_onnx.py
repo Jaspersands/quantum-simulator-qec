@@ -756,8 +756,10 @@ def _dequantize(m: OnnxModel, node: _Node, args: List[_Arg]) -> Tuple[np.ndarray
             raise ValueError(f"zero point of type {_type_name(zp[1])} for {_type_name(t)} values")
     scale = _per_axis(s, x, axis, "scale").astype(np.float32)
     if t == FP8:
-        if zp is not None and zp[1] == FP8 and not m._tensorrt and np.any(zp[0] & 0x7F):
-            raise ValueError("onnxruntime dequantizes float8 only with a zero zero point (TensorRT ignores it)")
+        # (onnxruntime takes no float8 zero point but +0, its bits compared, so not -0.0 either;
+        # TensorRT ignores it.)
+        if zp is not None and zp[1] == FP8 and not m._tensorrt and np.any(zp[0] != 0):
+            raise ValueError("DequantizeLinear with type float8 should have no zero point or all zero points should be 0")
         return (_from_fp8(x) * scale).astype(_NUMPY[st]), st
     z = _per_axis(zp[0], x, axis, "zero point").astype(np.int64) if zp is not None and zp[1] != FP8 else 0
     return ((x.astype(np.int64) - z).astype(np.float32) * scale).astype(_NUMPY[st]), st
