@@ -933,19 +933,27 @@ def _row_cells(data: Dict[str, Any], name: str) -> List[str]:
     return [cell(name), cell(est["physicalCountsFormatted"]["physicalQubitsForTfactoriesPercentage"]), cell(est["physicalCounts"]["physicalQubits"]), cell(est["physicalCountsFormatted"]["runtime"]), cell(est["physicalCounts"]["rqops"])]
 
 
-def scatter_chart(estimates: Sequence[Dict[str, Any]], colors: Optional[Sequence[str]] = None, names: Optional[Sequence[str]] = None) -> Chart:
+def scatter_chart(estimates: Sequence[Dict[str, Any]], colors: Optional[Sequence[str]] = None, names: Optional[Sequence[str]] = None, kept: Optional[Sequence[int]] = None) -> Chart:
     """The estimates overview's scatter chart of results drawn together: each result's physical qubits against
     its runtime (a frontier's entries joined by a line), both axes logarithmic with the widgets' ticks, a color
-    each (the widgets' color map, or `colors` when there are as many). The HTML has the overview's table above
-    it: each result's color and run name (`names` when there are as many), T factory fraction, physical qubits,
-    runtime and rQOPS."""
+    each (the widgets' color map, or `colors` when there are as many as `estimates`). The HTML has the
+    overview's table above it: each result's color and run name (`names` when there are as many), T factory
+    fraction, physical qubits, runtime and rQOPS. `kept`, where given, are the indices of the estimates drawn (a
+    batch's succeeded items: the widget cannot draw a failed one). As in the widget, `colors` and `names` are
+    counted against all of `estimates`, and the colors, the color map's too, are given out over all of them;
+    those drawn keep theirs. The run names made up where `names` are not given are made up from those drawn (a
+    failed item has no parameters to name)."""
     datas = list(estimates)
     if colors is not None and len(colors) > 0 and len(colors) != len(datas):
         warnings.warn("The number of colors does not match the number of estimates. Ignoring provided colors.", stacklevel=3)
     if names is not None and len(names) > 0 and len(names) != len(datas):
         warnings.warn("The number of runNames does not match the number of estimates. Ignoring provided runNames.", stacklevel=3)
     colormap = list(colors) if colors is not None and len(colors) == len(datas) else color_map(len(datas))
-    labels = list(names) if names is not None and len(names) == len(datas) else run_names(datas)
+    given_names = list(names) if names is not None and len(names) == len(datas) else None
+    if kept is not None:
+        datas, colormap = [datas[i] for i in kept], [colormap[i] for i in kept]
+        given_names = None if given_names is None else [given_names[i] for i in kept]
+    labels = run_names(datas) if given_names is None else given_names
     series = [(colormap[i], _scatter_items(d)) for i, d in enumerate(datas)]
 
     min_x, max_x, min_y, max_y = _MAX_VALUE, _MIN_VALUE, _MAX_VALUE, _MIN_VALUE  # as the widget starts them

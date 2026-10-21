@@ -3556,14 +3556,16 @@ class EstimatorResult(dict):
         """The QDK's widget estimates overview's scatter chart, as SVG (the string; in a notebook under its table):
         physical qubits against runtime, both logarithmic, a frontier's entries joined by a line; for a batch,
         each succeeded item (the widget draws a batch only when all have succeeded), in the widget's colors or
-        `colors`, named in the table by `run_names` or the widget's. A failed result raises its error."""
+        `colors`, named in the table by `run_names` or the widget's. As in the widget, `colors` and `run_names`
+        give one entry per estimate, here per batch item, a failed one too (one for a single result), else they
+        are ignored with the widget's warning; each item keeps its entry, and the color map's color, when a failed
+        item's is dropped with it. A failed result raises its error."""
         if self._is_simple:
             if self._error is not None:
                 raise self._error
-            datas = [self._data]
-        else:
-            datas = [d for d in self._data if self._is_succeeded(d)]
-        return _report().scatter_chart(datas, colors, run_names)
+            return _report().scatter_chart([self._data], colors, run_names)
+        kept = [i for i, d in enumerate(self._data) if self._is_succeeded(d)]
+        return _report().scatter_chart(self._data, colors, run_names, kept)
 
     def summary_data_frame(self, labels: Optional[List] = None):
         """The QDK's batch overview as a pandas DataFrame (pandas needed), a row per item: logical qubits,

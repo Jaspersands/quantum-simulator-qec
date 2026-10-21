@@ -433,11 +433,23 @@ def test_space_chart_svg_wellformed():
     assert len(charts) == len(WIDGET["space"]) + len(WIDGET["scatter"])
 
 
+def _strokes(chart) -> list:
+    """Each drawn point's color, in order (a frontier's entries one after another)."""
+    return [c.get("stroke") for c in ET.fromstring(str(chart)).iter("{http://www.w3.org/2000/svg}circle")]
+
+
+def _table_names(chart) -> list:
+    return [td.text or "" for td in ET.fromstring(chart._repr_html_()).iter("td") if td.get("data-colid") == "0"]
+
+
 def test_charts_of_results():
     """A batch's space chart is its item's; a failed result raises its error; the scatter of a batch draws its
-    succeeded items (the widget draws none of them when one has failed), with given colors where they match."""
+    succeeded items (the widget draws none of them when one has failed). As in the widget, colors and run names
+    count the estimates, here every item of the batch, and each item keeps its color, the color map's too: a
+    failed item's entry is dropped with it."""
     counts = _counts()
     batch = counts.estimate([{}, {"constraints": {"maxDuration": "1 ns"}}, {"estimateType": "frontier"}])
+    frontier = len(batch[2]["frontierEntries"])
     with pytest.raises(ValueError, match=r"^Cannot draw the space chart of a batching job: draw an item's \(result\[i\]\.space_chart\(\)\)$"):
         batch.space_chart()
     with pytest.raises(az.EstimatorError):
@@ -445,12 +457,26 @@ def test_charts_of_results():
     with pytest.raises(az.EstimatorError):
         batch[1].scatter_chart()
     assert str(batch[2].space_chart(1)) != str(batch[2].space_chart()) == str(batch[2].space_chart(0))
-    svg = ET.fromstring(str(batch.scatter_chart()))
-    circles = [c for c in svg.iter("{http://www.w3.org/2000/svg}circle")]
-    assert len(circles) == 1 + len(batch[2]["frontierEntries"]) and {c.get("stroke") for c in circles} == set(rep.color_map(2))
-    assert {c.get("stroke") for c in ET.fromstring(str(batch.scatter_chart(colors=["red", "blue"]))).iter("{http://www.w3.org/2000/svg}circle")} == {"red", "blue"}
-    with pytest.warns(UserWarning, match="^The number of colors does not match the number of estimates. Ignoring provided colors.$"):
-        batch.scatter_chart(colors=["red"])
-    with pytest.warns(UserWarning, match="^The number of runNames does not match the number of estimates. Ignoring provided runNames.$"):
-        batch.scatter_chart(run_names=["a"])
-    assert '<td data-colid="0">mine</td>' in batch.scatter_chart(run_names=["mine", "yours"])._repr_html_()
+    three = rep.color_map(3)
+    assert frontier > 1 and _strokes(batch.scatter_chart()) == [three[0]] + [three[2]] * frontier
+    assert _strokes(batch.scatter_chart(colors=["red", "green", "blue"])) == ["red"] + ["blue"] * frontier
+    assert _strokes(batch.scatter_chart(colors=three)) == _strokes(batch.scatter_chart())
+    # A list of one per succeeded item does not count the failed one: ignored, with the widget's warning.
+    for colors in (["red"], ["red", "blue"], ["red", "green", "blue", "black"]):
+        with pytest.warns(UserWarning, match="^The number of colors does not match the number of estimates. Ignoring provided colors.$"):
+            assert _strokes(batch.scatter_chart(colors=colors)) == _strokes(batch.scatter_chart())
+    for names in (["a"], ["mine", "yours"]):
+        with pytest.warns(UserWarning, match="^The number of runNames does not match the number of estimates. Ignoring provided runNames.$"):
+            assert _table_names(batch.scatter_chart(run_names=names)) == rep.run_names([batch.data(0), batch.data(2)])
+    assert _table_names(batch.scatter_chart(run_names=["mine", "failed", "yours"])) == ["mine", "yours"]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # matching counts warn of nothing; an empty list is no list, as in the widget
+        batch.scatter_chart(colors=["red", "green", "blue"], run_names=["mine", "failed", "yours"])
+        assert _strokes(batch.scatter_chart(colors=[], run_names=[])) == _strokes(batch.scatter_chart())
+    # A single result is one estimate.
+    assert _strokes(batch[0].scatter_chart(colors=["red"])) == ["red"] and _table_names(batch[0].scatter_chart(run_names=["one"])) == ["one"]
+    with pytest.warns(UserWarning, match="^The number of colors does not match"):
+        batch[2].scatter_chart(colors=["red"] * frontier)
+    # With no failed item, the colors are the color map's of the batch, as the widget draws them.
+    whole = counts.estimate([{}, {"errorBudget": 0.01}, {"qubitParams": {"name": "qubit_maj_ns_e6"}, "qecScheme": {"name": "floquet_code"}}])
+    assert _strokes(whole.scatter_chart()) == three and _strokes(whole.scatter_chart(colors=["a", "b", "c"])) == ["a", "b", "c"]
