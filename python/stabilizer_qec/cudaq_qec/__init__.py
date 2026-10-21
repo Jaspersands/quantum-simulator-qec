@@ -3,8 +3,8 @@
 """CUDA-Q QEC under its names (``import stabilizer_qec.cudaq_qec as qec``): the decoder
 interface (``get_decoder``, ``Decoder``, ``DecoderResult``, ``BatchDecoderResult``, the
 ``@decoder`` registry), its decoders (single- and multi-error lookup tables, PyMatching, the sliding
-window, nv-qldpc-decoder, Chromobius, nv-fusion-decoder, the tensor-network decoder, the
-examples), its detector error model (and the extended one: chunks with named seams, stitched and closed, the
+window, nv-qldpc-decoder, Chromobius, nv-fusion-decoder, the tensor-network decoder,
+trt_decoder (its ONNX model run on the CPU), the examples), its detector error model (and the extended one: chunks with named seams, stitched and closed, the
 ``dem_chunks`` of a repeated-round experiment, and the DEM of CSS code matrices), ``dem_sampling`` and its
 parity-check-matrix tools; its codes
 (``get_code``: the surface code in its orientations XV, XH, ZV and ZH, with its
@@ -14,8 +14,8 @@ its noise models; code-capacity samples); and its real-time decoding host librar
 (``decoder_config`` / ``multi_decoder_config`` and their YAML, the decoder parameter schemas,
 ``configure_decoders``, ``enqueue_syndromes``, ``get_corrections``, ``reset_decoder``,
 ``finalize_decoders``). Its kernels are this package's circuits (``memory_circuit``; kernels
-registered for a Python code are not run, and say so); CUDA-Q's own kernels and GPU decoders
-need CUDA-Q itself and are not here."""
+registered for a Python code are not run, and say so); CUDA-Q's own kernels and its GPU
+decoders' engines (a TensorRT engine file, CUDA graphs) need CUDA-Q itself and are not here."""
 
 from ._decoders import AsyncDecoderResult, BatchDecoderResult, Decoder, DecoderResult, decoder, get_decoder
 from ._codes import (

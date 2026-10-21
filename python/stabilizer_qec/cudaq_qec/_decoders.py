@@ -5,8 +5,8 @@
 # THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: the decoders are this package's.
 """CUDA-Q QEC's decoder interface: results, the decoder registry and ``get_decoder``, and its
 decoders (``single_error_lut``, ``multi_error_lut``, ``pymatching``, ``sliding_window``,
-``nv-qldpc-decoder`` (``._qldpc``), ``chromobius`` and ``nv-fusion-decoder`` (``._matching``), the
-examples)."""
+``nv-qldpc-decoder`` (``._qldpc``), ``chromobius`` and ``nv-fusion-decoder`` (``._matching``),
+``trt_decoder`` (``._trt``), the examples)."""
 
 from __future__ import annotations
 
@@ -238,11 +238,12 @@ def _columns(H: Any) -> Tuple[int, int, List[List[int]]]:
 
 class _Inputs:
     """``decoder_init``: H as columns, the observable matrix (rows of faults) if any, and the
-    error rates."""
+    error rates; ``obs_cols``, the column count of an O given as a matrix (None otherwise)."""
 
-    def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float]) -> None:
+    def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float], obs_cols: Optional[int] = None) -> None:
         self.num_rows, self.num_cols, self.columns = num_rows, num_cols, columns
         self.O, self.num_observables, self.rates = O, num_obs, rates
+        self.obs_cols = obs_cols
 
     def has_observable_model(self) -> bool:
         return self.O is not None
@@ -694,6 +695,7 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     options = dict(options)
     O = None
     num_obs = 0
+    o_cols: Optional[int] = None
     if "O" in options:
         num_obs, o_cols, O = _rows_of(options.pop("O"))
         if o_cols != n and name == "pymatching" and options.get("output") == "observables":
@@ -701,11 +703,11 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     rates: List[float] = []
     if "error_rate_vec" in options:
         rates = [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
-    return _native(name, _Inputs(m, n, cols, O, num_obs, rates), options, typed)
+    return _native(name, _Inputs(m, n, cols, O, num_obs, rates, o_cols), options, typed)
 
 
 def _register_plugins() -> None:
-    from . import _matching, _qldpc
+    from . import _matching, _qldpc, _trt
 
     _NATIVE["nv-qldpc-decoder"] = _qldpc._NvQldpc
 
@@ -713,6 +715,7 @@ def _register_plugins() -> None:
     _NATIVE_DEM["chromobius"] = _matching._Chromobius
     _NATIVE["nv-fusion-decoder"] = _matching._fusion_from_matrix
     _NATIVE_DEM["nv-fusion-decoder"] = lambda text, params, output: _matching._fusion_dem(text, params, output=output)
+    _NATIVE["trt_decoder"] = _trt._TrtDecoder
 
 
 _register_plugins()

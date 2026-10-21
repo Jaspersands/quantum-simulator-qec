@@ -1,8 +1,8 @@
 # Ported from CUDA-Q QEC (NVIDIA/cudaqx 0.8.1, libs/qec: include/cudaq/qec/decoder_config_schema.h,
 # lib/decoder_config_schema.cpp, include/cudaq/qec/realtime/decoding_config.h,
 # lib/realtime/config.cpp, python/bindings/py_decoding_config.cpp, the schemas lib/decoders/lut.cpp,
-# lib/decoders/sliding_window.cpp and the pymatching, chromobius and example plugins register, and
-# libs/core's heterogeneous_map and its Python conversions; Copyright (c) 2024 - 2026 NVIDIA
+# lib/decoders/sliding_window.cpp and the pymatching, chromobius, trt_decoder and example plugins
+# register, and libs/core's heterogeneous_map and its Python conversions; Copyright (c) 2024 - 2026 NVIDIA
 # Corporation & Affiliates, Apache License 2.0; see THIRD_PARTY_NOTICES.md), modified for
 # stabilizer_qec: YAML read and written by ._yaml, the schemas of this package's decoders.
 """CUDA-Q QEC's real-time decoding configuration: ``decoder_config``, ``multi_decoder_config``
@@ -14,9 +14,10 @@ their kinds; assigning a dict after ``type`` converts it to those kinds (an int 
 negative int for an int32), as CUDA-Q does, and YAML is read and written through it. Schemas are
 registered for this package's decoders: ``single_error_lut``, ``multi_error_lut``,
 ``single_error_lut_example``, ``pymatching``, ``chromobius``, ``sliding_window`` (with its checks),
-``nv-qldpc-decoder`` (and its ``srelay_bp`` section) and ``nv-fusion-decoder``. CUDA-Q's
+``nv-qldpc-decoder`` (and its ``srelay_bp`` section), ``nv-fusion-decoder`` and ``trt_decoder``
+(its ``global_decoder_params`` a section of the ``global_decoder``'s schema). CUDA-Q's
 ``nv-qldpc-decoder`` and ``nv-fusion-decoder`` schemas ship in closed plugins; these are built from
-their documented parameters. ``trt_decoder`` has none, as in a CUDA-Q built without TensorRT.
+their documented parameters.
 
 A DEM is described flat (``block_size``, ``syndrome_size``, ``H_sparse``, ``O_sparse``,
 ``D_sparse``), by a Stim model file (``stim_dem_path`` and ``D_sparse``), or as repeated phases,
@@ -218,6 +219,24 @@ def _register_builtin_schemas() -> None:
     # (Its documentation: "decoder_custom_args accepts only num_threads, block_leaf_size,
     # fusion_strategy and error_rate_vec".)
     _register(_Schema("nv-fusion-decoder", [S("num_threads", "uint64"), S("block_leaf_size", "uint64"), S("fusion_strategy", "string"), S("error_rate_vec", "f64_vec")]))
+    # (trt_decoder's global_decoder_params is read in the schema global_decoder names, and an empty
+    # section is made when that decoder has a schema and no section is given.)
+    _register(
+        _Schema(
+            "trt_decoder",
+            [
+                S("onnx_load_path", "string"),
+                S("engine_load_path", "string"),
+                S("engine_save_path", "string"),
+                S("precision", "string"),
+                S("memory_workspace", "uint64"),
+                S("batch_size", "uint64"),
+                S("use_cuda_graph", "boolean"),
+                S("global_decoder", "string"),
+                S("global_decoder_params", "discriminated", discriminator="global_decoder", materialize_empty=True),
+            ],
+        )
+    )
 
 
 _register_builtin_schemas()
