@@ -187,7 +187,8 @@ def test_grid_search_against_qualtran():
 # ---------------------------------------------------------------------------------------------
 
 # The names each of Qualtran 0.7.0's submodules of qualtran.surface_code holds that are Qualtran's own (defined
-# there or imported from Qualtran), as recorded from Qualtran; ui's Dash layout, inputs and app are not ported.
+# there or imported from Qualtran), as recorded from Qualtran; ui's are its estimates and its Dash app (made on first
+# use, where dash is installed: tests/estimate_port/test_qualtran_ui_app.py).
 QUALTRAN_SUBMODULES = {
     "algorithm_summary": ["AlgorithmSummary", "GateCounts"],
     "beverland_et_al_model": ["GateCounts", "code_distance", "minimum_time_steps", "n_discrete_logical_gates", "t_states"],
@@ -203,10 +204,12 @@ QUALTRAN_SUBMODULES = {
     "qec_scheme": ["LogicalErrorModel", "QECScheme"],
     "rotation_cost_model": ["BeverlandEtAlRotationCost", "ConstantWithOverheadRotationCost", "GateCounts", "RotationCostModel", "RotationLogarithmicModel", "SevenDigitsOfPrecisionConstantCost"],
     "t_factory_utils": ["NoisyPauliRotation", "_rotation_unitary", "storage_error"],
-    "ui": ["AlgorithmSummary", "CCZ2TFactory", "FastDataBlock", "FifteenToOne", "GateCounts", "LogicalErrorModel", "MagicStateFactory", "MultiFactory", "PhysicalParameters", "QECScheme", "_BEVERLAND_MODEL", "_GIDNEY_FOWLER_MODEL", "_MAGIC_FACTORIES", "_QEC_SCHEMES", "_ROTATION_MODELS", "_SUPPORTED_ESTIMATION_MODELS", "beverland_et_al_model", "compute_duration", "create_qubit_pie_chart", "create_runtime_plot", "format_duration", "get_objects", "gidney_fowler_model", "min_num_factories", "rotation_cost_model", "total_magic", "update"],
+    "ui": ["AlgorithmSummary", "CCZ2TFactory", "FastDataBlock", "FifteenToOne", "GateCounts", "LogicalErrorModel", "MagicStateFactory", "MultiFactory", "PhysicalParameters", "QECScheme", "_ALGORITHM_INPUTS", "_ALL_INPUTS", "_BEVERLAND_MODEL", "_ERROR_INPUTS", "_ESTIMATION_INPUTS", "_GIDNEY_FOWLER_MODEL", "_MAGIC_FACTORIES", "_MAGIC_FACTORIES_INPUTS", "_MAGIC_FACTORIES_components", "_QEC_INPUTS", "_QEC_SCHEMES", "_ROTATION_MODELS", "_ROTATION_MODELS_INPUTS", "_SUPPORTED_ESTIMATION_MODELS", "algorithm_summary_components", "app", "beverland_et_al_model", "compute_duration", "create_ouputs", "create_qubit_pie_chart", "create_runtime_plot", "format_duration", "get_objects", "gidney_fowler_model", "input_components", "min_num_factories", "qec_summary_components", "rotation_cost_model", "rotation_cost_model_components", "total_magic", "update"],
 }
-# Qualtran's names not ported: the private helpers of its resource counting and Cirq circuit, and the Dash app.
-QUALTRAN_NOT_PORTED = {"QECGatesCost", "QubitCount", "get_cost_value", "_QEC_COUNT", "_QUBIT_COUNT", "_build_factory", "_ALGORITHM_INPUTS", "_ALL_INPUTS", "_ERROR_INPUTS", "_ESTIMATION_INPUTS", "_MAGIC_FACTORIES_INPUTS", "_QEC_INPUTS", "_ROTATION_MODELS_INPUTS", "_MAGIC_FACTORIES_components", "algorithm_summary_components", "qec_summary_components", "rotation_cost_model_components", "input_components", "create_ouputs", "app"}
+# Qualtran's names not ported: the private helpers of its resource counting and Cirq circuit.
+QUALTRAN_NOT_PORTED = {"QECGatesCost", "QubitCount", "get_cost_value", "_QEC_COUNT", "_QUBIT_COUNT", "_build_factory"}
+# ui's names that are neither Qualtran's functions and classes nor modules: its tables, the Dash app's inputs, the app.
+QUALTRAN_UI_VALUES = ("_GIDNEY_FOWLER_MODEL", "_BEVERLAND_MODEL", "_SUPPORTED_ESTIMATION_MODELS", "_QEC_SCHEMES", "_MAGIC_FACTORIES", "_ROTATION_MODELS", "_ALGORITHM_INPUTS", "_ALL_INPUTS", "_ERROR_INPUTS", "_ESTIMATION_INPUTS", "_MAGIC_FACTORIES_INPUTS", "_QEC_INPUTS", "_ROTATION_MODELS_INPUTS", "app")
 
 
 @pytest.mark.parametrize("name", sorted(QUALTRAN_SUBMODULES))
@@ -219,6 +222,8 @@ def test_qualtran_submodules(name):
 
     mod = importlib.import_module(f"stabilizer_qec.estimate.qualtran.{name}")
     for attr in QUALTRAN_SUBMODULES[name]:
+        if (name, attr) == ("ui", "app"):
+            continue  # made when first used, and only where dash is installed: tests/estimate_port/test_qualtran_ui_app.py
         assert hasattr(mod, attr), attr
         if hasattr(pkg, attr) and not attr.startswith("_"):
             assert getattr(mod, attr) is getattr(pkg, attr), attr
@@ -250,7 +255,7 @@ def test_qualtran_submodules_against_qualtran(name):
     own = set()
     for attr, value in vars(theirs).items():
         origin = value.__name__ if isinstance(value, types.ModuleType) else getattr(value, "__module__", None)
-        if not attr.startswith("__") and (origin or "").startswith("qualtran") or attr in ("_GIDNEY_FOWLER_MODEL", "_BEVERLAND_MODEL", "_SUPPORTED_ESTIMATION_MODELS", "_QEC_SCHEMES", "_MAGIC_FACTORIES", "_ROTATION_MODELS"):
+        if not attr.startswith("__") and (origin or "").startswith("qualtran") or attr in QUALTRAN_UI_VALUES:
             own.add(attr)
     assert sorted(own - QUALTRAN_NOT_PORTED) == sorted(QUALTRAN_SUBMODULES[name])
 

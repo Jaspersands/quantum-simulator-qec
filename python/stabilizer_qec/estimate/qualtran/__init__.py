@@ -11,8 +11,8 @@ Every name is here, as in ``qualtran.surface_code``, and in the submodule Qualtr
 the same submodule names: ``algorithm_summary``, ``beverland_et_al_model``, ``ccz2t_factory``,
 ``data_block``, ``fifteen_to_one_factory``, ``gidney_fowler_model``, ``magic_state_factory``,
 ``multi_factory``, ``physical_cost_model``, ``physical_cost_summary``, ``physical_parameters``,
-``qec_scheme``, ``rotation_cost_model``, ``t_factory_utils`` and ``ui`` (the Dash app's estimates and
-figures without Dash; imported on its own, as Qualtran's is). ``GateCounts`` (Qualtran's
+``qec_scheme``, ``rotation_cost_model``, ``t_factory_utils`` and ``ui`` (the Dash app, made where dash
+is installed, and its estimates and figures, which need no Dash; imported on its own, as Qualtran's is). ``GateCounts`` (Qualtran's
 ``qualtran.resource_counting``) and ``TComplexity`` (``qualtran.cirq_interop``) are here too.
 
 >>> from stabilizer_qec.estimate.qualtran.gidney_fowler_model import get_ccz2t_costs_from_grid_search
