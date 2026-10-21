@@ -737,8 +737,8 @@ def test_o_must_be_a_matrix():
     # CUDA-Q reads O as a uint8 tensor, then checks its rank (trt_decoder.cpp:781-785). Its Python
     # binding makes a tensor of an array of rank 2 or more only (kwargs_utils.h:77-108): an array
     # of rank 3 or more reaches the rank check. Anything else it passes as a vector or a number
-    # (an array of rank 0 or 1, a list, a number, a string or a dict; kwargs_utils.h:41-74 and
-    # 109-128), which the read of O as a tensor refuses first.
+    # (an array of rank 0 or 1, a list, a ragged one too, a number, a string or a dict;
+    # kwargs_utils.h:41-74 and 109-128), which the read of O as a tensor refuses first.
     # (Not mirrored: what the binding refuses before any decoder is made, such as None, a tuple or
     # a list nested three deep, and an empty list, which it drops, get the read's message here
     # too; and O's dtype is not checked, here as for every decoder, where the binding makes a
@@ -749,7 +749,7 @@ def test_o_must_be_a_matrix():
         with pytest.raises(RuntimeError) as e:
             qec.get_decoder("trt_decoder", H3, O=O, **kw)
         assert str(e.value) == PREFIX + "trt_decoder: O must be a 2-dimensional tensor (num_observables x block_size)"
-    for O in (np.ones(3, dtype=np.uint8), np.ones(3), np.array(1, dtype=np.uint8), [1, 0, 1], 1, 0.5, True, "O", {"a": 1}):
+    for O in (np.ones(3, dtype=np.uint8), np.ones(3), np.array(1, dtype=np.uint8), [1, 0, 1], [[1], [1, 0]], 1, 0.5, True, "O", {"a": 1}):
         with pytest.raises(RuntimeError) as e:
             qec.get_decoder("trt_decoder", H3, O=O, **kw)
         assert str(e.value) == PREFIX + "heterogeneous_map::get() error - Invalid type or key (O)."

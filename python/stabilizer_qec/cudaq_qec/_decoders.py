@@ -251,6 +251,14 @@ class _Inputs:
         return self.O is not None
 
 
+def _ndim(a: Any) -> int:
+    """np.ndim, or -1 for what numpy makes no array of (a ragged list)."""
+    try:
+        return int(np.ndim(a))
+    except ValueError:
+        return -1
+
+
 def _rows_of(O: Any) -> Tuple[int, int, List[List[int]]]:
     m, n, cols = _columns(O)
     rows: List[List[int]] = [[] for _ in range(m)]
@@ -701,7 +709,7 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     o_rank: Optional[int] = None
     if "O" in options:
         given = options.pop("O")
-        if name == "trt_decoder" and not hasattr(given, "tocsc") and np.ndim(given) != 2:
+        if name == "trt_decoder" and not hasattr(given, "tocsc") and _ndim(given) != 2:
             # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does. CUDA-Q's
             # binding passes an array of rank 2 or more as a tensor, which its rank check refuses
             # past 2; anything else it passes as a vector, a number, a string or a map
