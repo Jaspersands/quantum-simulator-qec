@@ -330,9 +330,15 @@ def _within_ulps(x: float, y: float) -> bool:
 
 
 def test_chart_tolerance_is_ulps():
-    """The tolerance is a few ulps of the numbers compared, however small they are."""
-    assert _same_value("M 1 2", "M 1 2") and _same_value("430", "430.00000000000006") and _same_value("1e-300", "1.0000000000000001e-300")
-    assert not _same_value("430", "430.0000000000003") and not _same_value("0", "1e-12") and not _same_value("1e-20", "1.000000000000001e-20")
+    """The tolerance is `ULPS` units in the last place of the numbers compared, however small they are: one more
+    fails."""
+    for x in (430.0, 116.37900316405418, 1.5e-20, 1e-300):
+        near, far = x + ULPS * math.ulp(x), x + (ULPS + 1) * math.ulp(x)
+        assert _same_value(repr(x), repr(near)) and _same_value(f"M {x!r} 2", f"M {near!r} 2") and _same_value(repr(-near), repr(-x))
+        assert not _same_value(repr(x), repr(far)) and not _same_value(f"M {x!r} 2", f"M {far!r} 2")
+    assert _same_value("430", "430.00000000000006") and not _same_value("430", "430.0000000000003")
+    # Zero is held to the smallest subnormals (5e-324 is 1 ulp from it), where abs_tol=1e-9 let 1e-12 through.
+    assert not _same_value("0", "1e-12") and not _same_value("0", "1e-300") and _same_value("0", "5e-324") and _same_value("0", "-0")
     assert not _same_value("M 1 2", "L 1 2") and not _same_value("1 2", "1 2 3")
 
 
