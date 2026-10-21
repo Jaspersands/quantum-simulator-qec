@@ -234,4 +234,4 @@ def test_weight_of_p_and_names():
     for module in (ref, fb):
         with pytest.raises(BaseException):
             module.SyndromePattern([1], syndrome_vertices=[2])
-    assert os.path.basename(fb.helper.__file__) == "helper.py"
+    assert fb.helper.__file__.endswith(os.path.join("helper", "__init__.py"))

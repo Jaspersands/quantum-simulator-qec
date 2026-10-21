@@ -1,11 +1,9 @@
 # Ported from fusion_blossom 0.2.13's helper.py (Yue Wu; MIT, see LICENSE here), modified for
-# stabilizer_qec: the website is served by the standard library's HTTP server (fusion_blossom
-# embedded bottle), and its files are read from this package's ``visualizer`` folder.
-"""The visualizer website, its server, and helpers for viewing a code or rendering a snapshot.
-
-Not ported: ``helper.bottle``, the copy of the Bottle web framework (about 4,900 lines) that
-fusion_blossom vendors to serve the website. The server here is the standard library's, and
-code that imported ``fusion_blossom.helper.bottle`` itself has no counterpart."""
+# stabilizer_qec: the website's files are read from this package's ``visualizer`` folder, and the
+# Bottle fusion_blossom embeds is the submodule ``helper.bottle`` (unchanged), not installed as the
+# modules ``bottle`` and ``helper``.
+"""The visualizer website, its server (on ``helper.bottle``, the Bottle 0.14-dev web framework
+fusion_blossom embeds), and helpers for viewing a code or rendering a snapshot."""
 
 import os
 import shutil
@@ -15,12 +13,10 @@ import tempfile
 import threading
 import time
 import webbrowser
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 fb = None
 
-_WEBSITE_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "visualizer")
+_WEBSITE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "visualizer")
 _WEBSITE_FILES = ["gui3d.js", "index.js", "patches.js", "primal.js", "cmd.js", "mocker.js",
                   "index.html", "partition-profile.html", "icon.svg", "package.json", "package-lock.json"]
 
@@ -42,65 +38,51 @@ def register(module):
     fb = module
 
 
-_MIME = {"html": "text/html; charset=utf8", "js": "text/javascript; charset=utf8",
-         "json": "application/json; charset=utf8", "svg": "image/svg+xml"}
+def __getattr__(name):
+    # fusion_blossom imports its Bottle with the package; here it is imported on first use, as it
+    # brings in the standard library's HTTP client and adds an import hook for ``bottle.ext``.
+    if name == "bottle":
+        import importlib
+
+        return importlib.import_module(__name__ + ".bottle")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-class _Handler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, data_folder, quiet, **kwargs):
-        self.data_folder = data_folder
-        self.quiet = quiet
-        super().__init__(*args, directory=data_folder, **kwargs)
-
-    def log_message(self, format, *args):
-        if not self.quiet:
-            super().log_message(format, *args)
-
-    def _send(self, body, mime):
-        self.send_response(200)
-        if mime is not None:
-            self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        path = self.path.split("?", 1)[0].split("#", 1)[0]
-        from urllib.parse import unquote
-        path = unquote(path).lstrip("/")
-        if path.startswith("data/"):
-            root = os.path.realpath(self.data_folder)
-            target = os.path.realpath(os.path.join(root, path[len("data/"):]))
-            if os.path.commonpath([root, target]) != root or not os.path.isfile(target):
-                self.send_error(404)
-                return
-            with open(target, "rb") as f:
-                self._send(f.read(), _MIME.get(target.rsplit(".", 1)[-1]))
-            return
-        if path == "":
-            path = "index.html"
-        if path in visualizer_website:
-            self._send(visualizer_website[path].encode("utf-8"), _MIME.get(path.rsplit(".", 1)[-1]))
-            return
-        self.send_error(404)
-
-
-class _Server:
-    """The server ``serve`` returns: ``srv`` is the HTTP server, shut down by ``srv.shutdown()``."""
-
-    def __init__(self, host, port, data_folder, quiet):
-        self.srv = ThreadingHTTPServer((host, port), partial(_Handler, data_folder=data_folder, quiet=quiet))
+def __dir__():
+    return sorted(set(globals()) | {"bottle"})
 
 
 def serve(host='localhost', port=51665, data_folder=".", return_server=False, quiet=True):
     """start a server to host the visualizer websites locally"""
-    server = _Server(host, port, data_folder, quiet)
+    # As fusion_blossom's, the routes go on Bottle's default app: the latest call's data_folder is
+    # the one every server of the process serves.
+    from .bottle import WSGIRefServer, route, abort, run, response, static_file
+
+    def guess_mime(filename):
+        if filename.endswith("html"):
+            response.content_type = 'text/html; charset=utf8'
+        elif filename.endswith("js"):
+            response.content_type = 'text/javascript; charset=utf8'
+        elif filename.endswith("json"):
+            response.content_type = 'application/json; charset=utf8'
+
+    @route('/data/<filename:path>')
+    def send_data(filename):
+        return static_file(filename, root=data_folder)
+
+    @route('/')
+    @route('/<filename:path>')
+    def send_root(filename=""):
+        if filename == "":
+            filename = "index.html"
+        if filename in visualizer_website:
+            guess_mime(filename)
+            return visualizer_website[filename]
+        abort(404)
+    server = WSGIRefServer(host=host, port=port)
 
     def run_server():
-        try:
-            server.srv.serve_forever()
-        finally:
-            server.srv.server_close()
+        run(server=server, quiet=quiet)
     if return_server:
         return server, run_server
     run_server()

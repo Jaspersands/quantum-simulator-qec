@@ -343,6 +343,13 @@ helper and visualizer website files, and `tests/fusion_blossom_port/` its tests 
 and its Xoshiro256** and SplitMix64 follow rand_xoshiro (Copyright the Rust Project Developers
 and the Rand Project Developers; MIT or Apache-2.0).
 
+`python/stabilizer_qec/fusion_blossom/helper/bottle.py`, on which the visualizer's server runs, is
+Bottle 0.14-dev as Fusion Blossom 0.2.13 embeds it, reproduced unmodified (Copyright (c)
+2009-2024, Marcel Hellkamp; licensed under the MIT License, its notice appended to
+`python/stabilizer_qec/fusion_blossom/LICENSE`; source: https://github.com/bottlepy/bottle).
+`tests/fusion_blossom_port/helper_server.json` records Fusion Blossom's server's answers, which
+the tests compare against.
+
 ## MWPF
 
 Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/mwpf/LICENSE`, and
