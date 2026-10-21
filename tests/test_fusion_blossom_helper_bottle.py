@@ -134,6 +134,12 @@ def test_sinter_imports_fusion_blossom_when_it_decodes(package):
                  "decoder = sinter.BUILT_IN_DECODERS['fusion_blossom'].compile_decoder_for_dem(dem=stim.DetectorErrorModel('error(0.1) D0 L0')); "
                  "print(decoder.decode_shots_bit_packed(bit_packed_detection_event_data=np.array([[1], [0]], dtype=np.uint8)).tolist(), "
                  "'stabilizer_qec.fusion_blossom.helper.bottle' in sys.modules)")
+    else:
+        # Real stim 1.16.0 on CPython 3.13 aborts at interpreter shutdown under PYTHONDEVMODE=1 (`python -X dev -c
+        # 'import stim'` exits 134: "_PyMem_DebugRawFree: bad ID"), after sinter's answer is printed. Leave once stdout
+        # is flushed, so that crash cannot hide a correct answer. An exception before this point still exits non-zero
+        # (1, or -6 when that crash follows the traceback). Our arm keeps a full shutdown, so a crash in ours fails it.
+        code += "; sys.stdout.flush(); import os; os._exit(0)"
     env = {**os.environ, "PYTHONPATH": str(pathlib.Path(fb.__file__).parent.parent.parent)}
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
     assert (out.returncode, out.stdout) == (0, "[] []\n" + ("[[1], [0]] True\n" if package else "")), out.stderr
