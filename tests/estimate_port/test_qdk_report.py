@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import copy
 import gzip
+import hashlib
 import json
 import math
 import pathlib
 import pickle
+import platform
 import re
+import struct
 import sys
 import warnings
 import xml.etree.ElementTree as ET
@@ -302,16 +305,61 @@ def _joined(children: list) -> list:
     return out
 
 
-# How many units in the last place a drawn number may differ from the widget's. V8's sin and cos (fdlibm's) are
-# not the C library's: on macOS, where the widget's drawings were recorded (node v24.18.0), 20 of the donuts' path
-# strings differ from the port's, in 32 coordinates, 20 by 1 ulp and 12 by 2; nothing else differs. The C
-# libraries of Linux and Windows are within an ulp of the true sin and cos too, as fdlibm is (not measured here).
+# How many units in the last place (ulps) a drawn number may differ from the widget's, and ulps of what. The port
+# draws with the widget's arithmetic, but its sin, cos and log are the C library's where the widget's are V8's
+# (fdlibm's), and an ulp between those moves a drawn number by many ulps of itself:
+# - a donut's y = 185 + 180·sin θ moves in steps of the ulp of 180·sin θ (2.8e-14), which near the donut's top
+#   (y ≈ 5.08, at θ ≈ 268.34°) are 32 ulps of y;
+# - a scatter chart's coordinate, extent·(log v − log lo)/(log hi − log lo), moves by extent/(log hi − log lo) times
+#   a change in a log term: by up to 79 ulps of itself, in these charts, for an ulp of log.
+# (test_chart_tolerance_holds_for_a_libm_off_by moves them so: here, by 32 and 79 ulps for an ulp of sin, cos and
+# log, and by 64 and 159 for two.) So the bound depends on the platform.
+# - macOS on arm64, where the widget's drawings were recorded (node v24.18.0) and the port measured against them
+#   (macOS 27.2): ULPS ulps of the drawn number itself. 10 of the donuts' path strings differ from the port's, in 16
+#   coordinates, 10 by 1 ulp and 6 by 2 (each compared twice, in the HTML and in the SVG); nothing else differs.
+#   (With correctly rounded sin, cos and log, from mpmath in place of the C library's: 6 coordinates, by up to 2.)
+# - Elsewhere, not measured: Linux (glibc), Windows (UCRT) and macOS on Intel, whose sin, cos and log are their own,
+#   not fdlibm's. ULPS ulps of the computation's operands (`_space_unit`, `_scatter_unit`), and never fewer than
+#   ULPS of the number itself. That holds while the C library's sin, cos and log are within three ulps of
+#   fdlibm's. With macOS's moved by up to one, two, three and four ulps (as `_LibmOff` moves them, seeds 0-39), a
+#   donut's numbers moved by at most 1, 2, 2 and 3 of those units and a scatter chart's by 1.14, 2.09, 3.04 and
+#   4.05. Two faithfully rounded results, fdlibm's and another, are at most an ulp apart.
 ULPS = 4
+ULPS_OF_ITSELF = sys.platform == "darwin" and platform.machine() == "arm64"
+# The widget's plot area, inside its 960 by 480 chart: 960 − 126 − 160 wide and 480 − 42 high (scatterChart.tsx).
+_PLOT_WIDTH, _PLOT_HEIGHT = 674, 438
 
 
-def _same_value(theirs: str, ours: str) -> bool:
-    """Equal strings, or the same numbers to within `ULPS` units in the last place (no absolute tolerance, so a
-    coordinate near zero is held as tightly as any other)."""
+def _space_unit() -> float:
+    """The ulp of a donut's largest operand: its centre's x (250) plus its radius (180)."""
+    return math.ulp(250 + 180)
+
+
+def _scatter_unit(datas: list) -> float:
+    """How far a scatter chart's coordinate moves, to first order, when each log term of it moves by an ulp of the
+    largest: the coordinate is extent·(L(v) − L(lo))/(L(hi) − L(lo)) at a position p in [0, 1], and its derivatives
+    in the three terms, in absolute value, add up to extent·(1 + (1 − p) + p)/(L(hi) − L(lo)), twice
+    extent/(L(hi) − L(lo)). The larger of the two axes'; an axis that starts at 0 has only NaN positions, which are
+    compared as strings."""
+    points = [(e["physicalCounts"]["runtime"], e["physicalCounts"]["physicalQubits"]) for d in datas for e in (d.get("frontierEntries") or [d])]
+    units = [0.0]
+    for values, extent in (([x for x, _ in points], _PLOT_WIDTH), ([y for _, y in points], _PLOT_HEIGHT)):
+        lo, hi = min(values) / 2, max(values) * 2  # the widget's range: half the least, twice the most
+        if lo > 0:
+            a, b = math.log(lo), math.log(hi)
+            units.append(2 * extent * math.ulp(max(abs(a), abs(b))) / (b - a))
+    return max(units)
+
+
+def _held_to(unit: float) -> float:
+    """The operands' ulp a chart is held to on this platform: none where the bound is in ulps of each number."""
+    return 0.0 if ULPS_OF_ITSELF else unit
+
+
+def _same_value(theirs: str, ours: str, unit: float = 0.0) -> bool:
+    """Equal strings, or the same numbers to within `ULPS` ulps of the larger of the two, or `ULPS` times `unit`
+    (an ulp of the operands they are computed from) where that is more. No absolute tolerance: a coordinate near
+    zero is held as tightly as any other."""
     if theirs == ours:
         return True
     a, b = re.split(r"[ ,]", theirs), re.split(r"[ ,]", ours)
@@ -320,18 +368,18 @@ def _same_value(theirs: str, ours: str) -> bool:
     for x, y in zip(a, b):
         if x == y:
             continue
-        if not (_NUMBER.match(x) and _NUMBER.match(y)) or not _within_ulps(float(x), float(y)):
+        if not (_NUMBER.match(x) and _NUMBER.match(y)) or not _within_ulps(float(x), float(y), unit):
             return False
     return True
 
 
-def _within_ulps(x: float, y: float) -> bool:
-    return abs(x - y) <= ULPS * math.ulp(max(abs(x), abs(y)))
+def _within_ulps(x: float, y: float, unit: float = 0.0) -> bool:
+    return abs(x - y) <= ULPS * max(math.ulp(max(abs(x), abs(y))), unit)
 
 
 def test_chart_tolerance_is_ulps():
-    """The tolerance is `ULPS` units in the last place of the numbers compared, however small they are: one more
-    fails."""
+    """The tolerance is `ULPS` units in the last place of the numbers compared, however small they are, or of their
+    operands where those are larger: one more fails."""
     for x in (430.0, 116.37900316405418, 1.5e-20, 1e-300):
         near, far = x + ULPS * math.ulp(x), x + (ULPS + 1) * math.ulp(x)
         assert _same_value(repr(x), repr(near)) and _same_value(f"M {x!r} 2", f"M {near!r} 2") and _same_value(repr(-near), repr(-x))
@@ -340,13 +388,29 @@ def test_chart_tolerance_is_ulps():
     # Zero is held to the smallest subnormals (5e-324 is 1 ulp from it), where abs_tol=1e-9 let 1e-12 through.
     assert not _same_value("0", "1e-12") and not _same_value("0", "1e-300") and _same_value("0", "5e-324") and _same_value("0", "-0")
     assert not _same_value("M 1 2", "L 1 2") and not _same_value("1 2", "1 2 3")
+    # In ulps of the operands: the donut's top, 5.08, is held to 4 ulps of 430 (256 of its own), and no further.
+    unit, y = _space_unit(), 5.075582580878432
+    assert unit == 2.0**-44 and _same_value(repr(y), repr(y + ULPS * unit), unit) and _same_value(f"M 1 {y!r}", f"M 1 {y - ULPS * unit!r}", unit)
+    assert not _same_value(repr(y), repr(y + (ULPS + 1) * unit), unit) and not _same_value(repr(y), repr(y + (ULPS + 1) * unit))
+    assert not _same_value("0", "1e-12", unit) and _same_value("0", repr(ULPS * unit), unit) and not _same_value("0", repr((ULPS + 1) * unit), unit)
+    # Never fewer than ULPS ulps of the number itself, where those are more than its operands'.
+    assert _same_value("1e20", repr(1e20 + ULPS * math.ulp(1e20)), unit) and not _same_value("1e20", repr(1e20 + (ULPS + 1) * math.ulp(1e20)), unit)
+    # The scatter's unit: an axis from 1/2 to 2·e (one point at 1 and one at e, a log range of 1 + 2 log 2), whose
+    # largest |log| is 1 + log 2; an axis starting at 0 is not counted.
+    one = {"physicalCounts": {"runtime": 1.0, "physicalQubits": 0.0}}
+    e = {"physicalCounts": {"runtime": math.e, "physicalQubits": 7.0}}
+    d = math.log(2 * math.e) - math.log(0.5)
+    assert _scatter_unit([one, e]) == 2 * _PLOT_WIDTH * math.ulp(math.log(2 * math.e)) / d
+    assert _scatter_unit([{"frontierEntries": [one, e]}]) == _scatter_unit([one, e])
 
 
 # What the port adds to an element so that the chart draws alone as the widget's stylesheet draws it.
 ADDED = {"xmlns", "fill", "stroke", "stroke-width", "r", "text-anchor", "dominant-baseline", "font-size", "font-family", "transform", "style"}
 
 
-def _compare(theirs, ours, where: str = "") -> None:
+def _compare(theirs, ours, where: str = "", unit: float = 0.0) -> None:
+    """The widget's tree and the port's: the same elements and text, the same attributes but for those the port
+    adds, and their numbers the same to within `_same_value`'s bound with the operands' ulp `unit`."""
     if isinstance(theirs, str):
         assert theirs == ours, where
         return
@@ -354,12 +418,12 @@ def _compare(theirs, ours, where: str = "") -> None:
     where = f"{where}/{theirs['tag']}"
     for key, value in theirs["attrs"].items():
         resolved = _VAR.sub(r"\1", value) if key in ("fill", "stroke") else value
-        assert key in ours["attrs"] and _same_value(resolved, ours["attrs"][key]), (where, key, value, ours["attrs"].get(key))
+        assert key in ours["attrs"] and _same_value(resolved, ours["attrs"][key], unit), (where, key, value, ours["attrs"].get(key))
     assert set(ours["attrs"]) - set(theirs["attrs"]) <= ADDED, (where, set(ours["attrs"]) - set(theirs["attrs"]))
     a, b = _joined(theirs["children"]), _joined(ours["children"])
     assert len(a) == len(b), (where, a, b)
     for x, y in zip(a, b):
-        _compare(x, y, where)
+        _compare(x, y, where, unit)
 
 
 def _without_watermark(node):
@@ -402,8 +466,8 @@ def test_space_chart_against_widget(index):
     key, entry = WIDGET["space"][index]
     chart = az.EstimatorResult(_material(key)).space_chart(entry)
     (theirs,) = DRAWN["space"][index]
-    _compare(theirs, _as_tree(ET.fromstring(chart._repr_html_())))
-    _compare(theirs["children"][0], _as_tree(ET.fromstring(str(chart))))
+    _compare(theirs, _as_tree(ET.fromstring(chart._repr_html_())), unit=_held_to(_space_unit()))
+    _compare(theirs["children"][0], _as_tree(ET.fromstring(str(chart))), unit=_held_to(_space_unit()))
 
 
 @pytest.mark.parametrize("index", range(len(WIDGET["scatter"])))
@@ -416,7 +480,7 @@ def test_scatter_chart_against_widget(index):
     result = az.EstimatorResult(datas[0] if len(datas) == 1 else datas)
     chart = result.scatter_chart()
     (div,) = drawn["tree"]
-    _compare(_without_watermark(div["children"][0]), _as_tree(ET.fromstring(str(chart))))
+    _compare(_without_watermark(div["children"][0]), _as_tree(ET.fromstring(str(chart))), unit=_held_to(_scatter_unit(datas)))
     assert rep.color_map(len(keys)) == drawn["colors"]
     legend = ET.fromstring(chart._repr_html_())
     assert [td.text or "" for td in legend.iter("td") if td.get("data-colid") == "0"] == drawn["run_names"]
@@ -424,6 +488,73 @@ def test_scatter_chart_against_widget(index):
     firsts = [fx.materialize(k, RESULTS) for k in keys]
     firsts = [d["frontierEntries"][0] if "frontierEntries" in d else d for d in firsts]
     assert [r[1:] for r in rows] == [[d["physicalCountsFormatted"]["physicalQubitsForTfactoriesPercentage"], f"{d['physicalCounts']['physicalQubits']:,}", d["physicalCountsFormatted"]["runtime"], f"{d['physicalCounts']['rqops']:,}"] for d in firsts]
+
+
+class _LibmOff:
+    """The math module, its sin, cos, log and log10 moved by `ulps` ulps up, down or not at all, by input (a
+    function of the input and `seed`, as a C library's results are): another C library's."""
+
+    MOVED = ("sin", "cos", "log", "log10")
+
+    def __init__(self, seed: int, ulps: int):
+        self.seed, self.ulps = seed, ulps
+
+    def __getattr__(self, name: str):
+        f = getattr(math, name)
+        if name not in self.MOVED:
+            return f
+
+        def moved(x):
+            v = f(x)
+            way = hashlib.sha256(struct.pack("<dB", float(x), self.seed)).digest()[0] % 3 - 1
+            for _ in range(self.ulps if way and math.isfinite(v) else 0):
+                v = math.nextafter(v, way * math.inf)
+            return v
+
+        return moved
+
+
+def _charts() -> list:
+    """Every chart the widget drew: its kind, the widget's tree, the port's, and the ulp of its operands."""
+    out = []
+    for index, (key, entry) in enumerate(WIDGET["space"]):
+        chart = az.EstimatorResult(_material(key)).space_chart(entry)
+        out.append(("space", DRAWN["space"][index][0], _as_tree(ET.fromstring(chart._repr_html_())), _space_unit()))
+    for index, keys in enumerate(WIDGET["scatter"]):
+        datas = [_material(k) for k in keys]
+        chart = az.EstimatorResult(datas[0] if len(datas) == 1 else datas).scatter_chart()
+        (div,) = DRAWN["scatter"][index]["tree"]
+        out.append(("scatter", _without_watermark(div["children"][0]), _as_tree(ET.fromstring(str(chart))), _scatter_unit(datas)))
+    return out
+
+
+def _ulps_apart(a, b) -> float:
+    """The most a number in the attributes of tree `b` is from the same number in tree `a` (one chart drawn twice),
+    in ulps of itself."""
+    if isinstance(a, str):
+        return 0.0
+    most = 0.0
+    for key, value in a["attrs"].items():
+        for x, y in zip(re.split(r"[ ,]", value), re.split(r"[ ,]", b["attrs"][key])):
+            if x != y:
+                most = max(most, abs(float(x) - float(y)) / math.ulp(max(abs(float(x)), abs(float(y)))))
+    return max([most] + [_ulps_apart(x, y) for x, y in zip(a["children"], b["children"])])
+
+
+@pytest.mark.parametrize("ulps", [1, 2])
+def test_chart_tolerance_holds_for_a_libm_off_by(ulps, monkeypatch):
+    """The bound off macOS on arm64, in ulps of the operands, here on every platform. With this C library's sin,
+    cos, log and log10 moved by `ulps` ulps or not, by input (four such libraries), the charts' numbers move by
+    many ulps of themselves, far past `ULPS`: 32 per ulp of sin near the donut's top, and more in a scatter chart.
+    Yet every chart is still the widget's to within `ULPS` ulps of its operands."""
+    unmoved = _charts()
+    moved = {"space": 0.0, "scatter": 0.0}
+    for seed in range(4):
+        monkeypatch.setattr(rep, "math", _LibmOff(seed, ulps))
+        for (kind, theirs, ours, unit), (_, _, before, _) in zip(_charts(), unmoved):
+            _compare(theirs, ours, unit=unit)
+            moved[kind] = max(moved[kind], _ulps_apart(before, ours))
+    assert moved["space"] >= 32 and moved["scatter"] >= 32, moved
 
 
 def test_space_chart_svg_wellformed():
