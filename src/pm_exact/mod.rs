@@ -14,7 +14,8 @@
 //! Files: `tracker` (time, the queue, event trackers), `graph` (the matching and search graph
 //! built from a `UserGraph`, in PyMatching 2.4's neighbour order or 2.2.2's), `flooder`
 //! (`graph_flooder.cc`, nodes and regions), `matcher` (`mwpm.cc`, `alternating_tree.cc`),
-//! `search` (`search_flooder.cc`), `decode` (`mwpm_decoding.cc`, the step-by-step run).
+//! `search` (`search_flooder.cc`), `decode` (`mwpm_decoding.cc`, the step-by-step run),
+//! `diagram` (`diagram/mwpm_diagram.cc`, `animate`'s frames drawn from that run).
 //!
 //! Pointers are `u32` indices, `NONE` for null: nodes index the graph; regions and
 //! alternating-tree nodes index arenas that reuse the most recently freed slot first, as
@@ -72,6 +73,7 @@
 //! - the clock: `cur_time()`, `set_cur_time(t)`.
 
 mod decode;
+mod diagram;
 mod flooder;
 mod graph;
 mod matcher;
@@ -81,6 +83,7 @@ mod tracker;
 use std::sync::Arc;
 
 pub use decode::{NEGATIVE_WEIGHTS_REFUSED, NO_PERFECT_MATCHING};
+pub use diagram::{pick_coords_for_drawing, write_animated_decoding_svg_frames, write_decoder_state_as_svg, AnimationError, FrameSchedule, Point, UNKNOWN_TENTATIVE_EVENT};
 pub use flooder::{Arena, CompressedEdge, DetectorNode, GraphFillRegion, Match, MatcherEvent, RegionEdge};
 pub use graph::{normalising_constant_v2_4, Graph, NeighbourOrder, MAX_USER_EDGE_WEIGHT, NONE, NUM_DISTINCT_WEIGHTS};
 pub use matcher::{AltTreeEdge, AltTreeNode, MatchingResult};

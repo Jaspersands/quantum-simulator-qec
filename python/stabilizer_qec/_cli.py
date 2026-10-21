@@ -35,6 +35,7 @@ COMMANDS = {
     "sinter": "sinter's commands: collect, combine, plot and predict (`stabilizer-qec sinter collect ...`).",
     "predict": "Predict observable flips from detection events by matching (PyMatching's `predict`).",
     "count_mistakes": "Count the shots matching mispredicts (PyMatching's `count_mistakes`).",
+    "animate": "Draw matching's run on a shot as SVG frames (PyMatching's `animate`).",
     "repl": "Read operations from stdin and run them, printing measurement results as they happen.",
     "sample": "Samples measurements from a circuit.",
     "sample_dem": "Samples detection events from a detector error model.",
@@ -535,11 +536,89 @@ def _commands_markdown(program: str, pages: dict) -> str:
     return "".join(out)
 
 
+_ANIMATE_HELP = """NAME
+    stabilizer-qec animate
+
+SYNOPSIS
+    stabilizer-qec animate \\
+        --dem_in filepath \\
+        --dets_in filepath \\
+        --dets_in_format 01|b8|r8|ptb64|hits|dets \\
+        [--dets_in_includes_appended_observables] \\
+        --held_frames_at_end int \\
+        --held_frames_at_start int \\
+        --held_frames_per_event int \\
+        --max_growth_between_frames int \\
+        --out_dir directory \\
+        --pixels_per_unit_length int \\
+        [--quiet]
+
+DESCRIPTION
+    PyMatching's `animate`: matching (PyMatching 2.4's sparse blossom) at work on the first shot
+    of --dets_in, drawn as SVG frames frame_00000.svg, frame_00001.svg, ... in --out_dir (made if
+    it does not exist; one level only), with PyMatching's flags, messages and frames. Every flag
+    but the two switches is required. Regions are red while growing, green once matched (dark
+    green when matched to the boundary) and blue while shrinking; detection events are red dots,
+    collisions about to happen orange, alternating trees black, blossom cycles blue, matches thick
+    black, and the event about to be handled is highlighted. A run with no perfect matching stops
+    with PyMatching's `Unknown tentative event type.` (exit 1) after the frames before it. An
+    --out_dir that cannot be made, or a shot index too big for 64 bits, is reported as
+    `stabilizer-qec animate: <message>` (exit 1), where PyMatching's program aborts.
+    Also `python -m stabilizer_qec.pymatching animate ...`.
+
+OPTIONS
+    --dem_in
+        The detector error model whose graph is matched (with 1000 weight levels, as PyMatching's
+        animation builds it); its detectors' first two coordinates place them on the page.
+
+    --dets_in
+        The detection events; only the first shot is drawn, and the file is not read to its end
+        (a pipe's writer need not finish).
+
+    --dets_in_format
+        The format of --dets_in: 01, b8, r8, ptb64, hits or dets.
+
+    --dets_in_includes_appended_observables
+        The shots in --dets_in carry the observables after the detectors.
+
+    --held_frames_at_end
+        Frames of the final matching (0 to 1000000).
+
+    --held_frames_at_start
+        Frames of the detection events before anything grows (0 to 1000000).
+
+    --held_frames_per_event
+        Frames of each event the matcher handles (0 to 1000000).
+
+    --max_growth_between_frames
+        The most the regions grow between in-between frames (0 to 1000000; 0 draws none but one
+        after each event's frames).
+
+    --out_dir
+        The directory the frames are written to.
+
+    --pixels_per_unit_length
+        The page's scale: pixels per unit of detector coordinate (4 to 2048).
+
+    --quiet
+        Do not print `wrote <frame>` to stderr for each frame.
+
+EXAMPLES
+    Example #1
+        >>> stabilizer-qec gen --code surface_code --task rotated_memory_x --distance 5 --rounds 5 --after_clifford_depolarization 0.02 > c.stim
+        >>> stabilizer-qec analyze_errors --in c.stim --decompose_errors > c.dem
+        >>> stabilizer-qec detect --in c.stim --shots 1 --out d.01
+        >>> stabilizer-qec animate --dem_in c.dem --dets_in d.01 --dets_in_format 01 --out_dir frames --held_frames_per_event 2 --held_frames_at_start 3 --held_frames_at_end 10 --max_growth_between_frames 50 --pixels_per_unit_length 20
+"""
+
+
 def _command_help(command: str) -> str:
     """A command's help: Stim's page for Stim's commands, the flags for this package's own."""
     pages = _stim_help()["commands"]
     if command in PORT_CLIS:
         return _port_cli_help(command)
+    if command == "animate":
+        return _ANIMATE_HELP
     return _as_ours(pages[command]) if command in pages else _parser(command).format_help()
 
 
@@ -704,6 +783,14 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
         return 1
     if command != "help" and rest and rest[0] in ("help", "--help") and len(rest) == 1:
         command, rest = "help", [command]
+    if command == "animate":  # PyMatching's flags, messages and exit codes
+        from .pymatching import _animate
+
+        try:
+            return _animate([command] + rest)
+        except RuntimeError as ex:  # what PyMatching's program aborts on (and its cli raises), said as ours are
+            print(f"stabilizer-qec {command}: {ex}", file=sys.stderr)
+            return 1
     try:
         args = _parser(command).parse_args(rest)
         globals()[f"cmd_{command}"](args)
