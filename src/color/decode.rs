@@ -2,35 +2,32 @@
 //! code by carrying colour charge around it (Chromobius's `decode/decoder.cc` and
 //! `graph/euler_tours.cc`).
 
+use std::sync::Arc;
+
 use super::{next_charge, Lifted, Options, NEUTRAL};
 use crate::dem::Dem;
-use crate::sparse::{Scratch, SparseGraph};
+use crate::pm_exact::{Graph, Mwpm, NeighbourOrder, NUM_DISTINCT_WEIGHTS};
 
-/// A colour-code decoder: the lifted model and the matcher of its Möbius graph.
+/// A colour-code decoder: the lifted model and the matching graph of its Möbius model.
 pub struct ColorDecoder {
     lifted: Lifted,
-    graph: SparseGraph,
+    /// The Möbius model's graph as Chromobius's matcher builds it: PyMatching 2.2.2's
+    /// (`pm::detector_error_model_to_mwpm(dem, 1 << 24, true)`), 2²⁴ weight levels, each node's
+    /// neighbours in 2.2.2's order. Each thread decodes on its own `Mwpm` over it.
+    graph: Arc<Graph>,
     /// The Möbius model, for inspection.
     pub mobius: Dem,
-    /// Each Möbius edge's weight as PyMatching discretizes it for Chromobius (2²⁴ levels),
-    /// keyed by its nodes in order, and the constant a sum of them is divided by.
-    pm_weights: std::collections::HashMap<(u32, u32), i64>,
-    pm_scale: f64,
-    /// The Möbius edges of probability above 1/2 (negative weight), sorted, and the nodes
-    /// they toggle, sorted: PyMatching matches such an edge at its absolute weight with its
-    /// endpoints' detection toggled and the edge itself counted in (see `decode`).
-    neg_edges: Vec<(u32, u32)>,
-    neg_nodes: Vec<u32>,
 }
 
 /// One decode's state; one per thread.
 pub struct ColorWork {
-    scratch: Scratch,
+    mwpm: Mwpm,
     euler: Vec<EulerNode>,
     cycle: Vec<u32>,
     cycle2: Vec<u32>,
     used: Vec<u32>,
-    events: Vec<u32>,
+    events: Vec<u64>,
+    edges: Vec<(u32, u32)>,
     /// Whether the last decode lifted through a table entry Chromobius might have filled
     /// otherwise (see the module comment).
     pub tied: bool,
@@ -73,43 +70,19 @@ impl ColorDecoder {
         let options = Options { ignore_decomposition_failures, ..Options::default() };
         let lifted = Lifted::from_dem(dem, options)?;
         let mobius = Dem::parse(&lifted.mobius_text)?;
-        // The Möbius graph's edges, merged; one of probability above 1/2 has a negative weight,
-        // which PyMatching (Chromobius's matcher) takes at its absolute value with the edge
-        // pre-applied.
-        let (mut edges, _) = crate::dem_decoder::merged_edges_any(&mobius)?;
-        let boundary = mobius.num_detectors as u32;
-        let mut neg_edges = Vec::new();
-        let mut toggled = std::collections::BTreeSet::new();
-        for e in edges.iter_mut() {
-            if !(e.2 > 0.0 && e.2 < 1.0) {
-                // (At probability 1 PyMatching's weights, and so Chromobius's, are NaN.)
-                return Err(format!("Möbius edge ({}, {}) has probability {}; Chromobius's matcher needs 0 < p < 1", e.0, e.1, e.2));
-            }
-            if e.2 > 0.5 {
-                neg_edges.push((e.0.min(e.1), e.0.max(e.1)));
-                for n in [e.0, e.1] {
-                    if n != boundary && !toggled.remove(&n) {
-                        toggled.insert(n);
-                    }
-                }
-                e.2 = 1.0 - e.2;
-            }
-        }
-        neg_edges.sort_unstable();
-        let graph = SparseGraph::from_edges(mobius.num_detectors, &edges);
-        // Chromobius's weight is PyMatching's: the matched edges' weights as PyMatching's
-        // search graph holds them (`pm::detector_error_model_to_mwpm(dem, 1 << 24, true)`),
-        // summed and divided by the graph's normalising constant.
+        // The Möbius model's edges, merged as PyMatching merges them. One of probability above
+        // 1/2 has a negative weight, which PyMatching matches at its absolute value with the
+        // edge pre-applied.
         let user = crate::user_graph::UserGraph::from_dem(&crate::dem_program::DemProgram::parse(&lifted.mobius_text)?)?;
-        let c = user.normalising_constant()?;
-        let mut pm_weights = std::collections::HashMap::new();
         for e in &user.edges {
-            if let Some(v) = e.node2 {
-                let w = ((e.weight * c).round() as i32 as i64 * 2).abs();
-                pm_weights.insert((e.node1.min(v) as u32, e.node1.max(v) as u32), w);
+            let p = e.error_probability;
+            if !(p > 0.0 && p < 1.0) {
+                // (At probability 1 PyMatching's weights, and so Chromobius's, are NaN.)
+                return Err(format!("Möbius edge ({}, {}) has probability {p}; Chromobius's matcher needs 0 < p < 1", e.node1, e.node2.map_or(-1, |v| v as i64)));
             }
         }
-        Ok(ColorDecoder { lifted, graph, mobius, pm_weights, pm_scale: 2.0 * c, neg_edges, neg_nodes: toggled.into_iter().collect() })
+        let graph = Arc::new(Graph::try_from_user_graph(&user, NeighbourOrder::V2_2, NUM_DISTINCT_WEIGHTS)?);
+        Ok(ColorDecoder { lifted, graph, mobius })
     }
 
     pub fn num_detectors(&self) -> usize {
@@ -125,86 +98,65 @@ impl ColorDecoder {
     pub fn mobius_text(&self) -> &str {
         &self.lifted.mobius_text
     }
-
     pub fn work(&self) -> ColorWork {
         ColorWork {
-            scratch: Scratch::new(&self.graph),
+            mwpm: Mwpm::new(self.graph.clone()),
             euler: vec![EulerNode::default(); 2 * self.lifted.colors.len()],
             cycle: Vec::new(),
             cycle2: Vec::new(),
             used: Vec::new(),
             events: Vec::new(),
+            edges: Vec::new(),
             tied: false,
         }
     }
 
-    /// Decode one shot given as the fired detectors' bits (`fired(d)`) and their indices,
-    /// ascending: the observables, and the Möbius matching's weight.
-    pub fn decode(&self, defects: &[u32], fired: &dyn Fn(u32) -> bool, w: &mut ColorWork) -> Result<(u64, f64), ColorError> {
-        w.tied = false;
+    /// The Möbius detection events of a shot (`detection_events_to_mobius_detection_events`):
+    /// both copies of each fired detector not ignored, in order.
+    fn mobius_events(&self, defects: &[u32], w: &mut ColorWork) {
         w.events.clear();
         for &d in defects {
             if !self.lifted.colors[d as usize].ignored {
-                w.events.push(2 * d);
-                w.events.push(2 * d + 1);
+                w.events.push(2 * d as u64);
+                w.events.push(2 * d as u64 + 1);
             }
         }
-        if w.events.is_empty() && self.neg_edges.is_empty() {
-            return Ok((0, 0.0));
-        }
-        let (prediction, edges) = if self.neg_edges.is_empty() {
-            self.graph.decode_with_edges(&mut w.scratch, &w.events).map_err(|_| ColorError::Unmatchable)?
-        } else {
-            self.match_with_negative_edges(w)?
-        };
-        let pm_sum: Option<i64> = edges.iter().map(|&(a, b)| self.pm_weights.get(&(a.min(b), a.max(b))).copied()).sum();
-        let weight = pm_sum.map_or(prediction.weight, |w| w as f64 / self.pm_scale);
-        self.lift(&edges, fired, w).map(|solution| (solution, weight))
     }
 
-    /// PyMatching's matching where some edges have negative weights: the detection events
-    /// toggled at those edges' ends, matched at absolute weights, and the edges the correction
-    /// flips (`decode_detection_events_to_edges`): the matched ones those edges do not cancel,
-    /// then the negative-weight edges left, in order.
-    fn match_with_negative_edges(&self, w: &mut ColorWork) -> Result<(crate::dem_decoder::Prediction, Vec<(u32, u32)>), ColorError> {
-        let mut defects: Vec<u32> = Vec::with_capacity(w.events.len() + self.neg_nodes.len());
-        let (mut i, mut j) = (0, 0);
-        while i < w.events.len() || j < self.neg_nodes.len() {
-            let (a, b) = (w.events.get(i).copied(), self.neg_nodes.get(j).copied());
-            match (a, b) {
-                (Some(x), Some(y)) if x == y => {
-                    i += 1;
-                    j += 1;
-                }
-                (Some(x), Some(y)) if x < y => {
-                    defects.push(x);
-                    i += 1;
-                }
-                (Some(x), None) => {
-                    defects.push(x);
-                    i += 1;
-                }
-                (_, Some(y)) => {
-                    defects.push(y);
-                    j += 1;
-                }
-                (None, None) => break,
-            }
+    /// Decode one shot given as the fired detectors' bits (`fired(d)`) and their indices,
+    /// ascending: the observables, and the Möbius matching's weight as Chromobius reports it.
+    ///
+    /// As Chromobius's `decode_detection_events`: PyMatching's
+    /// `decode_detection_events_to_edges` lists the matching's edges in its order (the
+    /// negative-weight ones it leaves flipped among them), and the edges, with each event's two
+    /// copies joined, are walked into tours in that order and lifted. The weight is
+    /// `PymatchingMatcher::match_edges`'s: each listed edge's discretised weight as its second
+    /// node holds it (the absolute value, as the search graph keeps it), summed, over the
+    /// graph's normalising constant.
+    pub fn decode(&self, defects: &[u32], fired: &dyn Fn(u32) -> bool, w: &mut ColorWork) -> Result<(u64, f64), ColorError> {
+        w.tied = false;
+        self.mobius_events(defects, w);
+        if w.events.is_empty() && self.graph.negative_weight_edges.is_empty() {
+            return Ok((0, 0.0));
         }
-        let (prediction, matched) = if defects.is_empty() {
-            (crate::dem_decoder::Prediction { observables: 0, weight: 0.0, iweight: 0 }, Vec::new())
-        } else {
-            self.graph.decode_with_edges(&mut w.scratch, &defects).map_err(|_| ColorError::Unmatchable)?
-        };
-        let mut left: std::collections::BTreeSet<(u32, u32)> = self.neg_edges.iter().copied().collect();
-        let mut edges = Vec::with_capacity(matched.len() + left.len());
-        for (a, b) in matched {
-            if !left.remove(&(a.min(b), a.max(b))) {
-                edges.push((a, b));
+        let listed = w.mwpm.try_decode_to_edges(&w.events).map_err(|_| ColorError::Unmatchable)?;
+        let n = self.graph.num_nodes as u32;
+        let mut edges = std::mem::take(&mut w.edges);
+        edges.clear();
+        let mut total = 0i64;
+        for &(a, b) in &listed {
+            // (Never the boundary, `-1`: every Möbius error joins two copies.)
+            let (a, b) = (a as u32, if b < 0 { n } else { b as u32 });
+            if b != n {
+                let k = self.graph.index_of_neighbor(b, a).expect("a listed edge is in the graph");
+                total += self.graph.neighbor_weights(b)[k] as i64;
             }
+            edges.push((a, b));
         }
-        edges.extend(left);
-        Ok((prediction, edges))
+        let weight = total as f64 / self.graph.normalising_constant;
+        let result = self.lift(&edges, fired, w).map(|solution| (solution, weight));
+        w.edges = edges;
+        result
     }
 
     /// The lifting alone, of a Möbius matching given as its edges in the order a matcher
@@ -212,14 +164,8 @@ impl ColorDecoder {
     /// observables. `defects` are the shot's fired detectors, as for `decode`.
     pub fn decode_given_edges(&self, defects: &[u32], edges: &[(u32, u32)], fired: &dyn Fn(u32) -> bool, w: &mut ColorWork) -> Result<u64, ColorError> {
         w.tied = false;
-        w.events.clear();
-        for &d in defects {
-            if !self.lifted.colors[d as usize].ignored {
-                w.events.push(2 * d);
-                w.events.push(2 * d + 1);
-            }
-        }
-        if w.events.is_empty() {
+        self.mobius_events(defects, w);
+        if w.events.is_empty() && edges.is_empty() {
             return Ok(0);
         }
         let n = self.graph.num_nodes as u32;
@@ -244,7 +190,7 @@ impl ColorDecoder {
             add_edge(&mut w.euler, flat[k], flat[k + 1]);
         }
         for k in (0..w.events.len()).step_by(2) {
-            add_edge(&mut w.euler, w.events[k], w.events[k + 1]);
+            add_edge(&mut w.euler, w.events[k] as u32, w.events[k + 1] as u32);
         }
         let mut solution = 0u64;
         let mut result = Ok(());
@@ -260,8 +206,8 @@ impl ColorDecoder {
         }
         // Clear what this shot touched (Chromobius resets the matched nodes; the event copies
         // are all among them, since every event is matched).
-        for &n in flat.iter().chain(&w.events) {
-            let node = &mut w.euler[n as usize];
+        for n in flat.iter().map(|&n| n as usize).chain(w.events.iter().map(|&n| n as usize)) {
+            let node = &mut w.euler[n];
             node.neighbors.clear();
             node.next = 0;
         }

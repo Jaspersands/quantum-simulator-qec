@@ -1232,13 +1232,12 @@ class ColorMatching(_DemDecoder):
     """Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023):
     each detector doubled into the two sub-graphs leaving out a colour other than its own,
     every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
-    minimum-weight matching of it found by this package's matcher, and the matching lifted
-    back to the code by carrying colour charge around its cycles. Predictions equal to the
-    ``chromobius`` package's except on some shots where the matching has the same weight as
-    Chromobius's but its edges come out in another order (or, rarely, it is another matching
-    of that weight): the lifting depends on that order, and this package's matcher does not
-    list edges in PyMatching's order. Edges of probability above 1/2 are negative-weight edges,
-    as in Chromobius; probability 1 is refused.
+    minimum-weight matching of it found by PyMatching 2.2.2's sparse blossom (the matcher
+    Chromobius links, ported exactly), and the matching lifted back to the code by carrying
+    colour charge around its cycles. Predictions and weights equal to the ``chromobius``
+    package's (on macOS on every shot checked; elsewhere Chromobius's std::unordered_map
+    order may drag charge another way on some shots). Edges of probability above 1/2 are
+    negative-weight edges, as in Chromobius; probability 1 is refused.
 
     The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
     colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):

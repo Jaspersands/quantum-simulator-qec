@@ -23,6 +23,25 @@ pub fn parallel<T: Send>(n: usize, threads: usize, work: impl Fn(Range<usize>) -
     })
 }
 
+/// As `parallel`, each thread with a stack of `stack` bytes (for deep recursion: PyMatching's
+/// blossoms are shattered recursively).
+pub fn parallel_with_stack<T: Send>(n: usize, threads: usize, stack: usize, work: impl Fn(Range<usize>) -> Vec<T> + Sync) -> Vec<T> {
+    let threads = resolve_threads(threads, n);
+    let chunk = n.div_ceil(threads).max(1);
+    std::thread::scope(|scope| {
+        let work = &work;
+        let handles: Vec<_> = (0..threads)
+            .map(|t| {
+                std::thread::Builder::new()
+                    .stack_size(stack)
+                    .spawn_scoped(scope, move || work((t * chunk).min(n)..((t + 1) * chunk).min(n)))
+                    .expect("a worker thread starts")
+            })
+            .collect();
+        handles.into_iter().flat_map(|h| h.join().expect("a worker thread panicked")).collect()
+    })
+}
+
 /// `work(state, i)` for each `i` in `0..n`, each thread taking the next `i` as it finishes one
 /// (for work whose cost varies from item to item) with its own state, `init()` made once per
 /// thread; the results in order.

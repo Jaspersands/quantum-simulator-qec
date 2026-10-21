@@ -257,10 +257,11 @@ pub(crate) fn shot_seed(seed: u64, s: u64) -> u64 {
 }
 
 /// Colour-code matching of b8 shots: per shot (observables, the Möbius matching's weight,
-/// 0 decoded / 1 decoded through an ambiguous table entry / 2 failed).
+/// 0 decoded / 1 decoded through an ambiguous table entry / 2 failed). Each thread has 64 MiB
+/// of stack for PyMatching's recursive blossom shattering.
 pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, u8)> {
     let stride = nd.div_ceil(8);
-    parallel(num_shots, threads, |range| {
+    crate::parallel::parallel_with_stack(num_shots, threads, 64 << 20, |range| {
         let mut work = dec.work();
         let mut defects = Vec::new();
         range

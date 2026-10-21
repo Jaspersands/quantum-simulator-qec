@@ -11,25 +11,25 @@
 //! edges across the three sub-graphs, a two-detector fault two parallel edges, a single-
 //! detector fault an edge joining its two copies. The doubled graph is a Möbius strip over the
 //! code. Each detection event lights both its copies; a minimum-weight matching of the copies
-//! is found by sparse blossom (`sparse`); the matched edges, with each event's two copies
-//! joined, fall into cycles; and each cycle is lifted back to the code by carrying colour
-//! charge around it, which says which observables the correction flips.
+//! is found by PyMatching's sparse blossom (`pm_exact`); the matched edges, with each event's
+//! two copies joined, fall into cycles; and each cycle is lifted back to the code by carrying
+//! colour charge around it, which says which observables the correction flips.
 //!
 //! This module is a port of Chromobius (quantumlib/chromobius, `src/chromobius`) in its order
 //! of operations: the same basic faults (`collect_atomic_errors`), the same decomposition of
 //! every other fault into them (`collect_composite_errors`), the same Möbius model, and the
-//! same charge, drag and representative tables (`graphs`) and lifting (`decode`). Handed the
-//! matched edges PyMatching finds, in PyMatching's order (`ColorDecoder::decode_given_edges`),
-//! the lifting gives Chromobius's predictions (all but 1 of about 18,500 colour-code shots
-//! checked). Its own decodes still differ from Chromobius on some shots, always at the same
-//! matching weight, because the lifting depends on the order of the matched edges, and this
-//! package's matcher lists them in another order than PyMatching's (and, rarely, picks
-//! another matching of the same weight). PyMatching's order comes from its search flooder's
-//! paths; it is not reproduced. Separately, Chromobius walks the charge graph's neighbours in
-//! `std::unordered_map` order, which differs between C++ libraries, when it looks for the
-//! shortest way to drag charge between two places; where two such ways flip different
-//! observables the table entry is marked ambiguous, and a shot whose lifting uses one is
-//! flagged as tied (no shot checked has needed one).
+//! same charge, drag and representative tables (`graphs`) and lifting (`decode`). The lifting
+//! depends on the order of the matched edges, so the matching is PyMatching's to the edge and
+//! to the order: Chromobius 1.1.1 links PyMatching 2.2.2, whose graph lists each node's
+//! neighbours in the order its model's edges reach it (`pm_exact::NeighbourOrder::V2_2`), with
+//! 2²⁴ weight levels, and `decode_detection_events_to_edges` lists the edges (`pm_exact`'s
+//! `Mwpm::try_decode_to_edges`). Predictions and weights equal Chromobius's on every one of
+//! 65,000 colour-code shots checked on macOS. Separately, Chromobius walks the charge graph's
+//! neighbours in `std::unordered_map` order, which differs between C++ libraries, when it
+//! looks for the shortest way to drag charge between two places; where two such ways flip
+//! different observables the table entry is marked ambiguous, and a shot whose lifting uses one
+//! is flagged as tied (no colour-code shot checked has needed one; small hand-made models with
+//! faults above 1/2 have).
 
 mod decode;
 mod graphs;

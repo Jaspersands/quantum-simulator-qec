@@ -1,10 +1,15 @@
-"""stabilizer_qec.chromobius against Chromobius 1.1.1 (predictions but where an equally light
-matching's edges come out in another order; weights, PyMatching's discretized Möbius matching
-weight as float32, bit for bit; the sinter decoder) and stabilizer_qec.beliefmatching against beliefmatching 0.2.0
-(predictions, check matrices and the sinter decoder), with BeliefMatching's constructors."""
+"""stabilizer_qec.chromobius against Chromobius 1.1.1 (predictions, exact on macOS; weights,
+PyMatching's discretized Möbius matching weight as float32, bit for bit; the sinter decoder) and
+stabilizer_qec.beliefmatching against beliefmatching 0.2.0 (predictions, check matrices and the
+sinter decoder), with BeliefMatching's constructors.
+
+Off macOS Chromobius walks its charge graph's std::unordered_map in that C++ library's order, so
+where two shortest ways to drag charge flip different observables it can take the other one; a
+few predictions may differ there."""
 
 from __future__ import annotations
 
+import os
 import pickle
 import sys
 
@@ -16,6 +21,12 @@ from conftest import reference
 stim = pytest.importorskip("stim")
 
 import stabilizer_qec as sq  # noqa: E402
+
+
+def same_predictions(a, b, off_macos):
+    """Equal on macOS; elsewhere, at least the fraction `off_macos` of shots (see above)."""
+    agree = (a == b).all(axis=1)
+    return bool(agree.all()) if sys.platform == "darwin" else agree.mean() >= off_macos
 
 
 def color_circuits():
@@ -36,7 +47,7 @@ def test_chromobius_predictions_and_weights():
         ob, wb = b.predict_weighted_obs_flips_from_dets_bit_packed(dets)
         assert (oa.shape, oa.dtype, wa.shape, wa.dtype) == (ob.shape, ob.dtype, wb.shape, wb.dtype)
         assert np.array_equal(wa, wb)
-        assert (oa == ob).all(axis=1).mean() >= 0.95  # the rest are ties (their weights agree; which tie each picks varies by platform)
+        assert same_predictions(oa, ob, 0.95)
         assert np.array_equal(b.predict_obs_flips_from_dets_bit_packed(dets), ob)
         one_a, w1a = a.predict_weighted_obs_flips_from_dets_bit_packed(dets[0])
         one_b, w1b = ours.CompiledDecoder.from_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets[0])
@@ -45,6 +56,45 @@ def test_chromobius_predictions_and_weights():
         b.predict_obs_flips_from_dets_bit_packed(dets.astype(bool))
     with pytest.raises(TypeError):
         ours.CompiledDecoder()
+
+
+# Colour-code memories (distance, rounds, p, basis, sampling seed), 5,000 shots sampled from each:
+# 65,000 shots under STABILIZER_QEC_SLOW, the first shots of three of them (5,000) by default.
+# d7 r4 p0.01 X seed 9 holds shot 855, the one shot whose matching PyMatching 2.4's neighbour
+# order lists differently from Chromobius's PyMatching 2.2.2.
+SWEEP = [
+    (3, 3, 0.01, "z", 12348), (3, 5, 0.01, "x", 6), (3, 7, 0.005, "z", 3), (3, 4, 0.002, "x", 4),
+    (5, 5, 0.005, "z", 1), (5, 5, 0.01, "z", 2), (5, 3, 0.01, "x", 11), (5, 6, 0.002, "x", 12), (5, 7, 0.001, "z", 13),
+    (7, 4, 0.01, "x", 9), (7, 7, 0.005, "z", 8), (7, 3, 0.002, "z", 14), (7, 5, 0.001, "x", 15),
+]
+SWEEP_DEFAULT = {(3, 3, 0.01, "z", 12348): 2000, (5, 5, 0.005, "z", 1): 2000, (7, 4, 0.01, "x", 9): 1000}
+
+
+def test_predictions_equal_chromobius_sweep():
+    chromobius = reference("chromobius")
+    import stabilizer_qec.chromobius as ours
+
+    slow = bool(os.environ.get("STABILIZER_QEC_SLOW"))
+    total = 0
+    for case in SWEEP:
+        n = 5000 if slow else SWEEP_DEFAULT.get(case, 0)
+        if not n:
+            continue
+        d, rounds, p, basis, seed = case
+        c = stim.Circuit(str(sq.CssCode.color_code(d).memory_circuit(rounds=rounds, p=p, basis=basis, annotate_colors=True)))
+        dem = c.detector_error_model()
+        dets = c.compile_detector_sampler(seed=seed).sample(5000, bit_packed=True)[:n]
+        want, want_w = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
+        got, got_w = ours.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
+        assert np.array_equal(got_w, want_w), case
+        differ = np.flatnonzero((got != want).any(axis=1)).tolist()
+        if sys.platform == "darwin":
+            assert differ == [], (case, differ[:10], len(differ))
+        else:
+            # (Off macOS, Chromobius may drag charge another way; see above.)
+            assert len(differ) <= n // 100, (case, len(differ))
+        total += n
+    assert total == (65000 if slow else 5000)
 
 
 def test_chromobius_sinter_decoder(tmp_path):
@@ -58,7 +108,7 @@ def test_chromobius_sinter_decoder(tmp_path):
     assert pickle.loads(pickle.dumps(mine)) == mine
     a = theirs.compile_decoder_for_dem(dem=dem).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
     b = mine.compile_decoder_for_dem(dem=dem).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
-    assert a.shape == b.shape and (a == b).all(axis=1).mean() >= 0.95
+    assert a.shape == b.shape and same_predictions(a, b, 0.95)
     dem.to_file(tmp_path / "m.dem")
     (tmp_path / "d.b8").write_bytes(dets.tobytes())
     mine.decode_via_files(
@@ -126,7 +176,6 @@ def test_chromobius_decode_via_files(tmp_path):
     chromobius = reference("chromobius")
     import stabilizer_qec.chromobius as ours
 
-    # (Shots on which the two matchers list no equally light matching differently.)
     c = stim.Circuit(str(sq.CssCode.color_code(3).memory_circuit(rounds=3, p=0.005, annotate_colors=True)))
     dem = c.detector_error_model()
     dets = c.compile_detector_sampler(seed=0).sample(64, bit_packed=True).tobytes()
@@ -147,7 +196,7 @@ def test_chromobius_decode_via_files(tmp_path):
     for case in cases:
         a, b = run(chromobius, *case), run(ours, *case)
         if isinstance(a, bytes) and isinstance(b, bytes) and len(a) == len(b) and sys.platform != "darwin":
-            # (Off macOS, Chromobius's C++ library breaks more ties differently; see above.)
+            # (Off macOS, Chromobius may drag charge another way; see above.)
             assert sum(x != y for x, y in zip(a, b)) <= 2, case
         else:
             assert a == b, case
@@ -165,10 +214,8 @@ def test_chromobius_decode_via_files(tmp_path):
 
 
 def test_chromobius_lifting_of_pymatchings_matching():
-    # Where predictions differ from Chromobius, the Möbius matchings have the same weight: the
-    # lifting depends on the order of the matched edges, and this package's matcher lists them
-    # in another order than PyMatching's. Handed PyMatching's edges in PyMatching's order, the
-    # lifting is Chromobius's.
+    # The lifting alone (`lift_edges`), handed PyMatching's edges in PyMatching's order, is
+    # Chromobius's. (PyMatching 2.4 lists these shots' edges as Chromobius's 2.2.2 does.)
     chromobius = reference("chromobius")
     pymatching = pytest.importorskip("pymatching")
     import stabilizer_qec.chromobius as ours
@@ -190,7 +237,7 @@ def test_chromobius_lifting_of_pymatchings_matching():
     if sys.platform == "darwin":
         assert lifted == want
     else:
-        # (Off macOS, Chromobius's and PyMatching's C++ libraries break more ties differently.)
+        # (Off macOS, Chromobius may drag charge another way; see above.)
         assert sum(x != y for x, y in zip(lifted, want)) <= len(want) // 100
 
 def test_beliefmatching_package(tmp_path):

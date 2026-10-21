@@ -3,12 +3,11 @@
 # decoder is this package's port (``ColorMatching``, src/color/).
 """Chromobius under its own names (``import stabilizer_qec.chromobius as chromobius``): the
 colour-code decoder compiled for a model, its weighted predictions, and its sinter decoder.
-Weights are Chromobius's (PyMatching's discretized Möbius matching weight, as float32) bit for
-bit. Predictions are Chromobius's except on some shots (about 2% of a d = 3 colour code's at
-p = 1%, fewer at lower noise or larger distance) where the matching, of the same weight, comes
-out with its edges in another order (rarely, another matching of that weight): Chromobius's
-lifting depends on that order, and this package's matcher does not list edges in PyMatching's
-order. Handed PyMatching's edges, the lifting is Chromobius's.
+The Möbius matching is PyMatching 2.2.2's sparse blossom, which Chromobius links, to the edge
+and its order (``pm_exact``), so weights (PyMatching's discretized matching weight, as float32)
+are Chromobius's bit for bit and predictions are Chromobius's: on macOS on every one of 65,000
+colour-code shots checked. (Chromobius walks some tables in std::unordered_map order, which is
+the C++ library's own; with another library it may drag charge another way on some shots.)
 
 Where it differs from Chromobius:
 
