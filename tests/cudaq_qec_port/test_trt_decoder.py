@@ -753,6 +753,11 @@ def test_o_must_be_a_matrix():
         with pytest.raises(RuntimeError) as e:
             qec.get_decoder("trt_decoder", H3, O=O, **kw)
         assert str(e.value) == PREFIX + "heterogeneous_map::get() error - Invalid type or key (O)."
+    # (What is not mirrored, as said above: the same message.)
+    for O in (None, (1, 0, 1), [[[1, 0, 1]]], []):
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", H3, O=O, **kw)
+        assert str(e.value) == PREFIX + "heterogeneous_map::get() error - Invalid type or key (O)."
     # (Checked where CUDA-Q checks it: after the model is built and the global decoder made.)
     for O in (np.ones(3, dtype=np.uint8), np.ones((1, 1, 3), dtype=np.uint8)):
         with pytest.raises(RuntimeError) as e:
