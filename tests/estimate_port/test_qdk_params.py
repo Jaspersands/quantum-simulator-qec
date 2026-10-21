@@ -22,7 +22,9 @@ import qdk_report_fixtures as fx  # noqa: E402
 FIXTURE = json.loads((pathlib.Path(__file__).parent / "qdk_params.json").read_text(encoding="utf-8"))
 CASES = FIXTURE["cases"]
 RECORDED_PYTHON = tuple(int(x) for x in FIXTURE["python"].split("."))
-QDK_NAMES = ["EstimatorError", "LogicalCounts", "EstimatorResult", "QubitParams", "QECScheme", "MeasurementErrorRate", "EstimatorQubitParams", "EstimatorQecScheme", "ProtocolSpecificDistillationUnitSpecification", "DistillationUnitSpecification", "ErrorBudgetPartition", "EstimatorConstraints", "EstimatorInputParamsItem", "EstimatorParams"]
+# What qdk.estimator exports (its __all__) and its classes' constants, as recorded from the QDK.
+QDK_NAMES = FIXTURE["names"]["all"]
+QDK_CONSTANTS = FIXTURE["names"]["constants"]
 DEPRECATION = "This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
 
 try:
@@ -36,6 +38,9 @@ needs_qdk = pytest.mark.skipif(qdk_estimator is None, reason="qdk is not install
 def test_fixture_is_the_tools_cases():
     assert FIXTURE["qdk"] == fx.QDK_VERSION and [{k: v for k, v in c.items() if k != "qdk"} for c in CASES] == json.loads(json.dumps(fx.PARAM_CASES))
     assert len(CASES) >= 80 and sum("raised" in c["qdk"] for c in CASES) >= 40
+    # The recorded names: qdk 1.33.1's fourteen exports, and the constants of the four classes that have them.
+    assert len(QDK_NAMES) == len(set(QDK_NAMES)) == 14 and set(QDK_CONSTANTS) == {"QubitParams", "QECScheme", "EstimatorParams", "EstimatorResult"}
+    assert (len(QDK_CONSTANTS["QubitParams"]), len(QDK_CONSTANTS["QECScheme"]), QDK_CONSTANTS["EstimatorParams"], QDK_CONSTANTS["EstimatorResult"]) == (6, 2, {"MAX_NUM_ITEMS": 1000}, {"MAX_DEFAULT_ITEMS_IN_TABLE": 5})
 
 
 @pytest.mark.parametrize("index", range(len(CASES)), ids=[c["name"] for c in CASES])
@@ -52,10 +57,13 @@ def test_params_against_qdk_recorded(index):
 
 
 def test_qdk_names():
-    """Everything ``qdk.estimator`` exports, under its name; `QECScheme` is the port's scheme model, which carries
-    the QDK's two names."""
+    """Everything ``qdk.estimator`` exports (its recorded ``__all__``), under its name, and its classes' recorded
+    constants, each with the QDK's value and no other; `QECScheme` is the port's scheme model, which carries the
+    QDK's two names."""
     for name in QDK_NAMES:
         assert hasattr(az, name), name
+    for cls, constants in QDK_CONSTANTS.items():
+        assert {k: v for k, v in vars(getattr(az, cls)).items() if k.isupper()} == constants, cls
     assert {az.QubitParams.GATE_US_E3, az.QubitParams.GATE_US_E4, az.QubitParams.GATE_NS_E3, az.QubitParams.GATE_NS_E4, az.QubitParams.MAJ_NS_E4, az.QubitParams.MAJ_NS_E6} == set(az.QUBIT_NAMES) and len(az.QUBIT_NAMES) == 6
     assert (az.QECScheme.SURFACE_CODE, az.QECScheme.FLOQUET_CODE) == ("surface_code", "floquet_code")
     assert az.QECScheme.floquet_code().name == az.QECScheme.FLOQUET_CODE and "SURFACE_CODE" not in az.QECScheme.__dataclass_fields__
@@ -68,8 +76,10 @@ def test_qdk_names():
 
 @needs_qdk
 def test_qdk_names_live():
+    """The recorded names are the installed QDK's."""
+    assert FIXTURE["names"] == json.loads(json.dumps(fx.qdk_names(qdk_estimator)))
     assert set(qdk_estimator.__all__) == set(QDK_NAMES)
-    for cls in ("QubitParams", "QECScheme"):
+    for cls in QDK_CONSTANTS:
         theirs = {k: v for k, v in vars(getattr(qdk_estimator, cls)).items() if k.isupper()}
         assert theirs == {k: getattr(getattr(az, cls), k) for k in theirs}, cls
 

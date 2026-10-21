@@ -1,6 +1,44 @@
 {
 "qdk": "1.33.1",
 "python": "3.13",
+"names": {
+"all": [
+"EstimatorError",
+"LogicalCounts",
+"EstimatorResult",
+"QubitParams",
+"QECScheme",
+"MeasurementErrorRate",
+"EstimatorQubitParams",
+"EstimatorQecScheme",
+"ProtocolSpecificDistillationUnitSpecification",
+"DistillationUnitSpecification",
+"ErrorBudgetPartition",
+"EstimatorConstraints",
+"EstimatorInputParamsItem",
+"EstimatorParams"
+],
+"constants": {
+"EstimatorResult": {
+"MAX_DEFAULT_ITEMS_IN_TABLE": 5
+},
+"QubitParams": {
+"GATE_US_E3": "qubit_gate_us_e3",
+"GATE_US_E4": "qubit_gate_us_e4",
+"GATE_NS_E3": "qubit_gate_ns_e3",
+"GATE_NS_E4": "qubit_gate_ns_e4",
+"MAJ_NS_E4": "qubit_maj_ns_e4",
+"MAJ_NS_E6": "qubit_maj_ns_e6"
+},
+"QECScheme": {
+"SURFACE_CODE": "surface_code",
+"FLOQUET_CODE": "floquet_code"
+},
+"EstimatorParams": {
+"MAX_NUM_ITEMS": 1000
+}
+}
+},
 "cases": [
 {
 "name": "mer valid",

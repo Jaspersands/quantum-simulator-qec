@@ -2,13 +2,14 @@
 
     python -I tools/qdk_report_fixtures.py [--markdown DIR]
 
-Writes `tests/estimate_port/qdk_params.json`: each case of `PARAM_CASES` built from the QDK's own classes
-(`qdk.estimator`) and what it gives, its ``as_dict()`` (or another call) or the exception's class and message,
-with the warnings raised on the way. And `tests/estimate_port/qdk_reports.json.gz`: the QDK's whole result for
-every case of `qdk_estimates.json` and `qdk_review2.json` it solves (re-run here, the same as recorded before),
-and, under ``renderings``, each of `REPORT_CASES` (one of those results, a batch of them with failed items, …)
-fed to the QDK's own `EstimatorResult`: its ``_repr_html_()``, ``summary``, ``[:]`` and other slices, and the
-diagrams' HTML, with what it printed. ``plain`` is drawn without markdown; ``markdown`` with markdown and
+Writes `tests/estimate_port/qdk_params.json`: what `qdk.estimator` exports (``names``: its ``__all__`` and its
+classes' constants), and each case of `PARAM_CASES` built from the QDK's own classes and what it gives, its
+``as_dict()`` (or another call) or the exception's class and message, with the warnings raised on the way. And
+`tests/estimate_port/qdk_reports.json.gz`: the QDK's whole result for every case of `qdk_estimates.json` and
+`qdk_review2.json` it solves (re-run here, the same as recorded before), and, under ``renderings``, each of
+`REPORT_CASES` (one of those results, a batch of them with failed items, …) fed to the QDK's own
+`EstimatorResult`: its ``_repr_html_()``, ``summary``, ``[:]`` and other slices, and the diagrams' HTML, with
+what it printed. ``plain`` is drawn without markdown; ``markdown`` with markdown and
 python-markdown-math, the QDK's optional renderer of the explanations (`--markdown` names a directory they are
 installed in; without it that variant is not recorded). Each HTML is kept as indices into one table of lines
 (``lines``; `unpack` joins them again). Under ``widget``, the charts of qsharp_widgets 1.33.1 (the QDK's
@@ -90,6 +91,17 @@ def encode(value: Any) -> Any:
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     return {"$obj": type(value).__name__, "attrs": encode(vars(value))}
+
+
+def qdk_names(ns: Any) -> dict:
+    """What ``qdk.estimator`` exports: its ``__all__``, and the constants of its classes that have them (the
+    upper-case class attributes, as ``QubitParams.GATE_NS_E3``), by class."""
+    constants = {}
+    for name in ns.__all__:
+        found = {k: v for k, v in vars(getattr(ns, name)).items() if k.isupper()}
+        if found:
+            constants[name] = found
+    return {"all": list(ns.__all__), "constants": constants}
 
 
 def run_param_case(case: dict, ns: Any) -> dict:
@@ -509,7 +521,7 @@ def main() -> None:
         assert _estimator.has_markdown, "markdown and mdx_math do not import from --markdown"
     python = ".".join(platform.python_version_tuple()[:2])
 
-    params = {"qdk": QDK_VERSION, "python": python, "cases": [dict(case, qdk=run_param_case(case, ns)) for case in PARAM_CASES]}
+    params = {"qdk": QDK_VERSION, "python": python, "names": qdk_names(ns), "cases": [dict(case, qdk=run_param_case(case, ns)) for case in PARAM_CASES]}
     (PORT / "qdk_params.json").write_text(json.dumps(params, indent=0, ensure_ascii=False) + "\n", encoding="utf-8")
 
     results = recorded_results()
