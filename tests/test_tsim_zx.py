@@ -1816,6 +1816,10 @@ UNREAD_WITH_A_QUBIT_LEFT_OUT = [
     "H 0\nI[foo(bar)] 0\nII[R_PAULI(theta=0.39269908169872414, pauli=X_)] 0 1",
     "H 0\nII[R_PAULI(theta=0.1, pauli=X_Z_)] 0 1 2 3\nI[R_PAULIX(theta=0.1)] 0",
     "H 0\nII[R_PAULI(theta=0.1, pauli=__)] 1 2\nI[foo(bar)] 0",
+    # Named by noise too, the qubit is one of Tsim's lanes (the review's).
+    "H 0\nI[R_PAULI(theta=0.1, pauli=X_)] 0 1\nX_ERROR(0.1) 1\nI[foo(bar)] 0",
+    "H 0\nII[R_PAULI(theta=0.1, pauli=X_Z_)] 0 1 2 3\nDEPOLARIZE2(0.1) 1 3\nI[foo(bar)] 2",
+    "H 0\nSPP X0*Z1*Z1\nI_ERROR(0.1) 1\nI[foo(bar)] 0",
 ]
 
 
@@ -1899,6 +1903,13 @@ LANE_CIRCUITS = [
     "I[R_PAULI(theta=0.1, pauli=II)] 0 1\nT 2",
     "I[R_PAULI(theta=0.39269908169872414, pauli=Xi)] 0 1\nDEPOLARIZE1(0.1) 1",
     "I[R_PAULI(theta=0.1, pauli=XZ)] 0 1\nI[R_PAULI(theta=0.1, pauli=_Y)] 1 2\nX_ERROR(0.1) 2",
+    # The review's: a qubit an identity letter and noise name (pauli=X_ or XI, on I or II, X_ERROR,
+    # DEPOLARIZE1/2 or I_ERROR), and an untagged product that cancels on a qubit.
+    "H 0\nI[R_PAULI(theta=0.1, pauli=X_)] 0 1\nX_ERROR(0.1) 1",
+    "H 0\nI[R_PAULI(theta=0.1, pauli=XI)] 0 1\nI_ERROR(0.1) 1",
+    "H 0\nII[R_PAULI(theta=0.1, pauli=X_Z_)] 0 1 2 3\nDEPOLARIZE2(0.1) 1 3",
+    "H 0\nII[R_PAULI(theta=0.1, pauli=X_)] 0 1\nDEPOLARIZE1(0.1) 1",
+    "H 0\nSPP X0*Z1*Z1",
 ]
 
 
