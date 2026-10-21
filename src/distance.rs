@@ -12,7 +12,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{BuildHasherDefault, Hasher};
-use std::rc::Rc;
 
 use crate::dem::Dem;
 
@@ -197,9 +196,6 @@ impl Hasher for Mix {
     }
 }
 
-/// The most search states `search_undetectable` visits before giving up.
-const MAX_STATES: usize = 20_000_000;
-
 /// Stim's `search_for_undetectable_logical_errors`, step for step as Stim takes it, so that it
 /// is Stim's own answer, fault for fault (`stim/search/hyper/{graph,algo}.cc`):
 ///
@@ -215,7 +211,12 @@ const MAX_STATES: usize = 20_000_000;
 /// - The first empty set reached (necessarily with an observable flipped) ends the search; its
 ///   faults, sorted by their targets (detectors, then observables) with pairs of one fault
 ///   cancelled, are the answer: the fewest faults this search can reach.
-pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no_increase: bool) -> Result<Vec<Fault>, String> {
+///
+/// Stim keeps every set it visits for as long as it runs. Here they are kept in columns of at
+/// most `max_memory_bytes` (see `Store`, and [`default_memory_budget`]); a search that fills
+/// them ends with Stim's message for one that finds nothing, then the budget and the sets
+/// visited.
+pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: usize) -> Result<Vec<Fault>, String> {
     if max_degree == 2 && max_symptoms == 2 {
         return shortest_graphlike(dem, true);
     }
@@ -244,51 +245,35 @@ pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no
     if distance_1 != 0 {
         return Ok(vec![(Vec::new(), distance_1)]);
     }
-    // Each visited set: its detectors (shared with the index), observables, the set it was reached
-    // from and the edge added (u32::MAX for the empty set and the starts' parent).
-    const NONE: u32 = u32::MAX;
-    let mut states: Vec<(Rc<[u32]>, u64, u32, u32)> = vec![(Rc::from(Vec::new()), 0, NONE, NONE)];
-    let mut index: HashSet<SetKey, BuildHasherDefault<Mix>> = HashSet::default();
-    index.insert(SetKey(states[0].0.clone(), 0));
-    let mut queue = VecDeque::new();
-    let mut visit = |states: &mut Vec<(Rc<[u32]>, u64, u32, u32)>, dets: &[u32], obs: u64, parent: u32, k: u32| -> Result<Option<u32>, String> {
-        let key = SetKey(Rc::from(dets), obs);
-        if index.contains(&key) {
-            return Ok(None);
-        }
-        if states.len() >= MAX_STATES {
-            return Err(format!("the search visited {MAX_STATES} sets of detectors without finding an undetectable logical error; lower its limits"));
-        }
-        let id = states.len() as u32;
-        states.push((key.0.clone(), obs, parent, k));
-        index.insert(key);
-        Ok(Some(id))
-    };
+    let full = |why: String| no_logical_error(dem, &format!("Failed to find any logical errors. {why}"), None);
+    let mut store = Store::new(max_memory_bytes);
     for (node, ks) in at.iter().enumerate() {
         for &k in ks {
             let (dets, obs) = &edges[k as usize];
             if *obs != 0 && dets[0] as usize == node && dets.len() <= max_symptoms {
-                if let Some(id) = visit(&mut states, dets, *obs, 0, k)? {
-                    queue.push_back(id);
-                }
+                store.visit(dets, *obs, 0, k).map_err(full)?;
             }
         }
     }
-    let mut next = Vec::new();
-    while let Some(s) = queue.pop_front() {
-        let (cur, obs) = (states[s as usize].0.clone(), states[s as usize].1);
+    // The sets are visited in the order they were stored: breadth first.
+    let (mut cur, mut next) = (Vec::new(), Vec::new());
+    let mut s = 1;
+    while s < store.len() {
+        cur.clear();
+        cur.extend_from_slice(store.dets(s));
+        let obs = store.obs[s];
         for &k in &at[cur[0] as usize] {
             xor_into(&cur, &edges[k as usize].0, &mut next);
             if next.len() > max_symptoms || (no_increase && next.len() > cur.len()) {
                 continue;
             }
-            let Some(id) = visit(&mut states, &next, obs ^ edges[k as usize].1, s, k)? else { continue };
+            let Some(id) = store.visit(&next, obs ^ edges[k as usize].1, s as u32, k).map_err(full)? else { continue };
             if next.is_empty() {
                 let mut out = Vec::new();
-                let mut t = id;
+                let mut t = id as usize;
                 while t != 0 {
-                    out.push(edges[states[t as usize].3 as usize].clone());
-                    t = states[t as usize].2;
+                    out.push(edges[store.edge[t] as usize].clone());
+                    t = store.parent[t] as usize;
                 }
                 out.sort_by_key(targets);
                 let mut i = 0;
@@ -301,23 +286,204 @@ pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no
                 }
                 return Ok(out);
             }
-            queue.push_back(id);
         }
+        s += 1;
     }
     Err(no_logical_error(dem, "Failed to find any logical errors.", None))
 }
 
-/// A visited set of the search: its detectors and observables, hashed word by word.
-#[derive(PartialEq, Eq)]
-struct SetKey(Rc<[u32]>, u64);
+/// The search's visited sets, in columns: set `s` has the detectors `pool[start[s]..start[s + 1]]`
+/// and the observables `obs[s]`, and was reached from set `parent[s]` by adding edge `edge[s]`
+/// (`u32::MAX` for the empty set, set 0, and the starts' parent). `table` holds each set's id at
+/// the slot its contents hash to (open addressing, probed linearly, at most three quarters full).
+/// Its columns and table, as allocated, stay within `budget` bytes, even while one grows (or
+/// within the few that hold the empty set, if more).
+struct Store {
+    pool: Vec<u32>,
+    start: Vec<u64>,
+    obs: Vec<u64>,
+    parent: Vec<u32>,
+    edge: Vec<u32>,
+    table: Vec<u32>,
+    budget: usize,
+}
 
-impl std::hash::Hash for SetKey {
-    fn hash<H: Hasher>(&self, h: &mut H) {
-        for &d in self.0.iter() {
+const NONE: u32 = u32::MAX;
+
+impl Store {
+    /// A store holding the empty set with no observable.
+    fn new(budget: usize) -> Store {
+        let mut store = Store { pool: Vec::new(), start: vec![0, 0], obs: vec![0], parent: vec![NONE], edge: vec![NONE], table: vec![NONE; 16], budget };
+        let (slot, _) = store.find(&[], 0);
+        store.table[slot] = 0;
+        store
+    }
+
+    /// How many sets it holds.
+    fn len(&self) -> usize {
+        self.obs.len()
+    }
+
+    /// Set `s`'s detectors.
+    fn dets(&self, s: usize) -> &[u32] {
+        &self.pool[self.start[s] as usize..self.start[s + 1] as usize]
+    }
+
+    /// The bytes its columns and table hold.
+    fn bytes(&self) -> usize {
+        4 * (self.pool.capacity() + self.parent.capacity() + self.edge.capacity() + self.table.len()) + 8 * (self.start.capacity() + self.obs.capacity())
+    }
+
+    /// The table slot holding the set with these contents (true), or the empty one where it
+    /// would go (false).
+    fn find(&self, dets: &[u32], obs: u64) -> (usize, bool) {
+        let mut h = Mix::default();
+        for &d in dets {
             h.write_u32(d);
         }
-        h.write_u64(self.1);
+        h.write_u64(obs);
+        // The table's length is a power of two; Mix's high bits are its best mixed.
+        let mask = self.table.len() - 1;
+        let mut slot = (h.finish() >> (64 - self.table.len().trailing_zeros())) as usize;
+        loop {
+            match self.table[slot] {
+                NONE => return (slot, false),
+                s if self.obs[s as usize] == obs && self.dets(s as usize) == dets => return (slot, true),
+                _ => slot = (slot + 1) & mask,
+            }
+        }
     }
+
+    /// The set's id if it is new (it is then stored), None if it was visited before; Err (the
+    /// words for Stim's message) if the budget has no room for it.
+    fn visit(&mut self, dets: &[u32], obs: u64, parent: u32, edge: u32) -> Result<Option<u32>, String> {
+        let (mut slot, seen) = self.find(dets, obs);
+        if seen {
+            return Ok(None);
+        }
+        let n = self.len();
+        let Some(id) = u32::try_from(n).ok().filter(|&id| id != NONE) else {
+            return Err(format!("(the search's 32-bit ids ran out after {n} states)"));
+        };
+        if 4 * (n + 1) > 3 * self.table.len() {
+            if !self.grow_table() {
+                return Err(format!("(memory budget of {} bytes reached after {n} states)", self.budget));
+            }
+            slot = self.find(dets, obs).0;
+        }
+        let (mut total, budget) = (self.bytes(), self.budget);
+        let room = reserve(&mut self.pool, dets.len(), &mut total, budget)
+            && reserve(&mut self.start, 1, &mut total, budget)
+            && reserve(&mut self.obs, 1, &mut total, budget)
+            && reserve(&mut self.parent, 1, &mut total, budget)
+            && reserve(&mut self.edge, 1, &mut total, budget);
+        if !room {
+            return Err(format!("(memory budget of {} bytes reached after {n} states)", self.budget));
+        }
+        self.pool.extend_from_slice(dets);
+        self.start.push(self.pool.len() as u64);
+        self.obs.push(obs);
+        self.parent.push(parent);
+        self.edge.push(edge);
+        self.table[slot] = id;
+        Ok(Some(id))
+    }
+
+    /// The table at twice its length, every set placed again, if the budget has room for it
+    /// (the old table is let go first).
+    fn grow_table(&mut self) -> bool {
+        let len = 2 * self.table.len();
+        if self.bytes() - 4 * self.table.len() + 4 * len > self.budget {
+            return false;
+        }
+        self.table = Vec::new();
+        self.table = vec![NONE; len];
+        for s in 0..self.len() {
+            let (slot, _) = self.find(self.dets(s), self.obs[s]);
+            self.table[slot] = s as u32;
+        }
+        true
+    }
+}
+
+/// Room in `v` for `extra` more, `total` being the store's bytes (updated): if it is full, its
+/// capacity doubled, or raised as far as the budget allows; false if that is too little. A
+/// column that grows is copied, so its old allocation counts until the copy is made: the store
+/// holds at most `budget` bytes even while it grows.
+fn reserve<T>(v: &mut Vec<T>, extra: usize, total: &mut usize, budget: usize) -> bool {
+    let need = v.len() + extra;
+    if need <= v.capacity() {
+        return true;
+    }
+    let size = std::mem::size_of::<T>();
+    let cap = (2 * v.capacity()).max(need).min(budget.saturating_sub(*total) / size);
+    if cap < need {
+        return false;
+    }
+    let old = size * v.capacity();
+    v.reserve_exact(cap - v.len());
+    *total = *total - old + size * v.capacity();
+    true
+}
+
+/// The budget of `search_undetectable`'s store when none is given: half the machine's physical
+/// memory, or no limit (as in Stim) where the platform does not say how much it has.
+pub fn default_memory_budget() -> usize {
+    physical_memory().map_or(usize::MAX, |bytes| usize::try_from(bytes / 2).unwrap_or(usize::MAX))
+}
+
+/// The machine's physical memory in bytes: `hw.memsize` on macOS and iOS.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn physical_memory() -> Option<u64> {
+    extern "C" {
+        fn sysctlbyname(name: *const std::ffi::c_char, oldp: *mut std::ffi::c_void, oldlenp: *mut usize, newp: *mut std::ffi::c_void, newlen: usize) -> std::ffi::c_int;
+    }
+    let mut bytes = 0u64;
+    let mut len = std::mem::size_of::<u64>();
+    // SAFETY: hw.memsize is a 64-bit integer, written into `bytes`, whose size `len` gives.
+    let ok = unsafe { sysctlbyname(c"hw.memsize".as_ptr(), (&mut bytes as *mut u64).cast(), &mut len, std::ptr::null_mut(), 0) } == 0;
+    (ok && len == std::mem::size_of::<u64>()).then_some(bytes)
+}
+
+/// The machine's physical memory in bytes: `MemTotal` in `/proc/meminfo` on Linux and Android.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn physical_memory() -> Option<u64> {
+    let text = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let kib: u64 = text.lines().find_map(|line| line.strip_prefix("MemTotal:"))?.trim().strip_suffix("kB")?.trim().parse().ok()?;
+    kib.checked_mul(1024)
+}
+
+/// The machine's physical memory in bytes: `GlobalMemoryStatusEx`'s `ullTotalPhys` on Windows.
+#[cfg(windows)]
+fn physical_memory() -> Option<u64> {
+    // MEMORYSTATUSEX, of which only the total is read.
+    #[repr(C)]
+    #[allow(dead_code)]
+    struct MemoryStatus {
+        length: u32,
+        memory_load: u32,
+        total_phys: u64,
+        avail_phys: u64,
+        total_page_file: u64,
+        avail_page_file: u64,
+        total_virtual: u64,
+        avail_virtual: u64,
+        avail_extended_virtual: u64,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GlobalMemoryStatusEx(buffer: *mut MemoryStatus) -> i32;
+    }
+    let mut status = MemoryStatus { length: std::mem::size_of::<MemoryStatus>() as u32, memory_load: 0, total_phys: 0, avail_phys: 0, total_page_file: 0, avail_page_file: 0, total_virtual: 0, avail_virtual: 0, avail_extended_virtual: 0 };
+    // SAFETY: `status` is a MEMORYSTATUSEX with its length set, as the call requires.
+    let ok = unsafe { GlobalMemoryStatusEx(&mut status) } != 0;
+    ok.then_some(status.total_phys)
+}
+
+/// Elsewhere (WebAssembly among them) the physical memory is not known.
+#[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux", target_os = "android", windows)))]
+fn physical_memory() -> Option<u64> {
+    None
 }
 
 /// `out` = the symmetric difference of two sorted sets.
@@ -411,5 +577,65 @@ mod tests {
         let decomposed = Dem::parse("error(0.1) D5 D6 ^ D0\nerror(0.1) D7 D8 ^ D0 L0").unwrap();
         assert!(shortest_graphlike(&decomposed, true).is_err());
         assert_eq!(shortest_graphlike(&decomposed, false).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn the_store_keeps_within_its_budget() {
+        // Sets of three detectors stored until the budget is full: the columns and table never
+        // hold more than it, and every set is found again. A column (or the table) stops growing
+        // when its new allocation does not fit beside the store, so the store fills more than
+        // half the budget (but for one set's detectors).
+        for budget in [1_000, 4_096, 100_000, 1 << 20, 3 << 20] {
+            let mut store = Store::new(budget);
+            let mut n = 0;
+            let why = loop {
+                match store.visit(&[n, n + 1, n + 2], u64::from(n % 3), 0, n) {
+                    Ok(id) => assert_eq!(id, Some(n + 1)),
+                    Err(why) => break why,
+                }
+                assert!(store.bytes() <= budget);
+                n += 1;
+            };
+            assert_eq!(why, format!("(memory budget of {budget} bytes reached after {} states)", store.len()));
+            assert!(2 * store.bytes() + 12 > budget, "{budget}: {} bytes", store.bytes());
+            for k in 0..n {
+                assert_eq!(store.visit(&[k, k + 1, k + 2], u64::from(k % 3), 0, 0), Ok(None));
+                assert_eq!((store.dets(k as usize + 1), store.obs[k as usize + 1], store.edge[k as usize + 1]), (&[k, k + 1, k + 2][..], u64::from(k % 3), k));
+            }
+        }
+    }
+
+    #[test]
+    fn a_full_store_ends_the_search_with_stims_message() {
+        // A line of 30 faults: the search stores 31 sets to find it, and a budget that holds
+        // fewer ends it. 400 bytes hold the empty set and seven more of one detector each (28
+        // bytes a set, beside the 64-byte table and the columns' spare room): the observables'
+        // column, at 64 bytes, cannot then grow, as its copy would not fit beside the store.
+        let dem = repetition(30);
+        assert_eq!(search_undetectable(&dem, 4, 4, false, 100_000).unwrap().len(), 30);
+        assert_eq!(search_undetectable(&dem, 4, 4, false, usize::MAX).unwrap().len(), 30);
+        assert_eq!(search_undetectable(&dem, 4, 4, false, 400).unwrap_err(), "Failed to find any logical errors. (memory budget of 400 bytes reached after 8 states)");
+        // A model with nothing to search keeps Stim's message and warnings, whatever the budget.
+        let no_observables = Dem::parse("error(0.1) D0 D1\nerror(0.1) D1").unwrap();
+        assert_eq!(search_undetectable(&no_observables, 4, 4, false, 0).unwrap_err(), no_logical_error(&no_observables, "Failed to find any logical errors.", None));
+    }
+
+    #[test]
+    fn the_default_budget_is_half_the_machines_memory() {
+        let tool = if cfg!(target_os = "macos") {
+            Some(("sysctl", vec!["-n", "hw.memsize"]))
+        } else if cfg!(target_os = "linux") {
+            Some(("getconf", vec!["_PHYS_PAGES"]))
+        } else {
+            None
+        };
+        let Some((program, args)) = tool else { return };
+        let read = |program: &str, args: &[&str]| -> u64 { String::from_utf8(std::process::Command::new(program).args(args).output().unwrap().stdout).unwrap().trim().parse().unwrap() };
+        let mut bytes = read(program, &args);
+        if cfg!(target_os = "linux") {
+            bytes *= read("getconf", &["PAGESIZE"]);
+        }
+        assert_eq!(physical_memory(), Some(bytes));
+        assert_eq!(default_memory_budget() as u64, bytes / 2);
     }
 }

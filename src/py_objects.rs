@@ -177,11 +177,14 @@ impl PyCircuit {
         Ok(out.into_iter().map(explained_tuple).collect())
     }
 
-    /// Stim's search for undetectable logical errors, explained (see
-    /// `Circuit::search_for_undetectable_logical_errors`).
-    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
+    /// Stim's search for undetectable logical errors, explained, its sets within
+    /// `max_memory_bytes` (None: half the machine's memory; see
+    /// `Circuit::search_for_undetectable_logical_errors_with_budget`).
+    #[pyo3(signature = (max_symptoms, max_degree, no_increase, canonicalize, max_memory_bytes=None))]
+    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool, max_memory_bytes: Option<usize>) -> PyResult<Vec<PyExplained>> {
         let circuit = &self.circuit;
-        let out = py.detach(move || circuit.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase, canonicalize)).map_err(api_err)?;
+        let budget = max_memory_bytes.unwrap_or_else(crate::distance::default_memory_budget);
+        let out = py.detach(move || circuit.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, canonicalize, budget)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
 
@@ -773,10 +776,13 @@ impl PyDem {
         Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)? })
     }
 
-    /// Stim's search for undetectable logical errors on the model.
-    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool) -> PyResult<PyDem> {
+    /// Stim's search for undetectable logical errors on the model, its sets within
+    /// `max_memory_bytes` (None: half the machine's memory).
+    #[pyo3(signature = (max_symptoms, max_degree, no_increase, max_memory_bytes=None))]
+    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: Option<usize>) -> PyResult<PyDem> {
         let dem = &self.dem;
-        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors(max_symptoms, max_degree, no_increase)).map_err(api_err)? })
+        let budget = max_memory_bytes.unwrap_or_else(crate::distance::default_memory_budget);
+        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, budget)).map_err(api_err)? })
     }
 
     /// A sampler of the model's faults (see `DemSampler`).

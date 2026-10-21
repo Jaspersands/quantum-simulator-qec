@@ -212,10 +212,22 @@ impl Circuit {
     /// detector each step; faults of more than `max_degree` detectors are left out, sets larger
     /// than `max_symptoms` are not explored, nor (with `no_increase`) larger sets at all. Each
     /// fault found is explained (with `canonicalize`, by one location). It is the fewest faults
-    /// within those limits: an upper bound on the distance.
+    /// within those limits: an upper bound on the distance. The sets visited are kept within
+    /// half the machine's physical memory, or without limit where the platform does not say how
+    /// much it has (see
+    /// [`search_for_undetectable_logical_errors_with_budget`](Circuit::search_for_undetectable_logical_errors_with_budget)).
     pub fn search_for_undetectable_logical_errors(&self, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool) -> Result<Vec<ExplainedError>> {
+        self.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, canonicalize, crate::distance::default_memory_budget())
+    }
+
+    /// [`search_for_undetectable_logical_errors`](Circuit::search_for_undetectable_logical_errors)
+    /// keeping the sets it visits within `max_memory_bytes`: the columns that store them (some
+    /// 50 bytes a set) never hold more, even while one grows. Stim's search has no such limit;
+    /// when this one reaches it, it fails with Stim's message for a search that finds nothing,
+    /// then "(memory budget of N bytes reached after M states)".
+    pub fn search_for_undetectable_logical_errors_with_budget(&self, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool, max_memory_bytes: usize) -> Result<Vec<ExplainedError>> {
         let dem = self.detector_error_model(&DemOptions::new().approximate_disjoint_errors(Some(1.0)))?;
-        let faults = crate::distance::search_undetectable(dem.flat()?, max_symptoms, max_degree, no_increase)?;
+        let faults = crate::distance::search_undetectable(dem.flat()?, max_symptoms, max_degree, no_increase, max_memory_bytes)?;
         self.explained(Some(&crate::distance::as_terms(&faults)), canonicalize)
     }
 
@@ -976,7 +988,13 @@ impl DetectorErrorModel {
     /// [`Circuit::search_for_undetectable_logical_errors`]): the faults found, each with
     /// probability 1.
     pub fn search_for_undetectable_logical_errors(&self, max_symptoms: usize, max_degree: usize, no_increase: bool) -> Result<DetectorErrorModel> {
-        let faults = crate::distance::search_undetectable(self.flat()?, max_symptoms, max_degree, no_increase)?;
+        self.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, crate::distance::default_memory_budget())
+    }
+
+    /// The search on the model within `max_memory_bytes` (see
+    /// [`Circuit::search_for_undetectable_logical_errors_with_budget`]).
+    pub fn search_for_undetectable_logical_errors_with_budget(&self, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: usize) -> Result<DetectorErrorModel> {
+        let faults = crate::distance::search_undetectable(self.flat()?, max_symptoms, max_degree, no_increase, max_memory_bytes)?;
         DetectorErrorModel::parse(&crate::distance::to_dem_text(&faults))
     }
 
