@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from ... import sinter
+from .._compile.utils.paths import DEFAULT_DETECTOR_DATABASE_PATH
 
 if TYPE_CHECKING:
     from ..compile import TopologicalComputationGraph
@@ -22,7 +23,7 @@ def generate_stim_circuits_with_detectors(
     noise_model_factory: Callable[[float], "NoiseModel"],
     manhattan_radius: int,
     detector_database=None,
-    database_path: Union[str, Path, None] = None,
+    database_path: Union[str, Path, None] = DEFAULT_DETECTOR_DATABASE_PATH,
     do_not_use_database: bool = False,
     only_use_database: bool = False,
 ) -> Iterator[tuple]:
@@ -30,8 +31,9 @@ def generate_stim_circuits_with_detectors(
     each ``k`` (distance 2k + 1) with ``noise_model_factory(p)`` laid over it, the circuits
     grouped by ``k`` as tqec yields them.
 
-    The detectors are the surgery engine's, so ``manhattan_radius`` only leaves them out when
-    negative, and the detector database arguments are taken for tqec's signature."""
+    The detectors are tqec's, found within ``manhattan_radius`` of each plaquette and kept in
+    ``detector_database`` (in memory: ``database_path``, by default tqec's database file, is
+    taken for tqec's signature, and no file is read or written)."""
     noise_models = {p: noise_model_factory(p) for p in ps}
     circuits = {
         k: compiled_graph.generate_stim_circuit(
@@ -54,7 +56,7 @@ def generate_sinter_tasks(
     noise_model_factory: Callable[[float], "NoiseModel"],
     manhattan_radius: int,
     detector_database=None,
-    database_path: Union[str, Path, None] = None,
+    database_path: Union[str, Path, None] = DEFAULT_DETECTOR_DATABASE_PATH,
     do_not_use_database: bool = False,
     only_use_database: bool = False,
 ) -> Iterator["sinter.Task"]:

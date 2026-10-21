@@ -6,13 +6,13 @@ composition, rotation, correlation surfaces (the logical observables) found on t
 ZX graph, and ``.dae`` files SketchUp and tqec exchange, read and written with the standard
 library.
 
-Graphs compile as tqec compiles them, on this package's lattice-surgery engine in place of
-tqec's plaquette templates: ``compile_block_graph(graph, convention=...)`` and
-``generate_stim_circuit(k=..., noise_model=NoiseModel.uniform_depolarizing(p))``, at distance
-2k + 1, with the engine's detectors and the correlation surfaces as observables. The engine's
-patch layout is its own, so the qubit counts differ from tqec's (a CNOT at k = 1 is 113 qubits
-here, 81 in tqec), while the numbers of detectors and observables and the distance are tqec's
-(the CNOT's 256 detectors, 2 observables, distance 3).
+Graphs compile as tqec compiles them, by a port of tqec's compile pipeline (its plaquettes,
+templates, layer trees and observables, with tqecd's detectors): ``compile_block_graph(graph,
+convention=...)`` and ``generate_stim_circuit(k=...,
+noise_model=NoiseModel.uniform_depolarizing(p))`` give tqec's circuit at distance 2k + 1, byte
+for byte (a CNOT at k = 1: 81 qubits, 256 detectors, 2 observables), Hadamard pipes and spatial
+junctions included. ``compile_block_graph(graph, distance)`` compiles instead on this package's
+lattice-surgery engine (its own patch layout, its detectors, the same observables).
 
 - ``simulation``: ``start_simulation_using_sinter``, ``binary_search_threshold`` and the plots,
   on ``stabilizer_qec.sinter``;

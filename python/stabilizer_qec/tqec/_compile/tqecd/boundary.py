@@ -1,0 +1,288 @@
+# Ported from tqecd (tqec/tqecd 0.2.1, src/tqecd/boundary.py; Apache License 2.0, see LICENSE here),
+# modified for stabilizer_qec.
+from __future__ import annotations
+
+from typing import Iterable, Mapping
+
+import numpy
+
+from stabilizer_qec.tqec._compile.tqecd.exceptions import TQECDException
+from stabilizer_qec.tqec._compile.tqecd.measurement import RelativeMeasurementLocation
+from stabilizer_qec.tqec._compile.tqecd.pauli import PauliString
+
+
+class BoundaryStabilizer:
+    def __init__(
+        self,
+        stabilizer: PauliString,
+        collapsing_operations: Iterable[PauliString],
+        measurements: list[RelativeMeasurementLocation],
+        reset_qubits: frozenset[int],
+        forward: bool,
+        *,
+        _collapsing_pauli_masks: tuple[int, int, int] | None = None,
+    ):
+        """Represents a stabilizer that has been propagated and is now at the
+        boundary of a :class:`~tqecd.fragment.Fragment`.
+
+        Raises:
+            TQECDException: if ``source_qubits`` is empty.
+
+        Args:
+            stabilizer: The propagated stabilizer **before** any collapsing
+                operation has been applied.
+            collapsing_operations: The collapsing operations the stabilizer will
+                have to go through to exit the :class:`~tqecd.fragment.Fragment`.
+            measurements: measurement offsets relative to the **end** of the
+                fragment (even if the created :class:`BoundaryStabilizer`
+                instance represents a stabilizer on the beginning boundary) of
+                measurements that are involved in this stabilizer.
+            reset_qubits: index of the qubit on which reset operations touching
+                the flow are applied. Depending on the value of ``forward``,
+                these indices can either be sources of the stabilizer (if
+                ``forward`` is ``True``) or sinks that may or may not commute
+                with the resulting stabilizer.
+            forward:
+                ``True`` if the stabilizer propagated forward (i.e., ends on
+                measurements), else ``False``.
+            _collapsing_pauli_masks: Optional precomputed bit masks for the
+                single-qubit X, Y, and Z collapsing operations, in that order.
+                When provided, they avoid iterating over
+                ``collapsing_operations`` to test and apply the collapse.
+        """
+        self._stabilizer = stabilizer
+        self._measurements = measurements
+        self._collapsing_operations = frozenset(collapsing_operations)
+        self._collapsing_pauli_masks = _collapsing_pauli_masks
+        if _collapsing_pauli_masks is None:
+            self._has_anticommuting_collapsing_operations = any(
+                operation.anticommutes(stabilizer)
+                for operation in self._collapsing_operations
+            )
+        else:
+            self._has_anticommuting_collapsing_operations = (
+                stabilizer._anticommutes_single_qubit_masks(*_collapsing_pauli_masks)
+            )
+
+        self._after_collapse: PauliString | None
+        if self._has_anticommuting_collapsing_operations:
+            self._after_collapse = None
+        elif _collapsing_pauli_masks is None:
+            self._after_collapse = stabilizer.collapse_by(self._collapsing_operations)
+        else:
+            self._after_collapse = stabilizer._without_qubits(
+                _collapsing_pauli_masks[0]
+                | _collapsing_pauli_masks[1]
+                | _collapsing_pauli_masks[2]
+            )
+        self._reset_qubits: frozenset[int] = reset_qubits
+        self._is_forward = forward
+
+    @property
+    def has_anticommuting_operations(self) -> bool:
+        """Check if the instance represents a stabilizer that anti-commutes
+        with at least one of its collapsing operations.
+
+        Returns:
+            ``True`` if at least one collapsing operation anti-commutes with the
+            stabilizer, else ``False``.
+        """
+        return self._has_anticommuting_collapsing_operations
+
+    @property
+    def after_collapse(self) -> PauliString:
+        """Compute the stabilizer obtained after applying the collapsing
+        operations.
+
+        Raises:
+            TQECDException: If any of the collapsing operation anti-commutes
+                with the stored stabilizer.
+
+        Returns:
+            The collapsed :class:`~tqecd.pauli.PauliString` that goes out of the
+            :class:`~tqecd.fragment.Fragment`.
+        """
+        if self._after_collapse is None:
+            raise TQECDException(
+                "Cannot collapse a BoundaryStabilizer if it has "
+                "anticommuting operations."
+            )
+        return self._after_collapse
+
+    @property
+    def before_collapse(self) -> PauliString:
+        """Return the stabilizer obtained before applying the collapsing
+        operations.
+
+        Returns:
+            The :class:`~tqecd.pauli.PauliString` that goes out of the
+            :class:`~tqecd.fragment.Fragment`, before applying any collapsing
+            operation.
+        """
+        return self._stabilizer
+
+    @property
+    def collapsing_operations(self) -> frozenset[PauliString]:
+        """Iterator on all the collapsing operations defining the boundary this
+        stabilizer is applied to."""
+        return self._collapsing_operations
+
+    @property
+    def measurements(self) -> list[RelativeMeasurementLocation]:
+        return self._measurements
+
+    @property
+    def resets_qubits(self) -> frozenset[int]:
+        return self._reset_qubits
+
+    def merge(self, other: BoundaryStabilizer) -> BoundaryStabilizer:
+        """Merge two boundary stabilizers together.
+
+        The two merged stabilizers should be defined on the same boundaries. In
+        particular, they should have the same set of collapsing operations.
+
+        Args:
+            other: the other :class:`BoundaryStabilizer` to merge with ``self``.
+                Should have exactly the same set of collapsing operations.
+
+        Raises:
+            TQECDException: if ``self`` and ``other`` are not defined on exactly
+                the same collapsing operations.
+
+        Returns:
+            the merged boundary stabilizer, defined on the same set of collapsing
+            operations (i.e., the same boundary), but with the two pre-collapsing
+            stabilizers multiplied together.
+        """
+        if self._collapsing_operations != other._collapsing_operations:
+            raise TQECDException(
+                "Breaking pre-condition: trying to merge two BoundaryStabilizer "
+                "instances that are not defined on the same boundary.\n"
+                "Collapsing operations for left-hand side: "
+                f"{self._collapsing_operations}.\n"
+                "Collapsing operations for right-hand side: "
+                f"{other._collapsing_operations}.\n"
+            )
+        if self._is_forward != other._is_forward:
+            raise TQECDException(
+                "Cannot merge a forward boundary stabilizer with a backward one."
+            )
+        is_forward_merge = self._is_forward
+        stabilizer = self._stabilizer * other._stabilizer
+        non_trivial_stabilizer_qubits = frozenset(stabilizer.qubits)
+        # When merging 2 boundary stabilizers, particular care should be taken to merge
+        # the measurements and resets.
+        # The merged stabilizers might cancel out on some of the involved collapsing
+        # operations, leading to collapsing operations that are in `self` and `other`
+        # but that should not be in the merged result.
+        # This does not happen everytime a collapsing operation is found in both
+        # `self` and `other` as:
+        # - merging anti-commuting stabilizer (which is the primary purpose of this
+        #   method) might lead to a commuting stabilizer, still involving the collapsing
+        #   operation they were previously anti-commuting with.
+        # - sources (i.e., resets in forward boundary stabilizers and measurements in
+        #   backward boundary operations) do not cancel each other out.
+        # In the end, the end collapsing operations (resets for backward propagation,
+        # measurements for forward propagation) need to be re-computed from the
+        # merged stabilizer.
+        reset_qubits: frozenset[int]
+        measurements: list[RelativeMeasurementLocation]
+        if is_forward_merge:
+            reset_qubits = self.resets_qubits | other.resets_qubits
+            candidate_measurements = set(self.measurements) | set(other.measurements)
+            measurements = [
+                m
+                for m in candidate_measurements
+                if m.qubit_index in non_trivial_stabilizer_qubits
+            ]
+
+        else:
+            measurements = list(
+                frozenset(self.measurements) | frozenset(other.measurements)
+            )
+            candidate_resets = self.resets_qubits | other.resets_qubits
+            reset_qubits = frozenset(
+                r for r in candidate_resets if r in non_trivial_stabilizer_qubits
+            )
+        return BoundaryStabilizer(
+            stabilizer,
+            self._collapsing_operations,
+            measurements,
+            reset_qubits,
+            is_forward_merge,
+            _collapsing_pauli_masks=self._collapsing_pauli_masks,
+        )
+
+    def __repr__(self) -> str:
+        ret = f"BoundaryStabilizers(stabilizer={self._stabilizer}, "
+        ret += "collapsing_operations=["
+        ret += ", ".join(str(p) for p in self.collapsing_operations)
+        ret += f"], measurements={self._measurements}"
+        ret += f", resets={set(self._reset_qubits)}, is_forward={self._is_forward})"
+        return ret
+
+    def coordinates(
+        self, qubit_coordinates: Mapping[int, tuple[float, ...]]
+    ) -> tuple[float, ...]:
+        """Compute and return the coordinates of the boundary stabilizer.
+
+        The coordinates of a given boundary stabilizer is defined as the average
+        of the coordinates of each collapsing operations it represents.
+
+        Args:
+            qubit_coordinates: mapping from qubit indices to coordinates
+
+        Raises:
+            TQECDException: If a qubit in ``self.source_qubits`` is not contained
+                in the ``qubit_coordinates`` mapping.
+
+        Returns:
+            the boundary stabilizer coordinates.
+        """
+        try:
+            measurement_coordinates = [
+                qubit_coordinates[source] for source in self.source_qubits
+            ]
+        except KeyError as exc:
+            raise TQECDException(
+                f"Qubit index {exc.args[0]} required for detector assignment, "
+                "but it does not have a valid QUBIT_COORDS statement."
+            )
+        # Avoid returning numpy.float64 type returned by numpy.mean by
+        # explicitly calling float() on it.
+        return tuple(float(c) for c in numpy.mean(measurement_coordinates, axis=0))
+
+    def with_measurement_offset(self, offset: int) -> BoundaryStabilizer:
+        return BoundaryStabilizer(
+            self._stabilizer,
+            self.collapsing_operations,
+            [m.offset_by(offset) for m in self.measurements],
+            self._reset_qubits,
+            self._is_forward,
+            _collapsing_pauli_masks=self._collapsing_pauli_masks,
+        )
+
+    def is_trivial(self) -> bool:
+        return (
+            not self.has_anticommuting_operations
+            and self.after_collapse.non_trivial_pauli_count == 0
+            and len(self._stabilizer) == 1
+        )
+
+    @property
+    def source_qubits(self) -> frozenset[int]:
+        return (
+            self._reset_qubits
+            if self._is_forward
+            else frozenset(m.qubit_index for m in self.measurements)
+        )
+
+
+def manhattan_distance(
+    lhs: BoundaryStabilizer,
+    rhs: BoundaryStabilizer,
+    qubit_coordinates: dict[int, tuple[float, ...]],
+) -> float:
+    lhs_coords = lhs.coordinates(qubit_coordinates)
+    rhs_coords = rhs.coordinates(qubit_coordinates)
+    return sum(abs(left - right) for left, right in zip(lhs_coords, rhs_coords))

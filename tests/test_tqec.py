@@ -4,8 +4,10 @@ The differential tests run when tqec is installed."""
 
 from __future__ import annotations
 
+import inspect
 import json
 import pathlib
+import re
 
 import numpy as np
 import pytest
@@ -421,16 +423,16 @@ def _their_zx(kind: str):
     return TheirZXCube.from_str(kind)
 
 
-def _decoded_rates(circuit, shots: int, seed: int = 7) -> list[float]:
-    d, o = circuit.compile_detector_sampler(seed=seed).sample(shots, separate_observables=True)
-    predicted = sq.Matching.from_detector_error_model(circuit.detector_error_model(decompose_errors=True)).decode_batch(d)
-    return [float(x) for x in (predicted != o).mean(axis=0)]
+def _tqec_fixture(case_id: str) -> str:
+    """tqec's own circuit for a case of tests/tqec_port/fixtures (see tools/tqec_fixtures.py)."""
+    import gzip
+
+    return gzip.decompress((pathlib.Path(__file__).parent / "tqec_port" / "fixtures" / f"{case_id}.stim.gz").read_bytes()).decode()
 
 
-# tqec 0.2.0 on the two CNOTs (cnot().compose(cnot(), "Out_Control", "In_Control"), ports filled
-# ZXZ or ZXX), k = 1, NoiseModel.uniform_depolarizing(0.001), PyMatching, 20 000 shots: 81 qubits,
-# 464 detectors, 2 observables, graphlike distance 3.
-TQEC_TWO_CNOTS = {"Z": (["ZIZI", "IZIZ"], [0.0163, 0.0402]), "X": (["XXXX", "XIXI"], [0.0451, 0.0423])}
+# tqec 0.2.0's stabilizers for the two CNOTs (cnot().compose(cnot(), "Out_Control",
+# "In_Control"), ports filled ZXZ or ZXX); its circuits at k = 1 are fixtures of tests/tqec_port.
+TQEC_TWO_CNOTS = {"Z": ["ZIZI", "IZIZ"], "X": ["XXXX", "XIXI"]}
 
 
 @pytest.mark.parametrize("basis", ["Z", "X"])
@@ -440,22 +442,19 @@ def test_two_cnots_in_a_row_reuse_the_ancillas_tile(basis):
     # The ancilla's tile holds two patches, one per CNOT, the first read out before the second
     # is prepared.
     assert compiled.tiles == [(0, 0), (1, 0), (1, 0), (1, 1)] and compiled.num_merges == 4
-    stabilizers, rates = TQEC_TWO_CNOTS[basis]
-    assert compiled.stabilizers == stabilizers
+    assert compiled.stabilizers == TQEC_TWO_CNOTS[basis]
     c = compiled.circuit
     # The engine's layout spends more qubits than tqec's (113, not 81); the detectors are tqec's.
     assert (c.num_qubits, c.num_detectors, c.num_observables) == (113, 464, 2)
     assert len(c.shortest_graphlike_error()) == 3
     d, o = g.compile(3).compile_detector_sampler(seed=1).sample(128, separate_observables=True)
     assert not d.any() and not o.any()
-    # Under tqec's own noise model, laid over the engine's circuit as tqec lays it over its own,
-    # the logical error rates are tqec's within a factor of two (about 1.3 times tqec's: the
-    # engine's rounds idle more moments).
-    noisy = tqec.compile_block_graph(g).generate_stim_circuit(k=1, noise_model=tqec.NoiseModel.uniform_depolarizing(0.001))
-    assert noisy.num_detectors == 464
-    ours = _decoded_rates(noisy, 8000)
-    assert all(r / 2 < x < 2 * r for x, r in zip(ours, rates)), (ours, rates)
     assert len(tqec.compile_block_graph(g, 5, p=0.001).circuit.shortest_graphlike_error()) == 5
+    # tqec's way (its plaquettes, 81 qubits): its own circuit, byte for byte.
+    noiseless = tqec.compile_block_graph(g).generate_stim_circuit(k=1)
+    assert str(noiseless) == _tqec_fixture(f"two_cnots_ZX{basis}_fixed_bulk_k1")
+    noisy = tqec.NoiseModel.uniform_depolarizing(0.001).noisy_circuit(noiseless)
+    assert (noisy.num_qubits, noisy.num_detectors, noisy.num_observables) == (81, 464, 2)
 
 
 def _stacked(first: str, second: str, x2: int = 0) -> BlockGraph:
@@ -515,7 +514,7 @@ def test_two_cnots_agree_with_tqec():
         assert structure(o) == structure(t)
         so, st = o.find_correlation_surfaces(), t.find_correlation_surfaces()
         assert spans(so) == spans(st)
-        assert [s.external_stabilizer_on_graph(o) for s in so] == [s.external_stabilizer_on_graph(t) for s in st] == TQEC_TWO_CNOTS[basis][0]
+        assert [s.external_stabilizer_on_graph(o) for s in so] == [s.external_stabilizer_on_graph(t) for s in st] == TQEC_TWO_CNOTS[basis]
 
 
 # tqec 0.2.0's NoiseModel laid over the engine's noiseless circuits at d = 3, p = 0.001: the
@@ -584,53 +583,266 @@ def test_noise_models_against_tqec():
 
 
 def test_tqecs_call_shape():
-    from stabilizer_qec.tqec import FIXED_BOUNDARY_CONVENTION, FIXED_BULK_CONVENTION, NoiseModel, TopologicalComputationGraph, compile_block_graph
+    from stabilizer_qec.tqec import FIXED_BOUNDARY_CONVENTION, FIXED_BULK_CONVENTION, LinearFunction, NoiseModel, TopologicalComputationGraph, compile_block_graph
 
     g = gallery.cnot(Basis.Z)
     computation = compile_block_graph(g)
     assert isinstance(computation, TopologicalComputationGraph) and computation.num_observables == 2 and computation.stabilizers == ["ZZII", "IZZZ"]
-    noiseless = computation.generate_stim_circuit(k=1)
-    assert str(noiseless) == str(compile_block_graph(g, 3).circuit)
+    # tqec's circuit, byte for byte (tests/tqec_port has the rest of the gallery).
     noise = NoiseModel.uniform_depolarizing(0.001)
     noisy = computation.generate_stim_circuit(k=1, noise_model=noise)
-    assert str(noisy) == str(noise.noisy_circuit(noiseless))
-    assert (noisy.num_qubits, noisy.num_detectors, noisy.num_observables) == (113, 256, 2)
-    assert len(computation.generate_stim_circuit(2, noise).shortest_graphlike_error()) == 5
-    # tqec's arguments for its detector search are taken; a negative radius drops the detectors.
-    assert str(computation.generate_stim_circuit(1, None, 2, None, "db.pkl", True, False, True)) == str(noiseless)
-    assert computation.generate_stim_circuit(1, manhattan_radius=-1).num_detectors == 0
-    # The conventions: tqec's two, positional as tqec places it, by name; both are the engine's layout.
-    for convention in (FIXED_BULK_CONVENTION, FIXED_BOUNDARY_CONVENTION, "fixed_boundary"):
-        assert str(compile_block_graph(g, convention).generate_stim_circuit(1)) == str(noiseless)
-        assert compile_block_graph(g, convention=convention).convention.name == str(convention)
+    assert str(noisy) == str(noise.noisy_circuit(sq.Circuit(_tqec_fixture("cnot_Z_fixed_bulk_k1"))))
+    assert (noisy.num_qubits, noisy.num_detectors, noisy.num_observables) == (81, 256, 2)
+    # tqec's arguments for its detector search, positional as tqec places them: the database is
+    # in memory (a path is not used), and a radius that is not positive finds no detectors.
+    m = gallery.memory(Basis.Z)
+    memory = compile_block_graph(m)
+    noiseless = memory.generate_stim_circuit(1)
+    assert str(memory.generate_stim_circuit(1, None, 2, None, "db.pkl", True, False, True)) == str(noiseless) == _tqec_fixture("memory_Z_fixed_bulk_k1")
+    assert memory.generate_stim_circuit(1, manhattan_radius=0).num_detectors == 0
+    assert len(memory.generate_stim_circuit(2, noise).shortest_graphlike_error()) == 5
+    with pytest.raises(TQECError, match="DetectorDatabase"):
+        memory.generate_stim_circuit(1, detector_database={})
+    # The conventions: tqec's two, positional as tqec places it, or by name.
+    for convention in (FIXED_BOUNDARY_CONVENTION, "fixed_boundary"):
+        assert str(compile_block_graph(m, convention).generate_stim_circuit(1)) == _tqec_fixture("memory_Z_fixed_boundary_k1")
+        assert compile_block_graph(m, convention=convention).convention.name == str(convention)
+    assert compile_block_graph(m, FIXED_BULK_CONVENTION).convention == FIXED_BULK_CONVENTION
     with pytest.raises(TQECError, match="not one of tqec's"):
         compile_block_graph(g, convention="fixed_corners")
-    # block_temporal_height: tqec's rounds between the initialisation and measurement layers.
-    m = gallery.memory(Basis.Z)
-    assert compile_block_graph(m).generate_stim_circuit(1).num_detectors == 24  # 2k + 1 rounds, as tqec
-    assert compile_block_graph(m, block_temporal_height=5).generate_stim_circuit(1).num_detectors == 8 * 7
-    assert compile_block_graph(m, None, "auto", lambda k: 2 * k - 1).generate_stim_circuit(2).num_detectors == 120
+    # block_temporal_height: tqec's LinearFunction of k, the rounds between the initialisation and
+    # measurement layers (2k - 1 by default); tqec refuses a constant one.
+    assert noiseless.num_detectors == 24
+    assert str(compile_block_graph(m, None, "auto", LinearFunction(2, 1)).generate_stim_circuit(1)) == _tqec_fixture("memory_Z_fixed_bulk_k1_height2k1")
+    with pytest.raises(TQECError, match="non-scalable dimension"):
+        compile_block_graph(m, block_temporal_height=5)
+    with pytest.raises(TQECError, match="must be a LinearFunction"):
+        compile_block_graph(m, block_temporal_height=lambda k: 2 * k - 1)
+    # A number or a callable, which 2.1 took on this route (its engine ran height + 2 rounds in
+    # every time slice): the error (tqec's for the constant LinearFunction a number is), then a
+    # hint when the engine takes the value (a callable, or a whole number at least 0, a NumPy
+    # integer too), so the hint is true. A LinearFunction, a number the engine refuses (2.5, -1)
+    # and anything else get no hint. The engine takes them at a distance and runs height + 2
+    # rounds.
+    def refusal(height) -> str:
+        with pytest.raises(TQECError) as info:
+            compile_block_graph(m, block_temporal_height=height)
+        return re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-f]+>", r"<\1 object>", str(info.value))
+
+    manifest = json.loads((pathlib.Path(__file__).parent / "tqec_port" / "fixtures" / "manifest.json").read_text())
+    constant = re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-f]+>", r"<\1 object>", next(c for c in manifest["cases"] if c["id"] == "memory_Z_fixed_bulk_k1_height1")["error"]["message"])
+    assert constant == "Cannot add the block as a cube. The provided block(<Block object>) has at least one non-scalable dimension."
+    hint = "2.1 took a number or a callable of k here, and its engine ran height + 2 rounds in every time slice (height 5: 7 rounds); the engine still takes them, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)."
+    assert refusal(LinearFunction(0, 5)) == constant
+    seven = str(compile_block_graph(m, 3, rounds=7).circuit)
+    for height in (5, 5.0, np.int64(5)):
+        assert refusal(height) == f"{constant} block_temporal_height={height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default). {hint}"
+        assert str(compile_block_graph(m, 3, block_temporal_height=height).circuit) == seven
+    assert refusal(0).endswith(f" {hint}")
+    assert str(compile_block_graph(m, 3, block_temporal_height=0).circuit) == str(compile_block_graph(m, 3, rounds=2).circuit)
+    for height in (2.5, -1):
+        assert refusal(height) == f"{constant} block_temporal_height={height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default)."
+        with pytest.raises(TQECError) as info:
+            compile_block_graph(m, 3, block_temporal_height=height)
+        assert str(info.value) == f"block_temporal_height at k = 1 is {height!r}; it must be a whole number of rounds, at least 0"
+    def height(k):
+        return 2 * k - 1
+
+    assert refusal(height) == f"block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not {height!r}. {hint}"
+    assert refusal("5") == "block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not '5'"
+    assert str(compile_block_graph(m, 5, block_temporal_height=height).circuit) == str(compile_block_graph(m, 5, rounds=5).circuit)
+    assert str(compile_block_graph(m, 5, block_temporal_height=lambda k: np.int64(2 * k - 1)).circuit) == str(compile_block_graph(m, 5, rounds=5).circuit)
     with pytest.raises(TQECError, match="not both"):
         compile_block_graph(m, block_temporal_height=3, rounds=4)
+    with pytest.raises(TQECError, match="give the distance too"):
+        compile_block_graph(m, rounds=4)
     # The observables argument, the engine's p, and k.
-    assert compile_block_graph(g, observables=None).generate_stim_circuit(1).num_observables == 0
+    assert compile_block_graph(m, observables=None).generate_stim_circuit(1).num_observables == 0
+    with pytest.raises(TQECError, match="'auto', None or a list"):
+        compile_block_graph(m, observables="all")
     with pytest.raises(TQECError, match="give the distance"):
         compile_block_graph(g, p=0.001)
-    with pytest.raises(TQECError, match="k must be a positive integer"):
-        computation.generate_stim_circuit(0)
-    # CompiledBlockGraph writes the same circuits; BlockGraph.compile takes k and noise_model.
-    compiled = compile_block_graph(g, 3, p=0.001)
-    assert str(compiled.generate_stim_circuit()) == str(noiseless) and str(compiled.generate_stim_circuit(1, noise)) == str(noisy)
-    assert str(g.compile(k=1)) == str(noiseless) and str(g.compile(3, noise_model=noise)) == str(noisy)
+    for k in (0, 1.5, True):
+        with pytest.raises(TQECError, match="k must be a positive integer"):
+            computation.generate_stim_circuit(k)
+    assert str(memory.generate_stim_circuit(np.int64(1))) == str(noiseless)
+    # CompiledBlockGraph (the engine's) writes tqec's circuits too; BlockGraph.compile is the
+    # engine's, taking k and noise_model.
+    compiled = compile_block_graph(m, 3, p=0.001)
+    assert str(compiled.generate_stim_circuit()) == str(noiseless)
+    engine = compile_block_graph(g, 3).circuit
+    assert str(g.compile(k=1)) == str(engine) and str(g.compile(3, noise_model=noise)) == str(noise.noisy_circuit(engine))
     with pytest.raises(TQECError, match="one of them"):
         g.compile(3, k=1)
     with pytest.raises(TQECError, match="not both"):
         g.compile(3, p=0.001, noise_model=noise)
-    # The checks are made when the graph is compiled, as tqec makes them.
-    with pytest.raises(TQECError, match="Hadamard"):
-        compile_block_graph(gallery.cz("XI -> XZ"))
+    # tqec's checks are made when the graph is compiled, with tqec's errors; the engine's when it
+    # compiles.
     with pytest.raises(TQECError, match="open ports"):
         compile_block_graph(gallery.cnot())
+    y = BlockGraph("y")
+    y.add_cube(Position3D(0, 0, 0), "Y")
+    y.add_cube(Position3D(0, 0, 1), "ZXZ")
+    y.add_pipe(Position3D(0, 0, 0), Position3D(0, 0, 1))
+    with pytest.raises(NotImplementedError, match="^Y cube is not implemented.$"):
+        compile_block_graph(y)
+    cz = compile_block_graph(gallery.cz("ZZ -> ZZ"))
+    with pytest.raises(TQECError, match="Hadamard"):
+        cz.compile(3)
+
+
+def test_compiled_block_graph_writes_tqecs_layout():
+    """A ``CompiledBlockGraph`` (the engine's program) has two layouts: ``circuit``, the
+    engine's, and ``generate_stim_circuit``, tqec's, with ``TopologicalComputationGraph``'s
+    parameters (tqec's), refusing a program whose rounds tqec's layout cannot honour."""
+    from stabilizer_qec.tqec import LinearFunction, TopologicalComputationGraph, compile_block_graph
+    from stabilizer_qec.tqec.compile import CompiledBlockGraph
+
+    ours = inspect.signature(CompiledBlockGraph.generate_stim_circuit).parameters
+    tqecs = inspect.signature(TopologicalComputationGraph.generate_stim_circuit).parameters
+    assert list(ours) == list(tqecs) == ["self", "k", "noise_model", "manhattan_radius", "detector_database", "database_path", "do_not_use_database", "only_use_database", "reschedule_measurements"]
+    assert [p.default for name, p in ours.items() if name != "k"] == [p.default for name, p in tqecs.items() if name != "k"]
+    assert ours["k"].default is None  # the program's scale
+    # The engine's layout and tqec's: the CNOT at distance 3 on 113 qubits and on 81.
+    cnot = gallery.cnot(Basis.Z)
+    program = compile_block_graph(cnot, 3)
+    assert program.circuit.num_qubits == 113
+    assert str(program.generate_stim_circuit()) == _tqec_fixture("cnot_Z_fixed_bulk_k1")
+    assert sq.Circuit(_tqec_fixture("cnot_Z_fixed_bulk_k1")).num_qubits == 81
+    # tqec's parameters, positional as tqec places them.
+    m = gallery.memory(Basis.Z)
+    noiseless = _tqec_fixture("memory_Z_fixed_bulk_k1")
+    compiled = compile_block_graph(m, 3)
+    assert str(compiled.circuit) != noiseless
+    assert str(compiled.generate_stim_circuit()) == str(compiled.generate_stim_circuit(1, None, 2, None, "db.pkl", True, False, True)) == noiseless
+    assert compiled.generate_stim_circuit(manhattan_radius=0).num_detectors == 0
+    assert str(compiled.generate_stim_circuit(1, reschedule_measurements=False)) == str(compile_block_graph(m).generate_stim_circuit(1, reschedule_measurements=False))
+    noise = tqec.NoiseModel.uniform_depolarizing(0.001)
+    assert str(compiled.generate_stim_circuit(noise_model=noise)) == str(noise.noisy_circuit(sq.Circuit(noiseless)))
+    with pytest.raises(TypeError):
+        compiled.generate_stim_circuit(1, rounds=5)
+    with pytest.raises(TQECError, match="DetectorDatabase"):
+        compiled.generate_stim_circuit(1, detector_database={})
+    # Rounds tqec's layout cannot honour are refused, pointing at the engine's circuit...
+    message = "this program was compiled with rounds=5, so at k = 1 each time slice runs 5 rounds; generate_stim_circuit writes tqec's layout, which runs 2k + 1 = 3 rounds in every time slice, merges included, and cannot honour that. The program's circuit, in the engine's layout, is .circuit (at its distance; compile_block_graph(graph, distance, ...) for another)"
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        compile_block_graph(m, 3, rounds=5).generate_stim_circuit()
+    with pytest.raises(ValueError, match=r"^this program was compiled with rounds=3, so at k = 2 each time slice runs 3 rounds; .* 2k \+ 1 = 5 rounds"):
+        compile_block_graph(m, 3, rounds=3).generate_stim_circuit(2)
+    with pytest.raises(ValueError, match=r"^this program was compiled with merged=2, so at k = 1 each time slice runs 3 rounds and each merge 2; "):
+        compile_block_graph(cnot, 3, merged=2).generate_stim_circuit()
+    with pytest.raises(ValueError, match=r"^this program was compiled with rounds=3, merged=2, so at k = 1 each time slice runs 3 rounds and each merge 2; "):
+        compile_block_graph(cnot, 3, rounds=3, merged=2).generate_stim_circuit()
+    with pytest.raises(ValueError, match=r"^this program was compiled with block_temporal_height=5, so at k = 1 each time slice runs 7 rounds; "):
+        compile_block_graph(m, 3, block_temporal_height=5).generate_stim_circuit()
+    with pytest.raises(ValueError, match=rf"^this program was compiled with block_temporal_height={re.escape(repr(np.int64(5)))}, so at k = 1 each time slice runs 7 rounds; "):
+        compile_block_graph(m, 3, block_temporal_height=np.int64(5)).generate_stim_circuit()
+    with pytest.raises(ValueError, match=r"block_temporal_height=<function .*, so at k = 2 each time slice runs 3 rounds; "):
+        compile_block_graph(m, 3, block_temporal_height=lambda k: 1).generate_stim_circuit(2)
+    # ...and rounds it can honour are written: tqec's own height, or tqec's rounds at k however
+    # they were given (merged is not used by a graph without merges).
+    assert str(compile_block_graph(m, 3, rounds=3).generate_stim_circuit()) == noiseless
+    assert str(compile_block_graph(m, 3, merged=2).generate_stim_circuit()) == noiseless
+    assert str(compile_block_graph(m, 3, block_temporal_height=1).generate_stim_circuit()) == noiseless
+    assert str(compile_block_graph(m, 3, block_temporal_height=lambda k: 2 * k - 1).generate_stim_circuit()) == noiseless
+    assert str(compile_block_graph(m, 3, block_temporal_height=np.int64(1)).generate_stim_circuit()) == noiseless
+    assert str(compile_block_graph(m, 3, block_temporal_height=LinearFunction(2, 1)).generate_stim_circuit()) == _tqec_fixture("memory_Z_fixed_bulk_k1_height2k1")
+    with pytest.raises(TQECError, match="non-scalable dimension"):  # tqec's own height, which tqec refuses
+        compile_block_graph(m, 3, block_temporal_height=LinearFunction(0, 1)).generate_stim_circuit()
+
+
+@needs_tqec
+def test_generate_stim_circuit_takes_tqecs_parameters():
+    from tqec.compile.graph import TopologicalComputationGraph as Theirs
+
+    from stabilizer_qec.tqec.compile import CompiledBlockGraph
+
+    theirs_parameters = inspect.signature(Theirs.generate_stim_circuit).parameters
+    for cls in (tqec.TopologicalComputationGraph, CompiledBlockGraph):
+        parameters = inspect.signature(cls.generate_stim_circuit).parameters
+        assert list(parameters) == list(theirs_parameters)
+        # tqec's defaults, database_path's (tqec's database file) included, apart from the
+        # engine's program's k (its own scale; tqec's k has no default).
+        assert [p.default for name, p in parameters.items() if name != "k"] == [p.default for name, p in theirs_parameters.items() if name != "k"]
+        assert parameters["k"].default is (None if cls is CompiledBlockGraph else inspect.Parameter.empty)
+        assert all(p.kind == p.POSITIONAL_OR_KEYWORD for p in parameters.values())
+
+
+@needs_tqec
+def test_database_path_defaults_to_tqecs(monkeypatch: pytest.MonkeyPatch):
+    """Every database_path this package takes for one of tqec's signatures defaults to tqec's
+    DEFAULT_DETECTOR_DATABASE_PATH, computed as tqec computes it (and never read)."""
+    import tqec.utils.paths as their_paths
+    from tqec.compile.graph import TopologicalComputationGraph as Theirs
+    from tqec.compile.tree.tree import LayerTree as TheirTree
+    from tqec.simulation import generation as their_generation, simulation as their_simulation
+
+    from stabilizer_qec.tqec._compile.graph import TopologicalComputationGraph as Port
+    from stabilizer_qec.tqec._compile.tree.tree import LayerTree
+    from stabilizer_qec.tqec._compile.utils import paths
+    from stabilizer_qec.tqec.compile import CompiledBlockGraph
+    from stabilizer_qec.tqec.simulation import generation, simulation
+
+    assert paths.USER_DATA_PATH == their_paths.USER_DATA_PATH
+    assert paths.DEFAULT_DETECTOR_DATABASE_PATH == their_paths.DEFAULT_DETECTOR_DATABASE_PATH
+    pairs = [
+        (tqec.TopologicalComputationGraph.generate_stim_circuit, Theirs.generate_stim_circuit),
+        (CompiledBlockGraph.generate_stim_circuit, Theirs.generate_stim_circuit),
+        (Port.generate_stim_circuit, Theirs.generate_stim_circuit),
+        (LayerTree.generate_circuit, TheirTree.generate_circuit),
+        (LayerTree._annotate_detectors, TheirTree._annotate_detectors),
+        (generation.generate_stim_circuits_with_detectors, their_generation.generate_stim_circuits_with_detectors),
+        (generation.generate_sinter_tasks, their_generation.generate_sinter_tasks),
+        (simulation.start_simulation_using_sinter, their_simulation.start_simulation_using_sinter),
+    ]
+    for ours, theirs_function in pairs:
+        default = inspect.signature(ours).parameters["database_path"].default
+        assert default == inspect.signature(theirs_function).parameters["database_path"].default == their_paths.DEFAULT_DETECTOR_DATABASE_PATH, ours
+    # tqec's environment variable, which tqec reads when it is imported.
+    monkeypatch.setenv("TQEC_DETECTOR_DATABASE_PATH", "elsewhere/db.pkl")
+    assert paths._get_database_path() == their_paths._get_database_path() == pathlib.Path("elsewhere/db.pkl")
+
+
+def test_default_database_path_without_platformdirs(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path):
+    """tqec's database path is platformdirs' user data directory for "TQEC"; without platformdirs
+    (which tqec requires) it is platformdirs' rule for the platform. The port never reads or
+    writes the path."""
+    import os
+    import sys
+
+    from stabilizer_qec.tqec._compile.utils import paths
+
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("TQEC_DETECTOR_DATABASE_PATH", raising=False)
+    try:
+        import platformdirs
+    except ImportError:  # pragma: no cover
+        platformdirs = None
+    expected = None if platformdirs is None else platformdirs.user_data_path(appname="TQEC")
+    assert paths._user_data_path("TQEC") == expected or expected is None
+    assert paths._get_database_path() == paths.USER_DATA_PATH / "detector_database.pkl"
+    monkeypatch.setitem(sys.modules, "platformdirs", None)  # import platformdirs now fails
+    fallback = paths._user_data_path("TQEC")
+    if expected is not None:
+        assert fallback == expected
+    if sys.platform == "darwin":
+        assert fallback == pathlib.Path.home() / "Library" / "Application Support" / "TQEC"
+    if sys.platform != "win32":
+        # $XDG_DATA_HOME, when absolute, as platformdirs takes it on macOS and other Unix
+        # systems (Windows has no XDG directories); a relative one is ignored.
+        monkeypatch.setenv("XDG_DATA_HOME", " /xdg/data ")
+        assert paths._user_data_path("TQEC") == pathlib.Path("/xdg/data/TQEC")
+        monkeypatch.setenv("XDG_DATA_HOME", "relative/data")
+        assert paths._user_data_path("TQEC") == fallback
+    else:  # pragma: no cover
+        monkeypatch.setenv("LOCALAPPDATA", "C:\\Users\\u\\AppData\\Local")
+        assert paths._user_data_path("TQEC") == pathlib.Path("C:\\Users\\u\\AppData\\Local", "TQEC", "TQEC")
+    monkeypatch.setenv("TQEC_DETECTOR_DATABASE_PATH", os.fspath(tmp_path / "db.pkl"))
+    assert paths._get_database_path() == tmp_path / "db.pkl"
+    # The path is taken for tqec's signature only: nothing is read or written there.
+    memory = tqec.compile_block_graph(gallery.memory(Basis.Z))
+    assert str(memory.generate_stim_circuit(1, database_path=tmp_path / "db.pkl")) == _tqec_fixture("memory_Z_fixed_bulk_k1")
+    assert list(tmp_path.iterdir()) == []
 
 
 @needs_tqec
@@ -642,6 +854,9 @@ def test_tqecs_conventions_and_noise_model_objects_are_taken():
     pytest.importorskip("stim")
     # tqec's own NoiseModel works on Stim's circuits; it is given Stim's and read back.
     assert str(g.compile(3, noise_model=theirs.NoiseModel.uniform_depolarizing(0.001))) == str(g.compile(3, noise_model=tqec.NoiseModel.uniform_depolarizing(0.001)))
+    computation = tqec.compile_block_graph(g, block_temporal_height=theirs.utils.scale.LinearFunction(2, 1))
+    assert str(computation.generate_stim_circuit(1)) == _tqec_fixture("memory_Z_fixed_bulk_k1_height2k1")
+    assert str(computation.generate_stim_circuit(1, theirs.NoiseModel.uniform_depolarizing(0.001))) == str(computation.generate_stim_circuit(1, tqec.NoiseModel.uniform_depolarizing(0.001)))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -690,13 +905,13 @@ def test_simulation_generates_tqecs_tasks_and_collects_them():
     from stabilizer_qec.tqec.simulation.generation import generate_sinter_tasks, generate_stim_circuits_with_detectors
     from stabilizer_qec.tqec.simulation.threshold import get_logical_error_rate_per_shot
 
-    g = gallery.cnot(Basis.Z)
-    computation = tqec.compile_block_graph(g)
+    computation = tqec.compile_block_graph(gallery.memory(Basis.Z))
     tasks = list(generate_sinter_tasks(computation, [1, 2], [0.001, 0.002], tqec.NoiseModel.uniform_depolarizing, 2))
     assert [t.json_metadata for t in tasks] == [{"d": d, "r": d, "p": p} for d in (3, 5) for p in (0.001, 0.002)]
     assert [str(t.circuit) for t in tasks[:2]] == [str(computation.generate_stim_circuit(1, tqec.NoiseModel.uniform_depolarizing(p))) for p in (0.001, 0.002)]
     assert [(k, p) for _, k, p in generate_stim_circuits_with_detectors(computation, [1], [0.001], tqec.NoiseModel.uniform_depolarizing, -1)] == [(1, 0.001)]
     # One list of statistics per observable, the shots shared, the errors each observable's.
+    g = gallery.cnot(Basis.Z)
     split = start_simulation_using_sinter(g, [1], [0.002], tqec.NoiseModel.uniform_depolarizing, 2, num_workers=1, max_shots=1000)
     assert len(split) == 2 and [len(s) for s in split] == [1, 1]
     (a,), (b,) = split

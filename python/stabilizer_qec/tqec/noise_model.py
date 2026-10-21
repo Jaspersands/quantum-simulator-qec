@@ -10,8 +10,8 @@
 
 The noisy circuit is tqec's for the same noiseless circuit, instruction for instruction (the
 tests hold the two to that). A circuit compiled from a block graph here
-(``compile_block_graph(graph).generate_stim_circuit(k, noise_model=...)``) is the surgery
-engine's noiseless circuit with the model laid over it, as tqec lays it over its own."""
+(``compile_block_graph(graph).generate_stim_circuit(k, noise_model=...)``) is tqec's
+noiseless circuit with the model laid over it, as tqec lays it."""
 
 from __future__ import annotations
 

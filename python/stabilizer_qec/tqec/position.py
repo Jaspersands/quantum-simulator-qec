@@ -1,7 +1,12 @@
 # Ported from tqec (tqec/tqec 0.2.0, src/tqec/utils/position.py; Apache License 2.0; see LICENSE in this directory),
-# modified for stabilizer_qec: the 3D classes and Position2D only (not the 2D shapes and shifts of tqec's
-# templates), numpy imported only by FloatPosition3D.as_array.
-"""3D integer positions, directions and signed directions of a spacetime diagram."""
+# modified for stabilizer_qec: numpy imported only by FloatPosition3D.as_array, round_or_fail kept here
+# (tqec's is in utils/scale.py, which re-exports it), and from_neighbouring_positions' message
+# formats its positions (tqec's ``{source:=}`` raises a TypeError of its own).
+"""2D and 3D integer positions, shapes and shifts, each class naming its coordinate system
+(physical qubits, plaquettes, blocks), and the directions of a spacetime diagram.
+
+As in tqec, two instances of different classes are never equal, even with the same coordinates
+(``Position2D(0, 0) != BlockPosition2D(0, 0)``), and hash alike."""
 
 from __future__ import annotations
 
@@ -13,11 +18,24 @@ from ._errors import TQECError
 
 
 @dataclass(frozen=True, order=True)
-class Position2D:
-    """A 2D integer position (``Position3D.as_2d``)."""
-
+class Vec2D:
     x: int
     y: int
+
+
+@dataclass(frozen=True, order=True)
+class Vec3D:
+    x: int
+    y: int
+    z: int
+
+
+class Position2D(Vec2D):
+    """A position on a 2-dimensional plane, in no particular coordinate system."""
+
+    def with_block_coordinate_system(self) -> BlockPosition2D:
+        """Return a :class:`.BlockPosition2D` from ``self``."""
+        return BlockPosition2D(self.x, self.y)
 
     def is_neighbour(self, other: Position2D) -> bool:
         """Check if the other position is near to this position, i.e. Manhattan distance is 1."""
@@ -28,17 +46,54 @@ class Position2D:
         return Position3D(self.x, self.y, z)
 
 
-@dataclass(frozen=True, order=True)
-class Position3D:
+class PhysicalQubitPosition2D(Position2D):
+    """The position of a physical qubit on a 2-dimensional plane."""
+
+
+class PlaquettePosition2D(Position2D):
+    """The position of a plaquette on a 2-dimensional plane."""
+
+    def get_origin_position(self, shift: Shift2D) -> PhysicalQubitPosition2D:
+        """Return the position of the plaquette origin."""
+        return PhysicalQubitPosition2D(shift.x * self.x, shift.y * self.y)
+
+
+class BlockPosition2D(Position2D):
+    """The position of a block on a 2-dimensional plane."""
+
+    def get_top_left_plaquette_position(self, block_shape: PlaquetteShape2D) -> PlaquettePosition2D:
+        """Return the position of the top-left plaquette of the block."""
+        return PlaquettePosition2D(block_shape.x * self.x, block_shape.y * self.y)
+
+
+class Shape2D(Vec2D):
+    def to_numpy_shape(self) -> tuple[int, int]:
+        """The shape as numpy indexes arrays: ``(y, x)``."""
+        return (self.y, self.x)
+
+
+class PlaquetteShape2D(Shape2D):
+    """A 2-dimensional shape in plaquettes."""
+
+
+class PhysicalQubitShape2D(Shape2D):
+    """A 2-dimensional shape in physical qubits."""
+
+
+class Shift2D(Vec2D):
+    def __mul__(self, factor: int) -> Shift2D:
+        return Shift2D(factor * self.x, factor * self.y)
+
+    def __rmul__(self, factor: int) -> Shift2D:
+        return self.__mul__(factor)
+
+
+class Position3D(Vec3D):
     """A 3D integer position: x, y are space and z is time."""
 
-    x: int
-    y: int
-    z: int
-
     def shift_by(self, dx: int = 0, dy: int = 0, dz: int = 0) -> Position3D:
-        """Shift the position by the given offset."""
-        return Position3D(self.x + dx, self.y + dy, self.z + dz)
+        """Shift the position by the given offset (an instance of ``self``'s class)."""
+        return self.__class__(self.x + dx, self.y + dy, self.z + dz)
 
     def shift_in_direction(self, direction: Direction3D, shift: int) -> Position3D:
         """Shift the position in the given direction by the given shift."""
@@ -63,6 +118,14 @@ class Position3D:
     def as_2d(self) -> Position2D:
         """Return the position as a 2D position."""
         return Position2D(self.x, self.y)
+
+
+class BlockPosition3D(Position3D):
+    """The position of a block in 3D space."""
+
+    def as_2d(self) -> BlockPosition2D:
+        """Return ``self`` as a 2-dimensional position, ignoring the ``z`` coordinate."""
+        return BlockPosition2D(self.x, self.y)
 
 
 class Direction3D(Enum):
