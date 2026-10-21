@@ -120,7 +120,6 @@ DECODER_CASES = [
     ("BeliefPropagationOSDDecoder", "RhombicToricCode", (2,), {"channel_update": True, "osd_order": 2}),
     ("UnionFindDecoder", "Toric2DCode", (5,), {}),
 ]
-MATCHING = {"MatchingDecoder", "SweepMatchDecoder", "RotatedSweepMatchDecoder", "XCubeMatchingDecoder"}
 IDS = [f"{d}-{c}" for d, c, _, _ in DECODER_CASES]
 
 
@@ -142,33 +141,11 @@ def _decodes(decoder, code, size, kwargs, shots=25, rate=0.05):
     return ca, ma, rate, out
 
 
-@pytest.fixture
-def pymatching_matcher(monkeypatch):
-    """PanQEC's matching decoders on PyMatching itself, whose ties between equally good matchings
-    this package's matcher does not break alike."""
-    import pymatching
-
-    monkeypatch.setattr("stabilizer_qec.panqec.decoders.matching._matching_decoder.Matching", pymatching.Matching)
-
-
 @pytest.mark.parametrize("decoder,code,size,kwargs", DECODER_CASES, ids=IDS)
-def test_decoders_equal(decoder, code, size, kwargs, pymatching_matcher, capsys):
+def test_decoders_equal(decoder, code, size, kwargs, capsys):
+    # The matching decoders on this package's Matching, which breaks PyMatching's ties as it does.
     for _, a, b in _decodes(decoder, code, size, kwargs)[3]:
         np.testing.assert_array_equal(a, b)
-    capsys.readouterr()
-
-
-@pytest.mark.parametrize("decoder,code,size,kwargs", [c for c in DECODER_CASES if c[0] in MATCHING], ids=[i for i, c in zip(IDS, DECODER_CASES) if c[0] in MATCHING])
-def test_matching_decoders_on_this_packages_matcher(decoder, code, size, kwargs, capsys):
-    # On this package's matcher: the same syndrome left, and for plain matching, corrections of
-    # the same weight (both minimum weight), where ties allow different ones.
-    c, model, rate, out = _decodes(decoder, code, size, kwargs)
-    wx, wz = model.get_weights(c, rate)
-    for _, a, b in out:
-        np.testing.assert_array_equal(c.measure_syndrome(a), c.measure_syndrome(b))
-        if decoder == "MatchingDecoder":
-            n = c.n
-            assert np.dot(a[:n], wx) + np.dot(a[n:], wz) == pytest.approx(np.dot(b[:n], wx) + np.dot(b[n:], wz))
     capsys.readouterr()
 
 
@@ -191,7 +168,7 @@ def test_memory_belief_propagation(capsys):
     capsys.readouterr()
 
 
-def test_direct_simulation_equal(pymatching_matcher, capsys):
+def test_direct_simulation_equal(capsys):
     results = []
     for pkg, config in ((ours, our_config), (panqec, ref_config)):
         code = config.CODES["Toric3DCode"](3)

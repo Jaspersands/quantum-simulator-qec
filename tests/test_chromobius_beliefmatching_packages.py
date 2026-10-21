@@ -206,11 +206,11 @@ def test_beliefmatching_package(tmp_path):
     assert np.array_equal(expected, ours.BeliefMatching(oc).decode_batch(dets))
     dem = c.detector_error_model(decompose_errors=True)
     odem = sq.DetectorErrorModel(str(dem))
-    # Min-sum BP leaves many edges of equal (often zero) weight, so the matchings tie on a few
-    # shots (2 of 200 here, each an equally light matching); BP itself agrees bit for bit.
+    # Min-sum BP leaves many edges of equal (often zero) weight, so the matchings tie: BP agrees
+    # bit for bit, and the matcher (PyMatching's, transliterated) breaks the ties as PyMatching.
     x = beliefmatching.BeliefMatching.from_detector_error_model(dem, max_bp_iters=5, bp_method="minimum_sum").decode_batch(dets)
     y = ours.BeliefMatching.from_detector_error_model(odem, max_bp_iters=5, bp_method="minimum_sum").decode_batch(dets)
-    assert (x != y).any(axis=1).sum() <= 4
+    assert np.array_equal(x, y)
     m1, m2 = beliefmatching.detector_error_model_to_check_matrices(dem), ours.detector_error_model_to_check_matrices(odem)
     for name in ("check_matrix", "observables_matrix", "edge_check_matrix", "edge_observables_matrix", "hyperedge_to_edge_matrix"):
         assert (getattr(m1, name) != getattr(m2, name)).nnz == 0, name

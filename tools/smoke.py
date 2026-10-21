@@ -204,7 +204,7 @@ def main():
     print(f"ok 11. gross-code logical measurement: {gl.num_qubits} qubits, {gl.num_detectors} detectors, 64 shots decoded")
 
     # 12. The public API: the same seed gives the same shots on 1 and 4 threads; matching on
-    # Stim's shots agrees with PyMatching but for ties; and the 0.4 names are gone, with a hint.
+    # Stim's shots is PyMatching's, ties included; and the 0.4 names are gone, with a hint.
     import stabilizer_qec as pub
 
     c = pub.memory_circuit(distance=5, rounds=5, p=0.004)
@@ -215,15 +215,15 @@ def main():
     s_dets, s_obs = stim.Circuit(str(c)).compile_detector_sampler(seed=4).sample(5000, separate_observables=True)
     ours = pub.Matching(pub_dem).decode_batch(s_dets, threads=0)
     theirs = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(str(pub_dem))).decode_batch(s_dets)
-    if (ours != theirs).any(axis=1).sum() > 10:
-        fail("the public Matching disagrees with PyMatching beyond ties")
+    if not np.array_equal(ours, theirs):
+        fail("the public Matching disagrees with PyMatching")
     try:
         pub.generate_circuit
         fail("a 0.4 name is still there")
     except AttributeError as e:
         if "memory_circuit" not in str(e):
             fail("a removed 0.4 name gives no replacement")
-    print(f"ok 12. public API {pub.__version__}: seeds independent of threads, Matching = PyMatching on 5000 shots but for ties")
+    print(f"ok 12. public API {pub.__version__}: seeds independent of threads, Matching = PyMatching on 5000 shots")
     print("all checks passed")
 
 
