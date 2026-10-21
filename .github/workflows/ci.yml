@@ -167,6 +167,10 @@ jobs:
           done
           # Quantumsim 0.2.0, the density matrix's reference, without the dependencies the test does not use.
           python -m pip install pytools && python -m pip install --no-deps quantumsim==0.2.0 || echo "::notice::quantumsim is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
+          # The QDK's report with markdown (tests/estimate_port/test_qdk_report.py's markdown variant), at the versions it was
+          # recorded with. One install, both or neither: markdown 3.11.2 needs Python 3.11, and python-markdown-math alone
+          # would bring an older markdown to 3.9 and 3.10, where every report would then be drawn with an unrecorded one.
+          python -m pip install --only-binary=:all: markdown==3.11.2 python-markdown-math==0.9 || echo "::notice::markdown 3.11.2 is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
       - name: Tests
         run: python -m pytest tests -q
 
