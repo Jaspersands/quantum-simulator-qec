@@ -214,13 +214,14 @@ impl Hasher for Mix {
 ///
 /// Stim keeps every set it visits for as long as it runs. Here they are kept in columns of at
 /// most `max_memory_bytes` (see `Store`, and [`default_memory_budget`]): a set of k detectors
-/// takes 24 + 4k bytes and a share of the table, which the room the columns keep for growing
-/// spreads over 40 to 100 bytes of budget (50 to 80 for sets of two to four detectors). A
-/// search that fills them (or that the allocator refuses) ends with Stim's message for one that
-/// finds nothing, then the budget and the sets visited. A larger budget never stores fewer
-/// sets, so never fails where a smaller one finds the faults; the answer is returned when it is
-/// reached, not stored. Limits of two and two take the graph-like search, which keeps no such
-/// sets: the budget does not bound it, as nothing bounds it in Stim.
+/// takes 24 + 4k bytes and (past the first few) 5 to 11 bytes of the table. When the sets fill
+/// the budget they hold more than half of it, the rest being room the columns keep for growing,
+/// so a set takes one to two times its bytes in budget: about 40 to 90 bytes for sets of two to
+/// four detectors. A search that fills them (or that the allocator refuses) ends with Stim's
+/// message for one that finds nothing, then the budget and the sets visited. A larger budget
+/// never stores fewer sets, so never fails where a smaller one finds the faults; the answer is
+/// returned when it is reached, not stored. Limits of two and two take the graph-like search,
+/// which keeps no such sets: the budget does not bound it, as nothing bounds it in Stim.
 pub fn search_undetectable(dem: &Dem, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: usize) -> Result<Vec<Fault>, String> {
     if max_degree == 2 && max_symptoms == 2 {
         return shortest_graphlike(dem, true);
@@ -721,6 +722,60 @@ mod tests {
             for k in 0..n {
                 assert_eq!(store.visit(&[k, k + 1, k + 2], u64::from(k % 3), 0, 0), Ok(None));
                 assert_eq!((store.dets(k as usize + 1), store.obs[k as usize + 1], store.edge[k as usize + 1]), (&[k, k + 1, k + 2][..], u64::from(k % 3), k));
+            }
+        }
+    }
+
+    #[test]
+    fn a_set_takes_one_to_two_times_its_bytes_in_budget() {
+        // The figure the docs give. A set of k detectors takes 24 + 4k bytes of the columns (its
+        // offset and observables 8 each, its parent and edge 4 each, its detectors 4k) and, past
+        // the first few sets, 5 to 11 bytes of the table (at most three quarters full, and at
+        // least three eighths once it has doubled). When the sets fill the budget they hold more
+        // than half of it, the rest being the room the columns keep for growing: so a set takes
+        // one to two times its bytes in budget, about 40 to 90 bytes for sets of two to four
+        // detectors (40.0 to 88.0 at 1,000 budgets from 10 kB to 100 MB; here to 4 MB).
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut draw = move |n: u64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % n) as u32
+        };
+        let mut sequences: Vec<Vec<u32>> = (1..=6).map(|k| vec![k; 200_000]).collect();
+        sequences.push((0..200_000).map(|_| 1 + draw(8)).collect());
+        sequences.push((0..200_000).map(|_| if draw(30) == 0 { 40 } else { 1 }).collect());
+        let budgets: Vec<usize> = (0..2_000).chain((0..=40).map(|i| (10_000.0 * 400f64.powf(f64::from(i) / 40.0)) as usize)).collect();
+        let mut dets = Vec::new();
+        for sizes in &sequences {
+            for &budget in &budgets {
+                let mut store = Store::new(budget);
+                let mut first = 0;
+                for (n, &k) in sizes.iter().enumerate() {
+                    dets.clear();
+                    dets.extend(first..first + k);
+                    if store.visit(&dets, n as u64, 0, 0).is_err() {
+                        break;
+                    }
+                    first += k;
+                }
+                let sets = store.len();
+                assert!(sets < sizes.len());
+                let columns: usize = [store.pool.len(), store.start.len(), store.obs.len(), store.parent.len(), store.edge.len()].iter().zip(SIZES).map(|(len, size)| len * size).sum();
+                // The empty set's 32 bytes (two offsets, observables, parent, edge), then 24 + 4k.
+                assert_eq!(columns, 32 + 24 * (sets - 1) + 4 * first as usize);
+                let held = columns + 4 * store.table.len();
+                let what = format!("sizes {:?}..., {budget} bytes: {sets} sets hold {held} bytes ({} of table)", &sizes[..4], 4 * store.table.len());
+                assert!(2 * held > budget, "{what}");
+                if sets > 1 {
+                    assert!(held <= budget, "{what}");
+                }
+                if sets >= 6 {
+                    assert!((5 * sets..=11 * sets).contains(&(4 * store.table.len())), "{what}");
+                }
+                if budget >= 10_000 && sizes.iter().all(|&k| (2..=4).contains(&k)) {
+                    assert!((40 * sets..=90 * sets).contains(&budget), "{what}");
+                }
             }
         }
     }

@@ -223,14 +223,15 @@ impl Circuit {
 
     /// [`search_for_undetectable_logical_errors`](Circuit::search_for_undetectable_logical_errors)
     /// keeping the sets it visits within `max_memory_bytes`: the columns that store them never
-    /// hold more, even while one grows. A set of k detectors takes 24 + 4k bytes and a share of
-    /// the table, and the room the columns keep for growing spreads that over 40 to 100 bytes of
-    /// budget a set (50 to 80 for the usual sets of two to four detectors); a larger budget
-    /// never keeps fewer sets. Stim's search has no such limit; when this one reaches it (or the
-    /// allocator refuses the sets), it fails with Stim's message for a search that finds
-    /// nothing, then "(memory budget of N bytes reached after M states)". Limits of two and two
-    /// take Stim's graph-like search instead, which keeps no such sets: `max_memory_bytes` does
-    /// not cover it.
+    /// hold more, even while one grows. A set of k detectors takes 24 + 4k bytes and (past the
+    /// first few) 5 to 11 bytes of the table. When the sets fill the budget they hold more than
+    /// half of it, the rest being room the columns keep for growing, so a set takes one to two
+    /// times its bytes in budget: about 40 to 90 bytes for the usual sets of two to four
+    /// detectors. A larger budget never keeps fewer sets. Stim's search has no such limit; when
+    /// this one reaches it (or the allocator refuses the sets), it fails with Stim's message for
+    /// a search that finds nothing, then "(memory budget of N bytes reached after M states)".
+    /// Limits of two and two take Stim's graph-like search instead, which keeps no such sets:
+    /// `max_memory_bytes` does not cover it.
     pub fn search_for_undetectable_logical_errors_with_budget(&self, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool, max_memory_bytes: usize) -> Result<Vec<ExplainedError>> {
         let dem = self.detector_error_model(&DemOptions::new().approximate_disjoint_errors(Some(1.0)))?;
         let faults = crate::distance::search_undetectable(dem.flat()?, max_symptoms, max_degree, no_increase, max_memory_bytes)?;

@@ -828,14 +828,15 @@ class Circuit:
         Stim's search keeps every set it visits for as long as it runs. This one keeps them
         within ``max_memory_bytes`` (``None``: half the machine's physical memory; on Linux, half
         the cgroup's memory limit if that is less) even while its store grows. A set of k
-        detectors takes 24 + 4k bytes and a share of the table, and the room the store keeps for
-        growing spreads that over 40 to 100 bytes of budget a set (50 to 80 for the usual sets of
-        two to four detectors); a larger budget never keeps fewer sets. When the sets fill it (or
-        the allocator refuses them), the search raises Stim's message for one that finds
-        nothing, then "(memory budget of N bytes reached after M states)". Limits of two and two
-        (``dont_explore_detection_event_sets_with_size_above=2`` and
-        ``dont_explore_edges_with_degree_above=2``) take Stim's graph-like search instead, which
-        keeps no such sets: the budget does not cover it."""
+        detectors takes 24 + 4k bytes and (past the first few) 5 to 11 bytes of the table. When
+        the sets fill the budget they hold more than half of it, the rest being room the store
+        keeps for growing, so a set takes one to two times its bytes in budget: about 40 to 90
+        bytes for the usual sets of two to four detectors. A larger budget never keeps fewer
+        sets. When the sets fill it (or the allocator refuses them), the search raises Stim's
+        message for one that finds nothing, then "(memory budget of N bytes reached after M
+        states)". Limits of two and two (``dont_explore_detection_event_sets_with_size_above=2``
+        and ``dont_explore_edges_with_degree_above=2``) take Stim's graph-like search instead,
+        which keeps no such sets: the budget does not cover it."""
         from . import _explain
 
         raw = call(
