@@ -727,8 +727,16 @@ pub struct SearchDecoder {
 }
 
 impl SearchDecoder {
-    /// The decoder for a model.
+    /// The decoder for a model of at most 64 observables, as [`Prediction::observables`] is a
+    /// u64 (the Python search decoder takes any number).
     pub fn new(dem: &DetectorErrorModel, options: SearchOptions) -> Result<SearchDecoder> {
+        let n = dem.num_observables();
+        // (A model past the largest detector is refused for that first, as the flat model is.)
+        if n > 64 && dem.num_detectors() as u64 <= crate::dem_program::MAX_DETECTOR + 1 {
+            return Err(Error::new(format!(
+                "the model has {n} observables; the Rust API's SearchDecoder takes at most 64, as Prediction.observables is a u64 (the Python search decoder takes any number)"
+            )));
+        }
         let d = dem.flat()?;
         let flavour = crate::search::Flavour::native();
         let orders = match options.orders {
@@ -758,7 +766,7 @@ impl SearchDecoder {
             visualize: false,
             verbose: false,
         };
-        Ok(SearchDecoder { inner: crate::search::Search::new(d, config)?, num_detectors: d.num_detectors })
+        Ok(SearchDecoder { inner: crate::search::Search::new(d, None, config)?, num_detectors: d.num_detectors })
     }
 
     /// One shot, given the detectors that fired. `weight` is the found faults' cost, `None`
@@ -787,7 +795,7 @@ impl SearchDecoder {
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
         let out = crate::batch::search_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
-        Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
+        Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o[0] }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
     }
 }
 

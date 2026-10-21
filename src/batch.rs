@@ -278,9 +278,10 @@ pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usiz
     })
 }
 
-/// The search decoder over b8 shots: per shot (observables, the found faults' cost, whether
-/// the search gave up).
-pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, bool)> {
+/// The search decoder over b8 shots: per shot (observables, in the decoder's
+/// `observable_words` words, as many as its model's observables need; the found faults'
+/// cost; whether the search gave up).
+pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(Vec<u64>, f64, bool)> {
     let stride = nd.div_ceil(8);
     parallel(num_shots, threads, |range| {
         let mut defects = Vec::new();
@@ -290,6 +291,26 @@ pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, th
                 crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
                 let found = dec.decode(&defects);
                 (dec.observables(&found.faults), dec.cost(&found.faults), found.low_confidence)
+            })
+            .collect()
+    })
+}
+
+/// The search decoder over b8 shots as Tesseract's program runs it: per shot (what the search
+/// found, its cost, the decode's time in whole microseconds, as the program counts it).
+pub fn search_found(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(crate::search::Found, f64, u64)> {
+    let stride = nd.div_ceil(8);
+    parallel(num_shots, threads, |range| {
+        let mut defects = Vec::new();
+        range
+            .map(|s| {
+                defects.clear();
+                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+                let start = std::time::Instant::now();
+                let found = dec.decode(&defects);
+                let cost = dec.cost(&found.faults);
+                let micros = start.elapsed().as_micros() as u64;
+                (found, cost, micros)
             })
             .collect()
     })

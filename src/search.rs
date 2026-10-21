@@ -137,12 +137,11 @@ pub fn suggest_reactivate_limit(num_detectors: usize, base_degree: i64, max_limi
 
 const INF_DET_BEAM: usize = u16::MAX as usize;
 
-/// One retained fault.
+/// One retained fault (its observables are in `Search::obs`).
 #[derive(Clone, Debug)]
 struct Fault {
     cost: f64,
     detectors: Vec<u32>,
-    observables: u64,
 }
 
 /// The decoder: the faults after merging, the detector-to-fault index and the orders.
@@ -166,6 +165,10 @@ pub struct Search {
     /// The visualizer's lines, when asked for.
     trace: std::sync::Mutex<Vec<String>>,
     log: std::sync::Mutex<Vec<String>>,
+    /// Per retained fault, the observables it flips: `obs_words` 64-bit words each (observable
+    /// k is bit k % 64 of word k / 64), as many as the model's observables need (at least one).
+    obs: Vec<u64>,
+    obs_words: usize,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -473,22 +476,39 @@ pub struct Found {
 
 impl Search {
     /// The decoder for a flat model with the given configuration (`orders` already
-    /// generated; at least one).
-    pub fn new(dem: &crate::dem::Dem, config: SearchConfig) -> Result<Search, String> {
+    /// generated; at least one). `wide`, when given, is each fault's observables in full
+    /// (`DemProgram::to_dem_wide`), for a model of any number of observables; without it each
+    /// fault's observables are its 64-bit mask.
+    pub fn new(dem: &crate::dem::Dem, wide: Option<&[crate::obsbits::ObsBits]>, config: SearchConfig) -> Result<Search, String> {
         let n = dem.num_detectors;
         check_orders(&config.orders, n)?;
+        let words = match wide {
+            Some(wide) if wide.len() != dem.mechanisms.len() => return Err(format!("{} faults, but observables for {}", dem.mechanisms.len(), wide.len())),
+            Some(_) => dem.num_observables.div_ceil(64).max(1),
+            None => 1,
+        };
+        let observables = |k: usize, m: &crate::dem::Mechanism| -> Vec<u64> {
+            match wide {
+                None => vec![m.observables],
+                Some(wide) => {
+                    let mut w = wide[k].0.clone();
+                    w.resize(words, 0);
+                    w
+                }
+            }
+        };
         // Merge faults with the same detectors and observables (in first-seen order), then
         // drop those of probability 0, each step through a probability as Tesseract writes
         // its intermediate models.
         let mut model_to_merged = Vec::with_capacity(dem.mechanisms.len());
         // (cost, or the probability itself where nothing is merged; detectors; observables).
-        let mut merged: Vec<(f64, Vec<u32>, u64)> = Vec::new();
-        let mut by_symptom: HashMap<(Vec<u32>, u64), usize> = HashMap::new();
-        for m in &dem.mechanisms {
+        let mut merged: Vec<(f64, Vec<u32>, Vec<u64>)> = Vec::new();
+        let mut by_symptom: HashMap<(Vec<u32>, Vec<u64>), usize> = HashMap::new();
+        for (k, m) in dem.mechanisms.iter().enumerate() {
             if !(0.0..=1.0).contains(&m.p) {
                 return Err(format!("a fault has probability {}, outside [0, 1]", m.p));
             }
-            let symptom = (m.detectors.clone(), m.observables);
+            let symptom = (m.detectors.clone(), observables(k, m));
             if config.merge_errors {
                 let c = cost_of(m.p);
                 if let Some(&k) = by_symptom.get(&symptom) {
@@ -505,13 +525,15 @@ impl Search {
             }
         }
         let mut faults = Vec::new();
+        let mut table = Vec::new();
         let mut merged_to_fault = vec![usize::MAX; merged.len()];
         for (k, (c, dets, obs)) in merged.into_iter().enumerate() {
             // The merged model stores probabilities: written back and read again.
             let p = if config.merge_errors { probability_of(c) } else { c };
             if p > 0.0 {
                 merged_to_fault[k] = faults.len();
-                faults.push(Fault { cost: cost_of(p), detectors: dets, observables: obs });
+                faults.push(Fault { cost: cost_of(p), detectors: dets });
+                table.extend_from_slice(&obs);
             }
         }
         let mut fault_to_model = vec![usize::MAX; faults.len()];
@@ -521,27 +543,28 @@ impl Search {
                 fault_to_model[f] = model;
             }
         }
-        Self::assemble(n, faults, fault_to_model, model_to_fault, config)
+        Self::assemble(n, faults, (table, words), fault_to_model, model_to_fault, config)
     }
 
     /// A search over faults given directly (cost, detectors, observables), none merged or
     /// dropped; the faults are their own model faults.
     pub fn from_faults(num_detectors: usize, faults: Vec<(f64, Vec<u32>, u64)>, config: SearchConfig) -> Result<Search, String> {
+        let table: Vec<u64> = faults.iter().map(|f| f.2).collect();
         let faults: Vec<Fault> = faults
             .into_iter()
-            .map(|(cost, mut detectors, observables)| {
+            .map(|(cost, mut detectors, _)| {
                 detectors.sort_unstable();
-                Fault { cost, detectors, observables }
+                Fault { cost, detectors }
             })
             .collect();
         if let Some(f) = faults.iter().find(|f| f.detectors.iter().any(|&d| d as usize >= num_detectors)) {
             return Err(format!("a fault sets off detector {:?}, beyond {num_detectors}", f.detectors.last()));
         }
         let ids: Vec<usize> = (0..faults.len()).collect();
-        Self::assemble(num_detectors, faults, ids.clone(), ids, config)
+        Self::assemble(num_detectors, faults, (table, 1), ids.clone(), ids, config)
     }
 
-    fn assemble(n: usize, faults: Vec<Fault>, fault_to_model: Vec<usize>, model_to_fault: Vec<usize>, config: SearchConfig) -> Result<Search, String> {
+    fn assemble(n: usize, faults: Vec<Fault>, (obs, obs_words): (Vec<u64>, usize), fault_to_model: Vec<usize>, model_to_fault: Vec<usize>, config: SearchConfig) -> Result<Search, String> {
         let mut d2e: Vec<Vec<u32>> = vec![Vec::new(); n];
         for (ei, f) in faults.iter().enumerate() {
             for &d in &f.detectors {
@@ -598,7 +621,7 @@ impl Search {
                 }
             }
         }
-        Ok(Search { num_detectors: n, faults, fault_to_model, model_to_fault, d2e, neighbors, config, mandatory, optional, reactivate, trace: std::sync::Mutex::new(Vec::new()), log: std::sync::Mutex::new(Vec::new()) })
+        Ok(Search { num_detectors: n, faults, fault_to_model, model_to_fault, d2e, neighbors, config, mandatory, optional, reactivate, trace: std::sync::Mutex::new(Vec::new()), log: std::sync::Mutex::new(Vec::new()), obs, obs_words })
     }
 
     /// `get_detcost`: detector `d`'s cheapest share of an unblocked fault through it.
@@ -632,14 +655,15 @@ impl Search {
         let d2e = sparse.as_deref().unwrap_or(&self.d2e);
         let mut run = |order: usize, beam: usize| {
             let found = self.search(detections, order, beam, d2e);
-            let cost: f64 = found.faults.iter().map(|&m| self.cost_of_model_fault(m)).sum();
-            let (low, obs) = (found.low_confidence, self.observables(&found.faults));
+            let cost = self.cost(&found.faults);
+            let low = found.low_confidence;
+            let obs = if self.config.verbose { self.observables(&found.faults) } else { Vec::new() };
             if !found.low_confidence && cost < best_cost {
                 best = Some(found.faults);
                 best_cost = cost;
             }
             if self.config.verbose {
-                let mask: Vec<String> = (0..64).filter(|k| obs >> k & 1 == 1).map(|k| k.to_string()).collect();
+                let mask: Vec<String> = (0..64 * obs.len()).filter(|k| obs[k / 64] >> (k % 64) & 1 == 1).map(|k| k.to_string()).collect();
                 self.say(format!(
                     "for detector_order {order} beam {} got low confidence {} and cost {} and obs_mask [{}]. Best cost so far: {}",
                     beam as i64, low as u8, g13(cost), mask.join(", "), g13(best_cost)
@@ -813,9 +837,15 @@ impl Search {
     }
 
     /// The faults the search works with, after merging and dropping those of probability 0:
-    /// (cost, detectors, observables).
-    pub fn retained(&self) -> impl Iterator<Item = (f64, &[u32], u64)> + '_ {
-        self.faults.iter().map(|f| (f.cost, f.detectors.as_slice(), f.observables))
+    /// (cost, detectors, observables in `observable_words` words).
+    pub fn retained(&self) -> impl Iterator<Item = (f64, &[u32], &[u64])> + '_ {
+        self.faults.iter().zip(self.obs.chunks_exact(self.obs_words)).map(|(f, o)| (f.cost, f.detectors.as_slice(), o))
+    }
+
+    /// How many 64-bit words a set of observables takes here (observable k is bit k % 64 of
+    /// word k / 64): one for a model of at most 64.
+    pub fn observable_words(&self) -> usize {
+        self.obs_words
     }
 
     /// The retained fault each model fault went into (`usize::MAX` for one dropped).
@@ -828,14 +858,31 @@ impl Search {
         self.faults.get(self.model_to_fault[model]).map_or(0.0, |f| f.cost)
     }
 
-    /// The observables a set of model faults flips.
-    pub fn observables(&self, found: &[usize]) -> u64 {
-        found.iter().filter_map(|&m| self.faults.get(self.model_to_fault[m])).fold(0, |o, f| o ^ f.observables)
+    /// The observables a set of model faults flips, in `observable_words` words.
+    pub fn observables(&self, found: &[usize]) -> Vec<u64> {
+        let mut out = vec![0; self.obs_words];
+        self.observables_into(found, &mut out);
+        out
     }
 
-    /// The total cost of a set of model faults.
+    /// `observables` into `out` (`observable_words` long), which it overwrites.
+    pub fn observables_into(&self, found: &[usize], out: &mut [u64]) {
+        out.fill(0);
+        let w = self.obs_words;
+        for &m in found {
+            let f = self.model_to_fault[m];
+            if f < self.faults.len() {
+                for (o, x) in out.iter_mut().zip(&self.obs[f * w..(f + 1) * w]) {
+                    *o ^= x;
+                }
+            }
+        }
+    }
+
+    /// The total cost of a set of model faults, summed in their order from +0 as Tesseract's
+    /// `cost_from_errors` sums it (`f64`'s `Sum` starts from -0, which prints as "-0").
     pub fn cost(&self, found: &[usize]) -> f64 {
-        found.iter().map(|&m| self.cost_of_model_fault(m)).sum()
+        found.iter().fold(0.0, |c, &m| c + self.cost_of_model_fault(m))
     }
 
     /// `decode_to_errors_with_graph`: one A* search.
@@ -1099,7 +1146,7 @@ mod tests {
                 // Unmerged, so each fault is the brute force's own (merging two faults of one
                 // symptom correctly makes either one more likely than both).
                 let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![(0..n as u32).collect()], detector_penalty: 0.0, merge_errors: false, flavour, sparsify: None, visualize: false, verbose: false };
-                let s = Search::new(&dem, config).unwrap();
+                let s = Search::new(&dem, None, config).unwrap();
                 for pattern in 1u32..1 << n {
                     let dets: Vec<u32> = (0..n as u32).filter(|&d| pattern >> d & 1 == 1).collect();
                     let mut best = f64::INFINITY;
@@ -1135,5 +1182,31 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Observables past 64: faults alike below 64 but not above stay apart, and a found set's
+    /// observables come back in full; the verbose log names them all.
+    #[test]
+    fn observables_past_64() {
+        let program = crate::dem_program::DemProgram::parse("error(0.1) D0 L1 L70\nerror(0.1) D0 L1\nerror(0.2) D0 D1 L99\nerror(0.05) D1 L70").unwrap();
+        assert!(program.to_dem().is_err());
+        let (dem, wide) = program.to_dem_wide().unwrap();
+        assert_eq!((dem.num_observables, dem.mechanisms[0].observables, wide[0].0.clone()), (100, 2, vec![2, 1 << 6]));
+        let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![vec![0, 1]], detector_penalty: 0.0, merge_errors: true, flavour: Flavour::native(), sparsify: None, visualize: false, verbose: true };
+        let s = Search::new(&dem, Some(&wide), config).unwrap();
+        assert_eq!((s.retained().count(), s.observable_words()), (4, 2));
+        let found = s.decode(&[0, 1]);
+        // (0.2 alone beats 0.1 and 0.05 together.)
+        assert_eq!(found.faults, vec![2]);
+        assert_eq!(s.observables(&found.faults), vec![0, 1 << 35]);
+        assert_eq!(s.observables(&[0, 3]), vec![2, 0]);
+        assert!(s.take_log().iter().any(|l| l.contains("obs_mask [99]")));
+        // (No faults cost +0, as Tesseract's sum from 0 gives, not -0.)
+        assert!(s.cost(&[]).is_sign_positive() && s.cost(&found.faults) == s.retained().nth(2).unwrap().0);
+        // The narrow form: one word, the 64-bit masks.
+        let narrow = crate::dem_program::DemProgram::parse("error(0.1) D0 L1\nerror(0.1) D0 L1").unwrap().to_dem().unwrap();
+        let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![vec![0]], detector_penalty: 0.0, merge_errors: true, flavour: Flavour::native(), sparsify: None, visualize: false, verbose: false };
+        let s = Search::new(&narrow, None, config).unwrap();
+        assert_eq!((s.retained().count(), s.observable_words(), s.observables(&[0])), (1, 1, vec![2]));
     }
 }
