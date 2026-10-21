@@ -14,11 +14,15 @@ decoded by matching on the twirled model and on the merged (coherence-aware) mod
 rate is the detector sampler's, decoded on the twirled model. Exact answers come from the state
 vector: its exact distribution for small repetition codes, its samples for the d = 3 surface
 code.
+
+A weighted rate is sampled until its error bar is as narrow as an unweighted run's when that run
+stops (300 failures, and at least one batch of 100,000 shots): see `enough`.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import time
@@ -95,29 +99,56 @@ def decoder(circuit: sq.Circuit) -> sq.Matching:
     return sq.Matching.from_detector_error_model(circuit.detector_error_model(decompose_errors=True))
 
 
-def coherent_rates(c: sq.Circuit, *, min_failures: float = 300, max_shots: int = 4_000_000, batch: int = 100_000, seed: int = 1) -> dict:
+def worth(total: float, total2: float, hits: float, hits2: float) -> tuple[float, float, float]:
+    """A weighted rate from running sums (Σ w and Σ w² over every shot, then over the hits), its
+    standard error as sq.weighted_rate gives it, and the unweighted shots it is worth: those whose
+    rate would carry the same error bar, p(1 − p)/stderr². For unit weights that is the number of
+    shots, and p times it the number of hits."""
+    p = float(hits / total)
+    se = math.sqrt((1 - p) ** 2 * hits2 + p**2 * max(total2 - hits2, 0.0)) / total
+    # With no hits (or nothing else) the error bar is zero: count the weights' own worth, Kish's
+    # (Σ w)² / Σ w², so that p times it is the hits, none or all.
+    return p, se, (p * (1 - p) / se**2 if se > 0 else total**2 / total2)
+
+
+def enough(total: float, total2: float, hits: float, hits2: float, *, min_failures: float, min_shots: float) -> bool:
+    """Whether a weighted failure rate is worth what an unweighted run is worth when it stops: at
+    least ``min_failures`` failures over at least ``min_shots`` shots, both counted by the error
+    bar (`worth`). Exact weights (2.2's contraction) have a heavier tail than 2.1's truncated
+    ones, and it follows the failures: Σ w·fail / mean w, the count 2.1 stopped on, read code
+    capacity d = 15, θ = 0.35's first 100,000 shots as 22,600 failures, when their error bar was
+    that of 74 failures in 327 unweighted shots. As p → 0 the failures counted here are Kish's
+    (Σ_fail w)² / Σ_fail w²; for unit weights both counts are the plain ones, so an unweighted
+    run stops where it always did."""
+    p, _, shots = worth(total, total2, hits, hits2)
+    # To rounding: for unit weights these are the plain counts, but only to the last bit.
+    return bool(shots >= min_shots * (1 - 1e-9) and p * shots >= min_failures * (1 - 1e-9))
+
+
+def coherent_rates(c: sq.Circuit, *, min_failures: float = 300, min_shots: float = 100_000, max_shots: int = 4_000_000, batch: int = 100_000, seed: int = 1) -> dict:
     """The coherent logical error rate (twirl-model and merged-model decoders) by weighted shots,
-    until enough weighted failures or the shot budget."""
+    until both rates are `enough` or the shot budget is spent."""
     dec_twirl, dec_merged = decoder(c.twirled()), decoder(c.twirled(merge=True))
     sampler = c.compile_coherent_sampler(seed=seed)
-    ws, ft, fm = [], [], []
+    # Σ w, Σ w², then Σ w and Σ w² over the twirl-model decoder's failures and the merged one's:
+    # all the rule and the rates need, however many shots it takes.
+    sums = np.zeros(6)
     shots = 0
     t0 = time.time()
     while shots < max_shots:
         d, o, w = sampler.sample(batch, threads=THREADS)
-        ws.append(w)
-        ft.append((dec_twirl.decode_batch(d) != o).any(axis=1))
-        fm.append((dec_merged.decode_batch(d) != o).any(axis=1))
+        w = np.asarray(w, dtype=float)
+        ft = (dec_twirl.decode_batch(d, threads=THREADS) != o).any(axis=1)
+        fm = (dec_merged.decode_batch(d, threads=THREADS) != o).any(axis=1)
+        sums += [w.sum(), (w * w).sum(), w[ft].sum(), (w[ft] ** 2).sum(), w[fm].sum(), (w[fm] ** 2).sum()]
         shots += batch
-        w_all = np.concatenate(ws)
-        if (w_all * np.concatenate(ft)).sum() / w_all.mean() >= min_failures:
+        if all(enough(*sums[:2], *sums[i : i + 2], min_failures=min_failures, min_shots=min_shots) for i in (2, 4)):
             break
-    w = np.concatenate(ws)
-    pt, st = sq.weighted_rate(np.concatenate(ft), w)
-    pm, sm = sq.weighted_rate(np.concatenate(fm), w)
+    pt, st, _ = worth(*sums[:4])
+    pm, sm, _ = worth(*sums[:2], *sums[4:])
     return {
         "shots": shots,
-        "ess": sq.effective_sample_size(w) / len(w),
+        "ess": float(sums[0] ** 2 / sums[1] / shots),
         "rate": pt,
         "stderr": st,
         "rate_merged": pm,
@@ -136,7 +167,7 @@ def twirl_rate(c: sq.Circuit, tw: sq.Circuit, *, min_failures: int = 300, max_sh
     fails, shots = 0, 0
     while shots < max_shots:
         d, o = sampler.sample(batch, separate_observables=True, threads=THREADS)
-        fails += int((dec.decode_batch(d) != o).any(axis=1).sum())
+        fails += int((dec.decode_batch(d, threads=THREADS) != o).any(axis=1).sum())
         shots += batch
         if fails >= min_failures:
             break
@@ -196,7 +227,10 @@ def validate() -> None:
             de, oe = c.compile_exact_sampler(seed=7).sample(shots, separate_observables=True, threads=THREADS)
             fail = (decoder(tw).decode_batch(de) != oe).any(axis=1)
             pe = float(fail.mean())
-        coh = coherent_rates(c, min_failures=1e9, max_shots=2_000_000)
+        # A fixed 4,000,000 shots: exact weights are worth fewer unweighted shots than 2.1's
+        # truncated ones (at θ = 0.04, 0.27 of a shot each against 0.43), so 2.1's 2,000,000
+        # would widen its error bar.
+        coh = coherent_rates(c, min_failures=1e9, max_shots=4_000_000)
         tr = twirl_rate(c, tw, min_failures=10**9, max_shots=2_000_000)
         rows.append({"code": "surface", "d": 3, "rounds": 2, "theta": theta, "noise": NOISE, "exact": pe, "exact_stderr": float(np.sqrt(pe * (1 - pe) / shots)), "exact_shots": shots, "coherent": coh, "twirl": tr})
         print(f"surface d3 θ{theta}: exact {pe:.5f} coherent {coh['rate']:.5f}±{coh['stderr']:.5f} twirl {tr['rate']:.5f}", flush=True)
@@ -232,7 +266,9 @@ def code_capacity() -> None:
                 rows.append(previous("capacity", key))
                 continue
             c, tw = capacity(d, theta)
-            coh = coherent_rates(c, max_shots=2_000_000)
+            # At d = 15, θ = 0.35 a weighted shot is worth 0.0035 of an unweighted one: the rule
+            # took 28,700,000 of them.
+            coh = coherent_rates(c, max_shots=40_000_000)
             tr = twirl_rate(c, tw, max_shots=4_000_000)
             rows.append({"d": d, "theta": theta, "coherent": coh, "twirl": tr})
             print(f"capacity d{d} θ{theta}: coherent {coh['rate']:.3e}±{coh['stderr']:.1e} twirl {tr['rate']:.3e}  ESS {coh['ess']:.2f}", flush=True)

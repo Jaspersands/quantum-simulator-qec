@@ -3,6 +3,8 @@ the coherent circuit's. Checked against the exact distribution of the state vect
 
 from __future__ import annotations
 
+import importlib.util
+import pathlib
 import warnings
 
 import numpy as np
@@ -400,3 +402,68 @@ def test_past_the_completion_limit_the_sampler_says_so():
     assert t.compile_coherent_sampler(seed=1).kernel_complete
     with pytest.warns(UserWarning, match="interference between distant faults"):
         assert not t.compile_coherent_sampler(seed=1, max_complete=0).kernel_complete
+
+
+def coherent_tool():
+    """tools/coherent.py, which measures data/coherent/."""
+    path = pathlib.Path(__file__).resolve().parent.parent / "tools" / "coherent.py"
+    spec = importlib.util.spec_from_file_location("coherent_tool", path)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    return tool
+
+
+def sums(hits, w):
+    return w.sum(), (w * w).sum(), w[hits].sum(), (w[hits] ** 2).sum()
+
+
+def test_the_data_tool_stops_on_what_the_weights_are_worth():
+    """tools/coherent.py samples a weighted rate until its error bar is as narrow as an unweighted
+    run's when that run stops: 300 failures over at least 100,000 shots. For unit weights that is
+    the plain rule; a heavy tail on the failures, as exact weights have, is worth far fewer
+    failures than 2.1's count, Σ w·fail / mean w, read in it."""
+    tool = coherent_tool()
+    enough = lambda hits, w, **kw: tool.enough(*sums(hits, w), **{"min_failures": 300, "min_shots": 100_000, **kw})  # noqa: E731
+    rng = np.random.default_rng(5)
+    # Unit weights: the counts, and the rule stops where it did, to the shot.
+    for n, f, stop in [(100_000, 300, True), (100_000, 299, False), (99_999, 300, False), (200_000, 300, True), (100_000, 100_000, True)]:
+        hits, w = np.zeros(n, dtype=bool), np.ones(n)
+        hits[rng.choice(n, f, replace=False)] = True
+        p, se, shots = tool.worth(*sums(hits, w))
+        assert (p, shots, p * shots) == pytest.approx((f / n, n, f), rel=1e-12)
+        assert se == pytest.approx(np.sqrt(p * (1 - p) / n), rel=1e-12)
+        assert enough(hits, w) is stop, (n, f)
+    # Weighted: sq.weighted_rate's rate and error.
+    hits = rng.random(100_000) < 0.2
+    w = rng.lognormal(0, 1, 100_000)
+    w[hits] = rng.lognormal(-4.5, 3, hits.sum())
+    p, se, shots = tool.worth(*sums(hits, w))
+    assert (p, se) == pytest.approx(sq.weighted_rate(hits, w), rel=1e-12)
+    assert shots == pytest.approx(p * (1 - p) / se**2, rel=1e-12)
+    # 2.1's count reads some 10,000 failures in these shots; their error bar is worth under 100.
+    assert (w * hits).sum() / w.mean() > 3000
+    assert p * shots < 150 and not enough(hits, w)
+    # No failures yet: worth no failures, whatever the weights.
+    assert not enough(np.zeros(100_000, dtype=bool), w, min_failures=1)
+
+
+def test_the_data_tool_samples_until_its_rates_are_enough():
+    """coherent_rates stops at the first batch where both decoders' rates are enough, and its rates
+    and error bars are sq.weighted_rate's over every shot it drew."""
+    tool = coherent_tool()
+    c, _ = tool.capacity(3, 0.3)
+    rule = {"min_failures": 200, "min_shots": 3_000}
+    got = tool.coherent_rates(c, batch=1_000, max_shots=200_000, **rule)
+    assert got["exact"] and 3_000 <= got["shots"] < 200_000
+    sampler = c.compile_coherent_sampler(seed=1)
+    batches = [sampler.sample(1_000) for _ in range(got["shots"] // 1_000)]
+    w = np.concatenate([b[2] for b in batches])
+    assert got["ess"] == pytest.approx(sq.effective_sample_size(w) / len(w), rel=1e-12)
+    before = []
+    for dec, key in [(tool.decoder(c.twirled()), ""), (tool.decoder(c.twirled(merge=True)), "_merged")]:
+        hits = np.concatenate([(dec.decode_batch(d) != o).any(axis=1) for d, o, _ in batches])
+        assert (got["rate" + key], got["stderr" + key]) == pytest.approx(sq.weighted_rate(hits, w), rel=1e-12)
+        assert tool.enough(*sums(hits, w), **rule)
+        before.append(tool.enough(*sums(hits[:-1_000], w[:-1_000]), **rule))
+    # One batch fewer was not enough, for one decoder at least.
+    assert not all(before)
