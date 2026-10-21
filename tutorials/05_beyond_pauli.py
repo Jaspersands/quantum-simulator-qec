@@ -22,6 +22,8 @@
 #   coherent sampler is checked against; `exact_distribution` follows every branch exactly.
 
 # %%
+import warnings
+
 import numpy as np
 import stabilizer_qec as sq
 
@@ -69,7 +71,8 @@ def memory(theta, d=3, rounds=3, p=0.002):
 
 c = memory(0.02, rounds=2)
 decoder = sq.Matching.from_detector_error_model(c.twirled().detector_error_model(decompose_errors=True))
-d, o, w = c.compile_coherent_sampler(seed=2).sample(200_000, threads=0)
+s = c.compile_coherent_sampler(seed=2)
+d, o, w = s.sample(200_000, threads=0)
 coherent, err = sq.weighted_logical_error_rate(decoder, d, o, w)
 de, oe = c.compile_exact_sampler(seed=3).sample(2000, separate_observables=True, threads=0)
 exact_rate = (decoder.decode_batch(de) != oe).any(axis=1).mean()
@@ -78,10 +81,18 @@ twirl_rate = (decoder.decode_batch(dt) != ot).any(axis=1).mean()
 print(f"coherent sampler   {coherent:.4f} ± {err:.4f}   (effective sample size {sq.effective_sample_size(w) / len(w):.0%})")
 print(f"state vector       {exact_rate:.4f} ± {np.sqrt(exact_rate * (1 - exact_rate) / 2000):.4f}   (2,000 shots)")
 print(f"Pauli twirl        {twirl_rate:.4f}")
+print(f"{s.num_generators} interference generators, contracted with width {s.contraction_width}: exact_weights {s.exact_weights}")
 
 # %% [markdown]
 # The twirl underestimates the logical error rate several times over: the over-rotations of
 # successive ticks, between the gates that would tell them apart, add coherently.
+#
+# Each shot's weight sums its whole class: every product of the circuit's interference
+# generators (sets of rotations no measurement tells apart). The sum is contracted one
+# generator at a time, in a table of up to 2^(w+1) entries each, where the width w counts the
+# generators a table holds besides the one it sums out (`contraction_width`). So the weights
+# are exact (`exact_weights`) however many generators there are, as long as they interact
+# narrowly.
 #
 # ## A decoder that knows
 #
@@ -99,17 +110,27 @@ print(f"decoded on the merged model   {merged:.4f} ± {merr:.4f}")
 # ## Larger codes
 #
 # The state vector stops at 24 qubits; the coherent sampler does not. At d = 7 (97 qubits,
-# 2,401 rotations) with θ = 0.01:
+# 2,401 rotations) with θ = 0.01, though, a rotation after every tick ties the 444 generators
+# together too widely to contract: the tables would pass `max_contraction` (2^16 entries by
+# default). The sampler says so in a warning, printed here, and each shot sums only the
+# products of up to three generators its faults touch: a truncation (`exact_weights` is
+# False, `contraction_width` None), so the rate below is an estimate that leaves some of the
+# interference out. A rotation once per round instead contracts exactly at this size, with
+# width 9.
 
 # %%
 c7 = memory(0.01, d=7, rounds=7)
-s7 = c7.compile_coherent_sampler(seed=5)
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    s7 = c7.compile_coherent_sampler(seed=5)
+for warning in caught:
+    print(f"warning: {warning.message}")
+print(f"{s7.num_locations} rotations, {s7.num_generators} interference generators: exact_weights {s7.exact_weights}, contraction_width {s7.contraction_width}")
 d, o, w = s7.sample(60_000, threads=0)
 dec7 = sq.Matching.from_detector_error_model(c7.twirled().detector_error_model(decompose_errors=True))
 rate7, err7 = sq.weighted_logical_error_rate(dec7, d, o, w)
 dt, ot = c7.twirled().compile_detector_sampler(seed=6).sample(400_000, separate_observables=True)
-print(f"{s7.num_locations} rotations, {s7.num_generators} interference generators")
-print(f"coherent  {rate7:.2e} ± {err7:.1e}   twirl  {(dec7.decode_batch(dt) != ot).any(axis=1).mean():.2e}")
+print(f"coherent (truncated)  {rate7:.2e} ± {err7:.1e}   twirl  {(dec7.decode_batch(dt) != ot).any(axis=1).mean():.2e}")
 
 # %% [markdown]
 # ## T gates and leakage

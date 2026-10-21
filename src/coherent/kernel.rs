@@ -40,7 +40,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use super::contract::{ContractionPlan, ShotFactors};
+use super::contract::{ContractionPlan, Refusal, ShotFactors};
 use super::{Element, GaugeSolver, Program, Shot, Slot};
 use crate::statevec::C;
 
@@ -60,7 +60,7 @@ pub struct CoherentOptions {
     /// elimination over their residues); 0 never completes it.
     pub max_complete: usize,
     /// The most table entries, in all, of the contraction that sums a shot's whole class; 0
-    /// never contracts.
+    /// never contracts, and past `contract::MAX_ENTRIES` (2^31) it is 2^31.
     pub max_contraction: usize,
 }
 
@@ -95,6 +95,8 @@ pub struct Kernel {
     pub complete: bool,
     /// With a complete kernel: the contraction of its class sums, within `max_contraction`.
     plan: Option<ContractionPlan>,
+    /// With a complete kernel and no plan: why.
+    refusal: Option<Refusal>,
     /// With a complete kernel not contracted, of at most `SMALL_KERNEL` generators: every
     /// nonzero product of them, which each shot sums.
     span: Option<Vec<Element>>,
@@ -361,13 +363,18 @@ impl Kernel {
         }
         let zobrist = (0..nl as u64).map(|l| crate::batch_sampler::splitmix64(l.wrapping_add(0x9e37_79b9_7f4a_7c15))).collect();
         let num_nonlocal = generators.len() - num_local;
-        let mut kernel = Kernel { generators, num_nonlocal, complete, plan: None, span: None, groups, rep_of, zobrist, by_location, options };
+        let mut kernel = Kernel { generators, num_nonlocal, complete, plan: None, refusal: None, span: None, groups, rep_of, zobrist, by_location, options };
         // The whole kernel: contracted, or (a small one past the budget) every product of the
         // generators, once for every shot.
         if complete {
-            kernel.plan = ContractionPlan::build(p, solver, &kernel, options.max_contraction);
-            if kernel.plan.is_none() && kernel.generators.len() <= SMALL_KERNEL {
-                kernel.span = Some(whole_span(p, solver, &kernel.generators));
+            match ContractionPlan::try_build(p, solver, &kernel, options.max_contraction) {
+                Ok(plan) => kernel.plan = Some(plan),
+                Err(why) => {
+                    kernel.refusal = Some(why);
+                    if kernel.generators.len() <= SMALL_KERNEL {
+                        kernel.span = Some(whole_span(p, solver, &kernel.generators));
+                    }
+                }
             }
         }
         kernel
@@ -383,6 +390,13 @@ impl Kernel {
     /// sums out.
     pub fn contraction_width(&self) -> Option<usize> {
         self.plan.as_ref().map(ContractionPlan::width)
+    }
+
+    /// With the kernel complete and its class sums not contracted, why: past the budget
+    /// (`Refusal::Budget`), or a bug (`Refusal::Internal`, which release builds survive by
+    /// listing a small kernel's span or truncating, and which the Python sampler warns of).
+    pub fn contraction_refusal(&self) -> Option<Refusal> {
+        self.refusal
     }
 
     /// The contraction of the class sums, if any.

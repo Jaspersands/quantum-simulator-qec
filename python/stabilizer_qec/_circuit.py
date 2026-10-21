@@ -12,7 +12,7 @@ import bisect
 import math
 import warnings
 from typing import Tuple
-from ._util import b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
+from ._util import _REPORT, b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
 
 
 def _repetitions(obj: Any, repetitions: Any, op: str) -> int:
@@ -929,7 +929,8 @@ class Circuit:
         the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w the
         ``contraction_width`` (3 on a d = 3 surface memory over three rounds, 9 at d = 7 over
         seven). ``max_contraction`` caps the contraction's tables (entries in all, 2^16 by
-        default; 0 turns it off): past it, and with more than twelve generators, a shot sums
+        default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more than 32
+        generators at any budget): past it, and with more than twelve generators, a shot sums
         the products of up to ``order`` generators its faults touch, a truncation, and the
         sampler warns. ``max_complete`` is the most rotations whose kernel is completed; past it
         the generators are the local ones only, interference between distant faults is left
@@ -2224,6 +2225,33 @@ class LeakageSampler:
         return rows[:, ~flags], rows[:, flags]
 
 
+# A contraction budget past 2^31 table entries is 2^31, as the core takes it (its
+# contract::MAX_ENTRIES): a shot's tables then hold 2^31 entries at most.
+_MAX_CONTRACTION = 1 << 31
+
+
+def _contraction_warning(s: Any, order: int, entries: int) -> Union[str, None]:
+    """What the coherent sampler `s` (the core's, of a complete kernel) warns of its class sums:
+    a bug, when the core refused to contract them for a reason other than the budget (which
+    cannot happen: the products' phases are a quadratic form); or the truncation, when they are
+    past the budget and not listed; else nothing."""
+    internal = getattr(s, "contraction_internal_error", None)
+    if internal is not None:
+        outcome = (
+            "the kernel's products are listed instead, so the weights are still exact"
+            if s.exact_weights
+            else f"each shot sums the products of up to order={order} generators its faults touch instead, so the weights are truncated (exact_weights is False)"
+        )
+        return f"internal error in stabilizer-qec: the class sums' contraction was refused ({internal}), which cannot happen; {outcome}; please report this circuit at {_REPORT}"
+    if not s.exact_weights:
+        return (
+            f"the circuit's {s.num_generators} interference generators contract past max_contraction={entries} table "
+            f"entries: each shot sums the products of up to order={order} generators its faults touch, not its whole class, "
+            "so the weights are truncated (exact_weights is False); raise max_contraction to sum the whole class"
+        )
+    return None
+
+
 class CoherentSampler:
     """Weighted shots of a circuit with coherent errors. Made by
     ``Circuit.compile_coherent_sampler``."""
@@ -2234,6 +2262,8 @@ class CoherentSampler:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         limit = count(max_complete, "max_complete")
+        if isinstance(max_contraction, (int, np.integer)) and not isinstance(max_contraction, bool):
+            max_contraction = min(int(max_contraction), _MAX_CONTRACTION)
         entries = count(max_contraction, "max_contraction")
         # Non-Clifford gates, or coherent errors at Clifford angles (fixed Cliffords): the joint
         # sampler, which runs them exactly and twirls the other errors.
@@ -2250,13 +2280,10 @@ class CoherentSampler:
                 "complete the kernel",
                 stacklevel=3,
             )
-        elif not joint and not self._s.exact_weights:
-            warnings.warn(
-                f"the circuit's {self.num_generators} interference generators contract past max_contraction={entries} table "
-                f"entries: each shot sums the products of up to order={order} generators its faults touch, not its whole class, "
-                "so the weights are truncated (exact_weights is False); raise max_contraction to sum the whole class",
-                stacklevel=3,
-            )
+        elif not joint:
+            message = _contraction_warning(self._s, order, entries)
+            if message is not None:
+                warnings.warn(message, stacklevel=3)
 
     def __reduce__(self) -> tuple:
         raise TypeError("a CoherentSampler is a position in a stream of shots; send the circuit and a seed")

@@ -554,6 +554,16 @@ impl PyCoherentSampler {
         self.sampler.kernel.contraction_width()
     }
 
+    /// Why the class sums are not contracted when that is a bug, not the budget: the Python
+    /// sampler then warns that it is an internal error rather than to raise max_contraction.
+    #[getter]
+    fn contraction_internal_error(&self) -> Option<&'static str> {
+        match self.sampler.kernel.contraction_refusal() {
+            Some(crate::coherent::contract::Refusal::Internal(why)) => Some(why),
+            _ => None,
+        }
+    }
+
     fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {
         let first = self.next.fetch_add(shots as u64, std::sync::atomic::Ordering::Relaxed);
         let (sampler, seed) = (&self.sampler, self.seed);

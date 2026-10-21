@@ -1125,7 +1125,8 @@ impl CoherentOptions {
     }
 
     /// The most table entries, in all, of the contraction that sums each shot's whole class
-    /// (2^16 by default; 0 turns it off). Past it, a kernel of more than twelve generators is
+    /// (2^16 by default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more
+    /// than 32 variables at any budget). Past it, a kernel of more than twelve generators is
     /// truncated. The joint sampler does not contract.
     pub fn max_contraction(mut self, entries: usize) -> Self {
         self.inner.max_contraction = entries;

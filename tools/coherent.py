@@ -17,6 +17,11 @@ code.
 
 A weighted rate is sampled until its error bar is as narrow as an unweighted run's when that run
 stops (300 failures, and at least one batch of 100,000 shots): see `enough`.
+
+Every row says what measured it: `version`, the version of the core that measured it (a row
+--only keeps keeps its own), and `coherent.exact`, whether its weights summed each shot's whole
+class (the sampler's `exact_weights`; validate's own `exact` is the exact answer). A file's
+`version` is the core that last wrote it.
 """
 
 from __future__ import annotations
@@ -39,17 +44,119 @@ THREADS = 0
 # has it.
 ONLY: dict = {}
 KEPT: dict = {}
+SECTIONS = ("validate", "sweep", "crosstalk", "capacity")
 # The fields that name a row, by file.
 KEYS = {"validate": ("code", "d", "rounds", "theta"), "sweep": ("d", "rounds", "theta"), "crosstalk": ("d", "rounds", "theta"), "capacity": ("d", "theta")}
+# Each file's rows: repetition codes (d, rounds, θ) and the d = 3 surface code (θ, state-vector
+# shots) for validate; θ by d for the sweep and the crosstalk; θ and d for code capacity.
+REPETITION = [(3, 2, 0.1), (3, 3, 0.1), (5, 2, 0.1), (3, 3, 0.05), (5, 2, 0.05), (3, 4, 0.05)]
+SURFACE = [(0.02, 60_000), (0.04, 60_000)]
+SWEEP = {3: [0.0025, 0.005, 0.01, 0.015, 0.02, 0.03], 5: [0.0025, 0.005, 0.01, 0.015, 0.02], 7: [0.0025, 0.005, 0.01, 0.015], 9: [0.0025, 0.005, 0.01]}
+CROSSTALK = {3: [0.01, 0.02, 0.04, 0.06], 5: [0.01, 0.02, 0.04], 7: [0.01, 0.02]}
+CAPACITY_THETAS = (0.2, 0.25, 0.3, 0.35)
+CAPACITY_DS = (3, 5, 7, 9, 11, 13, 15)
+
+
+class UsageError(ValueError):
+    """A command line this tool refuses, before it measures anything."""
+
+
+def grid(name: str) -> list:
+    """The keys of a file's rows, in the order the tool measures them."""
+    if name == "validate":
+        return [{"code": "repetition", "d": d, "rounds": r, "theta": t} for d, r, t in REPETITION] + [{"code": "surface", "d": 3, "rounds": 2, "theta": t} for t, _ in SURFACE]
+    if name in ("sweep", "crosstalk"):
+        return [{"d": d, "rounds": d, "theta": t} for d, thetas in (SWEEP if name == "sweep" else CROSSTALK).items() for t in thetas]
+    return [{"d": d, "theta": t} for t in CAPACITY_THETAS for d in CAPACITY_DS]
+
+
+def label(key: dict) -> str:
+    return ", ".join(f"{f}={v}" for f, v in key.items())
 
 
 def wanted(key: dict) -> bool:
     return all(str(key[field]) in values for field, values in ONLY.items())
 
 
+def find(name: str, key: dict):
+    """The file's row for `key` as it was before this run, or None."""
+    return next((r for r in KEPT[name]["rows"] if all(r[f] == v for f, v in key.items())), None)
+
+
+def kept(name: str, row: dict) -> dict:
+    """A row --only keeps, with its stamp: the version that measured it, or (a row from before
+    rows had their own) the file's."""
+    return {**row, "version": row.get("version", KEPT[name]["version"])}
+
+
 def previous(name: str, key: dict) -> dict:
     """The file's row for `key` as it was before this run, kept when --only leaves it out."""
-    return next(r for r in KEPT[name]["rows"] if all(r[f] == v for f, v in key.items()))
+    row = find(name, key)
+    if row is None:
+        raise UsageError(f"{OUT / name}.json has no row {label(key)} to keep: re-measure it too, or run {name} without --only")
+    return kept(name, row)
+
+
+def measured_by() -> str:
+    """The version of the core measuring, for the rows' stamps. 2.2's development core reports
+    the last release, 2.1.0, until 2.2.0's version bump; this tool needs a core that contracts
+    (the sampler's `contraction_width`, new in 2.2), so a core that reports an earlier version is
+    that one, and a row it measures is stamped 2.2.0, never 2.1.0's truncating sampler."""
+    version = sq.__version__
+    try:
+        release = tuple(int(part) for part in version.split("+")[0].split(".")[:2])
+    except ValueError:
+        return version
+    return "2.2.0" if release < (2, 2) else version
+
+
+def parse_args(argv: list) -> tuple:
+    """(the sections to run, --only's rows: {field: {values}}) from the command line."""
+    what, only, args = None, {}, list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg == "--only":
+            if not args:
+                raise UsageError("--only needs field=value[,value...], such as --only d=3")
+            spec = args.pop(0)
+            field, eq, values = spec.partition("=")
+            if not eq or not field or "" in values.split(","):
+                raise UsageError(f"--only {spec}: expected field=value[,value...], such as --only d=3 or --only theta=0.02,0.04")
+            only[field] = set(values.split(","))
+        elif arg.startswith("-"):
+            raise UsageError(f"unknown option {arg}")
+        elif arg not in (*SECTIONS, "all"):
+            raise UsageError(f"unknown section {arg!r}: run one of {', '.join(SECTIONS)} or all")
+        elif what is not None:
+            raise UsageError(f"one section at a time ({what}, then {arg}), or all")
+        else:
+            what = arg
+    return (list(SECTIONS) if what in (None, "all") else [what]), only
+
+
+def check_only(names: list) -> None:
+    """--only's rows, checked before anything is measured: its fields name the rows of every
+    section run, each value names at least one of their rows, and each file holds every row it
+    keeps."""
+    for field, values in ONLY.items():
+        for name in names:
+            if field not in KEYS[name]:
+                raise UsageError(f"--only {field}=...: {name} rows have no field {field!r} (they are named by {', '.join(KEYS[name])}); run only the sections whose rows have it")
+        have = {str(key[field]) for name in names for key in grid(name)}
+        for value in sorted(values - have):
+            raise UsageError(f"--only {field}={value}: no {' or '.join(names)} row has {field}={value} (they have {', '.join(sorted(have, key=numeric))})")
+    for name in names:
+        for key in grid(name):
+            if not wanted(key) and not isinstance(previous(name, key)["coherent"].get("exact"), bool):
+                raise UsageError(f"{OUT / name}.json's row {label(key)} does not say whether its weights were exact (coherent.exact): re-measure it too")
+
+
+def numeric(value: str) -> tuple:
+    """A sort key: numbers by value, then words."""
+    try:
+        return (0, float(value), value)
+    except ValueError:
+        return (1, 0.0, value)
 
 
 def data_qubits(text: str) -> list[str]:
@@ -176,15 +283,19 @@ def twirl_rate(c: sq.Circuit, tw: sq.Circuit, *, min_failures: int = 300, max_sh
 
 
 def save(name: str, payload: dict) -> None:
-    """The file, stamped with this version; with --only, every row it had, those re-measured so
-    far in place of theirs, and the version of the rows kept."""
+    """The file, stamped with this version, each row with the version that measured it (this
+    one for a row measured now); with --only, every row it had, those re-measured so far in
+    place of theirs, the others kept with their stamps."""
     OUT.mkdir(parents=True, exist_ok=True)
-    version = sq.__version__
+    version = measured_by()
+    rows = [r if "version" in r else {**r, "version": version} for r in payload["rows"]]
     if name in KEPT:
-        version = KEPT[name]["version"]
-        new = {tuple(r[f] for f in KEYS[name]): r for r in payload["rows"]}
-        payload = {**payload, "rows": [new.get(tuple(r[f] for f in KEYS[name]), r) for r in KEPT[name]["rows"]]}
-    payload = {"version": version, **payload}
+        new = {tuple(r[f] for f in KEYS[name]): r for r in rows}
+        rows = [new.get(tuple(r[f] for f in KEYS[name])) or kept(name, r) for r in KEPT[name]["rows"]]
+    for r in rows:
+        if not isinstance(r["coherent"].get("exact"), bool):
+            raise ValueError(f"{name} row {label({f: r[f] for f in KEYS[name]})} does not say whether its weights were exact (coherent.exact)")
+    payload = {"version": version, **{k: v for k, v in payload.items() if k != "rows"}, "rows": rows}
     (OUT / f"{name}.json").write_text(json.dumps(payload, indent=1) + "\n")
 
 
@@ -192,7 +303,7 @@ def validate() -> None:
     """The coherent sampler against exact answers."""
     rows = []
     # Repetition codes: the state vector's exact distribution, no noise besides the rotations.
-    for d, rounds, theta in [(3, 2, 0.1), (3, 3, 0.1), (5, 2, 0.1), (3, 3, 0.05), (5, 2, 0.05), (3, 4, 0.05)]:
+    for d, rounds, theta in REPETITION:
         key = {"code": "repetition", "d": d, "rounds": rounds, "theta": theta}
         if not wanted(key):
             rows.append(previous("validate", key))
@@ -213,7 +324,7 @@ def validate() -> None:
         rows.append({"code": "repetition", "d": d, "rounds": rounds, "theta": theta, "noise": 0.0, "exact": exact, "exact_stderr": 0.0, "coherent": coh, "twirl": tr})
         print(f"repetition d{d} r{rounds} θ{theta}: exact {exact:.5f} coherent {coh['rate']:.5f}±{coh['stderr']:.5f} twirl {tr['rate']:.5f}", flush=True)
     # The d = 3 surface code: state-vector samples (17 qubits).
-    for theta, shots in [(0.02, 60_000), (0.04, 60_000)]:
+    for theta, shots in SURFACE:
         key = {"code": "surface", "d": 3, "rounds": 2, "theta": theta}
         if not wanted(key):
             rows.append(previous("validate", key))
@@ -237,13 +348,9 @@ def validate() -> None:
     save("validate", {"rows": rows})
 
 
-SWEEP = {3: [0.0025, 0.005, 0.01, 0.015, 0.02, 0.03], 5: [0.0025, 0.005, 0.01, 0.015, 0.02], 7: [0.0025, 0.005, 0.01, 0.015], 9: [0.0025, 0.005, 0.01]}
-
-
 def sweep(crosstalk: bool = False) -> None:
     rows = []
-    grid = {3: [0.01, 0.02, 0.04, 0.06], 5: [0.01, 0.02, 0.04], 7: [0.01, 0.02]} if crosstalk else SWEEP
-    for d, thetas in grid.items():
+    for d, thetas in (CROSSTALK if crosstalk else SWEEP).items():
         for theta in thetas:
             key = {"d": d, "rounds": d, "theta": theta}
             if not wanted(key):
@@ -259,8 +366,8 @@ def sweep(crosstalk: bool = False) -> None:
 
 def code_capacity() -> None:
     rows = []
-    for theta in (0.2, 0.25, 0.3, 0.35):
-        for d in (3, 5, 7, 9, 11, 13, 15):
+    for theta in CAPACITY_THETAS:
+        for d in CAPACITY_DS:
             key = {"d": d, "theta": theta}
             if not wanted(key):
                 rows.append(previous("capacity", key))
@@ -275,21 +382,33 @@ def code_capacity() -> None:
             save("capacity", {"rows": rows})
 
 
-if __name__ == "__main__":
-    what = sys.argv[1] if len(sys.argv) > 1 else "all"
-    for i, arg in enumerate(sys.argv):
-        if arg == "--only":
-            field, values = sys.argv[i + 1].split("=")
-            ONLY[field] = set(values.split(","))
-    if ONLY:
-        for name in ("validate", "sweep", "crosstalk", "capacity"):
-            KEPT[name] = json.loads((OUT / f"{name}.json").read_text())
+def main(argv: list) -> int:
+    try:
+        names, only = parse_args(argv)
+        ONLY.clear()
+        ONLY.update(only)
+        KEPT.clear()
+        if ONLY:
+            for name in names:
+                path = OUT / f"{name}.json"
+                if not path.exists():
+                    raise UsageError(f"--only keeps the other rows of {path}, which does not exist: run {name} without --only")
+                KEPT[name] = json.loads(path.read_text())
+            check_only(names)
+    except UsageError as e:
+        print(f"tools/coherent.py: error: {e}", file=sys.stderr)
+        return 2
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
-    if what in ("validate", "all"):
+    if "validate" in names:
         validate()
-    if what in ("capacity", "all"):
+    if "capacity" in names:
         code_capacity()
-    if what in ("sweep", "all"):
+    if "sweep" in names:
         sweep()
-    if what in ("crosstalk", "all"):
+    if "crosstalk" in names:
         sweep(crosstalk=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

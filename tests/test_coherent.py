@@ -4,7 +4,12 @@ the coherent circuit's. Checked against the exact distribution of the state vect
 from __future__ import annotations
 
 import importlib.util
+import json
 import pathlib
+import shutil
+import subprocess
+import sys
+import types
 import warnings
 
 import numpy as np
@@ -392,6 +397,52 @@ def test_weights_independent_of_threads():
     assert len(np.unique(a[2])) > 100
 
 
+def test_max_contraction_is_a_count_and_past_2_to_the_31_it_is_2_to_the_31():
+    """max_contraction is a non-negative integer (0 turns the contraction off). A budget past
+    2^31 table entries is 2^31, as the core takes it, and no table spans 32 generators or more at
+    any budget: forty rounds of the d = 3 memory, whose 39 non-local generators all hold the
+    first round's rotations, are refused however large the budget, and the warning names the
+    budget the sampler had."""
+    c = surface_memory(3, 0.25)
+    for bad, error in [(1.5, TypeError), (True, TypeError), ("65536", TypeError), (-1, ValueError)]:
+        with pytest.raises(error, match="max_contraction"):
+            c.compile_coherent_sampler(seed=1, max_contraction=bad)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        for huge in (2**31, 2**31 + 1, 2**64, 10**30, np.uint64(2**63)):
+            s = c.compile_coherent_sampler(seed=1, max_contraction=huge)
+            assert s.exact_weights and s.contraction_width == 3
+    with pytest.warns(UserWarning, match=r"contract past max_contraction=2147483648 table entries"):
+        s = surface_memory(40, 0.25).compile_coherent_sampler(seed=1, max_contraction=10**30)
+    assert s.kernel_complete and s.num_nonlocal_generators == 39
+    assert not s.exact_weights and s.contraction_width is None
+
+
+def test_a_contraction_refused_by_a_bug_says_so():
+    """The core refuses a complete kernel's contraction for its budget, or for a bug (which cannot
+    happen: the products' phases are a quadratic form; debug builds panic). The warning tells them
+    apart: a bug is an internal error to report, never advice to raise max_contraction."""
+    from stabilizer_qec._circuit import _contraction_warning
+
+    def core(internal, exact):
+        return types.SimpleNamespace(contraction_internal_error=internal, exact_weights=exact, num_generators=14)
+
+    why = "the products' phases are not a quadratic form (an odd cross term)"
+    for exact, outcome in [(False, "so the weights are truncated (exact_weights is False)"), (True, "the weights are still exact")]:
+        message = _contraction_warning(core(why, exact), 3, 65536)
+        assert message.startswith("internal error in stabilizer-qec: the class sums' contraction was refused (" + why)
+        assert outcome in message and "please report this circuit at https://" in message and "max_contraction" not in message
+    budget = _contraction_warning(core(None, False), 3, 0)
+    assert budget.startswith("the circuit's 14 interference generators contract past max_contraction=0 table entries")
+    assert budget.endswith("raise max_contraction to sum the whole class")
+    assert _contraction_warning(core(None, True), 3, 65536) is None
+    # The core's own refusals: the budget's is no internal error.
+    with pytest.warns(UserWarning, match="max_contraction=0"):
+        s = surface_memory(3, 0.25).compile_coherent_sampler(seed=1, max_contraction=0)
+    assert s._s.contraction_internal_error is None
+    assert surface_memory(3, 0.25).compile_coherent_sampler(seed=1)._s.contraction_internal_error is None
+
+
 def test_past_the_completion_limit_the_sampler_says_so():
     c = repetition_memory(3, 2, 0.3)
     with pytest.warns(UserWarning, match="interference between distant faults"):
@@ -467,3 +518,104 @@ def test_the_data_tool_samples_until_its_rates_are_enough():
         before.append(tool.enough(*sums(hits[:-1_000], w[:-1_000]), **rule))
     # One batch fewer was not enough, for one decoder at least.
     assert not all(before)
+
+
+DATA = pathlib.Path(__file__).resolve().parent.parent / "data" / "coherent"
+
+
+def test_every_data_row_says_what_measured_it():
+    """Each row of data/coherent/ has the version of the core that measured it and whether its
+    weights were the whole class's (coherent.exact; validate's own exact is the exact answer).
+    Past twelve generators only 2.2's contraction is exact; 2.1 listed the span of twelve or
+    fewer (validate's repetition rows, stamped 2.0.0, the version its development core
+    reported); 1.9's sampler (1.8.0) never summed the whole class."""
+    tool = coherent_tool()
+    release = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    for name in tool.SECTIONS:
+        doc = json.loads((DATA / f"{name}.json").read_text())
+        assert [{f: r[f] for f in tool.KEYS[name]} for r in doc["rows"]] == tool.grid(name)
+        for r in doc["rows"]:
+            version, exact = r["version"], r["coherent"]["exact"]
+            assert isinstance(version, str) and isinstance(exact, bool), (name, r)
+            if release(version) < (2, 0):
+                assert not exact, (name, r)
+            if exact and r["coherent"]["generators"] > 12:
+                assert release(version) >= (2, 2) and r["coherent"]["width"] is not None, (name, r)
+        # The file's own version is the core that last wrote it.
+        assert release(doc["version"]) >= max(release(r["version"]) for r in doc["rows"])
+
+
+def test_the_data_tool_stamps_every_row(tmp_path, monkeypatch):
+    """save() stamps a row it measured with this core's version (2.2's development core, which
+    reports 2.1.0, as 2.2.0) and keeps a kept row's own stamp, or the file's for a row without
+    one; a row that does not say whether its weights were exact is refused."""
+    tool = coherent_tool()
+    monkeypatch.setattr(tool, "OUT", tmp_path)
+    release = tuple(int(x) for x in sq.__version__.split("+")[0].split(".")[:2])
+    now = tool.measured_by()
+    assert now == ("2.2.0" if release < (2, 2) else sq.__version__)
+    row = lambda d, exact, **stamp: {"d": d, "theta": 0.2, "coherent": {"exact": exact}, **stamp}  # noqa: E731
+    tool.KEPT["capacity"] = {"version": "1.8.0", "rows": [row(3, False), row(5, False, version="2.0.0"), row(7, False)]}
+    tool.save("capacity", {"rows": [row(7, True)]})
+    doc = json.loads((tmp_path / "capacity.json").read_text())
+    assert doc["version"] == now
+    assert [(r["d"], r["version"], r["coherent"]["exact"]) for r in doc["rows"]] == [(3, "1.8.0", False), (5, "2.0.0", False), (7, now, True)]
+    tool.KEPT.clear()
+    tool.save("capacity", {"rows": [row(3, True), row(5, False, version="2.0.0")]})
+    doc = json.loads((tmp_path / "capacity.json").read_text())
+    assert [(r["version"], r["coherent"]["exact"]) for r in doc["rows"]] == [(now, True), ("2.0.0", False)]
+    with pytest.raises(ValueError, match=r"capacity row d=3, theta=0.2 does not say whether its weights were exact"):
+        tool.save("capacity", {"rows": [{"d": 3, "theta": 0.2, "coherent": {}}]})
+
+
+def test_the_data_tool_refuses_a_bad_only_before_measuring(tmp_path, monkeypatch, capsys):
+    """--only names rows by their fields. A field a section's rows lack, a value without '=', a
+    value no row has and a row the file lacks are refused with the reason and exit status 2,
+    before any row is measured (the tool raised a KeyError, a bare ValueError or a
+    StopIteration, some after measuring other sections)."""
+    tool = coherent_tool()
+    monkeypatch.setattr(tool, "OUT", tmp_path)
+    monkeypatch.setenv("PYTHONUNBUFFERED", "1")
+    for name in tool.SECTIONS:
+        shutil.copy(DATA / f"{name}.json", tmp_path / f"{name}.json")
+    measured = []
+    for section in ("validate", "code_capacity", "sweep"):
+        monkeypatch.setattr(tool, section, lambda *a, **k: measured.append(a))
+
+    def refused(*argv):
+        assert tool.main(list(argv)) == 2
+        err = capsys.readouterr().err
+        assert err.startswith("tools/coherent.py: error: ") and err.count("\n") == 1, err
+        return err
+
+    assert "sweep rows have no field 'code' (they are named by d, rounds, theta)" in refused("all", "--only", "code=surface")
+    assert "capacity rows have no field 'rounds'" in refused("capacity", "--only", "rounds=3")
+    assert "--only d3: expected field=value[,value...]" in refused("sweep", "--only", "d3")
+    for spec in ("d=", "=3", "d=3,"):
+        assert f"--only {spec}: expected field=value" in refused("sweep", "--only", spec)
+    assert "--only needs field=value" in refused("sweep", "--only")
+    assert "--only d=4: no sweep row has d=4 (they have 3, 5, 7, 9)" in refused("sweep", "--only", "d=3,4")
+    assert "--only theta=0.30: no capacity row has theta=0.30 (they have 0.2, 0.25, 0.3, 0.35)" in refused("capacity", "--only", "theta=0.30")
+    assert "unknown section 'sweeps'" in refused("sweeps")
+    assert "one section at a time (sweep, then capacity)" in refused("sweep", "capacity")
+    assert "unknown option --fast" in refused("sweep", "--fast")
+    doc = json.loads((tmp_path / "sweep.json").read_text())
+    doc["rows"] = [r for r in doc["rows"] if (r["d"], r["theta"]) != (5, 0.0025)]
+    (tmp_path / "sweep.json").write_text(json.dumps(doc))
+    assert f"{tmp_path / 'sweep.json'} has no row d=5, rounds=5, theta=0.0025 to keep" in refused("sweep", "--only", "d=3")
+    doc = json.loads((tmp_path / "crosstalk.json").read_text())
+    del doc["rows"][-1]["coherent"]["exact"]
+    (tmp_path / "crosstalk.json").write_text(json.dumps(doc))
+    assert "row d=7, rounds=7, theta=0.02 does not say whether its weights were exact" in refused("crosstalk", "--only", "d=3")
+    (tmp_path / "validate.json").unlink()
+    assert "which does not exist" in refused("validate", "--only", "code=surface")
+    assert measured == []
+    # A good --only gets as far as measuring (here, nothing).
+    assert tool.main(["capacity", "--only", "d=15", "--only", "theta=0.35"]) == 0
+    assert measured == [()] and tool.ONLY == {"d": {"15"}, "theta": {"0.35"}}
+    assert [k for k in tool.grid("capacity") if tool.wanted(k)] == [{"d": 15, "theta": 0.35}]
+    # From the command line: the message and status 2.
+    path = pathlib.Path(__file__).resolve().parent.parent / "tools" / "coherent.py"
+    run = subprocess.run([sys.executable, str(path), "all", "--only", "code=surface"], capture_output=True, text=True)
+    assert run.returncode == 2 and run.stdout == "", run
+    assert run.stderr == "tools/coherent.py: error: --only code=...: sweep rows have no field 'code' (they are named by d, rounds, theta); run only the sections whose rows have it\n", run.stderr

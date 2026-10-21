@@ -1,5 +1,5 @@
 {
- "version": "2.0.0",
+ "version": "2.2.0",
  "rows": [
   {
    "code": "repetition",
@@ -18,14 +18,16 @@
     "stderr_merged": 0.0001936194587642034,
     "seconds": 0.9,
     "generators": 4,
-    "locations": 18
+    "locations": 18,
+    "exact": true
    },
    "twirl": {
     "shots": 2000000,
     "failures": 8351,
     "rate": 0.0041755,
     "stderr": 4.559640994502747e-05
-   }
+   },
+   "version": "2.0.0"
   },
   {
    "code": "repetition",
@@ -44,14 +46,16 @@
     "stderr_merged": 0.0003133366305358486,
     "seconds": 1.5,
     "generators": 6,
-    "locations": 27
+    "locations": 27,
+    "exact": true
    },
    "twirl": {
     "shots": 2000000,
     "failures": 14790,
     "rate": 0.007395,
     "stderr": 6.0581820602388634e-05
-   }
+   },
+   "version": "2.0.0"
   },
   {
    "code": "repetition",
@@ -70,14 +74,16 @@
     "stderr_merged": 8.033581298079358e-05,
     "seconds": 4.2,
     "generators": 8,
-    "locations": 30
+    "locations": 30,
+    "exact": true
    },
    "twirl": {
     "shots": 2000000,
     "failures": 631,
     "rate": 0.0003155,
     "stderr": 1.2557875213387017e-05
-   }
+   },
+   "version": "2.0.0"
   },
   {
    "code": "repetition",
@@ -96,14 +102,16 @@
     "stderr_merged": 7.721249374580054e-05,
     "seconds": 1.2,
     "generators": 6,
-    "locations": 27
+    "locations": 27,
+    "exact": true
    },
    "twirl": {
     "shots": 2000000,
     "failures": 995,
     "rate": 0.0004975,
     "stderr": 1.5767886569702356e-05
-   }
+   },
+   "version": "2.0.0"
   },
   {
    "code": "repetition",
@@ -122,14 +130,16 @@
     "stderr_merged": 1.1432867102973763e-05,
     "seconds": 3.7,
     "generators": 8,
-    "locations": 30
+    "locations": 30,
+    "exact": true
    },
    "twirl": {
     "shots": 2000000,
     "failures": 16,
     "rate": 8e-06,
     "stderr": 1.999991999984e-06
-   }
+   },
+   "version": "2.0.0"
   },
   {
    "code": "repetition",
@@ -148,14 +158,16 @@
     "stderr_merged": 0.00010102373329418363,
     "seconds": 3.2,
     "generators": 8,
-    "locations": 36
+    "locations": 36,
+    "exact": true
    },
    "twirl": {
     "shots": 2000000,
     "failures": 1418,
     "rate": 0.000709,
     "stderr": 1.882149461387166e-05
-   }
+   },
+   "version": "2.0.0"
   },
   {
    "code": "surface",
@@ -184,7 +196,8 @@
     "failures": 6857,
     "rate": 0.0034285,
     "stderr": 4.1332465373783356e-05
-   }
+   },
+   "version": "2.2.0"
   },
   {
    "code": "surface",
@@ -213,7 +226,8 @@
     "failures": 24142,
     "rate": 0.012071,
     "stderr": 7.721816806620058e-05
-   }
+   },
+   "version": "2.2.0"
   }
  ]
 }
