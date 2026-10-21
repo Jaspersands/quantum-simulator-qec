@@ -727,8 +727,16 @@ pub struct SearchDecoder {
 }
 
 impl SearchDecoder {
-    /// The decoder for a model.
+    /// The decoder for a model of at most 64 observables, as [`Prediction::observables`] is a
+    /// u64 (the Python search decoder takes any number).
     pub fn new(dem: &DetectorErrorModel, options: SearchOptions) -> Result<SearchDecoder> {
+        let n = dem.num_observables();
+        // (A model past the largest detector is refused for that first, as the flat model is.)
+        if n > 64 && dem.num_detectors() as u64 <= crate::dem_program::MAX_DETECTOR + 1 {
+            return Err(Error::new(format!(
+                "the model has {n} observables; the Rust API's SearchDecoder takes at most 64, as Prediction.observables is a u64 (the Python search decoder takes any number)"
+            )));
+        }
         let d = dem.flat()?;
         let flavour = crate::search::Flavour::native();
         let orders = match options.orders {

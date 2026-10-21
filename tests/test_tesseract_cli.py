@@ -2,17 +2,19 @@
 (src/tesseract_main.cc). Tesseract's wheel has no binary, and building it needs Bazel, so its
 flags are checked against Tesseract's Python API: data/tesseract_cli_reference.json holds what
 Tesseract's 2026-10-13 build computes, through its Python API, for each flag set on stored shots
-(predictions, low-confidence flags, costs, counts, the --dem-out model, the multi-pass
-decoder's answers and the verbose log); the text is checked against tesseract_main.cc and
-p-ranav/argparse 3.1, which it parses its flags with."""
+and the model's text (predictions, low-confidence flags, costs, counts, the --dem-out model,
+the multi-pass decoder's answers and the verbose log); the text is checked against
+tesseract_main.cc and p-ranav/argparse 3.1, which it parses its flags with."""
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import re
 import subprocess
 import sys
+import warnings
 
 import numpy as np
 import pytest
@@ -58,14 +60,18 @@ def final_line(out: str) -> dict:
 CASES = [(m["name"], k) for m in REF["models"] for k in range(len(m["cases"]))]
 
 
+@pytest.mark.parametrize("source", ["dem", "circuit"])
 @pytest.mark.parametrize("name,k", CASES)
-def test_cli_equals_tesseracts_python_api(name, k, tmp_path, capsys):
+def test_cli_equals_tesseracts_python_api(name, k, source, tmp_path, capsys):
+    # (The fixture is what Tesseract's program computes with --dem c.dem, the model's text; its
+    # predictions, counts and --dem-out are the same from the circuit's model.)
     model = MODELS[name]
     case = model["cases"][k]
     write_model(tmp_path, model)
     args = [a.replace("ORDERS", str(tmp_path / "orders.json")) for a in case["args"]]
+    models = ["--circuit", tmp_path / "c.stim"] + (["--dem", tmp_path / "c.dem"] if source == "dem" else [])
     code, out, err = run(
-        ["--circuit", tmp_path / "c.stim", "--in", tmp_path / "shots.b8", "--in-format", "b8", "--in-includes-appended-observables",
+        [*models, "--in", tmp_path / "shots.b8", "--in-format", "b8", "--in-includes-appended-observables",
          "--out", tmp_path / "p.01", "--out-format", "01", "--dem-out", tmp_path / "out.dem", "--threads", "2", "--print-stats", *args],
         capsys,
     )
@@ -79,9 +85,13 @@ def test_cli_equals_tesseracts_python_api(name, k, tmp_path, capsys):
     for s, (predicted, is_low, cost) in enumerate(case["shots"]):
         low += is_low
         assert re.fullmatch(rf"num_shots = {s + 1} num_low_confidence = {low} num_errors = \d+ total_time_seconds = \S+", stats[2 * s])
-        # (To the last digit or so: this package's model of the circuit can differ from Stim's
-        # in its probabilities' last digits; test_cli_equals_python_api checks them exactly.)
-        assert stats[2 * s + 1].startswith("cost = ") and float(stats[2 * s + 1][7:]) == pytest.approx(cost, rel=1e-14, abs=0)
+        if source == "dem":
+            assert stats[2 * s + 1] == "cost = %.16g" % cost
+        else:
+            # (This package's model of the circuit can differ from Stim's in its probabilities'
+            # last digits, and its costs with them: test_cli_equals_python_api checks the costs
+            # from --circuit exactly against this package's decoder.)
+            assert re.fullmatch(r"cost = [0-9.e+-]+", stats[2 * s + 1])
     got = final_line(out)
     assert (got["num_shots"], got["num_low_confidence"], got["num_errors"]) == (model["num_shots"], case["num_low_confidence"], case["num_errors"])
     assert (tmp_path / "out.dem").read_text() == case["dem_out"]
@@ -294,6 +304,22 @@ def test_cli_flag_errors(tmp_path, capsys):
     ]:
         code, out, err = run(args, capsys)
         assert code != 0 and err == failure(message), (args, err)
+    # --obs_in without --obs-in-format passes the checks; once the file is open, Stim's format
+    # map (a std::map) has no "" (map::at).
+    code, out, err = run(base + ["--obs_in", tmp_path / "missing.01"], capsys)
+    assert code != 0 and err == failure(f"Could not open the file: {tmp_path / 'missing.01'}"), err
+    code, out, err = run(base + ["--obs_in", shots], capsys)
+    assert code != 0 and err == failure("map::at:  key not found" if sys.platform == "darwin" else "map::at", "std::out_of_range"), err
+    # --out-format ptb64: Stim's writer refuses it after Tesseract's program has created (and
+    # emptied) the file, which is closed again, not left open.
+    (tmp_path / "p.ptb64").write_bytes(b"old")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        code, out, err = run(base + ["--out", tmp_path / "p.ptb64", "--out-format", "ptb64"], capsys)
+        gc.collect()
+    assert code != 0 and err == failure("SAMPLE_FORMAT_PTB64 incompatible with SingleMeasurementRecord")
+    assert (tmp_path / "p.ptb64").read_bytes() == b""
+    assert [str(w.message) for w in caught if issubclass(w.category, ResourceWarning)] == []
     # Detector-order files: JSON arrays of arrays of nonnegative integers, each a permutation.
     for text, message in [
         ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),

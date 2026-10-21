@@ -304,7 +304,7 @@ impl DemProgram {
         let stats = self.stats();
         if stats.num_detectors <= MAX_DETECTOR + 1 && stats.num_observables > 64 {
             return Err(format!(
-                "the model has {} observables; this engine's matching, BP, clustering and window decoders, its distance searches, matching-graph diagrams and model sampler take at most 64 (the search decoder, the text, counts, circuit sampling and measurement conversion take any number)",
+                "the model has {} observables; this engine's matching, BP, clustering and window decoders, its distance searches, matching-graph diagrams and model sampler take at most 64 (the Python search decoder, the text, counts, circuit sampling and measurement conversion take any number)",
                 stats.num_observables
             ));
         }

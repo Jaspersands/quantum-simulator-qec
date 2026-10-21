@@ -136,5 +136,5 @@ def test_search_decoder_narrow_models_unchanged():
 def test_flat_model_decoders_still_refuse_past_64():
     # (The refusal names what refuses and what takes any number.)
     for make in (sq.UnionFind, sq.BpOsd, sq.BeliefMatching):
-        with pytest.raises(ValueError, match="take at most 64 .*the search decoder"):
+        with pytest.raises(ValueError, match=r"take at most 64 \(the Python search decoder, "):
             make(DEM)

@@ -1,7 +1,9 @@
 # Ported from Tesseract (quantumlib/tesseract-decoder, src/tesseract_main.cc; Copyright 2025 Google
 # LLC, Apache License 2.0; see THIRD_PARTY_NOTICES.md), modified for stabilizer_qec. Its flags are
 # read, and its parsing errors and help printed, as the library it parses them with prints them
-# (p-ranav/argparse 3.1, MIT License); this is a reimplementation of that behaviour, not its code.
+# (p-ranav/argparse 3.1, Copyright (c) 2018 Pranav Srinivas Kumar, MIT License), and its
+# --stats-out JSON written as the library it writes it with writes it (nlohmann/json, Copyright
+# Niels Lohmann, MIT License); this reimplements their behaviour and copies none of their code.
 """Tesseract's ``tesseract`` program: ``python -m stabilizer_qec.tesseract_decoder`` with its
 flags (``--circuit``, ``--dem``, ``--sample-num-shots``, ``--in``, ``--out``, the detector-order
 flags, ``--beam``, ``--pqlimit``, ``--multipass``, ``--stats-out``, ...), its output (the
@@ -18,9 +20,13 @@ Where it differs from Tesseract's program:
   reports it) with no core dump.
 - ``--out`` to a file that cannot be opened: Tesseract's program writes through a null file
   (and crashes); here it stops with ``Failed to open <path>``, as for ``--dem-out``.
-- ``--max-errors``: Tesseract's program stops once the shots it has taken in order reach the
-  limit, while its threads may have decoded (and counted for ``--dem-out``) shots past it,
-  depending on timing; here decoding stops at the shot that reaches the limit.
+- ``--max-errors``: once the shots it takes in order reach the limit, Tesseract's program stops
+  its threads from starting more, but keeps taking every shot they had already decoded, how
+  many depending on timing (even with ``--threads 1``, as it looks for finished shots every
+  100 ms): those shots are written to ``--out``, printed by ``--print-stats``, counted in the
+  final line's and ``--stats-out``'s ``num_shots`` and ``num_errors`` (which can pass the
+  limit), and counted for ``--dem-out``. Here decoding stops exactly at the shot that reaches
+  the limit.
 - ``--threads``: the shots are decoded across threads by one decoder (Tesseract's program
   makes one per thread, and with ``--verbose`` each prints its errors); with ``--verbose`` or
   ``--multipass`` the shots are decoded in order on one thread.
@@ -646,6 +652,9 @@ class _Writer:
                 if fmt != "ptb64":
                     raise _Abort("Failed to open " + path) from None
         if fmt == "ptb64":
+            # (Stim's writer refuses it once Tesseract's program has created, and emptied, the
+            # file; closed here before the refusal.)
+            self.close()
             raise _Abort("SAMPLE_FORMAT_PTB64 incompatible with SingleMeasurementRecord")
 
     def write(self, row: np.ndarray) -> None:
@@ -699,6 +708,10 @@ def _shot_data(a: _Args, circuit: Any, nd: int, no: int) -> Tuple[np.ndarray, np
         obs = data[:, nd:] if a.append_observables else np.zeros((data.shape[0], no), dtype=bool)
     if a.obs_in_fname:
         raw = _read(a.obs_in_fname)
+        if not a.obs_in_format:
+            # (No check asks for --obs-in-format, so Tesseract's program looks "" up in Stim's
+            # std::map of format names: std::map::at's exception, in the C++ library's words.)
+            raise _Abort("map::at:  key not found" if sys.platform == "darwin" else "map::at", "std::out_of_range")
         flips = decode_shots(raw, a.obs_in_format, num_observables=no)
         if flips.shape[0] > dets.shape[0]:
             raise _Abort("Shot data ended before obs data.")

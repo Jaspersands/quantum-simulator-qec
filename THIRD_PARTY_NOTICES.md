@@ -172,7 +172,10 @@ Python modules (`src/py/_tesseract_py_util/` as `demutil/`, `src/py/multi_pass_s
 with their imports pointed at this package. `tests/tesseract_port/` holds Tesseract's Python
 tests, modified the same way. `python/stabilizer_qec/tesseract_decoder/__main__.py` ports its
 `tesseract` program (`src/tesseract_main.cc`), reproducing (not copying) the flag parsing,
-errors and help of the library it is built with, p-ranav/argparse 3.1 (MIT License).
+errors and help of the library it is built with, p-ranav/argparse 3.1 (Copyright (c) 2018
+Pranav Srinivas Kumar; MIT License; https://github.com/p-ranav/argparse), and the way the
+library it writes its `--stats-out` JSON with, nlohmann/json (Copyright Niels Lohmann; MIT
+License; https://github.com/nlohmann/json), writes numbers and objects.
 
 ## Chromobius
 
