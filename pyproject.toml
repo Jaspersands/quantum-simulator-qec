@@ -104,6 +104,10 @@ deltakit = [
   "requests>=2.32; python_version >= '3.11'",
 ]
 panqec-gui = ["scipy>=1.8.0", "pandas>=1.4.2", "matplotlib>=3.3.4", "tqdm>=4.59.0", "python-dotenv>=0.17.0", "psutil>=5.8.0", "click>=8.1.2", "Flask>=2.0.1"]
+# stabilizer_qec.estimate.qualtran.ui's Dash app (`ui.make_app()`, `ui.app`, and `ui.serve()` where dash is
+# installed) needs dash, as Qualtran's does: 4.4.1, the version its tests compare with. Without it,
+# `ui.serve()` runs the app on a page of the standard library's server.
+dash = ["dash>=4.4.1"]
 
 [project.scripts]
 stabilizer-qec = "stabilizer_qec._cli:main"

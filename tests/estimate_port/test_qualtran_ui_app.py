@@ -10,6 +10,8 @@ import http.client
 import json
 import pathlib
 import queue
+import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -29,6 +31,30 @@ SIGNATURE = ("output", "inputs", "state", "prevent_initial_call", "clientside_fu
 ALGORITHM = ["qubits", "Measurements", "Ts", "Toffolis", "Rotations", "Rotation Depth"]
 GIDNEY = (1e-4, 1e-3, ui._GIDNEY_FOWLER_MODEL, [10, 10, 10, 10, 10, 10], "GidneyFowler", "GidneyFowlerCCZ", 1, "BeverlandEtAlRotationCost")
 BEVERLAND = (3e-4, 5e-3, ui._BEVERLAND_MODEL, [250, 77, 10**7, 10**6, 300, 40], "BeverlandEtAl", "FifteenToOne933", 3, "SevenDigitsOfPrecisionConstantCost")
+# numpy's global seed the standard-library server is started with (Beverland's runtime plot draws from it).
+SEED = 7
+PAGE = pathlib.Path(ui.__file__).parent / "_ui_static" / "ui.html"
+# The page's plotly.js tag (cdn.plot.ly's plotly.js 3.7.0, pinned by the hash of plotly 6.9.0's copy), and the
+# tag the server puts in its place where plotly is installed.
+CDN_TAG = b'<script id="plotly-js" src="https://cdn.plot.ly/plotly-3.7.0.min.js" integrity="sha384-l4G4qURPwALv583BKlynU/4LiUx0rk9jcTX58Aq+Jc+jgWb52zeH2geZkSS3UPPs" crossorigin="anonymous" charset="utf-8"></script>'
+LOCAL_TAG = b'<script id="plotly-js" src="plotly.min.js" charset="utf-8"></script>'
+HIDE_PLOTLY = 'import sys\nsys.modules["plotly"] = None  # as if plotly were not installed\n'
+
+
+def _installed_plotly_js():
+    """The installed plotly package's plotly.js (the copy Dash serves), or None without plotly."""
+    try:
+        import plotly
+    except ImportError:
+        return None
+    return (pathlib.Path(plotly.__file__).parent / "package_data" / "plotly.min.js").read_bytes()
+
+
+def _page(local_plotly):
+    """The page the standard-library server sends: ui.html, its plotly.js the installed plotly's or cdn.plot.ly's."""
+    page = PAGE.read_bytes()
+    assert page.count(CDN_TAG) == 1
+    return page.replace(CDN_TAG, LOCAL_TAG) if local_plotly else page
 
 
 def _encode(obj):
@@ -198,6 +224,11 @@ for get in (lambda: ui.app, ui.make_app, lambda: ui.serve(dash=True)):
         print(ex)
     else:
         raise SystemExit("no ImportError")
+for probe in (lambda: hasattr(ui, "app"), lambda: getattr(ui, "app", None)):  # as the module's docstring says
+    try:
+        probe()
+    except ImportError:
+        print("ImportError")
 assert ui.update(*{args!r})[4] == "47.5"
 
 
@@ -219,22 +250,101 @@ except Served as ex:
 
 def test_import_without_dash():
     """`ui` imports without importing dash (or plotly), and its estimates run; the app (``ui.app``,
-    `make_app`, ``serve(dash=True)``) raises an ImportError naming dash, and ``serve()`` serves the
-    standard library's page."""
+    `make_app`, ``serve(dash=True)``) raises an ImportError naming dash (so do ``hasattr`` and ``getattr``
+    with a default on ``ui.app``, as the docstring says), and ``serve()`` serves the standard library's page
+    and says nothing on stderr."""
     code = HIDE_DASH.format(args=GIDNEY)
     run = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     assert run.returncode == 0, run.stderr
     lines = run.stdout.splitlines()
-    assert lines == ["make_app needs dash: pip install dash (serve() runs the app without it)"] * 3 + ["page ('127.0.0.1', 8050)"]
+    assert lines == ["make_app needs dash: pip install dash (serve() runs the app without it)"] * 3 + ["ImportError"] * 2 + ["page ('127.0.0.1', 8050)"]
+    assert run.stderr == ""
+    assert "ImportError" in ui.__doc__ and 'hasattr(ui, "app")' in ui.__doc__
+
+
+BROKEN_DASH = """
+import sys
+sys.path.insert(0, {path!r})  # a dash that is installed but does not import
+from stabilizer_qec.estimate.qualtran import ui
+for get in (lambda: ui.app, ui.make_app, lambda: ui.serve(dash=True)):
+    try:
+        get()
+    except ImportError as ex:
+        print(ex)
+    else:
+        raise SystemExit("no ImportError")
+
+
+class Served(Exception):
+    pass
+
+
+def page_server(host, port):
+    raise Served(host, port)
+
+
+ui._page_server = page_server
+try:
+    ui.serve()
+except Served as ex:
+    print("page", ex.args)
+"""
+
+
+def test_broken_dash(tmp_path):
+    """Where dash is installed but does not import (a Flask or Werkzeug it does not work with, say), the app
+    raises an ImportError that says so (not "pip install dash"), and ``serve()`` serves the standard library's
+    page, saying why on stderr in one line."""
+    (tmp_path / "dash").mkdir()
+    (tmp_path / "dash" / "__init__.py").write_text("raise ImportError(\"cannot import name 'url_quote' from 'werkzeug.urls'\")\n")
+    run = subprocess.run([sys.executable, "-c", BROKEN_DASH.format(path=str(tmp_path))], capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stderr
+    why = "make_app needs dash, which is installed but does not import (ImportError: cannot import name 'url_quote' from 'werkzeug.urls')"
+    assert run.stdout.splitlines() == [why] * 3 + ["page ('127.0.0.1', 8050)"]
+    assert run.stderr == why + "; serve() runs the app on the standard library's page instead\n"
+
+
+MAIN = """
+import runpy, socketserver, sys
+if {hide_dash}:
+    sys.modules["dash"] = None  # as if dash were not installed
+else:
+    import dash
+    dash.Dash.run = lambda self, *args, **kwargs: print("Dash.run", args, sorted(kwargs.items()))
+# The page's server binds nothing, and Ctrl-C comes as it starts serving.
+socketserver.TCPServer.server_bind = socketserver.TCPServer.server_activate = lambda self: None
+
+
+def interrupt(self, poll_interval=0.5):
+    raise KeyboardInterrupt
+
+
+socketserver.BaseServer.serve_forever = interrupt
+runpy.run_module("stabilizer_qec.estimate.qualtran.ui", run_name="__main__", alter_sys=True)  # python -m
+"""
+
+
+@pytest.mark.parametrize("with_dash", [False, True], ids=["page", "dash"])
+def test_run_as_main(with_dash):
+    """``python -m stabilizer_qec.estimate.qualtran.ui`` runs `serve()` with its defaults, as Qualtran's
+    ``python -m qualtran.surface_code.ui`` runs its app: Dash's ``app.run`` where dash is installed, else the
+    standard library's page (until Ctrl-C), with nothing on stderr."""
+    if with_dash:
+        pytest.importorskip("dash")
+    run = subprocess.run([sys.executable, "-c", MAIN.format(hide_dash=not with_dash)], capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stderr
+    want = "Dash.run () [('host', '127.0.0.1'), ('port', 8050)]" if with_dash else "Qualtran Resource Estimation is running on http://127.0.0.1:8050/"
+    assert (run.stdout, run.stderr) == (want + "\n", "")
 
 
 class _Served:
-    """``ui.serve(port=0, dash=False)`` in a process of its own, and the URL it prints."""
+    """``ui.serve(port=0, dash=False)`` in a process of its own (after ``prelude``, and with numpy's global seed
+    `SEED`), and the URL it prints."""
 
-    def __init__(self, stderr_path):
+    def __init__(self, stderr_path, prelude=""):
         self.stderr_path = stderr_path
         self._stderr = open(stderr_path, "w")
-        code = "from stabilizer_qec.estimate.qualtran import ui\nui.serve(port=0, dash=False)\n"
+        code = f"import numpy as np\nfrom stabilizer_qec.estimate.qualtran import ui\n{prelude}\nnp.random.seed({SEED})\nui.serve(port=0, dash=False)\n"
         self.proc = subprocess.Popen([sys.executable, "-u", "-c", code], stdout=subprocess.PIPE, stderr=self._stderr, text=True)
         lines: queue.Queue = queue.Queue()
 
@@ -265,6 +375,10 @@ class _Served:
 
     def status(self, method, path, headers):
         """The status of a request with these headers and no body."""
+        return self.answer(method, path, headers)[0]
+
+    def answer(self, method, path, headers):
+        """The status and body of the answer to a request with these headers and no body."""
         host, port = urllib.parse.urlsplit(self.url).netloc.rsplit(":", 1)
         conn = http.client.HTTPConnection(host, int(port), timeout=60)
         try:
@@ -272,7 +386,8 @@ class _Served:
             for name, value in headers.items():
                 conn.putheader(name, value)
             conn.endheaders()
-            return conn.getresponse().status
+            response = conn.getresponse()
+            return response.status, response.read()
         finally:
             conn.close()
 
@@ -297,8 +412,9 @@ def test_serve_fallback_round_trip(served):
     assert served.first_line.startswith("Qualtran Resource Estimation is running on http://127.0.0.1:") and served.url.endswith("/")
     status, kind, page = served.request("")
     assert (status, kind) == (200, "text/html; charset=utf-8")
-    assert page == (pathlib.Path(ui.__file__).parent / "_ui_static" / "ui.html").read_bytes()
-    assert b"https://cdn.plot.ly/plotly-3.7.0.min.js" in page and b"layout.json" in page and b"dependencies.json" in page
+    local_plotly = _installed_plotly_js() is not None
+    assert page == _page(local_plotly)
+    assert (LOCAL_TAG if local_plotly else CDN_TAG) in page and b"layout.json" in page and b"dependencies.json" in page
     status, kind, layout = served.request("layout.json")
     assert (status, kind) == (200, "application/json")
     assert layout.decode() == json.dumps(GOLDEN["layout"], sort_keys=True)
@@ -309,14 +425,13 @@ def test_serve_fallback_round_trip(served):
     status, kind, body = served.request("update", list(GIDNEY))
     assert (status, kind) == (200, "application/json")
     assert json.loads(body) == _as_json(ui.update(*GIDNEY))
-    # Beverland's runtime plot draws its factory counts from numpy's global random state (the server's own);
-    # its first point, the minimum factory count, does not depend on it.
-    status, _, body = served.request("update", list(BEVERLAND))
-    out, want = json.loads(body), _as_json(ui.update(*BEVERLAND))
-    assert status == 200 and out[:2] + out[3:] == want[:2] + want[3:]
-    trace, want_trace = out[2]["data"][0], want[2]["data"][0]
-    assert (trace["x"][0], trace["y"][0], trace["text"][0]) == (want_trace["x"][0], want_trace["y"][0], want_trace["text"][0])
-    assert out[2]["layout"] == want[2]["layout"]
+    # Beverland's runtime plot draws its factory counts from numpy's global random state, which the server was
+    # started with seeded by SEED; Gidney-Fowler's draws nothing, so this is the server's first draw, as here.
+    status, kind, body = served.request("update", list(BEVERLAND))
+    np.random.seed(SEED)
+    want = _as_json(ui.update(*BEVERLAND))
+    assert (status, kind) == (200, "application/json")
+    assert json.loads(body) == want and len(want[2]["data"][0]["x"]) == 5
 
     for missing in (GIDNEY[:1] + (None,) + GIDNEY[2:], GIDNEY[:3] + ([10, 10, None, 10, 10, 10],) + GIDNEY[4:]):
         assert served.request("update", list(missing)) == (204, None, b"")
@@ -324,14 +439,20 @@ def test_serve_fallback_round_trip(served):
 
 def test_serve_fallback_refusals(served):
     """What the standard-library server refuses: an unknown path (404), a body that is not JSON (nested past
-    Python's recursion limit too) or not `update`'s eight arguments (400), a POST without a usable
-    Content-Length (411, 400) or over a megabyte (413), a method a path does not take (405), and an error in
-    `update` (500, its traceback on the server's stderr)."""
+    Python's recursion limit too) or not `update`'s eight arguments (400), a POST without a Content-Length
+    (411), with one that is not a number or is negative (400) or over a megabyte (413), a method a path does not
+    take (405), and an error in `update` (500, its traceback on the server's stderr)."""
     assert served.request("missing")[0] == 404
     assert served.request("update", b"{not json")[0] == 400
     assert served.request("update", b"[" * 200000)[0] == 400
     assert served.status("POST", "/update", {}) == 411
     assert served.status("POST", "/update", {"Content-Length": "-1"}) == 400
+    # 411 only where there is no Content-Length; one that is not a number (as Werkzeug, Dash's server, reads
+    # one: ASCII digits, no "+" or "_") is a 400.
+    assert served.answer("POST", "/update", {}) == (411, b"411 Length Required\n")
+    assert served.answer("POST", "/update", {"Content-Length": "-1"}) == (400, b"400 Bad Request: the Content-Length is negative\n")
+    for length in ("abc", "", "1_0", "+5", "1.5", "0x10", "\u00b2"):  # the last: a superscript 2, a digit to str.isdigit()
+        assert served.answer("POST", "/update", {"Content-Length": length}) == (400, b"400 Bad Request: the Content-Length is not a number\n"), length
     assert served.status("POST", "/update", {"Content-Length": str((1 << 20) + 1)}) == 413
     assert served.request("update", {"args": list(GIDNEY)})[0] == 400
     assert served.request("update", list(GIDNEY)[:7])[0] == 400
@@ -340,3 +461,140 @@ def test_serve_fallback_refusals(served):
     assert status == 500 and b"NoSuchScheme" not in body
     assert "KeyError: 'NoSuchScheme'" in served.stderr_path.read_text()
     assert served.request("update", list(GIDNEY))[0] == 200  # the server still runs
+
+
+UNENCODABLE = """
+_update = ui.update
+
+
+def update(*args):  # an output JSON cannot write, where the factory count is 2
+    out = _update(*args)
+    return out[:4] + (object(),) + out[5:] if args[6] == 2 else out
+
+
+ui.update = update
+"""
+
+
+def test_serve_fallback_unencodable_answer(tmp_path):
+    """An answer the standard-library server cannot write as JSON is a 500 (its traceback on the server's
+    stderr, as an error in `update` is), not a dropped connection, and the server keeps running."""
+    server = _Served(tmp_path / "stderr.txt", prelude=UNENCODABLE)
+    try:
+        assert server.request("update", list(GIDNEY[:6]) + [2] + list(GIDNEY[7:])) == (500, "text/plain; charset=utf-8", b"500 Internal Server Error\n")
+        log = server.stderr_path.read_text()
+        assert "Exception on /update [POST]" in log and "TypeError: Object of type object is not JSON serializable" in log
+        status, kind, body = server.request("update", list(GIDNEY))
+        assert (status, kind) == (200, "application/json") and json.loads(body) == _as_json(ui.update(*GIDNEY))
+    finally:
+        server.close()
+
+
+@pytest.mark.parametrize("plotly", ["installed", "hidden"])
+def test_serve_fallback_plotly_js(tmp_path, plotly):
+    """The page's plotly.js: where plotly is installed, the package's own copy (``plotly/package_data/
+    plotly.min.js``, the one Dash serves by default) at ``/plotly.min.js``, in place of cdn.plot.ly's; without
+    plotly, cdn.plot.ly's plotly.js 3.7.0 pinned by its hash, and no ``/plotly.min.js``."""
+    js = _installed_plotly_js()
+    if plotly == "installed" and js is None:
+        pytest.skip("needs plotly")
+    server = _Served(tmp_path / "stderr.txt", prelude=HIDE_PLOTLY if plotly == "hidden" else "")
+    try:
+        status, kind, page = server.request("")
+        assert (status, kind) == (200, "text/html; charset=utf-8")
+        if plotly == "installed":
+            assert page == _page(True) and CDN_TAG not in page
+            assert server.request("plotly.min.js") == (200, "text/javascript; charset=utf-8", js)
+            assert server.request("plotly.min.js", b"[]")[0] == 405
+        else:
+            assert page == _page(False) == PAGE.read_bytes()
+            assert server.request("plotly.min.js")[0] == 404
+        assert server.stderr_path.read_text().count("Exception") == 0
+    finally:
+        server.close()
+
+
+def _node():
+    """node, where node 18 or later (whose fetch the page's smoke test uses) is installed; else None."""
+    node = shutil.which("node")
+    if node is None:
+        return None
+    version = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=60).stdout
+    match = re.match(r"v(\d+)\.", version)
+    return node if match and int(match.group(1)) >= 18 else None
+
+
+def _initial_args():
+    """`update`'s arguments as the layout gives them at first: each input's value, the pattern's in layout order."""
+    components = [c for c in _walk(GOLDEN["layout"]) if "id" in c["props"]]
+    args = []
+    for dep in GOLDEN["callbacks"][0]["inputs"]:
+        if dep["id"].startswith("{"):
+            pattern = json.loads(dep["id"])
+            args.append([c["props"][dep["property"]] for c in components if isinstance(c["props"]["id"], dict) and c["props"]["id"]["type"] == pattern["type"]])
+        else:
+            args.append(next(c["props"][dep["property"]] for c in components if c["props"]["id"] == dep["id"]))
+    return args
+
+
+def _shown(out):
+    """`update`'s outputs as the page shows them: the figures it draws, the styles it sets, the text and the
+    read-only inputs' values."""
+    out = _as_json(out)
+    return {"qubit-pie-chart": out[0], "runtime-container": out[1], "runtime-plot": out[2], "magic-name": "".join(out[3]), "total_magic": str(out[4]), "magic-factory-container": out[5], "min_factory_count": str(out[6]), "duration-container": out[7], "duration": str(out[8])}
+
+
+def test_page_script_in_node(served, tmp_path):
+    """The page's script (``_ui_static/ui.html``), run by node against the standard-library server in a small DOM
+    with a stand-in for plotly.js (tests/estimate_port/qualtran_ui_page.js): it draws every component of the
+    layout, posts the inputs' first values once on load as Dash does, and shows `update`'s outputs. A number
+    input sends its value on Enter or on leaving it, null where the value is out of range (a 204, which keeps the
+    outputs), and nothing where the number did not change; of two requests, the later one's answer is shown even
+    when the earlier's comes last; the title says "Updating..." while a request runs; a graph that is shown is
+    resized; the page writes nothing to the console."""
+    node = _node()
+    if node is None:
+        pytest.skip("needs node 18 or later")
+    page = served.request("")[2]
+    (tmp_path / "page.html").write_bytes(page)
+    qubits = json.dumps({"type": "algorithm", "property": "qubits"}, sort_keys=True, separators=(",", ":"))
+    actions = [
+        {"do": "load"},
+        {"do": "type", "id": "error_budget", "text": "2", "commit": "enter"},
+        {"do": "type", "id": "error_budget", "text": "0.01", "commit": "blur"},
+        {"do": "type", "id": "error_budget", "text": "0.01", "commit": "enter"},
+        {"do": "race", "first": {"do": "type", "id": qubits, "text": "100", "commit": "enter"}, "second": {"do": "type", "id": qubits, "text": "200", "commit": "enter"}},
+        {"do": "radio", "id": "estimation_model", "value": ui._BEVERLAND_MODEL},
+    ]
+    (tmp_path / "actions.json").write_text(json.dumps(actions))
+    harness = pathlib.Path(__file__).parent / "qualtran_ui_page.js"
+    run = subprocess.run([node, str(harness), str(tmp_path / "page.html"), served.url, str(tmp_path / "actions.json")], capture_output=True, text=True, timeout=300)
+    assert run.returncode == 0 and run.stderr == "", run.stderr
+    got = json.loads(run.stdout)
+
+    ids = [c["props"]["id"] for c in _walk(GOLDEN["layout"]) if "id" in c["props"]]
+    assert got["ids"] == [json.dumps(i, sort_keys=True, separators=(",", ":")) if isinstance(i, dict) else i for i in ids] and len(ids) == 22
+    assert got["notes"] == []  # every component drawn
+
+    first = _initial_args()
+    assert first == [1e-4, 1e-3, ui._GIDNEY_FOWLER_MODEL, [10] * 6, "BeverlandEtAl", "FifteenToOne733", 1, "BeverlandEtAlRotationCost"]
+    over = first[:1] + [None] + first[2:]  # an error budget of 2, over the input's max of 1
+    budget = first[:1] + [0.01] + first[2:]
+    hundred, two_hundred = (budget[:3] + [[n] + budget[3][1:]] + budget[4:] for n in (100, 200))
+    beverland = two_hundred[:2] + [ui._BEVERLAND_MODEL] + two_hundred[3:]
+    np.random.seed(SEED)  # the server's first draw from numpy's global random state: Gidney-Fowler's draw none
+    want_beverland = _shown(ui.update(*beverland))
+    want = [
+        ([(first, 200)], _shown(ui.update(*first)), ["qubit-pie-chart"]),
+        ([(over, 204)], _shown(ui.update(*first)), []),
+        ([(budget, 200)], _shown(ui.update(*budget)), ["qubit-pie-chart"]),
+        ([], _shown(ui.update(*budget)), []),
+        ([(hundred, 200), (two_hundred, 200)], _shown(ui.update(*two_hundred)), ["qubit-pie-chart"]),
+        ([(beverland, 200)], want_beverland, ["qubit-pie-chart", "runtime-plot"]),
+    ]
+    assert len(got["steps"]) == len(want)
+    for step, (posts, outputs, resized) in zip(got["steps"], want):
+        assert step["posts"] == [{"args": args, "status": status, "title": "Updating..."} for args, status in posts]
+        assert step["outputs"] == outputs
+        assert (step["resized"], step["title"], step["logged"]) == (resized, "Qualtran Resource Estimation", [])
+    assert want_beverland["runtime-container"] == {"display": "block"} and want_beverland["duration-container"] == {"display": "none"}

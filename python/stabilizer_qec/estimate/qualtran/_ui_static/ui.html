@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Qualtran Resource Estimation</title>
-<!-- plotly.js 3.7.0, as Dash 4.4.1 serves it with plotly 6.9.0 (the hash is of plotly 6.9.0's copy, which is
-     cdn.plot.ly's byte for byte) -->
-<script src="https://cdn.plot.ly/plotly-3.7.0.min.js" integrity="sha384-l4G4qURPwALv583BKlynU/4LiUx0rk9jcTX58Aq+Jc+jgWb52zeH2geZkSS3UPPs" crossorigin="anonymous" charset="utf-8"></script>
+<!-- plotly.js. Where plotly is installed, serve() puts in place of this tag one that loads the installed plotly's
+     own copy (plotly/package_data/plotly.min.js, which Dash 4.4.1 serves by default). Without plotly it is
+     plotly.js 3.7.0 from cdn.plot.ly, the URL Dash 4.4.1 gives as plotly 6.9.0's external_url (used only with
+     serve_locally=False); the hash is of plotly 6.9.0's copy, which cdn.plot.ly's must match to run. -->
+<script id="plotly-js" src="https://cdn.plot.ly/plotly-3.7.0.min.js" integrity="sha384-l4G4qURPwALv583BKlynU/4LiUx0rk9jcTX58Aq+Jc+jgWb52zeH2geZkSS3UPPs" crossorigin="anonymous" charset="utf-8"></script>
 <style>
 .dash-options-list-option { display: block; }
 .dash-options-list-option.dash-radioitems-inline { display: inline-block; margin-right: 1em; }
@@ -230,8 +232,9 @@
     rec.draw = function () {
       var fig = rec.props.figure || {data: [], layout: {}};
       if (!window.Plotly) {
+        var script = document.getElementById("plotly-js");
         el.className = "ui-error";
-        el.textContent = "plotly.js did not load (from cdn.plot.ly): the figure cannot be drawn.";
+        el.textContent = "plotly.js did not load" + (script ? " (from " + script.src + ")" : "") + ": the figure cannot be drawn.";
         return;
       }
       window.Plotly.react(el, fig.data || [], fig.layout || {}, Object.assign({responsive: true}, p.config));

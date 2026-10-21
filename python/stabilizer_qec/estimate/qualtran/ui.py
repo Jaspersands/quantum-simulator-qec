@@ -9,9 +9,12 @@ and rotation models.
 `make_app()` builds Qualtran's Dash app where dash is installed: its title, its layout (Qualtran's
 builders, `input_components` and the rest: 92 components) and its one callback (`update`'s nine
 outputs from eight inputs). ``ui.app`` is such an app, made when first used (Qualtran makes its own
-at import; importing this module imports neither dash nor plotly). `serve()` runs the app; without
-dash it serves a page of its own from the standard library's HTTP server, which draws the same
-layout with plotly.js and calls `update`.
+at import; importing this module imports neither dash nor plotly). Without dash, ``ui.app`` raises
+the ImportError `make_app` raises, so ``hasattr(ui, "app")`` and ``getattr(ui, "app", None)`` raise
+it too rather than giving False or None; ``importlib.util.find_spec("dash")`` says whether dash is
+installed. `serve()` runs the app, as ``python -m stabilizer_qec.estimate.qualtran.ui`` does (Qualtran's
+``python -m qualtran.surface_code.ui``); without dash it serves a page of its own from the standard
+library's HTTP server, which draws the same layout with plotly.js and calls `update`.
 
 A figure comes back as a `Figure`: plotly's figure dict (``{"data": [...], "layout": {...}}``) with
 the traces and layout ``plotly.express`` gives Qualtran's, less plotly's default template;
@@ -32,6 +35,9 @@ import importlib.util
 import json
 import math
 import pathlib
+import pkgutil
+import re
+import sys
 import traceback
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -486,9 +492,12 @@ def make_app():
     when first used, and ``make_app().run()`` serves one."""
     try:
         import dash
+        from dash.exceptions import PreventUpdate as DashPreventUpdate
     except ImportError as ex:
-        raise ImportError("make_app needs dash: pip install dash (serve() runs the app without it)") from ex
-    from dash.exceptions import PreventUpdate as DashPreventUpdate
+        if importlib.util.find_spec("dash") is None:
+            raise ImportError("make_app needs dash: pip install dash (serve() runs the app without it)") from ex
+        # dash is installed but its import fails (a Flask or Werkzeug it does not work with, say): say why.
+        raise ImportError(f"make_app needs dash, which is installed but does not import ({type(ex).__name__}: {ex})") from ex
 
     @functools.wraps(update)
     def callback(*args):
@@ -518,16 +527,27 @@ def serve(host: str = "127.0.0.1", port: int = 8050, dash: Optional[bool] = None
 
     Where dash is installed (or with ``dash=True``) it is `make_app`'s app, run by Dash. Without dash (or with
     ``dash=False``) the standard library's HTTP server sends a page that draws the same layout (Dash's component
-    JSON, at ``/layout.json``; the callback at ``/dependencies.json``) with plotly.js from cdn.plot.ly, and calls
-    `update` with a POST to ``/update`` of a JSON list of its eight arguments. The answer is its nine outputs as
-    JSON (a number that is not finite as null, as Dash's are), or 204 No Content where `update` raises
-    `PreventUpdate` (the page then keeps its outputs, as Dash's does). With ``port=0`` the system picks a free
-    port; the first line printed gives the address.
+    JSON, at ``/layout.json``; the callback at ``/dependencies.json``) with plotly.js, and calls `update` with a
+    POST to ``/update`` of a JSON list of its eight arguments. The answer is its nine outputs as JSON (a number
+    that is not finite as null, as Dash's are), or 204 No Content where `update` raises `PreventUpdate` (the page
+    then keeps its outputs, as Dash's does). plotly.js is the installed plotly package's copy, served at
+    ``/plotly.min.js`` as Dash serves it, or without plotly cdn.plot.ly's plotly.js 3.7.0, pinned by its hash.
+    With ``port=0`` the system picks a free port; the first line printed gives the address.
+
+    With ``dash=None``, where dash is installed but does not import, it serves the page and says why on stderr
+    in one line; ``dash=True`` raises `make_app`'s ImportError instead.
     """
-    if dash is None:
-        dash = importlib.util.find_spec("dash") is not None
-    if dash:
-        make_app().run(host=host, port=port)
+    app = None
+    if dash or dash is None:
+        try:
+            app = make_app()
+        except ImportError as ex:
+            if dash:
+                raise
+            if importlib.util.find_spec("dash") is not None:  # installed, but its import failed: say why
+                print(" ".join(f"{ex}; serve() runs the app on the standard library's page instead".split()), file=sys.stderr, flush=True)
+    if app is not None:
+        app.run(host=host, port=port)
         return
     server = _page_server(host, port)
     bound_host, bound_port = server.server_address[:2]
@@ -543,6 +563,20 @@ def serve(host: str = "127.0.0.1", port: int = 8050, dash: Optional[bool] = None
 
 _PAGE = pathlib.Path(__file__).parent / "_ui_static" / "ui.html"
 _MAX_BODY = 1 << 20  # the largest body `serve`'s page server reads from a POST
+# The page's plotly.js tag (cdn.plot.ly's), and the tag that loads the installed plotly's copy in its place.
+_PLOTLY_TAG = re.compile(rb'<script id="plotly-js" [^>]*></script>')
+_PLOTLY_LOCAL_TAG = b'<script id="plotly-js" src="plotly.min.js" charset="utf-8"></script>'
+# A Content-Length as Werkzeug (Dash's server) reads one: ASCII digits, perhaps a minus sign, no "+" or "_".
+_CONTENT_LENGTH = re.compile(r"-?[0-9]+", re.ASCII)
+
+
+def _plotly_js() -> Optional[bytes]:
+    """plotly.js as the installed plotly package carries it (``plotly/package_data/plotly.min.js``, which Dash
+    serves by default), or None where plotly is not installed or does not import."""
+    try:
+        return pkgutil.get_data("plotly", "package_data/plotly.min.js")
+    except (ImportError, OSError):
+        return None
 
 
 def _strict_json(x):
@@ -567,11 +601,16 @@ def _page_server(host: str, port: int):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from urllib.parse import urlsplit
 
+    page = _PAGE.read_bytes()
     gets = {
-        "/": (_PAGE.read_bytes(), "text/html; charset=utf-8"),
         "/layout.json": (json.dumps(_layout(), default=lambda c: c.to_plotly_json(), sort_keys=True).encode(), "application/json"),
         "/dependencies.json": (json.dumps(_dependencies(), sort_keys=True).encode(), "application/json"),
     }
+    plotly_js = _plotly_js()
+    if plotly_js is not None:  # the installed plotly's plotly.js, as Dash serves it, in place of cdn.plot.ly's
+        page = _PLOTLY_TAG.sub(_PLOTLY_LOCAL_TAG, page, count=1)
+        gets["/plotly.min.js"] = (plotly_js, "text/javascript; charset=utf-8")
+    gets["/"] = (page, "text/html; charset=utf-8")
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, status: int, body: bytes = b"", content_type: Optional[str] = None, allow: Optional[str] = None) -> None:
@@ -606,11 +645,15 @@ def _page_server(host: str, port: int):
                 else:
                     self._refuse(404)
                 return
-            try:
-                length = int(self.headers.get("Content-Length", ""))
-            except ValueError:
+            value = self.headers.get("Content-Length")
+            if value is None:
                 self._refuse(411)
                 return
+            value = value.strip(" \t")
+            if not _CONTENT_LENGTH.fullmatch(value):
+                self._refuse(400, "the Content-Length is not a number")
+                return
+            length = int(value)
             if length < 0:
                 self._refuse(400, "the Content-Length is negative")
                 return
@@ -626,7 +669,8 @@ def _page_server(host: str, port: int):
                 self._refuse(400, "the body is not a JSON list of update's eight arguments")
                 return
             try:
-                out = update(*args)
+                # encoded here too, so an output JSON cannot write gives a 500, not a dropped connection
+                body = json.dumps(_strict_json(update(*args)), allow_nan=False).encode()
             except PreventUpdate:
                 self._send(204)
                 return
@@ -634,9 +678,13 @@ def _page_server(host: str, port: int):
                 self.log_error("Exception on /update [POST]\n%s", traceback.format_exc())
                 self._refuse(500)
                 return
-            self._send(200, json.dumps(_strict_json(out), allow_nan=False).encode(), "application/json")
+            self._send(200, body, "application/json")
 
     class Server(ThreadingHTTPServer):
         address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
 
     return Server((host, port), Handler)
+
+
+if __name__ == "__main__":  # python -m stabilizer_qec.estimate.qualtran.ui, as Qualtran's module runs its app
+    serve()
