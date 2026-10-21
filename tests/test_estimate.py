@@ -527,8 +527,10 @@ def test_azure_against_qdk_live(counts, params):
     assert json.dumps(ours) == json.dumps(theirs)  # the whole result: the job parameters, the formatted counts, the report
 
 
-QDK_REPORTS = json.loads(gzip.decompress((pathlib.Path(__file__).parent / "estimate_port" / "qdk_reports.json.gz").read_bytes()))
 RECORDED = {"qdk_estimates": QDK_CASES, "qdk_review2": QDK_REVIEW2}
+# The QDK's results of both fixtures (its renderings and widget charts, also in the file, are
+# tests/estimate_port/test_qdk_report.py's).
+QDK_REPORTS = {name: cases for name, cases in json.loads(gzip.decompress((pathlib.Path(__file__).parent / "estimate_port" / "qdk_reports.json.gz").read_bytes())).items() if name in RECORDED}
 
 
 @pytest.mark.parametrize("fixture,key", [(f, k) for f in sorted(QDK_REPORTS) for k in sorted(QDK_REPORTS[f])])
@@ -644,13 +646,15 @@ def test_azure_estimator_result_against_qdk_live():
     single = {"qubitParams": {"name": "qubit_gate_ns_e4"}, "estimateType": "frontier"}
     assert QdkLogicalCounts(counts).estimate(single).json == LogicalCounts.fromdict(counts).estimate(single).json
     assert QdkLogicalCounts(counts).estimate(single)["logicalQubit"] == LogicalCounts.fromdict(counts).estimate(single)["logicalQubit"]
-    params = EstimatorParams(num_items=2)
+    with pytest.warns(DeprecationWarning, match="This version of QRE is deprecated"):
+        params = EstimatorParams(num_items=2)
     params.items[0].qubit_params.name = "qubit_gate_ns_e4"
     params.items[1].qubit_params.name = "qubit_maj_ns_e6"
     params.items[1].qec_scheme.name = "floquet_code"
     a, b = QdkLogicalCounts(counts).estimate(params), LogicalCounts.fromdict(counts).estimate(params)
     assert a.json == b.json
-    params = EstimatorParams()
+    with pytest.warns(DeprecationWarning, match="This version of QRE is deprecated"):
+        params = EstimatorParams()
     params.error_budget = 0.01
     params.constraints.max_t_factories = 3
     assert QdkLogicalCounts(counts).estimate(params).json == LogicalCounts.fromdict(counts).estimate(params).json
@@ -708,7 +712,7 @@ def test_azure_errors_against_qdk_live(index):
 
 
 def test_azure_errors():
-    """`EstimatorError` is a ValueError with the QDK's code and message (and pickles); a single estimate that fails
+    """`EstimatorError` is the QDK's, a BaseException (not an Exception), with its code and message (and pickles); a single estimate that fails
     raises it, a batch keeps it per item; the building blocks raise the QDK's errors too, a dict they cannot read
     with serde's reason alone (a position means something only in the whole call's JSON text)."""
     import pickle
@@ -717,7 +721,7 @@ def test_azure_errors():
     with pytest.raises(az.EstimatorError) as e:
         azure_estimate(counts, error_budget=1.5)
     err = e.value
-    assert isinstance(err, ValueError) and err.code == "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget" and err.reason == "The error budget must be between 0.0 and 1.0, provided input was `1.5`"
+    assert isinstance(err, BaseException) and not isinstance(err, Exception) and err.code == "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget" and err.reason == "The error budget must be between 0.0 and 1.0, provided input was `1.5`"
     assert str(err) == err.message == "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1.5`"
     again = pickle.loads(pickle.dumps(err))
     assert (type(again), again.code, str(again)) == (az.EstimatorError, err.code, str(err))
@@ -816,9 +820,9 @@ def test_azure_powi_matches_the_qdk_last_bit():
 def test_azure_expressions_and_times():
     assert az.evaluate_expression("2 * codeDistance ^ 2 + 1", {"codeDistance": 3}) == 19.0
     assert az.evaluate_expression("(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance", {"twoQubitGateTime": 50, "oneQubitMeasurementTime": 100, "codeDistance": 5}) == 2000.0
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         az.evaluate_expression("2 * d", {"codeDistance": 3})
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         az.evaluate_expression("__import__('os').getcwd()", {})
     assert az.parse_time("1 µs") == 1000 and az.parse_time("2.5 ms") == 2_500_000 and az.parse_time("1 s") == 10**9 and az.parse_time(100) == 100 and az.parse_time("50ns") == 50
     with pytest.raises(ValueError):
@@ -844,15 +848,15 @@ def test_azure_scheme_validation():
     gate, maj = physical_qubit("qubit_gate_ns_e3"), physical_qubit("qubit_maj_ns_e6")
     assert qec_scheme("surface_code", gate).error_correction_threshold == 0.01 and qec_scheme("surface_code", maj).error_correction_threshold == 0.0015
     assert qec_scheme("floquet_code", maj).physical_qubits(5) == 132 and qec_scheme("floquet_code", maj).cycle_time(maj, 5) == 1500
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         qec_scheme("floquet_code", gate)
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         qec_scheme({"name": "surface_code", "crossingPrefactor": 0.6}, gate)
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         qec_scheme({"name": "surface_code", "errorCorrectionThreshold": 1e-3}, gate)
     scheme = qec_scheme("surface_code", gate)
     assert scheme.logical_error_rate(gate, 19) == 3.000000000000003e-12 and scheme.compute_code_distance(gate, 1.5527950310559005e-11) == 19
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         scheme.compute_code_distance(gate, 1e-40)
 
 
@@ -863,7 +867,7 @@ def test_azure_error_budget_partition():
     assert ErrorBudget.partition(0.3, LogicalCounts(num_qubits=10, measurement_count=5)) == ErrorBudget(0.3, 0.0, 0.0)
     assert ErrorBudget.partition({"logical": 0.1, "tStates": 0.05, "rotations": 0.0}, small) == ErrorBudget(0.1, 0.05, 0.0)
     for bad in (0.0, 1.0, {"logical": 0.1, "tStates": 0.0, "rotations": 0.0}):
-        with pytest.raises(ValueError):
+        with pytest.raises(az.EstimatorError):
             ErrorBudget.partition(bad, small)
 
 
@@ -885,17 +889,17 @@ def test_azure_factory_frontier():
 
 def test_azure_constraints():
     counts = LogicalCounts(num_qubits=100, t_count=100_000, ccz_count=10_000, measurement_count=10_000)
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         azure_estimate(counts, constraints={"maxDuration": "3 s", "maxPhysicalQubits": 10**6})
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         azure_estimate(counts, constraints={"logicalDepthFactor": 0.5})
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         azure_estimate(counts, constraints={"maxPhysicalQubits": 1000})
     assert Constraints.fromspec({"maxDuration": "2 ms"}).max_duration == 2_000_000 and Constraints.fromspec(None).max_distillation_rounds == 3
     r = azure_estimate(counts, constraints={"maxTFactories": 3})
     assert r["physicalCounts"]["breakdown"]["numTfactories"] <= 3 and r["jobParams"]["constraints"]["maxTFactories"] == 3
     assert azure_estimate(LogicalCounts(num_qubits=50, measurement_count=1000))["physicalCounts"]["breakdown"]["numTstates"] == 0
-    with pytest.raises(ValueError):
+    with pytest.raises(az.EstimatorError):
         azure_estimate(LogicalCounts(num_qubits=50))
 
 
@@ -928,19 +932,19 @@ def test_azure_formulas_read_as_fasteval_reads_them():
     assert ev("1 < 2", {}) == ev("1 == 1", {}) == ev("1 <= 2", {}) == ev("1 != 2", {}) == ev("2 >= 2", {}) == 1.0 and ev("2 > 1 and 3 > 2", {}) == 1.0 and ev("1 || 0", {}) == 1.0 and ev("2 && 0", {}) == 0.0 and ev("!0", {}) == 1.0 and ev("1 and 2", {}) == 2.0 and ev("1 or 2", {}) == 1.0 and ev("0 or codeDistance", d) == 3.0
     # Refused: Python's own spellings, unknown names, the wrong number of arguments, and fasteval's limits.
     for bad in ("2 ** 3", "1_000 * z", "0x10 + 1", "abs", "sqrt(4)", "pi", "nan", "min()", "pi(1)", "log(1, 2, 3)", "1 // 2", "~1", "2 if 1 else 3", "(1, 2)", "not 1", "2 3", "2(3)", "", "()", "1 +", "1e", "1 + 2 # x", "−2", "print(1)", 100):
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, az.EstimatorError)):
             ev(bad, {"z": 1.0})
     with pytest.raises(az.EstimatorError, match=r"""cannot evaluate expression: 'Undefined\("d"\)'""") as e:
         ev("2 * d", d)
     assert e.value.code == "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression"
-    with pytest.raises(ValueError, match="TooLong"):
+    with pytest.raises(az.EstimatorError, match="TooLong"):
         ev("1" + "+1" * 3000, {})
     assert ev("1" + "+1" * 2000, {}) == 2001.0 and ev("z" + "+z" * 1000, {"z": 1.0}) == 1001.0 and ev("z" + "^z" * 1000, {"z": 1.0}) == 1.0  # long chains need no deep recursion
     for too_deep in ("(" * 33 + "1" + ")" * 33, "-" * 34 + "2"):
-        with pytest.raises(ValueError, match="TooDeep"):
+        with pytest.raises(az.EstimatorError, match="TooDeep"):
             ev(too_deep, {})
     assert ev("(" * 32 + "1" + ")" * 32, {}) == 1.0 and ev("-" * 33 + "2", {}) == -2.0
-    with pytest.raises(ValueError, match="SlabOverflow"):
+    with pytest.raises(az.EstimatorError, match="SlabOverflow"):
         ev("(1)+" * 64 + "1", {})
     assert ev("(1)+" * 63 + "1", {}) == 64.0
     # The scheme formula the review used: the QDK's patch of 27 qubits, not 19.
@@ -977,7 +981,7 @@ def test_azure_unit_spec_with_a_name_is_the_named_unit():
     named = DistillationUnitTemplate.fromspec({**custom, "name": "15-1 RM"})
     assert named.name == DistillationUnitTemplate.from_name("15-1 RM").name
     assert DistillationUnitTemplate.fromspec({"name": "15-1 RM", "foo": 1}).name == named.name
-    with pytest.raises(ValueError, match="Invalid distillation unit"):
+    with pytest.raises(az.EstimatorError, match="Invalid distillation unit"):
         DistillationUnitTemplate.fromspec({**custom, "name": "my-unit"})
 
 
@@ -1039,7 +1043,7 @@ def test_azure_rejects_what_the_qdk_rejects_second_review():
     # Schemes: numbers are not booleans or strings, formulas are strings, null is absent, and the formulas are
     # checked at every distance from 3 to the maximum, even ones included.
     for bad in ({"errorCorrectionThreshold": True}, {"crossingPrefactor": "0.03"}, {"logicalCycleTime": 100}, {"physicalQubitsPerLogicalQubit": None, "name": 5}, {"maxCodeDistance": None}, {"physicalQubitsPerLogicalQubit": "codeDistance % 2 * 100"}, {"logicalCycleTime": "codeDistance % 2 * 100"}):
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, az.EstimatorError)):
             qec_scheme({"name": "surface_code", **bad}, gate)
     scheme = qec_scheme({"name": "surface_code", "crossingPrefactor": None, "errorCorrectionThreshold": None, "distanceCoefficientPower": None, "physicalQubitsPerLogicalQubit": "(codeDistance % 2) * 100 + 1"}, gate)
     assert (scheme.crossing_prefactor, scheme.error_correction_threshold, scheme.distance_coefficient_power) == (0.03, 0.01, 0) and scheme.physical_qubits(4) == 1
@@ -1058,7 +1062,7 @@ def test_azure_rejects_what_the_qdk_rejects_second_review():
     # Distillation units: positive u64 counts, a string name, every field present, a formula that parses.
     custom = {"displayName": "custom 15-1", "numInputTs": 15, "numOutputTs": 1, "failureProbabilityFormula": "15 * z + 356 * c", "outputErrorRateFormula": "35 * z^3 + 7.1 * c", "physicalQubitSpecification": {"numUnitQubits": 31, "durationInQubitCycleTime": 24}}
     for bad in ({"numInputTs": -1}, {"numInputTs": 1.5}, {"numInputTs": 15.0}, {"numInputTs": "15"}, {"numInputTs": True}, {"numInputTs": 2**64}, {"numOutputTs": 2.0}, {"numOutputTs": "1"}, {"numOutputTs": None}, {"displayName": 5}, {"displayName": None}, {"failureProbabilityFormula": None}, {"failureProbabilityFormula": "15 * z ** 1"}, {"physicalQubitSpecification": {"numUnitQubits": 31, "durationInQubitCycleTime": 1.5}}, {"physicalQubitSpecification": {"numUnitQubits": 31}}):
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, az.EstimatorError)):
             DistillationUnitTemplate.fromspec({**custom, **bad})
     assert DistillationUnitTemplate.fromspec({**custom, "name": 5}).name == "custom 15-1" and DistillationUnitTemplate.fromspec({**custom, "physicalQubitSpecification": {"numUnitQubits": 31, "durationInQubitCycleTime": 0, "foo": 1}}).physical_qubit_specification == (31, 0)
     with pytest.raises(ValueError):

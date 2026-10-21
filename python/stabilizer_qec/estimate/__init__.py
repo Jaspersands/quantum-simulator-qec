@@ -2,8 +2,8 @@
 surface-code cost models (`quantumlib/Qualtran <https://github.com/quantumlib/Qualtran>`_ 0.7.0,
 ``qualtran.surface_code``; Apache 2.0, see ``LICENSE`` in this directory) and Azure's Resource
 Estimator (`microsoft/qdk <https://github.com/microsoft/qdk>`_'s ``resource_estimator``: the
-physical estimate from logical counts with its exhaustive T-factory search, and its report; MIT, see
-``LICENSE-qdk``).
+physical estimate from logical counts with its exhaustive T-factory search; with the qdk package's parameter
+classes and its report, the HTML, diagrams and plot, and its notebook widgets' charts; MIT, see ``LICENSE-qdk``).
 
 >>> from stabilizer_qec.estimate import GateCounts, get_ccz2t_costs_from_error_budget
 >>> cost = get_ccz2t_costs_from_error_budget(n_logical_gates=GateCounts(t=10**8, toffoli=10**8), n_algo_qubits=100)
@@ -20,18 +20,28 @@ from .azure import (
     AzureEstimator,
     Constraints,
     DistillationUnit,
+    DistillationUnitSpecification,
     DistillationUnitTemplate,
     ErrorBudget,
+    ErrorBudgetPartition,
     EstimationResult,
+    EstimatorConstraints,
     EstimatorError,
+    EstimatorInputParamsItem,
+    EstimatorParams,
+    EstimatorQecScheme,
+    EstimatorQubitParams,
     EstimatorResult,
     FactoryBuildError,
     GateBasedQubit,
     LogicalCounts,
     LogicalPatch,
     MajoranaQubit,
+    MeasurementErrorRate,
+    ProtocolSpecificDistillationUnitSpecification,
     QECScheme as AzureQECScheme,
     QSharpError,
+    QubitParams,
     TFactory,
     azure_estimate,
     azure_estimator,
