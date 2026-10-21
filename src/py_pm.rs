@@ -24,6 +24,9 @@ const DECODE_THREAD_STACK: usize = 64 << 20;
 struct Engine {
     decoder: UserDecoder,
     mwpm: Mwpm,
+    /// Whether PyMatching's mwpm would carry its search graph: built by
+    /// `get_mwpm_with_search_graph`, or over 64 fault ids (`to_mwpm`).
+    search: bool,
 }
 
 #[pyclass(name = "UserGraph", module = "stabilizer_qec._core")]
@@ -37,16 +40,26 @@ impl PyUserGraph {
         *self.engine.get_mut().expect("not poisoned") = None;
     }
 
-    /// Runs `f` on the kept decoder (built first if the graph changed), without the GIL.
-    fn with_engine<R: Send>(&self, py: Python<'_>, f: impl FnOnce(&mut Engine) -> Result<R, String> + Send) -> PyResult<R> {
+    /// Runs `f` on the kept decoder, without the GIL: PyMatching's `get_mwpm`, or with `search`
+    /// its `get_mwpm_with_search_graph`. The first builds only after a change to the graph; the
+    /// second also rebuilds an mwpm built without the search graph (unless the graph has no
+    /// nodes, where both graphs have 0). A rebuild sees the fault-id count as it is now, which a
+    /// kept mwpm does not after `ensure_num_fault_ids`. A failed build keeps the old one, as
+    /// PyMatching's `_mwpm = to_mwpm(...)` does when `to_mwpm` throws.
+    fn with_engine<R: Send>(&self, py: Python<'_>, search: bool, f: impl FnOnce(&mut Engine) -> Result<R, String> + Send) -> PyResult<R> {
         let g = &self.g;
         let engine = &self.engine;
         py.detach(|| {
             let mut slot = engine.lock().map_err(|_| "the decoder's lock was poisoned".to_string())?;
-            if slot.is_none() {
+            let rebuild = match slot.as_ref() {
+                None => true,
+                Some(e) => search && !e.search && e.decoder.num_nodes() != 0,
+            };
+            if rebuild {
                 let decoder = g.decoder()?;
                 let mwpm = decoder.mwpm();
-                *slot = Some(Engine { decoder, mwpm });
+                let search = search || decoder.num_fault_ids() > 64;
+                *slot = Some(Engine { decoder, mwpm, search });
             }
             f(slot.as_mut().expect("just built"))
         })
@@ -95,9 +108,13 @@ impl PyUserGraph {
         self.changed();
     }
 
+    /// PyMatching's `set_min_num_observables`, which does not set `_mwpm_needs_updating`: a kept
+    /// decoder stays as built, so its answers fill only the fault ids it was built with (on
+    /// ties, from its own path: by mask up to 64, by the search graph above), until a change to
+    /// the graph or a `get_mwpm_with_search_graph` rebuilds it. Outputs are as long as the count
+    /// is now.
     fn ensure_num_fault_ids(&mut self, n: usize) {
         self.g.ensure_num_fault_ids(n);
-        self.changed();
     }
 
     fn boundary(&self) -> Vec<usize> {
@@ -157,8 +174,21 @@ impl PyUserGraph {
     /// One shot (detection events as node indices): (flipped fault ids as one byte each,
     /// weight).
     fn decode<'py>(&self, py: Python<'py>, events: Vec<u64>) -> PyResult<(Bound<'py, PyBytes>, f64)> {
-        let (bytes, weight) = self.with_engine(py, |e| e.mwpm.try_decode(&events))?;
+        // As long as the graph's count now (`get_num_observables`); the kept decoder fills its own.
+        let nf = self.g.num_fault_ids();
+        let (bytes, weight) = self.with_engine(py, false, |e| {
+            let mut obs = vec![0u8; nf];
+            let w = e.mwpm.decode_into(&events, &mut obs)?;
+            Ok((obs, w as f64 / e.decoder.graph().normalising_constant))
+        })?;
         Ok((PyBytes::new(py, &bytes), weight))
+    }
+
+    /// PyMatching's `get_mwpm_with_search_graph`, which its correlated calls make before they
+    /// decode (here the correlated matcher decodes them): a kept decoder built without the
+    /// search graph is rebuilt, with the fault-id count as it is now.
+    fn mwpm_with_search_graph(&self, py: Python<'_>) -> PyResult<()> {
+        self.with_engine(py, true, |_| Ok(()))
     }
 
     /// Shots as bit-packed rows of `row_bytes` bytes, bit k a detection event on node k:
@@ -169,8 +199,9 @@ impl PyUserGraph {
         if packed.len() != shots * row_bytes {
             return Err(err(format!("{} bytes of shots, not {shots} rows of {row_bytes}", packed.len())));
         }
-        let (preds, weights) = self.with_engine(py, |e| {
-            let nf = e.decoder.num_fault_ids();
+        // Rows as long as the graph's count now; the kept decoder fills its own (see `decode`).
+        let nf = self.g.num_fault_ids();
+        let (preds, weights) = self.with_engine(py, false, |e| {
             let out_bytes = nf.div_ceil(8);
             // At least a byte a shot, so a graph with no fault ids still decodes every shot.
             let stride = out_bytes.max(1);
@@ -211,6 +242,16 @@ impl PyUserGraph {
                                         }
                                     }
                                     let o = &mut pout[i * stride..i * stride + out_bytes];
+                                    // A padding bit past `num_nodes` is refused before any region is
+                                    // made (`Mwpm::begin`), so the next decode works. Deliberately not
+                                    // PyMatching's: it makes a region at each of the shot's earlier
+                                    // detection events, then throws. When the shot has earlier
+                                    // (non-boundary) detection events, every later decode on that mwpm
+                                    // raises "!mwpm.flooder.queue.empty()" until a rebuild; with none,
+                                    // its next decode works, as ours. (An event at a node a negative
+                                    // edge marked only unmarks it, making no region; a region at a node
+                                    // with no edges queues nothing, so only its next decode fails, with
+                                    // "No perfect matching ...", and resets it.)
                                     *w = decoder.decode_packed_with(mwpm, &events, o).map_err(|e| format!("shot {shot}: {e}"))?;
                                 }
                                 Ok(())
@@ -234,12 +275,12 @@ impl PyUserGraph {
 
     /// The correction's edges, as node pairs (-1: the boundary), in PyMatching's order.
     fn decode_to_edges(&self, py: Python<'_>, events: Vec<u64>) -> PyResult<Vec<(i64, i64)>> {
-        self.with_engine(py, |e| e.mwpm.try_decode_to_edges(&events))
+        self.with_engine(py, true, |e| e.mwpm.try_decode_to_edges(&events))
     }
 
     /// The matched pairs of detection events (-1: the boundary), in PyMatching's order.
     fn decode_to_matched_pairs(&self, py: Python<'_>, events: Vec<u64>) -> PyResult<Vec<(i64, i64)>> {
-        self.with_engine(py, |e| e.mwpm.try_decode_to_match_edges(&events))
+        self.with_engine(py, false, |e| e.mwpm.try_decode_to_match_edges(&events))
     }
 }
 

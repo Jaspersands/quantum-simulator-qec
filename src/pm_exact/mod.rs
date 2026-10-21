@@ -40,8 +40,19 @@
 //! `step` returns `None` once the queue is dry and nothing is pending. Start with `begin(dets)`
 //! (the decoder's set-up) or `begin_animation(dets)` (the animation's: a region at every
 //! listed node, nothing else), stop when `all_frozen(dets)` (the animation's `check_if_done`) or
-//! at `None`, then `finish()` and `extract_match_edges(dets)` for the decoder's answer. The state
-//! to draw at any step, all read-only:
+//! at `None`, then `finish()` and `extract_match_edges(dets)` for the decoder's answer.
+//!
+//! PyMatching's animation does not stop at a dry queue. Its `dequeue` then returns a
+//! `NO_FLOOD_CHECK_EVENT` with the clock unchanged (`radix_heap_queue.h:124-125`),
+//! `dequeue_decision` accepts it, and `process_tentative_event_returning_mwpm_event` reaches its
+//! default case and throws "Unknown tentative event type." (`mwpm_diagram.cc:477-499`,
+//! `graph_flooder.cc:254-267, 353-363`). So `None` before `all_frozen` (a detection event that
+//! can reach neither a partner nor the boundary) is where `pymatching animate` prints that
+//! message to stderr and stops: the frames before it are written, the end frames are not, and
+//! `pymatching.cli` returns 1 (its `pymatching` console script drops that and exits 0). An
+//! animation that copies PyMatching's fails there with that message, or says why it differs.
+//!
+//! The state to draw at any step, all read-only:
 //!
 //! - the graph: `graph()` (`neighbors`, `neighbor_weights`, `NONE` for the boundary, first);
 //! - each node: `node(n)` (`region_that_arrived`, `region_that_arrived_top`,
