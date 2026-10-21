@@ -2262,7 +2262,7 @@ def _contraction_warning(s: Any, order: int, entries: int) -> Union[str, None]:
     needed = s.contraction_entries_needed
     return (
         f"the circuit's {k} interference generators contract past max_contraction={entries} table entries (their tables "
-        f"would hold {needed} or more): {truncated}; raise max_contraction to {needed} or more to sum the whole class"
+        f"would hold {needed} or more): {truncated}; a max_contraction below {needed} cannot sum the whole class, and {needed} or more may"
     )
 
 

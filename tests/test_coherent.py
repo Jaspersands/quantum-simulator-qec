@@ -442,7 +442,7 @@ def test_a_contraction_refused_by_a_bug_says_so():
         assert outcome in message and "please report this circuit at https://" in message and "max_contraction" not in message
     truncated = "each shot sums the products of up to order=3 generators its faults touch, not its whole class, so the weights are truncated (exact_weights is False)"
     budget = _contraction_warning(core(None, False, "budget", 4700), 3, 4096)
-    assert budget == f"the circuit's 14 interference generators contract past max_contraction=4096 table entries (their tables would hold 4700 or more): {truncated}; raise max_contraction to 4700 or more to sum the whole class"
+    assert budget == f"the circuit's 14 interference generators contract past max_contraction=4096 table entries (their tables would hold 4700 or more): {truncated}; a max_contraction below 4700 cannot sum the whole class, and 4700 or more may"
     # Past every budget, or with the contraction off, no advice to raise it.
     width = _contraction_warning(core(None, False, "width"), 3, 2**31)
     assert width == f"the circuit's 14 interference generators interact too widely to contract at any max_contraction: their tables would hold more than 2^31 = 2147483648 entries in all, the most a budget allows; {truncated}"
@@ -482,7 +482,7 @@ def test_the_budget_warning_says_what_budget_contracts():
         assert s._s.contraction_refusal == "budget" and needed > budget, (budget, needed)
         assert [str(w.message) for w in caught] == [
             f"the circuit's 14 interference generators contract past max_contraction={budget} table entries (their tables would hold "
-            f"{needed} or more): {truncated}; raise max_contraction to {needed} or more to sum the whole class"
+            f"{needed} or more): {truncated}; a max_contraction below {needed} cannot sum the whole class, and {needed} or more may"
         ]
         budget, raises = needed, raises + 1
     assert 1 <= raises <= 2 and s.contraction_width == 3
