@@ -320,10 +320,12 @@ def _joined(children: list) -> list:
 #   (With correctly rounded sin, cos and log, from mpmath in place of the C library's: 6 coordinates, by up to 2.)
 # - Elsewhere, not measured: Linux (glibc), Windows (UCRT) and macOS on Intel, whose sin, cos and log are their own,
 #   not fdlibm's. ULPS ulps of the computation's operands (`_space_unit`, `_scatter_unit`), and never fewer than
-#   ULPS of the number itself. That holds while the C library's sin, cos and log are within three ulps of
-#   fdlibm's. With macOS's moved by up to one, two, three and four ulps (as `_LibmOff` moves them, seeds 0-39), a
-#   donut's numbers moved by at most 1, 2, 2 and 3 of those units and a scatter chart's by 1.14, 2.09, 3.04 and
-#   4.05. Two faithfully rounded results, fdlibm's and another, are at most an ulp apart.
+#   ULPS of the number itself. That holds while the C library's sin, cos and log are within three ulps of this
+#   macOS's, as measured: with macOS's moved by up to one, two, three and four ulps (as `_LibmOff` moves them, seeds
+#   0-39), a donut's numbers moved by at most 1, 2, 2 and 3 of those units and a scatter chart's by 1.14, 2.09, 3.04
+#   and 4.05, the last past ULPS. macOS's are not fdlibm's (they move the 16 coordinates above), but are within an
+#   ulp of them, as any two faithfully rounded results are; so it holds while a C library's are within two ulps of
+#   fdlibm's.
 ULPS = 4
 ULPS_OF_ITSELF = sys.platform == "darwin" and platform.machine() == "arm64"
 # The widget's plot area, inside its 960 by 480 chart: 960 − 126 − 160 wide and 480 − 42 high (scatterChart.tsx).
