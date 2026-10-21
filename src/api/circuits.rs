@@ -1123,6 +1123,15 @@ impl CoherentOptions {
         self.inner.hops = hops;
         self
     }
+
+    /// The most table entries, in all, of the contraction that sums each shot's whole class
+    /// (2^16 by default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more
+    /// than 32 variables at any budget). Past it, a kernel of more than twelve generators is
+    /// truncated. The joint sampler does not contract.
+    pub fn max_contraction(mut self, entries: usize) -> Self {
+        self.inner.max_contraction = entries;
+        self
+    }
 }
 
 /// Weighted shots of a circuit with coherent errors. Made by [`Circuit::coherent_sampler`].
@@ -1178,10 +1187,17 @@ impl CoherentSampler {
         self.inner.kernel.complete
     }
 
-    /// Whether every shot sums the whole kernel (complete, at most 12 generators besides the
-    /// groups of equivalent rotations): the weights are then exact, not truncated.
+    /// Whether every shot sums the whole kernel (complete, and its class sums contracted within
+    /// [`CoherentOptions::max_contraction`] or at most 12 generators besides the groups of
+    /// equivalent rotations): the weights are then exact, not truncated.
     pub fn exact_weights(&self) -> bool {
         self.inner.kernel.is_whole()
+    }
+
+    /// With the class sums contracted, the most generators a contraction table holds besides
+    /// the one it sums out: a shot's work is about 2^(width + 1) per generator.
+    pub fn contraction_width(&self) -> Option<usize> {
+        self.inner.kernel.contraction_width()
     }
 
     /// `shots` more weighted shots, each from its own stream; `threads = 0` uses every core and

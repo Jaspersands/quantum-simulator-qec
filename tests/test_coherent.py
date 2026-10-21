@@ -3,6 +3,15 @@ the coherent circuit's. Checked against the exact distribution of the state vect
 
 from __future__ import annotations
 
+import importlib.util
+import json
+import pathlib
+import shutil
+import subprocess
+import sys
+import types
+import warnings
+
 import numpy as np
 import pytest
 
@@ -280,6 +289,11 @@ def silent_exact(c: sq.Circuit, rounds: int, theta: float) -> tuple[float, float
     return float(p[~flipped].sum()), float(p[flipped].sum())
 
 
+# Enough shots for a standard error of 0.0001 on the d = 3, three-round silent logical rate
+# (0.000092 or so at 2,000,000; about 0.000082 here).
+SILENT_SHOTS = 2_500_000
+
+
 def silent_rates(c: sq.Circuit, shots: int, seed: int = 9):
     """The coherent sampler's P(no detection event, kept) and P(no detection event, flipped),
     with their standard errors, and the sampler."""
@@ -338,21 +352,151 @@ def test_surface_code_memory_with_one_rotation_per_round():
     assert abs(flipped - exact_flipped) < 5 * se_flipped, (flipped, exact_flipped, se_flipped)
 
 
-def test_surface_code_memory_past_the_whole_sum_is_truncated():
-    """Three rounds: fourteen generators, past the whole sum. The truncated sum takes the
-    logical at other times for the faults that reach it, and its estimate of a silent logical
-    error moves from 2.0's 0.00100 ± 0.00007 (below even the twirl's 0.00123) towards the
-    exact 0.00258, to 0.00161 ± 0.00013: part of the interference between rounds is still left
-    out (README, Limits). What is not a logical error stays exact within its error."""
+def test_surface_d3_r3_silent_rate_is_exact():
+    """Three rounds: fourteen generators, past the twelve 2.1 summed whole (its truncation read
+    a silent logical error at 0.00161 ± 0.00013, 2.0's at 0.00100 ± 0.00007, the twirl's at
+    0.00123). The class sums are contracted, three generators at a time besides the one summed
+    out, and every shot sums its whole class: the rate is the exact 0.00258."""
     theta = 0.25
     c = surface_memory(3, theta)
     exact_kept, exact_flipped = silent_exact(c, 3, theta)
-    twirl_flipped = 0.001233  # the twirl's classical chain (ref_values in the 2.1 audit)
-    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, 300_000)
-    assert s.kernel_complete and not s.exact_weights and s.num_nonlocal_generators >= 2
+    assert exact_flipped == pytest.approx(0.00258, abs=5e-6)
+    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, SILENT_SHOTS)
+    assert s.kernel_complete and s.exact_weights and s.contraction_width == 3 and s.num_generators == 14
+    assert se_flipped <= 0.0001, se_flipped
     assert abs(kept - exact_kept) < 5 * se_kept, (kept, exact_kept, se_kept)
-    assert flipped > twirl_flipped + 2 * se_flipped, (flipped, twirl_flipped, se_flipped)
-    assert flipped < exact_flipped + 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+    assert abs(flipped - exact_flipped) < 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+
+
+def test_max_contraction_zero_keeps_truncation():
+    """With the contraction off, fourteen generators are truncated as in 2.1, and the sampler
+    says so; its weights are 2.1's (seed 9's first 20,000 shots, from the 2.1.0 wheel). A kernel
+    of twelve generators or fewer is still summed whole."""
+    c = surface_memory(3, 0.25)
+    with pytest.warns(UserWarning, match="max_contraction=0"):
+        s = c.compile_coherent_sampler(seed=9, max_contraction=0)
+    assert s.kernel_complete and not s.exact_weights and s.contraction_width is None
+    _, _, w = s.sample(20_000, threads=1)
+    assert w.sum() == pytest.approx(20213.884915594033, rel=1e-12)
+    assert np.allclose(w[:6], [1.0974372803964274, 2.255544504808714, 1.0509262125690255, 0.19754302237313576, 2.077504971231143, 2.4156493000859047], rtol=1e-12, atol=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        small = repetition_memory(3, 2, 0.3).compile_coherent_sampler(seed=1, max_contraction=0)
+    assert small.exact_weights and small.contraction_width is None
+
+
+def test_weights_independent_of_threads():
+    """The contraction's weights are a function of the shot alone: the same on any number of
+    threads, bit for bit."""
+    c = surface_memory(3, 0.25)
+    a = c.compile_coherent_sampler(seed=4).sample(20_000, threads=1)
+    b = c.compile_coherent_sampler(seed=4).sample(20_000, threads=4)
+    assert c.compile_coherent_sampler(seed=4).contraction_width == 3
+    for x, y in zip(a, b):
+        assert np.array_equal(x, y)
+    assert len(np.unique(a[2])) > 100
+
+
+def test_max_contraction_is_a_count_and_past_2_to_the_31_it_is_2_to_the_31():
+    """max_contraction is a non-negative integer (0 turns the contraction off). A budget past
+    2^31 table entries is 2^31, as the core takes it, and no table spans 32 generators or more at
+    any budget: forty rounds of the d = 3 memory, whose 39 non-local generators all hold the
+    first round's rotations, are refused however large the budget, and the warning, at the
+    default budget as past 2^31, says that no budget contracts them, never to raise
+    max_contraction."""
+    c = surface_memory(3, 0.25)
+    for bad, error in [(1.5, TypeError), (True, TypeError), ("65536", TypeError), (-1, ValueError)]:
+        with pytest.raises(error, match="max_contraction"):
+            c.compile_coherent_sampler(seed=1, max_contraction=bad)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        for huge in (2**31, 2**31 + 1, 2**64, 10**30, np.uint64(2**63)):
+            s = c.compile_coherent_sampler(seed=1, max_contraction=huge)
+            assert s.exact_weights and s.contraction_width == 3
+    for budget in (65536, 10**30):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            s = surface_memory(40, 0.25).compile_coherent_sampler(seed=1, max_contraction=budget)
+        assert [str(w.message) for w in caught] == [
+            f"the circuit's {s.num_generators} interference generators interact too widely to contract at any max_contraction: their "
+            "tables would hold more than 2^31 = 2147483648 entries in all, the most a budget allows; each shot sums the products of "
+            "up to order=3 generators its faults touch, not its whole class, so the weights are truncated (exact_weights is False)"
+        ]
+        assert s.kernel_complete and s.num_nonlocal_generators == 39 and s._s.contraction_refusal == "width"
+        assert not s.exact_weights and s.contraction_width is None and s._s.contraction_entries_needed is None
+
+
+def test_a_contraction_refused_by_a_bug_says_so():
+    """The core refuses a complete kernel's contraction for its budget, or for a bug (which cannot
+    happen: the products' phases are a quadratic form; debug builds panic). The warning tells them
+    apart: a bug is an internal error to report, never advice to raise max_contraction."""
+    from stabilizer_qec._circuit import _contraction_warning
+
+    def core(internal, exact, refusal=None, needed=None):
+        return types.SimpleNamespace(contraction_internal_error=internal, exact_weights=exact, num_generators=14, contraction_refusal="internal" if internal else refusal, contraction_entries_needed=needed)
+
+    why = "the products' phases are not a quadratic form (an odd cross term)"
+    for exact, outcome in [(False, "so the weights are truncated (exact_weights is False)"), (True, "the weights are still exact")]:
+        message = _contraction_warning(core(why, exact), 3, 65536)
+        assert message.startswith("internal error in stabilizer-qec: the class sums' contraction was refused (" + why)
+        assert outcome in message and "please report this circuit at https://" in message and "max_contraction" not in message
+    truncated = "each shot sums the products of up to order=3 generators its faults touch, not its whole class, so the weights are truncated (exact_weights is False)"
+    budget = _contraction_warning(core(None, False, "budget", 4700), 3, 4096)
+    assert budget == f"the circuit's 14 interference generators contract past max_contraction=4096 table entries (their tables would hold 4700 or more): {truncated}; a max_contraction below 4700 cannot sum the whole class, and 4700 or more may"
+    # Past every budget, or with the contraction off, no advice to raise it.
+    width = _contraction_warning(core(None, False, "width"), 3, 2**31)
+    assert width == f"the circuit's 14 interference generators interact too widely to contract at any max_contraction: their tables would hold more than 2^31 = 2147483648 entries in all, the most a budget allows; {truncated}"
+    off = _contraction_warning(core(None, False, "off"), 3, 0)
+    assert off == f"the contraction is off (max_contraction=0), so the circuit's 14 interference generators are not contracted: {truncated}"
+    for refusal in ("budget", "width", "off", None):
+        assert _contraction_warning(core(None, True, refusal, 4700 if refusal == "budget" else None), 3, 65536) is None
+    # The core's own refusals: the budget's is no internal error.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        s = surface_memory(3, 0.25).compile_coherent_sampler(seed=1, max_contraction=0)
+    assert [str(w.message) for w in caught] == [f"the contraction is off (max_contraction=0), so the circuit's 14 interference generators are not contracted: {truncated}"]
+    assert s._s.contraction_internal_error is None and s._s.contraction_refusal == "off" and s._s.contraction_entries_needed is None
+    s = surface_memory(3, 0.25).compile_coherent_sampler(seed=1)
+    assert s._s.contraction_internal_error is None and s._s.contraction_refusal is None and s._s.contraction_entries_needed is None
+
+
+def test_the_budget_warning_says_what_budget_contracts():
+    """Past the budget the warning says how many table entries the class sums need at least, and
+    a budget of that many contracts them, or (when the couplings widen the order the early
+    refusal saw) refuses once more with the plan's own: the same plan, and the same weights, as
+    the default budget's. Past every budget (2^31 entries) it says that no budget contracts
+    them and gives no advice to raise max_contraction: tutorial 05's d = 7 memory with a
+    rotation after every tick, at the default budget and at 2^31 (2.2's first warning there
+    told the user to raise it)."""
+    c = surface_memory(3, 0.25)
+    truncated = "each shot sums the products of up to order=3 generators its faults touch, not its whole class, so the weights are truncated (exact_weights is False)"
+    budget, raises = 40, 0
+    while True:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            s = c.compile_coherent_sampler(seed=1, max_contraction=budget)
+        if s.exact_weights:
+            assert caught == [] and s._s.contraction_refusal is None
+            break
+        needed = s._s.contraction_entries_needed
+        assert s._s.contraction_refusal == "budget" and needed > budget, (budget, needed)
+        assert [str(w.message) for w in caught] == [
+            f"the circuit's 14 interference generators contract past max_contraction={budget} table entries (their tables would hold "
+            f"{needed} or more): {truncated}; a max_contraction below {needed} cannot sum the whole class, and {needed} or more may"
+        ]
+        budget, raises = needed, raises + 1
+    assert 1 <= raises <= 2 and s.contraction_width == 3
+    assert np.array_equal(s.sample(2_000)[2], c.compile_coherent_sampler(seed=1).sample(2_000)[2])
+    c7, _ = coherent_tool().memory(7, 0.01)
+    for budget in (65536, 2**31):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            s = c7.compile_coherent_sampler(seed=5, max_contraction=budget)
+        assert [str(w.message) for w in caught] == [
+            "the circuit's 444 interference generators interact too widely to contract at any max_contraction: their tables would "
+            f"hold more than 2^31 = 2147483648 entries in all, the most a budget allows; {truncated}"
+        ]
+        assert s.kernel_complete and not s.exact_weights and s._s.contraction_refusal == "width"
 
 
 def test_past_the_completion_limit_the_sampler_says_so():
@@ -365,3 +509,228 @@ def test_past_the_completion_limit_the_sampler_says_so():
     assert t.compile_coherent_sampler(seed=1).kernel_complete
     with pytest.warns(UserWarning, match="interference between distant faults"):
         assert not t.compile_coherent_sampler(seed=1, max_complete=0).kernel_complete
+
+
+def coherent_tool():
+    """tools/coherent.py, which measures data/coherent/."""
+    path = pathlib.Path(__file__).resolve().parent.parent / "tools" / "coherent.py"
+    spec = importlib.util.spec_from_file_location("coherent_tool", path)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    return tool
+
+
+def sums(hits, w):
+    return w.sum(), (w * w).sum(), w[hits].sum(), (w[hits] ** 2).sum()
+
+
+def test_the_data_tool_stops_on_what_the_weights_are_worth():
+    """tools/coherent.py samples a weighted rate until its error bar is as narrow as an unweighted
+    run's when that run stops: 300 failures over at least 100,000 shots. For unit weights that is
+    the plain rule; a heavy tail on the failures, as exact weights have, is worth far fewer
+    failures than 2.1's count, Σ w·fail / mean w, read in it."""
+    tool = coherent_tool()
+    enough = lambda hits, w, **kw: tool.enough(*sums(hits, w), **{"min_failures": 300, "min_shots": 100_000, **kw})  # noqa: E731
+    rng = np.random.default_rng(5)
+    # Unit weights: the counts, and the rule stops where it did, to the shot.
+    for n, f, stop in [(100_000, 300, True), (100_000, 299, False), (99_999, 300, False), (200_000, 300, True), (100_000, 100_000, True)]:
+        hits, w = np.zeros(n, dtype=bool), np.ones(n)
+        hits[rng.choice(n, f, replace=False)] = True
+        p, se, shots = tool.worth(*sums(hits, w))
+        assert (p, shots, p * shots) == pytest.approx((f / n, n, f), rel=1e-12)
+        assert se == pytest.approx(np.sqrt(p * (1 - p) / n), rel=1e-12)
+        assert enough(hits, w) is stop, (n, f)
+    # Weighted: sq.weighted_rate's rate and error.
+    hits = rng.random(100_000) < 0.2
+    w = rng.lognormal(0, 1, 100_000)
+    w[hits] = rng.lognormal(-4.5, 3, hits.sum())
+    p, se, shots = tool.worth(*sums(hits, w))
+    assert (p, se) == pytest.approx(sq.weighted_rate(hits, w), rel=1e-12)
+    assert shots == pytest.approx(p * (1 - p) / se**2, rel=1e-12)
+    # 2.1's count reads some 10,000 failures in these shots; their error bar is worth under 100.
+    assert (w * hits).sum() / w.mean() > 3000
+    assert p * shots < 150 and not enough(hits, w)
+    # No failures yet: worth no failures, whatever the weights.
+    assert not enough(np.zeros(100_000, dtype=bool), w, min_failures=1)
+
+
+def test_the_data_tool_samples_until_its_rates_are_enough():
+    """coherent_rates stops at the first batch where both decoders' rates are enough, and its rates
+    and error bars are sq.weighted_rate's over every shot it drew."""
+    tool = coherent_tool()
+    c, _ = tool.capacity(3, 0.3)
+    rule = {"min_failures": 200, "min_shots": 3_000}
+    got = tool.coherent_rates(c, batch=1_000, max_shots=200_000, **rule)
+    assert got["exact"] and 3_000 <= got["shots"] < 200_000
+    sampler = c.compile_coherent_sampler(seed=1)
+    batches = [sampler.sample(1_000) for _ in range(got["shots"] // 1_000)]
+    w = np.concatenate([b[2] for b in batches])
+    assert got["ess"] == pytest.approx(sq.effective_sample_size(w) / len(w), rel=1e-12)
+    before = []
+    for dec, key in [(tool.decoder(c.twirled()), ""), (tool.decoder(c.twirled(merge=True)), "_merged")]:
+        hits = np.concatenate([(dec.decode_batch(d) != o).any(axis=1) for d, o, _ in batches])
+        assert (got["rate" + key], got["stderr" + key]) == pytest.approx(sq.weighted_rate(hits, w), rel=1e-12)
+        assert tool.enough(*sums(hits, w), **rule)
+        before.append(tool.enough(*sums(hits[:-1_000], w[:-1_000]), **rule))
+    # One batch fewer was not enough, for one decoder at least.
+    assert not all(before)
+
+
+DATA = pathlib.Path(__file__).resolve().parent.parent / "data" / "coherent"
+
+
+def test_every_data_row_says_what_measured_it():
+    """Each row of data/coherent/ has the version of the core that measured it and whether its
+    weights were the whole class's (coherent.exact; validate's own exact is the exact answer).
+    Past twelve generators only 2.2's contraction is exact; 2.1 listed the span of twelve or
+    fewer (validate's repetition rows, stamped 2.0.0, the version its development core
+    reported); 1.9's sampler (1.8.0) never summed the whole class."""
+    tool = coherent_tool()
+    release = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    for name in tool.SECTIONS:
+        doc = json.loads((DATA / f"{name}.json").read_text())
+        assert [{f: r[f] for f in tool.KEYS[name]} for r in doc["rows"]] == tool.grid(name)
+        for r in doc["rows"]:
+            version, exact = r["version"], r["coherent"]["exact"]
+            assert isinstance(version, str) and isinstance(exact, bool), (name, r)
+            if release(version) < (2, 0):
+                assert not exact, (name, r)
+            if exact and r["coherent"]["generators"] > 12:
+                assert release(version) >= (2, 2) and r["coherent"]["width"] is not None, (name, r)
+        # The file's own version is the core that last wrote it.
+        assert release(doc["version"]) >= max(release(r["version"]) for r in doc["rows"])
+
+
+def test_the_data_tool_stamps_every_row(tmp_path, monkeypatch):
+    """save() stamps a row it measured with this core's version (2.2's development core, which
+    reports 2.1.0, as 2.2.0) and keeps a kept row's own stamp, or the file's for a row without
+    one; a row that does not say whether its weights were exact is refused."""
+    tool = coherent_tool()
+    monkeypatch.setattr(tool, "OUT", tmp_path)
+    release = tuple(int(x) for x in sq.__version__.split("+")[0].split(".")[:2])
+    now = tool.measured_by()
+    assert now == ("2.2.0" if release < (2, 2) else sq.__version__)
+    row = lambda d, exact, **stamp: {"d": d, "theta": 0.2, "coherent": {"exact": exact}, **stamp}  # noqa: E731
+    tool.KEPT["capacity"] = {"version": "1.8.0", "rows": [row(3, False), row(5, False, version="2.0.0"), row(7, False)]}
+    tool.save("capacity", {"rows": [row(7, True)]})
+    doc = json.loads((tmp_path / "capacity.json").read_text())
+    assert doc["version"] == now
+    assert [(r["d"], r["version"], r["coherent"]["exact"]) for r in doc["rows"]] == [(3, "1.8.0", False), (5, "2.0.0", False), (7, now, True)]
+    tool.KEPT.clear()
+    tool.save("capacity", {"rows": [row(3, True), row(5, False, version="2.0.0")]})
+    doc = json.loads((tmp_path / "capacity.json").read_text())
+    assert [(r["version"], r["coherent"]["exact"]) for r in doc["rows"]] == [(now, True), ("2.0.0", False)]
+    with pytest.raises(ValueError, match=r"capacity row d=3, theta=0.2 does not say whether its weights were exact"):
+        tool.save("capacity", {"rows": [{"d": 3, "theta": 0.2, "coherent": {}}]})
+    # With --only, rows go in the grid's order: one the file lacks is added in its place, and a
+    # row of the file outside the grid is kept, after the grid's.
+    tool.KEPT["capacity"] = {"version": "1.8.0", "rows": [row(4, False), row(7, False), row(3, False)]}
+    tool.save("capacity", {"rows": [row(3, True), row(5, True)]})
+    doc = json.loads((tmp_path / "capacity.json").read_text())
+    assert [(r["d"], r["version"], r["coherent"]["exact"]) for r in doc["rows"]] == [(3, now, True), (5, now, True), (7, "1.8.0", False), (4, "1.8.0", False)]
+    tool.KEPT.clear()
+
+
+def test_the_data_tool_refuses_a_bad_only_before_measuring(tmp_path, monkeypatch, capsys):
+    """--only names rows by their fields. A field a section's rows lack, a value without '=', a
+    value no row has and a row the file lacks are refused with the reason and exit status 2,
+    before any row is measured (the tool raised a KeyError, a bare ValueError or a
+    StopIteration, some after measuring other sections)."""
+    tool = coherent_tool()
+    monkeypatch.setattr(tool, "OUT", tmp_path)
+    monkeypatch.setenv("PYTHONUNBUFFERED", "1")
+    for name in tool.SECTIONS:
+        shutil.copy(DATA / f"{name}.json", tmp_path / f"{name}.json")
+    measured = []
+    for section in ("validate", "code_capacity", "sweep"):
+        monkeypatch.setattr(tool, section, lambda *a, **k: measured.append(a))
+
+    def refused(*argv):
+        assert tool.main(list(argv)) == 2
+        err = capsys.readouterr().err
+        assert err.startswith("tools/coherent.py: error: ") and err.count("\n") == 1, err
+        return err
+
+    assert "sweep rows have no field 'code' (they are named by d, rounds, theta)" in refused("all", "--only", "code=surface")
+    assert "capacity rows have no field 'rounds'" in refused("capacity", "--only", "rounds=3")
+    assert "--only d3: expected field=value[,value...]" in refused("sweep", "--only", "d3")
+    for spec in ("d=", "=3", "d=3,"):
+        assert f"--only {spec}: expected field=value" in refused("sweep", "--only", spec)
+    assert "--only needs field=value" in refused("sweep", "--only")
+    assert "--only d=4: no sweep row has d=4 (they have 3, 5, 7, 9)" in refused("sweep", "--only", "d=3,4")
+    assert "--only theta=0.30: no capacity row has theta=0.30 (they have 0.2, 0.25, 0.3, 0.35)" in refused("capacity", "--only", "theta=0.30")
+    assert "unknown section 'sweeps'" in refused("sweeps")
+    assert "one section at a time (sweep, then capacity)" in refused("sweep", "capacity")
+    assert "unknown option --fast" in refused("sweep", "--fast")
+    doc = json.loads((tmp_path / "sweep.json").read_text())
+    doc["rows"] = [r for r in doc["rows"] if (r["d"], r["theta"]) != (5, 0.0025)]
+    (tmp_path / "sweep.json").write_text(json.dumps(doc))
+    assert f"{tmp_path / 'sweep.json'} has no row d=5, rounds=5, theta=0.0025 to keep" in refused("sweep", "--only", "d=3")
+    doc = json.loads((tmp_path / "crosstalk.json").read_text())
+    del doc["rows"][-1]["coherent"]["exact"]
+    (tmp_path / "crosstalk.json").write_text(json.dumps(doc))
+    assert "row d=7, rounds=7, theta=0.02 does not say whether its weights were exact" in refused("crosstalk", "--only", "d=3")
+    (tmp_path / "validate.json").unlink()
+    assert "which does not exist" in refused("validate", "--only", "code=surface")
+    assert measured == []
+    # A good --only gets as far as measuring (here, nothing).
+    assert tool.main(["capacity", "--only", "d=15", "--only", "theta=0.35"]) == 0
+    assert measured == [()] and tool.ONLY == {"d": {"15"}, "theta": {"0.35"}}
+    assert [k for k in tool.grid("capacity") if tool.wanted(k)] == [{"d": 15, "theta": 0.35}]
+    # From the command line: the message and status 2.
+    path = pathlib.Path(__file__).resolve().parent.parent / "tools" / "coherent.py"
+    run = subprocess.run([sys.executable, str(path), "all", "--only", "code=surface"], capture_output=True, text=True)
+    assert run.returncode == 2 and run.stdout == "", run
+    assert run.stderr == "tools/coherent.py: error: --only code=...: sweep rows have no field 'code' (they are named by d, rounds, theta); run only the sections whose rows have it\n", run.stderr
+
+
+def test_only_adds_a_row_the_file_lacks(tmp_path, monkeypatch, capsys):
+    """--only re-measures a grid row the file lacks and adds it in its place, with exit status 0:
+    the file then has its whole grid again, the other rows as they were. (The tool dropped such
+    a row from sweep, crosstalk and capacity, and raised a UsageError mid-run, after measuring,
+    for validate's surface rows.) Validate keeps the state vector's samples of a surface row the
+    file has, and samples them afresh for one it lacks. The measuring is stubbed."""
+    tool = coherent_tool()
+    monkeypatch.setattr(tool, "OUT", tmp_path)
+    monkeypatch.setenv("PYTHONUNBUFFERED", "1")
+    for name in tool.SECTIONS:
+        shutil.copy(DATA / f"{name}.json", tmp_path / f"{name}.json")
+    fake = {"shots": 1, "ess": 1.0, "rate": 0.5, "stderr": 0.1, "rate_merged": 0.5, "stderr_merged": 0.1, "seconds": 0, "generators": 1, "locations": 1, "exact": True, "width": 1}
+    sampled = []
+
+    class Exact:
+        def sample(self, shots, separate_observables, threads):
+            sampled.append(shots)
+            return np.zeros((shots, 2), dtype=bool), np.ones((shots, 1), dtype=bool)
+
+    circuit = types.SimpleNamespace(compile_exact_sampler=lambda seed: Exact())
+    monkeypatch.setattr(tool, "memory", lambda *a, **k: (circuit, None))
+    monkeypatch.setattr(tool, "capacity", lambda *a, **k: (None, None))
+    monkeypatch.setattr(tool, "decoder", lambda tw: types.SimpleNamespace(decode_batch=lambda d: np.zeros((len(d), 1), dtype=bool)))
+    monkeypatch.setattr(tool, "coherent_rates", lambda *a, **k: dict(fake))
+    monkeypatch.setattr(tool, "twirl_rate", lambda *a, **k: {"shots": 1, "failures": 0, "rate": 0.0, "stderr": 0.0})
+    now = tool.measured_by()
+    for name, section, spec, lacking in [
+        ("sweep", "sweep", "d=5", {"d": 5, "rounds": 5, "theta": 0.0025}),
+        ("crosstalk", "crosstalk", "theta=0.02", {"d": 7, "rounds": 7, "theta": 0.02}),
+        ("capacity", "capacity", "d=15", {"d": 15, "theta": 0.35}),
+        ("validate", "validate", "code=surface", {"code": "surface", "d": 3, "rounds": 2, "theta": 0.04}),
+    ]:
+        before = json.loads((DATA / f"{name}.json").read_text())
+        doc = dict(before, rows=[r for r in before["rows"] if any(r[f] != v for f, v in lacking.items())])
+        assert len(doc["rows"]) == len(before["rows"]) - 1
+        (tmp_path / f"{name}.json").write_text(json.dumps(doc))
+        assert tool.main([section, "--only", spec]) == 0
+        assert capsys.readouterr().err == ""
+        after = json.loads((tmp_path / f"{name}.json").read_text())
+        assert [{f: r[f] for f in tool.KEYS[name]} for r in after["rows"]] == tool.grid(name), name
+        for old, new in zip(before["rows"], after["rows"]):
+            if tool.wanted({f: old[f] for f in tool.KEYS[name]}):
+                assert new["version"] == now and new["coherent"] == fake, (name, new)
+            else:
+                assert new == old, (name, new)
+    # Validate's surface rows: θ = 0.02's samples kept, θ = 0.04's (every shot failing) drawn.
+    surface = {r["theta"]: r for r in json.loads((tmp_path / "validate.json").read_text())["rows"] if r["code"] == "surface"}
+    kept = {r["theta"]: r for r in json.loads((DATA / "validate.json").read_text())["rows"] if r["code"] == "surface"}
+    assert sampled == [60_000]
+    assert surface[0.02]["exact"] == kept[0.02]["exact"] and (surface[0.04]["exact"], surface[0.04]["exact_stderr"]) == (1.0, 0.0)

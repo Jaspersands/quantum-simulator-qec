@@ -349,9 +349,10 @@ impl PyCircuit {
     }
 
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
-    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
-    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize) -> PyResult<PyCoherentSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete };
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, max_complete=crate::coherent::kernel::MAX_COMPLETE, max_contraction=crate::coherent::kernel::MAX_CONTRACTION))]
+    #[allow(clippy::too_many_arguments)]
+    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize, max_contraction: usize) -> PyResult<PyCoherentSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete, max_contraction };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
         Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
@@ -360,7 +361,7 @@ impl PyCircuit {
     /// The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
     #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, pairs=false, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
     fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool, max_complete: usize) -> PyResult<PyJointSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete };
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete, ..Default::default() };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options).map(|s| s.with_pairs(pairs))).map_err(err)?;
         Ok(PyJointSampler { sampler, seed, next: 0.into() })
@@ -546,6 +547,45 @@ impl PyCoherentSampler {
     #[getter]
     fn exact_weights(&self) -> bool {
         self.sampler.kernel.is_whole()
+    }
+
+    #[getter]
+    fn contraction_width(&self) -> Option<usize> {
+        self.sampler.kernel.contraction_width()
+    }
+
+    /// Why a complete kernel's class sums are not contracted, for the Python sampler's warning:
+    /// "off" (max_contraction=0), "budget" (past it: `contraction_entries_needed`), "width"
+    /// (past every budget, 2^31 entries) or "internal" (a bug: `contraction_internal_error`).
+    #[getter]
+    fn contraction_refusal(&self) -> Option<&'static str> {
+        use crate::coherent::contract::Refusal;
+        self.sampler.kernel.contraction_refusal().map(|why| match why {
+            Refusal::Off => "off",
+            Refusal::Budget(_) => "budget",
+            Refusal::Width => "width",
+            Refusal::Internal(_) => "internal",
+        })
+    }
+
+    /// With the class sums past the budget, the entries a budget needs at least: a smaller one
+    /// refuses them, and (but for a coupling the early refusal does not see) this one plans them.
+    #[getter]
+    fn contraction_entries_needed(&self) -> Option<usize> {
+        match self.sampler.kernel.contraction_refusal() {
+            Some(crate::coherent::contract::Refusal::Budget(entries)) => Some(entries),
+            _ => None,
+        }
+    }
+
+    /// Why the class sums are not contracted when that is a bug, not the budget: the Python
+    /// sampler then warns that it is an internal error rather than to raise max_contraction.
+    #[getter]
+    fn contraction_internal_error(&self) -> Option<&'static str> {
+        match self.sampler.kernel.contraction_refusal() {
+            Some(crate::coherent::contract::Refusal::Internal(why)) => Some(why),
+            _ => None,
+        }
     }
 
     fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {
