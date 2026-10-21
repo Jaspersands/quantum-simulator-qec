@@ -48,6 +48,8 @@ pub(crate) mod deltakit;
 #[doc(hidden)]
 pub mod dem_program;
 pub mod user_graph;
+#[doc(hidden)]
+pub mod pm_exact;
 pub mod cpp_random;
 pub mod flip;
 pub mod lanes;

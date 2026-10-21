@@ -8,7 +8,9 @@ import numpy as np
 import pytest
 
 import stabilizer_qec as sq
+from stabilizer_qec import _core
 from stabilizer_qec._decoders import _kept_detectors
+from stabilizer_qec._util import rows_to_b8, u64_to_rows
 
 SMALL = """
 R 0 1
@@ -150,8 +152,13 @@ def test_leakage_aware_decoding_from_heralds_flags_and_herald_detectors():
     model = c.without_leakage().detector_error_model(decompose_errors=True)
     la = sq.LeakageAwareDecoder(c)
     assert la.num_detectors == model.num_detectors and la.num_triggers == c.num_measurements and la.unmatched == 0
-    # Untriggered, it is matching on the model without leakage, shot for shot.
-    np.testing.assert_array_equal(la.decode_batch(dets[:, kept], threads=4), sq.Matching(model).decode_batch(dets[:, kept]))
+    # Untriggered, it is matching on the model without leakage, shot for shot: this package's
+    # matcher on a model (the DEM decoders', not ``Matching``'s, which breaks ties as PyMatching).
+    plain_matcher = _core.Matcher(model._d, False)
+    packed, n = rows_to_b8(dets[:, kept], plain_matcher.num_detectors, False, "shots")
+    raw, _, failed = plain_matcher.decode_batch(packed, n, 4)
+    assert not failed
+    np.testing.assert_array_equal(la.decode_batch(dets[:, kept], threads=4), u64_to_rows(raw, n, plain_matcher.num_observables, False))
     # The three routes for heralds agree: the circuit's herald detectors, leakage flags, or the
     # records (only the heralds' records, here, as a device would see).
     by_dets, raised = la.decode_batch(dets, return_raised=True, threads=4)

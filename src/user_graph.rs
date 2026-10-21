@@ -1,17 +1,17 @@
 //! PyMatching's `UserGraph` (`user_graph.cc`, PyMatching 2.4): a matching graph built by hand.
 //! Nodes, edges carrying sets of fault ids, weights and error probabilities, boundary nodes, and
-//! the five ways a parallel edge merges. It decodes on this crate's sparse blossom, built with
-//! PyMatching's own discretisation, so the weights it minimises are PyMatching's to the bit:
-//! integer weights as they are, otherwise scaled so the heaviest edge is 2^24 − 1, rounded, and
-//! doubled; a negative weight's edge pre-applied (its endpoints toggled, its fault ids flipped,
-//! its weight counted) and matched at its absolute weight; edges to boundary nodes made boundary
-//! edges, the lightest kept where several meet one node.
+//! the five ways a parallel edge merges. It decodes on `pm_exact`, PyMatching's sparse blossom
+//! transliterated, on the matching graph PyMatching builds from it (`UserGraph::to_mwpm`): integer
+//! weights as they are, otherwise scaled so the heaviest edge is 2^24 − 1, rounded, and doubled;
+//! a negative weight's edge pre-applied (its endpoints toggled, its fault ids flipped, its weight
+//! counted) and matched at its absolute weight; edges to boundary nodes made boundary edges, the
+//! lightest kept where several meet one node. So its answers are PyMatching's, ties included.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
-use crate::dem_decoder::DecodeError;
 use crate::dem_program::{DemInstr, DemProgram, OBS};
-use crate::sparse::{Scratch, SparseGraph};
+use crate::pm_exact::{Graph, Mwpm, NeighbourOrder, NUM_DISTINCT_WEIGHTS};
 
 /// PyMatching's `NUM_DISTINCT_WEIGHTS - 1`: the heaviest edge after scaling, and the largest
 /// weight a user edge may have.
@@ -59,23 +59,6 @@ pub fn merge_weights(a: f64, b: f64) -> f64 {
     signed_min + (1.0 + (-(a + b).abs()).exp()).ln() - (1.0 + (-(a - b).abs()).exp()).ln()
 }
 
-/// A graph built for decoding (rebuilt after any change).
-struct Built {
-    graph: SparseGraph,
-    /// The weight scale: a reported weight is the integer total over this.
-    normalising: f64,
-    /// Nodes whose detection is toggled by the negative-weight edges, sorted.
-    neg_dets: Vec<u32>,
-    /// Fault ids the negative-weight edges flip (each listed once if flipped an odd number of times).
-    neg_faults: Vec<usize>,
-    neg_sum: i64,
-    /// Per sparse edge, its fault ids (for more than 64) and its user endpoints (-1: boundary).
-    faults: Vec<Vec<usize>>,
-    /// The negative-weight edges, as user endpoints.
-    neg_edges: Vec<(i64, i64)>,
-    wide: bool,
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct UserGraph {
     /// Per node, the ids of the edges touching it, in the order they were added.
@@ -86,19 +69,11 @@ pub struct UserGraph {
     all_have_probabilities: bool,
 }
 
-/// One shot's decoding: the fault ids flipped, and the weight.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Decoded {
-    pub faults: Vec<bool>,
-    pub weight: f64,
-}
-
+/// The decoder of a graph as it was: PyMatching's matching graph, shared between threads; each
+/// thread decodes on its own `Mwpm` over it.
+#[derive(Clone, Debug)]
 pub struct UserDecoder {
-    built: Built,
-    num_nodes: usize,
-    num_fault_ids: usize,
-    is_boundary: Vec<bool>,
-    has_boundary_nodes: bool,
+    graph: Arc<Graph>,
 }
 
 impl UserGraph {
@@ -124,6 +99,11 @@ impl UserGraph {
 
     pub fn boundary(&self) -> &BTreeSet<usize> {
         &self.boundary
+    }
+
+    /// The ids of the edges touching `node`, in the order they were added (a self-loop once).
+    pub fn adjacency(&self, node: usize) -> &[usize] {
+        &self.adjacency[node]
     }
 
     pub fn all_edges_have_error_probabilities(&self) -> bool {
@@ -239,9 +219,10 @@ impl UserGraph {
         }
     }
 
-    /// PyMatching's graph of a detector error model: each graph-like piece an edge (one
-    /// detector: to the boundary) of weight ln((1 − p)/p), parallel pieces merged as
-    /// independent mechanisms.
+    /// PyMatching's graph of a detector error model (`detector_error_model_to_user_graph`): each
+    /// piece of each error with probability above 0, its targets as written (repeats kept), is an
+    /// edge if it has two detectors (one: to the boundary; otherwise nothing) of weight
+    /// ln((1 − p)/p), parallel pieces merged as independent mechanisms.
     pub fn from_dem(dem: &DemProgram) -> Result<UserGraph, String> {
         let stats = dem.stats();
         let max = crate::dem_program::MAX_DETECTOR;
@@ -256,7 +237,6 @@ impl UserGraph {
                 continue; // as PyMatching
             }
             for piece in pieces {
-                let piece = crate::dem_program::canonical(piece);
                 let dets: Vec<usize> = piece.iter().filter(|&&t| t & OBS == 0).map(|&t| t as usize).collect();
                 let obs: Vec<usize> = piece.iter().filter(|&&t| t & OBS != 0).map(|&t| (t & !OBS) as usize).collect();
                 let w = ((1.0 - p) / p).ln();
@@ -272,252 +252,52 @@ impl UserGraph {
 
     /// PyMatching's `get_edge_weight_normalising_constant` (before doubling).
     pub(crate) fn normalising_constant(&self) -> Result<f64, String> {
-        let mut max = 0f64;
-        let mut integral = true;
-        for e in &self.edges {
-            max = max.max(e.weight.abs());
-            integral &= e.weight.round() == e.weight;
-        }
-        if max > MAX_USER_EDGE_WEIGHT {
-            return Err(format!("maximum absolute edge weight of {} exceeded.", MAX_USER_EDGE_WEIGHT as u32));
-        }
-        Ok(if integral { 1.0 } else { MAX_USER_EDGE_WEIGHT / max })
+        crate::pm_exact::normalising_constant_v2_4(self, NUM_DISTINCT_WEIGHTS)
     }
 
-    /// The decoder for the graph as it is now.
+    /// The decoder for the graph as it is now (PyMatching's `to_mwpm`).
     pub fn decoder(&self) -> Result<UserDecoder, String> {
-        let n = self.num_nodes();
-        let c = self.normalising_constant()?;
-        let wide = self.num_fault_ids > 64;
-        let mask = |f: &[usize]| -> u64 { if wide { 0 } else { f.iter().filter(|&&k| k < 64).fold(0u64, |m, &k| m ^ (1u64 << k)) } };
-        let mut toggled = vec![false; n];
-        let mut neg_faults: BTreeSet<usize> = BTreeSet::new();
-        let mut neg_sum = 0i64;
-        let mut neg_edges = Vec::new();
-        let mut negative = |u: usize, v: Option<usize>, w: i64, f: &[usize], toggled: &mut Vec<bool>| {
-            for k in f {
-                if !neg_faults.remove(k) {
-                    neg_faults.insert(*k);
-                }
-            }
-            toggled[u] ^= true;
-            if let Some(v) = v {
-                toggled[v] ^= true;
-            }
-            neg_sum += w;
-            neg_edges.push((u as i64, v.map_or(-1, |v| v as i64)));
-        };
-        let mut sparse: Vec<(u32, u32, f64, i64, u64)> = Vec::new();
-        let mut faults: Vec<Vec<usize>> = Vec::new();
-        // Boundary edges are held back, the lightest per node, then added in node order.
-        let mut boundary_edge: Vec<Option<(i64, usize)>> = vec![None; n];
-        for (id, e) in self.edges.iter().enumerate() {
-            let w = ((e.weight * c).round() as i32 as i64) * 2;
-            let b1 = self.is_boundary(Some(e.node1));
-            let b2 = self.is_boundary(e.node2);
-            if b2 && !b1 || b1 && !b2 {
-                let u = if b1 { e.node2.expect("a non-boundary endpoint") } else { e.node1 };
-                if boundary_edge[u].is_none_or(|(old, _)| old > w) {
-                    boundary_edge[u] = Some((w, id));
-                }
-            } else if !b1 {
-                let v = e.node2.expect("not the boundary");
-                if w < 0 {
-                    negative(e.node1, Some(v), w, &e.fault_ids, &mut toggled);
-                }
-                if e.node1 != v {
-                    sparse.push((e.node1 as u32, v as u32, w.abs() as f64 / (2.0 * c), w.abs(), mask(&e.fault_ids)));
-                    faults.push(e.fault_ids.clone());
-                }
-            }
-        }
-        for (u, be) in boundary_edge.iter().enumerate() {
-            let Some((w, id)) = *be else { continue };
-            let f = &self.edges[id].fault_ids;
-            if w < 0 {
-                negative(u, None, w, f, &mut toggled);
-            }
-            sparse.push((u as u32, n as u32, w.abs() as f64 / (2.0 * c), w.abs(), mask(f)));
-            faults.push(f.clone());
-        }
-        let neg_dets: Vec<u32> = toggled.iter().enumerate().filter(|(_, &t)| t).map(|(k, _)| k as u32).collect();
-        let graph = SparseGraph::from_weighted(n, &sparse);
-        let mut is_boundary = vec![false; n];
-        for &b in &self.boundary {
-            is_boundary[b] = true;
-        }
-        Ok(UserDecoder {
-            built: Built { graph, normalising: 2.0 * c, neg_dets, neg_faults: neg_faults.into_iter().collect(), neg_sum, faults, neg_edges, wide },
-            num_nodes: n,
-            num_fault_ids: self.num_fault_ids,
-            has_boundary_nodes: !self.boundary.is_empty(),
-            is_boundary,
-        })
+        Ok(UserDecoder { graph: Arc::new(Graph::try_from_user_graph(self, NeighbourOrder::V2_4, NUM_DISTINCT_WEIGHTS)?) })
     }
 }
 
-const NO_MATCHING: &str = "No perfect matching could be found. This likely means that the syndrome has odd parity in the support of a connected component without a boundary.";
-
 impl UserDecoder {
-    pub fn scratch(&self) -> Scratch {
-        Scratch::new(&self.built.graph)
+    pub fn graph(&self) -> &Arc<Graph> {
+        &self.graph
+    }
+
+    /// A fresh `Mwpm` over the graph (one per thread).
+    pub fn mwpm(&self) -> Mwpm {
+        Mwpm::new(self.graph.clone())
     }
 
     pub fn num_fault_ids(&self) -> usize {
-        self.num_fault_ids
+        self.graph.num_observables
     }
 
     pub fn num_nodes(&self) -> usize {
-        self.num_nodes
+        self.graph.num_nodes
     }
 
-    /// The defects the matcher sees: detection events off the boundary nodes, toggled by the
-    /// negative-weight edges, sorted.
-    fn defects(&self, events: &[u64]) -> Result<Vec<u32>, String> {
-        // The usual case, quickly: sorted distinct events, no boundary nodes, no negative weights.
-        if self.built.neg_dets.is_empty() && !self.has_boundary_nodes && events.windows(2).all(|w| w[0] < w[1]) {
-            if let Some(&last) = events.last() {
-                if last as usize >= self.num_nodes {
-                    return Err(format!("The detection event with index {last} does not correspond to a node in the graph, which only has {} nodes.", self.num_nodes));
-                }
-            }
-            return Ok(events.iter().map(|&d| d as u32).collect());
-        }
-        let mut on = BTreeSet::new();
-        for &d in events {
-            let d = d as usize;
-            if d >= self.num_nodes {
-                return Err(format!("The detection event with index {d} does not correspond to a node in the graph, which only has {} nodes.", self.num_nodes));
-            }
-            if self.is_boundary[d] {
-                continue;
-            }
-            if !on.remove(&(d as u32)) {
-                on.insert(d as u32);
-            }
-        }
-        for &d in &self.built.neg_dets {
-            if !on.remove(&d) {
-                on.insert(d);
-            }
-        }
-        Ok(on.into_iter().collect())
-    }
-
-    fn err(e: DecodeError) -> String {
-        match e {
-            DecodeError::Unmatchable => NO_MATCHING.into(),
-            other => format!("{other:?}"),
-        }
-    }
-
-    /// One shot from its detection events as sorted distinct node indices, into `out` (the
-    /// fault ids flipped, bit-packed, zeroed first): the weight. Allocation-free on the usual
-    /// path (no boundary nodes, no negative weights, at most 64 fault ids); `buf` is reused.
-    pub fn decode_packed(&self, scratch: &mut Scratch, sorted_events: &[u32], buf: &mut Vec<u32>, out: &mut [u8]) -> Result<f64, String> {
+    /// One shot, from its detection events (distinct node indices), into `out`: the fault ids
+    /// flipped, bit-packed (`ceil(num_fault_ids / 8)` bytes, zeroed first). Returns the weight.
+    pub fn decode_packed(&self, mwpm: &mut Mwpm, events: &[u64], out: &mut [u8]) -> Result<f64, String> {
         out.iter_mut().for_each(|b| *b = 0);
-        let b = &self.built;
-        if b.wide || !b.neg_dets.is_empty() || self.has_boundary_nodes {
-            let events: Vec<u64> = sorted_events.iter().map(|&e| e as u64).collect();
-            let r = self.decode(scratch, &events)?;
-            for (k, &f) in r.faults.iter().enumerate() {
-                if f {
-                    out[k / 8] |= 1 << (k % 8);
-                }
+        let g = &self.graph;
+        if g.num_observables <= 64 {
+            let (mask, w) = mwpm.decode_to_mask(events)?;
+            for (k, byte) in out.iter_mut().enumerate().take(8) {
+                *byte = (mask >> (8 * k)) as u8;
             }
-            return Ok(r.weight);
-        }
-        if let Some(&last) = sorted_events.last() {
-            if last as usize >= self.num_nodes {
-                return Err(format!("The detection event with index {last} does not correspond to a node in the graph, which only has {} nodes.", self.num_nodes));
-            }
-        }
-        buf.clear();
-        buf.extend_from_slice(sorted_events);
-        let p = b.graph.decode(scratch, buf).map_err(Self::err)?;
-        let mut obs = p.observables;
-        for &k in &b.neg_faults {
-            obs ^= 1u64 << k;
-        }
-        for (k, byte) in out.iter_mut().enumerate().take(8) {
-            *byte = (obs >> (8 * k)) as u8;
-        }
-        // Bits past the fault count stay clear.
-        let nf = self.num_fault_ids;
-        if !nf.is_multiple_of(8) && nf / 8 < out.len() {
-            out[nf / 8] &= (1u8 << (nf % 8)) - 1;
-        }
-        Ok((p.iweight + b.neg_sum) as f64 / b.normalising)
-    }
-
-    /// One shot: the fault ids flipped and the matching's weight (PyMatching's `decode`).
-    pub fn decode(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Decoded, String> {
-        let b = &self.built;
-        let defects = self.defects(events)?;
-        let mut faults = vec![false; self.num_fault_ids];
-        let iweight = if b.wide {
-            let (p, ids) = b.graph.decode_with_edge_ids(scratch, &defects).map_err(Self::err)?;
-            for id in ids {
-                for &k in &b.faults[id as usize] {
-                    if let Some(f) = faults.get_mut(k) {
-                        *f ^= true;
-                    }
-                }
-            }
-            p.iweight
+            Ok(w as f64 / g.normalising_constant)
         } else {
-            let p = b.graph.decode(scratch, &defects).map_err(Self::err)?;
-            for (k, f) in faults.iter_mut().enumerate().take(64) {
-                *f = p.observables >> k & 1 != 0;
+            let mut bytes = vec![0u8; g.num_observables];
+            let w = mwpm.decode_into(events, &mut bytes)?;
+            for (k, &b) in bytes.iter().enumerate() {
+                out[k / 8] |= (b & 1) << (k % 8);
             }
-            p.iweight
-        };
-        // Fault ids past the count (a merge can bring them, as in PyMatching) are dropped.
-        for &k in &b.neg_faults {
-            if let Some(f) = faults.get_mut(k) {
-                *f ^= true;
-            }
+            Ok(w as f64 / g.normalising_constant)
         }
-        Ok(Decoded { faults, weight: (iweight + b.neg_sum) as f64 / b.normalising })
-    }
-
-    /// The edges the correction flips, as user endpoints (-1: the boundary), the negative-weight
-    /// edges included (PyMatching's `decode_to_edges_array`).
-    pub fn decode_to_edges(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
-        let b = &self.built;
-        let defects = self.defects(events)?;
-        let ids = b.graph.decode_edge_ids(scratch, &defects).map_err(Self::err)?;
-        let n = self.num_nodes as u32;
-        let user = |(u, v): (u32, u32)| -> (i64, i64) { (u as i64, if v == n { -1 } else { v as i64 }) };
-        let key = |(u, v): (i64, i64)| if v != -1 && v < u { (v, u) } else { (u, v) };
-        let mut set: BTreeSet<(i64, i64)> = BTreeSet::new();
-        for &e in &b.neg_edges {
-            if e.0 != e.1 && !set.remove(&key(e)) {
-                set.insert(key(e));
-            }
-        }
-        let mut out: Vec<(i64, i64)> = Vec::new();
-        for id in ids {
-            let e = key(user(b.graph.edge_ends(id)));
-            if !set.remove(&e) {
-                out.push(e);
-            }
-        }
-        out.extend(set);
-        Ok(out)
-    }
-
-    /// The matched pairs of detection events (-1: the boundary), PyMatching's
-    /// `decode_to_matched_dets_array`. Refused for graphs with negative weights, as PyMatching.
-    pub fn decode_to_matched_pairs(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
-        let b = &self.built;
-        if b.neg_sum != 0 {
-            return Err("Decoding to matched detection events not supported for graphs containing edges with negative weights.".into());
-        }
-        let defects = self.defects(events)?;
-        let (_, pairs) = b.graph.decode_pairs(scratch, &defects).map_err(Self::err)?;
-        let n = self.num_nodes as u32;
-        Ok(pairs.into_iter().map(|(a, c)| (a as i64, if c == n { -1 } else { c as i64 })).collect())
     }
 }
 
@@ -539,11 +319,14 @@ mod tests {
     fn a_repetition_line_decodes() {
         let g = line(5);
         let d = g.decoder().unwrap();
-        let mut s = d.scratch();
-        let r = d.decode(&mut s, &[1, 3]).unwrap();
-        assert_eq!(r.faults, vec![false, true, true, false, false]);
-        assert_eq!(r.weight, 2.0);
-        assert!(d.decode(&mut s, &[9]).is_err());
+        let mut m = d.mwpm();
+        let (faults, w) = m.decode(&[1, 3]);
+        assert_eq!(faults, vec![0, 1, 1, 0, 0]);
+        assert_eq!(w, 2.0);
+        assert!(m.try_decode(&[9]).is_err());
+        let mut out = [0u8];
+        assert_eq!(d.decode_packed(&mut m, &[1, 3], &mut out).unwrap(), 2.0);
+        assert_eq!(out, [0b110]);
     }
 
     #[test]
@@ -563,20 +346,12 @@ mod tests {
     }
 
     #[test]
-    fn negative_weights_are_pre_applied() {
-        let mut g = UserGraph::new(2, 0);
-        g.add_edge(0, 1, &[0], -2.0, -1.0, Merge::Disallow).unwrap();
-        g.add_boundary_edge(0, &[1], 3.0, -1.0, Merge::Disallow).unwrap();
-        g.add_boundary_edge(1, &[], 3.0, -1.0, Merge::Disallow).unwrap();
-        let d = g.decoder().unwrap();
-        let mut s = d.scratch();
-        // Its endpoints fire: the negative edge alone explains them, at weight -2.
-        let r = d.decode(&mut s, &[0, 1]).unwrap();
-        assert_eq!((r.faults.clone(), r.weight), (vec![true, false], -2.0));
-        assert_eq!(d.decode_to_edges(&mut s, &[0, 1]).unwrap(), vec![(0, 1)]);
-        // Nothing fires: nothing is flipped (taking it and coming back costs nothing).
-        let r = d.decode(&mut s, &[]).unwrap();
-        assert_eq!((r.faults, r.weight), (vec![false, false], 0.0));
-        assert!(d.decode_to_edges(&mut s, &[]).unwrap().is_empty());
+    fn a_model_keeps_its_targets_in_order() {
+        let dem = DemProgram::parse("error(0.1) D2 D0 L1\nerror(0.2) D1 D1\nerror(0.3) D0 ^ D1 D2").unwrap();
+        let g = UserGraph::from_dem(&dem).unwrap();
+        assert_eq!((g.edges[0].node1, g.edges[0].node2), (2, Some(0)));
+        assert_eq!((g.edges[1].node1, g.edges[1].node2), (1, Some(1)));
+        assert_eq!((g.edges[2].node1, g.edges[2].node2), (0, None));
+        assert_eq!((g.edges[3].node1, g.edges[3].node2), (1, Some(2)));
     }
 }

@@ -2,8 +2,9 @@
 boundary edges, boundary nodes, fault ids, merge strategies), from a check matrix (with
 repetitions, timelike weights and a faults matrix), from networkx or rustworkx, or from a
 detector error model or circuit; queried; decoded to fault ids and weights, to edges, or to
-matched detection events, on this package's sparse blossom built with PyMatching's own weight
-discretisation (``src/user_graph.rs``)."""
+matched detection events, on PyMatching's own sparse blossom transliterated (``src/pm_exact/``,
+the graph built as PyMatching 2.4 builds it, ``src/user_graph.rs``): its answers, ties and
+orders included. ``enable_correlations`` decodes on this package's correlated matcher."""
 
 from __future__ import annotations
 
