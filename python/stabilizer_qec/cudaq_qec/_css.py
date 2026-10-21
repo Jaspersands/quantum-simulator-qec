@@ -337,7 +337,7 @@ def css_matrices_from_code(qec_code: Any) -> CssCodes:
 
     Calls ``code.get_parity_z/x()`` and ``code.get_observables_z/x()`` and wraps the results as
     ``CssCodes`` (a result that is not a matrix, as a code without stabilizers of a type returns,
-    is an empty matrix)."""
+    is an empty 0 x 0 matrix, as CUDA-Q's ``tensor_to_sparse`` gives it; so is one with no rows)."""
     from ._codes import Code
 
     if not isinstance(qec_code, Code):
@@ -345,7 +345,7 @@ def css_matrices_from_code(qec_code: Any) -> CssCodes:
     m = CssCodes()
     for attr, getter in (("_hz", "get_parity_z"), ("_hx", "get_parity_x"), ("_lz", "get_observables_z"), ("_lx", "get_observables_x")):
         a = np.asarray(getattr(qec_code, getter)())
-        setattr(m, attr, _Mat.from_dense(a != 0) if a.ndim == 2 else _Mat())
+        setattr(m, attr, _Mat.from_dense(a != 0) if a.ndim == 2 and a.shape[0] > 0 else _Mat())
     return m
 
 

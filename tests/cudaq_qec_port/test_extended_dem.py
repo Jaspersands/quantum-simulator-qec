@@ -1905,6 +1905,20 @@ def test_css_matrices_from_code_repetition3():
         qec.css_matrices_from_code("repetition")
 
 
+def test_css_matrices_from_code_repetition_x_part_is_0_by_0_as_cuda_q_gives_it():
+    # (The repetition code has no X stabilizers or X logicals: CUDA-Q's to_parity_matrix returns a rank-0 tensor for each,
+    # which tensor_to_sparse reads as a 0 x 0 matrix, not an empty one of n columns; the Z part is unaffected.)
+    m = qec.css_matrices_from_code(qec.get_code("repetition", distance=3))
+    assert m.hx.shape == (0, 0)
+    assert m.lx.shape == (0, 0)
+    assert m.hz.shape == (2, 3)
+    assert m.lz.shape == (1, 3)
+    dem = qec.dem_from_css_matrices(m, px_only(0.01))
+    assert dem.num_observables() == 1
+    assert dem.num_detectors() == 2
+    assert qec.dem_from_css_matrices(qec.get_code("repetition", distance=3), px_only(0.01)).num_observables() == 1
+
+
 def test_code_overload_matches_the_matrix_overload():
     code = qec.get_code("repetition", distance=3)
     noise = px_only(0.01)
@@ -1923,9 +1937,19 @@ def test_steane_chunk_closes_to_the_monolithic_dem():
         assert same_dem(qec.dem_close_all(chunks), flat), T
         assert same_dem(qec.dem_close(qec.dem_stitch_all(chunks)), flat), T
         assert qec.dem_chunks_to_rounds(chunks) == T
-        pcm = qec.dem_chunks_to_pcm(chunks)
-        assert np.array_equal(pcm.toarray().astype(np.uint8), flat.detector_error_matrix)
         assert [r for r in qec.dem_chunks_to_o_sparse(chunks)] == [list(np.flatnonzero(row)) for row in flat.observables_flips_matrix]
+
+
+def test_steane_chunk_pcm_is_the_monolithic_detector_matrix():
+    pytest.importorskip("scipy.sparse")  # (dem_chunks_to_pcm returns a scipy matrix)
+    code = qec.css_matrices_from_code(qec.get_code("steane"))
+    noise = qec.CssNoise()
+    noise.px, noise.pz, noise.py, noise.pm = 0.01, 0.02, 0.003, 0.005
+    for T in (1, 2, 4):
+        chunks = [qec.extended_dem_from_css_matrices(code, noise)] * T
+        flat = qec.dem_from_css_matrices(code, noise, T)
+        pcm = qec.dem_chunks_to_pcm(chunks)
+        assert np.array_equal(pcm.toarray().astype(np.uint8), flat.detector_error_matrix), T
 
 
 # -- the closed model against this package's circuit DEM (added) -----------------------------------------------------------------------------------------------
@@ -1982,4 +2006,5 @@ def test_close_matches_our_circuit_dem(T, pm):
     ours, theirs = merged_mechanisms(closed), merged_mechanisms(circuit_dem)
     assert set(ours) == set(theirs)
     for key in ours:
-        assert ours[key] == pytest.approx(theirs[key], rel=1e-9), key
+        # (Bit-identical where the references are recorded, macOS; no platform is known to need a tolerance.)
+        assert ours[key] == theirs[key], key
