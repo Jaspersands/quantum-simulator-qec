@@ -3489,6 +3489,11 @@ class EstimatorResult(dict):
         # What was drawn is not kept: a result unpickled (or copied) draws its tables again when asked.
         return dict(self.__dict__, _drawn={})
 
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        # A result pickled by 2.1 has no `_drawn` (2.1 drew nothing): it starts with nothing drawn, as any does.
+        self.__dict__.update(state)
+        self.__dict__.setdefault("_drawn", {})
+
     def _drawn_once(self, name: str, draw: Callable[[], Any]) -> Any:
         if name not in self._drawn:
             self._drawn[name] = draw()

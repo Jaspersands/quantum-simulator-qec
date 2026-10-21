@@ -170,6 +170,35 @@ def test_results_and_drawings_pickle():
     assert type(chart_again) is rep.Chart and chart_again == chart and chart_again._repr_html_() == chart._repr_html_()
 
 
+def test_result_pickled_by_2_1_draws():
+    """A result pickled by 2.1, which had no drawn tables to keep (its state lacks them), draws when unpickled
+    (and copied), as one pickled here does: a single result, a frontier, and a batch with a failed item."""
+    counts = _counts()
+    results = [counts.estimate({}), counts.estimate({"estimateType": "frontier"}), counts.estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])]
+    drawn = [(r._repr_html_(), str(r.summary), r.summary.content) for r in results]
+
+    def pickled_by_2_1(result) -> bytes:
+        """The result as 2.1 made it (no drawn tables, its items' neither) pickled as 2.1 pickles it: 2.1 has no
+        __getstate__, so its state is its __dict__."""
+        result = copy.deepcopy(result)
+        for r in [result] + ([] if result._is_simple else list(dict.values(result))):
+            del r.__dict__["_drawn"]
+        with pytest.MonkeyPatch.context() as mp:
+            mp.delattr(az.EstimatorResult, "__getstate__")
+            data = pickle.dumps(result)
+        assert b"_drawn" not in data and b"_is_simple" in data
+        return data
+
+    for result, (html, text, content) in zip(results, drawn):
+        again = pickle.loads(pickled_by_2_1(result))
+        assert again == result and (again._repr_html_(), str(again.summary), again.summary.content) == (html, text, content)
+        assert hasattr(again, "summary") and set(again.__dict__) == set(result.__dict__)
+        assert copy.copy(again).summary.content == copy.deepcopy(again).summary.content == content
+    assert pickle.loads(pickled_by_2_1(results[0])).diagram.space.content == results[0].diagram.space.content
+    batch = pickle.loads(pickled_by_2_1(results[2]))
+    assert batch[0]._drawn == batch[1]._drawn == {} and batch[1].error.code == "Qdk.Qsc.Estimates.MaxDurationTooSmall" and str(batch[0].summary) == str(results[2][0].summary)
+
+
 def test_diagram():
     one = _counts().estimate({"estimateType": "frontier"})
     diagram = one.diagram
