@@ -10,13 +10,11 @@ Where it differs from Tesseract:
 - Models: each function takes Stim's models or this package's, and gives back the kind it was
   given (Tesseract's always give Stim's); ``Symptom.as_dem_instruction_targets`` gives this
   package's targets.
-- Observables: the A* decoder (``TesseractDecoder``, and the sinter and multi-pass decoders
-  over it) takes models of at most 64 observables, refusing more with a ``ValueError``;
-  Tesseract's takes any number. The simplex decoder and the helpers take any number.
 - The simplex decoder solves each integer program by an exact search, not HiGHS (see
   ``simplex``).
-- No command line: Tesseract's ``tesseract`` program (``--circuit``, ``--dem``,
-  ``--sample-num-shots``, ...) is not ported; its decoders are, through Python and sinter.
+- Tesseract's ``tesseract`` program is ``python -m stabilizer_qec.tesseract_decoder``, with
+  its flags, output and errors (see ``__main__`` for where it differs: chiefly, it samples
+  ``--sample-num-shots`` with this package's sampler).
 - A decoder's configuration is read at every decode, as Tesseract's is, except its sparsifying
   settings (which Tesseract's decoder crashes on when changed after construction): those stay
   as the decoder was made.

@@ -728,6 +728,16 @@ impl PyDem {
     fn flat(&self) -> PyResult<&Dem> {
         self.dem.flat().map_err(api_err)
     }
+
+    /// The model unrolled for the search decoder, which takes any number of observables: past
+    /// 64, the unrolled model (its masks holding observables below 64) and each fault's
+    /// observables in full; else `None`, and `flat` serves.
+    fn search_wide(&self) -> PyResult<Option<(Dem, Vec<crate::obsbits::ObsBits>)>> {
+        if self.dem.num_observables() <= 64 {
+            return Ok(None);
+        }
+        self.dem.program().to_dem_wide().map(Some).map_err(err)
+    }
 }
 
 #[pymethods]
@@ -2797,7 +2807,11 @@ impl PyDemSearch {
         verbose: bool,
     ) -> PyResult<Self> {
         use crate::search::{Flavour, OrderMethod};
-        let d = dem.flat()?;
+        let wide = dem.search_wide()?;
+        let d = match &wide {
+            Some((d, _)) => d,
+            None => dem.flat()?,
+        };
         let flavour = match flavour {
             "native" => Flavour::native(),
             "libc++" => Flavour::LibCxx,
@@ -2821,12 +2835,12 @@ impl PyDemSearch {
             }
         };
         let config = crate::search::SearchConfig { beam, beam_climbing, no_revisit, queue_limit, orders: orders.clone(), detector_penalty: penalty, merge_errors: merge, flavour, sparsify: sparsify.map(|(base_degree, max_degree, reactivate_limit)| crate::search::Sparsify { base_degree, max_degree, reactivate_limit }), visualize, verbose };
-        let dec = crate::search::Search::new(d, config).map_err(err)?;
+        let dec = crate::search::Search::new(d, wide.as_ref().map(|w| w.1.as_slice()), config).map_err(err)?;
         Ok(PyDemSearch { dec, num_detectors: d.num_detectors, num_observables: d.num_observables, orders })
     }
 
-    /// (observables as u64 per shot, costs as f64, one byte per shot 1 where the search gave
-    /// up).
+    /// (observables per shot as little-endian u64 words, as many as the model's observables
+    /// need and at least one; costs as f64; one byte per shot 1 where the search gave up).
     #[allow(clippy::type_complexity)]
     fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
         let nd = self.num_detectors;
@@ -2834,7 +2848,19 @@ impl PyDemSearch {
         let dec = &self.dec;
         let out = py.detach(|| crate::batch::search_shots(dec, packed, nd, shots, threads));
         let gave_up: Vec<u8> = out.iter().map(|x| u8::from(x.2)).collect();
-        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &gave_up)))
+        Ok((PyBytes::new(py, &le_u64(out.iter().flat_map(|x| x.0.iter().copied()))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &gave_up)))
+    }
+
+    /// Tesseract's program's decode of each shot of b8 detection events, on `threads`
+    /// threads with the GIL released: (model faults found, gave up, their cost, the decode's
+    /// time in whole microseconds).
+    #[allow(clippy::type_complexity)]
+    fn decode_shots(&self, py: Python<'_>, packed: &[u8], shots: usize, threads: usize) -> PyResult<Vec<(Vec<usize>, bool, f64, u64)>> {
+        let nd = self.num_detectors;
+        check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
+        let dec = &self.dec;
+        let out = py.detach(|| crate::batch::search_found(dec, packed, nd, shots, threads));
+        Ok(out.into_iter().map(|(found, cost, micros)| (found.faults, found.low_confidence, cost, micros)).collect())
     }
 
     /// Change the settings a decode reads (Tesseract reads them from its decoder's config at
@@ -2868,7 +2894,7 @@ impl PyDemSearch {
     /// The faults searched over, after merging and dropping those of probability 0: (cost,
     /// detectors, observables).
     fn retained(&self) -> Vec<(f64, Vec<u32>, Vec<u32>)> {
-        self.dec.retained().map(|(c, d, o)| (c, d.to_vec(), (0..64).filter(|k| o >> k & 1 == 1).collect())).collect()
+        self.dec.retained().map(|(c, d, o)| (c, d.to_vec(), (0..64 * o.len() as u32).filter(|&k| o[k as usize / 64] >> (k % 64) & 1 == 1).collect())).collect()
     }
 
     /// The visualizer's lines recorded since the last call.
@@ -2982,7 +3008,11 @@ fn cpp_shuffled_order(n: usize, seed: u64) -> Vec<u32> {
 #[pyo3(signature = (dem, count, method, seed, flavour))]
 fn search_orders(dem: &PyDem, count: usize, method: &str, seed: u64, flavour: &str) -> PyResult<Vec<Vec<u32>>> {
     use crate::search::{Flavour, OrderMethod};
-    let d = dem.flat()?;
+    let wide = dem.search_wide()?;
+    let d = match &wide {
+        Some((d, _)) => d,
+        None => dem.flat()?,
+    };
     let flavour = match flavour {
         "native" => Flavour::native(),
         "libc++" => Flavour::LibCxx,
@@ -3016,7 +3046,10 @@ fn search_exact(num_detectors: usize, costs: Vec<f64>, detectors: Vec<Vec<u32>>,
 /// Tesseract's `build_detector_graph`: each detector's neighbours, sorted.
 #[pyfunction]
 fn search_detector_graph(dem: &PyDem) -> PyResult<Vec<Vec<u32>>> {
-    Ok(crate::search::detector_graph(dem.flat()?))
+    match dem.search_wide()? {
+        Some((d, _)) => Ok(crate::search::detector_graph(&d)),
+        None => Ok(crate::search::detector_graph(dem.flat()?)),
+    }
 }
 
 /// Tesseract's `suggest_sparsify_reactivate_limit`.

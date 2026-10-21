@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 
 use crate::circuit::{split_instruction, strip_comment};
 use crate::dem::{xor_prob, Dem, Mechanism, Piece};
+use crate::obsbits::ObsBits;
 
 /// An observable's target: its index with the top bit set, so that within a sorted list of
 /// targets the detectors come first, as in Stim.
@@ -301,20 +302,45 @@ impl DemProgram {
     /// The flat model the decoders take, in the program's order.
     pub fn to_dem(&self) -> Result<Dem, String> {
         let stats = self.stats();
-        if stats.num_detectors > MAX_DETECTOR + 1 {
-            return Err(format!("the model names detector {}, past the largest index, {MAX_DETECTOR}", stats.num_detectors - 1));
-        }
-        if stats.num_observables > 64 {
+        if stats.num_detectors <= MAX_DETECTOR + 1 && stats.num_observables > 64 {
             return Err(format!(
-                "the model has {} observables; this engine's decoders and model sampler take at most 64 (the text, counts, circuit sampling and measurement conversion take any number)",
+                "the model has {} observables; this engine's matching, BP, clustering and window decoders, its distance searches, matching-graph diagrams and model sampler take at most 64 (the search decoder, the text, counts, circuit sampling and measurement conversion take any number)",
                 stats.num_observables
             ));
+        }
+        self.unrolled(None)
+    }
+
+    /// The flat model for the decoder that takes any number of observables (the search):
+    /// `to_dem`'s model without its limit of 64 observables, each fault's mask holding its
+    /// observables below 64, and beside it each fault's observables in full.
+    pub fn to_dem_wide(&self) -> Result<(Dem, Vec<ObsBits>), String> {
+        let mut wide = Vec::new();
+        let dem = self.unrolled(Some(&mut wide))?;
+        Ok((dem, wide))
+    }
+
+    fn unrolled(&self, mut wide: Option<&mut Vec<ObsBits>>) -> Result<Dem, String> {
+        let stats = self.stats();
+        if stats.num_detectors > MAX_DETECTOR + 1 {
+            return Err(format!("the model names detector {}, past the largest index, {MAX_DETECTOR}", stats.num_detectors - 1));
         }
         let mut dem = Dem { num_detectors: stats.num_detectors as usize, num_observables: stats.num_observables, ..Dem::default() };
         dem.detector_coords = vec![Vec::new(); dem.num_detectors];
         let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
         unroll(&self.instrs, &mut st, &mut |ins| match ins {
-            DemInstr::Error { p, pieces, tag } => dem.mechanisms.push(mechanism(p, &pieces, tag)),
+            DemInstr::Error { p, pieces, tag } => match wide.as_deref_mut() {
+                None => dem.mechanisms.push(mechanism(p, &pieces, tag)),
+                Some(wide) => {
+                    let mut obs = ObsBits::new();
+                    for &t in pieces.iter().flatten().filter(|&&t| t & OBS != 0) {
+                        obs.flip((t & !OBS) as usize);
+                    }
+                    wide.push(obs);
+                    let low: Vec<Vec<u64>> = pieces.iter().map(|piece| piece.iter().copied().filter(|&t| t & OBS == 0 || t & !OBS < 64).collect()).collect();
+                    dem.mechanisms.push(mechanism(p, &low, tag));
+                }
+            },
             DemInstr::Detector { coords, targets, tag } => {
                 for d in targets {
                     let d = d as usize;

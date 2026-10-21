@@ -9,7 +9,7 @@ import numpy as np
 
 from . import _core
 from ._circuit import DetectorErrorModel
-from ._util import call, count, probability, real, rows_to_b8, u64_to_rows
+from ._util import call, count, probability, real, rows_to_b8, stride, u64_to_rows
 
 ModelLike = Union[DetectorErrorModel, str, Any]
 
@@ -1297,7 +1297,9 @@ class SearchDecoder(_DemDecoder):
     Answers equal to the ``tesseract_decoder`` package's for the same detector orders (both
     break ties between equally promising states as the platform's C++ library does; index
     orders are generated as Tesseract does, the others are this package's own). A shot the
-    search gives up on predicts no flips; ``return_low_confidence`` says which."""
+    search gives up on predicts no flips; ``return_low_confidence`` says which. Unlike this
+    package's other decoders on a model, it takes a model of any number of observables, as
+    Tesseract's does."""
 
     __slots__ = ()
 
@@ -1343,6 +1345,13 @@ class SearchDecoder(_DemDecoder):
     def det_orders(self) -> list:
         """The detector orders searched."""
         return [list(o) for o in self._x.orders]
+
+    def _predictions(self, raw: bytes, n: int, bit_packed: bool) -> np.ndarray:
+        # (Any number of observables: each shot's in as many little-endian 64-bit words as they
+        # need, at least one.)
+        bits = self.num_observables
+        a = np.frombuffer(raw, dtype="<u8").reshape(n, max(1, -(-bits // 64))).view(np.uint8)[:, : stride(bits)]
+        return a.copy() if bit_packed else np.unpackbits(a, axis=1, count=bits, bitorder="little")
 
     def decode_to_faults(self, syndrome: Any) -> list:
         """The faults the search found for one shot, as indices into the model's ``error``

@@ -758,7 +758,7 @@ impl SearchDecoder {
             visualize: false,
             verbose: false,
         };
-        Ok(SearchDecoder { inner: crate::search::Search::new(d, config)?, num_detectors: d.num_detectors })
+        Ok(SearchDecoder { inner: crate::search::Search::new(d, None, config)?, num_detectors: d.num_detectors })
     }
 
     /// One shot, given the detectors that fired. `weight` is the found faults' cost, `None`
@@ -787,7 +787,7 @@ impl SearchDecoder {
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
         let out = crate::batch::search_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
-        Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
+        Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o[0] }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
     }
 }
 
