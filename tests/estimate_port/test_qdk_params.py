@@ -74,15 +74,21 @@ def test_qdk_names_live():
         assert theirs == {k: getattr(getattr(az, cls), k) for k in theirs}, cls
 
 
-def test_estimator_error_derives_from_base_exception():
-    """As the QDK's: a BaseException, not an Exception, so ``except Exception`` lets it through."""
-    assert az.EstimatorError.__bases__ == (BaseException,) and not issubclass(az.EstimatorError, Exception)
+def test_estimator_error_is_a_value_error_with_the_qdks_args():
+    """A ValueError, as in 2.1 (the package's promise: bad input raises ValueError or TypeError), where the QDK's
+    derives from BaseException alone; caught by name as the QDK's is, and by ``except ValueError`` too. Its args
+    and repr are the QDK's. `QSharpError` likewise."""
+    assert az.EstimatorError.__bases__ == (ValueError,) and issubclass(az.EstimatorError, Exception)
+    assert az.QSharpError.__bases__ == (ValueError,)
     counts = az.LogicalCounts(num_qubits=10, t_count=100)
-    with pytest.raises(az.EstimatorError) as e:
-        try:
-            counts.estimate({"constraints": {"maxDuration": "1 ns"}})
-        except Exception:  # pragma: no cover - must not catch it
-            pytest.fail("EstimatorError caught as an Exception")
+    with pytest.raises(az.EstimatorError) as by_name:
+        counts.estimate({"constraints": {"maxDuration": "1 ns"}})
+    with pytest.raises(ValueError) as e:
+        counts.estimate({"constraints": {"maxDuration": "1 ns"}})
+    assert type(e.value) is type(by_name.value) is az.EstimatorError
+    with pytest.raises(ValueError) as parse:
+        counts.estimate([{"qubitParams": None}])
+    assert type(parse.value) is az.QSharpError
     err = e.value
     assert (err.code, err.message, err.reason) == ("Qdk.Qsc.Estimates.MaxDurationTooSmall", "Error estimating resources (Qdk.Qsc.Estimates.MaxDurationTooSmall):\nNo solution found for the provided maximum duration.", "No solution found for the provided maximum duration.")
     again = pickle.loads(pickle.dumps(err))
@@ -97,6 +103,16 @@ def test_estimator_error_args_and_repr_against_qdk_live():
     for code, message in (("c", "m"), ("Qdk.Qsc.Estimates.MaxDurationTooSmall", "No solution found.\nSecond line")):
         ours, theirs = az.EstimatorError(code, message), qdk_estimator.EstimatorError(code, message)
         assert (ours.args, repr(ours), str(ours), ours.code, ours.message) == (theirs.args, repr(theirs), str(theirs), theirs.code, theirs.message)
+    # The one divergence of each (documented in their docstrings): the port's are ValueErrors. The QDK's
+    # EstimatorError derives from BaseException alone; the QSharpError its estimate raises (its native module's)
+    # from Exception alone, whatever its type stub says.
+    with pytest.raises(BaseException) as raised:
+        qdk_estimator.LogicalCounts({"numQubits": 10, "tCount": 100}).estimate([{"qubitParams": None}])
+    qdk_qsharp_error = type(raised.value)
+    assert qdk_qsharp_error.__name__ == "QSharpError" and str(raised.value) == "cannot parse JSON: 'invalid type: null, expected a map at line 1 column 21'"
+    assert qdk_estimator.EstimatorError.__bases__ == (BaseException,) and not issubclass(qdk_estimator.EstimatorError, Exception)
+    assert qdk_qsharp_error.__bases__ == (Exception,) and not issubclass(qdk_qsharp_error, ValueError)
+    assert az.EstimatorError.__bases__ == az.QSharpError.__bases__ == (ValueError,)
 
 
 def test_estimator_params_warns_its_deprecation():
@@ -149,9 +165,32 @@ def test_estimate_takes_the_parameter_objects():
     single.error_budget = az.ErrorBudgetPartition(1e-4, 2e-4, 3e-4)
     single.distillation_unit_specifications = [az.DistillationUnitSpecification(name="15-1 RM")]
     assert counts.estimate(single).json == counts.estimate(single.as_dict()).json
-    # The QDK takes its EstimatorParams only: an item alone reaches its json.dumps, which refuses it.
-    with pytest.raises(TypeError, match="^Object of type EstimatorInputParamsItem is not JSON serializable$"):
-        counts.estimate(az.EstimatorInputParamsItem())
+    # Any other object with an as_dict is its one dict, as 2.1 takes it (the QDK refuses it: its json.dumps does).
+    item = az.EstimatorInputParamsItem()
+    item.qubit_params.name = az.QubitParams.MAJ_NS_E6
+    item.qec_scheme.name = az.QECScheme.FLOQUET_CODE
+    assert counts.estimate(item).json == counts.estimate(item.as_dict()).json and counts.estimate(item)["jobParams"]["qecScheme"]["name"] == "floquet_code"
+    assert counts.estimate(az.EstimatorInputParamsItem()).json == counts.estimate({}).json
+
+    class Mine:  # a user's own parameters, as 2.1 took them: no has_items is its one dict, has_items its items
+        has_items = False
+
+        def __init__(self, d):
+            self.d = d
+
+        def as_dict(self):
+            return self.d
+
+    assert counts.estimate(Mine({"errorBudget": 0.01})).json == counts.estimate({"errorBudget": 0.01}).json
+    del Mine.has_items
+    assert counts.estimate(Mine({"errorBudget": 0.01})).json == counts.estimate({"errorBudget": 0.01}).json
+    Mine.has_items = True
+    assert counts.estimate(Mine({"items": [{}, {"errorBudget": 0.01}]})).json == counts.estimate([{}, {"errorBudget": 0.01}]).json
+    # And what 2.1 refuses is refused alike: an object with no as_dict that JSON cannot encode, a value not a list.
+    with pytest.raises(TypeError, match="^Object of type object is not JSON serializable$"):
+        counts.estimate(object())
+    with pytest.raises(az.QSharpError, match=r"^cannot parse JSON: 'invalid type: integer `5`, expected a sequence at line 1 column 1'$"):
+        counts.estimate(5)
     unit = az.DistillationUnitSpecification(display_name="mine", **fx.CUSTOM_UNIT, physical_qubit_specification=az.ProtocolSpecificDistillationUnitSpecification(num_unit_qubits=31, duration_in_qubit_cycle_time=24))
     a = az.azure_estimate(counts, az.EstimatorQubitParams(name="qubit_maj_ns_e4", two_qubit_joint_measurement_error_rate=az.MeasurementErrorRate(1e-4, 2e-4)), az.EstimatorQecScheme(name="floquet_code"), az.ErrorBudgetPartition(), az.EstimatorConstraints(max_t_factories=3), [unit, az.DistillationUnitSpecification(name="15-1 space-efficient")])
     b = az.azure_estimate(counts, {"name": "qubit_maj_ns_e4", "twoQubitJointMeasurementErrorRate": {"process": 1e-4, "readout": 2e-4}}, {"name": "floquet_code"}, {"logical": 0.001 / 3, "tStates": 0.001 / 3, "rotations": 0.001 / 3}, {"maxTFactories": 3}, [dict(displayName="mine", numInputTs=15, numOutputTs=1, failureProbabilityFormula=fx.CUSTOM_UNIT["failure_probability_formula"], outputErrorRateFormula=fx.CUSTOM_UNIT["output_error_rate_formula"], physicalQubitSpecification={"numUnitQubits": 31, "durationInQubitCycleTime": 24}), {"name": "15-1 space-efficient"}])
@@ -170,9 +209,15 @@ def _set_qubit(qubit):
 def test_estimate_with_parameter_objects_against_qdk_live():
     """The same objects built from the QDK's classes and from the port's give the same estimate, the QDK's."""
     counts = {"numQubits": 12, "tCount": 500, "rotationCount": 4, "rotationDepth": 2, "cczCount": 3}
-    for lc, ns in ((qdk_estimator.LogicalCounts(counts), qdk_estimator), (az.LogicalCounts.fromdict(counts), az)):
-        with pytest.raises(TypeError, match="^Object of type EstimatorInputParamsItem is not JSON serializable$"):
-            lc.estimate(ns.EstimatorInputParamsItem())
+    # An item alone: the QDK refuses it (its json.dumps does); the port takes it as its one dict, as 2.1 does (a
+    # known divergence, kept for 2.x), giving the QDK's estimate of that dict.
+    with pytest.raises(TypeError, match="^Object of type EstimatorInputParamsItem is not JSON serializable$"):
+        qdk_estimator.LogicalCounts(counts).estimate(qdk_estimator.EstimatorInputParamsItem())
+    for ns in (qdk_estimator, az):
+        item = ns.EstimatorInputParamsItem()
+        item.qubit_params.name = ns.QubitParams.MAJ_NS_E4
+        item.error_budget = 0.01
+        assert az.LogicalCounts.fromdict(counts).estimate(item).json == qdk_estimator.LogicalCounts(counts).estimate(item.as_dict()).json
     for case in CASES:
         if "value" not in case["qdk"] or not case["make"]["new"].startswith("EstimatorParams") or case.get("call", ["as_dict"]) != ["as_dict"]:
             continue

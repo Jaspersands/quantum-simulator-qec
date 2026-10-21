@@ -74,16 +74,20 @@ NUM_TS_PER_ROTATION_B_COEFFICIENT = 4.86
 _ERROR_GROUPS = {"CannotParseJSON": "IOError", "CannotEvaluateExpression": "EvaluationError", "InvalidValue": "InvalidValueError", "InvalidFaultToleranceProtocol": "InvalidInputError", "NonPositiveLogicalCycleTime": "InvalidInputError", "NonPositivePhysicalQubitsPerLogicalQubit": "InvalidInputError", "InvalidErrorBudget": "InvalidInputError", "ConstraintsProvidedForFrontierEstimation": "InvalidInputError", "CannotComputeInverseBinomial": "TFactoryError"}
 
 
-class EstimatorError(BaseException):
+class EstimatorError(ValueError):
     """The QDK's `EstimatorError`: an estimate the QDK refuses, with its `code` (``Qdk.Qsc.Estimates.`` and the
     error's name, as ``Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget``) and its `message`, ``Error
     estimating resources (<code>):`` with the QDK's reason on the next line, which is also the error's string.
-    `reason` is the reason alone, what a batch's failed item holds as its ``message``. As the QDK's, it derives
-    from BaseException, not Exception: ``except Exception`` does not catch it (catch it by name); and its `args`
-    are its code and reason, as the QDK's are."""
+    `reason` is the reason alone, what a batch's failed item holds as its ``message``. Its `args` are its code
+    and reason, and its repr ``EstimatorError('<code>', '<reason>')``, as the QDK's are.
+
+    A ValueError here, as in 2.1, where the QDK's derives from BaseException alone: this package promises that
+    bad input raises a ValueError or a TypeError. Code that catches it by name, as with the QDK, works the same;
+    the one difference is that ``issubclass(EstimatorError, Exception)`` (and ``ValueError``) is true here, so
+    ``except Exception`` and ``except ValueError`` catch it too."""
 
     def __init__(self, code: str, reason: str):
-        # As the QDK's, BaseException's __init__ is not called: its `args` stay those given, (code, reason).
+        # As the QDK's, the base class's __init__ is not called: its `args` stay those given, (code, reason).
         self.code, self.reason = code, reason
         self.message = f"Error estimating resources ({code}):\n{reason}"
 
@@ -103,7 +107,13 @@ class EstimatorError(BaseException):
 class QSharpError(ValueError):
     """The QDK's `QSharpError` as its `LogicalCounts.estimate` raises it when the logical counts or the job
     parameters do not read: ``cannot parse JSON: '<serde's reason> at line 1 column <n>'``, the column counted
-    in the JSON text the QDK's Python sends (``json.dumps`` of the counts, of the list of items)."""
+    in the JSON text the QDK's Python sends (``json.dumps`` of the counts, of the list of items).
+
+    A ValueError here, as in 2.1, where the QDK's (``qdk.qsharp.QSharpError``, made in its native module) derives
+    from Exception alone (its type stub says BaseException; the class it raises derives from Exception): this
+    package promises that bad input raises a ValueError or a TypeError. Code that catches it by name or with
+    ``except Exception``, as with the QDK, works the same; the one difference is that ``issubclass(QSharpError,
+    ValueError)`` is true here, so ``except ValueError`` catches it too."""
 
 
 def _parse_error(reason: str) -> EstimatorError:
@@ -1457,16 +1467,16 @@ class LogicalCounts:
         ``qecScheme``, ``errorBudget``, ``constraints``, ``distillationUnitSpecifications``, ``estimateType``), or
         a batch for a list of them (an item that fails holds the QDK's ``code`` and ``message``; a single estimate
         that fails raises the QDK's `EstimatorError`, parameters it cannot read its `QSharpError`). An
-        `EstimatorParams` is taken as the QDK takes it: a batch's items, each with the top level's sections it
-        lacks (``as_dict()["items"]``), else its one dict; the QDK's own `EstimatorParams` is taken as well.
-        Another object in place of the dict or list (an `EstimatorInputParamsItem` too) is refused as the QDK's
-        JSON encoding refuses it, with its TypeError."""
+        `EstimatorParams`, the port's or the QDK's, is taken as the QDK takes it: a batch's items, each with the
+        top level's sections it lacks (``as_dict()["items"]``), else its one dict. Any other object with an
+        ``as_dict`` (an `EstimatorInputParamsItem`, the port's or the QDK's, among them) is taken as its one
+        dict, as 2.1 takes it, where the QDK's JSON encoding refuses it with a TypeError."""
         if params is None:
             items = [{}]
         elif isinstance(params, dict):
             items = [params]
-        elif hasattr(params, "as_dict") and hasattr(params, "has_items"):  # an EstimatorParams, here or the QDK's
-            items = params.as_dict()["items"] if params.has_items else [params.as_dict()]
+        elif hasattr(params, "as_dict"):
+            items = params.as_dict()["items"] if getattr(params, "has_items", False) else [params.as_dict()]
         else:
             items = params
         return _estimate_items(self, items)
@@ -2077,7 +2087,7 @@ def find_nondominated_tfactories(scheme: QECScheme, qubit: PhysicalQubit, templa
         population = _Population()
         try:
             population.push(_Point2D(default_t_factory(LogicalPatch.new(scheme, qubit, max_code_distance))))
-        except (ValueError, EstimatorError):
+        except ValueError:
             pass
         population.sort_items()
         return [p.item for p in population.items]
@@ -2085,7 +2095,7 @@ def find_nondominated_tfactories(scheme: QECScheme, qubit: PhysicalQubit, templa
     for d in distances:
         try:
             patches[d] = LogicalPatch.new(scheme, qubit, d)
-        except (ValueError, EstimatorError):
+        except ValueError:
             patches[d] = None
     units_map = _DistillationUnitsMap(qubit, patches, distances, templates)
     searcher = _ExhaustiveSearch(output_t_error_rate)
@@ -2667,7 +2677,7 @@ class AzureEstimator:
                 def distance_at(n: int) -> int:
                     try:
                         return self.scheme.compute_code_distance(self.qubit, self.required_logical_error_rate(budget.logical, n))
-                    except (ValueError, EstimatorError):
+                    except ValueError:
                         return self.scheme.max_code_distance + 2
 
                 lo = hi = num_cycles

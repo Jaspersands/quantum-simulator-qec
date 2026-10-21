@@ -712,7 +712,7 @@ def test_azure_errors_against_qdk_live(index):
 
 
 def test_azure_errors():
-    """`EstimatorError` is the QDK's, a BaseException (not an Exception), with its code and message (and pickles); a single estimate that fails
+    """`EstimatorError` is a ValueError (the QDK's derives from BaseException) with the QDK's code and message (and pickles); a single estimate that fails
     raises it, a batch keeps it per item; the building blocks raise the QDK's errors too, a dict they cannot read
     with serde's reason alone (a position means something only in the whole call's JSON text)."""
     import pickle
@@ -721,7 +721,7 @@ def test_azure_errors():
     with pytest.raises(az.EstimatorError) as e:
         azure_estimate(counts, error_budget=1.5)
     err = e.value
-    assert isinstance(err, BaseException) and not isinstance(err, Exception) and err.code == "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget" and err.reason == "The error budget must be between 0.0 and 1.0, provided input was `1.5`"
+    assert isinstance(err, ValueError) and err.code == "Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget" and err.reason == "The error budget must be between 0.0 and 1.0, provided input was `1.5`"
     assert str(err) == err.message == "Error estimating resources (Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget):\nThe error budget must be between 0.0 and 1.0, provided input was `1.5`"
     again = pickle.loads(pickle.dumps(err))
     assert (type(again), again.code, str(again)) == (az.EstimatorError, err.code, str(err))
