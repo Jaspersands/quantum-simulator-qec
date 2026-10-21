@@ -181,8 +181,7 @@ class chromobius_config(_deprecated_typed_config):
 
 
 class trt_decoder_config(_deprecated_typed_config):
-    """Deprecated: trt_decoder's parameters (this package has no trt_decoder, nor its schema:
-    the values are kept as given)."""
+    """Deprecated: trt_decoder's parameters."""
 
     _schema_name = "trt_decoder"
     _fields = ("onnx_load_path", "engine_load_path", "engine_save_path", "precision", "memory_workspace", "batch_size", "use_cuda_graph", "global_decoder", "global_decoder_params")

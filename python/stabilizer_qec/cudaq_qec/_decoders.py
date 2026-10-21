@@ -5,8 +5,8 @@
 # THIRD_PARTY_NOTICES.md), modified for stabilizer_qec: the decoders are this package's.
 """CUDA-Q QEC's decoder interface: results, the decoder registry and ``get_decoder``, and its
 decoders (``single_error_lut``, ``multi_error_lut``, ``pymatching``, ``sliding_window``,
-``nv-qldpc-decoder`` (``._qldpc``), ``chromobius`` and ``nv-fusion-decoder`` (``._matching``), the
-examples)."""
+``nv-qldpc-decoder`` (``._qldpc``), ``chromobius`` and ``nv-fusion-decoder`` (``._matching``),
+``trt_decoder`` (``._trt``), the examples)."""
 
 from __future__ import annotations
 
@@ -238,14 +238,25 @@ def _columns(H: Any) -> Tuple[int, int, List[List[int]]]:
 
 class _Inputs:
     """``decoder_init``: H as columns, the observable matrix (rows of faults) if any, and the
-    error rates."""
+    error rates; ``obs_cols``, the column count of an O given as a matrix (None otherwise);
+    ``obs_rank``, for a decoder that refuses an O that is not a matrix itself (trt_decoder), the
+    rank of the tensor CUDA-Q's binding makes of it, 0 when it makes none (None otherwise)."""
 
-    def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float]) -> None:
+    def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float], obs_cols: Optional[int] = None, obs_rank: Optional[int] = None) -> None:
         self.num_rows, self.num_cols, self.columns = num_rows, num_cols, columns
         self.O, self.num_observables, self.rates = O, num_obs, rates
+        self.obs_cols, self.obs_rank = obs_cols, obs_rank
 
     def has_observable_model(self) -> bool:
         return self.O is not None
+
+
+def _ndim(a: Any) -> int:
+    """np.ndim, or -1 for what numpy makes no array of (a ragged list)."""
+    try:
+        return int(np.ndim(a))
+    except ValueError:
+        return -1
 
 
 def _rows_of(O: Any) -> Tuple[int, int, List[List[int]]]:
@@ -694,18 +705,30 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     options = dict(options)
     O = None
     num_obs = 0
+    o_cols: Optional[int] = None
+    o_rank: Optional[int] = None
     if "O" in options:
-        num_obs, o_cols, O = _rows_of(options.pop("O"))
+        given = options.pop("O")
+        if name == "trt_decoder" and not hasattr(given, "tocsc") and _ndim(given) != 2:
+            # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does. CUDA-Q's
+            # binding passes an array of rank 2 or more as a tensor, which its rank check refuses
+            # past 2; anything else it passes as a vector, a number, a string or a map
+            # (kwargs_utils.h:41-128), which its read of O as a tensor refuses first: rank 0 here.
+            # Not mirrored: an equal-length list of lists, a vector of vectors to the binding, is
+            # taken as a matrix below, as for every decoder.)
+            o_rank = int(given.ndim) if isinstance(given, np.ndarray) and given.ndim > 2 else 0
+        else:
+            num_obs, o_cols, O = _rows_of(given)
         if o_cols != n and name == "pymatching" and options.get("output") == "observables":
             raise RuntimeError("Observable matrix column count must equal block_size")
     rates: List[float] = []
     if "error_rate_vec" in options:
         rates = [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
-    return _native(name, _Inputs(m, n, cols, O, num_obs, rates), options, typed)
+    return _native(name, _Inputs(m, n, cols, O, num_obs, rates, o_cols, o_rank), options, typed)
 
 
 def _register_plugins() -> None:
-    from . import _matching, _qldpc
+    from . import _matching, _qldpc, _trt
 
     _NATIVE["nv-qldpc-decoder"] = _qldpc._NvQldpc
 
@@ -713,6 +736,7 @@ def _register_plugins() -> None:
     _NATIVE_DEM["chromobius"] = _matching._Chromobius
     _NATIVE["nv-fusion-decoder"] = _matching._fusion_from_matrix
     _NATIVE_DEM["nv-fusion-decoder"] = lambda text, params, output: _matching._fusion_dem(text, params, output=output)
+    _NATIVE["trt_decoder"] = _trt._TrtDecoder
 
 
 _register_plugins()

@@ -71,7 +71,7 @@ def test_decoder_param_schema_introspection():
     assert by_key["inner_decoder_params"]["discriminator"] == "inner_decoder_name"
     assert qec.decoder_param_schema("no-such-decoder") is None
     assert qec.registered_decoder_schemas() == sorted(
-        ["chromobius", "multi_error_lut", "nv-fusion-decoder", "nv-qldpc-decoder", "pymatching", "single_error_lut", "single_error_lut_example", "sliding_window", "srelay_bp"]
+        ["chromobius", "multi_error_lut", "nv-fusion-decoder", "nv-qldpc-decoder", "pymatching", "single_error_lut", "single_error_lut_example", "sliding_window", "srelay_bp", "trt_decoder"]
     )
     # Every decoder with a schema is one this package builds (the nested srelay_bp aside).
     from stabilizer_qec.cudaq_qec._decoders import _NATIVE

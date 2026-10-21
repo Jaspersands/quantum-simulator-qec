@@ -221,9 +221,46 @@ matrices (`_css.py`) are ported from `include/cudaq/qec/extended_dem.h`,
 `lib/extended_dem.cpp`, `lib/dem_chunks_memory.cpp`, `lib/sparse_binary_matrix.cpp`,
 `lib/dem_construction.cpp`, `lib/dem_construction_code.cpp`, `lib/dem_construction_utils.cpp`,
 `python/bindings/py_extended_dem.cpp`, `python/bindings/py_dem_construction.cpp` and
-`python/bindings/sparse_matrix_casters.h`.
+`python/bindings/sparse_matrix_casters.h`. Its `trt_decoder` (`_trt.py`) is ported from
+`lib/decoders/plugins/trt_decoder/trt_decoder.cpp`, its network run on the CPU by `_onnx.py`
+(this package's reader of ONNX models, by the messages and field numbers of `onnx/onnx.proto`,
+Copyright (c) ONNX Project Contributors, Apache License 2.0, https://github.com/onnx/onnx, and its
+evaluator, whose float32 arithmetic and float8 conversion follow onnxruntime's, below); how
+TensorRT's ONNX parser imports quantization (and the messages it refuses with), and the input
+types it refuses (uint8 to DequantizeLinear, int32 and int64 to MatMul and Gemm), follow
+onnx-tensorrt (Copyright (c) NVIDIA Corporation, Apache License 2.0,
+https://github.com/onnx/onnx-tensorrt). `tests/cudaq_qec_port/models/surface_code_decoder.onnx`
+is CUDA-Q's own model (`assets/tests/`, a git-lfs object of https://github.com/NVIDIA/cudaq-qec,
+as cudaqx is now named); the other models there are built by `tools/cudaq_trt_models.py`, among
+them `qdq_int8.onnx`, `qdq_fp8.onnx`, `identity_dynamic.onnx`, `identity_uint8.onnx` and
+`cast_uint8_float.onnx` by CUDA-Q's own generators.
 `tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder, code and configuration tests (the C++ code
 tests in Python) with their import pointed at this package.
+
+## onnxruntime
+
+Copyright (c) Microsoft Corporation. Licensed under the MIT License:
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+> and associated documentation files (the "Software"), to deal in the Software without
+> restriction, including without limitation the rights to use, copy, modify, merge, publish,
+> distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+> Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+> BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+`python/stabilizer_qec/cudaq_qec/_onnx.py` computes as onnxruntime's CPU kernels do
+(https://github.com/microsoft/onnxruntime): the order of MLAS's float32 multiply-adds, MLAS's
+logistic (its coefficients) and the float8e4m3fn conversion of `core/framework/float8.h`.
+`tests/cudaq_qec_port/models/ort_outputs.npz` records outputs of onnxruntime 1.31.0 the tests
+compare against.
 
 ## Tsim
 
