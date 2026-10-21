@@ -231,6 +231,53 @@ def test_memory_budget_message():
         model.search_for_undetectable_logical_errors(**SEARCH, max_memory_bytes=-1)
 
 
+def _search_outcome(model, budget):
+    """The faults found (as text), or the sets stored when the budget ran out."""
+    import re
+
+    try:
+        return str(model.search_for_undetectable_logical_errors(**SEARCH, max_memory_bytes=budget))
+    except ValueError as e:
+        return int(re.fullmatch(r"Failed to find any logical errors\. \(memory budget of \d+ bytes reached after (\d+) states\)", str(e)).group(1))
+
+
+def test_memory_budget_is_monotone():
+    # A larger budget never stores fewer sets, so never fails where a smaller one finds the
+    # faults: every budget from 0 bytes on a model whose answer comes after one set (the answer
+    # is returned, not stored; 164 bytes failed "after 2 states" when it was stored), and on the
+    # d = 3 color code's model every budget to 4,000 bytes and windows of 300 above, past the
+    # least that finds its faults.
+    one = sq.DetectorErrorModel("error(0.1) D0 L0\nerror(0.1) D0")
+    color = sq.DetectorErrorModel(str(HYPER[0][1]().detector_error_model()))
+    windows = [range(b, b + 300) for b in (8_000, 20_000, 40_000, 70_000, 100_000)]
+    for model, budgets in [(one, range(0, 1_000)), (color, [b for r in [range(0, 4_000), *windows] for b in r])]:
+        want = str(model.search_for_undetectable_logical_errors(**SEARCH))
+        stored, least = 0, None
+        for budget in budgets:
+            got = _search_outcome(model, budget)
+            if isinstance(got, str):
+                assert got == want, budget
+                least = budget if least is None else least
+            else:
+                assert least is None, (budget, got)
+                assert got >= stored, (budget, got, stored)
+                stored = got
+        assert least is not None
+    assert _search_outcome(one, 164) == "error(1) D0\nerror(1) D0 L0"
+
+
+def test_memory_budget_leaves_graphlike_limits_alone():
+    # Limits of two and two take Stim's graph-like search, which keeps no sets: the budget does
+    # not cover it, and even 0 bytes finds Stim's faults.
+    c = noisy("surface_code:rotated_memory_x", 3)
+    limits = dict(dont_explore_detection_event_sets_with_size_above=2, dont_explore_edges_with_degree_above=2, dont_explore_edges_increasing_symptom_degree=False)
+    want = _terms(c.search_for_undetectable_logical_errors(**limits))
+    assert len(want) == 3
+    assert _terms(sq.Circuit(str(c)).search_for_undetectable_logical_errors(**limits, max_memory_bytes=0)) == want
+    model = sq.DetectorErrorModel(str(c.detector_error_model()))
+    assert [line.split()[1:] for line in str(model.search_for_undetectable_logical_errors(**limits, max_memory_bytes=0)).splitlines()] == want
+
+
 @pytest.mark.parametrize("text", [
     "R 0\nM 0\nDETECTOR rec[-1]",
     "R 0\nX_ERROR(0.1) 0\nM 0\nDETECTOR rec[-1]",

@@ -825,11 +825,17 @@ class Circuit:
         given. The faults found, each explained (by one location with
         ``canonicalize_circuit_errors``); their number bounds the distance from above.
 
-        Stim's search keeps every set it visits for as long as it runs. This one keeps them,
-        at some 50 bytes a set, within ``max_memory_bytes`` (``None``: half the machine's
-        physical memory) even while its store grows, and when they fill it raises Stim's message
-        for a search that finds nothing, then "(memory budget of N bytes reached after M
-        states)"."""
+        Stim's search keeps every set it visits for as long as it runs. This one keeps them
+        within ``max_memory_bytes`` (``None``: half the machine's physical memory; on Linux, half
+        the cgroup's memory limit if that is less) even while its store grows. A set of k
+        detectors takes 24 + 4k bytes and a share of the table, and the room the store keeps for
+        growing spreads that over 40 to 100 bytes of budget a set (50 to 80 for the usual sets of
+        two to four detectors); a larger budget never keeps fewer sets. When the sets fill it (or
+        the allocator refuses them), the search raises Stim's message for one that finds
+        nothing, then "(memory budget of N bytes reached after M states)". Limits of two and two
+        (``dont_explore_detection_event_sets_with_size_above=2`` and
+        ``dont_explore_edges_with_degree_above=2``) take Stim's graph-like search instead, which
+        keeps no such sets: the budget does not cover it."""
         from . import _explain
 
         raw = call(
@@ -1670,7 +1676,8 @@ class DetectorErrorModel:
     ) -> "DetectorErrorModel":
         """Stim's search for undetectable logical errors on the model (see
         ``Circuit.search_for_undetectable_logical_errors``, whose ``max_memory_bytes`` this
-        takes too): the faults found, as a model with each at probability 1."""
+        takes too; limits of two and two take the graph-like search, which it does not cover):
+        the faults found, as a model with each at probability 1."""
         return DetectorErrorModel._wrap(
             call(
                 self._d.search_undetectable,
