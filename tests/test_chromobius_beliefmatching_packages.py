@@ -172,6 +172,32 @@ def test_chromobius_refuses_as_chromobius_refuses():
         assert (ra[0], ra[1]) == (rb[0], rb[1]) if isinstance(ra, tuple) else np.array_equal(ra, rb)
 
 
+def test_chromobius_refuses_models_as_chromobius_refuses():
+    """Models Chromobius will not compile, refused with its messages: a detector without its
+    colour coordinate (declared without coordinates, with three, shifted to a 4th that is not a
+    whole -1..5), and a fault it cannot split into basic faults (seven detectors in one basis;
+    with its observable and an ignored detector; ten in Z once an X piece is split off)."""
+    chromobius = reference("chromobius")
+    import stabilizer_qec.chromobius as ours
+
+    seven = "".join(f"detector(0, {k}, 0, {k % 3}) D{k}\n" for k in range(7))
+    ten_z = "".join(f"detector({k}, 0, 0, {k % 3 + 3}) D{k}\n" for k in range(7, 17))
+    models = [
+        "error(0.1) D0\ndetector D0\n",
+        "error(0.1) D0 D1\ndetector(0, 0, 0) D0\ndetector(1, 0, 0) D1\n",
+        "shift_detectors(1, 2, 3, 0.5) 4\ndetector(0.25, 1.123456789, 0, 0) D1\n",
+        "detector(0, 0, 0, 6) D0\n",
+        "detector(0, 0, 0, -2) D0\n",
+        "repeat 2 {\n    detector(0, 0, 0, 1) D0\n    shift_detectors(0, 0, 0, 2) 1\n}\ndetector(0, 0, 0, 7) D0\n",
+        "error(0.1) D0 D1 D2 D3 D4 D5 D6\n" + seven,
+        "shift_detectors(0.5, 0, 0, 0) 0\nerror(0.125) D0 D1 D2 D3 D4 D5 D6 D7 L1\n" + seven + "detector(0, 7, 0, -1) D7\n",
+        "error(0.1) D0 D1 L2\nerror(0.1) D0 D1 D7 D8 D9 D10 D11 D12 D13 D14 D15 D16\n" + seven + ten_z,
+    ]
+    for text in models:
+        dem = stim.DetectorErrorModel(text)
+        assert raised(lambda: ours.compile_decoder_for_dem(dem)) == raised(lambda: chromobius.compile_decoder_for_dem(dem)), text
+
+
 def test_chromobius_decode_via_files(tmp_path):
     chromobius = reference("chromobius")
     import stabilizer_qec.chromobius as ours

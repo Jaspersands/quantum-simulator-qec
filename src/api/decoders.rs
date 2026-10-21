@@ -579,7 +579,7 @@ impl ColorMatching {
 
     fn build(dem: &DetectorErrorModel, ignore: bool) -> Result<ColorMatching> {
         let d = dem.flat()?;
-        Ok(ColorMatching { inner: crate::color::ColorDecoder::from_dem(d, ignore)?, num_detectors: d.num_detectors })
+        Ok(ColorMatching { inner: crate::color::ColorDecoder::from_dem(d, dem.program(), ignore)?, num_detectors: d.num_detectors })
     }
 
     /// The Möbius model the matching is found on: two detectors per detector, edges only.

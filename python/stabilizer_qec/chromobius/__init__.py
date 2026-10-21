@@ -9,12 +9,13 @@ are Chromobius's bit for bit and predictions are Chromobius's: on macOS on every
 colour-code shots checked. (Chromobius walks some tables in std::unordered_map order, which is
 the C++ library's own; with another library it may drag charge another way on some shots.)
 
+Chromobius's command-line program is ``python -m stabilizer_qec.chromobius`` (``predict``,
+``benchmark``, ``describe_decoder``; see its ``__main__``).
+
 Where it differs from Chromobius:
 
 - A model with a fault of probability 1 is refused (Chromobius's weights are then NaN);
   probabilities above 1/2 are negative-weight edges, as in Chromobius.
-- No command line: Chromobius's command-line program, built from its C++ sources, is not
-  ported; the decoder is, through Python and sinter.
 - ``decode_via_files`` with records wider than the model refuses a set bit past its detectors,
   as Chromobius does, but may name another detector."""
 

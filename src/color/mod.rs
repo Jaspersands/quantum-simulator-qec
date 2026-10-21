@@ -37,6 +37,7 @@ mod graphs;
 use std::collections::BTreeMap;
 
 use crate::dem::Dem;
+use crate::dem_program::{DemInstr, DemProgram};
 
 pub use decode::{ColorDecoder, ColorWork};
 
@@ -126,33 +127,81 @@ pub(crate) struct Lifted {
     pub colors: Vec<ColorBasis>,
     /// The Möbius model as Stim's text: edges only, no observables.
     pub mobius_text: String,
+    /// The Möbius model's detector declarations with coordinates (`collect_nodes`).
+    pub mobius_decls: Vec<(Vec<f64>, u64)>,
     pub rgb_reps: Vec<graphs::RgbEdge>,
+    pub charge: graphs::ChargeGraph,
     pub drag: graphs::DragGraph,
 }
 
-/// Each detector's colour and basis from its 4th coordinate (`collect_nodes_from_dem`,
-/// `detector_instruction_to_color_basis`).
-fn collect_nodes(dem: &Dem) -> Result<Vec<ColorBasis>, String> {
+/// Each detector's colour and basis from its 4th coordinate, walking the model's declarations as
+/// Chromobius does (`collect_nodes_from_dem`, `detector_instruction_to_color_basis`): a
+/// declaration without a whole 4th coordinate in -1..=5 is refused with Chromobius's message,
+/// and a detector declared twice takes its last declaration. Also the Möbius model's
+/// declarations with coordinates (`include_coords_in_mobius_dem`, which `describe_decoder`
+/// prints): each copy of a detector not ignored, at its detector's coordinates (shifted) with
+/// its sub-graph appended (NotRed 1, NotGreen 2, NotBlue 3).
+fn collect_nodes(program: &DemProgram, num_detectors: usize) -> Result<(Vec<ColorBasis>, Vec<(Vec<f64>, u64)>), String> {
+    let mut colors = vec![ColorBasis::default(); num_detectors];
+    let mut decls = Vec::new();
+    let (mut offset, mut shift) = (0u64, Vec::new());
+    collect_nodes_in(&program.instrs, &mut offset, &mut shift, &mut colors, &mut decls)?;
+    Ok((colors, decls))
+}
+
+fn collect_nodes_in(instrs: &[DemInstr], offset: &mut u64, shift: &mut Vec<f64>, colors: &mut [ColorBasis], decls: &mut Vec<(Vec<f64>, u64)>) -> Result<(), String> {
     const MAPPING: [(Charge, u8); 6] = [(1, 1), (2, 1), (3, 1), (1, 2), (2, 2), (3, 2)];
-    let mut colors = vec![ColorBasis::default(); dem.num_detectors];
-    for (d, coords) in dem.detector_coords.iter().enumerate().take(dem.num_detectors) {
-        if coords.is_empty() {
-            continue;
+    // The copies' sub-graphs: red in not-green and not-blue, green in not-red and not-blue,
+    // blue in not-red and not-green.
+    const SUBGRAPHS: [(f64, f64); 3] = [(2.0, 3.0), (1.0, 3.0), (1.0, 2.0)];
+    for ins in instrs {
+        match ins {
+            DemInstr::Detector { coords, targets, .. } => {
+                let c = if coords.len() > 3 { coords[3] + if shift.len() > 3 { shift[3] } else { 0.0 } } else { -2.0 };
+                if coords.len() <= 3 || !(-1.0..=5.0).contains(&c) || (c as i32) as f64 != c {
+                    let text = DemProgram { instrs: vec![ins.clone()] }.to_text_with(crate::dem_program::fmt_g6);
+                    return Err(format!(
+                        "Expected all detectors to have at least 4 coordinates, with the 4th identifying the basis and color (RedX=0, GreenX=1, BlueX=2, RedZ=3, GreenZ=4, BlueZ=5), but got {}",
+                        text.trim_end()
+                    ));
+                }
+                let cb = if c == -1.0 {
+                    ColorBasis { color: NEUTRAL, basis: 0, ignored: true }
+                } else {
+                    let (color, basis) = MAPPING[c as usize];
+                    ColorBasis { color, basis, ignored: false }
+                };
+                for &t in targets {
+                    let n = t + *offset;
+                    colors[n as usize] = cb;
+                    if !cb.ignored {
+                        let mut at: Vec<f64> = coords.iter().enumerate().map(|(k, &v)| v + shift.get(k).copied().unwrap_or(0.0)).collect();
+                        let (g0, g1) = SUBGRAPHS[cb.color as usize - 1];
+                        at.push(g0);
+                        decls.push((at.clone(), 2 * n));
+                        *at.last_mut().expect("a sub-graph coordinate") = g1;
+                        decls.push((at, 2 * n + 1));
+                    }
+                }
+            }
+            DemInstr::Shift { coords, by, .. } => {
+                *offset += by;
+                if shift.len() < coords.len() {
+                    shift.resize(coords.len(), 0.0);
+                }
+                for (k, &v) in coords.iter().enumerate() {
+                    shift[k] += v;
+                }
+            }
+            DemInstr::Repeat { count, body, .. } => {
+                for _ in 0..*count {
+                    collect_nodes_in(body, offset, shift, colors, decls)?;
+                }
+            }
+            DemInstr::Error { .. } | DemInstr::Observable { .. } => {}
         }
-        let c = coords.get(3).copied().unwrap_or(-2.0);
-        if !(-1.0..=5.0).contains(&c) || c.fract() != 0.0 || coords.len() < 4 {
-            return Err(format!(
-                "detector D{d}: expected at least 4 coordinates, the 4th identifying the basis and colour (RedX=0, GreenX=1, BlueX=2, RedZ=3, GreenZ=4, BlueZ=5, or -1 to ignore it), but got {coords:?}"
-            ));
-        }
-        colors[d] = if c == -1.0 {
-            ColorBasis { color: NEUTRAL, basis: 0, ignored: true }
-        } else {
-            let (color, basis) = MAPPING[c as usize];
-            ColorBasis { color, basis, ignored: false }
-        };
     }
-    Ok(colors)
+    Ok(())
 }
 
 /// A fault's detectors less the ignored ones (`extract_obs_and_dets_from_error_instruction`).
@@ -312,10 +361,67 @@ fn decompose(
     }
 }
 
+/// Chromobius's message for a fault it cannot split into basic faults
+/// (`decompose_dets_into_atoms`): the error instruction (unrolled; numbers at a fresh stream's
+/// precision), the detectors left in each basis, the pieces split off, the observables left,
+/// and each detector the instruction names with its coordinates and colour.
+#[allow(clippy::too_many_arguments)]
+fn decomposition_failure(
+    dem: &Dem,
+    program: &DemProgram,
+    fault: usize,
+    (x, z, obs): (&[u32], &[u32], u64),
+    atoms: &[Key],
+    atomic: &BTreeMap<Key, u64>,
+    remnants: &BTreeMap<Key, u64>,
+    colors: &[ColorBasis],
+) -> String {
+    use crate::dem_program::fmt_g6;
+    use std::fmt::Write as _;
+    let comma = |v: &[u32]| v.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(", ");
+    let obs_list = |mask: u64| (0..64).filter(|k| mask >> k & 1 == 1).map(|k| format!(" L{k}")).collect::<String>();
+    // The fault's instruction: the `fault`-th error of the unrolled model (`to_dem` makes one
+    // fault per error, in order).
+    let ins = program.flattened().ok().and_then(|flat| flat.instrs.into_iter().filter(|i| matches!(i, DemInstr::Error { .. })).nth(fault));
+    let text = ins.as_ref().map_or(String::new(), |i| DemProgram { instrs: vec![i.clone()] }.to_text_with(fmt_g6));
+    let mut s = String::from("Failed to decompose a complex error instruction into basic errors.\n");
+    let _ = writeln!(s, "    The instruction (after shifting): {}", text.trim_end());
+    let _ = writeln!(s, "    The undecomposed X detectors: [{}]", comma(x));
+    let _ = writeln!(s, "    The undecomposed Z detectors: [{}]", comma(z));
+    for e in atoms {
+        let dets: String = e.iter().filter(|&&d| d != BOUNDARY).map(|d| format!(" D{d}")).collect();
+        let l = atomic.get(e).or_else(|| remnants.get(e)).copied().unwrap_or(0);
+        let _ = writeln!(s, "    Decomposed piece:{dets}{}", obs_list(l));
+    }
+    if obs != 0 {
+        let _ = writeln!(s, "    The undecomposed observable mask:{}", obs_list(obs));
+    }
+    s += "    Detector data:\n";
+    if let Some(DemInstr::Error { pieces, .. }) = &ins {
+        for &t in pieces.iter().flatten().filter(|&&t| t & crate::dem_program::OBS == 0) {
+            let coords: Vec<String> = dem.detector_coords.get(t as usize).map_or(&[][..], |c| &c[..]).iter().map(|&c| fmt_g6(c)).collect();
+            let cb = colors[t as usize];
+            let _ = writeln!(
+                s,
+                "        D{t}: coords=[{}] ColorBasis{{.color={}, .basis={}{}}}",
+                coords.join(", "),
+                ["NEUTRAL", "R", "G", "B"][cb.color as usize],
+                ["UNKNOWN_BASIS", "X", "Z"][cb.basis as usize],
+                if cb.ignored { ", .ignored=true" } else { "" }
+            );
+        }
+    }
+    s += "This problem can unfortunately be quite difficult to debug. Likely causes are:\n";
+    s += "    (1) The source circuit has detectors with invalid color/basis annotations.\n";
+    s += "    (2) The source circuit is producing errors too complex to decompose (e.g. more than 6 symptoms in one basis).\n";
+    s += "    (3) chromobius is missing logic for a corner case present in the source circuit; a corner case that didn't appear in the test circuits used during development.\n";
+    s
+}
+
 impl Lifted {
     /// `Decoder::from_dem`.
-    pub fn from_dem(dem: &Dem, options: Options) -> Result<Lifted, String> {
-        let colors = collect_nodes(dem)?;
+    pub fn from_dem(dem: &Dem, program: &DemProgram, options: Options) -> Result<Lifted, String> {
+        let (colors, mobius_decls) = collect_nodes(program, dem.num_detectors)?;
         let mut faults = Vec::with_capacity(dem.mechanisms.len());
         for m in &dem.mechanisms {
             faults.push(fault_detectors(&m.detectors, &colors)?);
@@ -330,18 +436,7 @@ impl Lifted {
         for (i, (m, dets)) in dem.mechanisms.iter().zip(&faults).enumerate() {
             if let Err((x, z, obs)) = decompose(dets, m.observables, &colors, &atomic, &mut atoms, &mut remnant_edges) {
                 if !options.ignore_decomposition_failures {
-                    let list = |v: &[u32]| v.iter().map(|d| format!("D{d}")).collect::<Vec<_>>().join(" ");
-                    let mut msg = format!(
-                        "fault {i} (detectors {}) cannot be decomposed into the colour code's basic faults: X detectors [{}] and Z detectors [{}] remain",
-                        list(&m.detectors),
-                        list(&x),
-                        list(&z)
-                    );
-                    if obs != 0 {
-                        msg += &format!(" with observables mask {obs:#x}");
-                    }
-                    msg += ". Likely causes: detectors with wrong colour or basis annotations, or faults too complex to decompose (more than 6 detectors of one basis), as Chromobius reports.";
-                    return Err(msg);
+                    return Err(decomposition_failure(dem, program, i, (&x, &z, obs), &atoms, &atomic, &remnant_edges, &colors));
                 }
             }
             if options.drop_mobius_errors_involving_remnant_errors && !remnant_edges.is_empty() {
@@ -370,7 +465,58 @@ impl Lifted {
         let rgb_reps = graphs::choose_rgb_reps(&atomic, &colors);
         let charge = graphs::ChargeGraph::from_atomic(&atomic, colors.len());
         let drag = graphs::DragGraph::new(&charge, &atomic, &rgb_reps, &colors);
-        Ok(Lifted { colors, mobius_text: text, rgb_reps, drag })
+        Ok(Lifted { colors, mobius_text: text, mobius_decls, rgb_reps, charge, drag })
+    }
+
+    /// The decoder as Chromobius prints it (`operator<<(std::ostream &, const Decoder &)` with
+    /// `include_coords_in_mobius_dem`, as `chromobius describe_decoder` writes it): the charge
+    /// graph, each detector's representative, the drag graph and the Möbius model, its numbers
+    /// as Stim prints a model's on this machine.
+    pub fn describe(&self) -> Result<String, String> {
+        use std::fmt::Write as _;
+        let node = |n: u32| if n == BOUNDARY { "BOUNDARY_NODE".to_string() } else { n.to_string() };
+        let charge = |c: Charge| ["NEUTRAL", "R", "G", "B"][c as usize];
+        let mut s = String::from("chromobius::Decoder{\n\n.charge_graph=ChargeGraph{.nodes={\n");
+        for (k, near) in self.charge.nodes.iter().enumerate() {
+            let list: Vec<String> = near.iter().map(|(&n, &obs)| format!("{{{},{obs}}}", node(n))).collect();
+            let _ = writeln!(s, "    ChargeGraphNode{{.neighbors={{{}}}}}, // node {k}", list.join(", "));
+        }
+        s += "}}\n\n.rgb_reps={";
+        for (k, r) in self.rgb_reps.iter().enumerate() {
+            let [red, green, blue] = r.nodes;
+            let _ = write!(
+                s,
+                "\n    RgbEdge{{.red_node={}, .green_node={}, .blue_node={}, .obs_flip={}, .charge_flip={}}} // rep {k}",
+                node(red),
+                node(green),
+                node(blue),
+                r.obs,
+                charge(r.charge)
+            );
+        }
+        s += "\n}\n\n.drag_graph=DragGraph{.mmm={\n";
+        for (&(n1, n2, c1, c2), &(flip, _)) in &self.drag.map {
+            let _ = writeln!(s, "    {}@{n1}:{}@{n2} = {flip}", charge(c1), charge(c2));
+        }
+        // The Möbius model with coordinates: the declarations, the edges, and a last detector
+        // declared when the model names fewer than two per detector.
+        let mut text = String::new();
+        for (coords, n) in &self.mobius_decls {
+            let list: Vec<String> = coords.iter().map(|&c| crate::dem_program::fmt_exact(c)).collect();
+            let _ = writeln!(text, "detector({}) D{n}", list.join(", "));
+        }
+        for line in self.mobius_text.lines().filter(|l| l.starts_with("error")) {
+            text += line;
+            text.push('\n');
+        }
+        let mut program = DemProgram::parse(&text)?;
+        let n = 2 * self.colors.len() as u64;
+        if (program.stats().num_detectors as u64) < n {
+            program.instrs.push(DemInstr::Detector { coords: Vec::new(), targets: vec![n - 1], tag: String::new() });
+        }
+        let dem = program.to_stim();
+        let _ = write!(s, "}}}}\n\n.mobius_dem=stim::DetectorErrorModel{{\n{}\n}}\n\n}}", dem.strip_suffix('\n').unwrap_or(&dem));
+        Ok(s)
     }
 }
 

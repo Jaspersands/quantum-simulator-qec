@@ -2719,13 +2719,18 @@ impl PyDemColorMatcher {
     #[new]
     fn new(dem: &PyDem, ignore_decomposition_failures: bool) -> PyResult<Self> {
         let d = dem.flat()?;
-        let dec = crate::color::ColorDecoder::from_dem(d, ignore_decomposition_failures).map_err(err)?;
+        let dec = crate::color::ColorDecoder::from_dem(d, dem.dem.program(), ignore_decomposition_failures).map_err(err)?;
         Ok(PyDemColorMatcher { dec, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
 
     /// The Möbius model, as Stim's text.
     fn mobius_model(&self) -> String {
         self.dec.mobius_text().to_string()
+    }
+
+    /// The decoder as `chromobius describe_decoder` prints it (without its last newline).
+    fn describe(&self) -> PyResult<String> {
+        self.dec.describe().map_err(err)
     }
 
     /// (observables as u64 per shot, weights as f64, one byte per shot 1 where the lifting

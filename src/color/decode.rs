@@ -66,9 +66,11 @@ pub enum ColorError {
 }
 
 impl ColorDecoder {
-    pub fn from_dem(dem: &Dem, ignore_decomposition_failures: bool) -> Result<ColorDecoder, String> {
+    /// The decoder for a model, given unrolled (`dem`) and as written (`program`, whose
+    /// declarations give the detectors' colours as Chromobius reads them).
+    pub fn from_dem(dem: &Dem, program: &crate::dem_program::DemProgram, ignore_decomposition_failures: bool) -> Result<ColorDecoder, String> {
         let options = Options { ignore_decomposition_failures, ..Options::default() };
-        let lifted = Lifted::from_dem(dem, options)?;
+        let lifted = Lifted::from_dem(dem, program, options)?;
         let mobius = Dem::parse(&lifted.mobius_text)?;
         // The Möbius model's edges, merged as PyMatching merges them. One of probability above
         // 1/2 has a negative weight, which PyMatching matches at its absolute value with the
@@ -98,6 +100,12 @@ impl ColorDecoder {
     pub fn mobius_text(&self) -> &str {
         &self.lifted.mobius_text
     }
+
+    /// The decoder's tables and Möbius model as `chromobius describe_decoder` prints them.
+    pub fn describe(&self) -> Result<String, String> {
+        self.lifted.describe()
+    }
+
     pub fn work(&self) -> ColorWork {
         ColorWork {
             mwpm: Mwpm::new(self.graph.clone()),
